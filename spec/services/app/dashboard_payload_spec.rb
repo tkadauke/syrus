@@ -2327,4 +2327,20 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item.fetch(:bulk_actions)).to include(retry: true)
     end
   end
+
+  describe "localized presentation copy" do
+    it "localizes German labels without changing their raw keys" do
+      result = I18n.with_locale(:de) { call(subject: "job", section: "chrome") }
+
+      expect(result.dig(:controls, :columns, :required)).to include(key: "issue", title: "Issue")
+      expect(result.dig(:controls, :kanban_lanes)).to include(key: "running", title: "Läuft")
+    end
+
+    it "localizes Latin labels without changing their raw keys" do
+      result = I18n.with_locale(:la) { call(subject: "workflow", section: "chrome") }
+
+      expect(result.dig(:controls, :columns, :required)).to include(key: "workflow", title: "Workflow")
+      expect(result.dig(:controls, :columns, :optional)).to include(key: "run_count", title: "Run")
+    end
+  end
 end

@@ -26,7 +26,9 @@ module App
 
       def job_lanes_json
         visible_lanes = user.dashboard_visible_kanban_lanes(:jobs)
-        lane_defs = JOB_KANBAN_LANES.select { |lane| visible_lanes.include?(lane.fetch(:key)) }
+        lane_defs = JOB_KANBAN_LANES.filter_map do |key|
+          { key: key, title: I18n.t("api.dashboard.lanes.#{key}") } if visible_lanes.include?(key)
+        end
         records_by_lane = lane_defs.to_h { |lane| [ lane.fetch(:key), [] ] }
         records = PerformanceLogging.phase("dashboard_kanban_jobs.query", lanes: visible_lanes.join(","), limit: kanban_limit) do
           job_kanban_candidate_scope(visible_lanes)

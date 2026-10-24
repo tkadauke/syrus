@@ -65,7 +65,7 @@ module Api
           end
 
           render json: {
-            message: "Dashboard preferences updated.",
+            message: dashboard_t("preferences_updated"),
             dashboard_preferences: Current.user.reload.dashboard_preferences
           }
         rescue ActionController::ParameterMissing, ArgumentError => e
@@ -75,7 +75,7 @@ module Api
         def landing_pause
           pausing = !Current.user.landing_paused?
           if pausing && !ActiveModel::Type::Boolean.new.cast(params[:confirmed])
-            render_error("confirmation_required", "Confirm pausing the landing queue.", status: :unprocessable_content)
+            render_error("confirmation_required", dashboard_t("confirm_landing_pause"), status: :unprocessable_content)
             return
           end
 
@@ -83,7 +83,7 @@ module Api
           LandingQueueProcessorJob.perform_later unless Current.user.landing_paused?
 
           render json: {
-            message: Current.user.landing_paused? ? "Landing paused." : "Landing resumed.",
+            message: dashboard_t(Current.user.landing_paused? ? "landing_paused" : "landing_resumed"),
             landing_paused: Current.user.landing_paused?
           }
         end
@@ -91,7 +91,7 @@ module Api
         def bulk_jobs
           job_ids = Array(params[:job_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
           if job_ids.empty?
-            render_error("validation_failed", "Select at least one job.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("select_job"), status: :unprocessable_content)
             return
           end
 
@@ -131,14 +131,14 @@ module Api
           when "apply_tag"
             bulk_apply_tag(jobs)
           else
-            render_error("validation_failed", "Choose a bulk action.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("choose_bulk_action"), status: :unprocessable_content)
           end
         end
 
         def bulk_epics
           epic_ids = Array(params[:epic_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
           if epic_ids.empty?
-            render_error("validation_failed", "Select at least one Epic.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("select_epic"), status: :unprocessable_content)
             return
           end
 
@@ -148,20 +148,20 @@ module Api
           when "start"
             bulk_start_epics(epics)
           else
-            render_error("validation_failed", "Choose a bulk action.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("choose_bulk_action"), status: :unprocessable_content)
           end
         end
 
         def epic_auto_approval
           epic = accessible_epics.find(params[:id])
           unless RepositoryPolicy.new(Current.user, epic.repository).write?
-            render_error("forbidden", "Only a repository member with write access, or an admin, can update Epic auto-approval.", status: :forbidden)
+            render_error("forbidden", dashboard_t("epic_auto_approval_forbidden"), status: :forbidden)
             return
           end
           epic.update!(params.expect(epic: [ :auto_approve_mode ]))
 
           render json: {
-            message: "Epic auto-approval updated.",
+            message: dashboard_t("epic_auto_approval_updated"),
             epic: {
               id: epic.id,
               auto_approve_mode: epic.auto_approve_mode
@@ -194,7 +194,7 @@ module Api
 
         def bulk_retry_jobs(jobs, agent_provider: nil)
           if agent_provider.present? && !Current.user.agent_provider_configured?(agent_provider)
-            render_error("validation_failed", "That agent is not available for retry.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("retry_agent_unavailable"), status: :unprocessable_content)
             return
           end
 
@@ -206,7 +206,7 @@ module Api
           )
 
           if result.affected_job_ids.empty?
-            render_error("validation_failed", result.first_error || "No selected jobs were eligible for retry.", status: :unprocessable_content)
+            render_error("validation_failed", result.first_error || dashboard_t("none_retryable"), status: :unprocessable_content)
           else
             agent_suffix = agent_provider.present? ? " with #{agent_provider.titleize}" : ""
             skipped_suffix = result.skipped.any? ? " Skipped #{helpers.pluralize(result.skipped.size, 'job')}." : ""
@@ -239,7 +239,7 @@ module Api
           end
 
           if closed_ids.empty?
-            render_error("validation_failed", "No selected jobs were open.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_open"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("#{helpers.pluralize(closed_ids.size, 'job')} closed.", skipped_ids),
@@ -280,7 +280,7 @@ module Api
           skipped_ids += result.failed.map(&:id)
 
           if approved_jobs.empty? && skipped_auto_merge_disabled.empty?
-            render_error("validation_failed", "No selected jobs were awaiting approval.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_awaiting_approval"), status: :unprocessable_content)
           elsif approved_jobs.empty?
             render_error("validation_failed", bulk_auto_merge_disabled_message(skipped_auto_merge_disabled), status: :unprocessable_content)
           else
@@ -311,7 +311,7 @@ module Api
           end
 
           if accepted_ids.empty?
-            render_error("validation_failed", "No selected jobs were awaiting a triage decision.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_awaiting_triage"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Accepted #{helpers.pluralize(accepted_ids.size, 'job')} for work.", skipped_ids),
@@ -336,7 +336,7 @@ module Api
           end
 
           if claimed_ids.empty?
-            render_error("validation_failed", "No selected jobs were available to claim.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_claimable"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Claimed #{helpers.pluralize(claimed_ids.size, 'job')}.", skipped_ids),
@@ -361,7 +361,7 @@ module Api
           end
 
           if released_ids.empty?
-            render_error("validation_failed", "No selected jobs are claimed by you.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_claimed_by_you"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Released #{helpers.pluralize(released_ids.size, 'claim')}.", skipped_ids),
@@ -387,7 +387,7 @@ module Api
           end
 
           if released_ids.empty?
-            render_error("validation_failed", "No selected backlogged jobs were eligible to start.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_backlogged_startable"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Released #{helpers.pluralize(released_ids.size, 'job')} from backlog.", skipped_ids),
@@ -413,7 +413,7 @@ module Api
           end
 
           if moved_ids.empty?
-            render_error("validation_failed", "No selected jobs were eligible to move to backlog.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_movable_to_backlog"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Moved #{helpers.pluralize(moved_ids.size, 'job')} to backlog.", skipped_ids),
@@ -442,7 +442,7 @@ module Api
           end
 
           if assigned_ids.empty?
-            render_error("validation_failed", "No selected jobs could be assigned to that owner.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_assignable"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Assigned #{helpers.pluralize(assigned_ids.size, 'job')} to #{owner.email_address}.", skipped_ids),
@@ -457,7 +457,7 @@ module Api
         def bulk_set_priority(jobs)
           priority = params[:priority].to_s
           unless Job::PRIORITIES.include?(priority)
-            render_error("invalid_priority", "Invalid priority value.", status: :unprocessable_content)
+            render_error("invalid_priority", dashboard_t("invalid_priority"), status: :unprocessable_content)
             return
           end
 
@@ -474,7 +474,7 @@ module Api
           end
 
           if updated_ids.empty?
-            render_error("validation_failed", "No selected jobs could be updated.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_updatable"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Set #{helpers.pluralize(updated_ids.size, 'job')} to #{priority} priority.", skipped_ids),
@@ -489,12 +489,12 @@ module Api
         def find_bulk_owner
           owner_user_id = params[:owner_user_id].presence || params.dig(:job, :owner_user_id).presence
           unless owner_user_id
-            render_error("validation_failed", "Choose an owner.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("choose_owner"), status: :unprocessable_content)
             return nil
           end
 
           User.find_by(id: owner_user_id).tap do |owner|
-            render_error("not_found", "Owner user not found.", status: :not_found) unless owner
+            render_error("not_found", dashboard_t("owner_not_found"), status: :not_found) unless owner
           end
         end
 
@@ -527,7 +527,7 @@ module Api
           end
 
           if paused_ids.empty?
-            render_error("validation_failed", "No selected jobs were available to pause.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_pausable"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Paused #{helpers.pluralize(paused_ids.size, 'job')}. Active steps will finish before the pause takes effect.", skipped_ids),
@@ -552,7 +552,7 @@ module Api
           end
 
           if unpaused_ids.empty?
-            render_error("validation_failed", "No selected jobs were manually paused.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_unpausable"), status: :unprocessable_content)
           else
             render_bulk_success(
               bulk_partial_message("Unpaused #{helpers.pluralize(unpaused_ids.size, 'job')}. Eligible workflows will resume subject to admission control.", skipped_ids),
@@ -569,12 +569,12 @@ module Api
             .sort_by { |job| [ job.created_at || Time.zone.at(0), job.id ] }
             .reverse
           if review_jobs.empty?
-            render_error("validation_failed", "No selected jobs were awaiting approval.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_awaiting_approval"), status: :unprocessable_content)
             return
           end
 
           render json: {
-            message: "Review selected jobs.",
+            message: dashboard_t("review_selected"),
             action: "review_approve",
             review_jobs: review_jobs.map { |job| review_job_json(job) }
           }
@@ -587,7 +587,7 @@ module Api
           reviewed_jobs = writable_jobs(jobs).select { |job| ids_to_approve.include?(job.id.to_s) && job.implemented? }
 
           if reviewed_jobs.empty?
-            render_error("validation_failed", "No reviewed jobs were approved.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_reviewed_approved"), status: :unprocessable_content)
             return
           end
 
@@ -601,7 +601,7 @@ module Api
           approved_jobs = result.approved
 
           if approved_jobs.empty?
-            render_error("validation_failed", "No reviewed jobs were approved.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_reviewed_approved"), status: :unprocessable_content)
             return
           end
 
@@ -631,7 +631,7 @@ module Api
           end
 
           if applied_ids.empty?
-            render_error("validation_failed", "No selected jobs could be tagged.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_taggable"), status: :unprocessable_content)
             return
           end
 
@@ -648,7 +648,7 @@ module Api
           if params[:tag_id].present?
             tag = Current.user.tags.find_by(id: params[:tag_id])
             unless tag
-              render_error("not_found", "Tag not found.", status: :not_found)
+              render_error("not_found", dashboard_t("tag_not_found"), status: :not_found)
               return nil
             end
             return tag
@@ -656,7 +656,7 @@ module Api
 
           name = params[:tag_name].to_s.strip
           if name.blank?
-            render_error("validation_failed", "Choose or enter a tag.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("choose_tag"), status: :unprocessable_content)
             return nil
           end
 
@@ -669,7 +669,7 @@ module Api
 
         def bulk_start_epics(epics)
           if Current.user.product_owner?
-            render_error("forbidden", "Product owners cannot advance Epics beyond backlog.", status: :forbidden)
+            render_error("forbidden", dashboard_t("product_owner_epic_start_forbidden"), status: :forbidden)
             return
           end
 
@@ -686,7 +686,7 @@ module Api
           end
 
           if started_ids.empty?
-            render_error("validation_failed", "No selected Epics were ready to start.", status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_epics_ready"), status: :unprocessable_content)
           else
             render_epic_bulk_success(
               "#{helpers.pluralize(started_ids.size, 'Epic')} moved to In Progress.",
@@ -728,6 +728,10 @@ module Api
             affected_job_ids: affected_job_ids,
             skipped_job_ids: skipped_job_ids
           }.merge(extra)
+        end
+
+        def dashboard_t(key, **options)
+          t("api.dashboard.#{key}", **options)
         end
 
         def render_epic_bulk_success(message, affected_epic_ids:, action:, skipped_epic_ids: [], extra: {})

@@ -6,8 +6,8 @@ module App
       # Chrome-payload serialization extracted from DashboardPayload: the smart-folder
       # list, saved preferences, controls, ownership chrome, repository-health / main-
       # branch-repair blocks, and the column / kanban-lane option lists. Mixed back in
-      # via ActiveSupport::Concern, so it reads the same @user/@params, the COLUMN_LABELS
-      # / JOB_KANBAN_LANES constants, and the shared *_json helpers through the ancestry.
+      # via ActiveSupport::Concern, so it reads the same @user/@params and
+      # shared constants/helpers through the ancestry.
 
       def smart_folders_json
         folders = PerformanceLogging.phase("dashboard_smart_folders.query", subject: subject) do
@@ -330,7 +330,7 @@ module App
       def column_json(table, column)
         {
           key: column,
-          title: COLUMN_LABELS.dig(table, column) || column.humanize
+          title: I18n.t("api.dashboard.columns.#{table}_#{column}", default: I18n.t("api.dashboard.columns.#{column}", default: column.humanize))
         }
       end
 
@@ -344,7 +344,7 @@ module App
       end
 
       def kanban_lane_title(lane)
-        return JOB_KANBAN_LANES.find { |definition| definition.fetch(:key) == lane }&.fetch(:title) || lane.humanize if subject == "job"
+        return I18n.t("api.dashboard.lanes.#{lane}", default: lane.humanize) if subject == "job"
 
         lane.humanize
       end
