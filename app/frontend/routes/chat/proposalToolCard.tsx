@@ -139,7 +139,7 @@ function proposalMedia(references: string[], presentation?: ToolCardContext["pre
       return {
         reference,
         title: image?.title || image?.filename || reference,
-        detail: image?.content_type || "Chat image",
+        detail: image?.content_type || i18n.t("chat:chat_image"),
         kind: "image",
         src: image?.image_url || image?.file_path || derivedSrc,
         previewKind: image?.image_url || image?.file_path || derivedSrc ? "image" : "metadata"
@@ -173,7 +173,7 @@ function proposalMedia(references: string[], presentation?: ToolCardContext["pre
       }
     }
 
-    return { reference, title: reference, detail: "Media attachment", kind: "image", src: null, previewKind: "metadata" }
+    return { reference, title: reference, detail: i18n.t("chat:media_attachment"), kind: "image", src: null, previewKind: "metadata" }
   })
 }
 

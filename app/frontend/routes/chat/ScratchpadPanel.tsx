@@ -210,7 +210,7 @@ export function ScratchpadPanel({
           </div>
           {create.isError ? (
             <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">
-              {errorMessage(create.error, "Could not add item.")}
+              {errorMessage(create.error, t("scratchpad_add_error"))}
             </p>
           ) : null}
         </>
@@ -300,7 +300,7 @@ function ScratchpadItemRow({
       mergeChatPayloadUpdate(queryClient, queryKey, deleted)
       onLoadToInput(itemDraft)
     } catch (error) {
-      setLoadError(errorMessage(errorAsError(error), "Could not load item."))
+      setLoadError(errorMessage(errorAsError(error), t("scratchpad_load_error")))
     } finally {
       setLoadPending(false)
     }
@@ -309,7 +309,7 @@ function ScratchpadItemRow({
   if (editing) {
     return (
       <div className="rounded border border-brand/30 bg-brand/10 p-2">
-        {update.isError ? <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Could not update item.")}</div> : null}
+        {update.isError ? <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, t("scratchpad_update_error"))}</div> : null}
         <textarea
           aria-label={t("scratchpad_edit_item")}
           className="min-h-16 w-full resize-y rounded border border-brand/30 bg-white px-2 py-1.5 text-xs focus:border-brand focus:ring-brand dark:bg-gray-950 dark:text-gray-100"
@@ -406,7 +406,7 @@ function ScratchpadItemRow({
           </button>
         </div>
       </div>
-      {queue.isError ? <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(queue.error, "Could not move to queue.")}</div> : null}
+      {queue.isError ? <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(queue.error, t("scratchpad_queue_error"))}</div> : null}
     </div>
   )
 }

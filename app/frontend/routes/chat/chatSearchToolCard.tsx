@@ -363,9 +363,9 @@ function MessageAttachments({ attachments }: { attachments: MessageAttachment[] 
 
 function PaginationNote({ pagination }: { pagination: Pagination }) {
   const pieces = [
-    pagination.page != null && pagination.totalPages != null ? `Page ${pagination.page} of ${pagination.totalPages}` : null,
-    pagination.totalCount != null ? `${pagination.totalCount} total` : null,
-    pagination.hasNextPage === true ? "More available" : pagination.hasNextPage === false ? "End of results" : null
+    pagination.page != null && pagination.totalPages != null ? i18n.t("chat:page_of_pages", { page: pagination.page, total: pagination.totalPages }) : null,
+    pagination.totalCount != null ? i18n.t("chat:total_count", { count: pagination.totalCount }) : null,
+    pagination.hasNextPage === true ? i18n.t("chat:more_available") : pagination.hasNextPage === false ? i18n.t("chat:end_of_results") : null
   ].filter(Boolean)
   if (pieces.length === 0) return null
   return <div className="text-2xs text-gray-500 dark:text-gray-400">{pieces.join(" · ")}</div>
@@ -515,9 +515,9 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
   if (result.hits.length === 0)
     return (
       <CardShell>
-        {result.query ? <Row label="Query" value={result.query} /> : null}
+        {result.query ? <Row label={i18n.t("chat:query")} value={result.query} /> : null}
         {result.limit != null ? <Row label="Limit" value={String(result.limit)} /> : null}
-        <EmptyState>{result.message || "No matching messages found."}</EmptyState>
+        <EmptyState>{result.message || i18n.t("chat:no_matching_messages")}</EmptyState>
       </CardShell>
     )
 
@@ -649,7 +649,7 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
         {result.chatId ? (
           <ChatTitle chatId={result.chatId} title={result.chatTitle || `Chat ${result.chatId}`} />
         ) : (
-          <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || i18n.t("chat:chat_transcript")}</span>
         )}
         {result.page != null ? <Badge>page {result.page}</Badge> : null}
         {result.hasMore === true ? <Badge>more messages available</Badge> : result.hasMore === false ? <Badge>end of messages</Badge> : null}

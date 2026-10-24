@@ -103,6 +103,7 @@ import { formatScheduledTime, parseScheduleCommandArgs } from "../../lib/schedul
 import { useBugReportTrigger } from "../../lib/bugReportContext"
 import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttachments"
 import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
 import {
@@ -496,7 +497,7 @@ export function Compose({
     onError: (error, draft) => {
       submittedDraftRef.current = null
       finishSubmittedDraft(draft, false)
-      onNotice(errorMessage(error, "Message could not be sent."))
+      onNotice(errorMessage(error, t("message_send_error")))
     }
   })
   const runShellCommand = useMutation({
@@ -509,7 +510,7 @@ export function Compose({
       onNotice(null)
     },
     onError: (error) => {
-      onNotice(errorMessage(error, "Shell command could not be started."))
+      onNotice(errorMessage(error, t("shell_command_start_error")))
     }
   })
   const systemAction = useMutation<ChatPayloadUpdate | ChatCreatedPayload | ChatBranchPayload | ShareChatPayload, Error, ChatSystemAction>({
@@ -546,7 +547,7 @@ export function Compose({
       if (action.kind === "share") {
         await navigator.clipboard.writeText((updated as ShareChatPayload).share_url)
         setText("")
-        onNotice("Share link copied to clipboard")
+        onNotice(t("share_link_copied"))
         return
       }
 
@@ -562,12 +563,12 @@ export function Compose({
     mutationFn: async (action) => {
       if (action.kind === "bookmark") {
         const updated = await createChatTopicBookmark(appendSearch(payload.paths.app_bookmarks_path, search), action.label)
-        return { payload: updated, notice: `Bookmark saved: ${action.label}` }
+        return { payload: updated, notice: t("bookmark_saved", { label: action.label }) }
       }
 
       if (action.kind === "discard") {
         const updated = await rejectChatProposal(appendSearch(action.path, search))
-        return { notice: updated.message || "Proposal discarded" }
+        return { notice: updated.message || t("proposal_discarded") }
       }
 
       if (action.kind === "job") {
@@ -575,13 +576,13 @@ export function Compose({
         let notice: string
         if (action.action === "cancel") {
           endpoint = "cancel"
-          notice = "Job cancelled"
+          notice = t("job_cancelled_notice")
         } else if (action.action === "retry") {
           endpoint = "run_again"
-          notice = "Job queued for retry"
+          notice = t("job_retry_queued_notice")
         } else {
           endpoint = "approve"
-          notice = "Job approved"
+          notice = t("job_approved_notice")
         }
         const path = `/api/v1/app/jobs/${encodeURIComponent(action.jobId)}/${endpoint}`
         await postJobCommand(path)
@@ -625,7 +626,7 @@ export function Compose({
             }
           : currentPayload
       )
-      return { notice: "Canvas cleared" }
+      return { notice: t("canvas_cleared") }
     },
     onSuccess: (result, action) => {
       if (result.payload) {
@@ -650,7 +651,7 @@ export function Compose({
       const submittedDraft = submittedGoalDraftRef.current
       submittedGoalDraftRef.current = null
       if (action.kind === "goal" && submittedDraft) finishSubmittedDraft(submittedDraft, false)
-      onNotice(errorMessage(error, "Command failed."))
+      onNotice(errorMessage(error, t("command_failed")))
     }
   })
   const scheduleMessage = useMutation({
@@ -670,10 +671,10 @@ export function Compose({
       } catch (_error) {
         // Local storage can be unavailable in hardened browser modes.
       }
-      onNotice(`Message scheduled for ${formatScheduledTime(new Date(result.fire_at))}.`)
+      onNotice(t("message_scheduled_for", { time: formatScheduledTime(new Date(result.fire_at)) }))
     },
     onError: (error) => {
-      onNotice(errorMessage(error, "Could not schedule message."))
+      onNotice(errorMessage(error, t("schedule_message_error")))
     }
   })
   const stash = useMutation({
@@ -795,7 +796,7 @@ export function Compose({
       .then((detail) => {
         const prUrl = detail.job.pr_url
         if (!prUrl) {
-          onNotice("This job doesn't have a pull request yet.")
+          onNotice(t("job_has_no_pull_request"))
           return
         }
         window.open(prUrl, "_blank", "noopener,noreferrer")
@@ -803,7 +804,7 @@ export function Compose({
         onNotice(null)
       })
       .catch(() => {
-        onNotice("Could not load job.")
+        onNotice(t("job_load_error"))
       })
   }
 
@@ -858,7 +859,7 @@ export function Compose({
     const argsText = commandMatch.argsText
     if (command.name === "/rename") {
       if (!argsText) {
-        onNotice("Usage: /rename <name>")
+        onNotice(t("usage_rename"))
         return
       }
 
@@ -880,7 +881,7 @@ export function Compose({
 
     if (command.name === "/branch") {
       setText("")
-      onNotice("Branching chat…")
+      onNotice(t("branching_chat"))
       systemAction.mutate({ kind: "branch" })
       return
     }
@@ -909,7 +910,7 @@ export function Compose({
     if (command.name === "/job") {
       const id = numericArg(argsText)
       if (!id) {
-        onNotice("Usage: /job <id>")
+        onNotice(t("usage_job"))
         return
       }
 
@@ -921,7 +922,7 @@ export function Compose({
     if (command.name === "/epic") {
       const id = numericArg(argsText)
       if (!id) {
-        onNotice("Usage: /epic <id>")
+        onNotice(t("usage_epic"))
         return
       }
 
@@ -932,7 +933,7 @@ export function Compose({
 
     if (command.name === "/prs") {
       if (!payload.chat.repository) {
-        onNotice("Attach a repository to view pull requests.")
+        onNotice(t("attach_repository_for_pull_requests"))
         return
       }
 
@@ -943,7 +944,7 @@ export function Compose({
 
     if (command.name === "/issues") {
       if (!payload.chat.repository) {
-        onNotice("Attach a repository to view issues.")
+        onNotice(t("attach_repository_for_issues"))
         return
       }
 
@@ -965,14 +966,14 @@ export function Compose({
     }
 
     if (command.name === "/proposals") {
-      if (!scrollToLastProposalCard()) onNotice("No proposal cards found.")
+      if (!scrollToLastProposalCard()) onNotice(t("no_proposal_cards"))
       setText("")
       return
     }
 
     if (command.name === "/bookmark") {
       if (!argsText) {
-        onNotice("Usage: /bookmark <label>")
+        onNotice(t("usage_bookmark"))
         return
       }
 
@@ -983,7 +984,7 @@ export function Compose({
     if (command.name === "/discard") {
       const proposal = findProposalBySlug(payload, argsText)
       if (!proposal) {
-        onNotice(`Proposal not found: ${argsText}`)
+        onNotice(t("proposal_not_found", { slug: argsText }))
         return
       }
 
@@ -994,7 +995,7 @@ export function Compose({
     if (command.name === "/cancel" || command.name === "/retry" || command.name === "/approve") {
       const id = numericArg(argsText)
       if (!id) {
-        onNotice(`Usage: ${command.name} <id>`)
+        onNotice(t("usage_command_id", { command: command.name }))
         return
       }
 
@@ -1009,7 +1010,7 @@ export function Compose({
     if (command.name === "/review") {
       const id = numericArg(argsText)
       if (!id) {
-        onNotice("Usage: /review <id>")
+        onNotice(t("usage_review"))
         return
       }
 
@@ -1020,13 +1021,13 @@ export function Compose({
     if (command.name === "/copy") {
       const lastAssistantMessage = lastAssistantRenderedMessage(payload.messages)
       if (!lastAssistantMessage) {
-        onNotice("No assistant response to copy")
+        onNotice(t("no_assistant_response_to_copy"))
         return
       }
 
       void navigator.clipboard.writeText(lastAssistantMessage.text)
       setText("")
-      onNotice("Copied to clipboard")
+      onNotice(t("copied_to_clipboard"))
       return
     }
 
@@ -1087,7 +1088,7 @@ export function Compose({
 
     if (command.name === "/scratch") {
       if (argsText) {
-        stash.mutate(argsText, { onSuccess: () => onNotice("Stashed to scratch pad") })
+        stash.mutate(argsText, { onSuccess: () => onNotice(t("stashed_to_scratchpad")) })
       } else {
         setScratchpadOpen(true)
         setText("")
@@ -1139,12 +1140,12 @@ export function Compose({
     }
 
     if (nextAttachments.some((attachment) => attachment.size > CHAT_ATTACHMENT_MAX_BYTES)) {
-      return "Each attachment must be 5 MB or smaller."
+      return t("attachment_size_error")
     }
 
     const totalBytes = nextAttachments.reduce((sum, attachment) => sum + attachment.size, 0)
     if (totalBytes > CHAT_ATTACHMENT_TOTAL_MAX_BYTES) {
-      return "Attachments must total 20 MB or less."
+      return t("attachments_total_size_error")
     }
 
     return null
@@ -1444,7 +1445,7 @@ export function Compose({
         setAttachments((current) => [...current, ...newAttachments])
         setAttachmentError(null)
       })
-      .catch(() => setAttachmentError("Unable to read the selected attachment."))
+      .catch(() => setAttachmentError(t("attachment_read_error")))
   }
 
   function handleDragOver(event: DragEvent<HTMLFormElement>) {
@@ -1953,11 +1954,11 @@ export function Compose({
                 >
                   {pendingProposals.length > 0
                     ? pendingProposals.length > 1
-                      ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})`
-                      : "Jump ↑"
+                      ? t("jump_pending_proposal", { current: (jumpIndex % pendingProposals.length) + 1, total: pendingProposals.length })
+                      : t("jump_up")
                     : canLoadEarlierMessages
-                      ? "Load earlier messages"
-                      : "Scroll to top"}
+                      ? t("load_earlier_messages")
+                      : t("scroll_to_top")}
                 </button>
               </div>
             ) : null}
@@ -1965,7 +1966,7 @@ export function Compose({
               <ShellCommandRunningBanner
                 chatId={chatId}
                 command={shellCommand}
-                onError={(error) => onNotice(errorMessage(error, "Could not cancel command."))}
+                onError={(error) => onNotice(errorMessage(error, t("command_cancel_error")))}
                 onUpdate={setShellCommand}
               />
             ) : null}
@@ -1980,9 +1981,9 @@ export function Compose({
           onSubmit={submit}
           ref={formRef}
         >
-          {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
+          {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, t("message_failed"))}</div> : null}
           {systemAction.isError ? (
-            <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div>
+            <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, t("command_failed"))}</div>
           ) : null}
           {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
           {dictation.message ? (
@@ -2903,7 +2904,7 @@ function blobToBase64(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result || "").split(",", 2)[1] || "")
-    reader.onerror = () => reject(reader.error || new Error("Could not read audio."))
+    reader.onerror = () => reject(reader.error || new Error(i18n.t("chat:audio_read_error")))
     reader.readAsDataURL(blob)
   })
 }
@@ -3627,7 +3628,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
     return (
       <div className="rounded border border-brand/30 bg-brand/10 p-2">
         {update.isError ? (
-          <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Queued message could not be updated.")}</div>
+          <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, t("queued_message_update_error"))}</div>
         ) : null}
         <textarea
           aria-label={t("aria_edit_queued_message", { position })}
@@ -3694,9 +3695,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>
-      {stash.isError ? (
-        <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(stash.error, "Could not move to scratch pad.")}</div>
-      ) : null}
+      {stash.isError ? <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(stash.error, t("scratchpad_move_error"))}</div> : null}
     </div>
   )
 }

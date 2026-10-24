@@ -78,7 +78,7 @@ function AgentQuestionCard({ question, queryKey, onNotice }: { question: ChatAge
     submit.mutate(drafts as ChatAgentQuestionAnswer[])
   }
 
-  const errorBanner = submit.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, "Answer could not be submitted.")}</div> : null
+  const errorBanner = submit.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, t("answer_submit_error"))}</div> : null
 
   if (phase === "summary") {
     return (
