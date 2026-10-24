@@ -141,6 +141,8 @@ describe("EntityReference", () => {
     expect(entityReferenceLabel({ kind: "workflow", id: 14 })).toBe("WF-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14, jobId: 8 })).toBe("/jobs/8?tab=workflows#workflow-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14 })).toBeNull()
+    expect(entityReferenceHref({ kind: "wakeup", id: 1, chatId: 9 })).toBe("/chats/9")
+    expect(entityReferenceHref({ kind: "wakeup", id: 1 })).toBeNull()
   })
 
   it("rejects unsafe explicit and provider-supplied URLs", () => {
@@ -153,7 +155,7 @@ describe("EntityReference", () => {
     [{ kind: "wakeup", id: 1 }, "WAKEUP-1", null],
     [{ kind: "scheduled_task", id: 2 }, "TASK-2", "/scheduled_tasks/2"],
     [{ kind: "preview_panel", id: "panel-3" }, "panel-3", null],
-    [{ kind: "memory", id: 4 }, "MEMORY-4", null],
+    [{ kind: "memory", id: 4 }, "MEMORY-4", "/memories"],
     [{ kind: "insight", id: 5 }, "INSIGHT-5", "/s/INSIGHT-5"],
     [{ kind: "theme", id: 6 }, "THEME-6", null],
     [{ kind: "walkthrough", id: 7 }, "WALKTHROUGH-7", "/s/WALKTHROUGH-7"],

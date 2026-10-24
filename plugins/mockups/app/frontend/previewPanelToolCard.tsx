@@ -149,7 +149,15 @@ export function PreviewErrorCard({ context, title }: { context: ToolCardContext;
   return message ? <ErrorCard message={message} title={title} /> : null
 }
 
-export type PreviewFileOp = { panelId: string; path: string; replacements: number | null; size: number | null }
+export type PreviewFileOp = {
+  panelId: string
+  path: string
+  content: string | null
+  lines: number | null
+  mockupSlug: string | null
+  replacements: number | null
+  size: number | null
+}
 export function parsePreviewFileOp(value: unknown, input?: Record<string, unknown>): PreviewFileOp | null {
   const normalized = normalizedPreviewResult(value)
   if (!isPlainObject(normalized)) return null
@@ -160,8 +168,11 @@ export function parsePreviewFileOp(value: unknown, input?: Record<string, unknow
   return {
     panelId,
     path,
+    content,
+    lines: content == null ? null : content === "" ? 0 : content.split("\n").length,
+    mockupSlug: displayValue(normalized.mockup_slug),
     replacements: numberValue(normalized.replacements),
-    size: numberValue(normalized.size) ?? (content == null ? null : new Blob([content]).size)
+    size: numberValue(normalized.size) ?? (content == null ? null : new TextEncoder().encode(content).length)
   }
 }
 

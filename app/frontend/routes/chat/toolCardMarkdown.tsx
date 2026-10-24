@@ -37,6 +37,7 @@ export type MarkdownPreviewProps = {
   modalLabel?: string
   emptyState?: ReactNode
   slugHrefFallbacks?: Record<string, string>
+  slugHrefOverrides?: Record<string, string>
   slugTone?: SlugTone
 }
 
@@ -77,6 +78,7 @@ export function MarkdownPreview({
   modalLabel,
   onLinkClick,
   slugHrefFallbacks,
+  slugHrefOverrides,
   slugTone,
   text,
   title
@@ -111,8 +113,12 @@ export function MarkdownPreview({
   }, [normalized, maxLines, truncated.truncated])
 
   if (!normalized) {
-    if (emptyState !== undefined) return <>{emptyState}</>
-    return <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>
+    return (
+      <div className="min-w-0 max-w-full overflow-hidden">
+        {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
+        {emptyState !== undefined ? <>{emptyState}</> : <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>}
+      </div>
+    )
   }
 
   // Source truncation and visual wrapping are deliberately coupled: a clamp
@@ -139,7 +145,7 @@ export function MarkdownPreview({
         ref={previewRef}
         style={lineClampStyle}
       >
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
+        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugHrefOverrides, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
       {expandable ? (
@@ -176,6 +182,7 @@ export function MarkdownPreview({
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
             slugHrefFallbacks={slugHrefFallbacks}
+            slugHrefOverrides={slugHrefOverrides}
             slugTone={slugTone}
             text={completeText}
           />
