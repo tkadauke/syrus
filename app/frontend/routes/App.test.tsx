@@ -8520,6 +8520,7 @@ describe("App", () => {
   it("renders the app settings route from the app admin settings API and updates settings", async () => {
     const baseSettings = {
       signups_open: false,
+      ui_engagement_telemetry_enabled: false,
       grade_max_iterations: 5,
       adversarial_review_rounds: 0,
       max_job_failures: 3,
@@ -8545,6 +8546,7 @@ describe("App", () => {
     }
     const submittedSettings = {
       signups_open: true,
+      ui_engagement_telemetry_enabled: false,
       grade_max_iterations: 5,
       adversarial_review_rounds: 0,
       max_job_failures: 3,

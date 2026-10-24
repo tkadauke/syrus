@@ -164,3 +164,12 @@ For a stuck Job:
 4. Read the activity and reconciler logs around the same time.
 5. Inspect provider availability and admission-control status if the work is
    waiting rather than failed.
+
+## Opt-in page engagement
+
+Admins may enable **Page engagement telemetry** in App Settings. The setting is
+off by default. When enabled, Syrus records per-user active and visible time on
+allowlisted Job, PR-review, and chat pages; it does not record page content.
+Active time pauses after 60 seconds without pointer, keyboard, or scroll input,
+and hidden tabs never count as active. Samples are retained for 90 days and are
+scoped to the user who generated them.

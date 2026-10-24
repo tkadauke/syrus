@@ -40,6 +40,7 @@ RSpec.describe AppSettingRegistry do
       :merge_train_max_size,
       :merge_train_multisect_section_width,
       :signups_open,
+      :ui_engagement_telemetry_enabled,
       :beta_mode_enabled,
       :telegram_bot_handle,
       :telegram_bot_token,
