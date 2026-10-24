@@ -1,6 +1,7 @@
 require "rails_helper"
 require "json"
 require "set"
+require "strscan"
 require "tempfile"
 require "yaml"
 
@@ -40,57 +41,120 @@ RSpec.describe "German localization orthography", type: :unit do
     app/frontend/i18n/locales/de/nav.json:smart_folder_names.admin_queue_runs
     app/frontend/i18n/locales/de/nav.json:smart_folder_names.admin_queue_low_priority_maintenance
     app/frontend/i18n/locales/de/nav.json:smart_folder_names.repositories_recent
-    desktop/src/i18n.ts:adopt_existing.body
-    desktop/src/i18n.ts:adopt_existing.confirm_label
-    desktop/src/i18n.ts:adopt_existing.delete_all
-    desktop/src/i18n.ts:adopt_existing.fresh_hint
-    desktop/src/i18n.ts:adopt_existing.keep_hint
-    desktop/src/i18n.ts:backend.checking
-    desktop/src/i18n.ts:backend.containers_down.body
-    desktop/src/i18n.ts:backend.daemon_down.body
-    desktop/src/i18n.ts:backend.daemon_down.title
-    desktop/src/i18n.ts:backend.data_gone.body
-    desktop/src/i18n.ts:backend.default.body
-    desktop/src/i18n.ts:backend.reset_hint
-    desktop/src/i18n.ts:backend.stopped.body
-    desktop/src/i18n.ts:common.back
-    desktop/src/i18n.ts:install_failed.code_12
-    desktop/src/i18n.ts:install_failed.code_30
-    desktop/src/i18n.ts:install_failed.code_31
-    desktop/src/i18n.ts:install_failed.code_32
-    desktop/src/i18n.ts:install_failed.code_41
-    desktop/src/i18n.ts:install_progress.env_check
-    desktop/src/i18n.ts:install_progress.runtime_check
-    desktop/src/i18n.ts:onboarding.adopt_running.title
-    desktop/src/i18n.ts:onboarding.connect.check_failed
-    desktop/src/i18n.ts:onboarding.connect.checking
-    desktop/src/i18n.ts:onboarding.done_local
-    desktop/src/i18n.ts:onboarding.precheck_mac
-    desktop/src/i18n.ts:onboarding.precheck_pc
-    desktop/src/i18n.ts:onboarding.welcome.local_mac
-    desktop/src/i18n.ts:onboarding.welcome.local_windows
-    desktop/src/i18n.ts:onboarding.welcome.subtitle
-    desktop/src/i18n.ts:port_conflict.invalid
-    desktop/src/i18n.ts:port_conflict.subtitle
-    desktop/src/i18n.ts:repo_picker.select
-    desktop/src/i18n.ts:repo_picker.selected
-    desktop/src/i18n.ts:runtime.auto_install_body
-    desktop/src/i18n.ts:runtime.check_now
-    desktop/src/i18n.ts:runtime.install_wsl_first
-    desktop/src/i18n.ts:runtime.installing_subtitle
-    desktop/src/i18n.ts:runtime.missing_subtitle
-    desktop/src/i18n.ts:runtime.missing_title
-    desktop/src/i18n.ts:runtime.needs_other
-    desktop/src/i18n.ts:runtime.needs_setup_title
-    desktop/src/i18n.ts:runtime.needs_windows
-    desktop/src/i18n.ts:runtime.open
-    desktop/src/i18n.ts:runtime.open_step
-    desktop/src/i18n.ts:runtime.recommend_mac
-    desktop/src/i18n.ts:runtime.recommend_windows
-    desktop/src/i18n.ts:runtime.return_step
-    desktop/src/i18n.ts:runtime.running_installer
-    desktop/src/i18n.ts:runtime.wait_available
-    desktop/src/i18n.ts:runtime.wsl_body
+    desktop/electron/i18nCatalog.ts:adopt_existing.body
+    desktop/electron/i18nCatalog.ts:adopt_existing.confirm_label
+    desktop/electron/i18nCatalog.ts:adopt_existing.delete_all
+    desktop/electron/i18nCatalog.ts:adopt_existing.fresh_hint
+    desktop/electron/i18nCatalog.ts:adopt_existing.keep_hint
+    desktop/electron/i18nCatalog.ts:backend.checking
+    desktop/electron/i18nCatalog.ts:backend.containers_down.body
+    desktop/electron/i18nCatalog.ts:backend.daemon_down.body
+    desktop/electron/i18nCatalog.ts:backend.daemon_down.title
+    desktop/electron/i18nCatalog.ts:backend.data_gone.body
+    desktop/electron/i18nCatalog.ts:backend.default.body
+    desktop/electron/i18nCatalog.ts:backend.reset_hint
+    desktop/electron/i18nCatalog.ts:backend.stopped.body
+    desktop/electron/i18nCatalog.ts:common.back
+    desktop/electron/i18nCatalog.ts:install_failed.code_12
+    desktop/electron/i18nCatalog.ts:install_failed.code_30
+    desktop/electron/i18nCatalog.ts:install_failed.code_31
+    desktop/electron/i18nCatalog.ts:install_failed.code_32
+    desktop/electron/i18nCatalog.ts:install_failed.code_41
+    desktop/electron/i18nCatalog.ts:install_progress.env_check
+    desktop/electron/i18nCatalog.ts:install_progress.runtime_check
+    desktop/electron/i18nCatalog.ts:onboarding.adopt_running.title
+    desktop/electron/i18nCatalog.ts:onboarding.connect.check_failed
+    desktop/electron/i18nCatalog.ts:onboarding.connect.checking
+    desktop/electron/i18nCatalog.ts:onboarding.done_local
+    desktop/electron/i18nCatalog.ts:onboarding.precheck_mac
+    desktop/electron/i18nCatalog.ts:onboarding.precheck_pc
+    desktop/electron/i18nCatalog.ts:onboarding.welcome.local_mac
+    desktop/electron/i18nCatalog.ts:onboarding.welcome.local_windows
+    desktop/electron/i18nCatalog.ts:onboarding.welcome.subtitle
+    desktop/electron/i18nCatalog.ts:port_conflict.invalid
+    desktop/electron/i18nCatalog.ts:port_conflict.subtitle
+    desktop/electron/i18nCatalog.ts:repo_picker.select
+    desktop/electron/i18nCatalog.ts:repo_picker.selected
+    desktop/electron/i18nCatalog.ts:runtime.auto_install_body
+    desktop/electron/i18nCatalog.ts:runtime.check_now
+    desktop/electron/i18nCatalog.ts:runtime.install_wsl_first
+    desktop/electron/i18nCatalog.ts:runtime.installing_subtitle
+    desktop/electron/i18nCatalog.ts:runtime.missing_subtitle
+    desktop/electron/i18nCatalog.ts:runtime.missing_title
+    desktop/electron/i18nCatalog.ts:runtime.needs_other
+    desktop/electron/i18nCatalog.ts:runtime.needs_setup_title
+    desktop/electron/i18nCatalog.ts:runtime.needs_windows
+    desktop/electron/i18nCatalog.ts:runtime.open
+    desktop/electron/i18nCatalog.ts:runtime.open_step
+    desktop/electron/i18nCatalog.ts:runtime.recommend_mac
+    desktop/electron/i18nCatalog.ts:runtime.recommend_windows
+    desktop/electron/i18nCatalog.ts:runtime.return_step
+    desktop/electron/i18nCatalog.ts:runtime.running_installer
+    desktop/electron/i18nCatalog.ts:runtime.wait_available
+    desktop/electron/i18nCatalog.ts:runtime.wsl_body
+    desktop/electron/i18nCatalog.ts:dialog.action_failed
+    desktop/electron/i18nCatalog.ts:dialog.action_failed_detail
+    desktop/electron/i18nCatalog.ts:dialog.data_gone_detail
+    desktop/electron/i18nCatalog.ts:dialog.pause_runs_detail
+    desktop/electron/i18nCatalog.ts:dialog.reset
+    desktop/electron/i18nCatalog.ts:dialog.reset_button
+    desktop/electron/i18nCatalog.ts:dialog.reset_title
+    desktop/electron/i18nCatalog.ts:dialog.resume_runs_detail
+    desktop/electron/i18nCatalog.ts:dialog.setup_detail
+    desktop/electron/i18nCatalog.ts:dialog.stop_detail
+    desktop/electron/i18nCatalog.ts:dialog.uninstall_data
+    desktop/electron/i18nCatalog.ts:dialog.update_backend_detail
+    desktop/electron/i18nCatalog.ts:dialog.update_busy_test
+    desktop/electron/i18nCatalog.ts:notification.pr_merged
+    desktop/electron/i18nCatalog.ts:notification.pr_ready
+    desktop/electron/i18nCatalog.ts:renderer.already_signed_in
+    desktop/electron/i18nCatalog.ts:renderer.behind
+    desktop/electron/i18nCatalog.ts:renderer.checking
+    desktop/electron/i18nCatalog.ts:renderer.choose
+    desktop/electron/i18nCatalog.ts:renderer.choose_repository
+    desktop/electron/i18nCatalog.ts:renderer.clear
+    desktop/electron/i18nCatalog.ts:renderer.cli_add_path
+    desktop/electron/i18nCatalog.ts:renderer.cli_install_required
+    desktop/electron/i18nCatalog.ts:renderer.cli_new_terminal
+    desktop/electron/i18nCatalog.ts:renderer.close_compose
+    desktop/electron/i18nCatalog.ts:renderer.dismiss
+    desktop/electron/i18nCatalog.ts:renderer.feedback_placeholder
+    desktop/electron/i18nCatalog.ts:renderer.job_unavailable
+    desktop/electron/i18nCatalog.ts:renderer.menu_bar
+    desktop/electron/i18nCatalog.ts:renderer.no_test_plan
+    desktop/electron/i18nCatalog.ts:renderer.open_actions
+    desktop/electron/i18nCatalog.ts:renderer.open_in_syrus
+    desktop/electron/i18nCatalog.ts:renderer.open_new_terminal
+    desktop/electron/i18nCatalog.ts:renderer.open_pr
+    desktop/electron/i18nCatalog.ts:renderer.open_pull_request
+    desktop/electron/i18nCatalog.ts:renderer.open_syrus
+    desktop/electron/i18nCatalog.ts:renderer.open_url
+    desktop/electron/i18nCatalog.ts:renderer.press_shortcut
+    desktop/electron/i18nCatalog.ts:renderer.running
+    desktop/electron/i18nCatalog.ts:renderer.runs
+    desktop/electron/i18nCatalog.ts:renderer.shortcut_cleared
+    desktop/electron/i18nCatalog.ts:renderer.signin_refresh_detail
+    desktop/electron/i18nCatalog.ts:renderer.skill_added
+    desktop/electron/i18nCatalog.ts:renderer.skill_install_title
+    desktop/electron/i18nCatalog.ts:renderer.status_loading
+    desktop/electron/i18nCatalog.ts:screen.detail
+    desktop/electron/i18nCatalog.ts:self_install.open_new_detail
+    desktop/electron/i18nCatalog.ts:self_install.open_new_failed
+    desktop/electron/i18nCatalog.ts:self_install.open_old_detail
+    desktop/electron/i18nCatalog.ts:self_install.open_old_failed
+    desktop/electron/i18nCatalog.ts:self_install.replace_detail
+    desktop/electron/i18nCatalog.ts:shell.data_folder
+    desktop/electron/i18nCatalog.ts:shell.install_log
+    desktop/electron/i18nCatalog.ts:shell.open
+    desktop/electron/i18nCatalog.ts:shell.projects_root
+    desktop/electron/i18nCatalog.ts:shell.reset_test
+    desktop/electron/i18nCatalog.ts:shell.window_only
+    desktop/electron/i18nCatalog.ts:updates.failed
+    desktop/electron/i18nCatalog.ts:updates.failed_detail
+    desktop/electron/i18nCatalog.ts:updates.ready_detail
+    desktop/electron/i18nCatalog.ts:updates.unavailable
+    desktop/electron/i18nCatalog.ts:updates.unavailable_mac_detail
+    desktop/electron/i18nCatalog.ts:updates.unavailable_windows_detail
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:col_rows_examined
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:confirm_kill_query
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:killed_query
@@ -198,17 +262,29 @@ RSpec.describe "German localization orthography", type: :unit do
     entries
   end
 
-  def desktop_entries(path = Rails.root.join("desktop/src/i18n.ts"), contents: File.read(path))
+  def desktop_entries(path = Rails.root.join("desktop/electron/i18nCatalog.ts"), contents: File.read(path))
     body = contents[/\bconst deMessages\s*=\s*\{(?<body>.*?)\n\}\s+satisfies\s+Record<DesktopMessageKey, string>/m, :body]
-    raise "Could not find the bounded deMessages object in desktop/src/i18n.ts" unless body
+    raise "Could not find the bounded deMessages object in #{path}" unless body
 
-    body.lines.filter_map do |line|
-      match = line.match(/^\s*"(?<key>(?:[^"\\]|\\.)+)"\s*:\s*"(?<value>(?:[^"\\]|\\.)*)"\s*,?\s*$/)
-      next if line.strip.empty?
-      raise "Unsupported deMessages entry: #{line.strip}" unless match
+    scanner = StringScanner.new(body)
+    source = Pathname(path)
+    relative = source.absolute? ? source.relative_path_from(Rails.root).to_s : source.to_s
+    entries = []
+    until scanner.eos?
+      scanner.skip(/\s*/)
+      break if scanner.eos?
 
-      Entry.new("desktop/src/i18n.ts", JSON.parse(%("#{match[:key]}")), JSON.parse(%("#{match[:value]}")))
+      match = scanner.scan(/"(?<key>(?:[^"\\]|\\.)+)"\s*:\s*(?:"(?<double_value>(?:[^"\\]|\\.)*)"|'(?<single_value>(?:[^'\\]|\\.)*)')\s*,?/)
+      raise "Unsupported deMessages entry near: #{scanner.peek(80).lines.first.to_s.strip}" unless match
+
+      encoded_value = scanner[:double_value] || scanner[:single_value].gsub(/(?<!\\)"/, '\\"').gsub("\\'", "'")
+      entries << Entry.new(
+        relative,
+        JSON.parse(%("#{scanner[:key]}")),
+        JSON.parse(%("#{encoded_value}"))
+      )
     end
+    entries
   end
 
   def catalog_entries
