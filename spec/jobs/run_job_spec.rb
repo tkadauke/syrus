@@ -1014,7 +1014,7 @@ RSpec.describe RunJob, :ci_only do
 
       expect(run.reload.run_failure_classification).to have_attributes(
         classification: "source_snapshot_metadata_invalid",
-        retryable: false
+        retryable: true
       )
       expect(run.run_diagnostic).to have_attributes(
         error_class: "WorkflowSourceSnapshots::InfrastructureStateError"
