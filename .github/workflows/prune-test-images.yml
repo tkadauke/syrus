@@ -1,0 +1,137 @@
+# Retention for the images the nightly test build pushes.
+#
+# test-build.yml runs every night and pushes a test-tagged image for the
+# backend and every plugin service, under two tags each (test-<short-sha> and
+# test-<X.Y.Z-test.N>). Nothing reaped them, so the cost of a nightly was
+# unbounded GHCR storage. This deletes test-tagged versions older than
+# RETENTION_DAYS and nothing else.
+#
+# What it will NOT touch, by construction:
+#
+# - Release tags. The match is anchored `^test-`, so 0.1.14 and latest are
+#   never candidates.
+# - Build caches. `buildcache-test-amd64` and `buildcache-test-arm64` exist and
+#   contain "test" -- a substring match would delete them and silently destroy
+#   cross-run caching for every build. The anchor is what keeps them safe.
+# - Any version that carries a non-test tag. A GHCR version is a digest, and
+#   deleting it removes EVERY tag pointing at it. If a release tag and a test
+#   tag ever share a digest, dropping the version would take the release tag
+#   with it, so a version is a candidate only when all of its tags are test
+#   tags.
+# - Untagged versions. On a multi-arch push the per-arch children are untagged
+#   but referenced by the index; deleting them breaks the published image.
+#
+# ONE-TIME SETUP: these packages are user-owned (owner tkadauke), and
+# GITHUB_TOKEN cannot call the /user/packages endpoints -- it authenticates as
+# the repository's app installation, not as the user. Add a repo secret
+# GHCR_TOKEN holding a PAT with `delete:packages`. Until then the run fails
+# with that message rather than silently pruning nothing.
+name: Prune test images
+
+on:
+  # Two hours after the nightly test build starts, so it prunes after that
+  # night's push rather than racing it.
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted without deleting it"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prune-test-images
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete test image versions older than the retention window
+        env:
+          # `inputs` is empty on a schedule, so a bare inputs.dry_run would be
+          # "" -- falsy, which happens to be right, but by accident. Be explicit
+          # so a scheduled prune can never inherit the manual default of true
+          # and quietly stop pruning.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          RETENTION_DAYS: "14"
+          PACKAGES: >-
+            syrus-backend
+            syrus-plugin-browser
+            syrus-plugin-git-mirror
+            syrus-plugin-runtime
+            syrus-plugin-tailscale
+            syrus-plugin-whisper-stt
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          cutoff="$(date -u -d "${RETENTION_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Retention: ${RETENTION_DAYS} days (deleting versions created before ${cutoff})"
+          echo "Dry run: ${DRY_RUN}"
+          echo
+
+          if ! gh api user/packages/container/syrus-backend >/dev/null 2>&1; then
+            echo "::error::Cannot read user-owned packages. Add a GHCR_TOKEN repo secret holding a PAT with delete:packages (see this file's header)."
+            exit 1
+          fi
+
+          total_deleted=0
+          total_kept=0
+
+          for package in $PACKAGES; do
+            echo "== ${package}"
+
+            # jq decides candidacy so the shell never parses JSON: a version
+            # qualifies only when it has tags, every tag is anchored test-, and
+            # it predates the cutoff.
+            # Piped to real jq rather than `gh api --jq`: the latter takes one
+            # filter argument and no --arg, so passing the cutoff that way
+            # fails with "accepts 1 arg(s)" and -- if stderr is swallowed --
+            # looks exactly like "nothing to prune".
+            candidates="$(
+              gh api --paginate "user/packages/container/${package}/versions?per_page=100" \
+                | jq -r --arg cutoff "$cutoff" '
+                    .[]
+                    | . as $v
+                    | ($v.metadata.container.tags // []) as $tags
+                    | select(($tags | length) > 0)
+                    | select($tags | all(startswith("test-")))
+                    | select($v.created_at < $cutoff)
+                    | "\($v.id)\t\($v.created_at)\t\($tags | join(","))"
+                  '
+            )"
+
+            if [ -z "$candidates" ]; then
+              echo "   nothing older than the window"
+              continue
+            fi
+
+            while IFS=$'\t' read -r id created tags; do
+              [ -n "$id" ] || continue
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "   WOULD DELETE ${id}  ${created}  ${tags}"
+                total_kept=$((total_kept + 1))
+              else
+                if gh api -X DELETE "user/packages/container/${package}/versions/${id}" >/dev/null 2>&1; then
+                  echo "   deleted ${id}  ${created}  ${tags}"
+                  total_deleted=$((total_deleted + 1))
+                else
+                  echo "::warning::could not delete ${package} version ${id} (${tags})"
+                fi
+              fi
+            done <<< "$candidates"
+          done
+
+          echo
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: ${total_kept} version(s) would be deleted." >> "$GITHUB_STEP_SUMMARY"
+            echo "Dry run complete: ${total_kept} version(s) would be deleted."
+          else
+            echo "Deleted ${total_deleted} test image version(s) older than ${RETENTION_DAYS} days." >> "$GITHUB_STEP_SUMMARY"
+            echo "Deleted ${total_deleted} version(s)."
+          fi
