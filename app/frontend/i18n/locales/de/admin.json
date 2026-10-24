@@ -1032,6 +1032,8 @@
     "outcome_orphaned": "verwaist"
   },
   "mcp_tool_usage": {
+    "clear_filters": "Filter löschen",
+    "search": "Suchen",
     "heading": "MCP-Tool-Nutzung",
     "aria": "MCP-Tool-Nutzung",
     "loading": "MCP-Tool-Nutzung wird geladen...",

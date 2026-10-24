@@ -73,12 +73,7 @@ export function AdminMcpToolUsage() {
   return (
     <AdminEventPageShell
       actions={
-        <Button
-          className="w-fit"
-          disabled={usage.isFetching}
-          onClick={() => void usage.refetch()}
-          variant="secondary"
-        >
+        <Button className="w-fit" disabled={usage.isFetching} onClick={() => void usage.refetch()} variant="secondary">
           {usage.isFetching ? t("mcp_tool_usage.refreshing") : t("mcp_tool_usage.refresh")}
         </Button>
       }
@@ -103,8 +98,9 @@ function McpToolUsageFilters({ search }: { search: string }) {
       ...(params.get("surface") ? [{ field: "surface", op: "is", value: params.get("surface") || "all" }] : []),
       ...(params.get("tool_name") ? [{ field: "tool_name", op: "is", value: params.get("tool_name") || "" }] : []),
       ...(params.get("server_name") ? [{ field: "server_name", op: "is", value: params.get("server_name") || "" }] : []),
-      ...MCP_FILTER_FIELDS.filter((field) => !["window_preset", "surface", "tool_name", "server_name"].includes(field))
-        .flatMap((field) => params.get(field) ? [{ field, op: "is", value: params.get(field) || "" }] : [])
+      ...MCP_FILTER_FIELDS.filter((field) => !["window_preset", "surface", "tool_name", "server_name"].includes(field)).flatMap((field) =>
+        params.get(field) ? [{ field, op: "is", value: params.get(field) || "" }] : []
+      )
     ]
   }
   const filterLink = buildFlatFilterLink(MCP_FILTER_FIELDS, (next) => {
@@ -121,10 +117,18 @@ function McpToolUsageFilters({ search }: { search: string }) {
   return (
     <AdminEventFilterBar
       buildLink={filterLink}
-      clearLabel={t("clear_filters")}
+      clearLabel={t("mcp_tool_usage.clear_filters")}
       fields={[
-        { name: "window_preset", label: t("mcp_tool_usage.window_label"), options: WINDOW_PRESETS.map((preset) => ({ label: t(`mcp_tool_usage.window_${preset.value}`), value: preset.value })) },
-        { name: "surface", label: t("mcp_tool_usage.surface_label"), options: SURFACES.map((value) => ({ label: t(`mcp_tool_usage.surface_${value}`), value })) },
+        {
+          name: "window_preset",
+          label: t("mcp_tool_usage.window_label"),
+          options: WINDOW_PRESETS.map((preset) => ({ label: t(`mcp_tool_usage.window_${preset.value}`), value: preset.value }))
+        },
+        {
+          name: "surface",
+          label: t("mcp_tool_usage.surface_label"),
+          options: SURFACES.map((value) => ({ label: t(`mcp_tool_usage.surface_${value}`), value }))
+        },
         { name: "tool_name", label: t("mcp_tool_usage.tool_label"), placeholder: t("mcp_tool_usage.tool_placeholder") },
         { name: "server_name", label: t("mcp_tool_usage.server_label"), placeholder: t("mcp_tool_usage.server_placeholder") },
         { name: "provider", label: t("mcp_tool_usage.provider_label"), placeholder: "codex" },
@@ -148,7 +152,7 @@ function McpToolUsageFilters({ search }: { search: string }) {
       ]}
       filter={filter}
       search={search}
-      searchLabel={t("search")}
+      searchLabel={t("mcp_tool_usage.search")}
     />
   )
 }
@@ -216,7 +220,9 @@ function StartupTimingPanel({ section }: { section: McpStartupTimingSectionType 
           </Text>
         </Section.Actions>
       </Section.Header>
-      {section.phase_latency.length === 0 ? <PanelMessage>{t("mcp_tool_usage.startup_timing_empty")}</PanelMessage> : (
+      {section.phase_latency.length === 0 ? (
+        <PanelMessage>{t("mcp_tool_usage.startup_timing_empty")}</PanelMessage>
+      ) : (
         <DataTable.Root>
           <DataTable.Header>
             <DataTable.Row>
@@ -263,7 +269,9 @@ function ToolRowsPanel({ heading, rows }: { heading: string; rows: McpToolUsageT
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
-      {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
+      {rows.length === 0 ? (
+        <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage>
+      ) : (
         <DataTable.Root wrapperClassName="rounded-none border-0">
           <DataTable.Header>
             <DataTable.Row>
@@ -302,7 +310,9 @@ function UnusedToolsPanel({ tools }: { tools: string[] }) {
       ) : (
         <ul className="mt-3 flex flex-wrap gap-2">
           {tools.map((tool) => (
-            <li className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-200" key={tool}>{tool}</li>
+            <li className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-200" key={tool}>
+              {tool}
+            </li>
           ))}
         </ul>
       )}
@@ -313,12 +323,22 @@ function UnusedToolsPanel({ tools }: { tools: string[] }) {
 // Left off the shared column-config primitive: a compact 4-column
 // aggregation table (grouping key + three numeric stats) with no optional
 // columns worth hiding -- see ToolRowsPanel above.
-function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey: "surface" | "provider" | "server_name" | "sidecar_mode" | "authority"; rows: McpToolUsageBreakdownRow[] }) {
+function BreakdownPanel({
+  heading,
+  labelKey,
+  rows
+}: {
+  heading: string
+  labelKey: "surface" | "provider" | "server_name" | "sidecar_mode" | "authority"
+  rows: McpToolUsageBreakdownRow[]
+}) {
   const { t } = useT("admin")
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
-      {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
+      {rows.length === 0 ? (
+        <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage>
+      ) : (
         <DataTable.Root wrapperClassName="rounded-none border-0">
           <DataTable.Header>
             <DataTable.Row>
@@ -367,13 +387,36 @@ function buildCardGapRankingColumns(t: (key: string) => string): Array<AdminEven
         <>
           <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
           <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{row.card_status}</div>
-          {row.server_names && row.server_names.length > 0 ? <div className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{row.server_names.join(", ")}</div> : null}
+          {row.server_names && row.server_names.length > 0 ? (
+            <div className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{row.server_names.join(", ")}</div>
+          ) : null}
         </>
       )
     },
-    { key: "calls", header: t("mcp_tool_usage.col_calls"), sort: "calls", sortValue: (row) => row.calls ?? 0, className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => row.calls ?? 0 },
-    { key: "errors", header: t("mcp_tool_usage.col_errors"), sort: "errors", sortValue: (row) => row.errors ?? 0, className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => row.errors ?? 0 },
-    { key: "result_bytes", header: t("mcp_tool_usage.col_result_bytes"), sort: "result_bytes", sortValue: (row) => row.result_bytes ?? 0, className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => formatBytes(row.result_bytes) },
+    {
+      key: "calls",
+      header: t("mcp_tool_usage.col_calls"),
+      sort: "calls",
+      sortValue: (row) => row.calls ?? 0,
+      className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      render: (row) => row.calls ?? 0
+    },
+    {
+      key: "errors",
+      header: t("mcp_tool_usage.col_errors"),
+      sort: "errors",
+      sortValue: (row) => row.errors ?? 0,
+      className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      render: (row) => row.errors ?? 0
+    },
+    {
+      key: "result_bytes",
+      header: t("mcp_tool_usage.col_result_bytes"),
+      sort: "result_bytes",
+      sortValue: (row) => row.result_bytes ?? 0,
+      className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      render: (row) => formatBytes(row.result_bytes)
+    },
     {
       key: "owner",
       header: t("mcp_tool_usage.col_owner"),
@@ -387,8 +430,22 @@ function buildCardGapRankingColumns(t: (key: string) => string): Array<AdminEven
         </>
       )
     },
-    { key: "last_used", header: t("mcp_tool_usage.col_last_used"), sort: "last_used", sortValue: (row) => row.last_used_at || "", className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.never_used") },
-    { key: "recommendation", header: t("mcp_tool_usage.col_recommendation"), sort: "recommendation", sortValue: (row) => row.recommendation || "", className: "align-top text-xs text-gray-700 dark:text-gray-200", render: (row) => formatRecommendation(row.recommendation) }
+    {
+      key: "last_used",
+      header: t("mcp_tool_usage.col_last_used"),
+      sort: "last_used",
+      sortValue: (row) => row.last_used_at || "",
+      className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      render: (row) => (row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.never_used"))
+    },
+    {
+      key: "recommendation",
+      header: t("mcp_tool_usage.col_recommendation"),
+      sort: "recommendation",
+      sortValue: (row) => row.recommendation || "",
+      className: "align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (row) => formatRecommendation(row.recommendation)
+    }
   ]
 }
 
@@ -396,18 +453,18 @@ function CardGapRankingPanel({ rows }: { rows: McpToolCardGapRow[] }) {
   const { t } = useT("admin")
   const columns = buildCardGapRankingColumns(t)
 
-  return (
-    rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.card_gap_ranking_empty")}</AdminEventPanelMessage> : (
-      <AdminEventLogTable
-        columns={columns}
-        defaultSort={{ column: "calls", direction: "desc" }}
-        getRowKey={(row) => `${row.card_status}.${row.tool_name}`}
-        localSort
-        panel={{ summary: t("mcp_tool_usage.card_gap_ranking_heading"), meta: `${rows.length} tools` }}
-        rows={rows}
-        storageKey="syrus.admin.mcp_tool_usage.card_gap_ranking.visible_columns"
-      />
-    )
+  return rows.length === 0 ? (
+    <AdminEventPanelMessage>{t("mcp_tool_usage.card_gap_ranking_empty")}</AdminEventPanelMessage>
+  ) : (
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={{ column: "calls", direction: "desc" }}
+      getRowKey={(row) => `${row.card_status}.${row.tool_name}`}
+      localSort
+      panel={{ summary: t("mcp_tool_usage.card_gap_ranking_heading"), meta: `${rows.length} tools` }}
+      rows={rows}
+      storageKey="syrus.admin.mcp_tool_usage.card_gap_ranking.visible_columns"
+    />
   )
 }
 
@@ -433,14 +490,47 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       render: (row) => (
         <>
           <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
-          <div className="mt-1 text-gray-500 dark:text-gray-400">{row.server_name || "-"} · {row.surface} · {row.provider || t("mcp_tool_usage.unknown")}</div>
+          <div className="mt-1 text-gray-500 dark:text-gray-400">
+            {row.server_name || "-"} · {row.surface} · {row.provider || t("mcp_tool_usage.unknown")}
+          </div>
         </>
       )
     },
-    { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_provider"), key: "provider", defaultVisible: false, sort: "provider", sortValue: (row) => row.provider || "", render: (row) => row.provider || "-" },
-    { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_sidecar_mode"), key: "sidecar_mode", defaultVisible: false, sort: "sidecar_mode", sortValue: (row) => row.sidecar_mode || "", render: (row) => row.sidecar_mode || "-" },
-    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_daemon_worker"), key: "daemon_worker_id", defaultVisible: false, sort: "daemon_worker_id", sortValue: (row) => row.daemon_worker_id || "", render: (row) => row.daemon_worker_id || "-" },
-    { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_authority"), key: "authority", sort: "authority", sortValue: (row) => row.authority || "", render: (row) => row.authority || "-" },
+    {
+      className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_provider"),
+      key: "provider",
+      defaultVisible: false,
+      sort: "provider",
+      sortValue: (row) => row.provider || "",
+      render: (row) => row.provider || "-"
+    },
+    {
+      className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_sidecar_mode"),
+      key: "sidecar_mode",
+      defaultVisible: false,
+      sort: "sidecar_mode",
+      sortValue: (row) => row.sidecar_mode || "",
+      render: (row) => row.sidecar_mode || "-"
+    },
+    {
+      className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_daemon_worker"),
+      key: "daemon_worker_id",
+      defaultVisible: false,
+      sort: "daemon_worker_id",
+      sortValue: (row) => row.daemon_worker_id || "",
+      render: (row) => row.daemon_worker_id || "-"
+    },
+    {
+      className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_authority"),
+      key: "authority",
+      sort: "authority",
+      sortValue: (row) => row.authority || "",
+      render: (row) => row.authority || "-"
+    },
     {
       className: "px-4 py-3 align-top text-xs",
       headerClassName: "px-4 py-2",
@@ -450,13 +540,38 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       sortValue: (row) => row.status,
       render: (row) => (
         <>
-          <span className={`rounded px-2 py-0.5 font-medium ${row.error ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>{row.status}</span>
-          {row.error_message_summary ? <div className="mt-1 max-w-xs break-words text-gray-500 dark:text-gray-400">{row.error_class ? `${row.error_class}: ` : ""}{row.error_message_summary}</div> : null}
+          <span
+            className={`rounded px-2 py-0.5 font-medium ${row.error ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}
+          >
+            {row.status}
+          </span>
+          {row.error_message_summary ? (
+            <div className="mt-1 max-w-xs break-words text-gray-500 dark:text-gray-400">
+              {row.error_class ? `${row.error_class}: ` : ""}
+              {row.error_message_summary}
+            </div>
+          ) : null}
         </>
       )
     },
-    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_input_bytes"), key: "input_bytes", defaultVisible: false, sort: "input_bytes", sortValue: (row) => row.input_bytes ?? 0, render: (row) => formatBytes(row.input_bytes ?? undefined) },
-    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_result_bytes"), key: "result_bytes", defaultVisible: false, sort: "result_bytes", sortValue: (row) => row.result_bytes ?? 0, render: (row) => formatBytes(row.result_bytes ?? undefined) },
+    {
+      className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_input_bytes"),
+      key: "input_bytes",
+      defaultVisible: false,
+      sort: "input_bytes",
+      sortValue: (row) => row.input_bytes ?? 0,
+      render: (row) => formatBytes(row.input_bytes ?? undefined)
+    },
+    {
+      className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_result_bytes"),
+      key: "result_bytes",
+      defaultVisible: false,
+      sort: "result_bytes",
+      sortValue: (row) => row.result_bytes ?? 0,
+      render: (row) => formatBytes(row.result_bytes ?? undefined)
+    },
     {
       className: "px-4 py-3 align-top text-xs",
       headerClassName: "px-4 py-2",
@@ -464,30 +579,68 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       key: "links",
       render: (row) => (
         <div className="flex flex-col gap-1">
-          {row.job_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.job_path}>{t("mcp_tool_usage.link_job", { id: row.job_id })}</Link> : null}
-          {row.workflow_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.workflow_path}>{t("mcp_tool_usage.link_workflow", { id: row.workflow_id })}</Link> : null}
-          {row.run_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.run_path}>{t("mcp_tool_usage.link_run", { id: row.run_id })}</Link> : null}
-          {row.chat_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.chat_path}>{t("mcp_tool_usage.link_chat")}</Link> : null}
+          {row.job_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.job_path}>
+              {t("mcp_tool_usage.link_job", { id: row.job_id })}
+            </Link>
+          ) : null}
+          {row.workflow_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.workflow_path}>
+              {t("mcp_tool_usage.link_workflow", { id: row.workflow_id })}
+            </Link>
+          ) : null}
+          {row.run_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.run_path}>
+              {t("mcp_tool_usage.link_run", { id: row.run_id })}
+            </Link>
+          ) : null}
+          {row.chat_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.chat_path}>
+              {t("mcp_tool_usage.link_chat")}
+            </Link>
+          ) : null}
         </div>
       )
     },
-    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_context_ids"), key: "context_ids", defaultVisible: false, render: (row) => contextIds(row) },
-    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_started"), key: "started_at", defaultVisible: false, sort: "started_at", sortValue: (row) => row.started_at || "", render: (row) => row.started_at ? formatEventDate(row.started_at) : "-" },
-    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_completed"), key: "completed_at", defaultVisible: false, sort: "completed_at", sortValue: (row) => row.completed_at || "", render: (row) => row.completed_at ? formatEventDate(row.completed_at) : "-" }
+    {
+      className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_context_ids"),
+      key: "context_ids",
+      defaultVisible: false,
+      render: (row) => contextIds(row)
+    },
+    {
+      className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_started"),
+      key: "started_at",
+      defaultVisible: false,
+      sort: "started_at",
+      sortValue: (row) => row.started_at || "",
+      render: (row) => (row.started_at ? formatEventDate(row.started_at) : "-")
+    },
+    {
+      className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      header: t("mcp_tool_usage.col_completed"),
+      key: "completed_at",
+      defaultVisible: false,
+      sort: "completed_at",
+      sortValue: (row) => row.completed_at || "",
+      render: (row) => (row.completed_at ? formatEventDate(row.completed_at) : "-")
+    }
   ]
 
-  return (
-    calls.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage> : (
-      <AdminEventLogTable
-        columns={columns}
-        defaultSort={{ column: "time", direction: "desc" }}
-        getRowKey={(row) => row.id}
-        localSort
-        panel={{ summary: t("mcp_tool_usage.recent_calls_heading"), meta: `${calls.length} calls` }}
-        rows={calls}
-        storageKey="syrus.admin.mcp_tool_usage.recent_calls.visible_columns"
-      />
-    )
+  return calls.length === 0 ? (
+    <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage>
+  ) : (
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={{ column: "time", direction: "desc" }}
+      getRowKey={(row) => row.id}
+      localSort
+      panel={{ summary: t("mcp_tool_usage.recent_calls_heading"), meta: `${calls.length} calls` }}
+      rows={calls}
+      storageKey="syrus.admin.mcp_tool_usage.recent_calls.visible_columns"
+    />
   )
 }
 

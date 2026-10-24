@@ -424,9 +424,7 @@ export function JobDetailView({
       {mainHealthBannerVisible(payload) ? (
         <Notice className="flex items-center gap-3" role="alert" tone="warning">
           <span>{payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}</span>
-          {!payload.job.main_branch_repair && payload.job.start_blocked_reason ? (
-            <StartBlockedReasonPill reason={payload.job.start_blocked_reason} />
-          ) : null}
+          {!payload.job.main_branch_repair && payload.job.start_blocked_reason ? <StartBlockedReasonPill reason={payload.job.start_blocked_reason} /> : null}
           {!payload.job.main_branch_repair ? (
             <Link
               className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
@@ -2047,7 +2045,7 @@ function StartBlockedPanel({ payload }: { payload: JobDetailPayload }) {
       {showBreakdown ? null : <p className="mt-1">{t(`common:start_blocked_reason_tooltips.${reason}`, { defaultValue: t("start_blocked_generic") })}</p>}
       {showBreakdown && breakdown ? (
         <>
-          <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_other") })}</p>
+          <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_fallback") })}</p>
           {breakdown.telemetry_absent ? (
             <p className="mt-2 rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-medium" role="status">
               {telemetryMessage}

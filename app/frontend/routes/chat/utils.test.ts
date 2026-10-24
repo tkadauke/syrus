@@ -1,6 +1,20 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
+import i18n from "../../i18n"
 import { buttonClasses } from "../../components/Button"
-import { diffLineClass, primaryButton } from "./utils"
+import { diffLineClass, formatTokenCount, primaryButton } from "./utils"
+
+afterEach(async () => {
+  await i18n.changeLanguage("en")
+})
+
+describe("formatTokenCount", () => {
+  it("uses the active locale for exact and abbreviated counts", async () => {
+    await i18n.changeLanguage("de")
+
+    expect(formatTokenCount(999)).toBe("999")
+    expect(formatTokenCount(1500)).toBe("1,5k")
+  })
+})
 
 describe("primaryButton", () => {
   it("uses semantic brand tokens with the shared primary disabled treatment", () => {

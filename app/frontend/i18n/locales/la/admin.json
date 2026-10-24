@@ -1032,6 +1032,8 @@
     "outcome_orphaned": "orbatus"
   },
   "mcp_tool_usage": {
+    "clear_filters": "Filtra dele",
+    "search": "Quaere",
     "heading": "Usus instrumentorum MCP",
     "aria": "Usus instrumentorum MCP",
     "loading": "Usus instrumentorum MCP onerans...",

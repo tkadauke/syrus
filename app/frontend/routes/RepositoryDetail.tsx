@@ -1176,14 +1176,14 @@ function InsightScheduleBadge({ config }: { config: InsightScheduleConfigRecord 
   if (config.enabled) {
     return (
       <TonePill tone="green">
-        {t("repository.insight_scheduling_badge_on", {
+        {t("repository_form.insight_scheduling_badge_on", {
           min: config.min_jobs_since_last_run,
           max: config.max_jobs_since_last_run
         })}
       </TonePill>
     )
   }
-  return <TonePill tone="gray">{t("repository.insight_scheduling_badge_off")}</TonePill>
+  return <TonePill tone="gray">{t("repository_form.insight_scheduling_badge_off")}</TonePill>
 }
 
 function Pagination({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
