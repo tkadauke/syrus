@@ -803,7 +803,7 @@ describe("tool result rendering", () => {
     expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "README.md")
   })
 
-  it("gives grouped tool summaries a full-width row on narrow screens", () => {
+  it("keeps grouped tool summaries on one truncated row on narrow screens", () => {
     const calls = [
       [1, "memory_id: 21", "Unpublished memory #21", false],
       [2, "memory_id: 999", "Memory unpublish failed: memory not found or not owned: 999", true],
@@ -828,9 +828,11 @@ describe("tool result rendering", () => {
     const detail = screen.getByText(/Unpublished memory #21/)
     const count = screen.getByText("3")
 
-    expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
-    expect(detail).toHaveClass("basis-full", "sm:basis-0", "sm:flex-1")
-    expect(count.parentElement).toHaveClass("sm:order-last")
+    expect(summary).toHaveClass("flex-nowrap")
+    expect(summary).not.toHaveClass("flex-wrap")
+    expect(detail).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(detail).not.toHaveClass("basis-full", "break-words")
+    expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
   })
 
   it("passes persisted search inputs into the expanded search Jobs card", () => {
