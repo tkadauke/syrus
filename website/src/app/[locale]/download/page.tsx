@@ -6,7 +6,7 @@ export const metadata: Metadata = localizedMetadata({
   locale: "de",
   pathname: "/download",
   title: "Syrus herunterladen",
-  description: "Laden Sie die Syrus-Desktop-App für macOS auf Apple Silicon und Intel herunter.",
+  description: "Lade die Syrus-Desktop-App für macOS auf Apple Silicon und Intel herunter.",
   availableLocales: ["en", "de"]
 })
 
