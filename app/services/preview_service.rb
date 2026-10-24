@@ -37,7 +37,13 @@ class PreviewService
   # can't successfully reach the app. Tagged separately so
   # PreviewEnvironment#error_reason can drive a "Fix preview" remediation
   # action in the UI instead of a plain failure message.
-  class NotReachableError < RuntimeError; end
+  class NotReachableError < RuntimeError
+    def remediation_reason = "not_reachable"
+  end
+
+  class HttpStatusError < NotReachableError
+    def remediation_reason = nil
+  end
 
   def initialize
     @children = {}  # environment_id → ChildProcess
@@ -96,7 +102,7 @@ class PreviewService
       start_environment(env)
     rescue => e
       Rails.logger.error("[PreviewService] error starting environment #{env.id}: #{e.class}: #{e.message}")
-      reason = e.is_a?(NotReachableError) ? "not_reachable" : nil
+      reason = e.is_a?(NotReachableError) ? e.remediation_reason : nil
       with_connection { mark_failed(env, e.message, reason: reason) }
     end
   end
@@ -304,7 +310,7 @@ class PreviewService
       if response.code.to_i == 403
         message += "; check Rails host authorization and config.hosts for #{INTERNAL_HOST}"
       end
-      raise NotReachableError, message
+      raise HttpStatusError, message
     end
 
     raise NotReachableError, "preview process is healthy on 127.0.0.1:#{port} but is not reachable at #{INTERNAL_HOST}:#{port}; configure the preview start command to bind to 0.0.0.0"
