@@ -3,8 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { TestChannelBadge, TestChannelDot } from "./TestChannelBadge"
 
 const stableUa = "Mozilla/5.0 Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.5 SyrusDesktopBuild/0.1.5 Safari/537.36"
-const testUa =
-  "Mozilla/5.0 Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopBuild/0.1.5-test.3 SyrusDesktopChannel/test Safari/537.36"
+const testUa = "Mozilla/5.0 Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopBuild/0.1.5-test.3 SyrusDesktopChannel/test Safari/537.36"
 
 describe("TestChannelBadge", () => {
   afterEach(() => vi.restoreAllMocks())
@@ -51,7 +50,7 @@ describe("TestChannelDot", () => {
     render(<TestChannelDot />)
     const dot = screen.getByTestId("test-channel-dot")
     expect(dot.className).toContain("amber")
-    expect(dot.getAttribute("aria-label")).toBe("Test")
+    expect(dot.getAttribute("aria-label")).toBe("This is a side-by-side test build, isolated from your production Syrus.")
   })
 
   it("accepts a className override for placement", () => {
