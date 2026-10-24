@@ -26,6 +26,16 @@ describe("toolCardUi Row", () => {
     expect(document.querySelector("dt")).toBeNull()
     expect(document.querySelector("dd")).toBeNull()
   })
+
+  it("constrains wrapped values beside copy controls without truncating them at desktop widths", () => {
+    const value = "syrus/direct-4225-improve-open-in-local-mode-tool-card-responsive-details"
+    render(<Row copyable label="Branch" value={value} wrap />)
+
+    const text = screen.getByText(value)
+    expect(text).toHaveClass("w-0", "min-w-0", "flex-1", "whitespace-normal", "break-all")
+    expect(text).not.toHaveClass("truncate", "sm:truncate")
+    expect(screen.getByRole("button", { name: `Copy ${value} to clipboard` })).toBeInTheDocument()
+  })
 })
 
 function renderReference(reference: ComponentProps<typeof EntityReference>) {
@@ -50,7 +60,15 @@ describe("EntityReference", () => {
     [{ kind: "chat", id: 5 }, "CHAT-5", "/chats/5"],
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10", "/jobs/42?tab=workflows#workflow-3"],
+    [{ kind: "run", id: 10, jobId: 42 }, "RUN-10", "/admin/runs/10/transcript"],
+    [{ kind: "run", id: 10 }, "RUN-10", "/admin/runs/10/transcript"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88", "https://github.com/acme/widgets/pull/88"],
+    [{ kind: "issue", id: 12, issueUrl: "https://github.com/acme/widgets/issues/12" }, "#12", "https://github.com/acme/widgets/issues/12"],
+    [
+      { kind: "commit", id: "abc1234", label: "abc1234", slug: "abc123456789", href: "https://github.com/acme/widgets/commit/abc123456789" },
+      "abc1234",
+      "https://github.com/acme/widgets/commit/abc123456789"
+    ],
     [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets", "/repositories/6"]
   ] as Array<[ComponentProps<typeof EntityReference>, string, string]>)("links %s references", (reference, label, href) => {
     renderReference(reference)
@@ -75,6 +93,7 @@ describe("EntityReference", () => {
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88"],
+    [{ kind: "issue", id: 12, issueUrl: "https://github.com/acme/widgets/issues/12" }, "#12"],
     [{ kind: "artifact", id: "rails_schema_erd" }, "rails_schema_erd"],
     [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets"],
     [{ kind: "proposal", slug: "ship-the-widget" }, "ship-the-widget"]
@@ -97,9 +116,17 @@ describe("EntityReference", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("EPIC-7")
   })
 
+  it("shows a short commit while copying its full SHA", () => {
+    renderReference({ kind: "commit", id: "abc1234", label: "abc1234", slug: "abc123456789", href: "https://github.com/acme/widgets/commit/abc123456789" })
+
+    expect(screen.getByRole("link", { name: "abc1234" })).toHaveAttribute("href", "https://github.com/acme/widgets/commit/abc123456789")
+    fireEvent.click(screen.getByRole("button", { name: "Copy abc123456789 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("abc123456789")
+  })
+
   it.each([
     [{ kind: "workflow", id: 14 }, "WF-14"],
-    [{ kind: "run", id: 2, jobId: 8 }, "RUN-2"],
+    [{ kind: "issue", id: 12 }, "#12"],
     [{ kind: "repository", slug: "owner/private-repo" }, "owner/private-repo"],
     [{ kind: "proposal", slug: "ship-the-widget" }, "ship-the-widget"]
   ] as Array<[ComponentProps<typeof EntityReference>, string]>)("falls back to copyable text when no route can be derived for %s", (reference, label) => {
@@ -114,5 +141,42 @@ describe("EntityReference", () => {
     expect(entityReferenceLabel({ kind: "workflow", id: 14 })).toBe("WF-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14, jobId: 8 })).toBe("/jobs/8?tab=workflows#workflow-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14 })).toBeNull()
+    expect(entityReferenceHref({ kind: "wakeup", id: 1, chatId: 9 })).toBe("/chats/9")
+    expect(entityReferenceHref({ kind: "wakeup", id: 1 })).toBeNull()
+  })
+
+  it("rejects unsafe explicit and provider-supplied URLs", () => {
+    expect(entityReferenceHref({ kind: "issue", id: 12, issueUrl: "javascript:alert(1)" })).toBeNull()
+    expect(entityReferenceHref({ kind: "pull_request", id: 88, prUrl: "//evil.example/pull/88" })).toBeNull()
+    expect(entityReferenceHref({ kind: "issue", id: 12, href: "data:text/html,unsafe" })).toBeNull()
+  })
+
+  it.each([
+    [{ kind: "wakeup", id: 1 }, "WAKEUP-1", null],
+    [{ kind: "scheduled_task", id: 2 }, "TASK-2", "/scheduled_tasks/2"],
+    [{ kind: "preview_panel", id: "panel-3" }, "panel-3", null],
+    [{ kind: "memory", id: 4 }, "MEMORY-4", "/memories"],
+    [{ kind: "insight", id: 5 }, "INSIGHT-5", "/s/INSIGHT-5"],
+    [{ kind: "theme", id: 6 }, "THEME-6", null],
+    [{ kind: "walkthrough", id: 7 }, "WALKTHROUGH-7", "/s/WALKTHROUGH-7"],
+    [{ kind: "whiteboard_snapshot", id: 8 }, "SNAPSHOT-8", null]
+  ] as Array<[ComponentProps<typeof EntityReference>, string, string | null]>)(
+    "renders the %s entity kind with its label and route",
+    (reference, label, href) => {
+      renderReference(reference)
+
+      if (href) expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href)
+      else expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument()
+      expect(screen.getByText(label)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: `Copy ${label} to clipboard` })).toBeInTheDocument()
+    }
+  )
+
+  it.each(["wakeup", "scheduled_task", "preview_panel", "memory", "insight", "theme", "walkthrough", "whiteboard_snapshot"] as ComponentProps<
+    typeof EntityReference
+  >["kind"][])("returns null for a %s reference without an id", (kind) => {
+    const { container } = renderReference({ kind })
+
+    expect(container).toBeEmptyDOMElement()
   })
 })

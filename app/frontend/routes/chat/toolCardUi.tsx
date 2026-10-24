@@ -68,9 +68,9 @@ export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
   )
 }
 
-export function Badge({ children }: { children: ReactNode }) {
+export function Badge({ children, wrap = false }: { children: ReactNode; wrap?: boolean }) {
   return (
-    <Pill className="text-2xs" tone="neutral">
+    <Pill className={wrap ? "min-w-0 max-w-full break-words text-2xs [overflow-wrap:anywhere]" : "text-2xs"} tone="neutral" wrap={wrap}>
       {children}
     </Pill>
   )
@@ -91,15 +91,22 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   )
 }
 
-export function Row({ label, value, wrap = false }: { label: string; value: string; wrap?: boolean }) {
+export function Row({ label, value, wrap = false, copyable = false }: { label: string; value: ReactNode; wrap?: boolean; copyable?: boolean }) {
   return (
     <div className="min-w-0">
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} font-mono text-xs`} title={value}>
-        {value}
-      </Text>
+      <div className="flex min-w-0 items-center gap-1">
+        <Text
+          as="div"
+          className={`${wrap ? "whitespace-normal break-all" : "whitespace-pre-wrap break-words"} w-0 min-w-0 flex-1 font-mono text-xs`}
+          title={typeof value === "string" ? value : undefined}
+        >
+          {value}
+        </Text>
+        {copyable && typeof value === "string" ? <CopyOnlyIconButton value={value} /> : null}
+      </div>
     </div>
   )
 }
@@ -112,8 +119,12 @@ export function SectionLabel({ children }: { children: ReactNode }) {
   )
 }
 
-export function CardShell({ children }: { children: ReactNode }) {
-  return <ToolCard.Root className="mt-1 space-y-2">{children}</ToolCard.Root>
+export function CardShell({ children, tone = "neutral" }: { children: ReactNode; tone?: SemanticTone }) {
+  return (
+    <ToolCard.Root className="mt-1 space-y-2" tone={tone}>
+      {children}
+    </ToolCard.Root>
+  )
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
@@ -126,16 +137,39 @@ export function EmptyState({ children }: { children: ReactNode }) {
   )
 }
 
-export function InternalLink({ href, children }: { href: string; children: ReactNode }) {
+export function InternalLink({ href, children, className = "" }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <a className="font-mono font-medium text-brand hover:underline dark:text-brand-emphasis" href={href}>
+    <a className={`font-mono font-medium text-brand hover:underline dark:text-brand-emphasis ${className}`.trim()} href={href}>
       {children}
     </a>
   )
 }
 
 export type ToolCardEntityKind =
-  "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal" | "cluster" | "namespace" | "node"
+  | "job"
+  | "epic"
+  | "design_doc"
+  | "chat"
+  | "run"
+  | "workflow"
+  | "pull_request"
+  | "issue"
+  | "commit"
+  | "artifact"
+  | "repository"
+  | "proposal"
+  | "cluster"
+  | "namespace"
+  | "node"
+  | "pending_action"
+  | "wakeup"
+  | "scheduled_task"
+  | "preview_panel"
+  | "memory"
+  | "insight"
+  | "theme"
+  | "walkthrough"
+  | "whiteboard_snapshot"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -144,10 +178,12 @@ export type EntityReferenceProps = {
   label?: string | null
   href?: string | null
   jobId?: number | string | null
+  chatId?: number | string | null
   workflowId?: number | string | null
   repositoryId?: number | string | null
   repositorySlug?: string | null
   prUrl?: string | null
+  issueUrl?: string | null
   className?: string
   touchTarget?: boolean
   wrap?: "break" | "nowrap"
@@ -181,6 +217,19 @@ const repositoryHref = (reference: EntityReferenceProps) => {
   return id ? `/repositories/${id}` : null
 }
 
+function safeEntityHref(value: unknown): string | null {
+  const href = displayValue(value)
+  if (!href) return null
+  if (/^\/(?!\/)/.test(href)) return href
+
+  try {
+    const url = new URL(href)
+    return url.protocol === "http:" || url.protocol === "https:" ? href : null
+  } catch (_error) {
+    return null
+  }
+}
+
 const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDefinition> = {
   job: { label: (reference) => prefixedEntityLabel("JOB", reference.id), href: idHref("/jobs"), copyValue: slugCopyValue, hoverKind: "job" },
   epic: { label: (reference) => prefixedEntityLabel("EPIC", reference.id), href: idHref("/epics"), copyValue: slugCopyValue, hoverKind: "epic" },
@@ -195,9 +244,11 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   run: {
     label: (reference) => prefixedEntityLabel("RUN", reference.id),
     href: (reference) => {
+      const id = compactEntityValue(reference.id)
       const jobId = compactEntityValue(reference.jobId)
       const workflowId = compactEntityValue(reference.workflowId)
-      return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
+      if (jobId && workflowId) return `/jobs/${jobId}?tab=workflows#workflow-${workflowId}`
+      return id ? `/admin/runs/${id}/transcript` : null
     },
     copyValue: slugCopyValue
   },
@@ -216,15 +267,54 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
       const id = compactEntityValue(reference.id)
       return id ? `PR #${id}` : null
     },
-    href: (reference) => displayValue(reference.prUrl),
+    href: (reference) => safeEntityHref(reference.prUrl),
     copyValue: slugCopyValue
   },
+  issue: {
+    label: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `#${id}` : null
+    },
+    href: (reference) => safeEntityHref(reference.issueUrl),
+    copyValue: slugCopyValue
+  },
+  commit: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   cluster: { label: (reference) => compactEntityValue(reference.id), href: idHref("/k8s_clusters") },
   namespace: { label: (reference) => displayValue(reference.label), href: idHref("/k8s_clusters") },
-  node: { label: (reference) => displayValue(reference.label), href: noHref, copyValue: slugCopyValue }
+  node: { label: (reference) => displayValue(reference.label), href: noHref, copyValue: slugCopyValue },
+  pending_action: { label: (reference) => prefixedEntityLabel("ACTION", reference.id), href: noHref, copyValue: slugCopyValue },
+  wakeup: {
+    label: (reference) => prefixedEntityLabel("WAKEUP", reference.id),
+    href: (reference) => {
+      const chatId = compactEntityValue(reference.chatId)
+      return chatId ? `/chats/${chatId}` : null
+    },
+    copyValue: slugCopyValue
+  },
+  scheduled_task: { label: (reference) => prefixedEntityLabel("TASK", reference.id), href: idHref("/scheduled_tasks"), copyValue: slugCopyValue },
+  preview_panel: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
+  memory: { label: (reference) => prefixedEntityLabel("MEMORY", reference.id), href: () => "/memories", copyValue: slugCopyValue },
+  insight: {
+    label: (reference) => prefixedEntityLabel("INSIGHT", reference.id),
+    href: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `/s/INSIGHT-${id}` : null
+    },
+    copyValue: slugCopyValue
+  },
+  theme: { label: (reference) => prefixedEntityLabel("THEME", reference.id), href: noHref, copyValue: slugCopyValue },
+  walkthrough: {
+    label: (reference) => prefixedEntityLabel("WALKTHROUGH", reference.id),
+    href: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `/s/WALKTHROUGH-${id}` : null
+    },
+    copyValue: slugCopyValue
+  },
+  whiteboard_snapshot: { label: (reference) => prefixedEntityLabel("SNAPSHOT", reference.id), href: noHref, copyValue: slugCopyValue }
 }
 
 export function entityReferenceLabel(reference: EntityReferenceProps): string | null {
@@ -233,7 +323,7 @@ export function entityReferenceLabel(reference: EntityReferenceProps): string | 
 }
 
 export function entityReferenceHref(reference: EntityReferenceProps): string | null {
-  const explicit = displayValue(reference.href)
+  const explicit = safeEntityHref(reference.href)
   if (explicit) return explicit
   return ENTITY_REFERENCE_DEFINITIONS[reference.kind].href(reference)
 }

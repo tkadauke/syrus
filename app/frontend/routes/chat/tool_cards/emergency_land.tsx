@@ -1,7 +1,5 @@
-import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { JobRefLink } from "../adminToolCard"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
-import { Badge, displayValue } from "../toolCardUi"
 
 function collapsedSummary(context: ToolCardContext) {
   const result = parsePendingActionResult(context)
@@ -12,21 +10,7 @@ function renderExpanded(context: ToolCardContext) {
   const result = parsePendingActionResult(context)
   if (!result) return null
 
-  const input = isPlainObject(context.input) ? context.input : {}
-  const jobId = displayValue(input.job_id)
-  const branch = displayValue(input.branch_name)
-
-  return (
-    <div className="space-y-2">
-      {jobId || branch ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-          {jobId ? <JobRefLink jobId={jobId} /> : null}
-          {branch ? <Badge>{branch}</Badge> : null}
-        </div>
-      ) : null}
-      <PendingActionResultCard result={result} />
-    </div>
-  )
+  return <PendingActionResultCard result={result} />
 }
 
 const emergencyLandToolCard: ToolCardRenderer = {

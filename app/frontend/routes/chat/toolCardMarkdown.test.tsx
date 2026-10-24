@@ -22,14 +22,39 @@ beforeEach(() => {
   Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
 })
 
-afterEach(() => setSlugReferenceRegistryForTests(null))
+afterEach(() => {
+  setSlugReferenceRegistryForTests(null)
+  vi.restoreAllMocks()
+})
 
 describe("MarkdownPreview", () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
     expect(screen.getByText("short").tagName).toBe("STRONG")
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("offers the complete text when a short source wraps beyond the visual line clamp", () => {
+    const clientHeight = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(48)
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96)
+
+    render(
+      <MarkdownPreview
+        maxChars={420}
+        maxLines={3}
+        text={"A wrapped paragraph that is short in source characters but occupies many narrow mobile lines. ".repeat(3)}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog")).toHaveTextContent("occupies many narrow mobile lines")
+
+    clientHeight.mockRestore()
+    scrollHeight.mockRestore()
   })
 
   it("opens and closes a modal containing the complete long markdown", () => {
@@ -43,6 +68,17 @@ describe("MarkdownPreview", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
+  })
+
+  it("offers the complete text when line clamping causes visual overflow", () => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(48)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96)
+    const text = `**Result:** ${"responsive workflow details ".repeat(8)}`
+
+    render(<MarkdownPreview maxLines={3} modalLabel="Full result" text={text} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Full result" })).toHaveTextContent("responsive workflow details")
   })
 
   it("renders an empty state for empty or whitespace-only text", () => {
@@ -95,6 +131,101 @@ describe("MarkdownPreview", () => {
     fireEvent.click(link)
     expect(onLinkClick).toHaveBeenCalledTimes(2)
     expect(onLinkClick).toHaveBeenCalledWith((link as HTMLAnchorElement).href, expect.anything())
+  })
+
+  it("supports an explicit empty state", () => {
+    render(<MarkdownPreview emptyState={<span>No description.</span>} text=" " />)
+    expect(screen.getByText("No description.")).toBeInTheDocument()
+  })
+
+  it("linkifies URLs and slugs in previews and offers modal copy for character-limited content", () => {
+    const text = `See JOB-42 and https://example.test/details. ${"More details. ".repeat(30)}`
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={60} text={text} title="Description" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
+    expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Description to clipboard" })).toBeInTheDocument()
+  })
+
+  it("renders a caller-provided empty state", () => {
+    render(<MarkdownPreview emptyState={<span>Nothing here</span>} text=" " />)
+    expect(screen.getByText("Nothing here")).toBeInTheDocument()
+  })
+
+  it("supports a character limit and passes link behavior through both views", () => {
+    const onLinkClick = vi.fn()
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifyUrls maxChars={45} onLinkClick={onLinkClick} text={`See https://example.test and JOB-42. ${"more ".repeat(20)}`} />
+      </MemoryRouter>
+    )
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
+    expect(onLinkClick).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveTextContent("JOB-42")
+    expect(within(dialog).getByRole("button", { name: "Copy Show more to clipboard" })).toBeInTheDocument()
+  })
+
+  it("links caller-provided slug hrefs in the preview and full modal", () => {
+    const onLinkClick = vi.fn()
+    const text = `See **RUN-99** for details. ${"More details. ".repeat(30)}`
+    render(<MarkdownPreview maxChars={80} onLinkClick={onLinkClick} slugHrefOverrides={{ "RUN-99": "/admin/runs/99/transcript" }} text={text} />)
+
+    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+    fireEvent.click(screen.getByRole("link", { name: "RUN-99" }))
+    expect(onLinkClick).toHaveBeenCalledWith("/admin/runs/99/transcript", expect.anything())
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getAllByRole("link", { name: "RUN-99" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "RUN-99" })[1]).toHaveAttribute("href", "/admin/runs/99/transcript")
+  })
+
+  it.each([
+    ["mobile", 320],
+    ["desktop", 960]
+  ])("does not visually clamp untruncated text at %s width", (_viewport, width) => {
+    const text = "Responsive paragraph content. ".repeat(35)
+    render(
+      <div style={{ width }}>
+        <MarkdownPreview maxChars={2_400} maxLines={6} text={text} />
+      </div>
+    )
+
+    const preview = screen.getByTestId("markdown-preview-content")
+    expect(preview).toHaveTextContent(text.trim())
+    expect(preview.style.getPropertyValue("-webkit-line-clamp")).toBe("")
+    expect(preview.style.overflow).toBe("")
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("can show an explicit empty state", () => {
+    render(<MarkdownPreview emptyLabel="No prompt was provided." text="  " />)
+    expect(screen.getByText("No prompt was provided.")).toBeInTheDocument()
+  })
+
+  it("supports a character limit and a copy control in the modal", () => {
+    render(<MarkdownPreview maxChars={12} text="A deliberately long prompt with more details." title="Prompt" />)
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Prompt to clipboard" })).toBeInTheDocument()
+  })
+
+  it("linkifies plain URLs in the compact preview", () => {
+    render(<MarkdownPreview linkifyUrls text="See https://example.test/report for details." />)
+    expect(screen.getByRole("link", { name: "https://example.test/report" })).toHaveAttribute("href", "https://example.test/report")
+  })
+
+  it("keeps slug linking disabled in the full modal", () => {
+    const text = `Review JOB-42 before continuing. ${"Additional details. ".repeat(30)}`
+    render(<MarkdownPreview linkifySlugs={false} maxChars={40} text={text} />)
+
+    expect(screen.queryByRole("button", { name: "Copy JOB-42 to clipboard" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Copy JOB-42 to clipboard" })).not.toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {

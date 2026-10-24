@@ -6,9 +6,24 @@ const INLINE_SECRET_KEY_PATTERN =
   "(?:accessToken|access[_-]?token|apiKey|api[_-]?key|apikey|clientSecret|client[_-]?secret|credential|idToken|id[_-]?token|password|refreshToken|refresh[_-]?token|secret|sessionToken|session[_-]?token|token)"
 const INLINE_SECRET_ASSIGNMENT_KEY_PATTERN =
   "[A-Za-z0-9_-]*(?:access[_-]?token|api[_-]?key|apikey|auth[_-]?token|client[_-]?secret|credential|github[_-]?token|id[_-]?token|jwt|password|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)[A-Za-z0-9_-]*"
-const SAFE_SENSITIVE_METADATA_KEY_PATTERN = /(?:^|_)(?:present|active|usable|mode|id|name|type|class|count|error_message|inactive_reason)$/i
+const SAFE_SENSITIVE_METADATA_KEYS = new Set([
+  "app_credential_inactive_reason",
+  "credential_id",
+  "credential_kind",
+  "credential_mode",
+  "credential_name",
+  "credential_scope",
+  "credential_scope_id",
+  "credential_scope_type",
+  "credential_status",
+  "credential_type",
+  "jwt_error_class",
+  "jwt_error_message"
+])
 const IDENTIFIER_VALUE_KEY_PATTERN = /(?:^|_)(?:key_names?|resource_names?|name)$/i
 const SECRET_RESOURCE_METADATA_KEY_PATTERN = /^(?:name|namespace|type|key_count|key_names|immutable|owner_references|created_at)$/i
+const CREDENTIAL_METADATA_KEY_PATTERN = /^(?:credential_id|credential_name|credential_type)$/i
+const DESIGN_TOKEN_CONTAINER_KEY_PATTERN = /^(?:tokens|light|dark)$/i
 
 export function redactToolCardValue(value: unknown, parentKey = ""): unknown {
   if (typeof value === "string") return redactToolCardText(value, !identifierValueKey(parentKey))
@@ -56,24 +71,34 @@ function sensitiveKey(key: string) {
 }
 
 function redactToolCardEntry(key: string, value: unknown) {
+  // Theme design-token containers are presentation data, not credentials.
+  // Their children still pass through normal redaction, so a genuinely
+  // sensitive key nested inside one remains protected.
+  if (DESIGN_TOKEN_CONTAINER_KEY_PATTERN.test(normalizedKey(key))) return redactToolCardValue(value, key)
   if (!sensitiveKey(key) || safeSensitiveMetadataKey(key)) return redactToolCardValue(value, key)
   if (typeof value !== "string" && !Array.isArray(value) && !isPlainObject(value)) return value
-  if (credentialMetadataObject(key, value)) return redactToolCardValue(value, key)
+  if (credentialMetadataObject(key, value)) return redactCredentialMetadata(value)
   if (secretResourceMetadataObject(key, value)) return redactSecretResourceMetadata(value)
 
   return REDACTED
 }
 
 function safeSensitiveMetadataKey(key: string) {
-  return SAFE_SENSITIVE_METADATA_KEY_PATTERN.test(normalizedKey(key))
+  return SAFE_SENSITIVE_METADATA_KEYS.has(normalizedKey(key).toLowerCase())
 }
 
 function identifierValueKey(key: string) {
   return IDENTIFIER_VALUE_KEY_PATTERN.test(normalizedKey(key))
 }
 
-function credentialMetadataObject(key: string, value: unknown) {
+function credentialMetadataObject(key: string, value: unknown): value is Record<string, unknown> {
   return /(?:^|_)credential$/.test(normalizedKey(key)) && isPlainObject(value)
+}
+
+function redactCredentialMetadata(value: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, CREDENTIAL_METADATA_KEY_PATTERN.test(normalizedKey(key)) ? redactToolCardValue(entry, key) : REDACTED])
+  )
 }
 
 function secretResourceMetadataObject(key: string, value: unknown): value is Record<string, unknown> {

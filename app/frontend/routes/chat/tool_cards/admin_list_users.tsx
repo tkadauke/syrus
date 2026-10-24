@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, numberValue, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, Row, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_list_users (the tool-card work). Renders
@@ -37,7 +37,10 @@ function userRows(context: ToolCardContext): UserRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.users)) return null
 
-  return parsed.users.flatMap((user, index) => { const row = parseRow(user, index); return row ? [row] : [] })
+  return parsed.users.flatMap((user, index) => {
+    const row = parseRow(user, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -50,25 +53,35 @@ function renderExpanded(context: ToolCardContext) {
   const rows = userRows(context)
   if (!rows) return null
 
-  if (rows.length === 0) return <EmptyState>No users found.</EmptyState>
+  const requestedLimit = numberValue(context.input?.limit)
 
   return (
     <CardShell>
-      <Table>
-        <THead columns={["Email", "Admin", "Provider", "Scheduling", "Created", "Jobs"]} />
-        <TBody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <Td maxWidth title={row.email ?? undefined}>{row.email || "—"}</Td>
-              <Td>{row.admin ? <Badge>admin</Badge> : "—"}</Td>
-              <Td>{row.agentProvider || "—"}</Td>
-              <Td>{row.schedulingPaused ? <StatePill state="paused" tone="warning" /> : <StatePill state="active" tone="success" />}</Td>
-              <Td mono>{row.createdAt || "—"}</Td>
-              <Td mono>{row.jobCount ?? "—"}</Td>
-            </tr>
-          ))}
-        </TBody>
-      </Table>
+      <Row label="Requested limit" value={requestedLimit == null ? "20 (default)" : String(requestedLimit)} />
+      {rows.length === 0 ? (
+        <EmptyState>No users found.</EmptyState>
+      ) : (
+        <Table responsive>
+          <THead columns={["ID", "Email", "Admin", "Provider", "Scheduling", "Created", "Jobs"]} />
+          <TBody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <Td mono primary>
+                  <EntityReference id={row.id} kind="artifact" />
+                </Td>
+                <Td maxWidth title={row.email ?? undefined} wrap>
+                  {row.email || "—"}
+                </Td>
+                <Td>{row.admin ? <Badge>admin</Badge> : "—"}</Td>
+                <Td>{row.agentProvider || "—"}</Td>
+                <Td>{row.schedulingPaused ? <StatePill state="paused" tone="warning" /> : <StatePill state="active" tone="success" />}</Td>
+                <Td mono>{row.createdAt || "—"}</Td>
+                <Td mono>{row.jobCount ?? "—"}</Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
     </CardShell>
   )
 }
@@ -80,3 +93,30 @@ const adminListUsersToolCard: ToolCardRenderer = {
 }
 
 export default adminListUsersToolCard
+
+export const examples = [
+  {
+    id: "users_with_account_details",
+    label: "Users with account details",
+    input: { limit: 20 },
+    parsedResult: {
+      users: [
+        {
+          id: 7,
+          email: "operator-with-a-long-address@example.com",
+          admin: true,
+          agent_provider: "codex",
+          scheduling_paused: false,
+          created_at: "2026-01-01T00:00:00Z",
+          job_count: 12
+        }
+      ]
+    }
+  },
+  {
+    id: "no_users",
+    label: "No users",
+    input: { limit: 20 },
+    parsedResult: { users: [] }
+  }
+]

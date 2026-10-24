@@ -88,6 +88,30 @@ export type JobRecord = {
   validity: string
   triaging_reason?: string | null
   triaging_uncertainty_reason?: string | null
+  planned_execution?: {
+    project_label?: string | null
+    target_label?: string | null
+    capabilities?: Record<string, string[] | null | undefined> | null
+    source?: string | null
+  }
+  planned_execution_override?: {
+    eligible: boolean
+    refusal_reason?: string | null
+    current_profile?: string | null
+    profiles: Array<{ name: string; label: string; capabilities: Record<string, string[]> }>
+    worker_availability: Record<string, boolean | null>
+    latest_audit?: { actor: string; reason: string; provenance: string; created_at: string } | null
+  }
+  placement_recommendation?: {
+    profile: string
+    label: string
+    capabilities: Record<string, string[]>
+    explanation?: string | null
+    confidence?: number | null
+    provenance: string
+    status?: string | null
+    compatible_worker_available?: boolean | null
+  } | null
   credential_mode: string | null
   agent_provider: string | null
   agent_provider_label?: string | null
@@ -569,6 +593,10 @@ export type JobVisualReviewArtifact = {
   image_url: string | null
   content_type: string | null
   byte_size: number | null
+  page?: Record<string, unknown> | null
+  viewport?: Record<string, unknown> | null
+  source?: string | null
+  captured_at?: string | null
   created_at: string | null
 }
 
@@ -947,6 +975,8 @@ export type RunFailureClassification = {
 
 export type JobActions = {
   can_write: boolean
+  can_override_planned_execution?: boolean
+  planned_execution_override_blocked_reason?: string | null
   can_submit_feedback?: boolean
   can_start: boolean
   can_release_from_backlog: boolean
@@ -1031,6 +1061,7 @@ export type JobPaths = {
   app_release_from_backlog_path: string
   app_move_to_backlog_path?: string
   app_accept_triage_path?: string
+  app_override_planned_execution_path?: string
   app_reject_triage_path?: string
   app_run_again_path: string
   app_restart_path: string

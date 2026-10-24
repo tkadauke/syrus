@@ -474,8 +474,11 @@ curl -G https://syrus.example.com/api/v1/admin/repositories/123/tests \
   -d state=flaky -d sort=failure_rate -d direction=desc
 ```
 
+Each test row includes links to its latest Run, Workflow, and Job when those
+records are available.
+
 `GET /api/v1/admin/repositories/:repository_id/tests/:id` returns one test's
-execution history, duration points, and related Run/Job references.
+execution history, duration points, and related Run/Workflow/Job references.
 
 `GET /api/v1/admin/jobs/:job_id/test_results` returns the ingested test
 results for a Job's most recent Workflow with test data — compact by
@@ -740,6 +743,12 @@ an `issues` array naming the token pair, actual ratio, and required ratio.
 user's active color theme, Syrus first falls back to the default built-in
 Terracotta theme. Built-in themes and another user's custom themes are not
 editable through these endpoints.
+
+The equivalent `delete_user_theme` chat tool returns
+`deleted_theme_id`/`deleted_theme_name` and
+`fallback_theme_id`/`fallback_theme_name` on success. The fallback fields are
+`null` when deleting the theme did not change the user's active theme. This
+keeps transcripts readable after the deleted theme record no longer exists.
 
 `PATCH /api/v1/app/themes/reorder` accepts `ids`, an ordered array of owned
 custom theme IDs, and persists their zero-based positions. Any custom themes

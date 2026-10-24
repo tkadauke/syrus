@@ -84,11 +84,20 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("plugin · agent_insights")).toBeInTheDocument()
     expandToolGroup(region)
 
-    expect(within(region).getByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toBeInTheDocument()
+    expect(within(region).getAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick").length).toBeGreaterThan(0)
 
     fireEvent.click(within(region).getByRole("tab", { name: "No pending insights" }))
     expect(within(region).getByText("No insights match this query.")).toBeInTheDocument()
-    expect(within(region).queryByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).not.toBeInTheDocument()
+    expect(within(region).queryAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toHaveLength(0)
+  })
+
+  it("preserves chat context for catalog links into preview-panel workspaces", () => {
+    renderRoute("/admin/tool_cards?tool_name=write_preview_file")
+
+    const region = screen.getByRole("region", { name: "Write preview file" })
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("link", { name: "Panel #42" })).toHaveAttribute("href", "/chats/8?workspace=preview%3A42")
   })
 
   it("renders a core mcp_tool card with multiple examples, including a malformed-payload fallback", () => {
@@ -102,6 +111,67 @@ describe("AdminToolCards", () => {
 
     fireEvent.click(within(region).getByRole("tab", { name: "Malformed: missing jobs key" }))
     expect(within(region).queryByText("JOB-101")).not.toBeInTheDocument()
+  })
+
+  it("preserves prior tool results used by a catalog example", () => {
+    renderRoute("/admin/tool_cards?tool_name=add_job_tag")
+
+    const region = screen.getByRole("region", { name: "Add job tag" })
+    expect(within(region).getByText(/^Added area:ui · JOB-7/)).toBeInTheDocument()
+    expect(within(region).queryByText(/^Added tag #10 · JOB-7/)).not.toBeInTheDocument()
+    expandToolGroup(region)
+
+    expect(within(region).getAllByText("area:ui").length).toBeGreaterThan(0)
+    expect(within(region).queryByText("Tag #10")).not.toBeInTheDocument()
+    expect(within(region).getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+    expect(region.querySelector("span[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
+  })
+
+  it("preserves pending state when switching from a settled empty result", () => {
+    renderRoute("/admin/tool_cards?tool_name=remove_job_tag&tool=remove_job_tag&example=empty_result")
+
+    const region = screen.getByRole("region", { name: "Remove job tag" })
+    expect(within(region).getByText("Done")).toBeInTheDocument()
+    expect(within(region).getByText(/Remove tag #10 returned an unexpected response/)).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Pending" }))
+
+    expect(within(region).getByText("Running")).toBeInTheDocument()
+    expect(within(region).getByText(/Removing tag #10 · JOB-7/)).toBeInTheDocument()
+    expect(within(region).queryByText(/returned an unexpected response/)).not.toBeInTheDocument()
+
+    expandToolGroup(region)
+    expect(within(region).getByText("pending")).toBeInTheDocument()
+  })
+
+  it("renders live pending-action detail and state for catalog fixtures", () => {
+    renderRoute("/admin/tool_cards?tool_name=force_landing_recheck")
+
+    const region = screen.getByRole("region", { name: "Force landing recheck" })
+    expandToolGroup(region)
+
+    expect(within(region).getByText(/observed blocker: dependencies/)).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Bulk confirmed with refreshed outcome" }))
+
+    expect(within(region).getByText("confirmed")).toBeInTheDocument()
+    expect(within(region).getByText("Landing recheck outcome")).toBeInTheDocument()
+    expect(within(region).getByText(/refreshed state: closed/)).toBeInTheDocument()
+  })
+
+  it("refreshes a pending-action card's collapsed summary from its live catalog state", () => {
+    renderRoute("/admin/tool_cards?tool_name=pause_landing_queue")
+
+    const region = screen.getByRole("region", { name: "Pause landing queue" })
+    expect(within(region).getByText("Pause landing queue · Pending")).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Landing queue paused" }))
+    expect(within(region).getByText("Pause landing queue · Paused")).toBeInTheDocument()
+    expect(within(region).queryByText("Pause landing queue · Pending")).not.toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Queue pause rejected" }))
+    expect(within(region).getByText("Pause landing queue · Rejected")).toBeInTheDocument()
+    expect(within(region).queryByText("Pause landing queue · Pending")).not.toBeInTheDocument()
   })
 
   it("deep-links directly to a specific tool and example", () => {

@@ -1,18 +1,32 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, displayValue, durationLabel, EmptyState, EntityReference, StatePill } from "../toolCardUi"
+import { Table, TBody, Td, THead } from "../adminToolCard"
+import { MarkdownPreview } from "../toolCardMarkdown"
+import { Badge, CapabilityBadges, CardShell, displayValue, durationLabel, EmptyState, EntityReference, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for list_job_workflows (the Tier 1 tool-card work). Renders
-// a Workflow index as a dense table: trigger kind, state, summary, step/run
-// counts, and duration.
 type WorkflowRow = {
   key: string
   id: string
   triggerKind: string | null
   state: string
+  plannedExecution: Record<string, unknown> | null
   summary: string | null
   stepCount: number | null
   runCount: number | null
+  createdAt: string | null
+  startedAt: string | null
+  finishedAt: string | null
   duration: string | null
+}
+
+type WorkflowCard =
+  | { kind: "results"; jobId: string | null; rows: WorkflowRow[] }
+  | { kind: "error"; jobId: string | null; message: string }
+  | { kind: "malformed"; jobId: string | null }
+
+function countValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return null
 }
 
 function parseRow(value: unknown): WorkflowRow | null {
@@ -26,65 +40,144 @@ function parseRow(value: unknown): WorkflowRow | null {
     id,
     triggerKind: displayValue(value.trigger_kind),
     state,
+    plannedExecution: isPlainObject(value.planned_execution) ? value.planned_execution : null,
     summary: displayValue(value.summary),
-    stepCount: value.step_count == null ? null : Number(value.step_count),
-    runCount: value.run_count == null ? null : Number(value.run_count),
+    stepCount: countValue(value.step_count),
+    runCount: countValue(value.run_count),
+    createdAt: displayValue(value.created_at),
+    startedAt: displayValue(value.started_at),
+    finishedAt: displayValue(value.finished_at),
     duration: durationLabel(value.started_at, value.finished_at)
   }
 }
 
-function workflowRows(context: ToolCardContext): WorkflowRow[] | null {
+function parseCard(context: ToolCardContext): WorkflowCard {
   const parsed = context.parsedResult
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.workflows)) return null
+  const resultJobId = isPlainObject(parsed) ? displayValue(parsed.job_id) : null
+  const jobId = resultJobId ?? displayValue(context.input?.job_id)
 
-  return parsed.workflows.flatMap((workflow) => {
-    const row = parseRow(workflow)
-    return row ? [row] : []
-  })
+  if (context.resultError) {
+    return { kind: "error", jobId, message: displayValue(context.resultBody) ?? "Could not list Job workflows." }
+  }
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.workflows)) return { kind: "malformed", jobId }
+
+  return {
+    kind: "results",
+    jobId,
+    rows: parsed.workflows.flatMap((workflow) => {
+      const row = parseRow(workflow)
+      return row ? [row] : []
+    })
+  }
+}
+
+function jobLabel(jobId: string | null) {
+  return jobId ? `JOB-${jobId}` : "Job"
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const rows = workflowRows(context)
-  if (!rows) return null
-  return `${rows.length} Workflow${rows.length === 1 ? "" : "s"}`
+  const card = parseCard(context)
+  if (card.kind === "error") return `${jobLabel(card.jobId)} workflows failed`
+  if (card.kind === "malformed") return null
+  return `${jobLabel(card.jobId)} · ${card.rows.length} Workflow${card.rows.length === 1 ? "" : "s"}`
+}
+
+function Timestamp({ value }: { value: string | null }) {
+  if (!value) return <>—</>
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return <>{value}</>
+  return (
+    <time dateTime={value} title={date.toLocaleString()}>
+      {date.toLocaleString()}
+    </time>
+  )
+}
+
+function PlannedExecution({ value }: { value: Record<string, unknown> | null }) {
+  if (!value) return <>—</>
+  const project = displayValue(value.project_label)
+  const target = displayValue(value.target_label)
+  const source = displayValue(value.source)
+
+  return (
+    <div className="space-y-1">
+      <CapabilityBadges capabilities={value.capabilities} />
+      <div className="flex flex-wrap gap-1">
+        {project ? <Badge>{project}</Badge> : null}
+        {target ? <Badge>{target}</Badge> : null}
+        {source ? <Badge>{source}</Badge> : null}
+      </div>
+    </div>
+  )
+}
+
+function JobHeader({ jobId }: { jobId: string | null }) {
+  return (
+    <div className="flex min-h-6 items-center gap-2 font-medium text-text-primary">
+      <span>Workflows for</span>
+      {jobId ? <EntityReference id={jobId} kind="job" /> : <span>Job</span>}
+    </div>
+  )
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const rows = workflowRows(context)
-  if (!rows) return null
+  const card = parseCard(context)
+  if (card.kind === "malformed") return null
 
-  if (rows.length === 0) return <EmptyState>No Workflows found.</EmptyState>
-  const jobId = displayValue(context.input?.job_id)
+  if (card.kind === "error") {
+    return (
+      <CardShell>
+        <JobHeader jobId={card.jobId} />
+        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          {card.message}
+        </div>
+      </CardShell>
+    )
+  }
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Workflow</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Trigger</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Summary</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Steps</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Runs</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Duration</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <td className="whitespace-nowrap px-2 py-1"><EntityReference id={row.id} jobId={jobId} kind="workflow" /></td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.triggerKind ? <Badge>{row.triggerKind}</Badge> : "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1"><StatePill state={row.state} /></td>
-              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-700 dark:text-gray-300" title={row.summary ?? undefined}>{row.summary || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.stepCount ?? "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.runCount ?? "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.duration || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <CardShell>
+      <JobHeader jobId={card.jobId} />
+      {card.rows.length === 0 ? (
+        <EmptyState>No Workflows found.</EmptyState>
+      ) : (
+        <Table responsive>
+          <THead columns={["Workflow", "Trigger", "State", "Planned execution", "Summary", "Steps / runs", "Created", "Started", "Finished / duration"]} />
+          <TBody>
+            {card.rows.map((row) => (
+              <tr key={row.key}>
+                <Td primary>
+                  <EntityReference id={row.id} jobId={card.jobId} kind="workflow" wrap="nowrap" />
+                </Td>
+                <Td>{row.triggerKind ? <Badge>{row.triggerKind}</Badge> : "—"}</Td>
+                <Td>
+                  <StatePill state={row.state} />
+                </Td>
+                <Td wrap>
+                  <PlannedExecution value={row.plannedExecution} />
+                </Td>
+                <Td maxWidth wrap>
+                  {row.summary ? <MarkdownPreview maxLines={3} modalLabel={`Workflow ${row.id} summary`} text={row.summary} /> : "—"}
+                </Td>
+                <Td>
+                  {row.stepCount ?? "—"} / {row.runCount ?? "—"}
+                </Td>
+                <Td>
+                  <Timestamp value={row.createdAt} />
+                </Td>
+                <Td>
+                  <Timestamp value={row.startedAt} />
+                </Td>
+                <Td>
+                  <Timestamp value={row.finishedAt} />
+                  {row.duration ? <div className="text-text-muted">{row.duration}</div> : null}
+                </Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
+    </CardShell>
   )
 }
 
@@ -95,3 +188,30 @@ const listJobWorkflowsToolCard: ToolCardRenderer = {
 }
 
 export default listJobWorkflowsToolCard
+
+export const examples = [
+  {
+    id: "workflow_history",
+    label: "Workflow history",
+    input: { job_id: 42 },
+    parsedResult: {
+      job_id: 42,
+      workflows: [
+        {
+          id: 91,
+          trigger_kind: "initial",
+          state: "succeeded",
+          planned_execution: { project_label: "repo", target_label: "//:test", capabilities: { os: ["linux"] }, source: "explicit" },
+          summary: "Implemented **responsive** workflow cards with linked references.",
+          step_count: 4,
+          run_count: 4,
+          created_at: "2026-10-19T10:00:00Z",
+          started_at: "2026-10-19T10:01:00Z",
+          finished_at: "2026-10-19T10:08:00Z"
+        }
+      ]
+    }
+  },
+  { id: "no_workflows", label: "No workflows", input: { job_id: 42 }, parsedResult: { job_id: 42, workflows: [] } },
+  { id: "error", label: "Error", input: { job_id: 42 }, resultBody: "Job not found", resultError: true }
+]

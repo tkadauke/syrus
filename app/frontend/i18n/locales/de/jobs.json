@@ -27,6 +27,13 @@
   "release_from_backlog": "Aus Backlog freigeben",
   "move_to_backlog": "In Backlog verschieben",
   "accept_triage": "Annehmen",
+  "placement_confirmation_title": "Ausführungsplatzierung bestätigen",
+  "placement_confirmation_body": "Der Aufnahme-Klassifikator hat eine Nicht-Linux-Ausführung vorgeschlagen. Prüfe den Vorschlag und wähle ausdrücklich die vorgeschlagene Platzierung oder Linux.",
+  "accept_suggested_placement": "Mit vorgeschlagener Platzierung annehmen",
+  "accept_using_linux": "Mit Linux annehmen",
+  "placement_worker_available": "Ein kompatibler Worker ist derzeit verfügbar.",
+  "placement_worker_unavailable": "Derzeit ist kein kompatibler Worker verfügbar.",
+  "placement_worker_unknown": "Die Verfügbarkeit kompatibler Worker ist unbekannt.",
   "reject_triage": "Ablehnen",
   "confirm_reject_triage": "Diese Aufgabe ablehnen? Sie wird als abgebrochen geschlossen.",
   "triage_uncertain_title": "Entscheidung erforderlich",
@@ -967,5 +974,12 @@
   "pr_checks_override_confirm": "Diesen Job einmal landen, obwohl seine fehlgeschlagenen PR-Prüfungen bereits auf der Basis fehlschlagen?",
   "pr_checks_override_reason": "Operator hat bestätigt, dass die übernommenen fehlgeschlagenen PR-Prüfungen für diesen Landeversuch akzeptabel sind.",
   "start_blocked_title": "Wartet auf Fortsetzung",
-  "start_blocked_generic": "Syrus hat die Arbeit an diesem Job pausiert. Sie wird automatisch fortgesetzt, sobald die Blockade aufgehoben ist."
+  "start_blocked_generic": "Syrus hat die Arbeit an diesem Job pausiert. Sie wird automatisch fortgesetzt, sobald die Blockade aufgehoben ist.",
+  "override_placement": "Ausführungsplatzierung ändern",
+  "placement_profile": "Ausführungsprofil",
+  "placement_before_after": "Vorher: {{before}} → Nachher: {{after}}",
+  "placement_current_provenance": "Aktuelle Platzierungsherkunft: {{source}}",
+  "placement_latest_audit": "Zuletzt geändert von {{actor}} ({{provenance}}): {{reason}}",
+  "placement_audit_reason": "Audit-Begründung",
+  "confirm_placement_override": "Platzierungsänderung bestätigen"
 }

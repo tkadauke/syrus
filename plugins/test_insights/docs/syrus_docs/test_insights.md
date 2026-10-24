@@ -277,8 +277,8 @@ read-only MCP tools:
   `recent_100` window rather than aggregating raw `test_cases` at request time.
   The response includes suite/name/file, last status and timestamps, last
   duration, recent pass/failure counts, failure rate, average duration, runtime
-  summary p50/p95/avg/sample count when available, reasons, and latest run/job
-  references.
+  summary p50/p95/avg/sample count when available, reasons, and latest
+  run/workflow/job references.
 - `read_test_insight(test_identity_id:, history_limit:, include_failures:)`
   returns one `TestIdentity`, recent execution history, duration points,
   related grader/run/job references, and bounded failure

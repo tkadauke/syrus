@@ -1,11 +1,18 @@
 import type { CSSProperties, ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { isPlainObject } from "../../toolCardParsing"
+import { DataTable } from "../../components/ui"
+import { Table, TBody, Td, THead } from "./adminToolCard"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
+import { MarkdownPreview } from "./toolCardMarkdown"
+import { MediaPreviewShell } from "./mediaPreviewShell"
 import { formatRelativeDate } from "../../lib/relativeTime"
+import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 
-const ARTIFACT_PREVIEW_LINES = 8
 const ARTIFACT_PREVIEW_CHARS = 900
+const DEFAULT_ISSUE_LIMIT = 20
 
 type IssueRow = {
   number: string
@@ -16,11 +23,13 @@ type IssueRow = {
   updatedAt: string | null
   url: string | null
   repository: string | null
+  author: string | null
+  bodyExcerpt: string | null
 }
 
 type TagRow = {
   id: string | null
-  name: string
+  name: string | null
   color: string | null
   jobIds: string[]
 }
@@ -43,11 +52,12 @@ type ArtifactResult = {
   path: string | null
   url: string | null
   message: string | null
-  preview: string | null
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Object.prototype.toString.call(value) === "[object Object]"
+  payload: unknown
+  workflowId: string | null
+  runId: string | null
+  jobId: string | null
+  chatSessionId: string | null
+  pending: boolean
 }
 
 function arrayStrings(value: unknown): string[] {
@@ -60,7 +70,7 @@ function arrayStrings(value: unknown): string[] {
 
 function issueRows(context: ToolCardContext): IssueRow[] | null {
   const parsed = context.parsedResult
-  const rows = Array.isArray(parsed) ? parsed : isPlainObject(parsed) && Array.isArray(parsed.issues) ? parsed.issues : null
+  const rows = isPlainObject(parsed) && Array.isArray(parsed.issues) ? parsed.issues : null
   if (!rows) return null
 
   return rows.flatMap((item) => {
@@ -69,17 +79,38 @@ function issueRows(context: ToolCardContext): IssueRow[] | null {
     const title = displayValue(item.title)
     if (!number || !title) return []
 
-    return [{
-      number,
-      title,
-      labels: arrayStrings(item.labels),
-      state: displayValue(item.state),
-      createdAt: displayValue(item.created_at),
-      updatedAt: displayValue(item.updated_at),
-      url: displayValue(item.url) || displayValue(item.html_url),
-      repository: displayValue(item.repository) || displayValue(item.repository_slug)
-    }]
+    return [
+      {
+        number,
+        title,
+        labels: arrayStrings(item.labels),
+        state: displayValue(item.state),
+        createdAt: displayValue(item.created_at),
+        updatedAt: displayValue(item.updated_at),
+        url: displayValue(item.url) || displayValue(item.html_url),
+        repository:
+          displayValue(item.repository) || displayValue(item.repository_slug) || repositoryFromIssueUrl(displayValue(item.url) || displayValue(item.html_url)),
+        author: displayValue(item.author),
+        bodyExcerpt: displayValue(item.body_excerpt)
+      }
+    ]
   })
+}
+
+function repositoryFromIssueUrl(url: string | null): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    const match = parsed.hostname === "github.com" ? parsed.pathname.match(/^\/([^/]+\/[^/]+)\/issues\/\d+/) : null
+    return match?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
+function issueImageUrls(body: string | null): string[] {
+  if (!body) return []
+  return Array.from(body.matchAll(/!\[[^\]]*\]\(((?:https?:\/\/|\/)[^\s)]+)(?:\s+["'][^"']*["'])?\)/gi), (match) => match[1]).slice(0, 3)
 }
 
 function timestampLabel(value: string | null): string | null {
@@ -90,55 +121,101 @@ function timestampLabel(value: string | null): string | null {
 }
 
 export function issueListSummary(context: ToolCardContext) {
+  if (context.resultError) return "Could not list issues"
   const rows = issueRows(context)
   if (!rows) return null
   return rows.length === 0 ? "No issues" : `${rows.length} issue${rows.length === 1 ? "" : "s"}`
+}
+
+function IssueQuerySummary({ context, count }: { context: ToolCardContext; count: number }) {
+  const state = displayValue(context.input?.state) || "open"
+  const label = displayValue(context.input?.label)
+  const limit = displayValue(context.input?.limit) || String(DEFAULT_ISSUE_LIMIT)
+  return (
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+      <span>
+        State: <span className="font-medium text-text-primary">{state}</span>
+      </span>
+      <span>
+        Label: <span className="font-medium text-text-primary">{label || "all"}</span>
+      </span>
+      <span>
+        Limit: <span className="font-medium text-text-primary">{limit}</span>
+      </span>
+      {Number(limit) === count ? <span>Limit reached; more issues may be available.</span> : null}
+    </div>
+  )
 }
 
 export function IssueListCard({ rows }: { rows: IssueRow[] }) {
   if (rows.length === 0) return <EmptyState>No issues found.</EmptyState>
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Issue</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Labels</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Age</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Updated</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Link</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((issue) => (
-            <tr key={issue.number}>
-              <td className="max-w-80 px-2 py-1">
-                <div className="font-mono font-medium text-gray-800 dark:text-gray-200">#{issue.number}</div>
-                <div className="truncate text-gray-700 dark:text-gray-300" title={issue.title}>{issue.title}</div>
-                {issue.repository ? <div className="truncate font-mono text-2xs text-gray-500 dark:text-gray-400">{issue.repository}</div> : null}
-              </td>
-              <td className="whitespace-nowrap px-2 py-1">{issue.state ? <StatePill state={issue.state} /> : <span className="text-gray-400">-</span>}</td>
-              <td className="min-w-36 px-2 py-1">
-                {issue.labels.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">{issue.labels.map((label) => <Badge key={label}>{label}</Badge>)}</div>
-                ) : <span className="text-gray-400">-</span>}
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{timestampLabel(issue.createdAt) || "-"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{timestampLabel(issue.updatedAt) || "-"}</td>
-              <td className="whitespace-nowrap px-2 py-1">{issue.url ? <InternalLink href={issue.url}>open</InternalLink> : <span className="text-gray-400">-</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table responsive>
+      <THead columns={["Issue", "Details", "State", "Labels", "Activity"]} />
+      <TBody>
+        {rows.map((issue) => (
+          <DataTable.Row key={`${issue.repository || "issue"}-${issue.number}`}>
+            <Td>
+              <EntityReference id={issue.number} issueUrl={issue.url} kind="issue" />
+              {issue.repository ? (
+                <div>
+                  <EntityReference href={`https://github.com/${issue.repository}`} kind="repository" repositorySlug={issue.repository} />
+                </div>
+              ) : null}
+            </Td>
+            <Td maxWidth wrap>
+              <div className="break-words font-medium text-text-primary">{issue.title}</div>
+              {issue.author ? <div className="mt-0.5 text-2xs text-text-muted">by {issue.author}</div> : null}
+              {issue.bodyExcerpt ? <MarkdownPreview maxLines={3} modalLabel={`${issue.title} body`} text={issue.bodyExcerpt} /> : null}
+              {issueImageUrls(issue.bodyExcerpt).length ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {issueImageUrls(issue.bodyExcerpt).map((src, index) => (
+                    <MediaPreviewShell item={{ title: `${issue.title} image ${index + 1}`, src }} key={src} thumbnailClassName="w-28" />
+                  ))}
+                </div>
+              ) : null}
+            </Td>
+            <Td>{issue.state ? <StatePill state={issue.state} /> : <span className="text-text-subtle">—</span>}</Td>
+            <Td wrap>
+              {issue.labels.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {issue.labels.map((label) => (
+                    <Badge key={label}>{label}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-text-subtle">—</span>
+              )}
+            </Td>
+            <Td wrap>
+              <div>Opened {timestampLabel(issue.createdAt) || "—"}</div>
+              <div>Updated {timestampLabel(issue.updatedAt) || "—"}</div>
+            </Td>
+          </DataTable.Row>
+        ))}
+      </TBody>
+    </Table>
   )
 }
 
 export function renderIssueList(context: ToolCardContext): ReactNode | null {
+  if (context.resultError) {
+    const message = isPlainObject(context.parsedResult) ? displayValue(context.parsedResult.error) || displayValue(context.parsedResult.message) : null
+    return (
+      <>
+        <IssueQuerySummary context={context} count={0} />
+        <EmptyState>{message || context.resultBody.trim() || "Unable to list issues."}</EmptyState>
+      </>
+    )
+  }
   const rows = issueRows(context)
-  return rows ? <IssueListCard rows={rows} /> : null
+  return rows ? (
+    <>
+      <IssueQuerySummary context={context} count={rows.length} />
+      <IssueListCard rows={rows} />
+    </>
+  ) : null
 }
 
 function parseTag(value: unknown): TagRow | null {
@@ -157,7 +234,19 @@ function tagFromInput(context: ToolCardContext): TagRow | null {
   const name = displayValue(context.input?.name)
   const tagId = displayValue(context.input?.tag_id)
   if (!name && !tagId) return null
-  return { id: tagId, name: name || `tag ${tagId}`, color: displayValue(context.input?.color), jobIds: [] }
+  return { id: tagId, name, color: displayValue(context.input?.color), jobIds: [] }
+}
+
+function tagFromPriorResults(context: ToolCardContext, tagId: string | null): TagRow | null {
+  if (!tagId) return null
+  const prior = context.priorResults?.list_tags
+  const rows = Array.isArray(prior) ? prior : isPlainObject(prior) && Array.isArray(prior.tags) ? prior.tags : []
+  return (
+    rows.flatMap((item) => {
+      const tag = parseTag(item)
+      return tag?.id === tagId ? [tag] : []
+    })[0] ?? null
+  )
 }
 
 function tagRows(context: ToolCardContext): TagRow[] | null {
@@ -171,9 +260,11 @@ function tagRows(context: ToolCardContext): TagRow[] | null {
 }
 
 export function tagListSummary(context: ToolCardContext) {
+  if (context.resultError) return i18n.t("chat:tool_card_tags_error_summary")
+  if (context.parsedResult == null && context.resultBody === "") return i18n.t("chat:tool_card_tags_loading_summary")
   const rows = tagRows(context)
   if (!rows) return null
-  return rows.length === 0 ? "No tags" : `${rows.length} tag${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_tags_count", { count: rows.length })
 }
 
 const TAG_PALETTE: Record<string, { backgroundColor: string; color: string }> = {
@@ -202,36 +293,68 @@ function tagStyle(color: string | null): CSSProperties | undefined {
 
 function TagChip({ tag }: { tag: TagRow }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" style={tagStyle(tag.color)}>
-      <span className="truncate">{tag.name}</span>
-      {tag.id ? <span className="font-mono opacity-70">#{tag.id}</span> : null}
+    <span
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+      style={tagStyle(tag.color)}
+    >
+      <span className="truncate">{tag.name || `Tag #${tag.id}`}</span>
+      {tag.name && tag.id ? <span className="font-mono opacity-70">#{tag.id}</span> : null}
     </span>
   )
 }
 
 export function TagListCard({ rows }: { rows: TagRow[] }) {
-  if (rows.length === 0) return <EmptyState>No tags found.</EmptyState>
+  const { t } = useT("chat")
+  if (rows.length === 0) return <EmptyState>{t("tool_card_tags_empty")}</EmptyState>
 
   return (
     <CardShell>
-      <div className="flex flex-wrap gap-1">
-        {rows.map((tag, index) => <TagChip key={tag.id || `${tag.name}-${index}`} tag={tag} />)}
-      </div>
-      <div>
-        <SectionLabel>Affected Jobs</SectionLabel>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).length > 0
-            ? Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).map((id) => <Badge key={id}>JOB-{id}</Badge>)
-            : <span className="text-gray-500 dark:text-gray-400">No tagged Jobs.</span>}
-        </div>
+      <SectionLabel>{t("tool_card_tags_section", { count: rows.length })}</SectionLabel>
+      <div className="grid gap-2">
+        {rows.map((tag, index) => (
+          <div
+            className="flex min-w-0 flex-col gap-1 rounded border border-gray-200 p-2 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700"
+            key={tag.id || `${tag.name || "tag"}-${index}`}
+          >
+            <TagChip tag={tag} />
+            <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+              <span className="text-2xs text-gray-500 dark:text-gray-400">{t("tool_card_tags_jobs_count", { count: tag.jobIds.length })}</span>
+              {tag.jobIds.map((id) => (
+                <Badge key={id}>
+                  <EntityReference id={id} kind="job" />
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </CardShell>
   )
 }
 
-export function renderTagList(context: ToolCardContext): ReactNode | null {
+function TagListResult({ context }: { context: ToolCardContext }) {
+  const { t } = useT("chat")
+  if (context.resultError) {
+    return <ErrorCard title={t("tool_card_tags_error_title")} message={context.resultBody || t("tool_card_tags_error_fallback")} />
+  }
+  if (context.parsedResult == null && context.resultBody === "") {
+    return (
+      <CardShell>
+        <div className="flex items-center gap-2">
+          <StatePill state="pending" />
+          <span>{t("tool_card_tags_loading")}</span>
+        </div>
+      </CardShell>
+    )
+  }
+
   const rows = tagRows(context)
   return rows ? <TagListCard rows={rows} /> : null
+}
+
+export function renderTagList(context: ToolCardContext): ReactNode | null {
+  if (!context.resultError && !(context.parsedResult == null && context.resultBody === "") && !tagRows(context)) return null
+  return <TagListResult context={context} />
 }
 
 export function parseTagAction(context: ToolCardContext, action: TagAction["action"]): TagAction | null {
@@ -239,9 +362,10 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
   const parsedError = isPlainObject(parsed) ? displayValue(parsed.error) : null
   const resultTag = parseTag(parsed)
   const inputTag = tagFromInput(context)
-  const tag = resultTag || inputTag
+  const priorTag = action === "create" ? null : tagFromPriorResults(context, inputTag?.id ?? null)
+  const tag = resultTag || priorTag || inputTag
   const success = resultTag != null || (isPlainObject(parsed) && parsed.success === true)
-  const pending = parsed == null && !context.resultError && context.resultBody === "" && inputTag != null
+  const pending = context.resultSettled !== true && parsed == null && !context.resultError && context.resultBody === "" && inputTag != null
   if (!tag && !success && !parsedError && !context.resultError) return null
 
   return {
@@ -259,7 +383,7 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
 export function tagActionSummary(result: TagAction) {
   const verb = result.action === "create" ? "Created" : result.action === "add" ? "Added" : "Removed"
   const command = result.action === "create" ? "Create" : result.action === "add" ? "Add" : "Remove"
-  const target = result.tag?.name || (result.tag?.id ? `tag ${result.tag.id}` : "tag")
+  const target = result.tag?.name || (result.tag?.id ? `tag #${result.tag.id}` : "tag")
   const job = result.jobId ? ` · JOB-${result.jobId}` : ""
   if (result.error) return `${verb} ${target} failed${job}`
   if (result.pending) return `${verb.replace(/ed$/, "ing")} ${target}${job}`
@@ -269,7 +393,14 @@ export function tagActionSummary(result: TagAction) {
 
 export function TagActionCard({ result }: { result: TagAction }) {
   const title = result.action === "create" ? "Create tag" : result.action === "add" ? "Add Job tag" : "Remove Job tag"
-  if (result.error) return <ErrorCard title={title} message={result.error} />
+  if (result.error) {
+    return (
+      <ErrorCard title={title} message={result.error}>
+        {result.tag ? <TagChip tag={result.tag} /> : null}
+        <TagActionMetadata result={result} />
+      </ErrorCard>
+    )
+  }
 
   const state = result.pending ? "pending" : result.success ? "success" : "unknown"
   return (
@@ -279,33 +410,67 @@ export function TagActionCard({ result }: { result: TagAction }) {
         <span className="font-semibold text-gray-900 dark:text-gray-100">{title}</span>
         {result.tag ? <TagChip tag={result.tag} /> : null}
       </div>
-      <dl className="grid gap-1 sm:grid-cols-2">
-        {result.action === "create" && result.inputTag?.name ? <Row label="Requested name" value={result.inputTag.name} /> : null}
-        {result.action === "create" && result.inputTag?.color ? <Row label="Requested color" value={result.inputTag.color} /> : null}
-        {result.action === "create" && result.resultTag?.name ? <Row label="Created name" value={result.resultTag.name} /> : null}
-        {result.action === "create" && result.resultTag?.color ? <Row label="Created color" value={result.resultTag.color} /> : null}
-        {result.jobId ? <Row label="Job" value={`JOB-${result.jobId}`} /> : null}
-        {result.tag?.id ? <Row label="Tag" value={result.tag.id} /> : null}
-      </dl>
+      <TagActionMetadata result={result} />
       {!result.pending && !result.success ? <EmptyState>Unexpected tool response.</EmptyState> : null}
     </CardShell>
   )
 }
 
-function previewFromPayload(payload: unknown): string | null {
-  if (payload == null) return null
-  const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)
-  if (!text) return null
-  const clipped = text.length > ARTIFACT_PREVIEW_CHARS ? `${text.slice(0, ARTIFACT_PREVIEW_CHARS)}...` : text
-  return truncateLines(clipped, ARTIFACT_PREVIEW_LINES).preview
+function TagActionMetadata({ result }: { result: TagAction }) {
+  return (
+    <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
+      {result.action === "create" && result.inputTag?.name ? <Row label="Requested name" value={result.inputTag.name} /> : null}
+      {result.action === "create" && result.inputTag?.color ? <Row label="Requested color" value={result.inputTag.color} /> : null}
+      {result.action === "create" && result.resultTag?.name ? <Row label="Created name" value={result.resultTag.name} /> : null}
+      {result.action === "create" && result.resultTag?.color ? <Row label="Created color" value={result.resultTag.color} /> : null}
+      {result.jobId ? (
+        <div className="min-w-0">
+          <SectionLabel>Job</SectionLabel>
+          <EntityReference id={result.jobId} kind="job" wrap="break" />
+        </div>
+      ) : null}
+      {result.tag?.id ? <Row label="Tag ID" value={result.tag.id} /> : null}
+    </dl>
+  )
+}
+
+function artifactEnvelope(value: unknown): Record<string, unknown> {
+  if (!isPlainObject(value)) return {}
+  for (const key of ["structured_content", "structuredContent", "result", "output"]) {
+    if (isPlainObject(value[key])) return { ...value, ...artifactEnvelope(value[key]) }
+  }
+  return value
+}
+
+function artifactPayloadText(payload: unknown): string {
+  if (payload == null) return ""
+  if (typeof payload === "string") return payload
+  if (isPlainObject(payload)) {
+    const prose = Object.entries(payload).flatMap(([key, value]) =>
+      typeof value === "string" && value.trim() && !/(url|path|image|screenshot|data)/i.test(key) ? [`**${key.replace(/_/g, " ")}**\n\n${value}`] : []
+    )
+    if (prose.length > 0) return prose.join("\n\n")
+    if (Object.values(payload).every((value) => typeof value === "string" && !value.trim())) return ""
+  }
+  return `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
+}
+
+function artifactImage(payload: unknown): string | null {
+  if (!isPlainObject(payload)) return null
+  for (const key of ["image_url", "screenshot_url", "preview_url", "data_url", "file_path", "path", "image", "screenshot"]) {
+    const candidate = displayValue(payload[key])
+    if (candidate && (candidate.startsWith("/") || candidate.startsWith("data:image/") || /^https?:\/\//i.test(candidate))) return candidate
+  }
+  return null
 }
 
 export function parseArtifactResult(context: ToolCardContext): ArtifactResult | null {
-  const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
+  const parsed = artifactEnvelope(context.parsedResult)
   const title = displayValue(parsed.title) || displayValue(context.input?.title)
   const type = displayValue(parsed.type) || displayValue(context.input?.type)
   const message = displayValue(parsed.message) || (context.resultBody === "Saved." ? "Saved." : null)
-  if (!title && !type && !message && !context.resultError) return null
+  const pending = context.resultSettled !== true && context.parsedResult == null && context.resultBody === "" && !!(title || type)
+  if (!title && !type && !message && !context.resultError && !pending) return null
 
   return {
     title,
@@ -314,7 +479,12 @@ export function parseArtifactResult(context: ToolCardContext): ArtifactResult | 
     path: displayValue(parsed.path) || displayValue(parsed.file_path),
     url: displayValue(parsed.url) || displayValue(parsed.href),
     message: context.resultError ? context.resultBody : message,
-    preview: previewFromPayload(isPlainObject(parsed) && parsed.payload !== undefined ? parsed.payload : context.input?.payload)
+    payload: parsed.payload !== undefined ? parsed.payload : context.input?.payload,
+    workflowId: displayValue(parsed.workflow_id) || displayValue(context.input?.workflow_id),
+    runId: displayValue(parsed.run_id) || displayValue(context.input?.run_id),
+    jobId: displayValue(parsed.job_id) || displayValue(context.input?.job_id),
+    chatSessionId: displayValue(parsed.chat_session_id) || displayValue(context.chatSessionId),
+    pending
   }
 }
 
@@ -322,35 +492,72 @@ export function artifactSummary(context: ToolCardContext) {
   const artifact = parseArtifactResult(context)
   if (!artifact) return null
   if (context.resultError) return artifact.title ? `Artifact ${artifact.title} failed` : "Artifact submission failed"
+  if (artifact.pending) return artifact.title ? `Saving artifact: ${artifact.title}` : "Saving artifact"
   return artifact.title ? `Artifact saved: ${artifact.title}` : "Artifact saved"
 }
 
 export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactResult; error?: boolean }) {
+  if (error) return <ErrorCard title="Artifact submission failed" message={artifact.message || "The artifact could not be saved."} />
+  const image = artifactImage(artifact.payload)
+  const preview = artifactPayloadText(artifact.payload)
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={error ? "failed" : "saved"} tone={error ? "failure" : "success"} />
+        <StatePill state={artifact.pending ? "pending" : "saved"} tone={artifact.pending ? "info" : "success"} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{artifact.title || "Artifact"}</span>
         {artifact.type ? <Badge>{artifact.type}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {artifact.id ? <Row label="Artifact" value={artifact.id} /> : null}
         {artifact.path ? <Row label="Path" value={artifact.path} /> : null}
+        {artifact.workflowId ? (
+          <div className="min-w-0">
+            <SectionLabel>Workflow</SectionLabel>
+            <EntityReference id={artifact.workflowId} jobId={artifact.jobId} kind="workflow" />
+          </div>
+        ) : null}
+        {artifact.runId ? (
+          <div className="min-w-0">
+            <SectionLabel>Run</SectionLabel>
+            <EntityReference id={artifact.runId} jobId={artifact.jobId} workflowId={artifact.workflowId} kind="run" />
+          </div>
+        ) : null}
       </dl>
-      {artifact.url || artifact.path ? (
+      {artifact.url || artifact.chatSessionId ? (
         <div className="flex flex-wrap gap-2">
           {artifact.url ? <InternalLink href={artifact.url}>open</InternalLink> : null}
           {artifact.url ? <InternalLink href={artifact.url}>download</InternalLink> : null}
-          {artifact.path ? <span className="font-mono text-gray-600 dark:text-gray-300">preview available in raw details</span> : null}
+          {artifact.chatSessionId ? <InternalLink href={`/chats/${artifact.chatSessionId}?workspace=media`}>Chat Media library</InternalLink> : null}
         </div>
       ) : null}
-      {artifact.message ? <div className={error ? "text-red-700 dark:text-red-300" : "text-gray-700 dark:text-gray-300"}>{artifact.message}</div> : null}
-      {artifact.preview ? (
-        <div>
-          <SectionLabel>Preview</SectionLabel>
-          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{artifact.preview}</pre>
-        </div>
-      ) : null}
+      {artifact.message ? <div className="break-words text-gray-700 dark:text-gray-300">{artifact.message}</div> : null}
+      {artifact.pending ? (
+        <EmptyState>Waiting for the artifact result.</EmptyState>
+      ) : image ? (
+        <MediaPreviewShell
+          item={{
+            title: artifact.title || artifact.type || "Artifact",
+            src: image,
+            alt: artifact.title || "Submitted artifact",
+            badge: artifact.type || "image",
+            actions: [
+              { label: "Open", href: image },
+              { label: "Download", href: image, download: true }
+            ]
+          }}
+          thumbnailClassName="w-full max-w-72"
+        />
+      ) : (
+        <MarkdownPreview
+          emptyLabel="No artifact payload was submitted."
+          linkifySlugs
+          linkifyUrls
+          maxChars={ARTIFACT_PREVIEW_CHARS}
+          modalLabel={`${artifact.title || "Artifact"} payload`}
+          text={preview}
+          title="Payload"
+        />
+      )}
     </CardShell>
   )
 }

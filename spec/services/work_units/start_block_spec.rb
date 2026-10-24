@@ -6,7 +6,18 @@ RSpec.describe WorkUnits::StartBlock do
   let(:job) { Factories.job_record(user: user, repository: repository) }
   let(:workflow) { WorkUnits::Launcher.instantiate(kind: "initial", job: job) }
 
+  def enable_main_health_blocking!
+    repository.update!(
+      risk_profile: "production",
+      main_branch_health_enabled: true,
+      main_branch_repair_blocks_work: true,
+      landing_paused: true,
+      ci_health: "broken"
+    )
+  end
+
   it "reports blocked_since from the block episode, not the last re-check" do
+    enable_main_health_blocking!
     workflow.work_unit.block!(reason: "main_branch_health", blocked_until: 5.minutes.from_now)
     blocked_at = workflow.work_unit.reload.blocked_at
 
@@ -107,6 +118,7 @@ RSpec.describe WorkUnits::StartBlock do
   end
 
   it "falls back to WorkUnit blocked state when workflow artifacts are absent" do
+    enable_main_health_blocking!
     blocked_until = 10.minutes.from_now
     workflow.work_unit.block!(
       reason: "main_branch_health",
@@ -125,6 +137,25 @@ RSpec.describe WorkUnits::StartBlock do
       details: include("repository_id" => repository.id)
     )
     expect(block.blocked_for?(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)).to be(true)
+  end
+
+  it "suppresses a stale WorkUnit main-health reason after recovery" do
+    workflow.work_unit.block!(reason: "main_branch_health")
+
+    expect(described_class.for(workflow).data).to eq({})
+  end
+
+  it "suppresses a stale WorkUnit main-health reason when policy does not block work" do
+    repository.update!(
+      risk_profile: "standard",
+      main_branch_health_enabled: true,
+      main_branch_repair_blocks_work: false,
+      landing_paused: true,
+      ci_health: "broken"
+    )
+    workflow.work_unit.block!(reason: "main_branch_health")
+
+    expect(described_class.for(workflow).data).to eq({})
   end
 
   describe ".pause_reason?" do

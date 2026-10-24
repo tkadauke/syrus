@@ -61,6 +61,13 @@ services:
 
   worker:
     <<: *app
+    # Cap the worker so a runaway agent run is killed inside this cgroup
+    # instead of triggering a VM-wide OOM. Without a limit the kernel picks
+    # whichever process looks worst globally, and it once picked dockerd --
+    # which takes every container down, not just the one at fault. The limit
+    # also makes `OOMKilled` point at the real culprit. Override with
+    # SYRUS_WORKER_MEM_LIMIT on a host with more or less headroom.
+    mem_limit: ${SYRUS_WORKER_MEM_LIMIT:-4g}
     depends_on:
       setup:
         condition: service_completed_successfully

@@ -250,8 +250,12 @@ RSpec.describe App::JobDetailPayload do
           sql.match?(/[`"]?workflows[`"]?\.[`"]?artifacts[`"]?/i) &&
           sql.match?(/[`"]?workflows[`"]?\.[`"]?job_id[`"]?/i)
       end
+      external_artifact_queries = queries.select do |sql|
+        sql.match?(/FROM [`"]?workflow_artifact_values[`"]?/i) && sql.match?(/workflow_id.* IN \(/i)
+      end
 
       expect(artifact_workflow_queries.size).to eq(1)
+      expect(external_artifact_queries.size).to eq(1)
     end
   end
 end

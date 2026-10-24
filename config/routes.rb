@@ -159,6 +159,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/release_from_backlog", to: "job_lifecycle#release_from_backlog", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/move_to_backlog", to: "job_lifecycle#move_to_backlog", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/accept_triage", to: "job_lifecycle#accept_triage", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/override_planned_execution", to: "job_lifecycle#override_planned_execution", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/reject_triage", to: "job_lifecycle#reject_triage", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -340,7 +341,6 @@ Rails.application.routes.draw do
             post :poll
             post :archive
             post :unarchive
-            post :retry_failed_jobs
             post :release_needs_triage_job
             post :resume_landing
             post :run_main_branch_graders

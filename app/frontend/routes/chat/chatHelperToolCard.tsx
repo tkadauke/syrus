@@ -3,6 +3,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import type { MarkdownLinkHandler } from "../../lib/Markdown"
+import i18n from "../../i18n"
 
 const SUMMARY_CHARS = 88
 const QUESTION_SLUG_HREF_FALLBACKS = { DOC: "/design_docs/:id" }
@@ -44,10 +45,11 @@ export function StatusCard({ title, status, children }: { title: string; status?
   )
 }
 
-export function ErrorCard({ title, message }: { title: string; message: string }) {
+export function ErrorCard({ title, message, children }: { title: string; message: string; children?: ReactNode }) {
   return (
     <StatusCard title={title} status="failed">
       <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{message}</div>
+      {children}
     </StatusCard>
   )
 }
@@ -147,9 +149,50 @@ export function QuestionList({ questions, onLinkClick }: { questions: AskedQuest
   )
 }
 
-export function OptionalReason({ reason }: { reason: string | null }) {
+export function OptionalReason({ reason, onLinkClick, title }: { reason: string | null; onLinkClick?: MarkdownLinkHandler; title?: string }) {
   if (!reason) return null
-  return <Row label="Reason" value={reason} />
+  return (
+    <div className="min-w-0 sm:col-span-2">
+      <MarkdownPreview
+        linkifySlugs
+        linkifyUrls
+        maxChars={500}
+        maxLines={4}
+        onLinkClick={onLinkClick}
+        text={reason}
+        title={title || i18n.t("chat:tool_card_reason")}
+      />
+    </div>
+  )
+}
+
+function detailValue(value: unknown) {
+  const displayed = displayValue(value)
+  if (displayed) return displayed
+  if (value == null) return "—"
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+export function StructuredDetails({ details, emptyLabel, title }: { details: Record<string, unknown> | null; emptyLabel: string; title: string }) {
+  if (!details || Object.keys(details).length === 0) return <EmptyState>{emptyLabel}</EmptyState>
+
+  return (
+    <details className="min-w-0 rounded border border-border bg-surface px-2 py-1 sm:col-span-2">
+      <summary className="cursor-pointer break-words text-2xs font-semibold uppercase text-text-muted [overflow-wrap:anywhere]">{title}</summary>
+      <dl className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
+        {Object.entries(details).map(([key, value]) => (
+          <div className="min-w-0" key={key}>
+            <dt className="break-words text-2xs font-semibold text-text-muted [overflow-wrap:anywhere]">{key}</dt>
+            <dd className="break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]">{detailValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  )
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -97,7 +97,25 @@ describe("toolCardSecurity", () => {
     })
   })
 
-  it("keeps credential metadata objects while redacting secrets inside them", () => {
+  it("does not exempt arbitrary sensitive keys with metadata-like suffixes", () => {
+    expect(
+      redactToolCardValue({
+        password_name: "hunter2",
+        token_name: "actual-token-value",
+        password_error_message: "hunter2",
+        secret_type: "plaintext",
+        jwt_class: "signed.jwt.value"
+      })
+    ).toEqual({
+      password_name: "[redacted]",
+      token_name: "[redacted]",
+      password_error_message: "[redacted]",
+      secret_type: "[redacted]",
+      jwt_class: "[redacted]"
+    })
+  })
+
+  it("keeps allowlisted credential metadata while redacting arbitrary secret fields", () => {
     expect(
       redactToolCardValue({
         credential: {
@@ -105,7 +123,9 @@ describe("toolCardSecurity", () => {
           credential_name: "production-cluster",
           credential_type: "kubeconfig",
           client_secret: "hidden-value",
-          token: "hidden-token"
+          token: "hidden-token",
+          value: "abcdef123456789",
+          data: { opaque: "another-secret-value" }
         }
       })
     ).toEqual({
@@ -114,7 +134,9 @@ describe("toolCardSecurity", () => {
         credential_name: "production-cluster",
         credential_type: "kubeconfig",
         client_secret: "[redacted]",
-        token: "[redacted]"
+        token: "[redacted]",
+        value: "[redacted]",
+        data: "[redacted]"
       }
     })
   })
@@ -163,6 +185,28 @@ describe("toolCardSecurity", () => {
     })
   })
 
+  it("preserves theme design tokens while redacting real secrets nested beside them", () => {
+    expect(
+      redactToolCardValue({
+        tokens: {
+          light: { brand: "#b6492e", "text-primary": "#111827" },
+          dark: { surface: "#111827" },
+          shape: { "radius-control": "0.375rem" },
+          api_token: "real-secret-value"
+        },
+        access_token: "another-real-secret"
+      })
+    ).toEqual({
+      tokens: {
+        light: { brand: "#b6492e", "text-primary": "#111827" },
+        dark: { surface: "#111827" },
+        shape: { "radius-control": "0.375rem" },
+        api_token: "[redacted]"
+      },
+      access_token: "[redacted]"
+    })
+  })
+
   it("redacts the complete tool-card context without blanking diagnostic or kubectl metadata", () => {
     const diagnostic = contextFor({
       tool_name: "admin_github_app_installation_diagnostic",
@@ -187,7 +231,7 @@ describe("toolCardSecurity", () => {
       credential_mode: "app",
       app_credential_active: true
     })
-    expect(kubectl.input.credential).toBe(7)
+    expect(kubectl.input).toEqual({ credential: 7 })
     expect(kubectl.parsedResult).toEqual({
       credential: { credential_id: 7, credential_name: "cluster-admin", credential_type: "kubeconfig", password: "[redacted]" }
     })

@@ -24,6 +24,7 @@ const documentRows = [
     kind: "file",
     title: "API Guide",
     status: "attached",
+    repository_id: 7,
     repository: "tkadauke/syrus",
     content_type: "text/markdown",
     size_bytes: 2048
@@ -32,6 +33,8 @@ const documentRows = [
     id: 13,
     kind: "google_doc",
     title: "Launch Notes",
+    status: "pending",
+    repository_id: 7,
     repository_slug: "tkadauke/syrus",
     url: "https://docs.google.com/document/d/abc/edit"
   }
@@ -61,7 +64,7 @@ describe("repository document tool cards", () => {
       })
 
       expect(toolName).toBe("create_repo_document")
-      expect(createRepoDocumentToolCard.collapsedSummary?.(cardContext)).toBe("Create API Guide · Create **API Guide**?")
+      expect(createRepoDocumentToolCard.collapsedSummary?.(cardContext)).toBe("Create API Guide · Create API Guide?")
     }
   })
 
@@ -78,14 +81,59 @@ describe("repository document tool cards", () => {
 
     render(<>{listRepoDocumentsToolCard.renderExpanded(context("list_repo_documents", { parsedResult: documentRows }))}</>)
 
-    expect(screen.getByText("API Guide")).toBeInTheDocument()
+    const documentLink = screen.getByRole("link", { name: "API Guide" })
+    expect(documentLink).toHaveAttribute("href", "/api/v1/app/repository_documents/12/file")
+    expect(documentLink).toHaveClass("break-all")
+    expect(documentLink.closest("article")).toHaveClass("min-w-0")
+    expect(screen.queryByRole("table")).not.toBeInTheDocument()
     expect(screen.getByText("repo-doc-12")).toBeInTheDocument()
     expect(screen.getByText("file")).toBeInTheDocument()
     expect(screen.getByText("attached")).toBeInTheDocument()
-    expect(screen.getAllByText("tkadauke/syrus")).toHaveLength(2)
-    expect(screen.getByText("text/markdown · 2.0 KB")).toBeInTheDocument()
+    const repositoryLinks = screen.getAllByRole("link", { name: "tkadauke/syrus" })
+    expect(repositoryLinks).toHaveLength(2)
+    expect(repositoryLinks[0]).toHaveAttribute("href", "/repositories/7")
+    expect(screen.getByText("text/markdown")).toBeInTheDocument()
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument()
     expect(screen.getByText("google_doc")).toBeInTheDocument()
-    expect(screen.getByText("linked")).toBeInTheDocument()
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Launch Notes" })).toHaveAttribute("href", "https://docs.google.com/document/d/abc/edit")
+    expect(screen.getByRole("link", { name: "https://docs.google.com/document/d/abc/edit" })).toHaveAttribute(
+      "href",
+      "https://docs.google.com/document/d/abc/edit"
+    )
+  })
+
+  it("normalizes root-array and wrapped list envelopes from different providers", () => {
+    const envelopes = [
+      {
+        rawName: "mcp__syrus-chat-sidecar__list_repo_documents",
+        envelope: { content: [{ type: "text", text: JSON.stringify(documentRows) }], structured_content: null }
+      },
+      {
+        rawName: "syrus-chat-deferred-sidecar.list_repo_documents",
+        envelope: { structured_content: { documents: documentRows }, content: [{ type: "text", text: "ignored fallback" }] }
+      }
+    ]
+
+    for (const { rawName, envelope } of envelopes) {
+      const toolName = normalizedToolName(rawName)
+      const cardContext = context(toolName, { parsedResult: normalizedToolCardParsedResult(envelope) })
+
+      expect(toolName).toBe("list_repo_documents")
+      expect(listRepoDocumentsToolCard.collapsedSummary?.(cardContext)).toBe("2 repository documents")
+    }
+  })
+
+  it("renders list failures as a dedicated error card", () => {
+    const failed = context("list_repo_documents", {
+      resultBody: "Repository documents are temporarily unavailable",
+      resultError: true
+    })
+
+    expect(listRepoDocumentsToolCard.collapsedSummary?.(failed)).toBe("List repository documents failed: Repository documents are temporarily unavailable")
+    render(<>{listRepoDocumentsToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("List repository documents failed")).toBeInTheDocument()
+    expect(screen.getByText("Repository documents are temporarily unavailable")).toBeInTheDocument()
   })
 
   it("renders a document detail/read card with a concise content preview", () => {
@@ -205,13 +253,13 @@ describe("repository document tool cards", () => {
     const input = { document_id: 99 }
 
     expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { input, parsedResult }))).toBe(
-      'Delete document 99 · Delete document "Old notes"?'
+      'Delete Old notes · Delete document "Old notes"?'
     )
     render(<>{deleteRepoDocumentToolCard.renderExpanded(context("delete_repo_document", { input, parsedResult }))}</>)
 
     expect(screen.getByText("Delete document")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
-    expect(screen.getByText("99")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Old notes" })).toHaveAttribute("href", "/api/v1/app/repository_documents/99/file")
     expect(screen.getByText("Document disappeared before confirmation.")).toBeInTheDocument()
   })
 
@@ -224,8 +272,24 @@ describe("repository document tool cards", () => {
     }
 
     expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { parsedResult, resultError: true }))).toBe(
-      'Delete document "Old notes"?'
+      'Delete repository document failed: Delete document "Old notes"?'
     )
+  })
+
+  it("renders document-not-found failures with recovery context", () => {
+    const failed = context("delete_repo_document", {
+      input: { document_id: 404 },
+      parsedResult: { error: "Document not found" },
+      resultBody: JSON.stringify({ error: "Document not found" }),
+      resultError: true
+    })
+
+    render(<>{deleteRepoDocumentToolCard.renderExpanded(failed)}</>)
+
+    expect(screen.getByText("Delete repository document failed")).toBeInTheDocument()
+    expect(screen.getByText("Document not found")).toBeInTheDocument()
+    expect(screen.getByText("Delete document 404")).toBeInTheDocument()
+    expect(screen.getByText(/Check that the document still exists/)).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {

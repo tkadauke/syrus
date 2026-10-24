@@ -385,6 +385,12 @@ RSpec.describe ThemingTools::ChatToolSet do
       response = call_tool("delete_user_theme", theme_id: theme.id)
 
       expect(response.error?).to be_falsey
+      expect(payload(response)).to include(
+        deleted_theme_id: theme.id,
+        deleted_theme_name: theme.name,
+        fallback_theme_id: nil,
+        fallback_theme_name: nil
+      )
       expect(Theme.exists?(theme.id)).to be false
       expect(user.reload.color_theme_id).to eq(other_active.id)
     end
@@ -397,7 +403,12 @@ RSpec.describe ThemingTools::ChatToolSet do
       response = call_tool("delete_user_theme", theme_id: theme.id)
 
       expect(response.error?).to be_falsey
-      expect(payload(response)).to include(fallback_theme_id: terracotta.id)
+      expect(payload(response)).to include(
+        deleted_theme_id: theme.id,
+        deleted_theme_name: theme.name,
+        fallback_theme_id: terracotta.id,
+        fallback_theme_name: terracotta.name
+      )
       expect(user.reload.color_theme_id).to eq(terracotta.id)
     end
 

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import i18n from "i18next"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -37,6 +37,7 @@ export type MarkdownPreviewProps = {
   modalLabel?: string
   emptyState?: ReactNode
   slugHrefFallbacks?: Record<string, string>
+  slugHrefOverrides?: Record<string, string>
   slugTone?: SlugTone
 }
 
@@ -77,6 +78,7 @@ export function MarkdownPreview({
   modalLabel,
   onLinkClick,
   slugHrefFallbacks,
+  slugHrefOverrides,
   slugTone,
   text,
   title
@@ -84,22 +86,55 @@ export function MarkdownPreview({
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
   const [open, setOpen] = useState(false)
+  const [visuallyTruncated, setVisuallyTruncated] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
   const completeText = text ?? ""
   const normalized = completeText.trim()
   const truncated = useMemo(() => truncateMarkdown(normalized, maxLines, maxChars), [normalized, maxChars, maxLines])
 
+  useLayoutEffect(() => {
+    const preview = previewRef.current
+    if (!preview || truncated.truncated) {
+      setVisuallyTruncated(false)
+      return
+    }
+
+    const measure = () => setVisuallyTruncated(preview.scrollHeight > preview.clientHeight + 1)
+    measure()
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measure)
+      observer.observe(preview)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [normalized, maxLines, truncated.truncated])
+
   if (!normalized) {
-    if (emptyState !== undefined) return <>{emptyState}</>
-    return <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>
+    return (
+      <div className="min-w-0 max-w-full overflow-hidden">
+        {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
+        {emptyState !== undefined ? <>{emptyState}</> : <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>}
+      </div>
+    )
   }
 
-  const lineClampStyle = {
-    display: "-webkit-box",
-    overflow: "hidden",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: Math.max(1, maxLines)
-  } as CSSProperties
+  // Source truncation and visual wrapping are deliberately coupled: a clamp
+  // is only safe when the expansion control is present. Otherwise a paragraph
+  // that merely wraps on a narrow card could hide content with no way to open
+  // it, even though it is below the source character/line limits.
+  const lineClampStyle: CSSProperties | undefined = truncated.truncated
+    ? {
+        display: "-webkit-box",
+        overflow: "hidden",
+        WebkitBoxOrient: "vertical",
+        WebkitLineClamp: Math.max(1, maxLines)
+      }
+    : undefined
   const dialogLabel = modalLabel || title || t("show_more")
+  const expandable = truncated.truncated || visuallyTruncated
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
@@ -107,13 +142,14 @@ export function MarkdownPreview({
       <div
         className={["break-words text-xs text-text-muted [overflow-wrap:anywhere]", className].filter(Boolean).join(" ")}
         data-testid="markdown-preview-content"
+        ref={previewRef}
         style={lineClampStyle}
       >
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
+        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugHrefOverrides, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
-      {truncated.truncated ? (
-        <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
+      {expandable ? (
+        <Button className="mt-2 min-h-11 sm:min-h-0" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
       ) : null}
@@ -146,6 +182,7 @@ export function MarkdownPreview({
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
             slugHrefFallbacks={slugHrefFallbacks}
+            slugHrefOverrides={slugHrefOverrides}
             slugTone={slugTone}
             text={completeText}
           />

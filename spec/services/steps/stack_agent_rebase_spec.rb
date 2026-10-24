@@ -26,6 +26,80 @@ RSpec.describe Steps::StackAgentRebase do
   let(:step) { workflow.steps.find_by!(kind: "stack_agent_rebase") }
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "stack_rebase") }
 
+  describe "rebase verification" do
+    let(:handler) { described_class.new(run) }
+    let(:workspace) { instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace")) }
+    let(:git) { instance_double(GitRunner) }
+
+    before do
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(GitRunner).to receive(:new).and_return(git)
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/workspace").and_return("")
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-apply", chdir: "/tmp/workspace").and_return("")
+      allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/workspace").and_return("")
+    end
+
+    it "verifies a root entry against the fetched remote base" do
+      entry = { "branch_name" => job.branch_name, "base_branch" => "main", "pre_sha" => "old", "post_sha" => "new" }
+      workflow.set_artifact!(StackRebasePlan::AGENT_PENDING_ARTIFACT, [ entry ])
+
+      expect(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "refs/remotes/origin/main", job.branch_name, chdir: "/tmp/workspace")
+
+      expect { handler.send(:verify_rebases_complete!, [ entry ]) }.not_to raise_error
+    end
+
+    it "verifies a child entry against its locally rebased pending parent" do
+      root = { "branch_name" => job.branch_name, "base_branch" => "main", "pre_sha" => "root-old", "post_sha" => "root-new" }
+      entry = { "branch_name" => child.branch_name, "base_branch" => job.branch_name, "pre_sha" => "child-old", "post_sha" => "child-new" }
+      workflow.set_artifact!(StackRebasePlan::AGENT_PENDING_ARTIFACT, [ root, entry ])
+      allow(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "refs/remotes/origin/main", job.branch_name, chdir: "/tmp/workspace")
+      expect(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", job.branch_name, child.branch_name, chdir: "/tmp/workspace")
+
+      expect { handler.send(:verify_rebases_complete!, [ root, entry ]) }.not_to raise_error
+    end
+
+    it "fails when a branch is genuinely not on top of its fetched base" do
+      entry = { "branch_name" => job.branch_name, "base_branch" => "main", "pre_sha" => "old", "post_sha" => "new" }
+      workflow.set_artifact!(StackRebasePlan::AGENT_PENDING_ARTIFACT, [ entry ])
+      allow(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "refs/remotes/origin/main", job.branch_name, chdir: "/tmp/workspace")
+        .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+
+      expect { handler.send(:verify_rebases_complete!, [ entry ]) }
+        .to raise_error(Steps::Base::StepFailed, /#{Regexp.escape(job.branch_name)} was not rebased onto main/)
+    end
+  end
+
+  it "verifies against a remote base when the corresponding local base ref does not exist" do
+    path = Pathname.new(Dir.mktmpdir)
+    git = GitRunner.new
+    git.run("init", "--initial-branch=main", chdir: path.to_s)
+    git.run("config", "user.email", "test@example.com", chdir: path.to_s)
+    git.run("config", "user.name", "Test User", chdir: path.to_s)
+    File.write(path.join("base.txt"), "base\n")
+    git.run("add", "base.txt", chdir: path.to_s)
+    git.run("commit", "-m", "base", chdir: path.to_s)
+    git.run("update-ref", "refs/remotes/origin/main", "HEAD", chdir: path.to_s)
+    git.run("switch", "-c", job.branch_name, chdir: path.to_s)
+    File.write(path.join("feature.txt"), "feature\n")
+    git.run("add", "feature.txt", chdir: path.to_s)
+    git.run("commit", "-m", "feature", chdir: path.to_s)
+    post_sha = git.run("rev-parse", "HEAD", chdir: path.to_s).strip
+    git.run("branch", "-D", "main", chdir: path.to_s)
+
+    entry = { "branch_name" => job.branch_name, "base_branch" => "main", "pre_sha" => "old", "post_sha" => post_sha }
+    workflow.set_artifact!(StackRebasePlan::AGENT_PENDING_ARTIFACT, [ entry ])
+    handler = described_class.new(run)
+    allow(handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, path: path))
+
+    expect { handler.send(:verify_rebases_complete!, [ entry ]) }.not_to raise_error
+  ensure
+    FileUtils.rm_rf(path) if path
+  end
+
   it "fails when the agent leaves a pending stack branch unchanged" do
     workflow.set_artifact!(
       StackRebasePlan::AGENT_PENDING_ARTIFACT,
@@ -121,5 +195,59 @@ RSpec.describe Steps::StackAgentRebase do
       .and_return("abc123\n")
 
     expect(handler.send(:rev_parse, "-detach")).to eq("abc123")
+  end
+
+  it "gives the root entry's default-branch base a local ref before the agent runs" do
+    workflow.set_artifact!(
+      StackRebasePlan::AGENT_PENDING_ARTIFACT,
+      workflow.artifact(StackRebasePlan::STACK_ARTIFACT)
+    )
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+    push_url = "https://push.example/repo.git"
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:active_installation_for).and_return(nil)
+    allow(GithubClient).to receive(:for)
+      .with(repository: kind_of(Repository), user: user)
+      .and_return(instance_double(GithubClient, access_token: "token"))
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(git).to receive(:run).and_return("")
+
+    handler.send(:fetch_pending_branches)
+
+    # Without this the bare `main` in the ancestry check resolves to nothing,
+    # because the workspace clone only ever creates one local branch.
+    expect(git).to have_received(:run).with(
+      "branch", "-f", "--", "main", "refs/remotes/origin/main", chdir: "/tmp/workspace"
+    )
+  end
+
+  it "does not reset a stack-internal base back to origin after resetting it as a branch" do
+    workflow.set_artifact!(
+      StackRebasePlan::AGENT_PENDING_ARTIFACT,
+      workflow.artifact(StackRebasePlan::STACK_ARTIFACT)
+    )
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+    push_url = "https://push.example/repo.git"
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:active_installation_for).and_return(nil)
+    allow(GithubClient).to receive(:for)
+      .with(repository: kind_of(Repository), user: user)
+      .and_return(instance_double(GithubClient, access_token: "token"))
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(git).to receive(:run).and_return("")
+
+    handler.send(:fetch_pending_branches)
+
+    expect(git).to have_received(:run).with(
+      "branch", "-f", "--", job.branch_name, "refs/remotes/origin/#{job.branch_name}", chdir: "/tmp/workspace"
+    ).once
   end
 end

@@ -66,6 +66,45 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.dig(:pending_action, :outcome)).to eq(chat_ids: [ 101, 102 ])
   end
 
+  it "serializes every force landing recheck group member's observed and refreshed state" do
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [
+        {
+          action: "force_landing_recheck",
+          reason: "Refresh stale landing metadata.",
+          payload: {
+            "job_id" => 41,
+            "observed_state" => { "state" => "approved" },
+            "observed_blocker" => { "key" => "dependencies" },
+            "refreshed_state" => { "state" => "landing", "landing_queue_blocked_reason" => nil }
+          }
+        },
+        {
+          action: "force_landing_recheck",
+          reason: "Refresh stale landing metadata.",
+          payload: {
+            "job_id" => 42,
+            "observed_state" => { "state" => "landing" },
+            "observed_blocker" => nil
+          }
+        }
+      ]
+    )
+    anchor = group.chat_pending_actions.order(:id).first
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "force_landing_recheck", tool_use_id: "recheck-1", pending_action: anchor,
+      content: { "type" => "tool_use", "id" => "recheck-1", "name" => "force_landing_recheck", "input" => {} }
+    )
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.dig(:pending_action, :detail)).to eq(
+      "- JOB-41 — observed state: approved; observed blocker: dependencies; refreshed state: landing; refreshed blocker: none\n" \
+      "- JOB-42 — observed state: landing; observed blocker: none"
+    )
+  end
+
   it "batch-loads spawned chat outcomes without querying each pending-action group" do
     message_ids = 3.times.map do |group_index|
       group = PendingActionGroup.create_with_members!(

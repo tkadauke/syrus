@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { ContentPreview } from "./memoryToolCard"
 
 describe("ContentPreview", () => {
@@ -16,7 +16,7 @@ describe("ContentPreview", () => {
     const longContent = Array.from({ length: 8 }, (_, index) => `# Section ${index}\n\nSome body text for section ${index}.`).join("\n\n")
     const { container } = render(<ContentPreview content={longContent} />)
 
-    expect(container.querySelector(".line-clamp-3")).toBeInTheDocument()
+    expect(screen.getByTestId("markdown-preview-content")).toHaveStyle({ WebkitLineClamp: "3" })
     const showMore = screen.getByText("Show more")
     expect(showMore).toBeInTheDocument()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
@@ -27,5 +27,22 @@ describe("ContentPreview", () => {
     expect(dialog).toBeInTheDocument()
     expect(dialog.querySelector("h1")).toHaveTextContent("Section 0")
     expect(dialog).toHaveTextContent("Some body text for section 0.")
+    expect(screen.getByLabelText("Copy memory content")).toBeInTheDocument()
+  })
+
+  it("renders the shared empty state for blank memory content", () => {
+    render(<ContentPreview content="   " />)
+
+    expect(screen.getByText("No memory content returned.")).toBeInTheDocument()
+  })
+
+  it("linkifies URLs and forwards link clicks", () => {
+    const onLinkClick = vi.fn()
+    render(<ContentPreview content="See JOB-42 and https://example.com/runbook" onLinkClick={onLinkClick} />)
+
+    const link = screen.getByRole("link", { name: "https://example.com/runbook" })
+    expect(link).toHaveAttribute("href", "https://example.com/runbook")
+    fireEvent.click(link)
+    expect(onLinkClick).toHaveBeenCalledWith("https://example.com/runbook", expect.anything())
   })
 })

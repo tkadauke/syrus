@@ -825,6 +825,68 @@ RSpec.describe PollPullRequestJob, :ci_only do
       job.approve!(via: "operator")
     end
 
+    # Regression: an unhealthy base suppressed CI repair outright, so one broken
+    # check on main silently disabled repair for every Job in the fleet. A check
+    # that passes on the base and fails here belongs to this branch and is
+    # repairable whatever else is broken upstream.
+    context "when the base is unhealthy" do
+      before do
+        repository.update!(
+          main_branch_health_enabled: true,
+          last_health_checked_sha: "older",
+          ci_health: "broken",
+          grader_health: "broken"
+        )
+        MainBranchHealthCheck.create!(
+          repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
+          ci_health: "broken", grader_health: "broken",
+          ci_failed_checks: [ { "name" => "rspec" }, { "name" => "e2e" } ]
+        )
+      end
+
+      it "repairs a check that fails only on this PR" do
+        stub_check_runs(sha, [
+          { name: "rspec", status: "completed", conclusion: "failure",
+            html_url: "https://github.com/acme/widgets/runs/200", output: { summary: "inherited" } },
+          { name: "react", status: "completed", conclusion: "failure",
+            html_url: "https://github.com/acme/widgets/runs/201", output: { summary: "1 failing test" } }
+        ])
+
+        expect {
+          described_class.perform_now(job.id)
+        }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+      end
+
+      it "hands the repair only the checks that fail here, not the inherited ones" do
+        stub_check_runs(sha, [
+          { name: "rspec", status: "completed", conclusion: "failure",
+            html_url: "https://github.com/acme/widgets/runs/200", output: { summary: "inherited" } },
+          { name: "react", status: "completed", conclusion: "failure",
+            html_url: "https://github.com/acme/widgets/runs/201", output: { summary: "1 failing test" } }
+        ])
+
+        described_class.perform_now(job.id)
+
+        names = Array(job.workflows.where(trigger_kind: "ci_failure").last.artifact("failed_checks"))
+          .map { |check| check["name"] || check[:name] }
+        expect(names).to include("react")
+        expect(names).not_to include("rspec")
+      end
+
+      it "still suppresses repair when every failure is inherited" do
+        stub_check_runs(sha, [
+          { name: "rspec", status: "completed", conclusion: "failure",
+            html_url: "https://github.com/acme/widgets/runs/200", output: { summary: "inherited" } },
+          { name: "e2e", status: "completed", conclusion: "failure",
+            html_url: "https://github.com/acme/widgets/runs/202", output: { summary: "inherited" } }
+        ])
+
+        expect {
+          described_class.perform_now(job.id)
+        }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+      end
+    end
+
     it "instantiates a CiFailure workflow with failed_checks + head_sha as artifacts" do
       rspec_log = Rails.root.join("spec/fixtures/ci_logs/rspec_failure.log").read
       stub_check_runs(sha, [

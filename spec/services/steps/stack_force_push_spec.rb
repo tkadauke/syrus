@@ -11,7 +11,7 @@ RSpec.describe Steps::StackForcePush do
 
   before do
     workflow.set_artifact!(StackRebasePlan::AGENT_PUSHES_ARTIFACT, [
-      { "branch_name" => "syrus/direct-5004", "pre_sha" => "abc123" }
+      { "branch_name" => "syrus/direct-5004", "pre_sha" => "abc123", "post_sha" => "def456" }
     ])
     workflow.set_artifact!(StackRebasePlan::STACK_ARTIFACT, [])
 
@@ -19,6 +19,18 @@ RSpec.describe Steps::StackForcePush do
     allow(handler).to receive(:streaming_git).and_return(git)
     allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
     allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+  end
+
+  it "pushes the recorded rebased commit when the local branch no longer exists" do
+    expect(git).to receive(:run).with(
+      "push",
+      "--force-with-lease=refs/heads/syrus/direct-5004:abc123",
+      "https://push.example/repo.git",
+      "def456:refs/heads/syrus/direct-5004",
+      chdir: "/tmp/workspace"
+    )
+
+    handler.call
   end
 
   # The old shared PUSH_REJECTED_PATTERN's

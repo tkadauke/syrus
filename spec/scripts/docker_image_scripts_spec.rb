@@ -331,6 +331,15 @@ RSpec.describe "Docker image scripts" do
     expect(preview_section).to include("SYRUS_ROLE: preview")
   end
 
+  # An unlimited worker makes the kernel choose a global OOM victim, and it once
+  # chose dockerd -- taking the whole stack down instead of the one container
+  # whose agent run blew up.
+  it "caps worker memory so a runaway run cannot trigger a VM-wide OOM" do
+    worker_section = compose_yml[/^  worker:.*?(?=^  \w)/m] || ""
+
+    expect(worker_section).to match(/mem_limit: \$\{SYRUS_WORKER_MEM_LIMIT:-\d+[gm]\}/)
+  end
+
   it "mounts the mise cache as a named volume on the worker service only" do
     expect(compose_yml).to include("      - syrus-mise-cache:/opt/mise\n")
     expect(compose_yml).to include("  syrus-mise-cache:\n")
@@ -391,6 +400,21 @@ RSpec.describe "Docker image scripts" do
     expect(worker_section).not_to include("NET_ADMIN")
     expect(worker_section).not_to include("NET_RAW")
     expect(worker_section).not_to include("privileged")
+  end
+
+  # verify_pushed authenticates through the docker credential store, so a
+  # --skip-build run that never logs in fails on every tag -- including tags an
+  # earlier run definitely pushed -- and reports them as missing from GHCR.
+  it "logs into the registry on the --skip-build path before verifying tags" do
+    marker = deploy.index("skipping build/push (--skip-build)")
+    expect(marker).not_to be_nil
+
+    branch_start = deploy.rindex("\nelse\n", marker)
+    branch_end = deploy.index("\nfi\n", marker)
+    skip_block = deploy[branch_start...branch_end]
+
+    expect(skip_block).to include('syrus_ghcr_login "$GHCR_USER" "$GHCR_TOKEN"')
+    expect(skip_block.index("syrus_ghcr_login")).to be < skip_block.index('verify_pushed "${REGISTRY}"')
   end
 
   it "tracks suspended rollout controls so failures resume them" do

@@ -40,4 +40,13 @@ describe("MediaPreviewShell", () => {
     fireEvent.keyDown(window, { key: "Escape" })
     expect(screen.queryByRole("dialog", { name: "Shared media preview" })).not.toBeInTheDocument()
   })
+
+  it("shows a readable fallback when an image cannot load", () => {
+    render(<MediaPreviewShell item={{ title: "broken.png", src: "/missing.png", fallbackLabel: "Image unavailable" }} />)
+
+    fireEvent.error(screen.getByRole("img", { name: "broken.png" }))
+
+    expect(screen.queryByRole("img", { name: "broken.png" })).not.toBeInTheDocument()
+    expect(screen.getByText("Image unavailable")).toBeInTheDocument()
+  })
 })

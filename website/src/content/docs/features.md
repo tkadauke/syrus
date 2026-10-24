@@ -32,6 +32,10 @@ Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
 show a Load more control whenever older cards exist beyond the loaded window.
 The Jobs and Epics dashboards also include a desktop-only Dependencies graph
 view for dependency relationships.
+The Jobs list supports bulk lifecycle and ownership actions. During a bulk
+operation its selection toolbar becomes a progress indicator with completed
+and total Job counts and a cancel control, preventing another bulk action from
+starting against the same selection until the operation finishes or stops.
 For landed Jobs, Syrus can also record configured deployment stage progress
 from repository tags, such as staging, production, or public release. The
 Jobs dashboard has an optional Deployment column, hidden by default, that
@@ -644,7 +648,10 @@ it with the same immediate continuation. Editing an already-active goal does
 not queue another turn. While active, goal-linked proposals, Jobs, and Epics
 wake the chat at meaningful boundaries so the agent can continue toward the
 goal; the agent can mark the goal completed or blocked, but pause/resume/stop
-remain operator controls. If a chat turn crashes and Syrus schedules an
+remain operator controls. Completed- and blocked-goal tool results record the
+previous and new statuses, reason, structured details, and owning chat
+metadata; their chat cards link back to the conversation and render long
+reasons as expandable Markdown. If a chat turn crashes and Syrus schedules an
 automatic retry, the retry status pill keeps the countdown visible and also
 offers a manual retry control so an operator can start the retry immediately.
 Automatic and manual retries wake the transcript with a Retry system message
@@ -662,11 +669,13 @@ through Job workflow and Run history progressively, search Jobs in the
 attached repository, read stored Job diffs, list and create the operator's
 tags, attach or remove tags on Jobs, manage repository documents after
 confirmation, search prior chat messages for the same user, read
-paginated chat transcripts, inspect Solid Queue health, update the chat's
-pinned context for future turns, and create proposal cards for the operator
-to confirm. New chats use a short interpreted title from the first prompt,
-with the repository name as the fallback. The app sidebar groups recent chats
-by repository by default, with sidebar settings for grouping by date, status,
+paginated chat transcripts, inspect Solid Queue health, update or remove the
+chat's pinned context for future turns, and create proposal cards for the
+operator to confirm. Removing pinned context shows the previous note as a
+linked Markdown preview, with a full-content view for longer notes and clear
+pending or error states. New chats use a short interpreted title from the
+first prompt, with the repository name as the fallback. The app sidebar groups
+recent chats by repository by default, with sidebar settings for grouping by date, status,
 mode, chat type, or chat agent when those distinctions are available; each
 group can be collapsed when the operator wants to fold that section away.
 Rows show spinners for associated Jobs doing implementation work and fresh
@@ -752,7 +761,10 @@ and open in a full-size preview. The chat workspace also includes a Media tab
 that gathers image attachments into a downloadable gallery and lists saved
 whiteboard snapshots with element counts, relative timestamps, and a Load
 action that merges the snapshot back onto the current canvas after preserving
-existing work. Every image in the gallery — including Runtime Session
+existing work. When an agent saves the current canvas, its transcript card
+renders the saved scene as a thumbnail that opens a full-size preview, shows
+the canvas version and snapshot details, and links to the chat's Whiteboard
+and Media tabs. Every image in the gallery — including Runtime Session
 screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
@@ -890,15 +902,16 @@ the effective first-match decision, and prepare atomic rule changes for operator
 confirmation. Every change requires the latest rule-set revision, displays a
 before/after summary, and is rechecked when confirmed so a stale request cannot
 overwrite newer edits.
-Dashboard and repository bulk retry choose a narrower recovery path first:
-resume a failed agentic step when possible, retry the failed step while its
-workspace remains available, retry or rebuild landing workflows for landing
-failures, and use a full implementation retry only as the fallback. Bulk retry
-responses include action and skipped-reason counts, including active Runs,
-already-current passing PRs, duplicate retry workflows, and open provider
-circuits. When a short synthesis step cannot resume the provider session,
-Syrus can retry it from durable Job, summary, and diff context instead of
-discarding the completed implementation.
+Dashboard bulk retry acts only on the Jobs an operator explicitly selects. It
+can use each Job's configured provider or a provider chosen for that retry, and
+chooses a narrower recovery path first: resume a failed agentic step when
+possible, retry the failed step while its workspace remains available, retry
+or rebuild landing workflows for landing failures, and use a full
+implementation retry only as the fallback. Bulk retry responses include action
+and skipped-reason counts, including active Runs, already-current passing PRs,
+duplicate retry workflows, and open provider circuits. When a short synthesis
+step cannot resume the provider session, Syrus can retry it from durable Job,
+summary, and diff context instead of discarding the completed implementation.
 Proposal cards show dependency status before the title: either dependency
 proposal links with confirmed or pending badges, resolved Epic proposal links,
 or an explicit no-dependencies note.
@@ -926,6 +939,10 @@ describing it in prose. The attached media becomes a Job attachment the
 implementing agent sees automatically on the very next feedback round.
 When the chat agent lists available media, the transcript shows a compact
 thumbnail gallery with raw tool details still available for debugging.
+Read-only GitHub lookup results receive the same purpose-built treatment. The
+open-PR card shows the requested state and limit, links each PR and available
+head/base branch, includes creation and update times, and stacks its fields on
+small screens instead of forcing a wide horizontal table.
 App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.
@@ -1169,10 +1186,16 @@ State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending
 actions and wait for operator confirmation before applying. Non-admin chats do
 not advertise those tools, and each admin tool repeats the admin check when it
-runs. When several related actions are proposed together as a batch, chat
-renders them as a single pending-action-group card instead of one card per
-action: the shared action name and target count, an expandable list of the
-affected targets, and one Confirm all/Reject all control. Confirming applies
+runs. Provider-admission wake requests show their provider, optional user
+scope, audit reason, and a preview of queued workflows and delayed automatic
+retries before confirmation. Those preview counts are returned as structured
+tool data as well as shown in the card; confirmation rechecks the normal
+provider and admission guards, so the preview is evidence rather than a
+guarantee that every item starts. When several related actions are proposed
+together as a batch, chat renders them as a single pending-action-group card
+instead of one card per action: the shared action name and target count, an
+expandable list of the affected targets, and one Confirm all/Reject all
+control. Confirming applies
 every target independently and shows which ones succeeded and which failed
 and why; rejecting discards the whole batch without applying any of it.
 Admins can also force-fail an open stuck Job from the stuck Jobs page,

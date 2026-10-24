@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -291,6 +291,54 @@ describe("dashboard DataTable migrations", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: "select_all_jobs" }))
     expect(screen.getByText("2 selected")).toBeInTheDocument()
+  })
+
+  it("keeps active bulk progress visible when the in-flight jobs are deselected", async () => {
+    setDesktop(true)
+    let resolveRequest: ((response: Response) => void) | undefined
+    const request = new Promise<Response>((resolve) => { resolveRequest = resolve })
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(request)
+    renderWithProviders(
+      <JobsDashboardTable columns={["checkbox", "issue", "state"]} controls={controls} items={[job({ bulk_actions: { approve: true } }), job({ id: 2, title: "Ship widgets", bulk_actions: { approve: true } })]} landingQueueEntries={[]} prefix="" sortState={sortState()} t={(key) => key} />
+    )
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "select_all_jobs" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("checkbox", { name: "select_all_jobs" }))
+    expect(screen.getByText("0 of 2 approved")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.getByRole("button", { name: "Canceling…" })).toBeDisabled()
+
+    resolveRequest?.(new Response(JSON.stringify({ message: "Approved 1 job.", affected_job_ids: [1], skipped_job_ids: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    expect(await screen.findByText("Bulk action canceled after 1 of 2 jobs.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("continues after an individual bulk request fails and refreshes the dashboard", async () => {
+    setDesktop(true)
+    let request = 0
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => {
+      request += 1
+      if (request === 2) return Promise.resolve(new Response(JSON.stringify({ error: { message: "Job changed state." } }), { status: 422, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify({ message: "Approved 1 job.", affected_job_ids: [request], skipped_job_ids: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <JobsDashboardTable columns={["checkbox", "issue", "state"]} controls={controls} items={[job({ bulk_actions: { approve: true } }), job({ id: 2, title: "Ship widgets", bulk_actions: { approve: true } }), job({ id: 3, title: "Polish widgets", bulk_actions: { approve: true } })]} landingQueueEntries={[]} prefix="" sortState={sortState()} t={(key) => key} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "select_all_jobs" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+    expect(await screen.findByText("Bulk action completed for 2 of 3 jobs; 1 failed or were skipped.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboard"] })
   })
 
   it("renders dashboard plugin panels directly above the data table", () => {

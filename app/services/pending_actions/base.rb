@@ -117,6 +117,10 @@ module PendingActions
       nil
     end
 
+    def presentation_resource
+      nil
+    end
+
     private
 
     attr_reader :action

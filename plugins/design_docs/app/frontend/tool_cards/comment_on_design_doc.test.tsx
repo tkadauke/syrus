@@ -41,7 +41,7 @@ describe("comment_on_design_doc tool card", () => {
     expect(screen.getByText("comment only")).toBeInTheDocument()
     expect(screen.getByText("Syrus Agent · agent")).toBeInTheDocument()
     expect(screen.getByText("18–42")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Thread #41" })).toHaveAttribute("href", "/design_docs/20#thread-41")
+    expect(screen.getByRole("link", { name: "Thread 41" })).toHaveAttribute("href", "/design_docs/20#thread-41")
     expect(screen.getByText("DOC-20").closest("a")).toHaveAttribute("href", "/design_docs/20#thread-41")
     expect(screen.getByText("target graph").tagName).toBe("STRONG")
     expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(1)
@@ -59,7 +59,7 @@ describe("comment_on_design_doc tool card", () => {
   ])("renders a %s provider envelope after shared normalization", (_name, envelope) => {
     const normalized = normalizedToolCardParsedResult(envelope)
     render(<>{commentOnDesignDocToolCard.renderExpanded(context({ parsedResult: normalized }))}</>)
-    expect(screen.getByRole("link", { name: "Thread #41" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Thread 41" })).toBeInTheDocument()
   })
 
   it("uses a styled error card for permission and anchor failures", () => {

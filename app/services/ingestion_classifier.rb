@@ -9,7 +9,7 @@ class IngestionClassifier
   DUPLICATE_TEXT_BYTES = 20_000
   DUPLICATE_TOKEN_LIMIT = 400
 
-  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :planned_execution, :raw_output, :spawned_process_id, :error) do
+  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :placement_recommendation, :raw_output, :spawned_process_id, :error) do
     def success? = error.nil?
     def invalid? = invalid_kind.present?
   end
@@ -142,7 +142,7 @@ class IngestionClassifier
       invalid_kind: kind,
       reason: invalid["reason"].to_s.strip.presence,
       evidence_urls: Array(invalid["evidence_urls"]).map(&:to_s).map(&:strip).select(&:present?),
-      planned_execution: planned_execution_attributes(parsed["planned_execution"]),
+      placement_recommendation: placement_recommendation_attributes(parsed["placement_recommendation"]),
       raw_output: raw_output,
       spawned_process_id: spawned_process_id,
       error: nil
@@ -158,11 +158,19 @@ class IngestionClassifier
       if result.invalid?
         invalidate!(result)
       else
-        apply_planned_execution!(result)
-        if job.may_advance_after_triage?
-          job.advance_after_triage!
+        requirement = PlannedExecutionPlanner.for_job(job)
+        requirement.assign_to(job)
+        job.save! if job.planned_execution_changed?
+
+        if authoritative_placement?(requirement) || result.placement_recommendation.blank? || result.placement_recommendation.fetch(:profile) == "linux"
+          clear_placement_recommendation!
+          if job.may_advance_after_triage?
+            job.advance_after_triage!
+          else
+            mark_uncertain(advance_after_triage_refused_reason)
+          end
         else
-          mark_uncertain(advance_after_triage_refused_reason)
+          persist_placement_recommendation!(result.placement_recommendation)
         end
       end
     end
@@ -175,19 +183,22 @@ class IngestionClassifier
       "validity=#{job.validity}, triaging_reason=#{job.triaging_reason}"
   end
 
-  def apply_planned_execution!(result)
-    requirement =
-      if result.planned_execution.present?
-        PlannedExecutionRequirement.new(**result.planned_execution.merge(source: "classifier").symbolize_keys)
-      else
-        PlannedExecutionPlanner.for_job(job)
-      end
-    requirement.assign_to(job)
-    job.save! if job.planned_execution_changed?
-  rescue StandardError => e
-    Rails.logger.warn("[IngestionClassifier] planned execution classification failed for #{job.slug}: #{e.class}: #{e.message}")
-    PlannedExecutionPlanner.for_job(job).assign_to(job)
-    job.save! if job.planned_execution_changed?
+  def authoritative_placement?(requirement)
+    requirement.source != "defaulted"
+  end
+
+  def persist_placement_recommendation!(recommendation)
+    job.update!(
+      placement_recommendation: recommendation.stringify_keys,
+      placement_recommendation_status: "pending",
+      triaging_reason: "placement_confirmation"
+    )
+  end
+
+  def clear_placement_recommendation!
+    return if job.placement_recommendation.blank? && job.placement_recommendation_status.blank?
+
+    job.update!(placement_recommendation: nil, placement_recommendation_status: nil)
   end
 
   def assign_epic(epic_id)
@@ -240,7 +251,7 @@ class IngestionClassifier
       invalid_kind: result.invalid_kind,
       reason: result.reason,
       evidence_urls: result.evidence_urls,
-      planned_execution: result.planned_execution
+      placement_recommendation: result.placement_recommendation
     }
   end
 
@@ -389,23 +400,28 @@ class IngestionClassifier
       invalid_kind: nil,
       reason: nil,
       evidence_urls: [],
-      planned_execution: nil,
+      placement_recommendation: nil,
       raw_output: raw_output,
       spawned_process_id: spawned_process_id,
       error: reason
     )
   end
 
-  def planned_execution_attributes(value)
+  def placement_recommendation_attributes(value)
     return nil unless value.is_a?(Hash)
 
-    capabilities = value["capabilities"]
-    return nil unless capabilities.is_a?(Hash) && capabilities.present?
+    profile = ExecutionPlacementProfile.find(value["profile"])
+    return nil unless profile
+    explanation = value["explanation"].to_s.strip.presence
+    return nil unless explanation
 
     {
-      project_label: value["project_label"],
-      target_label: value["target_label"],
-      capabilities: capabilities
+      profile: profile.name,
+      label: profile.label,
+      capabilities: profile.capabilities,
+      explanation: explanation,
+      confidence: value["confidence"].is_a?(Numeric) ? value["confidence"].clamp(0, 1) : nil,
+      provenance: "ingestion_classifier"
     }
   end
 end

@@ -400,6 +400,10 @@ RSpec.describe "Mcp::Tools admin tools" do
         requested_by: "agent"
       )
       expect(action.payload).to include(expected_payload)
+      if name == "wake_provider_admission"
+        expect(payload.fetch(:observed_preview)).to include(provider: "codex", workflow_count: 0, auto_retry_count: 0)
+        expect(action.payload.fetch("observed_preview")).to include("provider" => "codex", "workflow_count" => 0, "auto_retry_count" => 0)
+      end
       expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck manual_agentic_run override_landing_blocker_once wake_landing_queue repair_provider_circuit_evidence clear_provider_circuit wake_provider_admission])
     end
   end
@@ -874,6 +878,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(LandingQueueRecheck).to have_received(:call).with(job)
     expect(action.reload.before_snapshot).to include("jobs")
     expect(action.after_snapshot).to include("jobs")
+    expect(action.payload["refreshed_state"]).to eq(result.refreshed_state.deep_stringify_keys)
   end
 
   it "confirms override_landing_blocker_once only for the observed blocker" do
@@ -1136,7 +1141,14 @@ RSpec.describe "Mcp::Tools admin tools" do
       group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
       expect(response.dig(:result, :isError)).to be_falsey
-      expect(body).to include(state: "pending", member_count: 2)
+      expect(body).to include(
+        state: "pending",
+        member_count: 2,
+        observed: contain_exactly(
+          include(evidence_id: classification_one.id, status: "provider_usage_limit", source: "run_failure_classification", observed_at: classification_one.classified_at.iso8601),
+          include(evidence_id: classification_two.id, status: "provider_usage_limit", source: "run_failure_classification", observed_at: classification_two.classified_at.iso8601)
+        )
+      )
       expect(group.reason).to eq("Both classifications share the same misclassification root cause.")
       expect(group.chat_pending_actions.map { |a| a.payload["evidence_id"] }).to contain_exactly(classification_one.id, classification_two.id)
     end
@@ -1730,6 +1742,30 @@ RSpec.describe "Mcp::Tools admin tools" do
         io_pressure_some: { avg: 8.0, max: 8.0 }
       )
     end
+  end
+
+  it "redacts secrets from nested worker health metrics" do
+    secret = "ghp_recognizableWorkerHealthSecret123456"
+    InstanceVersion.create!(
+      hostname: "syrus-worker-secret",
+      role: "worker",
+      version: "abc123",
+      started_at: 5.minutes.ago,
+      last_heartbeat_at: 10.seconds.ago
+    )
+    WorkerHostHealthSample.create!(
+      hostname: "syrus-worker-secret",
+      role: "worker",
+      version: "abc123",
+      observed_at: 1.minute.ago,
+      raw_metrics: { "probe_command" => "authorization=#{secret}", "nested" => { "output" => secret } }
+    )
+
+    response = call_tool(admin_session, "read_worker_health", { hostname: "syrus-worker-secret", sample_limit_per_host: 1 })
+    serialized = JSON.generate(payload_for(response))
+
+    expect(serialized).to include(CommandRedactor::REDACTED)
+    expect(serialized).not_to include(secret)
   end
 
   def solid_queue_job(class_name:, queue_name:)

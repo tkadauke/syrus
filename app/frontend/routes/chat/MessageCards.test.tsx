@@ -206,6 +206,16 @@ describe("shared message presentation", () => {
     const readOnly = screen.getByText("Transcript body").closest("li")
     expect(readOnly).toHaveAttribute("data-message-mode", "read-only")
     expect(readOnly).toHaveClass("min-w-0", "pt-6", "text-sm")
+
+    render(
+      <SharedMessageRenderer compact testId="compact-tool-message">
+        compact
+      </SharedMessageRenderer>
+    )
+
+    const compact = screen.getByTestId("compact-tool-message")
+    expect(compact).toHaveClass("pt-1")
+    expect(compact).not.toHaveClass("pt-6")
   })
 })
 
@@ -704,6 +714,157 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  it("routes tool-card markdown workspace links through the chat source preview", async () => {
+    vi.mocked(fetchSourceFileContent).mockResolvedValue({ path: "app/models/job.rb", content: "class Job\nend\n", binary: false, too_large: false })
+    const result = { thread_id: 7, state: "open", hop_count: 1, max_hops: 6, hops_remaining: 5, target_chat_session_id: 42, message_id: 99 }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Send chat message",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "send_chat_message",
+          raw_name: "mcp__syrus-chat-sidecar__send_chat_message",
+          detail: "",
+          display_label: "Send chat message",
+          progress_label: "Sending",
+          raw_payload: { text: "Open [the workspace file](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/models/job.rb)" },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_settled: true,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      summary_label: "Send chat message",
+      collapsed_by_default: true
+    }
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <ToolGroup item={item} payload={makePayload()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expandToolGroup("Send chat message")
+    fireEvent.click(screen.getByRole("link", { name: "the workspace file" }))
+
+    expect(await screen.findByRole("dialog", { name: /file preview/i })).toBeInTheDocument()
+    expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "app/models/job.rb")
+  })
+
+  it("routes Markdown links from custom tool cards through the chat source preview handler", async () => {
+    vi.mocked(fetchSourceFileContent).mockResolvedValue({ path: "README.md", content: "# Tool card source", binary: false, too_large: false })
+    const result = {
+      scheduled_task: {
+        id: 12,
+        label: "Review source",
+        state: "scheduled",
+        prompt: "Review [the source](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/README.md)."
+      }
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read scheduled task",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "read_scheduled_task",
+          raw_name: "read_scheduled_task",
+          detail: "12",
+          display_label: "Read scheduled task",
+          progress_label: "Reading",
+          raw_payload: { scheduled_task_id: 12 },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Review source"
+        }
+      ],
+      collapsed_by_default: true
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToolGroup item={item} payload={makePayload()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expandToolGroup("Read scheduled task")
+    fireEvent.click(screen.getByRole("link", { name: "the source" }))
+
+    expect(await screen.findByRole("dialog", { name: /file preview/i })).toBeInTheDocument()
+    expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "README.md")
+  })
+
+  it("gives grouped tool summaries a full-width row on narrow screens", () => {
+    const calls = [
+      [1, "memory_id: 21", "Unpublished memory #21", false],
+      [2, "memory_id: 999", "Memory unpublish failed: memory not found or not owned: 999", true],
+      [3, "memory_id: 22", "Unpublishing memory...", false]
+    ].map(([messageId, detail, resultSummary, resultError]) => ({
+      message_id: messageId as number,
+      tool_name: "unpublish_memory",
+      raw_name: "unpublish_memory",
+      detail: detail as string,
+      display_label: "Unpublish memory",
+      progress_label: "Unpublishing memory",
+      raw_payload: {},
+      result_body: "{}",
+      result_error: resultError as boolean,
+      result_kind: "record" as const,
+      result_summary: resultSummary as string
+    }))
+    const item: ChatToolGroupItem = { type: "tool_group", tool: "Unpublish memory", summary_label: "Unpublish memory (3)", calls }
+
+    const { container } = render(<ToolGroup item={item} />)
+    const summary = container.querySelector("summary")
+    const detail = screen.getByText(/Unpublished memory #21/)
+    const count = screen.getByText("3")
+
+    expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
+    expect(detail).toHaveClass("basis-full", "sm:basis-0", "sm:flex-1")
+    expect(count.parentElement).toHaveClass("sm:order-last")
+  })
+
+  it("passes persisted search inputs into the expanded search Jobs card", () => {
+    const results = [
+      { id: 4048, state: "running", issue_title: "Improve search cards" },
+      { id: 4049, state: "running", issue_title: "Show match context" }
+    ]
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Search jobs",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "search_jobs",
+          raw_name: "mcp__syrus-chat-sidecar__search_jobs",
+          detail: "tool cards",
+          display_label: "Search jobs",
+          progress_label: "Searching jobs",
+          raw_payload: { query: "tool cards", state: "running", limit: 2 },
+          result_body: JSON.stringify({ total: 37, results }),
+          result_json: { total: 37, results },
+          result_error: false,
+          result_kind: "record",
+          result_summary: "37 matching Jobs"
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Search jobs")
+
+    expect(screen.getByText(/Showing 2 of 37/)).toHaveTextContent("Query: tool cards · State: running · Ordered by most recently updated")
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -738,6 +899,32 @@ describe("tool result rendering", () => {
     fireEvent(details, new Event("toggle"))
 
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
+  })
+
+  it("wraps collapsed tool metadata on narrow screens without hiding the call count", () => {
+    const detail = "a very long argument detail that must not make a narrow tool row grow vertically"
+    const calls: ChatToolGroupItem["calls"] = [1, 2].map((messageId) => ({
+      message_id: messageId,
+      tool_name: "Read",
+      raw_name: "Read",
+      detail,
+      display_label: "Read",
+      progress_label: "Reading",
+      raw_payload: { file_path: detail },
+      result_body: "result",
+      result_error: false,
+      result_kind: "text",
+      result_summary: "A long result summary"
+    }))
+
+    render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls }} />)
+
+    const metadata = screen.getByText(`A long result summary · ${detail}, A long result summary · ${detail}`)
+    expect(metadata).toHaveClass("min-w-0", "flex-1", "basis-full", "break-words", "sm:basis-0")
+    expect(metadata).not.toHaveClass("truncate")
+    expect(metadata).not.toHaveAttribute("title")
+    const count = screen.getByText("2")
+    expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
   })
 
   it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
@@ -1243,7 +1430,7 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
-    expect(summary).toHaveClass("break-words")
+    expect(summary).toHaveClass("basis-full", "break-words", "sm:basis-0")
 
     expandToolGroup("Git status")
 
@@ -1529,6 +1716,48 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Keep", { exact: false })).toBeInTheDocument()
   })
 
+  it("supplies live chat context so propose_job renders attached media thumbnails", () => {
+    const result = { slug: "job-image-card", title: "Image card", body: "Use the screenshot.", kind: "job", state: "proposed" }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Propose job",
+      calls: [
+        {
+          message_id: 2,
+          tool_name: "propose_job",
+          raw_name: "mcp__syrus-chat-sidecar__propose_job",
+          detail: "Image card",
+          display_label: "Propose job",
+          progress_label: "Proposing",
+          raw_payload: { title: "Image card", media: ["chat_image:77", "snapshot:42"] },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(
+      <ToolGroup
+        chatMedia={{
+          snapshots: [{ id: 42, name: "Checkout sketch", snapshot_kind: "manual", element_count: 6, created_at: "2026-10-18T12:00:00Z" }],
+          chat_images: [],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }}
+        item={item}
+        payload={makePayload()}
+      />
+    )
+    expandToolGroup("Propose job")
+
+    expect(screen.getByRole("img", { name: "chat_image:77" })).toHaveAttribute("src", "/api/v1/app/chats/122/media/chat_images/77/file")
+    expect(screen.getAllByText("Checkout sketch").length).toBeGreaterThan(0)
+  })
+
   it("renders read_epic expanded cards from Codex MCP result envelopes", () => {
     const envelope = {
       content: [
@@ -1720,6 +1949,36 @@ describe("tool result rendering", () => {
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
     expect(summary).toHaveClass("min-w-0", "flex-1", "break-words", "[overflow-wrap:anywhere]")
     expect(summary).not.toHaveClass("shrink-0")
+  })
+
+  it("gives long registered-card summaries a full-width second row on mobile", () => {
+    const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Admin maintenance tasks",
+      calls: [
+        {
+          message_id: 47,
+          tool_name: "admin_maintenance_tasks",
+          raw_name: "mcp__syrus-chat-sidecar__admin_maintenance_tasks",
+          detail: "No arguments",
+          display_label: "Admin maintenance tasks",
+          progress_label: "Reading maintenance tasks",
+          raw_payload: { action: "read", task_id: 47 },
+          result_body: JSON.stringify({ task: { id: 47, title, state: "running" } }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "",
+          result_settled: true
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const resultSummary = screen.getByText(`${title} (running)`)
+    expect(resultSummary).toHaveClass("order-2", "basis-full", "pl-5", "sm:order-none", "sm:basis-0", "sm:pl-0")
+    expect(resultSummary.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {

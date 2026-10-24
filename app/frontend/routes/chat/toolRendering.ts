@@ -4,12 +4,14 @@
 // argument detail, and a trimmed result summary/body — shortening the long
 // per-workflow workspace paths that show up in tool output. Pure functions
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
-import { isPlainObject } from "../../toolCardParsing"
+import { isPlainObject, normalizedToolCardParsedResult, parseJsonText } from "../../toolCardParsing"
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
 import { pluginToolCardArgumentSummary, pluginToolCardCollapsedSummary } from "../../pluginToolCards"
+import type { ChatToolContextCall } from "../../api/chats"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 export { isPlainObject } from "../../toolCardParsing"
+export { normalizedToolCardParsedResult, parseJsonText } from "../../toolCardParsing"
 
 const WORKSPACE_MARKER = "/.syrus/"
 const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", '"', "`", ",", ":", ";", "]", ")", "}"])
@@ -347,30 +349,6 @@ export function typedToolResult(name: string, body: string, error = false): Type
   return null
 }
 
-export function normalizedToolCardParsedResult(parsed: unknown): unknown {
-  if (!isPlainObject(parsed)) return parsed
-
-  if (parsed.structured_content != null) {
-    const content = parsed.content
-    const preservesBinaryContent = Array.isArray(content) && content.some((item) => isPlainObject(item) && item.type !== "text")
-    if (!preservesBinaryContent) return parsed.structured_content
-
-    if (!isPlainObject(parsed.structured_content)) return { structured_content: parsed.structured_content, content }
-
-    const structuredBlocks = Array.isArray(parsed.structured_content.content) ? parsed.structured_content.content : []
-    return { ...parsed.structured_content, content: [...content, ...structuredBlocks] }
-  }
-
-  const content = parsed.content
-  if (!Array.isArray(content)) return parsed
-
-  const firstContent = content[0]
-  if (!isPlainObject(firstContent) || typeof firstContent.text !== "string") return parsed
-
-  const inner = parseJsonText(firstContent.text)
-  return inner == null ? parsed : inner
-}
-
 // MCP clients and agent providers preserve image content at different depths:
 // some hand us the content array directly, while others retain the MCP
 // response, structured-content, or provider result envelope. Keep that
@@ -418,11 +396,16 @@ export function toolResultPresentation(
   error = false,
   parseBody: string = body,
   input: Record<string, unknown> = {},
-  parsedResult?: unknown
+  parsedResult?: unknown,
+  contextCallsOrPriorResults: ChatToolContextCall[] | Readonly<Record<string, unknown>> = [],
+  priorResults?: Readonly<Record<string, unknown>>,
+  resultSettled = true
 ): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
   const cardParsed = normalizedToolCardParsedResult(parsed)
+  const contextCalls = Array.isArray(contextCallsOrPriorResults) ? contextCallsOrPriorResults : []
+  const resolvedPriorResults = Array.isArray(contextCallsOrPriorResults) ? priorResults : contextCallsOrPriorResults
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
@@ -434,8 +417,14 @@ export function toolResultPresentation(
     input: redactToolCardValue(input) as Record<string, unknown>,
     resultBody: redactToolCardText(body),
     resultError: error,
-    resultSettled: true,
-    parsedResult: redactToolCardValue(cardParsed)
+    resultSettled,
+    parsedResult: redactToolCardValue(cardParsed),
+    priorCalls: contextCalls.map((call) => ({
+      toolName: normalizedToolName(call.tool_name),
+      input: (isPlainObject(call.input) ? redactToolCardValue(call.input) : {}) as Record<string, unknown>,
+      parsedResult: redactToolCardValue(normalizedToolCardParsedResult(call.result))
+    })),
+    priorResults: redactToolCardValue(resolvedPriorResults ?? {}) as Readonly<Record<string, unknown>>
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 
@@ -548,26 +537,6 @@ function chatMediaResultCount(value: Record<string, unknown>) {
 
 function countSummary(count: number, noun: string) {
   return `${count} ${noun}${count === 1 || noun.endsWith("s") ? "" : "s"}`
-}
-
-export function parseJsonText(value: string): unknown {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  let current: unknown = trimmed
-  for (let index = 0; index < 3; index += 1) {
-    if (typeof current !== "string") return current
-    const candidate = current.trim()
-    if (!candidate.startsWith("{") && !candidate.startsWith("[") && !candidate.startsWith('"')) return index === 0 ? null : current
-
-    try {
-      current = JSON.parse(candidate)
-    } catch {
-      return index === 0 ? null : current
-    }
-  }
-
-  return current
 }
 
 export function fullResultBody(content: unknown): string {

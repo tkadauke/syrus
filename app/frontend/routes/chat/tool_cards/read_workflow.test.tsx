@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import readWorkflowToolCard from "./read_workflow"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -50,7 +51,15 @@ describe("read_workflow tool card", () => {
             started_at: "2026-01-01T00:00:00Z",
             finished_at: "2026-01-01T00:02:00Z",
             runs: [
-              { id: 9, state: "succeeded", agent_outcome: "success", agent_summary: "changed the code", started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:02:00Z", cost_usd: "0.42" }
+              {
+                id: 9,
+                state: "succeeded",
+                agent_outcome: "success",
+                agent_summary: "changed the code",
+                started_at: "2026-01-01T00:00:00Z",
+                finished_at: "2026-01-01T00:02:00Z",
+                cost_usd: "0.42"
+              }
             ]
           }
         ]
@@ -79,12 +88,77 @@ describe("read_workflow tool card", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("RUN-9")
   })
 
+  it("renders step metadata, markdown, counts, and an explicit empty state", () => {
+    const parsedResult = {
+      workflow: {
+        id: 12,
+        state: "running",
+        step_count: 1,
+        run_count: 2,
+        created_at: "2026-10-19T10:00:00Z",
+        steps: [{ id: 3, kind: "implement", state: "running", position: 2, details: "Fixed **important** behavior.", run_count: 2, runs: [] }]
+      }
+    }
+    render(<>{readWorkflowToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("1 steps")).toBeInTheDocument()
+    expect(screen.getAllByText("2 runs")).toHaveLength(2)
+    expect(screen.getByText("Position 2")).toBeInTheDocument()
+    expect(screen.getByText("important")).toBeInTheDocument()
+    expect(screen.getByText("2026-10-19T10:00:00Z")).toBeInTheDocument()
+
+    const empty = { workflow: { id: 13, state: "queued", step_count: 0, run_count: 0, steps: [] } }
+    render(<>{readWorkflowToolCard.renderExpanded(context({ parsedResult: empty }))}</>)
+    expect(screen.getByText("No steps have been created for this Workflow.")).toBeInTheDocument()
+  })
+
+  it("offers Show more for summaries within the tool's real 300/500 character limits", () => {
+    const workflowSummary = `**Workflow:** ${"w".repeat(280)}`
+    const runSummary = `**Run:** ${"r".repeat(480)}`
+    const parsedResult = {
+      workflow: {
+        id: 14,
+        state: "succeeded",
+        summary: workflowSummary,
+        steps: [{ id: 4, kind: "implement", state: "succeeded", runs: [{ id: 5, state: "succeeded", agent_summary: runSummary }] }]
+      }
+    }
+    render(<>{readWorkflowToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+    fireEvent.click(screen.getAllByRole("button", { name: "Show more" })[0])
+    expect(screen.getByRole("dialog", { name: "Workflow summary" })).toHaveTextContent(`Workflow: ${"w".repeat(280)}`)
+  })
+
+  it("renders content text and structured content envelopes through the shared normalizer", () => {
+    const payload = { workflow: { id: 15, state: "running", steps: [] } }
+    const textEnvelope = { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+    const structuredEnvelope = { content: [{ type: "text", text: "ignored" }], structured_content: payload }
+
+    for (const envelope of [textEnvelope, structuredEnvelope]) {
+      const parsedResult = normalizedToolCardParsedResult(envelope)
+      expect(readWorkflowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("WF-15 (running)")
+    }
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__read_workflow")).toBe("read_workflow")
+  })
+
+  it("renders inaccessible and not-found errors as a dedicated card", () => {
+    const errorContext = context({ input: { workflow_id: 999 }, resultError: true, resultBody: "Workflow not found or inaccessible" })
+    expect(readWorkflowToolCard.collapsedSummary?.(errorContext)).toBe("Workflow lookup failed")
+    render(<>{readWorkflowToolCard.renderExpanded(errorContext)}</>)
+
+    expect(screen.getByText("Workflow lookup failed")).toBeInTheDocument()
+    expect(screen.getByText("WF-999")).toBeInTheDocument()
+    expect(screen.getByText("Workflow not found or inaccessible")).toBeInTheDocument()
+  })
+
   it("omits optional sections when fields are missing", () => {
     const parsedResult = { workflow: { id: 1, state: "queued" } }
     render(<>{readWorkflowToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("WF-1")).toBeInTheDocument()
     expect(screen.queryByText("Steps")).not.toBeInTheDocument()
+    expect(screen.getByText("No steps have been created for this Workflow.")).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload (missing workflow object)", () => {

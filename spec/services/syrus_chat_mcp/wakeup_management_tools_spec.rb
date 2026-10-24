@@ -63,13 +63,19 @@ RSpec.describe "Mcp::Tools wakeup management tools" do
             id: earlier.id,
             fire_at: "2026-06-24T12:12:00Z",
             delay_remaining_minutes: 12,
-            prompt_preview: "Check the first thing."
+            prompt_preview: "Check the first thing.",
+            prompt: "Check the first thing.",
+            state: "pending",
+            chat_id: chat_session.id
           },
           {
             id: later.id,
             fire_at: "2026-06-24T12:25:00Z",
             delay_remaining_minutes: 25,
-            prompt_preview: later_prompt.each_char.first(120).join
+            prompt_preview: later_prompt.each_char.first(120).join,
+            prompt: later_prompt,
+            state: "pending",
+            chat_id: chat_session.id
           }
         ]
       )

@@ -47,5 +47,20 @@
   "slow_log": "Acta lenta",
   "hide_slow_log": "Ordines actorum lentorum cela",
   "load_slow_log": "Ordines actorum lentorum onera",
-  "slow_log_unavailable": "Ordines actorum lentorum non praesto sunt."
+  "slow_log_unavailable": "Ordines actorum lentorum non praesto sunt.",
+  "tool_kill_failed": "Interrogatio MySQL interrumpi non potuit",
+  "tool_thread": "Filum",
+  "tool_full_error": "Error MySQL plenus",
+  "tool_error": "Error",
+  "tool_pending_action": "Actio pendens #{{id}}",
+  "tool_mysql_thread": "Filum MySQL",
+  "tool_full_redacted_statement": "Sententia redacta plena",
+  "tool_redacted_statement": "Sententia redacta",
+  "tool_unknown_error": "Petitio interrogationis interrumpendae sine nuntio erroris defecit.",
+  "tool_kill_summary": "Interrogationem MySQL in filo {{id}} fini",
+  "tool_query_state": "Status interrogationis",
+  "tool_user": "Usor",
+  "tool_host": "Hospes",
+  "tool_database": "Database",
+  "tool_running": "Currens"
 }

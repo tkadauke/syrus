@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { FilterBar, type FilterChip, type FilterNode, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -53,6 +53,8 @@ const EMPTY_FORM: MysqlConnectionInput = {
 }
 
 type BrowseTarget = { connectionId: number; label: string }
+type BrowseSelection = { database: string; table: string; tab: "content" | "structure" | "builder" }
+type BrowseDeepLink = { connectionId: number; selection: BrowseSelection | null }
 type FormTarget = "create" | MysqlConnectionRow
 type ParsedConnectionUrl = Pick<MysqlConnectionInput, "default_database" | "host" | "label" | "password" | "port" | "username">
 
@@ -95,6 +97,8 @@ function parseMysqlConnectionUrl(value: string): ParsedConnectionUrl | null {
 
 export function MysqlConnections() {
   const { t } = useT("mysql_db_browser")
+  const location = useLocation()
+  const navigate = useNavigate()
   usePageTitle(t("heading"))
   const [notice, setNotice] = useState<string | null>(null)
   const [browsing, setBrowsing] = useState<BrowseTarget | null>(null)
@@ -103,11 +107,27 @@ export function MysqlConnections() {
     queryKey,
     queryFn: fetchMysqlConnections
   })
+  const deepLink = useMemo(() => browseSelectionFromSearch(location.search), [location.search])
+
+  useEffect(() => {
+    if (browsing || !deepLink || !connections.data) return
+
+    const connection = connections.data.mysql_connections.find((candidate) => candidate.id === deepLink.connectionId)
+    if (connection) setBrowsing({ connectionId: connection.id, label: connection.label })
+  }, [browsing, connections.data, deepLink])
 
   if (browsing) {
     return (
       <Page.Root aria-label={t("aria_page")} className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
-        <SchemaBrowser connectionId={browsing.connectionId} label={browsing.label} onBack={() => setBrowsing(null)} />
+        <SchemaBrowser
+          connectionId={browsing.connectionId}
+          initialSelection={deepLink?.connectionId === browsing.connectionId ? deepLink.selection : null}
+          label={browsing.label}
+          onBack={() => {
+            setBrowsing(null)
+            if (deepLink) navigate(location.pathname, { replace: true })
+          }}
+        />
       </Page.Root>
     )
   }
@@ -147,6 +167,22 @@ export function MysqlConnections() {
       ) : null}
     </Page.Root>
   )
+}
+
+function browseSelectionFromSearch(search: string): BrowseDeepLink | null {
+  const params = new URLSearchParams(search)
+  const connectionId = Number(params.get("connection_id"))
+  const database = params.get("database")
+  const table = params.get("table")
+  const tab = params.get("tab")
+
+  if (!Number.isInteger(connectionId) || connectionId < 1) return null
+
+  return {
+    connectionId,
+    selection:
+      database && table ? { database, table, tab: tab === "structure" || tab === "builder" ? tab : "content" } : null
+  }
 }
 
 function ConnectionFormModal({
@@ -838,12 +874,22 @@ function TestButton({ onTest }: { onTest: () => Promise<MysqlConnectionTestResul
   )
 }
 
-function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; label: string; onBack: () => void }) {
+function SchemaBrowser({
+  connectionId,
+  initialSelection,
+  label,
+  onBack
+}: {
+  connectionId: number
+  initialSelection: BrowseSelection | null
+  label: string
+  onBack: () => void
+}) {
   const { t } = useT("mysql_db_browser")
   const [browserTab, setBrowserTab] = useState<"browse" | "query" | "live">("browse")
-  const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set())
-  const [selected, setSelected] = useState<{ database: string; table: string } | null>(null)
-  const [tableTab, setTableTab] = useState<"content" | "structure" | "builder">("content")
+  const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(() => new Set(initialSelection ? [initialSelection.database] : []))
+  const [selected, setSelected] = useState<{ database: string; table: string } | null>(initialSelection)
+  const [tableTab, setTableTab] = useState<"content" | "structure" | "builder">(initialSelection?.tab ?? "content")
   const databases = useQuery({
     queryKey: ["mysql_db_browser", "schema", connectionId, "databases"],
     queryFn: () => fetchMysqlDatabases(connectionId)

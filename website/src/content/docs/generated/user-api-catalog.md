@@ -213,6 +213,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/open_in_coding_mode` | `api/v1/app/job_coding_mode#open` |
 | core | POST | `/api/v1/app/jobs/:job_id/open_in_local_mode` | `api/v1/app/job_lifecycle#open_in_local_mode` |
 | core | POST | `/api/v1/app/jobs/:job_id/override_landing_blocker` | `api/v1/app/jobs#override_landing_blocker` |
+| core | POST | `/api/v1/app/jobs/:job_id/override_planned_execution` | `api/v1/app/job_lifecycle#override_planned_execution` |
 | core | PATCH | `/api/v1/app/jobs/:job_id/owner` | `api/v1/app/job_claims#update_owner` |
 | core | POST | `/api/v1/app/jobs/:job_id/pause` | `api/v1/app/job_lifecycle#pause` |
 | core | GET | `/api/v1/app/jobs/:job_id/pending_feedback` | `api/v1/app/pending_feedback#index` |
@@ -308,7 +309,6 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/repositories/:id/release_needs_triage_job` | `api/v1/app/repositories#release_needs_triage_job` |
 | core | POST | `/api/v1/app/repositories/:id/repair_main_branch` | `api/v1/app/repositories#repair_main_branch` |
 | core | POST | `/api/v1/app/repositories/:id/resume_landing` | `api/v1/app/repositories#resume_landing` |
-| core | POST | `/api/v1/app/repositories/:id/retry_failed_jobs` | `api/v1/app/repositories#retry_failed_jobs` |
 | core | POST | `/api/v1/app/repositories/:id/run_main_branch_graders` | `api/v1/app/repositories#run_main_branch_graders` |
 | core | POST | `/api/v1/app/repositories/:id/sync_fork` | `api/v1/app/repositories#sync_fork` |
 | core | GET | `/api/v1/app/repositories/:id/target_graph` | `api/v1/app/target_graphs#repository` |

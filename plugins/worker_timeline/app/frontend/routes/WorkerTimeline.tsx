@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
@@ -6,7 +6,6 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { FilterBar } from "@app/components/FilterBar"
 import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
-import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { adminSmartFolderFilterLinkBuilder } from "@app/lib/adminSmartFolderLinks"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
@@ -37,7 +36,6 @@ export function WorkerTimelineMacroView() {
   usePageTitle(t("heading"))
   const location = useLocation()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
   const searchParams = new URLSearchParams(location.search)
   const activeTab = searchParams.get("tab") === "live" ? "live" : "timeline"
@@ -72,24 +70,6 @@ export function WorkerTimelineMacroView() {
       suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
     />
   )
-  const smartFolders =
-    activeTab === "timeline" && macro.data ? (
-      <AdminSmartFolderNav
-        activeFolderId={macro.data.active_smart_folder_id}
-        allLabel={t("smart_folder_all")}
-        allPath="/worker_timeline?smart_folder_id="
-        allowSaveWithoutActiveFolder
-        ariaLabel={t("smart_folders_aria")}
-        currentFilter={macro.data.filter ?? undefined}
-        folders={macro.data.smart_folders}
-        heading={t("smart_folders_heading")}
-        onMutationSuccess={() => void queryClient.invalidateQueries({ queryKey: ["worker_timeline", "macro"] })}
-        prefix={prefix}
-        queryKey={["worker_timeline", "macro"]}
-        subjectType="worker_timeline"
-      />
-    ) : undefined
-
   return (
     <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
@@ -126,7 +106,6 @@ export function WorkerTimelineMacroView() {
       <AdminFiltersLayout
         filterBar={filterBar}
         mobileSummaryLabel={macro.data?.smart_folders.find((folder) => folder.id === macro.data?.active_smart_folder_id)?.name ?? t("smart_folder_all")}
-        smartFolders={smartFolders}
       >
         {activeTab === "timeline" ? (
           <>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
-import type { ChatPendingActionInline } from "./api/chats"
+import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
+import type { MarkdownLinkHandler } from "./lib/Markdown"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -23,6 +24,9 @@ export type ToolCardContext = {
   // Tool call arguments. Only populated where the caller already has them
   // (the expanded chat card); collapsed-summary dispatch does not carry it.
   input?: Record<string, unknown>
+  // Chat surfaces provide their Markdown link interceptor so card prose can
+  // open workspace files in the same preview used by assistant messages.
+  onLinkClick?: MarkdownLinkHandler
   // Raw tool result text, before any JSON parsing.
   resultBody: string
   resultError: boolean
@@ -32,9 +36,15 @@ export type ToolCardContext = {
   resultSettled?: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
+  // Latest normalized results from earlier context-providing tools in this
+  // transcript. Kept deliberately small by the stream builder; cards must
+  // continue to work when it is absent (catalog/admin/older transcripts).
+  priorResults?: Readonly<Record<string, unknown>>
   // Owning chat when rendered in a chat surface. Admin transcripts and
   // catalog fixtures do not necessarily have one.
   chatSessionId?: number | string
+  // Earlier settled calls, normalized and redacted like the current call.
+  priorCalls?: ToolCardPriorCall[]
   // Current state of the ChatPendingAction this tool call created, read
   // fresh off the owning tool_use message on every payload fetch (that's
   // where ChatPendingAction::anchor_to_tool_call! anchors it, not the
@@ -45,7 +55,17 @@ export type ToolCardContext = {
   // (catalog fixtures, the admin transcript viewer); a card should fall
   // back to parsedResult's own state then.
   livePendingAction?: ChatPendingActionInline | null
+  // Optional chat-owned presentation data. Live chat rendering supplies this
+  // separately from the redacted tool payload so cards can resolve opaque
+  // media references without changing the MCP response contract.
+  presentation?: {
+    chatId?: number | string
+    chatMedia?: ChatMediaPayload
+    previewPanels?: ChatPreviewPanel[]
+  }
 }
+
+export type ToolCardPriorCall = { toolName: string; input: Record<string, unknown>; parsedResult: unknown }
 
 export type ToolCardRenderer = {
   toolName: string
@@ -100,6 +120,11 @@ export type ToolCardExample = {
   // `job` key"). Omit when the label already says it all.
   description?: string
   input?: Record<string, unknown>
+  // Optional owning chat context for cards whose links target chat-local
+  // workspace surfaces. Catalog examples use synthetic IDs, like the other
+  // entity identifiers in their payloads.
+  chatSessionId?: number | string
+  priorCalls?: ToolCardPriorCall[]
   // Provide exactly one of resultBody/parsedResult. resultBody is the raw
   // result text a real tool_result would carry (already JSON-encoded where
   // relevant); parsedResult is a convenience for authors who'd rather write
@@ -109,9 +134,14 @@ export type ToolCardExample = {
   // fixtures, since those can't round-trip through a parsed value.
   resultBody?: string
   parsedResult?: unknown
+  priorResults?: Readonly<Record<string, unknown>>
   resultError?: boolean
   resultSettled?: boolean
   sourceType?: ToolCardExampleSourceType
+  // Live pending-action state is distinct from the frozen tool result. Cards
+  // that surface confirmation/execution outcomes need fixtures for this path,
+  // just like real chat messages receive it on every payload refresh.
+  livePendingAction?: ChatPendingActionInline | null
 }
 
 type ToolCardModule = { default?: ToolCardRenderer; examples?: ToolCardExample[] }
@@ -148,11 +178,15 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
   const resultBody = resolveExampleResultBody(example)
   return {
     toolName,
+    chatSessionId: example.chatSessionId,
     input: example.input,
+    priorCalls: example.priorCalls,
     resultBody,
     resultError: example.resultError ?? false,
     resultSettled: example.resultSettled ?? true,
-    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody)
+    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody),
+    priorResults: example.priorResults,
+    livePendingAction: example.livePendingAction
   }
 }
 

@@ -9,7 +9,8 @@ module WhisperStt
         image: Configuration.image,
         internal_port: 8080,
         env: {},
-        healthcheck: { path: Configuration::HEALTH_PATH }
+        healthcheck: { path: Configuration::HEALTH_PATH },
+        memory_limit_bytes: Configuration.memory_limit_bytes
       }
     end
   end

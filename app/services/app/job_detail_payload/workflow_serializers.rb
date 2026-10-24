@@ -326,7 +326,7 @@ module App
       end
 
       def workflows_scope
-        @job.workflows.reorder(created_at: :desc, id: :desc)
+        @job.workflows.preload(:workflow_artifact_values).reorder(created_at: :desc, id: :desc)
       end
 
       def total_workflows

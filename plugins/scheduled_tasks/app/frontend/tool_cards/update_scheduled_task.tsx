@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "i18next"
 import { CardShell } from "@app/routes/chat/toolCardUi"
-import { parseScheduledTaskDetail, PromptDisclosure, ScheduledTaskSummary } from "../scheduledTaskToolCard"
+import { parseScheduledTaskDetail, PromptDisclosure, ScheduledTaskSummary, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for update_scheduled_task (the pending-action tool-card work).
 // The tool answers with the same `{ scheduled_task: ... }` snapshot
@@ -26,15 +26,15 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("tool_update_title")}</div>
       <ScheduledTaskSummary task={detail.task} />
-      {detail.prompt ? <PromptDisclosure prompt={detail.prompt} /> : null}
+      {detail.prompt ? <PromptDisclosure onLinkClick={context.onLinkClick} prompt={detail.prompt} /> : null}
     </CardShell>
   )
 }
 
-const updateScheduledTaskToolCard: ToolCardRenderer = {
+const updateScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
   toolName: "update_scheduled_task",
   collapsedSummary,
   renderExpanded
-}
+})
 
 export default updateScheduledTaskToolCard

@@ -4,7 +4,8 @@ import { CompactActionCard, type CompactActionRow } from "@app/routes/chat/compa
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import i18n from "i18next"
-import { Badge, CardShell, displayValue, numberValue, Row } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, numberValue, Row } from "@app/routes/chat/toolCardUi"
+import { WhiteboardSnapshotPreview } from "./whiteboardSnapshotPreview"
 
 // Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
 // Most drawing/move/delete tools return only `{ id, version }` --
@@ -249,29 +250,43 @@ export function SceneCountsCard({ counts, action }: { counts: SceneCounts; actio
 
 // save_canvas either records a snapshot or reports the canvas was empty.
 export type SaveCanvasResult =
-  { saved: true; snapshotId: string | null; name: string | null; elementCount: number | null } | { saved: false; reason: string | null }
+  | { saved: true; snapshotId: string | null; name: string | null; elementCount: number | null; chatId: string | null; version: number | null }
+  | { saved: false; reason: string | null; name: string | null; chatId: string | null; version: number | null }
 
 export function parseSaveCanvasResult(value: unknown): SaveCanvasResult | null {
   if (!isPlainObject(value) || typeof value.saved !== "boolean") return null
 
-  if (!value.saved) return { saved: false, reason: displayValue(value.reason) }
+  if (!value.saved) {
+    return {
+      saved: false,
+      reason: displayValue(value.reason),
+      name: displayValue(value.name),
+      chatId: displayValue(value.chat_session_id),
+      version: numberValue(value.version)
+    }
+  }
 
   return {
     saved: true,
     snapshotId: displayValue(value.snapshot_id),
     name: displayValue(value.name),
-    elementCount: numberValue(value.element_count)
+    elementCount: numberValue(value.element_count),
+    chatId: displayValue(value.chat_session_id),
+    version: numberValue(value.version)
   }
 }
 
-export function SaveCanvasCard({ result }: { result: SaveCanvasResult }) {
+export function SaveCanvasCard({ result, requestedName }: { result: SaveCanvasResult; requestedName?: string | null }) {
   if (!result.saved) {
+    const name = result.name ?? requestedName
     return (
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{t("tool_not_saved")}</Badge>
+          {result.version != null ? <Badge>v{result.version}</Badge> : null}
         </div>
         {result.reason ? <div className="text-gray-600 dark:text-gray-300">{result.reason}</div> : null}
+        {name ? <Row label={t("tool_field_name")} value={name} /> : null}
       </CardShell>
     )
   }
@@ -280,23 +295,35 @@ export function SaveCanvasCard({ result }: { result: SaveCanvasResult }) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{t("tool_saved_snapshot")}</Badge>
-        {result.snapshotId ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{result.snapshotId}</span> : null}
+        {result.snapshotId ? (
+          <EntityReference
+            href={result.chatId ? `/chats/${result.chatId}?workspace=plugin%3Awhiteboard.canvas` : null}
+            id={result.snapshotId}
+            kind="whiteboard_snapshot"
+          />
+        ) : null}
+        {result.version != null ? <Badge>v{result.version}</Badge> : null}
       </div>
-      {result.snapshotId ? (
-        <MediaPreviewShell
+      {result.snapshotId && result.chatId ? (
+        <WhiteboardSnapshotPreview
+          chatId={result.chatId}
           item={{
-            title: result.name ?? `Snapshot #${result.snapshotId}`,
-            subtitle: result.elementCount != null ? `${result.elementCount} element${result.elementCount === 1 ? "" : "s"}` : null,
-            badge: "snapshot",
-            fallbackLabel: "Whiteboard snapshot",
-            actions: [{ label: "Copy ID", copyValue: result.snapshotId }],
+            title: result.name ?? t("tool_snapshot_title", { id: result.snapshotId }),
+            subtitle: result.elementCount != null ? t("tool_elements_summary", { count: result.elementCount }) : null,
+            badge: t("tool_snapshot"),
+            actions: [
+              { label: t("tool_open_whiteboard"), href: `/chats/${result.chatId}?workspace=plugin%3Awhiteboard.canvas` },
+              { label: t("tool_view_in_media"), href: `/chats/${result.chatId}?workspace=media` },
+              { label: t("tool_copy_id"), copyValue: result.snapshotId }
+            ],
             meta: [
-              { label: "Snapshot ID", value: result.snapshotId, copyValue: result.snapshotId },
-              { label: "Name", value: result.name },
-              { label: "Elements", value: result.elementCount != null ? String(result.elementCount) : null }
+              { label: t("tool_snapshot_id"), value: result.snapshotId, copyValue: result.snapshotId },
+              { label: t("tool_field_name"), value: result.name },
+              { label: t("tool_elements"), value: result.elementCount != null ? String(result.elementCount) : null },
+              { label: t("tool_version"), value: result.version != null ? String(result.version) : null }
             ]
           }}
-          modalLabel="Whiteboard snapshot"
+          snapshotId={result.snapshotId}
         />
       ) : (
         <>

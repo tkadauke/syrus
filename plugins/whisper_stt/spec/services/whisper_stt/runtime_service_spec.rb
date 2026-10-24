@@ -2,10 +2,11 @@ require "rails_helper"
 
 RSpec.describe WhisperStt::RuntimeService do
   around do |example|
-    original = ENV.to_h.slice("SYRUS_WHISPER_STT_IMAGE", "SYRUS_VERSION")
+    keys = %w[SYRUS_WHISPER_STT_IMAGE SYRUS_VERSION SYRUS_WHISPER_STT_MEMORY_LIMIT_BYTES]
+    original = ENV.to_h.slice(*keys)
     example.run
   ensure
-    %w[SYRUS_WHISPER_STT_IMAGE SYRUS_VERSION].each { |key| ENV[key] = original[key] }
+    keys.each { |key| ENV[key] = original[key] }
   end
 
   it "registers the plugin as a disabled Plugin Runtime service" do
@@ -30,6 +31,21 @@ RSpec.describe WhisperStt::RuntimeService do
       env: {},
       healthcheck: { path: "/health" }
     )
+  end
+
+  # Uncapped, the kernel resolves memory pressure host-wide and the victim is
+  # whichever process looks worst -- in practice the Docker daemon, which takes
+  # every container down rather than just the one that overran.
+  it "caps the daemon's memory and lets a larger model raise the cap" do
+    ENV["SYRUS_WHISPER_STT_MEMORY_LIMIT_BYTES"] = nil
+    expect(described_class.service_spec[:memory_limit_bytes]).to eq(2 * 1024 * 1024 * 1024)
+
+    ENV["SYRUS_WHISPER_STT_MEMORY_LIMIT_BYTES"] = "6442450944"
+    expect(described_class.service_spec[:memory_limit_bytes]).to eq(6_442_450_944)
+
+    # A junk or zero override must not silently uncap the container.
+    ENV["SYRUS_WHISPER_STT_MEMORY_LIMIT_BYTES"] = "not-a-number"
+    expect(described_class.service_spec[:memory_limit_bytes]).to eq(2 * 1024 * 1024 * 1024)
   end
 
   it "runs the image from the same release as Syrus" do
