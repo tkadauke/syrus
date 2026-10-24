@@ -1340,6 +1340,7 @@ RSpec.describe Epic, :ci_only do
 
   describe "user_is_repository_member validation" do
     it "rejects an Epic when the creator has no membership on the target repository" do
+      repository # create the repository owner first: the first user becomes the bootstrap admin
       outsider = Factories.user(email_address: "outsider@example.com")
       epic = Epic.new(user: outsider, repository: repository, title: "Uninvited")
 

@@ -1,9 +1,9 @@
 class CreateProviderRoutingHolds < ActiveRecord::Migration[8.1]
   def change
     create_table :provider_routing_holds do |t|
-      t.references :workflow, null: false
-      t.references :step
-      t.references :provider_routing_rule
+      t.references :workflow, null: false, foreign_key: false
+      t.references :step, foreign_key: false
+      t.references :provider_routing_rule, foreign_key: false
       t.string :status, null: false, default: "active"
       t.string :resumption_mode, null: false
       t.text :reason
@@ -11,7 +11,7 @@ class CreateProviderRoutingHolds < ActiveRecord::Migration[8.1]
       t.json :matched_scope, null: false
       t.datetime :next_reevaluation_at
       t.datetime :released_at
-      t.references :released_by_user
+      t.references :released_by_user, foreign_key: false
       t.text :release_reason
       t.string :release_kind
       t.integer :lock_version, null: false, default: 0

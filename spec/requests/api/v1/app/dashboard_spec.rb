@@ -604,7 +604,13 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "includes landing_paused in health_blocked_repositories entries" do
-      repo.update!(grader_health: "broken", landing_paused: true)
+      repo.update!(
+        main_branch_health_enabled: true,
+        main_branch_repair_enabled: true,
+        main_branch_repair_blocks_work: true,
+        grader_health: "broken",
+        landing_paused: true
+      )
       other = Factories.repository(user: user, owner: "acme", name: "widgets2")
       other.update!(grader_health: "broken", landing_paused: false)
 
@@ -2599,6 +2605,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "moves selected ready Epics to In Progress and reports skipped Epics" do
+      # The first user created is the bootstrap admin, who may act on any Epic.
+      user.update!(global_role: "user")
       ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", state: "ready")
       done = Factories.epic(user: user, repository: repo, title: "Done forum", state: "done")
       other_user = Factories.user
@@ -2734,6 +2742,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "does not expose another user's Epic" do
+      # The first user created is the bootstrap admin, who may act on any Epic.
+      user.update!(global_role: "user")
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
       other_epic = Factories.epic(user: other_user, repository: other_repo)
