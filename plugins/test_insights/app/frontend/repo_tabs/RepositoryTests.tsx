@@ -357,11 +357,11 @@ const CHART_RIGHT = 8
 const CHART_TOP = 10
 const CHART_BOTTOM = 10
 
-const STATUS_STYLE: Record<string, { dot: string; text: string; label: string; emphasize: boolean }> = {
-  passed: { dot: "fill-green-500 dark:fill-green-400", text: "text-green-700 dark:text-green-300", label: "Passed", emphasize: false },
-  skipped: { dot: "fill-yellow-500 dark:fill-yellow-400", text: "text-yellow-700 dark:text-yellow-300", label: "Inconclusive", emphasize: false },
-  failed: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", label: "Failed", emphasize: true },
-  error: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", label: "Error", emphasize: true }
+const STATUS_STYLE: Record<string, { dot: string; text: string; labelKey: string; emphasize: boolean }> = {
+  passed: { dot: "fill-green-500 dark:fill-green-400", text: "text-green-700 dark:text-green-300", labelKey: "repo_status_passed", emphasize: false },
+  skipped: { dot: "fill-yellow-500 dark:fill-yellow-400", text: "text-yellow-700 dark:text-yellow-300", labelKey: "repo_status_skipped", emphasize: false },
+  failed: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", labelKey: "repo_status_failed", emphasize: true },
+  error: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", labelKey: "repo_status_error", emphasize: true }
 }
 
 type ChartDot = { key: number; x: number; y: number; status: RepositoryTestDurationPoint["status"]; source: RepositoryTestDurationPoint }
@@ -406,7 +406,7 @@ function DurationChart({ history, points, prefix, t }: { history: RepositoryTest
             return (
               <g key={dot.key}>
                 <circle
-                  aria-label={t(`repo_status_${dot.status}`, { defaultValue: style.label }) + `, ${formatDuration(dot.source.duration_ms)}`}
+                  aria-label={`${t(style.labelKey)}, ${formatDuration(dot.source.duration_ms)}`}
                   className="cursor-pointer fill-transparent"
                   cx={dot.x}
                   cy={dot.y}
@@ -463,7 +463,7 @@ function DurationTooltip({ historyItem, point, t, x, y }: { historyItem?: Reposi
       style={{ left: `${(x / CHART_WIDTH) * 100}%`, marginTop: -10, top: `${(y / CHART_HEIGHT) * 100}%` }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className={`font-medium ${style.text}`}>{t(`repo_status_${point.status}`, { defaultValue: style.label })}</span>
+        <span className={`font-medium ${style.text}`}>{t(style.labelKey)}</span>
         <span className="font-mono text-gray-700 dark:text-gray-300">{formatExactDuration(point.duration_ms)}</span>
       </div>
       <div className="mt-1 text-gray-500 dark:text-gray-400">{point.created_at ? new Date(point.created_at).toLocaleString() : t("repo_unknown_time")}</div>

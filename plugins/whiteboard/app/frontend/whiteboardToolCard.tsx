@@ -2,7 +2,6 @@ import type { ChatWhiteboardScene } from "@app/api/chats"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
 import { CompactActionCard, type CompactActionRow } from "@app/routes/chat/compactActionCard"
-import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row } from "@app/routes/chat/toolCardUi"
@@ -384,7 +383,8 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
             actions: [
               { label: t("tool_open_whiteboard"), href: whiteboardHref },
               { label: t("tool_view_in_media"), href: mediaHref },
-              { label: t("tool_copy_id"), copyValue: result.snapshotId }
+              { label: t("tool_copy_id"), copyValue: result.snapshotId },
+              ...(result.autoSavedSnapshotId ? [{ label: t("tool_copy_auto_save"), copyValue: result.autoSavedSnapshotId }] : [])
             ],
             meta: [
               { label: t("tool_snapshot_id"), value: result.snapshotId, copyValue: result.snapshotId },
