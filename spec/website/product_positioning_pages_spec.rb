@@ -9,6 +9,7 @@ RSpec.describe "website product positioning pages" do
 
   let(:site_copy) { read_website("lib/site.ts") }
   let(:demo) { read_website("components/demo.tsx") }
+  let(:marketing_copy) { read_website("lib/marketing.ts") }
   let(:footer) { read_website("components/footer.tsx") }
   let(:layout) { read_website("components/site-layout.tsx") }
   let(:download_page) { read_website("components/pages/download-page.tsx") }
@@ -38,11 +39,11 @@ RSpec.describe "website product positioning pages" do
     expect(normalized_copy).to include("Self-hosted on your infrastructure")
     expect(normalized_copy).to include("GitHub")
     expect(normalized_copy).to include("plugin-backed model provider you choose")
-    expect(demo).to include("Open-source onboarding")
-    expect(demo).to include("Read the docs")
-    expect(demo).to include("Open GitHub")
-    expect(demo).to include("Getting started")
-    expect(download_page).to include("Download Syrus")
+    expect(marketing_copy).to include("Open-source onboarding")
+    expect(marketing_copy).to include("Read the docs")
+    expect(marketing_copy).to include("Open GitHub")
+    expect(marketing_copy).to include("Getting started")
+    expect(marketing_copy).to include("Download Syrus")
   end
 
   it "does not present the public site as a sales or lead-capture surface" do

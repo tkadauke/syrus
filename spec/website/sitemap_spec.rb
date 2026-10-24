@@ -15,7 +15,7 @@ RSpec.describe "website sitemap" do
       console.log(JSON.stringify(sitemapEntries(
         [{ href: "/plugins/terminal" }, { href: "/plugins/terminal/" }],
         [{ href: "/docs/android" }, { href: "/docs/deployment/macos-workers" }],
-        [{ href: "/blog/launch" }],
+        [{ href: "/blog" }, { href: "/blog/launch" }],
       ).map(({ url }) => url)));
     JAVASCRIPT
 
@@ -46,7 +46,8 @@ RSpec.describe "website sitemap" do
     # Every content source the site paginates must reach the sitemap. `posts`
     # defaults to [] in sitemapEntries, so adding the blog without passing it here
     # would have silently dropped every post from the sitemap.
-    expect(sitemap_route).to include("sitemapEntries(allPlugins(), allDocs(), allPosts())")
+    expect(sitemap_route).to include('allPlugins().map((plugin) => ({ href: plugin.href, locales: ["en", "de"] }))')
+    expect(sitemap_route).to include('[{ href: "/blog" }, ...allPosts()]')
     expect(File).not_to exist(File.join(repo_root, "website/public/sitemap.xml"))
   end
 end

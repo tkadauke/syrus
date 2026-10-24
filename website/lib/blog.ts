@@ -14,6 +14,11 @@ export type BlogPost = {
 
 const BLOG_ROOT = path.join(process.cwd(), "src/content/blog");
 
+export const blogFeed = {
+  titleSuffix: "Blog",
+  description: "Notes from building Syrus: AI-native UX experiments, engineering deep dives, and what a fleet of coding agents teaches you.",
+};
+
 function parseFrontmatter(raw: string): { attrs: Record<string, string>; body: string } {
   if (!raw.startsWith("---\n")) return { attrs: {}, body: raw };
 

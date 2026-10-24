@@ -2,6 +2,7 @@ import type { Locale } from "./locales.ts"
 
 export type ChromeDictionary = {
   skipToContent: string
+  notFound: { title: string; home: string }
   nav: {
     homeLabel: string
     links: readonly { href: string; label: string; canonicalEnglish?: boolean }[]
@@ -32,6 +33,7 @@ export type ChromeDictionary = {
 export const chromeDictionaries = {
   en: {
     skipToContent: "Skip to content",
+    notFound: { title: "Page not found", home: "Return home" },
     nav: {
       homeLabel: "Syrus home",
       links: [
@@ -80,6 +82,7 @@ export const chromeDictionaries = {
   },
   de: {
     skipToContent: "Zum Inhalt springen",
+    notFound: { title: "Seite nicht gefunden", home: "Zurück zur Startseite" },
     nav: {
       homeLabel: "Syrus-Startseite",
       links: [

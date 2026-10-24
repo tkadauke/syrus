@@ -22,7 +22,7 @@ RSpec.describe "website content coverage" do
   it "has current Next.js surfaces for the basic visitor questions" do
     pages = {
       "components/pages/home-page.tsx" => ["<Hero", "<TeamWorkflow", "<Features", "<EntryPoints", "<Demo"],
-      "components/pages/download-page.tsx" => ["Download Syrus", "macOS", "Apple Silicon", "Intel"],
+      "lib/marketing.ts" => ["Download Syrus", "macOS", "Apple Silicon", "Intel", "Open-source onboarding", "Getting started"],
       "lib/site.ts" => [
         "Show Syrus the work.",
         "Proposes epics & tickets",
@@ -31,7 +31,6 @@ RSpec.describe "website content coverage" do
         "Issue or ticket",
         "Scheduled task"
       ],
-      "components/demo.tsx" => ["Open-source onboarding", "GitHub", "Getting started"],
       "lib/chrome.ts" => ["How it works", "Why Syrus", "Entry points", "Docs"]
     }
 
