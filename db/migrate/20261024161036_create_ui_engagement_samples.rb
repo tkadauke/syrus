@@ -1,7 +1,7 @@
 class CreateUiEngagementSamples < ActiveRecord::Migration[8.1]
-  def change
-    create_table :ui_engagement_samples do |t|
-      t.references :user, null: false, foreign_key: true
+  def up
+    create_table :ui_engagement_samples, if_not_exists: true do |t|
+      t.bigint :user_id, null: false
       t.string :route_id, null: false
       t.json :route_params, null: false
       t.datetime :started_at, null: false
@@ -12,6 +12,11 @@ class CreateUiEngagementSamples < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :ui_engagement_samples, [ :user_id, :started_at ]
+    add_index :ui_engagement_samples, :user_id unless index_exists?(:ui_engagement_samples, :user_id)
+    add_index :ui_engagement_samples, [ :user_id, :started_at ] unless index_exists?(:ui_engagement_samples, [ :user_id, :started_at ])
+  end
+
+  def down
+    drop_table :ui_engagement_samples if table_exists?(:ui_engagement_samples)
   end
 end
