@@ -2848,8 +2848,8 @@ The contract is VCS-neutral. A *revision* is an opaque, immutable token whose
 format belongs to the VCS (a git SHA, a Mercurial changeset hash, a Subversion
 `branch@rev`); a *ref* is a movable name that `resolve` turns into one. Paths
 are relative to the snapshot root. Content is bytes; `Blob#text` decodes.
-Everything read at a revision is cached (trees, blobs up to 256 KB, and
-confirmed absences); a ref resolution is reused for `max_age` seconds, and
+Everything read at a revision is cached (trees, direct directory children,
+blobs up to 256 KB, and confirmed absences); a ref resolution is reused for `max_age` seconds, and
 `max_age: 0` always asks the authority.
 
 Every enabled provider that claims a repository forms a chain: `:replica`
@@ -2875,7 +2875,7 @@ class methods `provider_key`, `display_name`, `role` (`:upstream` or
 `:replica`), `available_for?(repository)` (cheap, no network -- the disable
 guard calls it for every repository), and `build(repository:, user:)`, which
 returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
-`tree(revision_id)`, `read(revision_id, path)`, and optionally
+`tree(revision_id)`, `children(revision_id, path)`, `read(revision_id, path)`, and optionally
 `changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
 its merge base with `base`), `refs(pattern:, max_age:)`,
 `relation(base_id, head_id)`, `history(base_id, head_id)`,
