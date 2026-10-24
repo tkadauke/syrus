@@ -331,6 +331,70 @@ la:
       sign_in_required: "Intra ut API applicationis utaris."
       admin_forbidden: "Accessus administratoris necessarius est."
       rate_limited: "Nimis multa signa API invalida. Postea iterum tenta."
+      invocation_scope_forbidden: "Hic contextus invocationis Syri ad Run vel Chat praesentem finitus est neque illam rem accedere potest."
+      machine_credential_forbidden: "Haec credentialia machinae Syri ad terminos renovationis operarii macOS finita sunt."
+      job_mutation_forbidden: "Solus dominus Job, membrum Repository cum accessu scribendi, vel administrator hanc actionem facere potest."
+      repository_write_forbidden: "Solum membrum Repository cum accessu scribendi vel administrator hanc actionem facere potest."
+      repository_admin_forbidden: "Solus administrator Repository hanc actionem facere potest."
+
+    job_metadata:
+      tag_added: "Nota addita est."
+      tag_not_found: "Nota inventa non est."
+      tag_removed: "Nota remota est."
+      tag_name_blank: "Nomen notae vacuum esse non potest."
+      dependency_job_not_found: "Job dependens inventus non est."
+      dependency_added: "Dependentia addita est."
+      dependency_not_found: "Dependentia inventa non est."
+      parsed_dependency_retained: "Dependentiae lectae ad inspectionem servantur."
+      dependency_removed: "Dependentia remota est."
+      epic_not_found: "Epic inventum non est."
+      epic_dependency_added: "Dependentia Epic addita est."
+      epic_dependency_not_found: "Dependentia Epic inventa non est."
+      epic_dependency_removed: "Dependentia Epic remota est."
+      unknown_stack_base: "Basis acervi ignota est."
+      stack_base_updated: "Basis acervi renovata est."
+      already_valid: "Job iam validum signatum est."
+      marked_valid: "Job validum signatum et iterum in ordinem positum est."
+
+    teams:
+      name_blank: "Nomen vacuum esse non potest."
+      created: "%{name} creata est."
+      renamed: "In %{name} renominata est."
+      deleted: "%{name} deleta est."
+      owner_forbidden: "Solus dominus turmae vel administrator hanc actionem facere potest."
+
+    team_memberships:
+      invalid_role: "Munus unum ex his esse debet: %{roles}."
+      user_not_found: "Nullus usor cum illa inscriptione electronica inventus est."
+      already_member: "%{email} iam membrum huius turmae est."
+      added: "%{email} ut %{role} additus est."
+      change_last_owner: "Munus ultimi domini mutari non potest — prius aliud membrum ad dominum promove."
+      role_updated: "Munus ad %{role} renovatum est."
+      remove_last_owner: "Ultimus dominus removeri non potest — prius aliud membrum ad dominum promove."
+      removed: "Membrum remotum est."
+
+    credentials:
+      updated: "Credentialia renovata sunt."
+      unknown: "Credentialia ignota sunt."
+      cleared: "%{label} deleta sunt."
+      gemini_probe_unavailable: "Claves Gemini in hac instantia probari non possunt."
+      claude_oauth_not_started: "Auctoritatem Claude prius incipe."
+      chatgpt_oauth_not_started: "Auctoritatem ChatGPT prius incipe."
+      oauth_exchange_failed: "Commutatio OAuth defecit: %{error}"
+      api_token_rotated: "Signum API rotatum est. Nunc exscribe; iterum non ostendetur."
+      api_token_revoked: "Signum API revocatum est."
+      onboarding_only: "Haec actio tantum inter primam institutionem praesto est."
+      provider_plugin_not_found: "Nullum plugin praebitoris agentis pro %{provider} inventum est."
+      provider_enabled: "%{provider} habilitatum est."
+      provider_enable_failed: "Praebitor habilitari non potuit: %{error}"
+      availability_rechecked: "Disponibilitas %{provider} iterum examinata est."
+      availability_override_enabled: "Exceptio disponibilitatis praebitoris %{provider} habilitata est."
+      unknown_provider: "Praebitor agentis ignotus est."
+
+    filters:
+      invalid_usage: "Petitio usus filtrorum invalida est."
+      invalid_suggestions: "Petitio suggestionum filtrorum invalida est."
+      unknown_field: "Campus filtri ignotus est."
 
     auth:
       invalid_credentials: "Aliam inscriptionem electronicam vel tesseram tempta."
@@ -343,6 +407,14 @@ la:
       welcome: "Syro salve."
 
     repositories:
+      selector:
+        no_token: "Nullum signum GitHub configuratum est."
+        credentials_rejected: "GitHub credentialia recusavit."
+        owner_required: "Dominus requiritur."
+        owner_not_found: "Dominus Repository inventus non est vel accedi non potest."
+        owner_and_name_required: "Dominus et nomen Repository requiruntur."
+        repository_not_found: "Repository inventum non est vel accedi non potest."
+        unavailable: "Metadata Repository GitHub onerari non potuerunt."
       already_in_workspace: "%{slug} iam in spatio tuo laboris est."
       added: "Repositorium %{slug} additum est."
       updated: "Repositorium %{slug} renovatum est."

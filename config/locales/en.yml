@@ -382,6 +382,70 @@ en:
       sign_in_required: "Sign in to use the app API."
       admin_forbidden: "Admin access required."
       rate_limited: "Too many invalid API tokens. Try again later."
+      invocation_scope_forbidden: "This Syrus invocation context is scoped to the current Run or Chat and cannot access that resource."
+      machine_credential_forbidden: "This Syrus machine credential is scoped to macOS worker update endpoints."
+      job_mutation_forbidden: "Only the Job owner, a Repository member with write access, or an admin can perform this action."
+      repository_write_forbidden: "Only a Repository member with write access, or an admin, can perform this action."
+      repository_admin_forbidden: "Only a Repository admin can perform this action."
+
+    job_metadata:
+      tag_added: "Tag added."
+      tag_not_found: "Tag not found."
+      tag_removed: "Tag removed."
+      tag_name_blank: "Tag name can't be blank."
+      dependency_job_not_found: "Dependency Job not found."
+      dependency_added: "Dependency added."
+      dependency_not_found: "Dependency not found."
+      parsed_dependency_retained: "Parsed dependencies are kept for audit."
+      dependency_removed: "Dependency removed."
+      epic_not_found: "Epic not found."
+      epic_dependency_added: "Epic dependency added."
+      epic_dependency_not_found: "Epic dependency not found."
+      epic_dependency_removed: "Epic dependency removed."
+      unknown_stack_base: "Unknown stack base."
+      stack_base_updated: "Stack base updated."
+      already_valid: "Job is already marked valid."
+      marked_valid: "Job marked valid and re-queued."
+
+    teams:
+      name_blank: "Name can't be blank."
+      created: "%{name} created."
+      renamed: "Renamed to %{name}."
+      deleted: "%{name} deleted."
+      owner_forbidden: "Only a team owner or an admin can perform this action."
+
+    team_memberships:
+      invalid_role: "Role must be one of %{roles}."
+      user_not_found: "No user found with that email."
+      already_member: "%{email} is already a member of this team."
+      added: "%{email} added as %{role}."
+      change_last_owner: "Cannot change the role of the last owner — promote another member to owner first."
+      role_updated: "Role updated to %{role}."
+      remove_last_owner: "Cannot remove the last owner — promote another member to owner first."
+      removed: "Member removed."
+
+    credentials:
+      updated: "Credentials updated."
+      unknown: "Unknown credential."
+      cleared: "%{label} cleared."
+      gemini_probe_unavailable: "Gemini keys cannot be validated on this instance."
+      claude_oauth_not_started: "Start the Claude authorization first."
+      chatgpt_oauth_not_started: "Start the ChatGPT authorization first."
+      oauth_exchange_failed: "OAuth exchange failed: %{error}"
+      api_token_rotated: "API token rotated. Copy it now; it won't be shown again."
+      api_token_revoked: "API token revoked."
+      onboarding_only: "This action is only available during onboarding."
+      provider_plugin_not_found: "No agent-provider plugin found for %{provider}."
+      provider_enabled: "%{provider} enabled."
+      provider_enable_failed: "The provider could not be enabled: %{error}"
+      availability_rechecked: "%{provider} availability rechecked."
+      availability_override_enabled: "%{provider} provider availability override enabled."
+      unknown_provider: "Unknown agent provider."
+
+    filters:
+      invalid_usage: "Invalid filter usage request."
+      invalid_suggestions: "Invalid filter suggestion request."
+      unknown_field: "Unknown filter field."
 
     auth:
       invalid_credentials: "Try another email address or password."
@@ -394,6 +458,14 @@ en:
       welcome: "Welcome to Syrus."
 
     repositories:
+      selector:
+        no_token: "No GitHub token is configured."
+        credentials_rejected: "GitHub rejected the credentials."
+        owner_required: "Owner is required."
+        owner_not_found: "Repository owner was not found or is not accessible."
+        owner_and_name_required: "Owner and repository name are required."
+        repository_not_found: "Repository was not found or is not accessible."
+        unavailable: "GitHub repository metadata could not be loaded."
       already_in_workspace: "%{slug} is already in your workspace."
       added: "Repository %{slug} added."
       updated: "Repository %{slug} updated."

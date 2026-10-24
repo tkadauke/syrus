@@ -497,6 +497,16 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unknown_credential")
   end
 
+  it "localizes credential errors in German" do
+    user.update!(locale: "de")
+    sign_in_as(user)
+
+    post "/api/v1/app/credentials/test_credential", params: { credential: "api_token" }
+
+    expect(parse_body.dig("error", "code")).to eq("unknown_credential")
+    expect(parse_body.dig("error", "message")).to eq("Unbekannte Anmeldedaten.")
+  end
+
   it "tests an unsaved GitHub token with the required classic PAT repository scope" do
     sign_in_as(user)
     result = CredentialProbe::Result.new(
