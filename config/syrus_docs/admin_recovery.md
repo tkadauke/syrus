@@ -3,6 +3,29 @@
 Syrus exposes narrow admin-only recovery actions for Jobs that are open but
 stuck outside the normal workflow state propagation path.
 
+## Dead worker queues
+
+Queued Runs on an explicit `worker-*` or storage-affinity `resume-*` queue are
+reported after a five-minute grace period when no live worker consumes that
+queue. The read-only detector records the Job, Workflow, Run, queue, age,
+claim state, Run state, and whether workflow affinity remains. Admin Stuck Jobs
+surfaces the same reconciler condition.
+
+Admins can call `repair_queue_affinity` with one `run_id`, up to 100 `run_ids`,
+or `detector_scope: true`. Bulk requests produce one grouped confirmation card
+with the affected Run and Workflow ids and dead queues. Confirmation locks and
+revalidates each Run independently: claimed work is never disturbed, Runs that
+have already moved on become no-ops, stale unclaimed queue rows are removed,
+and the Run is re-enqueued through current capability and admission routing.
+Terminal Runs are not repair candidates; periodic Solid Queue cleanup removes
+their leftover unclaimed rows separately.
+
+Repair audit records contain bounded snapshot references (byte count and
+SHA-256 digest) rather than two complete snapshots in `admin_actions.params`.
+The mutation, snapshots, audit insert, and confirmation outcome commit in one
+database transaction, so audit persistence cannot report a failed repair after
+leaving its mutation committed.
+
 ## Force Fail Job
 
 `POST /api/v1/admin/jobs/:id/force_fail` moves a non-closed, non-failed Job to

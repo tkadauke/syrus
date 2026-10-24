@@ -212,35 +212,36 @@ class ChatPendingAction < ApplicationRecord
 
     raise ActiveRecord::RecordInvalid, self unless valid?
 
-    command = PendingActions.for(action_key).new(self)
-    command.authorize_execution!
-    repair_targets = command.repair_snapshot_targets
-    if command.repair_action?
-      update_confirmation_progress!("running", "Capturing before snapshot...")
-      update!(before_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
-    end
+    ApplicationRecord.transaction do
+      command = PendingActions.for(action_key).new(self)
+      command.authorize_execution!
+      repair_targets = command.repair_snapshot_targets
+      if command.repair_action?
+        update_confirmation_progress!("running", "Capturing before snapshot...")
+        update!(before_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
+      end
 
-    update_confirmation_progress!("running", command.execution_label)
-    record = command.execute
-    return true if record.equal?(PendingActions::Base::DEFERRED_CONFIRMATION)
+      update_confirmation_progress!("running", command.execution_label)
+      record = command.execute
+      return true if record.equal?(PendingActions::Base::DEFERRED_CONFIRMATION)
 
-    if command.repair_action?
-      update_confirmation_progress!("running", "Capturing after snapshot...")
-      update!(after_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
-    end
-
-    record_repair_admin_action!(record) if command.repair_action?
-    repair_outcome = command.repair_action? && before_snapshot == after_snapshot ? "noop" : "applied"
-    if finalize
-      complete_confirmation!(record, outcome: repair_outcome,
-        step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.")
-    else
-      updates = {
-        execution_status: "waiting", execution_step: "Waiting for refresh workflow to finish...",
-        execution_error: nil
-      }
-      updates[:result] = record if record
-      update!(updates)
+      if command.repair_action?
+        update_confirmation_progress!("running", "Capturing after snapshot...")
+        update!(after_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
+      end
+      repair_outcome = command.confirmation_outcome.presence || (command.repair_action? && before_snapshot == after_snapshot ? "noop" : "applied")
+      record_repair_admin_action!(record, outcome: repair_outcome) if command.repair_action?
+      if finalize
+        complete_confirmation!(record, outcome: repair_outcome,
+          step: repair_outcome == "applied" ? "Applied." : repair_outcome.to_s.humanize + ".")
+      else
+        updates = {
+          execution_status: "waiting", execution_step: "Waiting for refresh workflow to finish...",
+          execution_error: nil
+        }
+        updates[:result] = record if record
+        update!(updates)
+      end
     end
     true
   rescue StandardError => e
@@ -471,23 +472,11 @@ class ChatPendingAction < ApplicationRecord
     # unknown actions are caught by known_action validation
   end
 
-  def record_repair_admin_action!(record)
+  def record_repair_admin_action!(record, outcome:)
     AdminAction.log!(
       user: user,
       action: "repair_#{action_key}",
-      params: {
-        pending_action_id: id,
-        chat_session_id: chat_session_id,
-        repository_id: repository_id,
-        action: action_key,
-        reason: reason,
-        requested_by: requested_by,
-        payload: payload,
-        result: repair_result_payload(record),
-        outcome: before_snapshot == after_snapshot ? "noop" : "applied",
-        before_snapshot: before_snapshot,
-        after_snapshot: after_snapshot
-      }
+      params: PendingActions::RepairAuditPayload.build(pending_action: self, record: record, outcome: outcome)
     )
   end
 

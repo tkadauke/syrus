@@ -8,6 +8,7 @@ module PendingActions
       progress!("Repairing queue affinity for #{run.slug}...")
 
       repair = repair_run!(run)
+      @confirmation_outcome = repair[:outcome]
 
       progress!("Recording repair audit...")
       audit!(
@@ -38,10 +39,15 @@ module PendingActions
     end
 
     def presentation_detail
-      payload["run_id"].presence&.then { |id| "Run: ##{id}" }
+      [
+        payload["run_id"].presence&.then { |id| "Run: ##{id}" },
+        payload["queue_name"].presence&.then { |queue| "Queue: #{queue}" }
+      ].compact.join(", ").presence
     end
 
     repairs_job!
+
+    attr_reader :confirmation_outcome
 
     private
 
@@ -55,19 +61,17 @@ module PendingActions
       ApplicationRecord.transaction do
         run.lock!
         run.reload
-        validate_repairable_run!(run)
+        return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
 
         workflow = run.workflow
         workflow.lock!
         workflow.reload
-        validate_repairable_run!(run)
-        validate_unsatisfied_affinity!(run, workflow)
+        return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
 
         queue_jobs = matching_solid_queue_jobs(run)
         claimed_job_ids = claimed_solid_queue_job_ids(queue_jobs.map(&:id))
-        if claimed_job_ids.any?
-          raise ArgumentError, "#{run.slug} already has claimed Solid Queue jobs: #{claimed_job_ids.join(", ")}."
-        end
+        return { outcome: "skipped", run: run, claimed_solid_queue_job_ids: claimed_job_ids } if claimed_job_ids.any?
+        validate_unsatisfied_affinity!(run, workflow, queue_jobs)
 
         deleted_job_ids = delete_solid_queue_jobs!(queue_jobs.map(&:id))
         workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
@@ -77,20 +81,20 @@ module PendingActions
         set_in_memory_affinity!(workflow, hostname: nil, storage_key: nil)
       end
 
-      { deleted_solid_queue_job_ids: deleted_job_ids }
+      { outcome: "applied", run: run, deleted_solid_queue_job_ids: deleted_job_ids }
     end
 
-    def validate_repairable_run!(run)
-      raise ArgumentError, "#{run.slug} is #{run.state}, not queued." unless run.queued?
-      raise ArgumentError, "Workflow is not active for #{run.slug}." unless run.workflow&.queued? || run.workflow&.running?
+    def repairable_run?(run)
+      run.queued? && (run.workflow&.queued? || run.workflow&.running?)
     end
 
-    def validate_unsatisfied_affinity!(run, workflow)
-      unless workflow.worker_storage_key.present? || workflow.worker_hostname.present?
-        raise ArgumentError, "#{run.slug} has no worker affinity to repair."
-      end
-
+    def validate_unsatisfied_affinity!(run, workflow, queue_jobs)
       decision = RunQueueResolver.resolve(run: run)
+      if workflow.worker_storage_key.blank? && workflow.worker_hostname.blank?
+        dead = queue_jobs.any? { |job| !InstanceVersion.worker_queue_live?(job.queue_name) }
+        raise ArgumentError, "#{run.slug} has no dead worker queue to repair." unless dead
+        return
+      end
       return unless decision.sticky_resume
 
       queue = decision.details["sticky_resume_queue"] ? decision.queue_name : run.resume_worker_queue

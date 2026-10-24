@@ -11914,13 +11914,7 @@ describe("App", () => {
 
   it.each([
     ["ready_waiting_for_slot", { queue_name: "runs", live_worker_count: 2 }, "all of its threads are in use", "bg-info-surface", "pending"],
-    [
-      "ready_no_consumer",
-      { queue_name: "resume-storage-a", live_worker_queues: ["runs"] },
-      "no live worker consumes that queue",
-      "bg-warning-surface",
-      "workers"
-    ],
+    ["ready_no_consumer", { queue_name: "resume-storage-a", live_worker_count: 2 }, "unavailable queue resume-storage-a", "bg-warning-surface", "repair"],
     ["concurrency_blocked", { queue_name: "runs" }, "concurrency lock", "bg-warning-surface", "pending"],
     ["scheduled", { queue_name: "runs", scheduled_at: "2026-05-30T12:00:00Z" }, "scheduled to become ready", "bg-info-surface", "pending"],
     ["claimed_not_started", { queue_name: "runs" }, "claimed the RunJob", "bg-info-surface", "workers"],
@@ -11992,7 +11986,9 @@ describe("App", () => {
     const message = screen.getByText(new RegExp(copy, "i"))
     expect(message.closest(`.${toneClass}`)).toBeInTheDocument()
     if (link) {
-      expect(screen.getByRole("link", { name: new RegExp(`Queue.*${link}`, "i") })).toHaveAttribute("href", `/app-shell/admin/queue/${link}`)
+      const label = link === "repair" ? /Stuck Jobs bulk repair/i : new RegExp(`Queue.*${link}`, "i")
+      const href = link === "repair" ? "/app-shell/admin/stuck" : `/app-shell/admin/queue/${link}`
+      expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href)
     }
   })
 

@@ -93,6 +93,8 @@ module PendingActions
 
     def group_confirmation_strategy = "independent"
 
+    def confirmation_outcome = nil
+
     def repair_action?
       false
     end
