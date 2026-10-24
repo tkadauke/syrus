@@ -167,11 +167,12 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
         setProgress({ action: bulkAction, completed: succeeded, total: jobIds.length })
       }
 
-      return { canceled: cancelRequestedRef.current, failed, lastMessage, processed, succeeded, total: jobIds.length }
+      return { bulkAction, canceled: cancelRequestedRef.current, failed, lastMessage, processed, succeeded, total: jobIds.length }
     },
     onSuccess: (result) => {
       if (result.canceled) setNotice(t("bulk_action_canceled", { completed: result.processed, total: result.total }))
       else if (result.failed > 0) setNotice(t("bulk_action_partial", { failed: result.failed, succeeded: result.succeeded, total: result.total }))
+      else if (result.bulkAction === "close" && result.succeeded > 1) setNotice(t("bulk_close_success_other", { count: result.succeeded }))
       else setNotice(result.lastMessage)
     },
     onSettled: () => {
