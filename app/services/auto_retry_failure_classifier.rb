@@ -167,6 +167,7 @@ class AutoRetryFailureClassifier
   AUTHORITATIVE_RUN_FAILURE_CLASSIFICATIONS = %w[
     disk_full
     grader_failure
+    source_snapshot_base_ref_unavailable
     worker_died
     worker_died_under_resource_pressure
   ].freeze
