@@ -30,9 +30,12 @@ type TargetContext = {
 
 export type PendingActionEvidence = TargetContext & {
   remoteSha: string | null
+  remoteShaUrl: string | null
   workflowLocalSha: string | null
+  workflowLocalShaUrl: string | null
   baseRef: string | null
   baseSha: string | null
+  baseShaUrl: string | null
   files: string[]
   diffStat: string | null
   diffUnavailableReason: string | null
@@ -67,7 +70,7 @@ export type PendingActionResult =
       destructiveConfirmation: string | null
       context: TargetContext
     }
-  | ({ kind: "error"; code: string | null; message: string; validBases: string[] } & TargetContext)
+  | ({ kind: "error"; code: string | null; message: string; validBases: string[]; evidence: PendingActionEvidence | null } & TargetContext)
 
 export type PendingActionInputField = {
   key: string
@@ -98,7 +101,6 @@ function parsedErrorMessage(value: unknown): string | null {
   const first = Array.isArray(value.content) ? value.content[0] : null
   return isPlainObject(first) ? displayValue(first.text) : null
 }
-
 function githubUrls(repository: string | null, prNumber: string | null, branch: string | null) {
   return {
     prUrl: repository && prNumber ? `https://github.com/${repository}/pull/${prNumber}` : null,
@@ -128,6 +130,12 @@ function parseContext(value: Record<string, unknown>, fallback: Record<string, u
 
 function parseEvidence(value: unknown, fallback: Record<string, unknown>): PendingActionEvidence {
   const evidence = isPlainObject(value) ? value : {}
+  const currentPr = isPlainObject(evidence.current_pr) ? evidence.current_pr : {}
+  const repository = displayValue(currentPr.repository) || displayValue(evidence.repository) || displayValue(fallback.repository)
+  const remoteSha = displayValue(evidence.remote_sha)
+  const workflowLocalSha = displayValue(evidence.workflow_local_sha)
+  const baseSha = displayValue(evidence.base_sha)
+  const commitUrl = (sha: string | null) => (repository && sha ? `https://github.com/${repository}/commit/${encodeURIComponent(sha)}` : null)
   const diff = isPlainObject(evidence.diff_summary) ? evidence.diff_summary : {}
   const files = Array.isArray(diff.files)
     ? diff.files.flatMap((file) => {
@@ -137,10 +145,13 @@ function parseEvidence(value: unknown, fallback: Record<string, unknown>): Pendi
     : []
   return {
     ...parseContext(evidence, fallback),
-    remoteSha: displayValue(evidence.remote_sha),
-    workflowLocalSha: displayValue(evidence.workflow_local_sha),
+    remoteSha,
+    remoteShaUrl: commitUrl(remoteSha),
+    workflowLocalSha,
+    workflowLocalShaUrl: commitUrl(workflowLocalSha),
     baseRef: displayValue(evidence.base_ref),
-    baseSha: displayValue(evidence.base_sha),
+    baseSha,
+    baseShaUrl: commitUrl(baseSha),
     files,
     diffStat: displayValue(diff.stat),
     diffUnavailableReason: diff.available === false ? displayValue(diff.reason) : null
@@ -164,6 +175,7 @@ export function parsePendingActionResult(context: ToolCardContext, includeError 
       code: null,
       message: parsedErrorMessage(value) || context.resultBody || "The tool returned an error.",
       validBases: [],
+      evidence: null,
       ...parseContext(context.input ?? {})
     }
   if (!isPlainObject(value)) return null
@@ -171,7 +183,15 @@ export function parsePendingActionResult(context: ToolCardContext, includeError 
   const target = parseContext(input)
   const error = displayValue(value.error)
   const errorMessage = displayValue(value.message)
-  if (error && errorMessage) return { kind: "error", code: error, message: errorMessage, validBases: stringList(value.valid_bases), ...target }
+  if (error && errorMessage)
+    return {
+      kind: "error",
+      code: error,
+      message: errorMessage,
+      validBases: stringList(value.valid_bases),
+      evidence: isPlainObject(value.evidence) ? parseEvidence(value.evidence, input) : null,
+      ...target
+    }
 
   const pendingActionId = displayValue(value.pending_action_id) || displayValue(value.pending_confirmation_id)
   const state = displayValue(value.state)
@@ -246,14 +266,30 @@ export function pendingActionCollapsedSummary(result: PendingActionResult): stri
   return compactCollapsedSummary(summary)
 }
 
-function ShaRow({ label, sha }: { label: string; sha: string }) {
+function ShaRow({ href, label, sha }: { href: string | null; label: string; sha: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-2xs font-semibold uppercase text-text-muted">{label}</dt>
       <dd className="break-all font-mono text-text-primary" title={sha}>
-        {sha}
+        {href ? (
+          <a className="font-medium text-brand hover:underline" href={href} rel="noreferrer" target="_blank">
+            {sha}
+          </a>
+        ) : (
+          sha
+        )}
       </dd>
     </div>
+  )
+}
+
+function EvidenceShaRows({ evidence }: { evidence: PendingActionEvidence }) {
+  return (
+    <>
+      {evidence.remoteSha ? <ShaRow href={evidence.remoteShaUrl} label="Remote SHA" sha={evidence.remoteSha} /> : null}
+      {evidence.workflowLocalSha ? <ShaRow href={evidence.workflowLocalShaUrl} label="Workflow local SHA" sha={evidence.workflowLocalSha} /> : null}
+      {evidence.baseSha ? <ShaRow href={evidence.baseShaUrl} label="Base SHA" sha={evidence.baseSha} /> : null}
+    </>
   )
 }
 
@@ -268,12 +304,24 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
   )
 }
 
-function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBlocker?: boolean; omitJob?: boolean; value: TargetContext }) {
+function ContextRows({
+  omitBlocker = false,
+  omitJob = false,
+  omitRun = false,
+  value
+}: {
+  omitBlocker?: boolean
+  omitJob?: boolean
+  omitRun?: boolean
+  value: TargetContext
+}) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
       {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
-      {value.runId ? <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} /> : null}
+      {!omitRun && value.runId ? (
+        <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} />
+      ) : null}
       {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
       {value.branch ? (
         <Row
@@ -316,10 +364,8 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
       ) : null}
       <ContextRows value={target} />
       {details}
-      {evidence?.remoteSha ? <ShaRow label="Remote SHA" sha={evidence.remoteSha} /> : null}
-      {evidence?.workflowLocalSha ? <ShaRow label="Workflow local SHA" sha={evidence.workflowLocalSha} /> : null}
+      {evidence ? <EvidenceShaRows evidence={evidence} /> : null}
       {evidence?.baseRef ? <Row label="Base ref" value={<span className="break-all font-mono">{evidence.baseRef}</span>} /> : null}
-      {evidence?.baseSha ? <ShaRow label="Base SHA" sha={evidence.baseSha} /> : null}
       {evidence?.diffUnavailableReason ? <div className="text-text-muted">Diff unavailable: {evidence.diffUnavailableReason}</div> : null}
       {evidence?.files.length ? (
         <DetailSection label={`${evidence.files.length} changed ${evidence.files.length === 1 ? "file" : "files"}`}>
@@ -467,6 +513,7 @@ export function PendingActionResultCard({
   omitBlocker = false,
   omitJob = false,
   observedSummary = false,
+  omitRun = false,
   omitReason = false,
   omitResource = false,
   result
@@ -480,6 +527,7 @@ export function PendingActionResultCard({
   omitBlocker?: boolean
   omitJob?: boolean
   observedSummary?: boolean
+  omitRun?: boolean
   omitReason?: boolean
   omitResource?: boolean
   result: PendingActionResult
@@ -494,8 +542,9 @@ export function PendingActionResultCard({
         </div>
         <InputDetails fields={inputFields} input={input} />
         <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
-        <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
+        <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} omitRun={omitRun} value={result.evidence ?? result} />
         {details}
+        {result.evidence ? <EvidenceShaRows evidence={result.evidence} /> : null}
         {!details && !omitReason && result.inputReason ? (
           <div>
             <SectionLabel>Reason</SectionLabel>
@@ -522,7 +571,7 @@ export function PendingActionResultCard({
       </div>
       <InputDetails fields={inputFields} input={input} />
       {observedSummary ? <ObservedSummary value={result.observed} /> : null}
-      <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
+      <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} omitRun={omitRun} value={result} />
       {details}
       {!omitResource && result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />

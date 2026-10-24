@@ -44,6 +44,7 @@ module Admin
         issue_title: job.issue_title,
         branch_name: job.branch_name,
         pr_number: job.pr_number || job.external_pr_number,
+        pr_url: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job),
         internal_pr_number: job.pr_number,
         external_pr_number: job.external_pr_number,
         closure_reason: job.closure_reason,
