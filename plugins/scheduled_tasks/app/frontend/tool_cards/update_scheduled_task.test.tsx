@@ -90,8 +90,33 @@ describe("update_scheduled_task tool card", () => {
     expect(screen.getByRole("link", { name: "https://example.test/runbook" })).toHaveAttribute("href", "https://example.test/runbook")
   })
 
+  it("uses the most recent matching prior task snapshot", () => {
+    const updated = { ...task, label: "Current health check" }
+    render(
+      <>
+        {updateScheduledTaskToolCard.renderExpanded(
+          context({
+            input: { scheduled_task_id: 12, name: updated.label },
+            parsedResult: { scheduled_task: updated },
+            priorCalls: [
+              {
+                toolName: "read_scheduled_task",
+                input: { scheduled_task_id: 12 },
+                parsedResult: { scheduled_task: { ...task, label: "Oldest health check" } }
+              },
+              { toolName: "list_scheduled_tasks", input: {}, parsedResult: { scheduled_tasks: [{ ...task, label: "Latest health check" }] } }
+            ]
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Latest health check → Current health check")).toBeInTheDocument()
+    expect(screen.queryByText(/Oldest health check/)).not.toBeInTheDocument()
+  })
+
   it("renders all update inputs and uses new values when no prior snapshot is available", () => {
-    const updated = { ...task, fire_at: "2026-10-25T08:30:00Z", prompt: "" }
+    const updated = { ...task, cron_expression: "30 5 * * 1-5", fire_at: "2026-10-25T08:30:00Z", prompt: "" }
     render(
       <>
         {updateScheduledTaskToolCard.renderExpanded(
@@ -101,6 +126,7 @@ describe("update_scheduled_task tool card", () => {
               name: task.label,
               prompt: "",
               schedule_input: "Every weekday at 5am",
+              cron_expression: updated.cron_expression,
               fire_at: updated.fire_at,
               pr_pileup_policy: "replace"
             },
@@ -112,6 +138,8 @@ describe("update_scheduled_task tool card", () => {
 
     expect(screen.getByText("Name")).toBeInTheDocument()
     expect(screen.getByText("Schedule")).toBeInTheDocument()
+    expect(screen.getByText("Cron expression")).toBeInTheDocument()
+    expect(screen.getAllByText("30 5 * * 1-5")).not.toHaveLength(0)
     expect(screen.getByText("Fire at")).toBeInTheDocument()
     expect(screen.getByText("Updated prompt")).toBeInTheDocument()
     expect(screen.getByText("No prompt was provided.")).toBeInTheDocument()

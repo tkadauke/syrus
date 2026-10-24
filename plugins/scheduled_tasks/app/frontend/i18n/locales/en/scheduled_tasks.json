@@ -42,6 +42,7 @@
   "tool_previous_prompt": "Previous prompt",
   "tool_previous_prompt_full": "Full previous task prompt",
   "tool_field_schedule_input": "Schedule",
+  "tool_field_cron_expression": "Cron expression",
   "tool_field_fire_at": "Fire at",
   "tool_field_pr_pileup_policy": "PR pileup",
   "tool_empty_value": "Empty",
