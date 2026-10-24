@@ -112,7 +112,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     )
   end
 
-  it "classifies source snapshot metadata failures as infrastructure state" do
+  it "classifies source snapshot metadata failures as non-retryable infrastructure state" do
     run.update!(state: "failed")
     diagnostic(
       "WorkflowSourceSnapshots::InfrastructureStateError",
@@ -122,7 +122,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     result = classification
 
     expect(result.classification).to eq("source_snapshot_metadata_invalid")
-    expect(result.retryable).to eq(true)
+    expect(result.retryable).to eq(false)
   end
 
   it "classifies attachment storage startup failures as retryable storage outages" do
