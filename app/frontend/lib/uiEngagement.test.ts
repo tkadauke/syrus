@@ -19,6 +19,8 @@ describe("UI engagement telemetry", () => {
   it("allowlists Job, review, and chat routes", () => {
     expect(engagementRoute("/jobs/12", "")).toEqual({ route_id: "job.show", route_params: { job_id: "12" } })
     expect(engagementRoute("/jobs/12", "?tab=review")).toEqual({ route_id: "job.review", route_params: { job_id: "12" } })
+    expect(engagementRoute("/jobs/JOB-42", "")).toEqual({ route_id: "job.show", route_params: { job_id: "42" } })
+    expect(engagementRoute("/jobs/job-42", "?tab=review")).toEqual({ route_id: "job.review", route_params: { job_id: "42" } })
     expect(engagementRoute("/chats/9", "")).toEqual({ route_id: "chat.show", route_params: { chat_id: "9" } })
     expect(engagementRoute("/dashboard", "")).toBeNull()
   })
