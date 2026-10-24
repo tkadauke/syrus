@@ -20,6 +20,7 @@ RSpec.describe "desktop auto-update and release pipeline" do
   end
 
   let(:app_updates) { read(desktop_root, "electron/appUpdates.ts") }
+  let(:i18n_catalog) { read(desktop_root, "electron/i18nCatalog.ts") }
   let(:main_process) { read(desktop_root, "electron/main.ts") }
   let(:release_workflow) { read(repo_root, ".github/workflows/release.yml") }
   let(:promotion_workflow) { read(repo_root, ".github/workflows/promote-release-images.yml") }
@@ -73,9 +74,11 @@ RSpec.describe "desktop auto-update and release pipeline" do
   end
 
   it "offers the restart from both the app menu and the tray, plus a manual check" do
-    expect(main_process).to include("Restart to update Syrus")
+    expect(main_process).to include('t("updates.restart", { version })')
+    expect(i18n_catalog).to include('"updates.restart": "Restart to update Syrus (v{{version}})"')
     expect(main_process).to match(/trayContextMenu[\s\S]{0,80}updateMenuItems\(\)/)
-    expect(main_process).to include('"Check for Updates…"')
+    expect(main_process).to include('t("shell.check_updates")')
+    expect(i18n_catalog).to include('"shell.check_updates": "Check for Updates…"')
     expect(main_process).to include("appUpdates.initAutoUpdates")
   end
 
@@ -96,7 +99,8 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(main_process).to include("offerBackendUpdateIfPinned")
     expect(main_process).to match(/ensureRunning\(\)\.then\(\(\) => offerBackendUpdateIfPinned\(\)\)/)
     expect(main_process).to include("readBackendManifest")
-    expect(main_process).to include('"Update Backend"')
+    expect(main_process).to include('t("dialog.update_backend_button")')
+    expect(i18n_catalog).to include('"dialog.update_backend_button": "Update Backend"')
 
     # The update re-runs the bundled installer against the state dir — the
     # same audited pull/up/health path a fresh install takes.
