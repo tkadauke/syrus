@@ -30,7 +30,7 @@
   "lane_label": "{{title}} lane",
   "readiness_title": "System readiness needs attention",
   "readiness_description": "Syrus may not be able to pick up or run work until these checks pass.",
-  "open_settings": "Open settings",
+  "open_operator_console": "Open Operator Console",
   "optional": "optional",
   "no_match": "No {{subject}} match this view.",
   "no_dependency_edges": "No dependency relationships in the current view.",
