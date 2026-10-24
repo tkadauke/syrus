@@ -1,5 +1,8 @@
 {
   "title": "Chat",
+  "batch_outcome_applied": "Angewendet",
+  "batch_outcome_skipped": "Übersprungen/nicht zulässig",
+  "batch_outcome_summary": "{{applied}} angewendet, {{skipped}} übersprungen/nicht zulässig, {{failed}} fehlgeschlagen.",
   "search_jobs_showing": "{{shown}} von {{total}} werden angezeigt",
   "search_jobs_query": "Suche: {{query}}",
   "search_jobs_state": "Status: {{state}}",
@@ -818,5 +821,5 @@
     "execution_target": "Ausführungsziel",
     "execution_status": "Ausführungsstatus",
     "execution_message": "Ausführungsmeldung"
-   }
+  }
 }

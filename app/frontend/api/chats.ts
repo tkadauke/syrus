@@ -563,6 +563,7 @@ export type ChatPendingActionGroupMember = {
   id: number
   label: string
   state: ChatPendingActionState
+  outcome?: "applied" | "skipped" | "failed" | null
   chat_message_id?: number | null
   execution_error?: string | null
 }

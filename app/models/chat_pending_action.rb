@@ -328,6 +328,14 @@ class ChatPendingAction < ApplicationRecord
     queued? || pending? || confirming? || failed? || recently_confirmed?
   end
 
+  def group_outcome
+    return "skipped" if execution_status.in?(%w[noop rejected]) || rejected? || cancelled?
+    return "failed" if failed?
+    return "applied" if confirmed?
+
+    nil
+  end
+
   def recently_confirmed?
     confirmed? && confirmed_at.present? && confirmed_at >= CONFIRMED_VISIBLE_FOR.ago
   end

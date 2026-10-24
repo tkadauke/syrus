@@ -1137,6 +1137,7 @@ export function PendingActionGroupCard({
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
 }) {
+  const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const [expanded, setExpanded] = useState(false)
@@ -1157,8 +1158,9 @@ export function PendingActionGroupCard({
   const isPending = pendingActionGroup.state === "pending"
   const isConfirming = pendingActionGroup.state === "confirming"
   const terminalLabel = pendingActionGroupTerminalLabel(pendingActionGroup.state)
-  const succeededCount = members.filter((member) => member.state === "confirmed").length
-  const failedMembers = members.filter((member) => member.state === "failed")
+  const appliedMembers = members.filter((member) => member.outcome === "applied" || (!member.outcome && member.state === "confirmed"))
+  const skippedMembers = members.filter((member) => member.outcome === "skipped")
+  const failedMembers = members.filter((member) => member.outcome === "failed" || (!member.outcome && member.state === "failed"))
   const canDismiss = (pendingActionGroup.state === "confirmed" || pendingActionGroup.state === "rejected") && Boolean(pendingActionGroup.app_dismiss_path)
 
   useEffect(() => {
@@ -1192,8 +1194,10 @@ export function PendingActionGroupCard({
               {members.map((member) => (
                 <li className="flex flex-wrap items-start justify-between gap-2" key={member.id}>
                   <span className="text-gray-700 dark:text-gray-300">{linkifySlugs(member.label)}</span>
-                  {member.state === "confirmed" ? (
-                    <span className="text-green-700 dark:text-green-300">Succeeded</span>
+                  {member.outcome === "skipped" ? (
+                    <span className="text-amber-700 dark:text-amber-300">{t("batch_outcome_skipped")}</span>
+                  ) : member.state === "confirmed" ? (
+                    <span className="text-green-700 dark:text-green-300">{t("batch_outcome_applied")}</span>
                   ) : member.state === "failed" ? (
                     <span className="break-words text-red-700 dark:text-red-300">
                       {member.execution_error ? `Failed: ${member.execution_error}` : "Failed"}
@@ -1207,9 +1211,7 @@ export function PendingActionGroupCard({
           ) : null}
           {pendingActionGroup.state === "confirmed" ? (
             <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-              {failedMembers.length > 0
-                ? `${succeededCount} of ${members.length} succeeded, ${failedMembers.length} failed.`
-                : `All ${members.length} succeeded.`}
+              {t("batch_outcome_summary", { applied: appliedMembers.length, skipped: skippedMembers.length, failed: failedMembers.length })}
             </p>
           ) : null}
         </>
