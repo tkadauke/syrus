@@ -389,6 +389,7 @@ module ChatSerialization
       id: member.id,
       label: pending_action_label(member),
       state: member.state,
+      outcome: member.group_outcome,
       chat_message_id: member.anchor_message&.id,
       execution_error: member.execution_error
     }

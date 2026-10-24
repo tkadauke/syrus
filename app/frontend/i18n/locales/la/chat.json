@@ -1,5 +1,8 @@
 {
   "title": "Colloquium",
+  "batch_outcome_applied": "Effecta",
+  "batch_outcome_skipped": "Praetermissa/inhabilia",
+  "batch_outcome_summary": "{{applied}} effecta, {{skipped}} praetermissa/inhabilia, {{failed}} defecerunt.",
   "search_jobs_showing": "Ostenduntur {{shown}} ex {{total}}",
   "search_jobs_query": "Quaestio: {{query}}",
   "search_jobs_state": "Status: {{state}}",
@@ -818,5 +821,5 @@
     "execution_target": "Scopus executionis",
     "execution_status": "Status executionis",
     "execution_message": "Nuntius executionis"
-   }
+  }
 }

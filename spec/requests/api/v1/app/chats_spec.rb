@@ -6383,21 +6383,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Confirmed 1 of 2 pending actions; 1 failed.")
+    expect(parse_body["message"]).to eq("Batch result: 1 applied, 0 skipped/ineligible, 1 failed.")
     expect(group.reload).to be_confirmed
     expect(succeeding_job.reload).to be_open
     expect(failing_job.reload.state).to eq("queued")
 
     members = parse_body["pending_action_groups"].first["members"]
-    expect(members.find { |member| member["id"] == member_ids.first }).to include("state" => "confirmed")
+    expect(members.find { |member| member["id"] == member_ids.first }).to include("state" => "confirmed", "outcome" => "applied")
     failing_member = members.find { |member| member["id"] == member_ids.second }
     expect(failing_member["state"]).to eq("failed")
+    expect(failing_member["outcome"]).to eq("failed")
     expect(failing_member["execution_error"]).to include("isn't closed")
     outcome = chat.messages.where(role: "system").order(:created_at, :id).last
     expect(outcome.content).to include(
       "source" => "pending_action_group_notification",
       "outcome" => "confirmed",
-      "text" => "Confirmed 1 of 2 pending actions; 1 failed."
+      "text" => "Batch result: 1 applied, 0 skipped/ineligible, 1 failed."
     )
   end
 

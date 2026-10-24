@@ -103,11 +103,8 @@ class PendingActionGroup < ApplicationRecord
     members = chat_pending_actions.reload.to_a
     return spawn_chats_confirmed_notice(members) if members.all? { |member| member.action == "spawn_chat" }
 
-    failed = members.count(&:failed?)
-    succeeded = members.count(&:confirmed?)
-    return "Confirmed #{succeeded} #{'pending action'.pluralize(succeeded)}." if failed.zero?
-
-    "Confirmed #{succeeded} of #{members.size} pending actions; #{failed} failed."
+    counts = members.group_by(&:group_outcome).transform_values(&:size)
+    "Batch result: #{counts.fetch('applied', 0)} applied, #{counts.fetch('skipped', 0)} skipped/ineligible, #{counts.fetch('failed', 0)} failed."
   end
 
   def confirmation_notice
