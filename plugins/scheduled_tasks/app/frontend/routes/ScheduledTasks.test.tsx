@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import * as useConfirmModule from "@app/hooks/useConfirm"
+import i18n from "@app/i18n"
 
 function taskDetail(overrides: { recent_jobs?: unknown[]; task?: Record<string, unknown> } = {}) {
   return {
@@ -299,7 +300,30 @@ function renderEditForm() {
 }
 
 describe("ScheduledTaskFormRoute cadence preview", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await i18n.changeLanguage("en")
+  })
+
+  it("localizes API-provided auto-approval labels and previews", async () => {
+    await i18n.changeLanguage("de")
+    const payload = newFormPayload()
+    payload.options.auto_approve_modes = [
+      { value: "never", label: "Never", preview: "No direct rule; Jobs can still inherit a repository or user default." },
+      { value: "if_graders_pass", label: "If graders pass", preview: "Jobs using this rule enter landing after repo-committed graders pass." },
+      { value: "if_graders_pass_and_tagged_safe", label: "If graders pass and tagged safe", preview: "Jobs using this rule also need the safe tag before landing." }
+    ]
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    renderNewForm()
+
+    const select = await screen.findByLabelText("Auto-Genehmigung")
+    expect(within(select).getByRole("option", { name: "Nie" })).toBeInTheDocument()
+    expect(within(select).getByRole("option", { name: "Wenn Grader erfolgreich sind" })).toBeInTheDocument()
+    expect(within(select).getByRole("option", { name: "Wenn Grader erfolgreich sind und als sicher markiert" })).toBeInTheDocument()
+    expect(screen.getByText("Keine direkte Regel; Jobs können weiterhin eine Repository- oder Benutzervorgabe erben.")).toBeInTheDocument()
+    expect(screen.queryByText("Never")).not.toBeInTheDocument()
+  })
 
   it("preserves an edited draft when background data refreshes", async () => {
     const client = renderEditForm()
