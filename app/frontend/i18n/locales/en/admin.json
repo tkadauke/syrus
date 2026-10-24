@@ -744,6 +744,8 @@
     "grade_max_iterations_help": "Maximum repair and check cycles before a workflow fails. Must be 1-10.",
     "adversarial_review_rounds_label": "Adversarial review rounds",
     "adversarial_review_rounds_help": "Number of implement and adversarial-review iterations before graders. 0 disables it instance-wide.",
+    "security_review_rounds_label": "Security review rounds",
+    "security_review_rounds_help": "Number of security-review and repair iterations after adversarial review. 0 disables it instance-wide.",
     "max_job_failures_label": "Max job failures",
     "max_job_failures_help": "Consecutive failure threshold for scheduled task auto-pause and repeated Job failure handling. Must be at least 1.",
     "main_concern_report_threshold_label": "Main concern report threshold",

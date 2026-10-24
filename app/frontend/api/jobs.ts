@@ -584,8 +584,10 @@ export type JobInvestigationReport = {
 export type JobAdversarialReviewIteration = {
   iteration: number
   critique: string
-  verdict: "needs_work" | "approved"
+  verdict: "needs_work" | "approved" | "skipped"
 }
+
+export type JobSecurityReviewIteration = JobAdversarialReviewIteration
 
 export type JobVisualReviewArtifact = {
   type: string

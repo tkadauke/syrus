@@ -583,6 +583,12 @@ function SyrusYmlCard({ payload }: { payload: RepositoryDetailPayload }) {
             ? t("repository.syrus_yml_not_configured")
             : t("repository.syrus_yml_rounds", { count: summary.adversarial_review_rounds })
         ],
+        [
+          t("repository.syrus_yml_security_review"),
+          summary.security_review_rounds == null
+            ? t("repository.syrus_yml_not_configured")
+            : [t("repository.syrus_yml_rounds", { count: summary.security_review_rounds }), ...summary.security_review_criteria].join(" · ")
+        ],
         [t("repository.syrus_yml_coverage"), summary.coverage_configured ? t("repository.syrus_yml_configured") : t("repository.syrus_yml_not_configured")],
         [t("repository.syrus_yml_delivery_tracks"), String(summary.delivery_tracks_count)]
       ]

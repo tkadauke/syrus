@@ -361,6 +361,8 @@ export type RepositorySyrusYmlSummary = {
   generated_steps_count: number
   visual_review_mode: string
   adversarial_review_rounds: number | null
+  security_review_rounds: number | null
+  security_review_criteria: string[]
   coverage_configured: boolean
   delivery_tracks_count: number
   merge_train_failure_policy: string[] | null

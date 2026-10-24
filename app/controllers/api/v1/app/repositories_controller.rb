@@ -577,6 +577,7 @@ module Api
               visual_review_mode: "unavailable",
               adversarial_review_rounds: nil,
               security_review_rounds: nil,
+              security_review_criteria: [],
               coverage_configured: false,
               delivery_tracks_count: 0,
               merge_train_failure_policy: nil
@@ -596,6 +597,7 @@ module Api
             visual_review_mode: visual_review_mode(config.visual_review),
             adversarial_review_rounds: config.adversarial_review&.rounds,
             security_review_rounds: config.security_review&.rounds,
+            security_review_criteria: Array(config.security_review&.criteria),
             coverage_configured: config.coverage.present?,
             delivery_tracks_count: config.raw_delivery ? config.delivery.tracks.size : 0,
             merge_train_failure_policy: config.merge_train&.failure_policy.presence

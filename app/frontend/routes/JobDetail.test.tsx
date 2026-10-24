@@ -14,7 +14,7 @@ import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { Page } from "../components/ui"
 import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
-import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
+import { StepAdversarialReviewPanel, StepSecurityReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 import { readJobNavigationContext, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
 // Give feedback / Request changes / secondary triage actions now live in the
@@ -3716,6 +3716,13 @@ describe("TestPlanPanel", () => {
 })
 
 describe("StepAdversarialReviewPanel", () => {
+  it("renders skipped security reviews with their critique", () => {
+    render(<StepSecurityReviewPanel iterations={[{ iteration: 1, verdict: "skipped", critique: "Reviewer unavailable." }]} onClose={() => {}} />)
+
+    expect(screen.getByText("Security review")).toBeInTheDocument()
+    expect(screen.getByText("Skipped")).toBeInTheDocument()
+    expect(screen.getByText("Reviewer unavailable.")).toBeInTheDocument()
+  })
   it("renders critique as markdown", () => {
     render(
       <StepAdversarialReviewPanel iterations={[{ iteration: 1, verdict: "approved", critique: "**Great** work with `clean` code." }]} onClose={() => {}} />

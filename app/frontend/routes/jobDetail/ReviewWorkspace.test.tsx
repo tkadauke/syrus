@@ -177,20 +177,18 @@ describe("ReviewWorkspace", () => {
       })
     )
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
-    vi.mocked(fetchDiffReviewVersion).mockResolvedValue(
-      {
-        ...version({
-          id: 200,
-          version_index: 2,
-          label: "Repair",
-          run_id: 22
-        }),
-        job_id: 42,
-        default_ref: "main",
-        diff_error: null,
-        files: sourceDiffPayload().files
-      }
-    )
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({
+        id: 200,
+        version_index: 2,
+        label: "Repair",
+        run_id: 22
+      }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: sourceDiffPayload().files
+    })
 
     renderWorkspace()
 
@@ -410,19 +408,20 @@ describe("ReviewWorkspace", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
       ok: true,
       headers: new Headers({ "content-type": "application/json" }),
-      json: async () => commentsPayload([
-        comment({
-          id: 11,
-          diff_review_version_id: 100,
-          new_line: 3,
-          body: "Please address the lifecycle risk.",
-          context: {
-            source: "review_note",
-            review_note_id: 7,
-            review_note_title: "Inspect this branch"
-          }
-        })
-      ])
+      json: async () =>
+        commentsPayload([
+          comment({
+            id: 11,
+            diff_review_version_id: 100,
+            new_line: 3,
+            body: "Please address the lifecycle risk.",
+            context: {
+              source: "review_note",
+              review_note_id: 7,
+              review_note_title: "Inspect this branch"
+            }
+          })
+        ])
     } as Response)
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(
       sourceDiffPayload({
@@ -467,15 +466,14 @@ describe("ReviewWorkspace", () => {
 
     const sidebar = (await screen.findByText("Review conversation")).closest("section") as HTMLElement
     fireEvent.click(within(sidebar).getByRole("button", { name: "Reply" }))
-    expect(within(sidebar).getByText("Adds a draft review comment for this note. Use Submit Feedback in the sidebar to send selected comments to the agent.")).toBeInTheDocument()
+    expect(
+      within(sidebar).getByText("Adds a draft review comment for this note. Use Submit Feedback in the sidebar to send selected comments to the agent.")
+    ).toBeInTheDocument()
     fireEvent.change(within(sidebar).getByLabelText("Reply"), { target: { value: "Please address the lifecycle risk." } })
     fireEvent.click(within(sidebar).getByRole("button", { name: "Add comment" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/diff_review_comments",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/diff_review_comments", expect.objectContaining({ method: "POST" }))
     })
     const createCall = fetchSpy.mock.calls.find(([url]) => url === "/api/v1/app/jobs/42/diff_review_comments")
     const posted = JSON.parse(String((createCall?.[1] as RequestInit).body))
@@ -721,10 +719,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(within(noteCard).getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/review_notes/7/start_discussion",
-        expect.objectContaining({ body: undefined, method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/start_discussion", expect.objectContaining({ body: undefined, method: "POST" }))
     })
     expect(screen.queryByRole("dialog", { name: "Discuss review note" })).not.toBeInTheDocument()
   })
@@ -1077,6 +1072,20 @@ describe("ReviewWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hide" }))
     expect(screen.queryByText("Review the diff")).not.toBeInTheDocument()
+  })
+
+  it("includes skipped security review findings in review artifacts", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      workflows: [{ artifacts: { security_review_iterations: [{ iteration: 1, verdict: "skipped", critique: "No capable reviewer." }] } }]
+    } as unknown as JobDetailPayload)
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getByText("Security review 1: skipped - No capable reviewer.")).toBeInTheDocument()
   })
 
   it("renders typed artifacts inline instead of a bare renderer_type label", async () => {
