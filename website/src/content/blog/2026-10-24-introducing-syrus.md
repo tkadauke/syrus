@@ -2,7 +2,7 @@
 
 title: Syrus is out
 description: Syrus is a self-hosted orchestrator for coding agents — Claude, Codex, Muse, and Antigravity working from your issue tracker, in parallel, around the clock. Version 0.1.14 is released, and this post explains what it does and why it isn't just another way to run an agent on your laptop.
-date: 2026-10-28
+date: 2026-10-24
 
 ---
 
