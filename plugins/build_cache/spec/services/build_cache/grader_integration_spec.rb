@@ -42,8 +42,10 @@ RSpec.describe "build_cache capture during Steps::Grader", :ci_only do
     # the list" whenever the registry hadn't already been populated by an
     # earlier example in the same process.
     @ws_path = WorkflowWorkspace.path_for(workflow)
+    FileUtils.mkdir_p(@ws_path)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
+    allow(handler).to receive(:validate_workspace_tracked_files!)
   end
 
   describe "sccache stats capture" do
