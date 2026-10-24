@@ -574,7 +574,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         {update.isPending ? t("settings.saving") : t("settings.save")}
       </Button>
       {update.isError ? (
-        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+        <p className="text-sm text-danger-text" role="alert">
           {errorMessage(update.error, t("settings.error_update"))}
         </p>
       ) : null}
