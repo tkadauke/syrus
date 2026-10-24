@@ -210,18 +210,20 @@ export function mcpHealthFromContent(content: unknown): ChatMcpHealth[] {
   const raw = contentRecord(content)?.mcp_health
   if (!Array.isArray(raw)) return []
 
-  return raw.map((item) => {
-    const record = contentRecord(item)
-    if (!record) return null
+  return raw
+    .map((item) => {
+      const record = contentRecord(item)
+      if (!record) return null
 
-    return {
-      name: stringValue(record.name),
-      status: stringValue(record.status) || "unknown",
-      available_tools: stringArray(record.available_tools),
-      pending_tools: stringArray(record.pending_tools),
-      unavailable_tools: stringArray(record.unavailable_tools)
-    }
-  }).filter((item): item is ChatMcpHealth => item != null && item.name.length > 0)
+      return {
+        name: stringValue(record.name),
+        status: stringValue(record.status) || "unknown",
+        available_tools: stringArray(record.available_tools),
+        pending_tools: stringArray(record.pending_tools),
+        unavailable_tools: stringArray(record.unavailable_tools)
+      }
+    })
+    .filter((item): item is ChatMcpHealth => item != null && item.name.length > 0)
 }
 
 export function systemResultMessage(fields: Record<string, string>): ChatSystemMessage {
@@ -236,38 +238,62 @@ export function systemResultMessage(fields: Record<string, string>): ChatSystemM
 }
 
 export function systemResultTitle(error: boolean, subtype: string) {
-  if (error) return subtype && subtype !== "success" ? i18n.t("chat:system.agent_run_failed_detail", { detail: humanize(subtype) }) : i18n.t("chat:system.agent_run_failed")
+  if (error)
+    return subtype && subtype !== "success"
+      ? i18n.t("chat:system.agent_run_failed_detail", { detail: humanize(subtype) })
+      : i18n.t("chat:system.agent_run_failed")
   if (subtype === "success") return i18n.t("chat:system.agent_run_succeeded")
 
   return subtype ? i18n.t("chat:system.agent_run_finished_detail", { detail: humanize(subtype) }) : i18n.t("chat:system.agent_run_finished")
 }
 
 export function systemMcpMessage(payload: string): ChatSystemMessage {
-  const servers = payload.split(/\s*,\s*/).map((entry) => {
-    const [name, status] = entry.split("=", 2)
-    return name ? [name, status || "unknown"] : null
-  }).filter((entry): entry is [string, string] => entry != null)
+  const servers = payload
+    .split(/\s*,\s*/)
+    .map((entry) => {
+      const [name, status] = entry.split("=", 2)
+      return name ? [name, status || "unknown"] : null
+    })
+    .filter((entry): entry is [string, string] => entry != null)
   const ready = new Set(["connected", "running", "ready"])
   const transient = new Set(["pending"])
   const pending = servers.filter(([, status]) => transient.has(status))
   const failing = servers.filter(([, status]) => !ready.has(status) && !transient.has(status))
 
   if (servers.length === 0) return { tone: "neutral", label: "MCP", body: i18n.t("chat:system.mcp_status_unavailable") }
-  if (failing.length > 0) return { tone: "warning", label: "MCP", body: i18n.t("chat:system.mcp_issue", { servers: failing.map(([name, status]) => `${name} ${status}`).join(", ") }) }
-  if (pending.length > 0) return { tone: "neutral", label: "MCP", body: i18n.t("chat:system.mcp_starting", { servers: pending.map(([name]) => name).join(", ") }) }
+  if (failing.length > 0)
+    return {
+      tone: "warning",
+      label: "MCP",
+      body: i18n.t("chat:system.mcp_issue", { servers: failing.map(([name, status]) => `${name} ${status}`).join(", ") })
+    }
+  if (pending.length > 0)
+    return { tone: "neutral", label: "MCP", body: i18n.t("chat:system.mcp_starting", { servers: pending.map(([name]) => name).join(", ") }) }
 
-  return { tone: "success", label: i18n.t("chat:system.connected"), body: i18n.t("chat:system.mcp_connected", { servers: servers.map(([name]) => name).join(", ") }) }
+  return {
+    tone: "success",
+    label: i18n.t("chat:system.connected"),
+    body: i18n.t("chat:system.mcp_connected", { servers: servers.map(([name]) => name).join(", ") })
+  }
 }
 
 export function systemMcpToolsInitMessage(payload: string): ChatSystemMessage {
   const fields = parseSystemFields(payload)
   const count = Number.parseInt(fields.count || "", 10)
-  const required = payload.match(/(?:^|\s)required=([^\s]*)/)?.[1].split(",").filter(Boolean) || []
-  const pieces = [
-    Number.isFinite(count) ? i18n.t("chat:system.mcp_tool_count", { count }) : i18n.t("chat:system.mcp_tools_available")
-  ]
+  const required =
+    payload
+      .match(/(?:^|\s)required=([^\s]*)/)?.[1]
+      .split(",")
+      .filter(Boolean) || []
+  const pieces = [Number.isFinite(count) ? i18n.t("chat:system.mcp_tool_count", { count }) : i18n.t("chat:system.mcp_tools_available")]
 
-  if (required.length > 0) pieces.push(i18n.t("chat:system.required_tools", { names: required.slice(0, 4).join(", "), extra: required.length > 4 ? i18n.t("chat:system.more_count", { count: required.length - 4 }) : "" }))
+  if (required.length > 0)
+    pieces.push(
+      i18n.t("chat:system.required_tools", {
+        names: required.slice(0, 4).join(", "),
+        extra: required.length > 4 ? i18n.t("chat:system.more_count", { count: required.length - 4 }) : ""
+      })
+    )
 
   return { tone: "success", label: i18n.t("chat:system.mcp_tools"), body: pieces.join(" · ") }
 }
