@@ -9,7 +9,7 @@ import { App } from "./App"
 import { AppChromeV2, NewChatLauncher } from "./AppChromeV2"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import type { BootstrapPayload } from "../api/bootstrap"
-import type { JobStep } from "../api/jobs"
+import type { JobSourcePayload, JobStep } from "../api/jobs"
 import * as videoWalkthroughs from "../api/videoWalkthroughs"
 import * as useConfirmModule from "../hooks/useConfirm"
 
@@ -11055,6 +11055,16 @@ describe("App", () => {
   it("renders the Job source browser from the app source API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
+      if (path.includes("tree_path=app%2Fmodels")) {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treePath: "app/models", treeItems: [
+          { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby", type: "file" }
+        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.includes("tree_path=app")) {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treePath: "app", treeItems: [
+          { path: "app/models", name: "models", size: 0, language: "plaintext", type: "directory" }
+        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path.startsWith("/api/v1/app/jobs/42/source?")) {
         return Promise.resolve(
           new Response(JSON.stringify(jobSourcePayload({ withFile: true })), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -11084,8 +11094,8 @@ describe("App", () => {
 
     fireEvent.click(appDirectory)
     expect(appDirectory).toHaveAttribute("aria-expanded", "true")
-    fireEvent.click(screen.getByRole("button", { name: "models" }))
-    fireEvent.click(screen.getByTitle("app/models/user.rb (512 B)"))
+    fireEvent.click(await screen.findByRole("button", { name: "models" }))
+    fireEvent.click(await screen.findByTitle("app/models/user.rb (512 B)"))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -11095,6 +11105,46 @@ describe("App", () => {
     })
     const keyword = await screen.findByText("class")
     expect(keyword.closest("code")).toHaveTextContent("class User")
+  })
+
+  it("loads source folders progressively as they are expanded", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.includes("tree_path=src")) {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treePath: "src", treeItems: [
+          { path: "src/after-the-old-limit.rb", name: "after-the-old-limit.rb", size: 12, language: "ruby", type: "file" }
+        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/jobs/42/source") {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treeItems: [
+          { path: "src", name: "src", size: 0, language: "plaintext", type: "directory" }
+        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/jobs/42/timeline") {
+        return Promise.resolve(new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(jobDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=source"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "src" })).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("after-the-old-limit.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "src" }))
+
+    expect(await screen.findByText("after-the-old-limit.rb")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/jobs/42/source?ref=deadbeef12345678&tree_path=src",
+      expect.objectContaining({ credentials: "same-origin" })
+    )
   })
 
   it("switches the Job source browser into diff mode", async () => {
@@ -19292,7 +19342,7 @@ function jobWaterfallPayload(overrides: { workflowId?: number; triggerKind?: str
   }
 }
 
-function jobSourcePayload(overrides: { withFile?: boolean } = {}) {
+function jobSourcePayload(overrides: { withFile?: boolean; treeItems?: JobSourcePayload["tree_items"]; treePath?: string } = {}) {
   return {
     job_id: 42,
     repository: { id: 3, slug: "acme/widgets", default_branch: "main", repository_path: "/repositories/3" },
@@ -19300,11 +19350,12 @@ function jobSourcePayload(overrides: { withFile?: boolean } = {}) {
     default_ref: "main",
     selected_ref: "deadbeef12345678",
     selected_path: overrides.withFile ? "app/models/user.rb" : null,
+    tree_path: overrides.treePath ?? "",
     merge_base_sha: "aabbccdd1234567",
     branch_commits: [{ sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair aqueduct", date: "2026-05-30T11:00:00Z" }],
-    tree_items: [
-      { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby" },
-      { path: "README.md", name: "README.md", size: 128, language: "markdown" }
+    tree_items: overrides.treeItems ?? [
+      { path: "app", name: "app", size: 0, language: "plaintext", type: "directory" },
+      { path: "README.md", name: "README.md", size: 128, language: "markdown", type: "file" }
     ],
     tree_truncated: false,
     file: overrides.withFile ? { path: "app/models/user.rb", name: "user.rb", size: 15, language: "ruby", content: "class User\nend\n" } : null,

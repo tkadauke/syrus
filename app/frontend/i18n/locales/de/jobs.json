@@ -566,7 +566,7 @@
   "source_tree_truncated": "Tree von GitHub gekürzt.",
   "source_diff_truncated": "Diff von GitHub gekürzt.",
   "source_no_files": "Keine Dateien gefunden.",
-  "source_showing_first": "Zeige die ersten {{count}} Dateien.",
+  "source_directory_error": "Dieser Ordner konnte nicht geladen werden.",
   "source_select_file": "Wähle eine Datei aus, um ihren Inhalt anzuzeigen.",
   "source_select_diff_file": "Wähle eine Datei aus, um ihren Diff anzuzeigen.",
   "source_diff_not_available": "Diff nicht verfügbar (Binärdatei oder sehr große Datei).",
