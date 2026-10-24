@@ -106,30 +106,40 @@ module AttentionReport
       overrides = Job.where(
         landing_blocker_override_requested_by_user_id: @user.id,
         landing_blocker_override_requested_at: @from..@to
-      ).count
+      )
+      rerun_job_ids = human_wasted_workflow_job_ids(operator_transitions)
+      recheck_job_ids = job_ids_for_transitions(operator_transitions.select do |transition|
+        LANDING_RECHECK_REASON_KEYS.include?(transition.metadata.to_h["reason_key"])
+      end)
+      reapproval_job_ids = reapproval_after_unchanged_diff_job_ids
       {
         rules: {
-          human_retry_rebase_ci_repair_reruns: figure(human_wasted_workflow_count(operator_transitions)),
-          landing_blocker_overrides: figure(overrides, estimate: false),
-          landing_blocker_rechecks_and_wakes: figure(rechecks),
-          reapproval_after_base_change_unchanged_diff: figure(reapproval_after_unchanged_diff_count)
+          human_retry_rebase_ci_repair_reruns: figure(rerun_job_ids.length, job_ids: rerun_job_ids.uniq),
+          landing_blocker_overrides: figure(overrides.count, estimate: false, job_ids: overrides.pluck(:id)),
+          landing_blocker_rechecks_and_wakes: figure(rechecks, job_ids: recheck_job_ids),
+          reapproval_after_base_change_unchanged_diff: figure(reapproval_job_ids.length, job_ids: reapproval_job_ids.uniq)
         },
         estimate: true
       }
     end
 
-    def human_wasted_workflow_count(operator_transitions)
+    def human_wasted_workflow_job_ids(operator_transitions)
       direct_workflow_ids = operator_transitions.where(subject_type: "Workflow").pluck(:subject_id)
       job_transitions = operator_transitions.where(subject_type: "Job").group_by(&:subject_id)
 
-      Workflow.where(user_id: @user.id, trigger_kind: WASTED_WORKFLOW_TRIGGER_KINDS, created_at: @from..@to).count do |workflow|
+      Workflow.where(user_id: @user.id, trigger_kind: WASTED_WORKFLOW_TRIGGER_KINDS, created_at: @from..@to).filter_map do |workflow|
         direct_workflow_ids.include?(workflow.id) || Array(job_transitions[workflow.job_id]).any? do |transition|
           (transition.created_at - workflow.created_at).abs <= 5.seconds
-        end
+        end ? workflow.job_id : nil
       end
     end
 
-    def reapproval_after_unchanged_diff_count
+    def job_ids_for_transitions(transitions)
+      workflow_job_ids = Workflow.where(id: transitions.filter_map { |item| item.subject_id if item.subject_type == "Workflow" }).pluck(:job_id)
+      (workflow_job_ids + transitions.filter_map { |item| item.subject_id if item.subject_type == "Job" }).uniq
+    end
+
+    def reapproval_after_unchanged_diff_job_ids
       approval_scope = StateTransition.where(
         user_id: @user.id,
         source: "operator",
@@ -137,20 +147,20 @@ module AttentionReport
         event_name: "approve"
       )
       job_ids = approval_scope.where(created_at: @from..@to).distinct.pluck(:subject_id)
-      return 0 if job_ids.empty?
+      return [] if job_ids.empty?
 
       approvals = approval_scope.where(subject_id: job_ids, created_at: ..@to)
         .order(:subject_id, :created_at, :id).to_a
       versions = DiffReviewVersion.where(job_id: job_ids, reason: "source_diff", created_at: ..@to)
         .order(:job_id, :created_at, :id).group_by(&:job_id)
 
-      approvals.group_by(&:subject_id).sum do |job_id, transitions|
-        transitions.each_cons(2).count do |previous, current|
+      approvals.group_by(&:subject_id).flat_map do |job_id, transitions|
+        transitions.each_cons(2).filter_map do |previous, current|
           next false if current.created_at < @from
 
           previous_version = latest_version_at(versions[job_id], previous.created_at)
           current_version = latest_version_at(versions[job_id], current.created_at)
-          unchanged_diff_after_base_change?(previous_version, current_version)
+          job_id if unchanged_diff_after_base_change?(previous_version, current_version)
         end
       end
     end
@@ -206,8 +216,10 @@ module AttentionReport
       @cleaned_visits ||= visit_statistics.cleaned
     end
 
-    def figure(count, estimate: true)
-      { count: count, sample_count: count, estimate: estimate }
+    def figure(count, estimate: true, job_ids: nil)
+      { count: count, sample_count: count, estimate: estimate }.tap do |payload|
+        payload[:job_ids] = job_ids if job_ids
+      end
     end
 
     def duration_figure(value_ms, sample_count, estimate:)
