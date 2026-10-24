@@ -2772,5 +2772,23 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "message" => "Elige saltem unum Epic."
       )
     end
+
+    it "returns pluralized German success messages while preserving response fields" do
+      user.update!(locale: "de")
+      first = Factories.job_record(repository: repo, issue_number: 901, state: "queued")
+      second = Factories.job_record(repository: repo, issue_number: 902, state: "queued")
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ first.id, second.id ], bulk_action: "close" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "message" => "2 Jobs geschlossen.",
+        "action" => "close",
+        "affected_job_ids" => contain_exactly(first.id, second.id),
+        "skipped_job_ids" => []
+      )
+    end
   end
 end

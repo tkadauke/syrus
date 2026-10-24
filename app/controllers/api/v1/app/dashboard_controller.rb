@@ -206,12 +206,12 @@ module Api
           )
 
           if result.affected_job_ids.empty?
-            render_error("validation_failed", result.first_error || dashboard_t("none_retryable"), status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_retryable"), status: :unprocessable_content)
           else
-            agent_suffix = agent_provider.present? ? " with #{agent_provider.titleize}" : ""
-            skipped_suffix = result.skipped.any? ? " Skipped #{helpers.pluralize(result.skipped.size, 'job')}." : ""
+            message_key = agent_provider.present? ? "retry_enqueued_with_agent" : "retry_enqueued"
+            message = dashboard_t(message_key, count: result.affected_job_ids.size, agent: agent_provider&.titleize)
             render_bulk_success(
-              "Retry enqueued for #{helpers.pluralize(result.affected_job_ids.size, 'job')}#{agent_suffix}.#{skipped_suffix}",
+              bulk_partial_message(message, result.skipped.map { |skipped| skipped.job.id }),
               affected_job_ids: result.affected_job_ids,
               skipped_job_ids: result.skipped.map { |skipped| skipped.job.id },
               action: "retry",
@@ -242,7 +242,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_open"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("#{helpers.pluralize(closed_ids.size, 'job')} closed.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_closed", count: closed_ids.size), skipped_ids),
               affected_job_ids: closed_ids,
               skipped_job_ids: skipped_ids,
               action: "close"
@@ -287,7 +287,7 @@ module Api
             github_note = bulk_github_approval_note(approved_jobs)
             skip_note = skipped_auto_merge_disabled.any? ? bulk_auto_merge_disabled_message(skipped_auto_merge_disabled) : nil
             render_bulk_success(
-              [ "Approved #{helpers.pluralize(approved_jobs.size, 'job')} in batch #{batch_id}.", github_note, skip_note ].compact.join(" "),
+              [ dashboard_t("jobs_approved", count: approved_jobs.size, batch_id: batch_id), github_note, skip_note ].compact.join(" "),
               affected_job_ids: approved_jobs.map(&:id),
               skipped_job_ids: (skipped_auto_merge_disabled.map(&:id) + skipped_ids).uniq,
               action: "approve",
@@ -314,7 +314,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_awaiting_triage"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Accepted #{helpers.pluralize(accepted_ids.size, 'job')} for work.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_accepted", count: accepted_ids.size), skipped_ids),
               affected_job_ids: accepted_ids,
               skipped_job_ids: skipped_ids,
               action: "accept_triage"
@@ -339,7 +339,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_claimable"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Claimed #{helpers.pluralize(claimed_ids.size, 'job')}.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_claimed", count: claimed_ids.size), skipped_ids),
               affected_job_ids: claimed_ids,
               skipped_job_ids: skipped_ids,
               action: "claim"
@@ -364,7 +364,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_claimed_by_you"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Released #{helpers.pluralize(released_ids.size, 'claim')}.", skipped_ids),
+              bulk_partial_message(dashboard_t("claims_released", count: released_ids.size), skipped_ids),
               affected_job_ids: released_ids,
               skipped_job_ids: skipped_ids,
               action: "release_claim"
@@ -390,7 +390,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_backlogged_startable"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Released #{helpers.pluralize(released_ids.size, 'job')} from backlog.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_released_from_backlog", count: released_ids.size), skipped_ids),
               affected_job_ids: released_ids,
               skipped_job_ids: skipped_ids,
               action: "release_from_backlog"
@@ -416,7 +416,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_movable_to_backlog"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Moved #{helpers.pluralize(moved_ids.size, 'job')} to backlog.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_moved_to_backlog", count: moved_ids.size), skipped_ids),
               affected_job_ids: moved_ids,
               skipped_job_ids: skipped_ids,
               action: "move_to_backlog"
@@ -445,7 +445,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_assignable"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Assigned #{helpers.pluralize(assigned_ids.size, 'job')} to #{owner.email_address}.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_assigned", count: assigned_ids.size, owner: owner.email_address), skipped_ids),
               affected_job_ids: assigned_ids,
               skipped_job_ids: skipped_ids,
               action: "assign_owner",
@@ -477,7 +477,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_updatable"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Set #{helpers.pluralize(updated_ids.size, 'job')} to #{priority} priority.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_priority_set", count: updated_ids.size, priority: priority), skipped_ids),
               affected_job_ids: updated_ids,
               skipped_job_ids: skipped_ids,
               action: "set_priority",
@@ -510,7 +510,7 @@ module Api
         def bulk_partial_message(message, skipped_ids)
           return message if skipped_ids.empty?
 
-          "#{message} Skipped #{helpers.pluralize(skipped_ids.size, 'job')}."
+          "#{message} #{dashboard_t('jobs_skipped', count: skipped_ids.size)}"
         end
 
         def bulk_pause_jobs(jobs)
@@ -530,7 +530,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_pausable"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Paused #{helpers.pluralize(paused_ids.size, 'job')}. Active steps will finish before the pause takes effect.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_paused", count: paused_ids.size), skipped_ids),
               affected_job_ids: paused_ids,
               skipped_job_ids: skipped_ids,
               action: "pause"
@@ -555,7 +555,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_unpausable"), status: :unprocessable_content)
           else
             render_bulk_success(
-              bulk_partial_message("Unpaused #{helpers.pluralize(unpaused_ids.size, 'job')}. Eligible workflows will resume subject to admission control.", skipped_ids),
+              bulk_partial_message(dashboard_t("jobs_unpaused", count: unpaused_ids.size), skipped_ids),
               affected_job_ids: unpaused_ids,
               skipped_job_ids: skipped_ids,
               action: "unpause"
@@ -607,7 +607,7 @@ module Api
 
           github_note = bulk_github_approval_note(approved_jobs)
           render_bulk_success(
-            [ "Approved #{helpers.pluralize(approved_jobs.size, 'job')} in batch #{batch_id}.", github_note ].compact.join(" "),
+            [ dashboard_t("jobs_approved", count: approved_jobs.size, batch_id: batch_id), github_note ].compact.join(" "),
             affected_job_ids: approved_jobs.map(&:id),
             action: "commit_review_approval",
             extra: { batch_id: batch_id }
@@ -636,7 +636,7 @@ module Api
           end
 
           render_bulk_success(
-            bulk_partial_message("Applied #{tag.name} to #{helpers.pluralize(applied_ids.size, 'job')}.", skipped_ids),
+            bulk_partial_message(dashboard_t("tag_applied", count: applied_ids.size, tag: tag.name), skipped_ids),
             affected_job_ids: applied_ids,
             skipped_job_ids: skipped_ids,
             action: "apply_tag",
@@ -689,7 +689,7 @@ module Api
             render_error("validation_failed", dashboard_t("none_epics_ready"), status: :unprocessable_content)
           else
             render_epic_bulk_success(
-              "#{helpers.pluralize(started_ids.size, 'Epic')} moved to In Progress.",
+              dashboard_t("epics_started", count: started_ids.size),
               affected_epic_ids: started_ids,
               skipped_epic_ids: skipped_ids,
               action: "start"
@@ -699,7 +699,7 @@ module Api
 
         def bulk_auto_merge_disabled_message(skipped)
           repos = skipped.map { |job| job.repository.slug }.uniq.sort
-          "Skipped #{helpers.pluralize(skipped.size, 'job')} whose repository has auto-merge disabled (#{repos.join(', ')}). Enable auto-merge in repository settings to approve."
+          dashboard_t("auto_merge_disabled", count: skipped.size, repositories: repos.join(", "))
         end
 
         def bulk_github_approval_note(jobs)
@@ -707,7 +707,7 @@ module Api
           successes = results.count(&:success?)
           failures = results.select(&:failure?)
           notes = []
-          notes << "GitHub reviews left for #{helpers.pluralize(successes, 'job')}." if successes.positive?
+          notes << dashboard_t("github_reviews_left", count: successes) if successes.positive?
           notes << failures.map(&:message).uniq.join(" ") if failures.any?
           notes.presence&.join(" ")
         end

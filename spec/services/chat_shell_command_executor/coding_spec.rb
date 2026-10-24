@@ -27,19 +27,19 @@ RSpec.describe ChatShellCommandExecutor::Coding do
     end
   end
 
-  describe "#precondition_error" do
+  describe "#precondition_error_code" do
     it "requires a repository" do
       chat = ChatSession.create!(user: user, mode: "coding", coding_checkout_branch: "syrus-chat-1")
-      expect(executor.precondition_error(chat)).to eq("No repository attached to this chat.")
+      expect(executor.precondition_error_code(chat)).to eq(:repository_not_found)
     end
 
     it "requires an active coding checkout" do
       chat = ChatSession.create!(user: user, repository: repository, mode: "coding")
-      expect(executor.precondition_error(chat)).to eq("No active coding checkout for this chat.")
+      expect(executor.precondition_error_code(chat)).to eq(:coding_checkout_not_found)
     end
 
     it "returns nil once a repository and checkout are present" do
-      expect(executor.precondition_error(chat_session)).to be_nil
+      expect(executor.precondition_error_code(chat_session)).to be_nil
     end
   end
 
