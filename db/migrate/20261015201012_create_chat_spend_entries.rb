@@ -1,8 +1,8 @@
 class CreateChatSpendEntries < ActiveRecord::Migration[8.1]
   def change
     create_table :chat_spend_entries do |t|
-      t.references :chat_session, null: false
-      t.references :user, null: false
+      t.references :chat_session, null: false, foreign_key: false
+      t.references :user, null: false, foreign_key: false
       t.datetime :incurred_at, null: false
       t.decimal :cost_usd, precision: 12, scale: 6, null: false
       t.string :agent_provider, null: false

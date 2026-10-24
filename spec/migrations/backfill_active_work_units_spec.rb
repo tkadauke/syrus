@@ -70,7 +70,7 @@ RSpec.describe BackfillActiveWorkUnits, :ci_only do
       }
     )
     expect(unit.blocked_until).to be_within(2.seconds).of(next_check_at)
-    expect(WorkUnits::StartBlock.for(workflow.reload).reason).to eq("admission_control")
+    expect(WorkUnits::StartBlock.for(workflow.reload).reason).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
   end
 
   it "snapshots merge train members from merge train artifacts" do
