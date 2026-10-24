@@ -71,7 +71,7 @@ class RunFailureClassifier
     when workspace_checkout_invalid?
       result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
     when source_snapshot_metadata_invalid?
-      result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot metadata is missing or does not match the requested immutable checkout.")
+      result("source_snapshot_metadata_invalid", 0.95, false, "Workflow source snapshot metadata is missing or does not match the requested immutable checkout; retrying unchanged cannot repair it.")
     when storage_unavailable?
       result("storage_unavailable", 0.95, true, "Active Storage is temporarily unavailable; retry after the storage backend recovers.")
     when process_memory_limit_exceeded?
