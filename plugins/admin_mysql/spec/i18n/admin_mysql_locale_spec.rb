@@ -30,4 +30,11 @@ RSpec.describe "Admin MySQL frontend locales", type: :unit do
       "tool_running" => "Läuft"
     )
   end
+
+  it "translates Latin database labels while preserving the database placeholder" do
+    expect(locale("la")).to include(
+      "metric_database" => "basis datorum {{database}}",
+      "tool_database" => "Basis datorum"
+    )
+  end
 end
