@@ -52,15 +52,16 @@ module App
       return fixture_payload if preview_fixture.present?
       return unavailable_payload unless source_available?
 
-      history = branch_history
+      history = @params.key?(:tree_path) ? RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil) : branch_history
       branch_commits = history.commits.map { |commit| commit_hash(commit) }
       merge_base_sha = history.merge_base_id
 
       selected_ref = @params[:ref].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
-      tree_result = load_tree(selected_ref)
+      tree_path = @params[:tree_path].to_s.delete_prefix("/").delete_suffix("/")
+      tree_result = load_tree(selected_ref, tree_path)
       selected_path = @params[:path].presence
 
-      base_payload(selected_ref: selected_ref, selected_path: selected_path, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+      base_payload(selected_ref: selected_ref, selected_path: selected_path, tree_path: tree_path, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
         .merge(tree_result)
         .merge(file_result(selected_path, tree_result[:source_error]))
     rescue => e
@@ -98,16 +99,18 @@ module App
       fixture = preview_fixture.deep_symbolize_keys
       selected_ref = @params[:ref].presence || fixture[:head_sha].presence || fixture[:head_ref].presence || @repository.default_branch
       selected_path = @params[:path].presence
+      tree_path = @params[:tree_path].to_s.delete_prefix("/").delete_suffix("/")
       files = fixture_source_files(fixture, selected_ref)
 
       base_payload(
         selected_ref: selected_ref,
         selected_path: selected_path,
+        tree_path: tree_path,
         branch_commits: Array(fixture[:branch_commits]),
         merge_base_sha: fixture[:merge_base_sha]
       )
         .merge(
-          tree_items: files.map { |path, content| fixture_tree_item_json(path, content) },
+          tree_items: fixture_tree_items(files, tree_path),
           tree_truncated: false,
           source_error: nil
         )
@@ -157,8 +160,26 @@ module App
         path: path,
         name: File.basename(path),
         size: content.to_s.bytesize,
-        language: language_for(path)
+        language: language_for(path),
+        type: "file"
       }
+    end
+
+    def fixture_tree_items(files, directory)
+      prefix = directory.present? ? "#{directory}/" : ""
+      items = {}
+      files.each do |path, content|
+        next unless path.start_with?(prefix)
+
+        name, remainder = path.delete_prefix(prefix).split("/", 2)
+        child_path = prefix + name
+        items[child_path] ||= if remainder
+          { path: child_path, name: name, size: 0, language: "plaintext", type: "directory" }
+        else
+          fixture_tree_item_json(child_path, content)
+        end
+      end
+      items.values.sort_by { |item| item[:path] }
     end
 
     def content
@@ -181,11 +202,11 @@ module App
       { sha: commit.sha, message: commit.message, date: commit.authored_at }
     end
 
-    def load_tree(selected_ref)
+    def load_tree(selected_ref, tree_path)
       @selected_revision = content.resolve(selected_ref)
-      entries, truncated = tree_entries(@selected_revision)
+      entries, truncated = tree_entries(@selected_revision, tree_path)
       {
-        tree_items: entries.select(&:file?).sort_by(&:path).map { |entry| tree_item_json(entry) },
+        tree_items: entries.sort_by(&:path).map { |entry| tree_item_json(entry) },
         tree_truncated: truncated,
         source_error: nil
       }
@@ -199,8 +220,8 @@ module App
 
     # A tree too large for GitHub to list in full (and no mirror to ask) is
     # still browsable: show what came back, flagged.
-    def tree_entries(revision)
-      [ content.tree(revision), false ]
+    def tree_entries(revision, tree_path)
+      [ content.children(revision, path: tree_path), false ]
     rescue RepositoryContent::Truncated => e
       [ e.partial, true ]
     end
@@ -226,7 +247,7 @@ module App
       { file: nil, file_error: e.message }
     end
 
-    def base_payload(selected_ref:, selected_path:, branch_commits: [], merge_base_sha: nil)
+    def base_payload(selected_ref:, selected_path:, tree_path: "", branch_commits: [], merge_base_sha: nil)
       {
         job_id: @job.id,
         repository: {
@@ -239,6 +260,7 @@ module App
         default_ref: @repository.default_branch,
         selected_ref: selected_ref,
         selected_path: selected_path,
+        tree_path: tree_path,
         merge_base_sha: merge_base_sha,
         branch_commits: branch_commits.map { |commit| commit_json(commit) },
         paths: {
@@ -255,7 +277,8 @@ module App
         path: path,
         name: File.basename(path),
         size: entry.size.to_i,
-        language: language_for(path)
+        language: entry.directory? ? "plaintext" : language_for(path),
+        type: entry.type
       }
     end
 
