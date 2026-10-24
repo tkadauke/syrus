@@ -711,6 +711,21 @@
       "failed": "Failed"
     }
   },
+  "resume_landing_queue": {
+    "target": "Target",
+    "landing_queue": "Landing queue",
+    "outcome": "Outcome",
+    "summary": "Resume landing queue",
+    "summary_with_outcome": "Resume landing queue · {{outcome}}",
+    "states": {
+      "pending": "Pending",
+      "resuming": "Resuming",
+      "resumed": "Resumed",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "failed": "Failed"
+    }
+  },
   "daemon_invocation_context": {
     "summary": "invocation context: {{surface}}{{identity}}",
     "summary_denied": "invocation context denied: {{error}}",
