@@ -30,13 +30,12 @@ test("renders approved and landing queue states with blocker messaging", async (
 
   await openJob(page, "Approve trigger label rollout")
   await expect(page.getByText(/In landing queue/)).toBeVisible()
-  await expect(page.getByText(/Auto-merge not enabled/)).toBeVisible()
-  await expect(page.getByRole("link", { name: "Enable auto-merge in repository settings" })).toBeVisible()
+  await expect(page.getByText(/Waiting for Epic merge-train/)).toBeVisible()
 
   await openLandingQueue(page)
 
   const approvedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "Approve trigger label rollout", exact: true }) })
-  await expect(approvedRow).toContainText("Auto-merge not enabled")
+  await expect(approvedRow).toContainText("Waiting for Epic merge-train")
 
   const landingRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "Land approval queue fixture", exact: true }) })
   await expect(landingRow).toContainText("landing")
