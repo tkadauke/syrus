@@ -70,6 +70,8 @@
     "ready_description": "Ihr erstes Epic ist gelandet — Syrus ist eingerichtet. Der Einrichtungs-Tab wird aus der Navigation verschwinden.",
     "open_dashboard": "Übersicht öffnen",
     "readiness_label": "Repository-Bereitschaft",
+    "readiness_status": "Bereitschaft: {{status}}",
+    "readiness_close": "Schließen",
     "readiness_loading": "Repository-Bereitschaft wird geprüft…",
     "readiness_prepare": "Vorgeschlagene Vorbereitungsbefehle",
     "readiness_graders": "Vorgeschlagene Prüfungsbefehle",
