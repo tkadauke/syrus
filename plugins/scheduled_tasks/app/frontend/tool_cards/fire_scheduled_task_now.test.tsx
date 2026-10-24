@@ -90,7 +90,7 @@ describe("fire_scheduled_task_now tool card", () => {
   })
 
   it("reflects confirmation and links the created Job from the live resource", () => {
-    const livePendingAction = live("confirmed", { outcome: { job_id: 884 }, resource_url: "/jobs/884", resource_title: "Scheduled run" })
+    const livePendingAction = live("confirmed", { outcome: { fired: true, job_id: 884 }, resource_url: "/jobs/884", resource_title: "Scheduled run" })
     render(<>{fireScheduledTaskNowToolCard.renderExpanded(context({ parsedResult: pendingAction, livePendingAction }))}</>)
 
     expect(screen.getByText("confirmed")).toBeInTheDocument()
@@ -101,9 +101,20 @@ describe("fire_scheduled_task_now tool card", () => {
   })
 
   it("reads a created Job from differently shaped live outcomes", () => {
-    const livePendingAction = live("confirmed", { outcome: { job: { id: "885" } } })
+    const livePendingAction = live("confirmed", { outcome: { fired: true, job: { id: "885" } } })
     render(<>{fireScheduledTaskNowToolCard.renderExpanded(context({ parsedResult: pendingAction, livePendingAction }))}</>)
     expect(screen.getByRole("link", { name: "JOB-885" })).toHaveAttribute("href", "/jobs/885")
+  })
+
+  it("distinguishes a confirmed-but-skipped fire and shows its reason", () => {
+    const livePendingAction = live("confirmed", { outcome: { fired: false, reason: "already_fired_window" } })
+    render(<>{fireScheduledTaskNowToolCard.renderExpanded(context({ parsedResult: pendingAction, livePendingAction }))}</>)
+
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.getByText("The scheduled task was not fired: already_fired_window.")).toBeInTheDocument()
+    expect(screen.queryByText("The scheduled task was fired.")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /^JOB-/ })).not.toBeInTheDocument()
+    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult: pendingAction, livePendingAction }))).toBe("Immediate fire skipped")
   })
 
   it("reflects rejection and failure details", () => {
@@ -147,6 +158,6 @@ describe("fire_scheduled_task_now tool card", () => {
   })
 
   it("publishes pending, confirmed, error, and empty catalog examples", () => {
-    expect(examples.map((example) => example.id)).toEqual(["pending_markdown_message", "confirmed_with_job", "error", "empty"])
+    expect(examples.map((example) => example.id)).toEqual(["pending_markdown_message", "confirmed_with_job", "confirmed_but_skipped", "error", "empty"])
   })
 })
