@@ -59,13 +59,14 @@ The current static site is intentionally small:
 | Page/section           | Path                                     | Purpose                                                                                                                        |
 | ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Home                   | `src/app/page.tsx`                       | Marketing landing page assembled from hero, product video, workflow, feature, entry-point, and open-source onboarding sections |
-| Control plane          | `src/app/control-plane/page.tsx`         | Product-positioning page comparing raw agent sessions with the durable Syrus harness around agents                            |
+| Control plane          | `src/app/control-plane/page.tsx`         | Product-positioning page comparing raw agent sessions with the durable Syrus harness around agents                             |
 | Download               | `src/app/download/page.tsx`              | Desktop and CLI release downloads                                                                                              |
 | Docs                   | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files                                                                    |
 | Open-source onboarding | `components/demo.tsx`                    | Static download, docs, GitHub, and issue-tracker calls to action                                                               |
 | Product copy           | `lib/site.ts`                            | Source of truth for hero copy, workflow steps, feature pillars, and entry points                                               |
 
-Copy lives in `lib/site.ts`. Prefer updating that shared copy over scattering
+Marketing-page copy lives in `lib/site.ts`, while reusable chrome copy lives in
+the typed locale dictionaries in `lib/chrome.ts`. Prefer updating that shared copy over scattering
 parallel wording through components.
 
 **Convention: A feature is not done if the user-facing page that explains it is stale.**

@@ -8,7 +8,7 @@
     "sync-plugin-icons": "node scripts/sync-plugin-icons.mjs",
     "dev": "npm run sync-plugin-icons && next dev",
     "build": "npm run sync-plugin-icons && next build && node --experimental-strip-types scripts/assert-static-export.ts",
-    "test:locales": "node --experimental-strip-types --test lib/locales.test.ts lib/metadata.test.ts lib/sitemap.test.ts",
+    "test:locales": "node --experimental-strip-types --test lib/locales.test.ts lib/chrome.test.ts lib/metadata.test.ts lib/sitemap.test.ts",
     "start": "next start",
     "sync-release": "node scripts/sync-release.mjs",
     "sync-release:check": "node scripts/sync-release.mjs --check-only"

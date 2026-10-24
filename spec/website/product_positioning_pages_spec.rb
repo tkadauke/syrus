@@ -17,7 +17,7 @@ RSpec.describe "website product positioning pages" do
   let(:public_positioning_copy) { [site_copy, demo, footer, layout, read_website("README.md")].join("\n") }
 
   it "links the explanatory sections from the home navigation" do
-    nav = read_website("components/nav.tsx")
+    nav = read_website("lib/chrome.ts")
 
     expect(nav).to include("How it works")
     expect(nav).to include("/#how")

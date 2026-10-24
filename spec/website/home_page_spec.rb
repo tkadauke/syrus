@@ -10,6 +10,7 @@ RSpec.describe "website home page" do
   let(:page) { read_website("src/app/(en)/page.tsx") }
   let(:site_copy) { read_website("lib/site.ts") }
   let(:nav) { read_website("components/nav.tsx") }
+  let(:chrome) { read_website("lib/chrome.ts") }
   let(:normalized_copy) { site_copy.gsub(/\s+/, " ") }
 
   it "assembles the current Next.js landing page from the product sections" do
@@ -29,9 +30,9 @@ RSpec.describe "website home page" do
   end
 
   it "uses real current anchors and pages for primary calls to action" do
-    expect(nav).to include('href: "/#how"')
-    expect(nav).to include('href: "/#features"')
-    expect(nav).to include('href: "/#entry-points"')
+    expect(chrome).to include('href: "/#how"')
+    expect(chrome).to include('href: "/#features"')
+    expect(chrome).to include('href: "/#entry-points"')
     expect(nav).to include("<DownloadButton")
 
     hero = read_website("components/hero.tsx")
@@ -39,7 +40,7 @@ RSpec.describe "website home page" do
     expect(hero).to include('localizedHref("/#how", locale)')
     expect(hero).to include("See how it works")
 
-    expect(read_website("components/footer.tsx")).to include('href: "/download"')
+    expect(chrome).to include('href: "/download"')
   end
 
   it "has a matching section or page for every advertised anchor" do

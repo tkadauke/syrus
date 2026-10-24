@@ -32,7 +32,7 @@ RSpec.describe "website content coverage" do
         "Scheduled task"
       ],
       "components/demo.tsx" => ["Open-source onboarding", "GitHub", "Getting started"],
-      "components/nav.tsx" => ["How it works", "Why Syrus", "Entry points", "Docs"]
+      "lib/chrome.ts" => ["How it works", "Why Syrus", "Entry points", "Docs", "Blog"]
     }
 
     pages.each do |path, expected_sections|
