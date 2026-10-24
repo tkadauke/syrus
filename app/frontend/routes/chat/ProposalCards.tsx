@@ -1673,7 +1673,7 @@ function ProposalChildren({
                 {t("proposal_priority")}: {child.priority || "medium"}
               </span>
               {plannedExecutionCapabilitiesText(child.planned_execution) ? (
-                <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <span className="shrink-0 rounded bg-surface-raised px-2 py-0.5 text-xs font-medium text-text-secondary">
                   {t("proposal_capabilities")}: {plannedExecutionCapabilitiesText(child.planned_execution)}
                 </span>
               ) : null}
