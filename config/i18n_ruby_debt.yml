@@ -2,7 +2,7 @@
 # allowlist: translate new copy instead of raising these maximums. The focused
 # audit spec prints current totals when a category grows.
 maximums:
-  render_error: 255
-  response_field: 395
+  render_error: 213
+  response_field: 379
   model_error: 236
   serializer_label: 94

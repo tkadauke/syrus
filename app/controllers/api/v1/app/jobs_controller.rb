@@ -105,7 +105,7 @@ module Api
           priority = params[:priority].to_s
 
           unless Job::PRIORITIES.include?(priority)
-            render_error("invalid_priority", "Invalid priority value.", status: :unprocessable_content)
+            render_error("invalid_priority", t("api.jobs.errors.invalid_priority"), status: :unprocessable_content)
             return
           end
 
@@ -120,11 +120,11 @@ module Api
           setting = params[:job_provider_setting].to_s
 
           unless Job.provider_settings.include?(setting)
-            render_error("invalid_provider_setting", "Invalid provider setting.", status: :unprocessable_content)
+            render_error("invalid_provider_setting", t("api.jobs.errors.invalid_provider_setting"), status: :unprocessable_content)
             return
           end
           if setting != "default" && !Current.user.agent_provider_configured?(setting)
-            render_error("provider_not_configured", "That agent is not configured.", status: :unprocessable_content)
+            render_error("provider_not_configured", t("api.jobs.errors.provider_not_configured"), status: :unprocessable_content)
             return
           end
 
@@ -150,29 +150,29 @@ module Api
           path = params[:path].to_s
           ref = params[:ref].to_s
           if path.blank? || ref.blank?
-            render_error("bad_request", "path and ref are required.", status: :bad_request)
+            render_error("bad_request", t("api.jobs.errors.path_and_ref_required"), status: :bad_request)
             return
           end
 
           content = RepositoryContent.for(job.repository, user: Current.user)
           blob = content.read_if_present(content.resolve(ref), path)
           unless blob
-            render_error("not_found", "File not found at that ref.", status: :not_found)
+            render_error("not_found", t("api.jobs.errors.file_not_found_at_ref"), status: :not_found)
             return
           end
 
           send_secure_file blob.bytes, filename: File.basename(path), type: Marcel::MimeType.for(name: path)
         rescue RepositoryContent::NoProvider
-          render_error("no_github_token", "GitHub token not configured. Add one in Settings to browse source.", status: :unprocessable_content)
+          render_error("no_github_token", t("api.jobs.errors.github_token_required"), status: :unprocessable_content)
         rescue RepositoryContent::UnknownRevision
-          render_error("not_found", "No such ref.", status: :not_found)
+          render_error("not_found", t("api.jobs.errors.ref_not_found"), status: :not_found)
         rescue RepositoryContent::Error => e
-          render_error("source_unavailable", "Could not read the repository right now: #{e.message}", status: :service_unavailable)
+          render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
         end
 
         def timeline
           unless Current.user&.admin?
-            render_error("forbidden", "Admin access required.", status: :forbidden)
+            render_error("forbidden", t("api.jobs.errors.admin_required"), status: :forbidden)
             return
           end
 
@@ -187,7 +187,7 @@ module Api
           job = find_job
           workflow = job.workflows.find_by(id: params[:workflow_id])
           unless workflow
-            render_error("not_found", "Workflow not found for this Job.", status: :not_found)
+            render_error("not_found", t("api.jobs.errors.workflow_not_found"), status: :not_found)
             return
           end
 
@@ -198,7 +198,7 @@ module Api
           job = find_job_by_param(:job_id)
           run = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha).includes(:step).find_by(id: params[:run_id])
           unless run
-            render_error("not_found", "Run not found.", status: :not_found)
+            render_error("not_found", t("api.jobs.errors.run_not_found"), status: :not_found)
             return
           end
 
@@ -214,7 +214,7 @@ module Api
           job = find_job_by_param(:job_id)
           run = job.runs.includes(:step).find_by(id: params[:run_id])
           unless run && %w[grade grader grader_collect].include?(run.step&.kind)
-            render_error("not_found", "Grade log is not available for this run.", status: :not_found)
+            render_error("not_found", t("api.jobs.errors.grade_log_unavailable"), status: :not_found)
             return
           end
 
@@ -222,7 +222,7 @@ module Api
           unless contents
             render_error(
               "not_found",
-              "Grade log is no longer available. The workflow workspace may have been pruned.",
+              t("api.jobs.errors.grade_log_pruned"),
               status: :not_found
             )
             return
@@ -256,7 +256,7 @@ module Api
         def diff
           job = find_job
           unless job.pr_number.present?
-            render_error("no_pr", "Job does not have a pull request.", status: :unprocessable_content)
+            render_error("no_pr", t("api.jobs.errors.no_pull_request"), status: :unprocessable_content)
             return
           end
 
@@ -273,7 +273,7 @@ module Api
           if response.is_a?(Net::HTTPSuccess)
             render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: response.body.to_s }
           else
-            render_error("github_error", "GitHub diff request failed: #{response.code}", status: :bad_gateway)
+            render_error("github_error", t("api.jobs.errors.github_diff_failed", status: response.code), status: :bad_gateway)
           end
         rescue ArgumentError
           render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: nil, no_github_token: true }
@@ -290,17 +290,17 @@ module Api
           blocker_key = params[:blocker_key].to_s
           refreshed_key = current_landing_blocker_key(job)
           unless refreshed_key == blocker_key
-            render_error("validation_failed", "Current landing blocker is #{refreshed_key.presence || 'none'}, not #{blocker_key}.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.jobs.errors.landing_blocker_changed", current: refreshed_key.presence || "none", requested: blocker_key), status: :unprocessable_content)
             return
           end
 
           unless LandingBlockerOverride.overridable?(blocker_key)
-            render_error("validation_failed", "#{blocker_key} cannot be bypassed.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.jobs.errors.landing_blocker_not_bypassable", blocker: blocker_key), status: :unprocessable_content)
             return
           end
 
           if job.landing_blocker_override_key.present? && job.landing_blocker_override_used_at.blank?
-            render_error("validation_failed", "#{job.slug} already has an unused landing blocker override.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.jobs.errors.landing_blocker_override_exists", job: job.slug), status: :unprocessable_content)
             return
           end
 
