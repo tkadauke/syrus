@@ -314,3 +314,17 @@ retain 6 hours and can be indexed for full-text search when
 `work_engine_reconciler_activity_events` contain detailed reconciler issue,
 plan, and repair execution rows. They retain 7 days and are surfaced by
 Admin -> Reconciler Events.
+
+## Page engagement telemetry
+
+Syrus can collect opt-in estimates of an operator's active time on Job,
+PR-review, and chat pages. Enable **Page engagement telemetry** in App Settings
+(`AppSetting.ui_engagement_telemetry_enabled`). It is off by default; while it
+is off the browser does not send samples and the API discards any that arrive.
+
+Each page visit records only the signed-in user, an allowlisted route identifier,
+the Job or chat ID, start/end timestamps, visible-tab time, and active time.
+Active time stops after 60 seconds without pointer, keyboard, or scroll input.
+It resumes with new input and never includes hidden-tab time. Samples are sent
+when the page is hidden or left and are deleted after 90 days. Core exposes no
+cross-user read endpoint for these samples.

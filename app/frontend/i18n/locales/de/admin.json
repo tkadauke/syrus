@@ -579,6 +579,8 @@
     "saving": "Wird gespeichert...",
     "signups_open_label": "Offene Anmeldungen",
     "signups_open_help": "Wenn aktiviert, kann sich jeder unter /users/new registrieren. Wenn deaktiviert, ist die Anmeldung nur per Einladung möglich, aber Einladungslinks funktionieren weiterhin.",
+    "ui_engagement_telemetry_label": "Telemetrie zur Seitennutzung",
+    "ui_engagement_telemetry_help": "Erfasst pro Nutzer die aktive und sichtbare Zeit auf Job-, Review- und Chat-Seiten. Die Erfassung ist standardmäßig deaktiviert; Daten werden nach 90 Tagen gelöscht.",
     "report_issue_repo_slug_label": "Repository für Fehlermeldungen",
     "report_issue_repo_slug_help": "Repository-Slug für den In-App-Flow „Problem melden“. Format: owner/name.",
     "telegram_bot_handle_label": "Telegram-Bot-Handle",
