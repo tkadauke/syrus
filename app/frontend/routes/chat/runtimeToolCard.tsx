@@ -142,7 +142,15 @@ type RuntimeCard =
       tailDetails: boolean
       raw: unknown
     }
-  | { kind: "logs"; entries: string[]; cursor: string | null; nextCursor: string | null; raw: unknown }
+  | {
+      kind: "logs"
+      entries: string[]
+      sessionId: string | null
+      limit: string | null
+      requestedCursor: string | null
+      nextCursor: string | null
+      raw: unknown
+    }
   | { kind: "input"; event: RuntimeInputEvent; rawEvent: unknown; raw: unknown }
   | { kind: "snapshot"; snapshot: RuntimeSnapshot }
   | { kind: "artifact"; artifact: RuntimeArtifact }
@@ -329,7 +337,9 @@ function parseLogsCard(context: ToolCardContext): RuntimeCard | null {
   return {
     kind: "logs",
     entries: stringList(parsed.entries),
-    cursor: displayValue(context.input?.cursor),
+    sessionId: displayValue(context.input?.session_id),
+    limit: displayValue(context.input?.limit),
+    requestedCursor: displayValue(context.input?.cursor),
     nextCursor: firstDisplayValue(parsed.next_cursor, parsed.cursor),
     raw: parsed
   }
@@ -1012,8 +1022,10 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
     <CardShell>
       <FieldRows
         rows={[
+          ["Session ID", card.sessionId],
+          ["Limit", card.limit],
           ["Lines", String(card.entries.length)],
-          ["Cursor", card.cursor],
+          ["Requested cursor", card.requestedCursor],
           ["Next cursor", card.nextCursor]
         ]}
       />
@@ -1022,7 +1034,7 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
       ) : (
         <Disclosure label="Log preview">
           <FilterableList itemText={(entry) => entry} items={card.entries} placeholder="Filter log lines">
-            {(entries) => <TextPreview maxLines={40} text={entries.join("\n")} truncate="tail" />}
+            {(entries) => <TextPreview maxLines={40} modalLabel="Full Runtime logs" text={entries.join("\n")} truncate="tail" />}
           </FilterableList>
         </Disclosure>
       )}
