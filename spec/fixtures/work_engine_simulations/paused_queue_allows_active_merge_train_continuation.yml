@@ -1,6 +1,4 @@
 name: paused queue allows active merge train continuation
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: paused-queue-active-merge-train-continuation

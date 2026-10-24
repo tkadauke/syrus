@@ -858,14 +858,8 @@ export class OnboardingDriver {
     if (this.cancelRequested) return
     const identity = currentStackIdentity()
     const flags = ["--docker", "--non-interactive", "--json", "--skip-runtime-install", "--target-dir", stateDir]
-    // Isolate this channel's Compose project + volumes; a test stack also
-    // seeds repository polling paused so it does not race production to file
-    // Jobs (install.sh applies --pause-polling only when generating a fresh
-    // .env, so re-installs are unaffected).
+    // Isolate this channel's Compose project + volumes.
     flags.push("--project", identity.project)
-    if (identity.channel === "test") {
-      flags.push("--pause-polling")
-    }
     if (manifest?.image) {
       flags.push("--image", manifest.image)
     }

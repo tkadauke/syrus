@@ -1,6 +1,4 @@
 name: happy path job with epic dependency lands
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: happy-path-job-with-epic-dependency-lands

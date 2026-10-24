@@ -21,10 +21,10 @@ const failingReadiness: Readiness = {
   ]
 }
 
-function renderPanel(readiness: Readiness) {
+function renderPanel(readiness: Readiness, prefix = "") {
   return render(
     <MemoryRouter>
-      <ReadinessPanel prefix="" readiness={readiness} />
+      <ReadinessPanel prefix={prefix} readiness={readiness} />
     </MemoryRouter>
   )
 }
@@ -56,6 +56,13 @@ describe("ReadinessPanel", () => {
     renderPanel(failingReadiness)
 
     expect(screen.getByText("GitHub credentials missing.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open Operator Console" })).toHaveAttribute("href", "/admin/console")
+  })
+
+  it("prefixes the Operator Console link in the app shell", () => {
+    renderPanel(failingReadiness, "/app-shell")
+
+    expect(screen.getByRole("link", { name: "Open Operator Console" })).toHaveAttribute("href", "/app-shell/admin/console")
   })
 
   it("suppresses the failing checks while the backend update has the containers down", async () => {

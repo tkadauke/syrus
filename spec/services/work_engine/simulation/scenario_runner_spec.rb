@@ -133,14 +133,13 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(child).to be_implemented
   end
 
-  it "treats cross-epic dependency waits as valid waiting when the fixture declares them" do
+  it "lands an approved upstream Epic train before running cross-Epic dependent work" do
     result = run_scenario("cross_epic_approved_parent_waits_for_merge")
 
-    expect(result).to be_waiting
+    expect(result).to be_success
     parent, child = Job.where(id: result.job_ids).order(:id).to_a
-    expect(parent).to be_approved
-    expect(%w[queued blocked_by_epic]).to include(child.state)
-    expect(result.wait_reasons.join("\n")).to include(child.slug)
+    expect(parent).to be_closed
+    expect(child).to be_implemented
   end
 
   it "treats operator approval as a valid waiting outcome" do
@@ -172,13 +171,13 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(jobs).to all(be_implemented)
   end
 
-  it "keeps downstream epic work waiting while its upstream epic is not landed" do
+  it "lands an approved upstream Epic train before releasing its downstream Epic" do
     result = run_scenario("epic_dependency_waits_for_upstream_epic")
 
-    expect(result).to be_waiting
+    expect(result).to be_success
     upstream, downstream = Job.where(id: result.job_ids).order(:id).to_a
-    expect(upstream).to be_approved
-    expect(%w[queued blocked_by_epic]).to include(downstream.state)
+    expect(upstream).to be_closed
+    expect(downstream).to be_implemented
   end
 
   it "applies operator approval events and drains an epic merge train" do
@@ -198,7 +197,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     root, child = Job.where(id: result.job_ids).order(:id).to_a
     expect(root).to be_closed
     expect(root.closure_reason).to eq("pr_merged")
-    expect(child).to be_approved
+    expect(child).to be_closed
     expect(result.events.join("\n")).to include("stack_auto_rebase")
   end
 

@@ -1030,7 +1030,6 @@ RSpec.describe LandingQueueProcessor, :ci_only do
   end
 
   it "classifies every Epic child as waiting for the merge train" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     child = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
 

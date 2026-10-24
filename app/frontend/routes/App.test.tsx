@@ -1668,8 +1668,7 @@ describe("App", () => {
                 runs_paused: false,
                 signups_open: true,
                 max_job_failures: 3,
-                grade_max_iterations: 2,
-                merge_train_enabled: false
+                grade_max_iterations: 2
               },
               users: [],
               recent_admin_actions: []
@@ -4500,6 +4499,7 @@ describe("App", () => {
     expect(screen.getByText("No Solid Queue worker processes are registered.")).toBeInTheDocument()
     expect(screen.getByText("Start the worker process with bin/jobs and confirm it can connect to the queue database.")).toBeInTheDocument()
     expect(screen.queryByText("GitHub accepted the configured personal access token.")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open Operator Console" })).toHaveAttribute("href", "/app-shell/admin/console")
     expectDashboardFetch(
       fetchSpy,
       "/api/v1/app/dashboard?view=list&subject=job",
@@ -8197,8 +8197,7 @@ describe("App", () => {
               runs_paused: true,
               signups_open: true,
               max_job_failures: 3,
-              grade_max_iterations: 2,
-              merge_train_enabled: false
+              grade_max_iterations: 2
             },
             users: [{ id: 1, email_address: "operator@example.com", display_name: "Operator" }],
             recent_admin_actions: [

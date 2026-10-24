@@ -1631,6 +1631,24 @@ export function UnifiedDiffTable({
   if (localTokenCache.current.patch !== file.patch) localTokenCache.current = { patch: file.patch, tokens: new Map() }
   const tokenCache = tokenCacheProp ?? localTokenCache.current.tokens
   const tokensByLine = useHighlightedDiffLines(lines, lang, tokenCache)
+  // An exhausted gap removes its hunk divider from the normalized row model.
+  // Keep any still-relevant trailing-gap control on that stable hunk's first
+  // source row instead of deriving ownership from the remaining dividers.
+  const orphanedHunkControlsByLineIndex = useMemo(() => {
+    const renderedDividerIds = new Set(lines.filter((line) => line.kind === "hunk").map((line) => line.hunkId))
+    const controlsByLineIndex = new Map<number, HunkControls>()
+    const assignedHunkIds = new Set<number>()
+
+    lines.forEach((line, index) => {
+      if (!isDiffCodeLine(line.kind) || line.hunkId < 0 || renderedDividerIds.has(line.hunkId) || assignedHunkIds.has(line.hunkId)) return
+      const controls = hunkControls?.[line.hunkId]
+      if (!controls?.up && !controls?.down) return
+
+      controlsByLineIndex.set(index, controls)
+      assignedHunkIds.add(line.hunkId)
+    })
+    return controlsByLineIndex
+  }, [hunkControls, lines])
   const [localHighlight, setLocalHighlight] = useState<string | null>(null)
   const activeHighlight = highlightedToken !== undefined ? highlightedToken : localHighlight
   const toggleHighlight = onToggleHighlightToken ?? ((token: string) => setLocalHighlight((current) => (current === token ? null : token)))
@@ -1646,8 +1664,6 @@ export function UnifiedDiffTable({
   const showReviewNotes = hasReviewAnnotations(reviewAnnotations, reviewAnnotationRanges)
   const showMetricGutter = diffLineMetricProviders.length > 0
   const splitInlineRows = splitView
-
-  let hunkIndex = -1
 
   const scrollClass =
     lineWrapping === "scroll"
@@ -1845,8 +1861,7 @@ export function UnifiedDiffTable({
         <tbody>
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
-              hunkIndex += 1
-              const controls = hunkControls?.[hunkIndex]
+              const controls = hunkControls?.[line.hunkId]
               return (
                 <HunkRow
                   controls={controls}
@@ -1879,6 +1894,7 @@ export function UnifiedDiffTable({
             const isComposingHere = Boolean(lineAnchorKey && composingKey && composingKey === lineAnchorKey)
             const visibleLineNumber = collapseUnifiedGutters ? (line.newLine ?? line.oldLine ?? "") : (line.newLine ?? "")
             const visibleLineNumberCommentSide = collapseUnifiedGutters ? commentSide : commentSide === "new" ? "new" : null
+            const orphanedHunkControls = orphanedHunkControlsByLineIndex.get(index)
             if (splitView && isDiffCodeLine(line.kind)) {
               return (
                 <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
@@ -1892,6 +1908,7 @@ export function UnifiedDiffTable({
                     lineAnchorKey={lineAnchorKey}
                     onCommentLine={onCommentLine}
                     onToggleHighlightToken={toggleHighlight}
+                    orphanedHunkControls={orphanedHunkControls}
                     reviewSettings={reviewSettings}
                     lineMetrics={lineMetrics}
                     reviewNotes={reviewNotes}
@@ -1988,11 +2005,21 @@ export function UnifiedDiffTable({
                   </td>
                   {/* eslint-disable-next-line design-system/no-raw-table-classes */}
                   <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
-                    {annotation === "covered" ? (
-                      <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-                    ) : annotation === "uncovered" ? (
-                      <span className="text-red-600 dark:text-red-400">✗</span>
-                    ) : null}
+                    <div className="flex items-center justify-center gap-0.5">
+                      {orphanedHunkControls?.down ? (
+                        <HunkContextButton
+                          direction="down"
+                          lineCount={orphanedHunkControls.down.lineCount}
+                          loading={orphanedHunkControls.down.loading}
+                          onClick={orphanedHunkControls.down.onClick}
+                        />
+                      ) : null}
+                      {annotation === "covered" ? (
+                        <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                      ) : annotation === "uncovered" ? (
+                        <span className="text-red-600 dark:text-red-400">✗</span>
+                      ) : null}
+                    </div>
                   </td>
                   {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes} reviewSettings={reviewSettings} /> : null}
                   {showMetricGutter ? <MetricGutterCell metrics={lineMetrics} reviewSettings={reviewSettings} /> : null}
@@ -2140,6 +2167,7 @@ function SplitDiffRow({
   lineAnchorKey,
   onCommentLine,
   onToggleHighlightToken,
+  orphanedHunkControls,
   reviewSettings,
   reviewNotes,
   reviewNoteIds,
@@ -2160,6 +2188,7 @@ function SplitDiffRow({
   lineAnchorKey?: string | null
   onCommentLine?: (selection: DiffLineSelection) => void
   onToggleHighlightToken: (token: string) => void
+  orphanedHunkControls?: HunkControls
   reviewSettings: ReviewDiffSettings
   reviewNotes?: DiffReviewAnnotation[]
   reviewNoteIds: string[]
@@ -2239,11 +2268,21 @@ function SplitDiffRow({
         ) : null}
       </td>
       <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
-        {annotation === "covered" ? (
-          <span className="text-success-text">✓</span>
-        ) : annotation === "uncovered" ? (
-          <span className="text-danger-text">✗</span>
-        ) : null}
+        <div className="flex items-center justify-center gap-0.5">
+          {orphanedHunkControls?.down ? (
+            <HunkContextButton
+              direction="down"
+              lineCount={orphanedHunkControls.down.lineCount}
+              loading={orphanedHunkControls.down.loading}
+              onClick={orphanedHunkControls.down.onClick}
+            />
+          ) : null}
+          {annotation === "covered" ? (
+            <span className="text-success-text">✓</span>
+          ) : annotation === "uncovered" ? (
+            <span className="text-danger-text">✗</span>
+          ) : null}
+        </div>
       </td>
       {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes ?? []} reviewSettings={reviewSettings} /> : null}
       {showMetricGutter ? <MetricGutterCell metrics={lineMetrics} reviewSettings={reviewSettings} /> : null}

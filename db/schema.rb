@@ -205,7 +205,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_140926) do
     t.integer "max_concurrent_agent_runs", default: 3, null: false
     t.integer "max_in_flight_workflows", default: 0, null: false
     t.integer "max_job_failures", default: 3, null: false
-    t.boolean "merge_train_enabled", default: false, null: false
     t.string "merge_train_failure_policy", default: "restart", null: false
     t.integer "merge_train_max_size", default: 20, null: false
     t.integer "metrics_dashboard_sample_retention_days", default: 30, null: false

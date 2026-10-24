@@ -290,10 +290,11 @@ Consequences worth knowing:
 - **Fully isolated backends.** The two stacks are separate Docker Compose
   projects with separate databases and encryption keys, so a test build cannot
   corrupt production data. Each channel does credential setup once.
-- **Polling starts paused on a test stack.** So it does not race production to
-  file Jobs on the same repos, a fresh test backend boots with repository
-  polling paused (`SYRUS_BOOT_POLLING_PAUSED`, seeded once). Unpause it from
-  the admin console when you intend the test stack to work real repositories.
+- **Polling starts immediately on every fresh stack.** Test-channel installs
+  use the same functional default as production. To create a fresh stack with
+  polling intentionally paused, invoke the Docker installer with
+  `--pause-polling`; the one-time seed does not alter existing instances, whose
+  polling state remains controlled from the Operator Console.
 - **The CLI forks too.** A test build installs `syrus-test`, which reads
   `~/.syrus/credentials.test` — so `syrus-test jobs` talks to the test backend
   while plain `syrus` stays on production. One Go binary resolves its profile

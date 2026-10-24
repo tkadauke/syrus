@@ -1,6 +1,4 @@
 name: merge train recovers from repeated base moves
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: merge-train-recovers-from-repeated-base-moves

@@ -56,7 +56,7 @@ RSpec.describe AutoApprovalRule do
                               pr_number: 100 + rand(10_000) }.merge(attrs))
   end
 
-  it "auto-approves, lands, AND dispatches an AutoMerge workflow when repo-committed graders pass" do
+  it "auto-approves, lands, AND dispatches a merge-train workflow when repo-committed graders pass" do
     # Epic#releases_jobs_for_execution? is true only when state is
     # in_progress / done. Otherwise blocked_by_epic_before_execution?
     # blocks landing-queue dispatch.
@@ -75,11 +75,10 @@ RSpec.describe AutoApprovalRule do
       "grader_step_id" => step.id
     )
     expect(job.current_run.job_logs.last.chunk).to include("auto_approval: approved via if_graders_pass")
-    # Regression: the previous `@job.land!` transitioned state to
-    # :landing but never instantiated the AutoMerge workflow, jamming
-    # the landing queue with a stuck Job. Now LandingQueueProcessor.try_land!
-    # dispatches the workflow inline.
-    expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
+    # Regression: landing must instantiate the Epic's merge-train workflow
+    # inline rather than leave the auto-approved Job stuck in :landing without
+    # lifecycle-managed landing work.
+    expect(job.workflows.where(trigger_kind: "merge_train").count).to eq(1)
   end
 
   it "auto-approves cron jobs from the originating ScheduledTasks::Task rule" do

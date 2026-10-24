@@ -55,11 +55,10 @@ class AppSetting < ApplicationRecord
   encrypts :discord_bot_token
 
   # Singleton row. .current returns the only record, creating it if missing.
-  # On the very first create (fresh database), SYRUS_BOOT_POLLING_PAUSED seeds
-  # polling paused — a side-by-side test stack sets it in its .env so it does
-  # not race the production stack to file Jobs on the same repos. It seeds the
-  # DB row ONCE, so the operator can still unpause from the admin console when
-  # they intend the test stack to work real repositories.
+  # On the very first create (fresh database), an explicitly configured
+  # SYRUS_BOOT_POLLING_PAUSED value can seed polling paused. Installations do
+  # not set it by default; `install.sh --pause-polling` is the operator escape
+  # hatch. It seeds the DB row once, so later console changes remain durable.
   def self.current
     if Thread.current[:syrus_app_setting_current_cache_enabled] && Thread.current[:syrus_app_setting_current]
       return Thread.current[:syrus_app_setting_current]
@@ -165,12 +164,6 @@ class AppSetting < ApplicationRecord
 
   def self.main_concern_report_threshold
     current.main_concern_report_threshold
-  end
-
-  # Epic merge-train (see docs/plans/landing-merge-train.md). Default
-  # off; landing keeps the per-Job auto_merge path until enabled.
-  def self.merge_train_enabled?
-    current.merge_train_enabled
   end
 
   def self.merge_train_failure_policy

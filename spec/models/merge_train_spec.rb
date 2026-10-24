@@ -45,8 +45,7 @@ RSpec.describe MergeTrain do
     end
   end
 
-  it "defaults merge_train settings to disabled" do
-    expect(AppSetting.merge_train_enabled?).to be(false)
+  it "defaults the merge-train size limit" do
     expect(AppSetting.merge_train_max_size).to eq(20)
   end
 

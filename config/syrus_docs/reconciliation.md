@@ -6,7 +6,7 @@ Epics reconcile inside merge-train landing, after Syrus has built the integratio
 
 ## How it works
 
-When merge trains are enabled and every open Epic child Job is approved, Syrus dispatches a `merge_train` workflow. The train:
+When every open Epic child Job is approved, Syrus dispatches a `merge_train` workflow. The train:
 
 1. **Builds one integration branch** — child PR branches are rebased into the train in dependency order.
 2. **Runs `merge_train_reconcile`** — the agent inspects the integrated tree for sibling inconsistencies and may make focused fixes on the integration branch.
@@ -16,4 +16,4 @@ Operator and chat guidance should talk about the merge-train reconciliation phas
 
 ## Landing gate
 
-For current Epics with merge trains enabled, child Jobs do not land through the per-Job auto-merge path. They stay approved with `blocked_reason: "waiting for Epic merge-train"` until all open siblings are approved, then land atomically through the train.
+Epic child Jobs do not land through the per-Job auto-merge path. They stay approved with `blocked_reason: "waiting for Epic merge-train"` until all open siblings are approved, then land atomically through the train.

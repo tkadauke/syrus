@@ -60,8 +60,6 @@ RSpec.describe "admin API prefix ownership" do
     POST /api/v1/app/admin/console/unpause_polling api/v1/app/admin/console#unpause_polling
     POST /api/v1/app/admin/console/pause_runs api/v1/app/admin/console#pause_runs
     POST /api/v1/app/admin/console/unpause_runs api/v1/app/admin/console#unpause_runs
-    POST /api/v1/app/admin/console/enable_merge_train api/v1/app/admin/console#enable_merge_train
-    POST /api/v1/app/admin/console/disable_merge_train api/v1/app/admin/console#disable_merge_train
     POST /api/v1/app/admin/console/clear_github_cache api/v1/app/admin/console#clear_github_cache
     POST /api/v1/app/admin/restart api/v1/app/admin/restart#create
     GET /api/v1/app/admin/installations api/v1/app/admin/installations#index
@@ -122,8 +120,6 @@ RSpec.describe "admin API prefix ownership" do
     POST /api/v1/admin/console/unpause_polling api/v1/admin/console#unpause_polling
     POST /api/v1/admin/console/pause_runs api/v1/admin/console#pause_runs
     POST /api/v1/admin/console/unpause_runs api/v1/admin/console#unpause_runs
-    POST /api/v1/admin/console/enable_merge_train api/v1/admin/console#enable_merge_train
-    POST /api/v1/admin/console/disable_merge_train api/v1/admin/console#disable_merge_train
     POST /api/v1/admin/restart api/v1/admin/restart#create
     GET /api/v1/admin/version api/v1/admin/versions#index
     GET /api/v1/admin/users api/v1/admin/users#index

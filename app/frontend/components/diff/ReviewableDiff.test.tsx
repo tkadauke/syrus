@@ -2022,6 +2022,32 @@ describe("hidden-context expansion", () => {
     expect(onLoadFileContext).toHaveBeenCalledTimes(1)
     expect(getCodeCellText("line 4")).toBeInTheDocument()
     expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
+    expect(screen.queryByText("@@ -5,1 +5,2 @@")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Load 20 more lines below"))
+    await findCodeCellText("line 10")
+    expect(screen.queryByLabelText("Load 20 more lines below")).not.toBeInTheDocument()
+  })
+
+  it("keeps trailing context reachable in split view after removing an exhausted prefix divider", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
+    const { container } = render(
+      <ReviewableDiff
+        files={[fileWithHunkAt(5)]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split" }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText("Load 20 more lines above"))
+
+    await screen.findByLabelText("Load 20 more lines below")
+    expect(container.querySelector("table")).toHaveAttribute("data-review-diff-view", "split")
+    expect(screen.queryByText("@@ -5,1 +5,2 @@")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
   })
 
   it("keeps both hunk context controls in the collapsed mobile gutter", async () => {
@@ -2045,6 +2071,7 @@ describe("hidden-context expansion", () => {
       await findCodeCellText("line 1")
       expect(onLoadFileContext).toHaveBeenCalledTimes(1)
       expect(getCodeCellText("line 4")).toBeInTheDocument()
+      expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
       else Reflect.deleteProperty(window, "matchMedia")
@@ -2098,12 +2125,11 @@ describe("hidden-context expansion", () => {
       "between 3",
       "between 4",
       "between 5",
-      "@@ -6,1 +6,1 @@",
       "second"
     ])
   })
 
-  it("places automatically revealed above-hunk context after the next hunk divider", async () => {
+  it("removes the next hunk divider when automatic annotation reveal exhausts the gap", async () => {
     const twoHunkFile = {
       additions: 0,
       deletions: 0,
@@ -2111,7 +2137,11 @@ describe("hidden-context expansion", () => {
       path: "f.rb",
       status: "modified"
     }
-    const onLoadFileContext = vi.fn().mockResolvedValue(["first", "between 2", "between 3", "between 4", "between 5", "second"].join("\n"))
+    const onLoadFileContext = vi
+      .fn()
+      .mockResolvedValue(
+        ["first", "between 2", "between 3", "between 4", "between 5", "second", ...Array.from({ length: 9 }, (_, index) => `after ${index + 7}`)].join("\n")
+      )
 
     render(
       <ReviewableDiff
@@ -2121,16 +2151,25 @@ describe("hidden-context expansion", () => {
         reviewAnnotationRanges={{
           "f.rb": [{ id: "note-near-second-hunk", side: "new", start_line: 6, end_line: 6, title: "Inspect second hunk" }]
         }}
-        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 2 }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 4 }}
         showFileHeaders
       />
     )
 
-    await findCodeCellText("between 4")
+    await findCodeCellText("between 2")
     const codeCells = Array.from(screen.getAllByRole("cell"))
       .filter((cell) => cell.className.includes("min-w-[40rem]"))
       .map((cell) => cell.textContent)
-    expect(codeCells.slice(codeCells.indexOf("@@ -6,1 +6,1 @@"), codeCells.indexOf("second") + 1)).toEqual(["@@ -6,1 +6,1 @@", "between 4", "between 5", "second"])
+    expect(codeCells).not.toContain("@@ -6,1 +6,1 @@")
+    expect(codeCells.slice(codeCells.indexOf("first"), codeCells.indexOf("second") + 1)).toEqual([
+      "first",
+      "between 2",
+      "between 3",
+      "between 4",
+      "between 5",
+      "second"
+    ])
+    expect(screen.getByLabelText("Load 4 more lines below")).toBeInTheDocument()
   })
 
   it("reveals hidden context and renders an inline range annotation when a note spans two hunks", async () => {
