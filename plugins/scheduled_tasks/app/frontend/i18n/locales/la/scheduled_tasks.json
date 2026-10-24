@@ -1,4 +1,10 @@
 {
+  "auto_approve_never": "Numquam",
+  "auto_approve_never_preview": "Nulla regula directa; Jobs tamen praedefinitionem repositorii vel usoris hereditare possunt.",
+  "auto_approve_graders": "Si graders succedunt",
+  "auto_approve_graders_preview": "Jobs hac regula utentes post graders in repositorio definitos prospere perfectos ad landing transeunt.",
+  "auto_approve_safe": "Si graders succedunt et tuto notantur",
+  "auto_approve_safe_preview": "Jobs hac regula utentes etiam safe tag ante landing indigent.",
   "tool_list_summary_one": "{{count}} opus ordinatum",
   "tool_list_summary_other": "{{count}} opera ordinata",
   "tool_list_empty": "Nulla opera ordinata huic repositorio sunt.",

@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it } from "vitest"
+import i18n from "i18next"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import loadCanvasToolCard from "./load_canvas"
 
@@ -14,6 +15,10 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("load_canvas tool card", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en")
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(loadCanvasToolCard.toolName).toBe("load_canvas")
   })
@@ -34,6 +39,19 @@ describe("load_canvas tool card", () => {
     render(<>{loadCanvasToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("#4")).toBeInTheDocument()
+  })
+
+  it("localizes snapshot preview metadata", async () => {
+    await i18n.changeLanguage("de")
+    const parsedResult = { loaded: true, elements_added: 6, auto_saved_snapshot_id: 4, snapshot_id: 8, mode: "replace", version: 3 }
+
+    render(<>{loadCanvasToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Snapshot #8" }))
+    expect(await screen.findByText("Snapshot-ID")).toBeInTheDocument()
+    expect(screen.getByText("Modus")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "ID kopieren" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Auto-Speicherung kopieren" })).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload (loaded not true)", () => {
