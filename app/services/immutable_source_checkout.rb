@@ -161,13 +161,12 @@ class ImmutableSourceCheckout
     remote, branch = remote_tracking_ref_parts(base_ref)
     log("[immutable_source_checkout] fetching base ref #{base_ref}")
     ensure_remote!(remote)
-    authenticated_git_for(remote_repository(remote), "git_immutable_source_base_fetch") do |url|
-      @git.run(
-        "fetch", "--no-tags", url,
-        "+refs/heads/#{branch}:refs/remotes/#{remote}/#{branch}",
-        chdir: path.to_s,
-        env: @env
-      )
+    begin
+      fetch_remote_branch!(remote, branch, destination_ref: remote_tracking_ref(remote, branch))
+    rescue GitRunner::GitError => e
+      raise unless missing_remote_ref?(e)
+
+      resolve_deleted_base_ref!(remote, branch)
     end
     return if git_ref_exists?(base_ref)
 
@@ -190,6 +189,50 @@ class ImmutableSourceCheckout
     end
 
     [ remote, branch ]
+  end
+
+  def resolve_deleted_base_ref!(remote, branch)
+    repository = remote_repository(remote)
+    default_branch = repository.default_branch.to_s.presence
+    raise_infrastructure!("immutable source checkout cannot resolve deleted base ref #{base_ref}") unless default_branch
+
+    log("[immutable_source_checkout] base ref #{base_ref} no longer exists; fetching #{remote}/#{default_branch} for fallback")
+    fetch_remote_branch!(remote, default_branch, destination_ref: remote_tracking_ref(remote, default_branch))
+
+    default_ref = remote_tracking_ref(remote, default_branch)
+    parent_landed_sha = parent_landed_sha_for(repository)
+    target = parent_landed_sha if parent_landed_sha && git_ref_exists?(parent_landed_sha)
+    target ||= default_ref if git_ref_exists?(default_ref)
+    raise_infrastructure!("immutable source checkout cannot resolve deleted base ref #{base_ref}") unless target
+
+    @git.run("update-ref", remote_tracking_ref(remote, branch), target, chdir: path.to_s)
+    log("[immutable_source_checkout] resolved deleted base ref #{base_ref} to #{target}")
+  end
+
+  def fetch_remote_branch!(remote, branch, destination_ref:)
+    authenticated_git_for(remote_repository(remote), "git_immutable_source_base_fetch") do |url|
+      @git.run(
+        "fetch", "--no-tags", url,
+        "+refs/heads/#{branch}:#{destination_ref}",
+        chdir: path.to_s,
+        env: @env
+      )
+    end
+  end
+
+  def parent_landed_sha_for(repository)
+    parent = @job.parent_job
+    return unless parent&.repository_id == repository.id
+
+    parent.landed_sha.to_s.presence
+  end
+
+  def remote_tracking_ref(remote, branch)
+    "refs/remotes/#{remote}/#{branch}"
+  end
+
+  def missing_remote_ref?(error)
+    error.output.to_s.match?(/couldn't find remote ref|remote ref does not exist|not our ref/i)
   end
 
   def ensure_remote!(remote)
