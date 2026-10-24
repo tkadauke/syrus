@@ -551,7 +551,7 @@ module Ruby
 
     def parallel_prepare_command
       command = parallel_config["prepare_command"].to_s.strip
-      command.present? ? "#{command} &&" : ""
+      command.present? ? %(PARALLEL_TEST_PROCESSORS="$RSPEC_PARALLEL_PROCESSES" #{command} &&) : ""
     end
 
     def parallel_rspec_enabled_for?(mode)

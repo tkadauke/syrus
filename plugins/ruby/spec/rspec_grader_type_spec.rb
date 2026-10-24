@@ -9,7 +9,7 @@ RSpec.describe Ruby::RspecGraderType do
     Shellwords.split(script_arg).sole
   end
 
-  def run_generated_rspec_command(command, parallel_status:, serial_status: 0)
+  def run_generated_rspec_command(command, parallel_status:, serial_status: 0, extra_env: {})
     Dir.mktmpdir("rspec-grader-command") do |dir|
       bin_dir = File.join(dir, "bin")
       FileUtils.mkdir_p(bin_dir)
@@ -41,7 +41,7 @@ RSpec.describe Ruby::RspecGraderType do
         "GEM_PATH" => nil,
         "RUBYLIB" => nil,
         "RUBYOPT" => nil
-      }
+      }.merge(extra_env)
       yield dir if block_given?
       stdout, stderr, status = Open3.capture3(env, "bash", "-c", command, chdir: dir)
       parallel_args = File.exist?(File.join(dir, "parallel_rspec_args.txt")) ? File.read(File.join(dir, "parallel_rspec_args.txt")) : ""
@@ -619,6 +619,7 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.first.run).to include("grouping shards by file size")
     expect(steps.first.run).to include("--exec-args bin/rspec-worker spec")
     expect(steps.first.run).to include("bundle exec rake parallel:prepare")
+    expect(steps.first.run).to include('PARALLEL_TEST_PROCESSORS="$RSPEC_PARALLEL_PROCESSES" bundle exec rake parallel:prepare')
     expect(steps.first.run.index('RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"')).to be <
       steps.first.run.index("bundle exec rake parallel:prepare")
     expect(steps.first.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
@@ -629,6 +630,29 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.second.run).to include("--exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)")
     expect(steps.third.run).to include("bundle exec rspec")
     expect(steps.third.run).not_to include("parallel_rspec")
+  end
+
+  it "passes the resolved capped worker count to the parallel prepare command" do
+    step = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full" ],
+          "processes" => "4",
+          "prepare_command" => "sh -c 'echo PREPARE_COUNT=$PARALLEL_TEST_PROCESSORS'"
+        }
+      },
+      default_failures: "strict"
+    ).first
+
+    stdout, stderr, status = run_generated_rspec_command(
+      step.run,
+      parallel_status: 0,
+      extra_env: { "SYRUS_PROCESS_PARALLELISM" => "7" }
+    )
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("PREPARE_COUNT=4")
   end
 
   # parallel_tests' own default balances shards by file count, which on this
