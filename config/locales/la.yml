@@ -374,9 +374,16 @@ la:
       removed: "Membrum remotum est."
 
     credentials:
+      labels:
+        github_token: "signum GitHub"
+        claude_oauth_token: "signum OAuth Claude"
+        codex_api_key: "clavis API Codex"
+        codex_auth_json: "auth.json ChatGPT Codex"
+        gemini_api_key: "clavis API Gemini"
+        muse_api_key: "clavis API Muse"
       updated: "Credentialia renovata sunt."
       unknown: "Credentialia ignota sunt."
-      cleared: "%{label} deleta sunt."
+      cleared: "Credentialia (%{label}) deleta sunt."
       gemini_probe_unavailable: "Claves Gemini in hac instantia probari non possunt."
       claude_oauth_not_started: "Auctoritatem Claude prius incipe."
       chatgpt_oauth_not_started: "Auctoritatem ChatGPT prius incipe."

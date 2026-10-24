@@ -421,6 +421,26 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("credential_status", "muse_api_key")).to be false
   end
 
+  it "localizes successful credential clearing in German and Latin" do
+    sign_in_as(user)
+    user.update!(locale: "de", claude_oauth_token: "claude-secret")
+
+    post "/api/v1/app/credentials/clear_credential", params: { credential: "claude_oauth_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Claude-OAuth-Token gelöscht.")
+    expect(parse_body.dig("options", "clearable_credentials")).to include(
+      { "value" => "claude_oauth_token", "label" => "Claude-OAuth-Token" }
+    )
+
+    user.update!(locale: "la", muse_api_key: "muse-secret")
+
+    post "/api/v1/app/credentials/clear_credential", params: { credential: "muse_api_key" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Credentialia (clavis API Muse) deleta sunt.")
+  end
+
   it "tests a configured Muse credential and returns the provider result" do
     sign_in_as(user)
     result = CredentialProbe::Result.new(
