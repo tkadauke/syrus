@@ -38,6 +38,7 @@
   "tool_previous_prompt": "Promptum prius",
   "tool_previous_prompt_full": "Promptum operis prius integrum",
   "tool_field_schedule_input": "Ordo",
+  "tool_field_cron_expression": "Expressio cron",
   "tool_field_fire_at": "Tempus incipiendi",
   "tool_field_pr_pileup_policy": "Congeries PR",
   "tool_empty_value": "Vacuum",
