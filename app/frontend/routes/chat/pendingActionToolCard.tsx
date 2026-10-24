@@ -169,6 +169,19 @@ function stringList(value: unknown) {
 
 export function parsePendingActionResult(context: ToolCardContext, includeError = false): PendingActionResult | null {
   const value = normalizedToolCardParsedResult(context.parsedResult)
+  const input = context.input ?? {}
+  if (isPlainObject(value) && displayValue(value.error) && displayValue(value.message)) {
+    const error = displayValue(value.error)!
+    const errorMessage = displayValue(value.message)!
+    return {
+      kind: "error",
+      code: error,
+      message: errorMessage,
+      validBases: stringList(value.valid_bases),
+      evidence: isPlainObject(value.evidence) ? parseEvidence(value.evidence, input) : null,
+      ...parseContext(input)
+    }
+  }
   if (includeError && context.resultError)
     return {
       kind: "error",
@@ -176,22 +189,10 @@ export function parsePendingActionResult(context: ToolCardContext, includeError 
       message: parsedErrorMessage(value) || context.resultBody || "The tool returned an error.",
       validBases: [],
       evidence: null,
-      ...parseContext(context.input ?? {})
+      ...parseContext(input)
     }
   if (!isPlainObject(value)) return null
-  const input = context.input ?? {}
   const target = parseContext(input)
-  const error = displayValue(value.error)
-  const errorMessage = displayValue(value.message)
-  if (error && errorMessage)
-    return {
-      kind: "error",
-      code: error,
-      message: errorMessage,
-      validBases: stringList(value.valid_bases),
-      evidence: isPlainObject(value.evidence) ? parseEvidence(value.evidence, input) : null,
-      ...target
-    }
 
   const pendingActionId = displayValue(value.pending_action_id) || displayValue(value.pending_confirmation_id)
   const state = displayValue(value.state)
@@ -318,7 +319,14 @@ function ContextRows({
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
-      {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
+      {value.workflowId ? (
+        <Row
+          label="Workflow"
+          value={
+            <EntityReference href={value.jobId ? null : `/admin/workflows/${value.workflowId}`} id={value.workflowId} jobId={value.jobId} kind="workflow" />
+          }
+        />
+      ) : null}
       {!omitRun && value.runId ? (
         <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} />
       ) : null}
@@ -547,7 +555,7 @@ export function PendingActionResultCard({
         <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} omitRun={omitRun} value={result.evidence ?? result} />
         {details}
         {result.evidence ? <EvidenceShaRows evidence={result.evidence} /> : null}
-        {!details && !omitReason && result.inputReason ? (
+        {!details && !omitReason && result.inputReason && result.inputReason !== displayValue(input?.reason) ? (
           <div>
             <SectionLabel>Reason</SectionLabel>
             <MarkdownPreview linkifyUrls={linkifyReasonUrls} maxLines={4} modalLabel="Pending action reason" text={result.inputReason} />
