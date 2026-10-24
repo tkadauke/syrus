@@ -23,6 +23,8 @@ The repository owner gets that membership through the existing owner-membership 
 
 The `emergency_land` MCP tool never merges code immediately. It initially creates only a `ChatPendingAction` with `action: "emergency_land"` for the operator to confirm or decline in chat; no Job, Workflow, or WorkUnit is created at request time. After confirmation, the action remains visibly `confirming` while the chat worker captures and lands the change without admission control, a Workflow, or a WorkUnit. Only a successful merge marks it `confirmed`, and capture, permission, validation, or GitHub failures durably mark it `failed` with the actionable error.
 
+Repeating the same request reuses only an identical action that is still queued, pending, or confirming. A failed, rejected, cancelled, or confirmed action is historical: a retry creates a fresh confirmation without requiring the operator to dismiss the old action first.
+
 With `job_id`, the target is the Job's recorded, already-pushed branch; an optional `branch_name` must match that recorded branch. Without `job_id`, confirmation captures the active clean, committed Coding Mode checkout, publishes an immutable emergency branch, and creates the audit Job needed to record the landing.
 
 The pending-action UI renders with warning styling and states the consequence explicitly: Syrus graders, adversarial review, and visual review are skipped, and the PR is about to be merged directly through GitHub. Confirmation re-checks the feature flag, Coding Mode session, branch validity, repository access, and repository-admin permission before landing.
@@ -46,6 +48,7 @@ It does not skip GitHub or repository mechanics:
 - Syrus still opens a normal pull request with `PullRequestOpener` if the Job has no PR yet.
 - Syrus merges through GitHub's merge API rather than pushing directly to the default branch.
 - GitHub branch protection, mergeability, required checks, repository permissions, and merge conflicts still apply.
+- A newly opened PR may temporarily have unknown mergeability while GitHub computes it. Syrus polls for up to about 30 seconds; a reported conflict refuses immediately, while a value that remains unknown produces a distinct retryable refusal.
 - Existing Job branches must already have pushed commits ahead of the repository default branch. Direct checkout submission publishes an immutable emergency branch at the captured HEAD.
 - Unsatisfied dependencies, active runtime work, and branches shared by multiple open Jobs are refused.
 

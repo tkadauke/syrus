@@ -29,18 +29,26 @@ module EmergencyLand
     PERMISSION_DENIED_MESSAGE = "Emergency land requires repository admin permissions.".freeze
     ELIGIBLE_STATES = %w[queued implemented approved failed coding].freeze
     SKIPPED_CONTROLS = %w[graders adversarial_review visual_review admission_control normal_worker_queue].freeze
+    MERGEABILITY_POLL_INTERVAL = 2.seconds
+    MERGEABILITY_WAIT_CEILING = 30.seconds
 
     def self.eligible_state?(job) = job.state.in?(ELIGIBLE_STATES)
 
-    def self.land(job:, user:, client: nil)
-      new(job: job, user: user, client: client).land
+    def self.land(job:, user:, client: nil, mergeability_poll_interval: MERGEABILITY_POLL_INTERVAL,
+      mergeability_wait_ceiling: MERGEABILITY_WAIT_CEILING, sleeper: Kernel.method(:sleep))
+      new(job: job, user: user, client: client, mergeability_poll_interval: mergeability_poll_interval,
+        mergeability_wait_ceiling: mergeability_wait_ceiling, sleeper: sleeper).land
     end
 
-    def initialize(job:, user:, client: nil)
+    def initialize(job:, user:, client: nil, mergeability_poll_interval: MERGEABILITY_POLL_INTERVAL,
+      mergeability_wait_ceiling: MERGEABILITY_WAIT_CEILING, sleeper: Kernel.method(:sleep))
       @job = job
       @user = user
       @repository = job.repository
       @client = client
+      @mergeability_poll_interval = mergeability_poll_interval
+      @mergeability_wait_ceiling = mergeability_wait_ceiling
+      @sleeper = sleeper
     end
 
     def land
@@ -55,7 +63,10 @@ module EmergencyLand
       pr_number = open_pull_request!
       pull_request = validated_pull_request(pr_number)
       return refuse(pr_identity_mismatch_message(pr_number, pull_request)) unless pull_request_matches_job?(pull_request)
-      return refuse(not_mergeable_message(pr_number)) unless mergeable?(pull_request)
+      pull_request = wait_for_mergeability(pr_number, pull_request)
+      return refuse(pr_identity_mismatch_message(pr_number, pull_request)) unless pull_request_matches_job?(pull_request)
+      return refuse(not_mergeable_message(pr_number)) if pull_request.mergeable == false
+      return refuse(mergeability_unknown_message(pr_number)) if pull_request.mergeable.nil?
       expected_sha = pr_head_sha(pull_request)
       return failure("GitHub did not report a head SHA for PR ##{pr_number}.") if expected_sha.blank?
 
@@ -159,12 +170,23 @@ module EmergencyLand
         "#{job.effective_base_branch} from #{repository.slug}:#{job.branch_name}."
     end
 
-    def mergeable?(pull_request)
-      pull_request.mergeable == true
+    def wait_for_mergeability(pr_number, pull_request)
+      remaining = @mergeability_wait_ceiling
+      while pull_request.mergeable.nil? && remaining >= @mergeability_poll_interval && @mergeability_poll_interval.positive?
+        @sleeper.call(@mergeability_poll_interval)
+        remaining -= @mergeability_poll_interval
+        pull_request = validated_pull_request(pr_number)
+        break unless pull_request_matches_job?(pull_request)
+      end
+      pull_request
     end
 
     def not_mergeable_message(pr_number)
       "GitHub reports PR ##{pr_number} is not mergeable."
+    end
+
+    def mergeability_unknown_message(pr_number)
+      "GitHub has not finished computing mergeability for PR ##{pr_number}; retry emergency land shortly."
     end
 
     def pr_head_sha(pull_request)

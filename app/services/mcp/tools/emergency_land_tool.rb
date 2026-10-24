@@ -55,13 +55,6 @@ module Mcp::Tools
           branch_name: normalized_branch, title: title, description: description)
         return validation_error if validation_error
 
-        existing_action = pending_landing_action_for(chat_session, job)
-        if existing_action
-          return pending_action_response(existing_action) if existing_action.action == "emergency_land"
-
-          return Mcp::Tools.invalid("A complete_implement_step confirmation is already pending for #{job.slug}; resolve it before requesting emergency_land.")
-        end
-
         payload = {
           "chat_session_id" => chat_session.id,
           "job_id" => job&.id,
@@ -70,6 +63,13 @@ module Mcp::Tools
           "title" => title.to_s.strip.presence,
           "description" => description.to_s.strip.presence
         }
+        existing_action = pending_landing_action_for(chat_session, job, payload)
+        if existing_action
+          return pending_action_response(existing_action) if existing_action.action == "emergency_land"
+
+          return Mcp::Tools.invalid("A complete_implement_step confirmation is already pending for #{job.slug}; resolve it before requesting emergency_land.")
+        end
+
         pending_action = create_pending_action_for_current_message!(
           server_context,
           chat_session,
@@ -111,11 +111,18 @@ module Mcp::Tools
         nil
       end
 
-      def pending_landing_action_for(chat_session, job)
-        chat_session.pending_actions
+      def pending_landing_action_for(chat_session, job, payload)
+        actions = chat_session.pending_actions
           .where(action: %w[complete_implement_step emergency_land])
-          .where(state: %w[queued pending confirming failed])
-          .detect { |action| job.nil? ? action.payload.to_h["job_id"].blank? : action.payload.to_h["job_id"].to_i == job.id }
+          .where(state: %w[queued pending confirming])
+
+        actions.find do |action|
+          if action.action == "emergency_land"
+            action.payload.to_h == payload
+          else
+            job.present? && action.payload.to_h["job_id"].to_i == job.id
+          end
+        end
       end
 
       def pending_action_response(pending_action)
