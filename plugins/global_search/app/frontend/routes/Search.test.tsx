@@ -29,6 +29,7 @@ function searchPayload(results: unknown[]) {
         { type: "job", label: "Jobs" },
         { type: "epic", label: "Epics" },
         { type: "chat", label: "Chats" },
+        { type: "test_case", label: "Tests" },
         { type: "design_doc", label: "Design Docs" }
       ],
       filter_schema: []
@@ -234,10 +235,25 @@ describe("SearchRoute results", () => {
 
     expect(await screen.findByRole("heading", { name: "Suche" })).toBeInTheDocument()
     expect(screen.getByText('Ergebnisse für "needle"')).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Alle" })).toBeInTheDocument()
     expect(await screen.findByText("Design Doc")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Alle" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Jobs" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Epics" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Chats" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Testfälle" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Design Docs" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Unbenannt" })).toBeInTheDocument()
     expect(screen.getByText(/Private · Besitzer: Ada Lovelace · v3 · Aktualisiert/)).toBeInTheDocument()
+  })
+
+  it("localizes fallback filter labels", async () => {
+    await i18n.changeLanguage("la")
+    renderWithPayload({ results: [], filter: null, controls: { types: [], filter_schema: [] } })
+
+    expect(await screen.findByRole("link", { name: "Jobs" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Epics" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Colloquia" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Probationes" })).toBeInTheDocument()
   })
 
   it("renders grouped chat matches", async () => {

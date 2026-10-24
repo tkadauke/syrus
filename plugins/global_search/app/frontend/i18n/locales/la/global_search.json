@@ -6,6 +6,12 @@
   },
   "description": "Jobs, Epics, colloquia, et probationes quaere.",
   "error": "Exitus quaesitionis onerari non potuerunt.",
+  "filter_types": {
+    "chats": "Colloquia",
+    "epics": "Epics",
+    "jobs": "Jobs",
+    "tests": "Probationes"
+  },
   "filters": {
     "all": "Omnia"
   },
