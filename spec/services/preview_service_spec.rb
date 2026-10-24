@@ -172,7 +172,7 @@ RSpec.describe PreviewService do
       expect {
         service.send(:await_health_check, env, 28_009, "/up")
       }.to raise_error(
-        PreviewService::NotReachableError,
+        PreviewService::HttpStatusError,
         /returned HTTP 403 Forbidden; check Rails host authorization and config\.hosts for preview/
       )
     end
@@ -263,6 +263,18 @@ RSpec.describe PreviewService do
       expect(env.reload.state).to eq("failed")
       expect(env.error_reason).to eq("not_reachable")
       expect(env.error_message).to include("configure the preview start command to bind to 0.0.0.0")
+    end
+
+    it "does not offer bind remediation when the proxy target returns an HTTP error" do
+      env = create_env(workspace_path: "/nonexistent/path")
+      service = described_class.new
+      allow(PreviewWorkspace).to receive(:prepare!).with(env, revision: :head)
+        .and_raise(PreviewService::HttpStatusError, "preview process returned HTTP 403 Forbidden")
+
+      service.send(:poll_starting_environments)
+
+      expect(env.reload.error_reason).to be_nil
+      expect(env.error_message).to include("HTTP 403 Forbidden")
     end
 
     it "stores the configured internal host for the web proxy target" do
