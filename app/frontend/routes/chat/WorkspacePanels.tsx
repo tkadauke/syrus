@@ -1230,9 +1230,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                       <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                         {snapshotKindLabel(snapshot.snapshot_kind)}
                       </span>
-                      <span>
-                        {snapshot.element_count} {snapshot.element_count === 1 ? "element" : "elements"}
-                      </span>
+                      <span>{t("whiteboard_element_count", { count: snapshot.element_count })}</span>
                       <span>
                         <RelativeTimestamp value={snapshot.created_at} />
                       </span>
