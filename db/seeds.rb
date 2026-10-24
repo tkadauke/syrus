@@ -637,9 +637,9 @@ development_preview_seed = lambda do
     JobLog.append!(run: failed_run, kind: "system", chunk: "Required grader failed: bin/rspec spec/jobs/run_job_spec.rb")
   end
 
-  # Build Cache sample sccache stats capture. The plugin is enabled by
-  # default, but SCCACHE_BUCKET is normally unset in preview (no S3-compatible
-  # bucket configured), so the admin Build Cache page always renders its real
+  # Build Cache sample sccache stats capture. SCCACHE_BUCKET is normally unset
+  # in preview (no S3-compatible bucket configured), so the admin Build Cache
+  # page always renders its real
   # "not configured" state -- worth exercising as-is rather than faking a
   # bucket. The per-Job hit/miss card (BuildCache::UiSlots, job.detail slot)
   # is driven entirely by a Workflow artifact instead, independent of the

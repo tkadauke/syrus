@@ -799,6 +799,11 @@ output fingerprints only. Use `strict` for catastrophic or invariant checks
 where a failure should never be ignored, such as eager-load or production boot
 checks.
 
+CI-only browser suites are a common `allow_inherited` custom-grader case. Give
+them `base_retry: { strategy: full_command }` so a repair Workflow reruns the
+same suite at the base revision and can distinguish an inherited red suite from
+a regression introduced by the repair.
+
 A custom (`type: custom` or bare `run:`) grader has no framework plugin to
 compare structured failed-test identities, so without an explicit `base_retry:`
 it used to get no base-revision comparison at all once it opted into
