@@ -408,6 +408,7 @@ module Steps
           "name" => grader.name,
           "required" => grader.required,
           "target_label" => target_label_for(grader),
+          "ci_checks" => ci_checks_for(grader),
           "source_iteration" => passed_steps_by_name[grader.name]&.iteration || step.iteration - 1,
           "reason" => result.reason,
           "target_fingerprints" => result.fingerprints.to_h,
@@ -469,6 +470,7 @@ module Steps
         "name" => grader.name,
         "required" => grader.required,
         "target_label" => target_label_for(grader),
+        "ci_checks" => ci_checks_for(grader),
         "reason" => reason,
         "target_fingerprints" => result.fingerprints.to_h,
         "target_health_record_refs" => result.record_refs
@@ -481,6 +483,7 @@ module Steps
         "name" => grader.name,
         "required" => grader.required,
         "target_label" => target_label_for(grader),
+        "ci_checks" => ci_checks_for(grader),
         "reason" => result.reason,
         "target_fingerprints" => result.fingerprints.to_h,
         "target_health_record_refs" => result.record_refs
@@ -725,6 +728,7 @@ module Steps
         "grader_type" => grader.metadata["grader_type"],
         "grader_framework" => grader.metadata["grader_framework"],
         "grader_mode" => grader.metadata["grader_mode"],
+        "ci_checks" => ci_checks_for(grader),
         "project_path" => grader.metadata["project_path"],
         "coverage_outputs" => grader.metadata["coverage_outputs"],
         "result_outputs" => grader.metadata["result_outputs"],
@@ -953,6 +957,10 @@ module Steps
 
     def target_label_for(grader)
       grader.metadata["target_label"].presence || "//:grade/#{grader.name}"
+    end
+
+    def ci_checks_for(grader)
+      grader.metadata["ci_checks"] || grader.metadata["ci_check_names"] || grader.metadata["github_checks"]
     end
 
     def target_capabilities_for(grader)
