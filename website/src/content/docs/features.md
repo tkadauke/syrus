@@ -1797,6 +1797,11 @@ activity as deciding, judging, or wasted attention while keeping each inferred
 rule visible. Agent runtime and queue wait stay separate from human-attention
 figures.
 
+When enabled, **Attention Report** appears in the sidebar with 7- and 30-day
+views. Wasted-attention rules link back to their underlying Jobs, and the page
+labels all inferred attention prominently as estimates for your data on your
+instance.
+
 When the instance opts into core page engagement telemetry, the report cleans
 active-time visits and returns per-page p50 and p90 with sample counts. With
 telemetry off it reports that state explicitly rather than substituting elapsed
