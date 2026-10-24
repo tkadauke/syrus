@@ -1171,16 +1171,18 @@ module App
         inspection = PlannedExecutionOverrides::Operation.new(
           job: @job, profile: profile || "linux", actor: @user,
           reason: "eligibility check", provenance: "job_ui"
-        ).inspect
+        ).inspect(lightweight: true)
         latest = @job.planned_execution_overrides.order(created_at: :desc, id: :desc).first
         {
           eligible: inspection.eligible,
           refusal_reason: inspection.reason,
           current_profile: profile,
           profiles: ExecutionPlacementProfile::PROFILES.map { |name, value| value.merge("name" => name) },
+          # Only worth probing when an override is possible at all; the dialog
+          # reads a missing answer as "unknown".
           worker_availability: ExecutionPlacementProfile::PROFILES.keys.to_h { |name|
-            check = PlannedExecutionOverrides::Operation.new(job: @job, profile: name, actor: @user, reason: "eligibility check", provenance: "job_ui").inspect
-            [ name, check.worker_available ]
+            check = PlannedExecutionOverrides::Operation.new(job: @job, profile: name, actor: @user, reason: "eligibility check", provenance: "job_ui")
+            [ name, inspection.eligible ? check.worker_available? : nil ]
           },
           latest_audit: latest && {
             actor: latest.user.display_name,
