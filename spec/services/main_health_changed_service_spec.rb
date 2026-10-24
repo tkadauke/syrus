@@ -4,7 +4,16 @@ RSpec.describe MainHealthChangedService, :ci_only do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }
-  let(:repository) { Factories.repository(user: user) }
+  # New repositories no longer opt in to main-branch monitoring, repair, or
+  # work-blocking, so this spec turns them on explicitly.
+  let(:repository) do
+    Factories.repository(
+      user: user,
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
+      main_branch_repair_blocks_work: true
+    )
+  end
   let(:github_client) { instance_double(GithubClient) }
 
   before do
