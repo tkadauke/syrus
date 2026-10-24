@@ -954,6 +954,26 @@ class GithubClient
     { entries: entries, truncated: tree.truncated == true }
   end
 
+  # Direct children of a directory at a commit. Walking non-recursive tree
+  # objects avoids GitHub's cap on recursive tree responses.
+  def commit_tree_children(repo_slug, commit_sha, path)
+    tree_sha = commit_tree_sha(repo_slug, commit_sha)
+    path.to_s.split("/").reject(&:empty?).each do |segment|
+      tree = track_rate_limits { @client.tree(repo_slug, tree_sha) }
+      child = Array(tree.tree).find { |item| item.path == segment && item.type == "tree" }
+      return nil unless child
+
+      tree_sha = child.sha
+    end
+
+    tree = track_rate_limits { @client.tree(repo_slug, tree_sha) }
+    prefix = path.present? ? "#{path}/" : ""
+    entries = Array(tree.tree).map do |item|
+      { path: prefix + item.path, type: item.type, mode: item.mode, size: item[:size]&.to_i, sha: item.sha }
+    end
+    { entries: entries, truncated: tree.truncated == true }
+  end
+
   # Raw bytes of the file at `path` at `ref`: { bytes:, size:, sha: }, or nil
   # when the path is not a file there. Files over the contents API's 1 MB
   # inline limit come back without content; those are fetched through the
