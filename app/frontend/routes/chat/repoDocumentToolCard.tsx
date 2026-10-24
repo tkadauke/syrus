@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../i18n"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { parsePendingActionResult, pendingActionCollapsedSummary, type PendingActionResult } from "./pendingActionToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
