@@ -90,7 +90,7 @@ export function Hero({ desktopSrc = null, mobileSrc = null, locale }: { desktopS
             href="/docs/dogfooding"
             className="group mx-auto mt-8 grid max-w-2xl gap-4 rounded-2xl border border-clay/35 bg-[color-mix(in_oklab,var(--color-ink-soft)_78%,transparent)] p-4 text-left shadow-[0_24px_70px_-48px_var(--accent-shadow)] transition-all duration-200 hover:-translate-y-0.5 hover:border-clay/60 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center sm:p-5"
           >
-            <span className="text-center text-5xl font-semibold tracking-[-0.02em] clay-text sm:text-left">95.1%</span>
+            <span className="text-center text-5xl font-semibold tracking-[-0.02em] clay-text sm:text-left">97.6%</span>
             <span>
               <span className="block font-mono text-[0.72rem] uppercase tracking-[0.16em] text-clay-bright">{copy.metric}</span>
               <span className="mt-2 block text-sm leading-relaxed text-cream-dim sm:text-[0.95rem]">
