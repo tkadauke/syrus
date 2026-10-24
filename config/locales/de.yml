@@ -1,4 +1,8 @@
 de:
+  server:
+    errors:
+      invalid_request: "Die Anfrage ist ungültig."
+      unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
   hello: "Hallo Welt"
 
   time:

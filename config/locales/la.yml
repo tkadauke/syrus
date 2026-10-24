@@ -1,4 +1,8 @@
 la:
+  server:
+    errors:
+      invalid_request: "Petitio invalida est."
+      unavailable: "Haec actio ad tempus praesto non est."
   hello: "Salve munde"
 
   time:
