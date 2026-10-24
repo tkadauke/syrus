@@ -51,7 +51,7 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       {inputs}
       <MemoryListBody
-        emptyMessage={t("tool_search_empty", { query: query ?? t("tool_search_unknown_query") })}
+        emptyMessage={t("tool_search_empty_query", { query: query ?? t("tool_search_unknown_query") })}
         highlightTerms={query ? [query] : undefined}
         rows={rows}
       />
@@ -101,6 +101,6 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "no_matches", label: "No matching memories", input: { query: "missing phrase", limit: 5 }, parsedResult: { memories: [] } },
-  { id: "pending", label: "Pending search", input: { query: "policy objects" } },
+  { id: "pending", label: "Pending search", input: { query: "policy objects" }, resultBody: "" },
   { id: "error", label: "Search error", input: { query: "policy objects" }, resultBody: "Error: memory search unavailable", resultError: true }
 ]

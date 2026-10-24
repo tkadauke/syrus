@@ -64,6 +64,6 @@ export const examples: ToolCardExample[] = [
     resultBody: "Long notes\n\n[Document truncated after 65536 bytes; omitted 2048 bytes.]"
   },
   { id: "blank", label: "Blank document", input: { id: 15, title: "Blank notes", content_type: "text/plain" }, resultBody: "" },
-  { id: "pending", label: "Pending read", input: { id: 16, title: "Loading notes" }, resultSettled: false },
+  { id: "pending", label: "Pending read", input: { id: 16, title: "Loading notes" }, resultBody: "", resultSettled: false },
   { id: "error", label: "Read error", input: { id: 17 }, resultBody: "document not found in this chat session's attachments", resultError: true }
 ]

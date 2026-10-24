@@ -99,7 +99,7 @@
   "tool_mode": "Mode",
   "tool_mode_merge": "Merge",
   "tool_mode_replace": "Replace",
-  "tool_auto_saved_snapshot": "Pre-load backup",
+  "tool_pre_load_backup": "Pre-load backup",
   "tool_auto_saved_snapshot_title": "Pre-load backup #{{id}}",
   "tool_load_snapshot": "Load canvas snapshot",
   "tool_load_snapshot_attempt": "Load {{snapshot}} in {{mode}} mode",

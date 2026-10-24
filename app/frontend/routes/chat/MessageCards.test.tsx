@@ -1037,7 +1037,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Publishing memory...")).toBeInTheDocument()
   })
 
-  it("gives grouped result details a full mobile row", () => {
+  it("keeps grouped result details on the shared truncated row", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group", tool: "Publish memory", summary_label: "Publish memory (5)", outcome_label: "Done",
       calls: Array.from({ length: 5 }, (_, index) => ({ message_id: index + 1, tool_name: "publish_memory", raw_name: "publish_memory", detail: String(index + 20), display_label: "Publish memory", progress_label: "Thinking", raw_payload: { memory_id: index + 20 }, result_body: "done", result_settled: true, result_error: false, result_kind: "text" as const, result_summary: "Published" }))
@@ -1046,8 +1046,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Publish memory (5)").closest("summary")
-    expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
-    expect(summary?.querySelector("span.order-last")).toHaveClass("basis-full", "sm:basis-auto")
+    expect(summary).toHaveClass("flex-nowrap")
+    expect(summary?.querySelector("span.flex-1")).toHaveClass("truncate")
   })
 
   it("keeps an expanded tool group open when a streamed call joins it", () => {

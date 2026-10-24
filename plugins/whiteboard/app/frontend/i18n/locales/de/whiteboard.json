@@ -99,7 +99,7 @@
   "tool_mode": "Modus",
   "tool_mode_merge": "Zusammenführen",
   "tool_mode_replace": "Ersetzen",
-  "tool_auto_saved_snapshot": "Sicherung vor dem Laden",
+  "tool_pre_load_backup": "Sicherung vor dem Laden",
   "tool_auto_saved_snapshot_title": "Sicherung vor dem Laden Nr. {{id}}",
   "tool_load_snapshot": "Canvas-Snapshot laden",
   "tool_load_snapshot_attempt": "{{snapshot}} im Modus {{mode}} laden",

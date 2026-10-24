@@ -56,7 +56,7 @@ function renderExpanded(context: ToolCardContext) {
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
         <RequestedMemory id={requestedId} />
         <div className="min-w-0">
-          <SectionLabel>{t("tool_visibility")}</SectionLabel>
+          <SectionLabel>{t("tool_published_visibility")}</SectionLabel>
           <ScopeRef memory={memory} />
         </div>
       </dl>
@@ -83,7 +83,7 @@ function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`agent_memory:${key}`, options)
 }
 
-const publishMemoryToolCard: ToolCardRenderer = { toolName: "publish_memory", collapsedSummary, renderExpanded }
+const publishMemoryToolCard: ToolCardRenderer = { toolName: "publish_memory", collapsedSummary, renderExpanded, renderWhilePending: true }
 export default publishMemoryToolCard
 
 export const examples: ToolCardExample[] = [
@@ -125,7 +125,7 @@ export const examples: ToolCardExample[] = [
     resultBody: "Error: global memories cannot be published",
     resultError: true
   },
-  { id: "pending", label: "Pending publish", input: { memory_id: "20" } },
+  { id: "pending", label: "Pending publish", input: { memory_id: "20" }, resultBody: "" },
   {
     id: "blank_content",
     label: "Published memory with blank content",

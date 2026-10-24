@@ -99,7 +99,7 @@
   "tool_mode": "Modus",
   "tool_mode_merge": "Coniunge",
   "tool_mode_replace": "Substitue",
-  "tool_auto_saved_snapshot": "Copia ante onerationem",
+  "tool_pre_load_backup": "Copia ante onerationem",
   "tool_auto_saved_snapshot_title": "Copia ante onerationem #{{id}}",
   "tool_load_snapshot": "Imaginem tabulae onera",
   "tool_load_snapshot_attempt": "{{snapshot}} modo {{mode}} onera",
