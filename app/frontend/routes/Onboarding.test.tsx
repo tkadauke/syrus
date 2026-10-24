@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
@@ -133,7 +133,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     expect(screen.getByRole("heading", { name: "Set up Syrus" })).toBeInTheDocument()
   })
 
-  it("shows the static readiness result and exact proposed commands after repository selection", async () => {
+  it("keeps the report inside the Repository step modal", async () => {
     vi.mocked(window.fetch).mockResolvedValue(
       jsonResponse({
         readiness: {
@@ -166,11 +166,23 @@ describe("OnboardingRoute — revisiting completed steps", () => {
       })
     )
 
-    expect(await screen.findByText("Ready with warnings")).toBeInTheDocument()
+    const trigger = await screen.findByRole("button", { name: "Ready with warnings" })
+    expect(screen.queryByText("$ bundle install")).not.toBeInTheDocument()
+    expect(within(trigger.closest("li")!).getByRole("heading", { name: "Repository" })).toBeInTheDocument()
+    trigger.focus()
+    fireEvent.click(trigger)
+
+    expect(screen.getByRole("dialog", { name: "Repository readiness" })).toBeInTheDocument()
     expect(screen.getByText("$ bundle install")).toBeInTheDocument()
     expect(screen.getByText("$ bin/rspec")).toBeInTheDocument()
-    expect(screen.getByText(/Workflow workspace: os=linux · runs/)).toBeInTheDocument()
+    const scopeDescription = screen.getByText(/Workflow workspace: os=linux · runs/)
+    expect(scopeDescription.previousElementSibling).toHaveTextContent("✓")
+    expect(scopeDescription.parentElement).toHaveClass("grid-cols-[1.25rem_1fr]")
     expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/repositories/7/readiness", expect.anything())
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: "Repository readiness" })).not.toBeInTheDocument()
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it("does not show an orphaned worker heading when readiness fails before scopes are computed", async () => {
@@ -197,7 +209,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
       })
     )
 
-    expect(await screen.findByText("Needs configuration")).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: "Needs configuration" }))
     expect(screen.getByText(/Repository content is unavailable\./)).toBeInTheDocument()
     expect(screen.queryByText("Execution scopes and workers")).not.toBeInTheDocument()
   })
@@ -238,9 +250,19 @@ describe("OnboardingRoute — revisiting completed steps", () => {
 
     renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
 
+    fireEvent.click(await screen.findByRole("button", { name: "Ready" }))
     expect(await screen.findByText(/first implementation run is blocked/)).toBeInTheDocument()
     expect(screen.getByText("Missing executables: missing-setup")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Override warning" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Retry probe" }))
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/repositories/7/readiness_probe", expect.objectContaining({ method: "POST" })))
+
+    fireEvent.click(screen.getByRole("button", { name: "Override warning" }))
+    await waitFor(() =>
+      expect(window.fetch).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/7/override_readiness_probe",
+        expect.objectContaining({ body: JSON.stringify({ probe_id: 9 }), method: "POST" })
+      )
+    )
   })
 
   it("polls an active execution probe until its terminal result arrives", async () => {
@@ -276,6 +298,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     })
 
     renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
+    fireEvent.click(await screen.findByRole("button", { name: "Ready" }))
     expect(await screen.findByText("queued")).toBeInTheDocument()
     expect(await screen.findByText(/Prepare and bounded grader probe succeeded/, {}, { timeout: 3_000 })).toBeInTheDocument()
     expect(reads).toBe(2)
