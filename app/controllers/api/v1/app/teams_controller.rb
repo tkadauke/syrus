@@ -20,7 +20,7 @@ module Api
         def create
           name = params.dig(:team, :name).to_s.strip
           if name.blank?
-            render_error("validation_failed", "Name can't be blank.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.teams.name_blank"), status: :unprocessable_content)
             return
           end
 
@@ -30,7 +30,7 @@ module Api
             team.team_memberships.create!(user: Current.user, role: "owner")
           end
 
-          render json: teams_payload(message: "#{team.name} created."), status: :created
+          render json: teams_payload(message: I18n.t("api.teams.created", name: team.name)), status: :created
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -41,12 +41,12 @@ module Api
 
           name = params.dig(:team, :name).to_s.strip
           if name.blank?
-            render_error("validation_failed", "Name can't be blank.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.teams.name_blank"), status: :unprocessable_content)
             return
           end
 
           if team.update(name: name)
-            render json: team_detail_payload(team, message: "Renamed to #{team.name}.")
+            render json: team_detail_payload(team, message: I18n.t("api.teams.renamed", name: team.name))
           else
             render_error("validation_failed", team.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -58,7 +58,7 @@ module Api
 
           name = team.name
           team.destroy!
-          render json: teams_payload(message: "#{name} deleted.")
+          render json: teams_payload(message: I18n.t("api.teams.deleted", name: name))
         end
 
         private
@@ -70,7 +70,7 @@ module Api
         def authorize_team_mutation!(team)
           return true if TeamPolicy.new(Current.user, team).write?
 
-          render_error("forbidden", "Only a team owner or an admin can perform this action.", status: :forbidden)
+          render_error("forbidden", I18n.t("api.teams.owner_forbidden"), status: :forbidden)
           false
         end
       end

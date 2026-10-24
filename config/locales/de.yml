@@ -331,6 +331,70 @@ de:
       sign_in_required: "Bitte melde dich an, um die App-API zu verwenden."
       admin_forbidden: "Administrator-Zugriff erforderlich."
       rate_limited: "Zu viele ungültige API-Tokens. Bitte versuche es später erneut."
+      invocation_scope_forbidden: "Dieser Syrus-Aufruf ist auf den aktuellen Lauf oder Chat beschränkt und kann nicht auf diese Ressource zugreifen."
+      machine_credential_forbidden: "Diese Syrus-Maschinenanmeldedaten sind auf Endpunkte für macOS-Worker-Updates beschränkt."
+      job_mutation_forbidden: "Nur der Job-Besitzer, ein Repository-Mitglied mit Schreibzugriff oder ein Admin kann diese Aktion ausführen."
+      repository_write_forbidden: "Nur ein Repository-Mitglied mit Schreibzugriff oder ein Admin kann diese Aktion ausführen."
+      repository_admin_forbidden: "Nur ein Repository-Admin kann diese Aktion ausführen."
+
+    job_metadata:
+      tag_added: "Tag hinzugefügt."
+      tag_not_found: "Tag nicht gefunden."
+      tag_removed: "Tag entfernt."
+      tag_name_blank: "Der Tag-Name darf nicht leer sein."
+      dependency_job_not_found: "Abhängiger Job nicht gefunden."
+      dependency_added: "Abhängigkeit hinzugefügt."
+      dependency_not_found: "Abhängigkeit nicht gefunden."
+      parsed_dependency_retained: "Erkannte Abhängigkeiten werden für die Prüfung beibehalten."
+      dependency_removed: "Abhängigkeit entfernt."
+      epic_not_found: "Epic nicht gefunden."
+      epic_dependency_added: "Epic-Abhängigkeit hinzugefügt."
+      epic_dependency_not_found: "Epic-Abhängigkeit nicht gefunden."
+      epic_dependency_removed: "Epic-Abhängigkeit entfernt."
+      unknown_stack_base: "Unbekannte Stack-Basis."
+      stack_base_updated: "Stack-Basis aktualisiert."
+      already_valid: "Der Job ist bereits als gültig markiert."
+      marked_valid: "Job als gültig markiert und erneut eingereiht."
+
+    teams:
+      name_blank: "Der Name darf nicht leer sein."
+      created: "%{name} erstellt."
+      renamed: "In %{name} umbenannt."
+      deleted: "%{name} gelöscht."
+      owner_forbidden: "Nur ein Team-Besitzer oder ein Admin kann diese Aktion ausführen."
+
+    team_memberships:
+      invalid_role: "Die Rolle muss eine der folgenden sein: %{roles}."
+      user_not_found: "Kein Benutzer mit dieser E-Mail-Adresse gefunden."
+      already_member: "%{email} ist bereits Mitglied dieses Teams."
+      added: "%{email} als %{role} hinzugefügt."
+      change_last_owner: "Die Rolle des letzten Besitzers kann nicht geändert werden — befördere zuerst ein anderes Mitglied zum Besitzer."
+      role_updated: "Rolle auf %{role} aktualisiert."
+      remove_last_owner: "Der letzte Besitzer kann nicht entfernt werden — befördere zuerst ein anderes Mitglied zum Besitzer."
+      removed: "Mitglied entfernt."
+
+    credentials:
+      updated: "Anmeldedaten aktualisiert."
+      unknown: "Unbekannte Anmeldedaten."
+      cleared: "%{label} gelöscht."
+      gemini_probe_unavailable: "Gemini-Schlüssel können auf dieser Instanz nicht geprüft werden."
+      claude_oauth_not_started: "Starte zuerst die Claude-Autorisierung."
+      chatgpt_oauth_not_started: "Starte zuerst die ChatGPT-Autorisierung."
+      oauth_exchange_failed: "OAuth-Austausch fehlgeschlagen: %{error}"
+      api_token_rotated: "API-Token rotiert. Kopiere es jetzt; es wird nicht erneut angezeigt."
+      api_token_revoked: "API-Token widerrufen."
+      onboarding_only: "Diese Aktion ist nur während des Onboardings verfügbar."
+      provider_plugin_not_found: "Kein Agentenanbieter-Plugin für %{provider} gefunden."
+      provider_enabled: "%{provider} aktiviert."
+      provider_enable_failed: "Der Anbieter konnte nicht aktiviert werden: %{error}"
+      availability_rechecked: "Verfügbarkeit von %{provider} erneut geprüft."
+      availability_override_enabled: "Verfügbarkeitsausnahme für den Anbieter %{provider} aktiviert."
+      unknown_provider: "Unbekannter Agentenanbieter."
+
+    filters:
+      invalid_usage: "Ungültige Anfrage zur Filternutzung."
+      invalid_suggestions: "Ungültige Anfrage für Filtervorschläge."
+      unknown_field: "Unbekanntes Filterfeld."
 
     auth:
       invalid_credentials: "Bitte versuche eine andere E-Mail-Adresse oder ein anderes Passwort."
@@ -343,6 +407,14 @@ de:
       welcome: "Willkommen bei Syrus."
 
     repositories:
+      selector:
+        no_token: "Kein GitHub-Token konfiguriert."
+        credentials_rejected: "GitHub hat die Anmeldedaten abgelehnt."
+        owner_required: "Besitzer ist erforderlich."
+        owner_not_found: "Repository-Besitzer wurde nicht gefunden oder ist nicht zugänglich."
+        owner_and_name_required: "Besitzer und Repository-Name sind erforderlich."
+        repository_not_found: "Repository wurde nicht gefunden oder ist nicht zugänglich."
+        unavailable: "GitHub-Repository-Metadaten konnten nicht geladen werden."
       already_in_workspace: "%{slug} ist bereits in deinem Arbeitsbereich."
       added: "Repository %{slug} hinzugefügt."
       updated: "Repository %{slug} aktualisiert."

@@ -19,7 +19,7 @@ module Api
           attrs = credentials_params.to_h.reject { |key, value| blank_write_only_value?(key, value) }
 
           if Current.user.update(attrs)
-            render json: credentials_payload(Current.user.reload).merge(message: "Credentials updated.")
+            render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.updated"))
           else
             render_error("validation_failed", Current.user.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -30,18 +30,18 @@ module Api
           credential = params[:credential].to_s
           label = User::CLEARABLE_CREDENTIALS[credential]
           unless label
-            render_error("unknown_credential", "Unknown credential.", status: :unprocessable_content)
+            render_error("unknown_credential", I18n.t("api.credentials.unknown"), status: :unprocessable_content)
             return
           end
 
           Current.user.clear_credential!(credential)
-          render json: credentials_payload(Current.user.reload).merge(message: "#{label} cleared.")
+          render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.cleared", label: label))
         end
 
         def test_credential
           credential = params[:credential].to_s
           unless testable_credentials.include?(credential)
-            render_error("unknown_credential", "Unknown credential.", status: :unprocessable_content)
+            render_error("unknown_credential", I18n.t("api.credentials.unknown"), status: :unprocessable_content)
             return
           end
 
@@ -73,7 +73,7 @@ module Api
         # not installed or not enabled, so there is nothing to validate against.
         def test_gemini_key
           probe = CredentialProbe.key_probe_for("gemini_api_key")
-          return render_error("credential_probe_unavailable", "Gemini keys cannot be validated on this instance.", status: :not_found) unless probe
+          return render_error("credential_probe_unavailable", I18n.t("api.credentials.gemini_probe_unavailable"), status: :not_found) unless probe
 
           result = probe.key(key: params[:gemini_api_key].to_s)
           render json: {
@@ -125,7 +125,7 @@ module Api
 
           stash = session[:claude_oauth].to_h
           if stash["verifier"].blank?
-            render_error("oauth_not_started", "Start the Claude authorization first.", status: :unprocessable_content)
+            render_error("oauth_not_started", I18n.t("api.credentials.claude_oauth_not_started"), status: :unprocessable_content)
             return
           end
 
@@ -143,7 +143,7 @@ module Api
         rescue StandardError => e
           raise unless oauth_exchange_error?(e)
 
-          render_error("oauth_exchange_failed", e.message, status: :unprocessable_content)
+          render_error("oauth_exchange_failed", I18n.t("api.credentials.oauth_exchange_failed", error: e.message), status: :unprocessable_content)
         end
 
         def codex_oauth_start
@@ -162,7 +162,7 @@ module Api
           oauth = codex_oauth!
           stash = session[:codex_oauth].to_h
           if stash["verifier"].blank?
-            render_error("oauth_not_started", "Start the ChatGPT authorization first.", status: :unprocessable_content)
+            render_error("oauth_not_started", I18n.t("api.credentials.chatgpt_oauth_not_started"), status: :unprocessable_content)
             return
           end
 
@@ -180,20 +180,20 @@ module Api
         rescue StandardError => e
           raise unless oauth_exchange_error?(e)
 
-          render_error("oauth_exchange_failed", e.message, status: :unprocessable_content)
+          render_error("oauth_exchange_failed", I18n.t("api.credentials.oauth_exchange_failed", error: e.message), status: :unprocessable_content)
         end
 
         def rotate_api_token
           new_token = Current.user.generate_api_token!
           render json: credentials_payload(Current.user.reload).merge(
-            message: "API token rotated. Copy it now; it won't be shown again.",
+            message: I18n.t("api.credentials.api_token_rotated"),
             new_api_token: new_token
           )
         end
 
         def revoke_api_token
           Current.user.revoke_api_token!
-          render json: credentials_payload(Current.user.reload).merge(message: "API token revoked.")
+          render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.api_token_revoked"))
         end
 
         # Onboarding-only: auto-enables the exact plugin backing the agent
@@ -203,21 +203,21 @@ module Api
         # OnboardingAgentProviderPlugin resolves for the given provider key.
         def connect_onboarding_provider
           unless Current.user.admin? && onboarding_in_progress?
-            render_error("forbidden", "This action is only available during onboarding.", status: :forbidden)
+            render_error("forbidden", I18n.t("api.credentials.onboarding_only"), status: :forbidden)
             return
           end
 
           provider = params[:provider].to_s
           plugin = ::App::OnboardingAgentProviderPlugin.connect!(provider, user: Current.user)
           unless plugin
-            render_error("unknown_provider", "No agent-provider plugin found for #{provider.inspect}.",
+            render_error("unknown_provider", I18n.t("api.credentials.provider_plugin_not_found", provider: provider.inspect),
                          status: :unprocessable_content)
             return
           end
 
-          render json: credentials_payload(Current.user.reload).merge(message: "#{plugin.display_name || plugin.name} enabled.")
+          render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.provider_enabled", provider: plugin.display_name || plugin.name))
         rescue ::Admin::PluginEnabler::ExperimentalPluginsBlocked => e
-          render_error("beta_mode_not_enabled", e.message, status: :unprocessable_content)
+          render_error("beta_mode_not_enabled", I18n.t("api.credentials.provider_enable_failed", error: e.message), status: :unprocessable_content)
         end
 
         def recheck_provider_availability
@@ -229,7 +229,7 @@ module Api
           render json: credentials_payload(Current.user.reload).merge(
             provider: provider,
             availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false),
-            message: result&.message.presence || "#{provider.titleize} availability rechecked."
+            message: result&.message.presence || I18n.t("api.credentials.availability_rechecked", provider: provider.titleize)
           )
         end
 
@@ -242,7 +242,7 @@ module Api
           render json: credentials_payload(Current.user.reload).merge(
             provider: provider,
             availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false),
-            message: "#{provider.titleize} provider availability override enabled."
+            message: I18n.t("api.credentials.availability_override_enabled", provider: provider.titleize)
           )
         end
 
@@ -404,7 +404,7 @@ module Api
           provider = params[:provider].to_s
           return provider if provider.in?(User.agent_providers)
 
-          render_error("validation_failed", "Unknown agent provider.", status: :unprocessable_content)
+          render_error("validation_failed", I18n.t("api.credentials.unknown_provider"), status: :unprocessable_content)
           nil
         end
 
