@@ -503,7 +503,7 @@ class RunFailureClassifier
     # the credential value, not that identifier), which mislabeled an
     # ordinary rejected push (branch_diverged) as a provider auth/config
     # failure.
-    text_match?(/auth|oauth|token.{0,20}(?:invalid|expired|revoked|missing|not[\s_-]*found)|(?:invalid|expired|revoked|missing|no)[\s_-]*(?:access[\s_-]*)?token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|mcp.+(?:failed|error).+initialize|connection closed: initialize/i)
+    text_match?(/auth|oauth|token.{0,20}(?:invalid|expired|revoked|missing|not[\s_-]*found)|(?:invalid|expired|revoked|missing|no)[\s_-]*(?:access[\s_-]*)?token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|invalid.+credential|mcp.+(?:failed|error).+initialize|connection closed: initialize/i)
   end
 
   def argument_list_too_long?
