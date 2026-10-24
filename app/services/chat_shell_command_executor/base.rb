@@ -17,9 +17,9 @@ module ChatShellCommandExecutor
       raise NotImplementedError
     end
 
-    # Returns an error message when the chat session isn't ready to run a
+    # Returns a stable error code when the chat session isn't ready to run a
     # `!` command yet, or nil when it is.
-    def precondition_error(chat_session)
+    def precondition_error_code(chat_session)
       raise NotImplementedError
     end
 

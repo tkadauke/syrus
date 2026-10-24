@@ -115,6 +115,24 @@ la:
       choose_tag: "Elige aut inscribe notam."
       product_owner_epic_start_forbidden: "Product owners Epics ultra backlog promovere non possunt."
       none_epics_ready: "Nullum Epic electum ad incipiendum paratum erat."
+      retry_enqueued: { one: "Iteratio pro 1 Job in ordinem posita est.", other: "Iteratio pro %{count} Jobs in ordinem posita est." }
+      retry_enqueued_with_agent: { one: "Iteratio pro 1 Job cum %{agent} in ordinem posita est.", other: "Iteratio pro %{count} Jobs cum %{agent} in ordinem posita est." }
+      jobs_closed: { one: "1 Job clausum est.", other: "%{count} Jobs clausa sunt." }
+      jobs_approved: { one: "1 Job in grege %{batch_id} approbatum est.", other: "%{count} Jobs in grege %{batch_id} approbata sunt." }
+      jobs_accepted: { one: "1 Job ad opus acceptum est.", other: "%{count} Jobs ad opus accepta sunt." }
+      jobs_claimed: { one: "1 Job vindicatum est.", other: "%{count} Jobs vindicata sunt." }
+      claims_released: { one: "1 vindicatio remissa est.", other: "%{count} vindicationes remissae sunt." }
+      jobs_released_from_backlog: { one: "1 Job ex backlog emissum est.", other: "%{count} Jobs ex backlog emissa sunt." }
+      jobs_moved_to_backlog: { one: "1 Job in backlog motum est.", other: "%{count} Jobs in backlog mota sunt." }
+      jobs_assigned: { one: "1 Job possessori %{owner} attributum est.", other: "%{count} Jobs possessori %{owner} attributa sunt." }
+      jobs_priority_set: { one: "Prioritas 1 Job ad %{priority} mutata est.", other: "Prioritas %{count} Jobs ad %{priority} mutata est." }
+      jobs_skipped: { one: "1 Job praetermissum est.", other: "%{count} Jobs praetermissa sunt." }
+      jobs_paused: { one: "1 Job intermissum est. Gradus activi finientur antequam mora valeat.", other: "%{count} Jobs intermissa sunt. Gradus activi finientur antequam mora valeat." }
+      jobs_unpaused: { one: "Mora 1 Job sublata est. Workflow idonea secundum admissionis moderationem resumuntur.", other: "Mora %{count} Jobs sublata est. Workflow idonea secundum admissionis moderationem resumuntur." }
+      tag_applied: { one: "Nota %{tag} ad 1 Job adhibita est.", other: "Nota %{tag} ad %{count} Jobs adhibita est." }
+      epics_started: { one: "1 Epic ad In Progress motum est.", other: "%{count} Epics ad In Progress mota sunt." }
+      auto_merge_disabled: { one: "1 Job praetermissum est, quia auto-merge in eius Repository inactivum est (%{repositories}). Activa auto-merge in optionibus Repository ut approbes.", other: "%{count} Jobs praetermissa sunt, quia auto-merge in eorum Repository inactivum est (%{repositories}). Activa auto-merge in optionibus Repository ut approbes." }
+      github_reviews_left: { one: "Recognitio GitHub pro 1 Job relicta est.", other: "Recognitiones GitHub pro %{count} Jobs relictae sunt." }
       lanes: { backlog: "Backlog", blocked: "Impeditum", queued: "In ordine", running: "Currens", succeeded: "Perfectum", landing: "Landing", failed: "Defectum" }
       columns:
         jobs_agent_provider: "Agens"
@@ -186,6 +204,10 @@ la:
       not_started: "Praeceptum nondum currere coepit. Mox iterum conare."
       command_in_flight: "Praeceptum shell iam pro hoc chat currit."
       turn_in_flight: "Praeceptum shell currere non potest dum responsum conficitur."
+      preconditions:
+        repository_not_found: "Nullum Repository huic chat adiunctum est."
+        coding_checkout_not_found: "Nullum coding checkout activum huic chat est."
+        local_daemon_disconnected: "Daemon localis non conexus est. Exsequere `syrus local` in tuo Repository ut pergas."
     chats:
       errors:
         before_id_required: "before_id requiritur."

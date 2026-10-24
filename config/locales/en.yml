@@ -149,6 +149,34 @@ en:
       choose_tag: "Choose or enter a tag."
       product_owner_epic_start_forbidden: "Product owners cannot advance Epics beyond backlog."
       none_epics_ready: "No selected Epics were ready to start."
+      retry_enqueued:
+        one: "Retry enqueued for 1 job."
+        other: "Retry enqueued for %{count} jobs."
+      retry_enqueued_with_agent:
+        one: "Retry enqueued for 1 job with %{agent}."
+        other: "Retry enqueued for %{count} jobs with %{agent}."
+      jobs_closed: { one: "1 job closed.", other: "%{count} jobs closed." }
+      jobs_approved: { one: "Approved 1 job in batch %{batch_id}.", other: "Approved %{count} jobs in batch %{batch_id}." }
+      jobs_accepted: { one: "Accepted 1 job for work.", other: "Accepted %{count} jobs for work." }
+      jobs_claimed: { one: "Claimed 1 job.", other: "Claimed %{count} jobs." }
+      claims_released: { one: "Released 1 claim.", other: "Released %{count} claims." }
+      jobs_released_from_backlog: { one: "Released 1 job from backlog.", other: "Released %{count} jobs from backlog." }
+      jobs_moved_to_backlog: { one: "Moved 1 job to backlog.", other: "Moved %{count} jobs to backlog." }
+      jobs_assigned: { one: "Assigned 1 job to %{owner}.", other: "Assigned %{count} jobs to %{owner}." }
+      jobs_priority_set: { one: "Set 1 job to %{priority} priority.", other: "Set %{count} jobs to %{priority} priority." }
+      jobs_skipped: { one: "Skipped 1 job.", other: "Skipped %{count} jobs." }
+      jobs_paused:
+        one: "Paused 1 job. Active steps will finish before the pause takes effect."
+        other: "Paused %{count} jobs. Active steps will finish before the pause takes effect."
+      jobs_unpaused:
+        one: "Unpaused 1 job. Eligible workflows will resume subject to admission control."
+        other: "Unpaused %{count} jobs. Eligible workflows will resume subject to admission control."
+      tag_applied: { one: "Applied %{tag} to 1 job.", other: "Applied %{tag} to %{count} jobs." }
+      epics_started: { one: "1 Epic moved to In Progress.", other: "%{count} Epics moved to In Progress." }
+      auto_merge_disabled:
+        one: "Skipped 1 job whose repository has auto-merge disabled (%{repositories}). Enable auto-merge in repository settings to approve."
+        other: "Skipped %{count} jobs whose repository has auto-merge disabled (%{repositories}). Enable auto-merge in repository settings to approve."
+      github_reviews_left: { one: "GitHub reviews left for 1 job.", other: "GitHub reviews left for %{count} jobs." }
       lanes:
         backlog: "Backlog"
         blocked: "Blocked"
@@ -227,6 +255,10 @@ en:
       not_started: "The command has not started running yet. Try again in a moment."
       command_in_flight: "A shell command is already running for this chat."
       turn_in_flight: "Cannot run a shell command while a turn is in progress."
+      preconditions:
+        repository_not_found: "No repository attached to this chat."
+        coding_checkout_not_found: "No active coding checkout for this chat."
+        local_daemon_disconnected: "Local daemon not connected. Run `syrus local` in your repo to continue."
     chats:
       errors:
         before_id_required: "before_id is required."

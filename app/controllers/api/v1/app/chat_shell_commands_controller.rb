@@ -30,9 +30,9 @@ module Api
           end
           return unless authorize_repository_write!(repository)
 
-          precondition_error = executor.precondition_error(chat_session)
-          if precondition_error
-            render_error("not_found", precondition_error, status: :not_found)
+          precondition_error_code = executor.precondition_error_code(chat_session)
+          if precondition_error_code
+            render_error("not_found", t("api.chat_shell_commands.preconditions.#{precondition_error_code}"), status: :not_found)
             return
           end
 

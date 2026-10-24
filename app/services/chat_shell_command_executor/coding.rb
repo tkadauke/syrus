@@ -6,9 +6,9 @@ module ChatShellCommandExecutor
       Feature.coding_mode_enabled?
     end
 
-    def precondition_error(chat_session)
-      return "No repository attached to this chat." unless chat_session.repository
-      return "No active coding checkout for this chat." if chat_session.coding_checkout_branch.blank?
+    def precondition_error_code(chat_session)
+      return :repository_not_found unless chat_session.repository
+      return :coding_checkout_not_found if chat_session.coding_checkout_branch.blank?
 
       nil
     end

@@ -115,6 +115,24 @@ de:
       choose_tag: "Wähle einen Tag aus oder gib einen ein."
       product_owner_epic_start_forbidden: "Product Owner können Epics nicht über den Backlog hinaus fortsetzen."
       none_epics_ready: "Keines der ausgewählten Epics war startbereit."
+      retry_enqueued: { one: "Erneuter Versuch für 1 Job eingereiht.", other: "Erneuter Versuch für %{count} Jobs eingereiht." }
+      retry_enqueued_with_agent: { one: "Erneuter Versuch für 1 Job mit %{agent} eingereiht.", other: "Erneuter Versuch für %{count} Jobs mit %{agent} eingereiht." }
+      jobs_closed: { one: "1 Job geschlossen.", other: "%{count} Jobs geschlossen." }
+      jobs_approved: { one: "1 Job in Batch %{batch_id} genehmigt.", other: "%{count} Jobs in Batch %{batch_id} genehmigt." }
+      jobs_accepted: { one: "1 Job zur Bearbeitung angenommen.", other: "%{count} Jobs zur Bearbeitung angenommen." }
+      jobs_claimed: { one: "1 Job übernommen.", other: "%{count} Jobs übernommen." }
+      claims_released: { one: "1 Übernahme freigegeben.", other: "%{count} Übernahmen freigegeben." }
+      jobs_released_from_backlog: { one: "1 Job aus dem Backlog freigegeben.", other: "%{count} Jobs aus dem Backlog freigegeben." }
+      jobs_moved_to_backlog: { one: "1 Job in den Backlog verschoben.", other: "%{count} Jobs in den Backlog verschoben." }
+      jobs_assigned: { one: "1 Job %{owner} zugewiesen.", other: "%{count} Jobs %{owner} zugewiesen." }
+      jobs_priority_set: { one: "Priorität von 1 Job auf %{priority} gesetzt.", other: "Priorität von %{count} Jobs auf %{priority} gesetzt." }
+      jobs_skipped: { one: "1 Job übersprungen.", other: "%{count} Jobs übersprungen." }
+      jobs_paused: { one: "1 Job pausiert. Aktive Schritte werden beendet, bevor die Pause wirksam wird.", other: "%{count} Jobs pausiert. Aktive Schritte werden beendet, bevor die Pause wirksam wird." }
+      jobs_unpaused: { one: "Pause für 1 Job aufgehoben. Zulässige Workflows werden gemäß der Zugangssteuerung fortgesetzt.", other: "Pause für %{count} Jobs aufgehoben. Zulässige Workflows werden gemäß der Zugangssteuerung fortgesetzt." }
+      tag_applied: { one: "%{tag} auf 1 Job angewendet.", other: "%{tag} auf %{count} Jobs angewendet." }
+      epics_started: { one: "1 Epic nach In Bearbeitung verschoben.", other: "%{count} Epics nach In Bearbeitung verschoben." }
+      auto_merge_disabled: { one: "1 Job übersprungen, da Auto-Merge für sein Repository deaktiviert ist (%{repositories}). Aktiviere Auto-Merge in den Repository-Einstellungen, um ihn zu genehmigen.", other: "%{count} Jobs übersprungen, da Auto-Merge für ihre Repositorys deaktiviert ist (%{repositories}). Aktiviere Auto-Merge in den Repository-Einstellungen, um sie zu genehmigen." }
+      github_reviews_left: { one: "GitHub-Review für 1 Job abgegeben.", other: "GitHub-Reviews für %{count} Jobs abgegeben." }
       lanes: { backlog: "Backlog", blocked: "Blockiert", queued: "Eingereiht", running: "Läuft", succeeded: "Erfolgreich", landing: "Landing", failed: "Fehlgeschlagen" }
       columns:
         jobs_agent_provider: "Agent"
@@ -186,6 +204,10 @@ de:
       not_started: "Der Befehl wurde noch nicht gestartet. Versuche es gleich noch einmal."
       command_in_flight: "Für diesen Chat läuft bereits ein Shell-Befehl."
       turn_in_flight: "Du kannst keinen Shell-Befehl ausführen, während eine Antwort verarbeitet wird."
+      preconditions:
+        repository_not_found: "An diesen Chat ist kein Repository angehängt."
+        coding_checkout_not_found: "Für diesen Chat gibt es keinen aktiven Coding-Checkout."
+        local_daemon_disconnected: "Der lokale Daemon ist nicht verbunden. Führe `syrus local` in deinem Repository aus, um fortzufahren."
     chats:
       errors:
         before_id_required: "before_id ist erforderlich."
