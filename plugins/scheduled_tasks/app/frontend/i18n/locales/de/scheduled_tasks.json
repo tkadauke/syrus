@@ -42,6 +42,7 @@
   "tool_previous_prompt": "Vorheriger Prompt",
   "tool_previous_prompt_full": "Vollständiger vorheriger Task-Prompt",
   "tool_field_schedule_input": "Zeitplan",
+  "tool_field_cron_expression": "Cron-Ausdruck",
   "tool_field_fire_at": "Ausführung um",
   "tool_field_pr_pileup_policy": "PR-Anhäufung",
   "tool_empty_value": "Leer",
