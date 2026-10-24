@@ -12,14 +12,22 @@ class DeadWorkerQueueDetector
   def initialize(run_ids: nil, grace_period: DEFAULT_GRACE_PERIOD, limit: MAX_RESULTS, now: Time.current)
     @run_ids = Array(run_ids).map(&:to_i).select(&:positive?).uniq
     @grace_period = grace_period
-    @limit = [ limit.to_i, MAX_RESULTS ].min
+    @limit = [ [ limit.to_i, 1 ].max, MAX_RESULTS ].min
     @now = now
   end
 
   def call
     scope = Run.where(state: "queued").includes(:job, step: :workflow).order(:created_at, :id)
     scope = scope.where(id: run_ids) if run_ids.any?
-    scope.limit(limit * 3).filter_map { |run| detect(run) }.first(limit)
+    results = []
+    scope.find_in_batches(batch_size: 200) do |batch|
+      batch.each do |run|
+        result = detect(run)
+        results << result if result
+        return results if results.size >= limit
+      end
+    end
+    results
   rescue NameError, ActiveRecord::StatementInvalid
     []
   end
@@ -36,7 +44,9 @@ class DeadWorkerQueueDetector
     )).find { |job| ready?(job) }
     return unless queue_job
     return unless queue_job.created_at && queue_job.created_at <= now - grace_period
+    return unless explicit_worker_queue?(queue_job.queue_name)
     return if InstanceVersion.worker_queue_live?(queue_job.queue_name)
+    return unless replacement_capacity_available?(run)
 
     workflow = run.workflow
     Result.new(
@@ -51,6 +61,15 @@ class DeadWorkerQueueDetector
       run_state: run.state,
       workflow_affinity_present: workflow&.worker_hostname.present? || workflow&.worker_storage_key.present?
     )
+  end
+
+  def explicit_worker_queue?(queue_name)
+    queue_name.to_s.start_with?("worker-", "resume-")
+  end
+
+  def replacement_capacity_available?(run)
+    replacement = RunQueueResolver.resolve(run: run, ignore_workflow_affinity: true)
+    !replacement.blocked? && InstanceVersion.worker_queue_live?(replacement.queue_name)
   end
 
   def ready?(job)

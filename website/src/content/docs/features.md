@@ -1206,7 +1206,10 @@ receive an outcome for every Run. Confirmation rechecks claims and Run state,
 never interrupts claimed work, removes only stale unclaimed queue records, and
 routes eligible Runs through current worker capability and admission rules.
 Repair audits store bounded snapshot references so large workflow artifacts do
-not turn a successful repair into an audit-overflow failure.
+not turn a successful repair into an audit-overflow failure. A durable repair
+intent is recorded before touching a separately configured queue database; if
+final evidence cannot be saved afterward, the item reports a partial outcome
+instead of falsely reporting failure.
 Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
 without closing the Job. The stuck Jobs page and admin stuck APIs paginate
