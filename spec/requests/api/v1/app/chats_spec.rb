@@ -1042,6 +1042,27 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       )
     end
 
+    it "returns readable highlighted snippets for canonical assistant messages" do
+      chat = ChatSession.create!(user: user, repository: repository, title: "Canonical")
+      message = ChatMessage.create!(
+        chat_session: chat,
+        role: "assistant",
+        content: [
+          { "type" => "thinking", "thinking" => "private needlereasoning" },
+          { "type" => "text", "text" => "First needle line.\n" },
+          { "type" => "tool_use", "name" => "ignored", "input" => {} },
+          { "type" => "text", "text" => "Second visible block." }
+        ]
+      )
+      ChatMessageSearchIndex.insert(message)
+
+      get "/api/v1/app/chats/search", params: { q: "needle" }
+
+      snippet = parse_body.dig("results", 0, "best_snippet")
+      expect(snippet).to include("First <b>needle</b> line.\nSecond visible block.")
+      expect(snippet).not_to include("[{", '"type"', "thinking", "needlereasoning", "\\n")
+    end
+
     it "omits hidden chats from search results" do
       visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible")
       hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden", hidden_at: Time.current)
