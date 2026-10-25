@@ -22,6 +22,12 @@ module SyrusRails
     end
     class DisposableDatabaseUnavailable < GenerationError; end
 
+    Application = Data.define(:root, :project_id) do
+      def join(path)
+        root.empty? ? path : File.join(root, path)
+      end
+    end
+
     def initialize(workspace:, workflow:, git: GitRunner.new(workflow: workflow), runner: ProcessRunner)
       @workspace = Pathname.new(workspace)
       @workflow = workflow
@@ -31,11 +37,12 @@ module SyrusRails
 
     def generate(file_path)
       base = @git.run("merge-base", "HEAD", WorkflowWorkspace.new(@workflow).base_ref, chdir: @workspace.to_s).strip
-      migrations = added_migrations(base)
       requested = clean_relative_path(file_path)
+      application = resolve_application(requested)
+      migrations = added_migrations(base, application)
       raise GenerationError, "migration is not newly added relative to #{base.first(12)}: #{requested}" unless migrations.include?(requested)
 
-      execute(base, migrations).fetch(requested)
+      execute(base, migrations, application, requested).fetch(requested)
     rescue GenerationError => e
       error_payload(file_path, "setup", e.message)
     rescue StandardError => e
@@ -44,19 +51,48 @@ module SyrusRails
 
     private
 
-    def added_migrations(base)
-      @git.run("diff", "--name-only", "--diff-filter=A", base, "--", "db/migrate/*.rb", chdir: @workspace.to_s)
-        .lines.map(&:strip).reject(&:empty?).sort
+    def added_migrations(base, application)
+      paths = @git.run("diff", "--name-only", "--diff-filter=A", base, "--", "**/db/migrate/*.rb", chdir: @workspace.to_s)
+        .lines.map(&:strip).reject(&:empty?)
+      nested_roots = applications.reject { |candidate| candidate == application }.map(&:root).reject(&:empty?)
+      paths.select do |path|
+        path.start_with?(application.join("db/migrate/")) ||
+          (application.root.empty? && nested_roots.none? { |root| path.start_with?("#{root}/") }) ||
+          (!application.root.empty? && path.start_with?("#{application.root}/") && nested_roots.none? { |root| path.start_with?("#{root}/") })
+      end.sort_by { |path| [ File.basename(path).split("_", 2).first.to_i, path ] }
     end
 
     def clean_relative_path(path)
       value = Pathname.new(path.to_s).cleanpath.to_s
-      raise GenerationError, "migration path must be under db/migrate" unless value.match?(%r{\Adb/migrate/\d+_[^/]+\.rb\z})
+      raise GenerationError, "migration path must be under a db/migrate directory" unless value.match?(%r{\A(?:[^/]+/)*db/migrate/\d+_[^/]+\.rb\z})
       value
     end
 
-    def execute(base, migrations)
-      schema_kind, schema = base_schema(base)
+    def resolve_application(path)
+      direct = applications.select { |candidate| path.start_with?(candidate.join("db/migrate/")) }
+      return direct.max_by { |candidate| candidate.root.length } if direct.any?
+
+      containing = applications.select { |candidate| candidate.root.empty? || path.start_with?("#{candidate.root}/") }
+      owner = containing.max_by { |candidate| candidate.root.length }
+      raise GenerationError, "migration has no owning Rails application: #{path}" unless owner
+      owner
+    end
+
+    def applications
+      @applications ||= @workspace.glob("**/.syrus.yml").filter_map do |config_path|
+        config = YAML.safe_load(config_path.read, aliases: true) || {}
+        next unless config.dig("project", "kind") == "rails_app"
+        root = config_path.dirname.relative_path_from(@workspace).to_s
+        root = "" if root == "."
+        Application.new(root:, project_id: config.dig("project", "id") || root.presence || "root")
+      rescue Psych::Exception => e
+        raise GenerationError, "cannot read #{config_path.relative_path_from(@workspace)}: #{e.message}"
+      end
+    end
+
+    def execute(base, migrations, application = applications.first, requested = migrations.last)
+      @application = application
+      schema_kind, schema = base_schema(base, application)
 
       Dir.mktmpdir("syrus-migration-artifact") do |dir|
         schema_path = File.join(dir, schema_kind == :ruby ? "schema.rb" : "structure.sql")
@@ -64,8 +100,8 @@ module SyrusRails
         File.write(schema_path, schema)
         File.write(runner_path, runner_source)
         database_urls = isolated_database_urls(dir)
-        env = process_env(database_urls, schema_path, schema_kind, migrations)
-        mounts = ProcessRunner.mounts(@workspace.to_s, read_write: @workspace.to_s, read_only: dir)
+        env = process_env(database_urls, schema_path, schema_kind, migrations, requested)
+        mounts = ProcessRunner.mounts(@workspace.join(application.root).to_s, read_write: @workspace.to_s, read_only: dir)
         capture = nil
         cleanup = nil
         begin
@@ -88,7 +124,7 @@ module SyrusRails
         line = capture.stdout.lines.reverse.find { |candidate| candidate.start_with?(RESULT_PREFIX) }
         raise GenerationError.new("migration introspection produced no result", stage: "introspection") unless line
         begin
-          JSON.parse(line.delete_prefix(RESULT_PREFIX)).transform_keys { |key| "db/migrate/#{key}" }
+          JSON.parse(line.delete_prefix(RESULT_PREFIX))
         rescue JSON::ParserError => e
           raise GenerationError.new("migration introspection returned invalid JSON: #{e.message}", stage: "introspection")
         end
@@ -96,7 +132,12 @@ module SyrusRails
         Array(database_urls&.values).each { |url| FileUtils.rm_f(URI.parse(url).path) if url.start_with?("sqlite3:") }
       end
     rescue DisposableDatabaseUnavailable => e
-      fallback(base, migrations, e.message)
+      direct_migrations = migrations.select { |path| path.start_with?(application.join("db/migrate/")) }
+      unless direct_migrations.include?(requested)
+        message = "#{e.message}; cannot verify that the Rails application exposes nested migration #{requested}"
+        return migrations.index_with { |path| error_payload(path, "fallback", message) }
+      end
+      fallback(base, direct_migrations, e.message, application)
     rescue GenerationError => e
       migrations.index_with { |path| error_payload(path, e.stage, e.message) }
     end
@@ -117,9 +158,9 @@ module SyrusRails
       ).capture
     end
 
-    def base_schema(base)
+    def base_schema(base, application = @application || applications.first)
       %w[db/schema.rb db/structure.sql].each do |path|
-        content = @git.run("show", "#{base}:#{path}", chdir: @workspace.to_s)
+        content = @git.run("show", "#{base}:#{application.join(path)}", chdir: @workspace.to_s)
         return [ path.end_with?(".rb") ? :ruby : :structure, content ]
       rescue GitRunner::GitError
         next
@@ -154,7 +195,7 @@ module SyrusRails
     end
 
     def database_configuration
-      path = @workspace.join("config/database.yml")
+      path = @workspace.join(@application&.root.to_s, "config/database.yml")
       raw = path.read.gsub(/<%=.*?%>/m, "")
       YAML.safe_load(raw, aliases: true) || {}
     rescue Psych::Exception => e
@@ -181,12 +222,14 @@ module SyrusRails
       names
     end
 
-    def process_env(urls, schema_path, schema_kind, migrations)
+    def process_env(urls, schema_path, schema_kind, migrations, requested = migrations.last)
       primary_url = urls.fetch("primary")
       env = {
         "RAILS_ENV" => "development", "DATABASE_URL" => primary_url,
         "SYRUS_ARTIFACT_SANDBOX" => "1", "SYRUS_ARTIFACT_SCHEMA" => schema_path,
         "SYRUS_ARTIFACT_MIGRATIONS" => JSON.generate(migrations.map { |path| @workspace.join(path).to_s }),
+        "SYRUS_ARTIFACT_WORKSPACE" => @workspace.to_s,
+        "SYRUS_ARTIFACT_REQUESTED" => requested,
         "SYRUS_ARTIFACT_RUNNER" => File.join(File.dirname(schema_path), "runner.rb"),
         "SCHEMA" => schema_path, "SCHEMA_FORMAT" => schema_kind == :ruby ? "ruby" : "sql",
         "SYRUS_ARTIFACT_DATABASES" => JSON.generate(urls.values.map { |url| URI.parse(url).path.delete_prefix("/") })
@@ -195,9 +238,9 @@ module SyrusRails
       env
     end
 
-    def fallback(base, migrations, reason)
-      kind, base_content = base_schema(base)
-      head = @workspace.join(kind == :ruby ? "db/schema.rb" : "db/structure.sql")
+    def fallback(base, migrations, reason, application = @application)
+      kind, base_content = base_schema(base, application)
+      head = @workspace.join(application.root, kind == :ruby ? "db/schema.rb" : "db/structure.sql")
       raise GenerationError, "#{reason}; schema-dump fallback unavailable" unless head.file?
       payload = if kind == :ruby
         catalog_payload(File.basename(migrations.last, ".rb"), SchemaParser.new(base_content).parse[:tables], SchemaParser.parse(head)[:tables])
@@ -256,6 +299,13 @@ module SyrusRails
         abort "artifact sandbox has non-isolated database configurations: #{unsafe.map(&:name).join(', ')}" if unsafe.any?
         ActiveRecord::Base.establish_connection(ENV.fetch("DATABASE_URL"))
         connection = ActiveRecord::Base.connection
+        workspace = Pathname.new(ENV.fetch("SYRUS_ARTIFACT_WORKSPACE")).realpath
+        migration_paths = ActiveRecord::Migrator.migrations_paths.map { |path| Pathname.new(path).expand_path.realpath.to_s }
+        requested = ENV.fetch("SYRUS_ARTIFACT_REQUESTED")
+        requested_path = workspace.join(requested).realpath
+        unless migration_paths.include?(requested_path.dirname.to_s)
+          abort "migration is not exposed by the owning Rails application: #{requested}"
+        end
         ignored = %w[ar_internal_metadata schema_migrations]
         snapshot = lambda do
           connection.schema_cache.clear!
@@ -271,7 +321,7 @@ module SyrusRails
           end
         end
         results = {}
-        ENV.fetch("SYRUS_ARTIFACT_MIGRATIONS").then { |json| JSON.parse(json) }.each do |path|
+        ENV.fetch("SYRUS_ARTIFACT_MIGRATIONS").then { |json| JSON.parse(json) }.select { |path| migration_paths.include?(Pathname.new(path).dirname.realpath.to_s) }.each do |path|
           before = snapshot.call
           version = File.basename(path).split("_", 2).first.to_i
           proxy = ActiveRecord::MigrationContext.new([File.dirname(path)]).migrations.find { |m| m.version == version }
@@ -279,7 +329,8 @@ module SyrusRails
           proxy.migrate(:up)
           after = snapshot.call
           names = (before.map { |table| table[:name] } | after.map { |table| table[:name] }).select { |name| before.find { |table| table[:name] == name } != after.find { |table| table[:name] == name } }
-          results[File.basename(path)] = { migration_name: proxy.name, status: names.empty? ? "no_schema_changes" : "success", before: { tables: before.select { |table| names.include?(table[:name]) } }, after: { tables: after.select { |table| names.include?(table[:name]) } } }
+          identity = Pathname.new(path).realpath.relative_path_from(workspace).to_s
+          results[identity] = { migration_name: proxy.name, status: names.empty? ? "no_schema_changes" : "success", before: { tables: before.select { |table| names.include?(table[:name]) } }, after: { tables: after.select { |table| names.include?(table[:name]) } } }
         end
         puts "SYRUS_MIGRATION_ARTIFACT=#{JSON.generate(results)}"
       RUBY

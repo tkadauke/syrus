@@ -20,6 +20,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     @workspace = Pathname.new(Dir.mktmpdir("migration-artifacts"))
     @workspace.join("config").mkpath
     @workspace.join("db/migrate").mkpath
+    @workspace.join(".syrus.yml").write("project:\n  id: root\n  kind: rails_app\n")
     @workspace.join("config/database.yml").write("default:\n  adapter: sqlite3\n")
     allow(WorkflowWorkspace).to receive(:new).with(workflow).and_return(double("workspace", base_ref: base_ref))
   end
@@ -32,7 +33,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
 
   def stub_git(migrations)
     allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "db/migrate/*.rb", chdir: @workspace.to_s).and_return(migrations.join("\n"))
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(migrations.join("\n"))
     allow(git).to receive(:run).with("show", "base-sha:db/schema.rb", chdir: @workspace.to_s).and_return(base_schema)
   end
 
@@ -48,7 +49,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     paths = %w[db/migrate/20261022000001_create_users.rb db/migrate/20261022000002_add_account.rb]
     paths.each { |path| @workspace.join(path).write("class Placeholder; end") }
     stub_git(paths)
-    output = paths.to_h { |path| [ File.basename(path), { migration_name: File.basename(path, ".rb"), status: "success", before: { tables: [] }, after: { tables: [] } } ] }
+    output = paths.to_h { |path| [ path, { migration_name: File.basename(path, ".rb"), status: "success", before: { tables: [] }, after: { tables: [] } } ] }
     capture = double(result: double(success?: true), stdout: "noise\n#{described_class::RESULT_PREFIX}#{JSON.generate(output)}\n", stderr: "")
     process = double(capture: capture)
     runner = double("runner class")
@@ -116,7 +117,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     path = "db/migrate/20261022000001_create_widgets.rb"
     @workspace.join(path).write("class CreateWidgets; end")
     stub_git([ path ])
-    output = { File.basename(path) => { migration_name: "CreateWidgets", status: "success" } }
+    output = { path => { migration_name: "CreateWidgets", status: "success" } }
     executed = double(result: double(success?: true), stdout: "#{described_class::RESULT_PREFIX}#{JSON.generate(output)}\n", stderr: "")
     cleanup = double(result: double(success?: false, timed_out?: false, exit_status: 1), stderr: "permission denied")
     runner = double("runner class")
@@ -148,7 +149,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     @workspace.join("db/structure.sql").write("-- head\nCREATE TABLE widgets (id bigint);\n")
     @workspace.join("config/database.yml").write("default:\n  adapter: postgresql\n")
     allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
     allow(git).to receive(:run).with("show", "base-sha:db/schema.rb", chdir: @workspace.to_s).and_raise(GitRunner::GitError.new([ "show" ], 128, "missing"))
     allow(git).to receive(:run).with("show", "base-sha:db/structure.sql", chdir: @workspace.to_s).and_return("-- base\nCREATE TABLE accounts (id bigint);\n")
 
@@ -164,10 +165,10 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     path = "db/migrate/20261022000001_create_widgets.rb"
     @workspace.join(path).write("class CreateWidgets; end")
     allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
     allow(git).to receive(:run).with("show", "base-sha:db/schema.rb", chdir: @workspace.to_s).and_raise(GitRunner::GitError.new([ "show" ], 128, "missing"))
     allow(git).to receive(:run).with("show", "base-sha:db/structure.sql", chdir: @workspace.to_s).and_return("CREATE TABLE accounts (id integer);\n")
-    output = { File.basename(path) => { migration_name: "CreateWidgets", status: "success", before: { tables: [] }, after: { tables: [] } } }
+    output = { path => { migration_name: "CreateWidgets", status: "success", before: { tables: [] }, after: { tables: [] } } }
     capture = double(result: double(success?: true), stdout: "#{described_class::RESULT_PREFIX}#{JSON.generate(output)}\n", stderr: "")
     runner = double("runner class")
     expect(runner).to receive(:new).with(hash_including(command: generator(runner: runner).send(:execution_command))) do |options|
@@ -206,6 +207,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     bootstrap = <<~RUBY
       module Rails; def self.env = "development"; end
       ActiveRecord::Base.configurations = { "development" => { "primary" => ENV.fetch("DATABASE_URL"), "analytics" => ENV.fetch("ANALYTICS_DATABASE_URL") } }
+      ActiveRecord::Migrator.migrations_paths = [File.dirname(ENV.fetch("MIGRATION_PATH"))]
       ActiveRecord::Base.establish_connection(ENV.fetch("DATABASE_URL"))
       load ENV.fetch("SYRUS_ARTIFACT_SCHEMA")
       load ENV.fetch("SYRUS_ARTIFACT_RUNNER")
@@ -215,12 +217,14 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
         "DATABASE_URL" => url, "PRIMARY_DATABASE_URL" => url, "ANALYTICS_DATABASE_URL" => url,
         "SYRUS_ARTIFACT_SANDBOX" => "1", "SYRUS_ARTIFACT_SCHEMA" => schema.to_s,
         "SYRUS_ARTIFACT_RUNNER" => runner.to_s, "SYRUS_ARTIFACT_MIGRATIONS" => JSON.generate([ migration.to_s ]),
+        "SYRUS_ARTIFACT_WORKSPACE" => @workspace.to_s, "SYRUS_ARTIFACT_REQUESTED" => migration.relative_path_from(@workspace).to_s,
+        "MIGRATION_PATH" => migration.to_s,
         "SYRUS_ARTIFACT_DATABASES" => JSON.generate([ database.to_s.delete_prefix("/") ])
       }, RbConfig.ruby, "-ractive_record", "-e", bootstrap
     )
     expect(status).to be_success, stderr
     payload = JSON.parse(stdout.lines.find { |line| line.start_with?(described_class::RESULT_PREFIX) }.delete_prefix(described_class::RESULT_PREFIX))
-    table = payload.dig(migration.basename.to_s, "after", "tables", 0)
+    table = payload.dig(migration.relative_path_from(@workspace).to_s, "after", "tables", 0)
     expect(table.fetch("columns").map { |column| column.fetch("name") }).to include("workflow_id", "name", "value", "created_at", "updated_at")
     expect(table.fetch("indexes")).to include(hash_including("columns" => [ "workflow_id" ]), hash_including("columns" => [ "workflow_id", "name" ], "unique" => true))
   end
@@ -262,5 +266,88 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     payload = generator.send(:catalog_payload, "AddAccount", before, after)
     expect(payload.dig(:before, :tables).map { |table| table[:name] }).to eq([ "widgets" ])
     expect(payload.dig(:after, :tables).map { |table| table[:name] }).to eq([ "widgets" ])
+  end
+
+  it "attributes an exposed plugin migration to the root Rails application with a repository-relative identity" do
+    path = "plugins/agent_memory/db/migrate/20261022000003_create_memories.rb"
+    @workspace.join(path).dirname.mkpath
+    @workspace.join(path).write("class CreateMemories; end")
+    stub_git([ path ])
+    output = { path => { migration_name: "CreateMemories", status: "success", before: { tables: [] }, after: { tables: [] } } }
+    executed = double(result: double(success?: true), stdout: "#{described_class::RESULT_PREFIX}#{JSON.generate(output)}\n", stderr: "")
+    cleaned = double(result: double(success?: true), stdout: "", stderr: "")
+    runner = double("runner class")
+    expect(runner).to receive(:new).ordered do |options|
+      expect(options[:mounts].workdir).to eq(@workspace.to_s)
+      expect(JSON.parse(options[:env].fetch("SYRUS_ARTIFACT_MIGRATIONS"))).to eq([ @workspace.join(path).to_s ])
+      double(capture: executed)
+    end
+    expect(runner).to receive(:new).ordered.and_return(double(capture: cleaned))
+
+    expect(generator(runner: runner).generate(path)).to include("migration_name" => "CreateMemories")
+  end
+
+  it "uses each explicit nested Rails application's schema, configuration, executable, and migration namespace" do
+    %w[shop billing].each do |name|
+      root = @workspace.join("apps", name)
+      root.join("db/migrate").mkpath
+      root.join("config").mkpath
+      root.join("bin").mkpath
+      root.join(".syrus.yml").write("project:\n  id: #{name}\n  kind: rails_app\n")
+      root.join("config/database.yml").write("default:\n  adapter: sqlite3\n  database: storage/#{name}.sqlite3\n")
+    end
+    path = "apps/shop/db/migrate/20261022000004_create_orders.rb"
+    @workspace.join(path).write("class CreateOrders; end")
+    allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
+    expect(git).to receive(:run).with("show", "base-sha:apps/shop/db/schema.rb", chdir: @workspace.to_s).and_return(base_schema)
+    output = { path => { migration_name: "CreateOrders", status: "success" } }
+    executed = double(result: double(success?: true), stdout: "#{described_class::RESULT_PREFIX}#{JSON.generate(output)}\n", stderr: "")
+    cleaned = double(result: double(success?: true), stdout: "", stderr: "")
+    runner = double("runner class")
+    expect(runner).to receive(:new).ordered do |options|
+      expect(options[:mounts].workdir).to eq(@workspace.join("apps/shop").to_s)
+      expect(options[:command].last).to include("bin/rails")
+      double(capture: executed)
+    end
+    expect(runner).to receive(:new).ordered.and_return(double(capture: cleaned))
+
+    expect(generator(runner: runner).generate(path)).to include("migration_name" => "CreateOrders")
+  end
+
+  it "keeps duplicate migration basenames in independent applications distinct" do
+    %w[first second].each do |name|
+      root = @workspace.join("apps", name)
+      root.mkpath
+      root.join(".syrus.yml").write("project:\n  id: #{name}\n  kind: rails_app\n")
+    end
+    basename = "20261022000005_create_events.rb"
+    first = "apps/first/db/migrate/#{basename}"
+    second = "apps/second/db/migrate/#{basename}"
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return([ first, second ].join("\n"))
+    app = generator.send(:resolve_application, first)
+
+    expect(generator.send(:added_migrations, "base-sha", app)).to eq([ first ])
+    expect(generator.send(:resolve_application, second).project_id).to eq("second")
+  end
+
+  it "requires the booted owning application to expose a nested migration path" do
+    source = generator.send(:runner_source)
+    expect(source).to include("migration is not exposed by the owning Rails application")
+    expect(source.index("migration is not exposed")).to be < source.index("proxy.migrate(:up)")
+  end
+
+  it "does not guess root ownership for a nested migration when application boot is unavailable" do
+    path = "plugins/unknown/db/migrate/20261022000006_create_unknowns.rb"
+    @workspace.join(path).dirname.mkpath
+    @workspace.join(path).write("class CreateUnknowns; end")
+    @workspace.join("config/database.yml").write("default:\n  adapter: postgresql\n")
+    stub_git([ path ])
+
+    with_env("SYRUS_RAILS_ARTIFACT_DATABASE_URL", nil) do
+      result = generator.generate(path)
+      expect(result).to include(status: "error", stage: "fallback")
+      expect(result[:message]).to include("cannot verify that the Rails application exposes nested migration")
+    end
   end
 end
