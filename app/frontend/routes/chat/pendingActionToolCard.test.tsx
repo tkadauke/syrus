@@ -703,7 +703,7 @@ describe("delegate_issue tool card", () => {
     )
 
     expect(screen.getByText("issue_not_found")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Repository #12" })).toHaveAttribute("href", "/repositories/12")
+    expect(screen.getByRole("link", { name: "Repository 12" })).toHaveAttribute("href", "/repositories/12")
     expect(screen.getByText("#404")).toBeInTheDocument()
   })
 

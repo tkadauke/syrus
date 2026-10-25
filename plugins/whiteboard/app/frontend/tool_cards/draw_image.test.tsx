@@ -79,7 +79,7 @@ describe("draw_image tool card", () => {
           )}
         </>
       )
-      fireEvent.click(screen.getByRole("button", { name: "Open file-1" }))
+      fireEvent.click(screen.getByRole("button", { name: "file-1 öffnen" }))
       expect(screen.getByRole("link", { name: "Herunterladen" })).toBeInTheDocument()
       for (const label of ["Element-ID", "Version", "Datei-ID", "MIME-Typ", "Ungefaehre Groesse", "Abmessungen", "Position"])
         expect(screen.getAllByText(label).length).toBeGreaterThan(0)

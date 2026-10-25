@@ -128,7 +128,7 @@ describe("noisy chat tool failure cards", () => {
 
     expect(screen.getByText("Attach tkadauke/syrus")).toBeInTheDocument()
     expect(screen.getByText("Read repository info for tkadauke/syrus")).toBeInTheDocument()
-    expect(screen.getByText("Propose epic: Tool cards with 2 Jobs")).toBeInTheDocument()
+    expect(screen.getByText("Propose Epic: Tool cards with 2 Jobs")).toBeInTheDocument()
     expect(screen.getByText("EPIC-349")).toBeInTheDocument()
   })
 })

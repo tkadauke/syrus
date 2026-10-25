@@ -72,7 +72,7 @@ describe("Local Mode job-outcome tool card family", () => {
       resultError: true
     })
 
-    expect(createCodingJobCard.collapsedSummary?.(errorContext)).toBe("Coding job creation failed")
+    expect(createCodingJobCard.collapsedSummary?.(errorContext)).toBe("Coding Job creation failed")
     render(<>{createCodingJobCard.renderExpanded(errorContext)}</>)
     expect(screen.getByRole("heading", { name: "Create a card" })).toBeInTheDocument()
     expect(screen.getByText("Repository is unavailable.")).toBeInTheDocument()

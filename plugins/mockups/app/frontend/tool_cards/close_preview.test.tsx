@@ -36,7 +36,7 @@ describe("close_preview tool card", () => {
     render(<>{closePreviewToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Panel #7")).toBeInTheDocument()
-    expect(screen.getByText("Closed")).toBeInTheDocument()
+    expect(screen.getByText("closed")).toBeInTheDocument()
     expect(screen.getByText("Landing page")).toBeInTheDocument()
     expect(screen.getByText("index.html")).toBeInTheDocument()
     expect(screen.getByText("3")).toBeInTheDocument()
@@ -70,7 +70,7 @@ describe("close_preview tool card", () => {
     render(<>{closePreviewToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Envelope title")).toBeInTheDocument()
-    expect(screen.getByText("Closed")).toBeInTheDocument()
+    expect(screen.getByText("closed")).toBeInTheDocument()
   })
 
   it("renders a styled panel-not-found error", () => {

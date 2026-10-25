@@ -94,7 +94,7 @@ describe("select_job_delivery_track tool card", () => {
     expect(screen.getByText("Set delivery track to staging for JOB-4225")).toBeInTheDocument()
   })
 
-  it("resolves failure copy and catalog labels after a live language switch", async () => {
+  it("resolves localized delivery-track copy while retaining maintenance-card debt", async () => {
     const cardContext = context({ input: { job_id: 4225, track: "staging" }, resultBody: "Error: job is not open", resultError: true })
 
     expect(examples[0].label).toBe("Configured delivery track")
@@ -111,7 +111,7 @@ describe("select_job_delivery_track tool card", () => {
         resultBody: "",
         resultError: false
       })
-    ).toBe("Abhängigkeit hinzugefügt · EPIC-42")
+    ).toBe("Dependency added · EPIC-42")
     render(
       <MemoryRouter>
         {addEpicDependencyToolCard.renderExpanded({
@@ -123,7 +123,7 @@ describe("select_job_delivery_track tool card", () => {
         })}
       </MemoryRouter>
     )
-    expect(screen.getByText("Abhängigkeit")).toBeInTheDocument()
+    expect(screen.getByText("Dependency")).toBeInTheDocument()
     renderCard(cardContext)
     expect(screen.getByText("Auswahl des Auslieferungspfads fehlgeschlagen")).toBeInTheDocument()
     expect(screen.getByText(/Prüfe, ob der Job noch offen ist/)).toBeInTheDocument()

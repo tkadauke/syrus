@@ -4,37 +4,39 @@ require "tempfile"
 
 RSpec.describe "Untranslated source strings", type: :unit do
   CHAT_I18N_DEBT_FILES = %w[
+    app/frontend/routes/chat/ProposalCards.tsx
+    app/frontend/routes/chat/adminToolCard.tsx
+    app/frontend/routes/chat/chatSearchToolCard.tsx
+    app/frontend/routes/chat/jobEpicMaintenanceToolCard.tsx
+    app/frontend/routes/chat/pendingActionToolCard.tsx
+    app/frontend/routes/chat/refMovementToolCard.tsx
+    app/frontend/routes/chat/repoDocumentToolCard.tsx
+    app/frontend/routes/chat/runtimeToolCard.tsx
     app/frontend/routes/chat/streamBuilders.ts
     app/frontend/routes/chat/streamChrome.tsx
-    app/frontend/routes/chat/MessageCards.tsx
-    app/frontend/routes/chat/jobsTableCard.tsx
-    app/frontend/routes/chat/localModeJobOutcomeCard.tsx
-    app/frontend/routes/chat/mediaPreviewShell.tsx
-    app/frontend/routes/chat/systemMessages.ts
-    app/frontend/routes/chat/toolCardDiff.tsx
-    app/frontend/routes/chat/toolCardUi.tsx
-    app/frontend/routes/chat/toolErrorCard.tsx
-    app/frontend/routes/chat/toolFailureSummaryCard.tsx
-    app/frontend/routes/chat/tool_cards/admin_cleanup_workspace.tsx
-    app/frontend/routes/chat/tool_cards/admin_github_app_installation_diagnostic.tsx
-    app/frontend/routes/chat/tool_cards/admin_kill_process.tsx
-    app/frontend/routes/chat/tool_cards/admin_list_processes.tsx
-    app/frontend/routes/chat/tool_cards/admin_list_runs.tsx
-    app/frontend/routes/chat/tool_cards/admin_list_users.tsx
-    app/frontend/routes/chat/tool_cards/admin_maintenance_tasks.tsx
-    app/frontend/routes/chat/tool_cards/admin_mcp_tool_usage.tsx
-    app/frontend/routes/chat/tool_cards/admin_overview.tsx
-    app/frontend/routes/chat/tool_cards/admin_pause_runs.tsx
-    app/frontend/routes/chat/tool_cards/admin_pause_user_scheduling.tsx
-    app/frontend/routes/chat/tool_cards/admin_read_operational_logs.tsx
-    app/frontend/routes/chat/tool_cards/admin_retry_step.tsx
-    app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx
-    app/frontend/routes/chat/tool_cards/admin_unpause_user_scheduling.tsx
-    app/frontend/routes/chat/tool_cards/admin_version.tsx
+    app/frontend/routes/chat/tool_cards/add_job_dependency.tsx
+    app/frontend/routes/chat/tool_cards/archive_epic.tsx
+    app/frontend/routes/chat/tool_cards/cancel_job.tsx
     app/frontend/routes/chat/tool_cards/create_tag.tsx
     app/frontend/routes/chat/tool_cards/daemon_ping.tsx
+    app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
+    app/frontend/routes/chat/tool_cards/list_repo_documents.tsx
+    app/frontend/routes/chat/tool_cards/list_wakeups.tsx
     app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
     app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
+    app/frontend/routes/chat/tool_cards/read_chat_messages.tsx
+    app/frontend/routes/chat/tool_cards/read_ref_movement_status.tsx
+    app/frontend/routes/chat/tool_cards/read_repo_document.tsx
+    app/frontend/routes/chat/tool_cards/repair_queue_affinity.tsx
+    app/frontend/routes/chat/tool_cards/replace_pr_branch_with_workflow_output.tsx
+    app/frontend/routes/chat/tool_cards/rerun_ci_repair.tsx
+    app/frontend/routes/chat/tool_cards/resume_landing_queue.tsx
+    app/frontend/routes/chat/tool_cards/retry_from_current_pr_branch.tsx
+    app/frontend/routes/chat/tool_cards/retry_job.tsx
+    app/frontend/routes/chat/tool_cards/run_visual_review.tsx
+    app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
+    app/frontend/routes/chat/tool_cards/search_chats.tsx
+    app/frontend/routes/chat/tool_cards/search_jobs.tsx
     app/frontend/routes/chat/tool_cards/submit_artifact.tsx
     app/frontend/routes/chat/tool_cards/write_file.tsx
   ].freeze
@@ -88,16 +90,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/JobEpicPickerPopup.tsx
     app/frontend/routes/chat/ScheduleMessageModal.tsx
     app/frontend/routes/chat/WorkspacePanels.tsx
-    app/frontend/routes/chat/ProposalCards.tsx
     app/frontend/routes/chat/ScratchpadPanel.tsx
     app/frontend/routes/chat/proposalDisplay.ts
     app/frontend/routes/chat/proposalToolCard.tsx
-    app/frontend/routes/chat/repoDocumentToolCard.tsx
     app/frontend/routes/chat/pinnedContextToolCard.tsx
     app/frontend/routes/chat/chatPinToolCard.tsx
-    app/frontend/routes/chat/chatSearchToolCard.tsx
     app/frontend/routes/chat/chatHelperToolCard.tsx
-    app/frontend/routes/chat/adminToolCard.tsx
     app/frontend/routes/chat/issueTagArtifactToolCard.tsx
     app/frontend/routes/chat/jobEpicMaintenanceToolCard.tsx
     app/frontend/routes/chat/pendingActionToolCard.tsx
@@ -137,16 +135,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/JobEpicPickerPopup.tsx
     app/frontend/routes/chat/ScheduleMessageModal.tsx
     app/frontend/routes/chat/WorkspacePanels.tsx
-    app/frontend/routes/chat/ProposalCards.tsx
     app/frontend/routes/chat/ScratchpadPanel.tsx
     app/frontend/routes/chat/proposalDisplay.ts
     app/frontend/routes/chat/proposalToolCard.tsx
-    app/frontend/routes/chat/repoDocumentToolCard.tsx
     app/frontend/routes/chat/pinnedContextToolCard.tsx
     app/frontend/routes/chat/chatPinToolCard.tsx
-    app/frontend/routes/chat/chatSearchToolCard.tsx
     app/frontend/routes/chat/chatHelperToolCard.tsx
-    app/frontend/routes/chat/adminToolCard.tsx
   ].freeze
 
   # Run with:
@@ -285,6 +279,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/adminToolCard.tsx|jsx_text|JOB-
       app/frontend/routes/chat/adminToolCard.tsx|jsx_text|isValidElement
       app/frontend/routes/chat/adminToolCard.tsx|ternary|mt-1 overflow-visible sm:overflow-x-auto
+      app/frontend/routes/chat/tool_cards/admin_maintenance_tasks.tsx|jsx_text|Event #
+      app/frontend/routes/chat/tool_cards/admin_overview.tsx|user_visible_property|Healthy fleet, nothing notable
+      app/frontend/routes/chat/tool_cards/admin_overview.tsx|user_visible_property|Fleet needs attention (large result)
+      app/frontend/routes/chat/tool_cards/admin_overview.tsx|user_visible_property|Provider, GitHub, storage, and worker diagnostics with a long circuit reason.
+      app/frontend/routes/chat/tool_cards/admin_overview.tsx|user_visible_property|storage probe timed out
+      app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx|jsx_text|Page of
       app/frontend/routes/chat/chatHelperToolCard.tsx|jsx_text|T | null): CardState
       app/frontend/routes/RepositoryTargetGraph.tsx|jsx_text|THR-
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
