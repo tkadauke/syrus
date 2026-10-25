@@ -161,7 +161,9 @@ function BranchNode({ index, node, repositorySlug }: { index: number; node: Plan
             {node.currentBase || node.targetBase ? (
               <Row label={i18n.t("chat:restack_epic.base_change")} value={`${node.currentBase || "—"} → ${node.targetBase || "—"}`} />
             ) : null}
-            {node.targetParentJobId ? <Row label={i18n.t("chat:restack_epic.target_parent")} value={`JOB-${node.targetParentJobId}`} /> : null}
+            {node.targetParentJobId ? (
+              <Row label={i18n.t("chat:restack_epic.target_parent")} value={<EntityReference id={node.targetParentJobId} kind="job" />} />
+            ) : null}
             {node.commitsBehind ? <Row label={i18n.t("chat:restack_epic.commits_behind")} value={node.commitsBehind} /> : null}
             {node.checksState ? <Row label={i18n.t("chat:restack_epic.checks")} value={node.checksState} /> : null}
             {node.mergeableState ? <Row label={i18n.t("chat:restack_epic.mergeability")} value={node.mergeableState} /> : null}

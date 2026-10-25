@@ -56,6 +56,7 @@ describe("restack_epic tool card", () => {
     render(<>{restackEpicToolCard.renderExpanded(cardContext)}</>)
     expect(screen.getByRole("link", { name: /EPIC-91 \(stack-repair\)/ })).toHaveAttribute("href", "/epics/91")
     expect(screen.getAllByRole("link", { name: /JOB-101 \(stack-root\)/ })[0]).toHaveAttribute("href", "/jobs/101")
+    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/100")
     expect(screen.getAllByRole("link", { name: "PR #501" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/501")
     expect(screen.getAllByRole("link", { name: "syrus/a-very-long-stack-root-branch-name" })[0]).toHaveClass("break-all", "min-h-11")
     expect(screen.getByText("main → syrus/parent")).toBeInTheDocument()
