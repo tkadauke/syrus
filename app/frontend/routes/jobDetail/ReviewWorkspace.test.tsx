@@ -3015,14 +3015,33 @@ describe("ReviewWorkspace", () => {
 
     const composer = screen.getByTestId("diff-review-composer")
     fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
-    fireEvent.click(within(composer).getByRole("button", { name: "Discuss" }))
+    expect(within(composer).getByText("Moves this unposted draft into Job chat without creating a diff comment.")).toBeInTheDocument()
+    fireEvent.click(within(composer).getByRole("button", { name: "Discuss in chat" }))
 
     await waitFor(() => {
       expect(startJobDiscussionChat).toHaveBeenCalledWith(
         42,
-        ["Discuss this code review comment.", "Revision: head-sha", "Location: app/models/user.rb:1", "", "Comment:", "Please add a regression spec."].join(
-          "\n"
-        )
+        [
+          "The operator opened this chat discussion from an unposted diff draft. No review comment was created.",
+          "Job: JOB-42",
+          "Revision: head-sha",
+          "File: app/models/user.rb",
+          "Side: new",
+          "Selected line: 1",
+          "Selected source: +new",
+          "",
+          "Surrounding diff hunk:",
+          "```diff",
+          "--- a/app/models/user.rb",
+          "+++ b/app/models/user.rb",
+          "@@ -1,2 +1,2 @@",
+          "-old",
+          "+new",
+          "```",
+          "",
+          "Draft note:",
+          "Please add a regression spec."
+        ].join("\n")
       )
     })
 
@@ -3042,7 +3061,7 @@ describe("ReviewWorkspace", () => {
 
     const composer = screen.getByTestId("diff-review-composer")
     fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
-    fireEvent.click(within(composer).getByRole("button", { name: "Discuss" }))
+    fireEvent.click(within(composer).getByRole("button", { name: "Discuss in chat" }))
 
     await within(composer).findByText("Unable to start discussion.")
 

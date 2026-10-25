@@ -47,8 +47,9 @@
     "edit_comment_aria": "Commentarium {{id}} edere",
     "create_comment": "Commentarium crea",
     "create_error": "Commentarium diff creari non potuit.",
-    "discuss": "Disputa",
+    "discuss": "In sermone disputa",
     "discussing": "Incipitur...",
+    "discuss_hint": "Hanc schedam nondum editam in sermonem Operis transfert neque commentarium diff creat.",
     "discuss_error": "Disputatio incipi non potuit."
   },
   "onboarding": {
