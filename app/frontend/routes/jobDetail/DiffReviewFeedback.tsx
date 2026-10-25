@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import type { TFunction } from "i18next"
 import { Button } from "../../components/Button"
 import { errorMessage } from "../../lib/errorMessage"
+import { Markdown } from "../../lib/Markdown"
 import { useConfirm } from "../../hooks/useConfirm"
 import { useT } from "../../hooks/useT"
 import {
@@ -20,17 +21,20 @@ import {
   type DiffReviewComment,
   type DiffReviewCommentInput,
   type DiffReviewCommentAnchorKind,
-  type DiffReviewVersion
+  type DiffReviewVersion,
+  type JobFeedbackHistoryEntry
 } from "../../api/jobs"
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
 import { parseUnifiedDiff, splitLines } from "../../components/diff/diffRendering"
 import { Pill, surfaceClasses } from "../../components/ui"
 import { collapsedLabel, duplicateRunIds, metadataSummary } from "./DiffReviewVersionSelector"
 import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
+import { ChatBubbleIcon } from "./JobHeader"
 
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
   buildContext?: (selection: DiffLineSelection) => Record<string, unknown>
+  chatFeedback?: JobFeedbackHistoryEntry[]
   diffReviewVersionId?: number | null
   enabled: boolean
   headRef?: string | null
@@ -60,6 +64,9 @@ type DiffReviewFeedbackOptions = {
   workflowId?: number | null
 }
 
+const CHAT_FEEDBACK_BODY_CLASS =
+  "break-words text-text-primary [&_code]:rounded [&_code]:bg-surface-raised [&_code]:px-0.5 [&_code]:font-mono [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-surface-raised [&_pre]:p-1.5 [&_pre]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:px-0"
+
 export function diffReviewFeedbackAllowed(jobState: string) {
   return jobState === "implemented" || jobState === "approved" || jobState === "failed"
 }
@@ -67,6 +74,7 @@ export function diffReviewFeedbackAllowed(jobState: string) {
 export function useDiffReviewFeedback({
   baseRef,
   buildContext,
+  chatFeedback = [],
   diffReviewVersionId,
   enabled,
   headRef,
@@ -152,7 +160,8 @@ export function useDiffReviewFeedback({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: commentQueryKey })
   })
   const replyToComment = useMutation({
-    mutationFn: ({ id, body: replyText, versionId }: { id: number; body: string; versionId?: number | null }) => replyToDiffReviewComment(jobId, id, replyText, versionId),
+    mutationFn: ({ id, body: replyText, versionId }: { id: number; body: string; versionId?: number | null }) =>
+      replyToDiffReviewComment(jobId, id, replyText, versionId),
     onSuccess: () => {
       setReplyingId(null)
       setReplyBody("")
@@ -325,6 +334,7 @@ export function useDiffReviewFeedback({
       <DiffReviewFeedbackPanel
         actionableComments={actionableComments}
         body={body}
+        chatFeedback={chatFeedback}
         comments={commentList}
         currentVersionId={diffReviewVersionId ?? null}
         createError={createReviewComment.error}
@@ -394,9 +404,10 @@ export function useDiffReviewFeedback({
     discussComposingError: discussComment.error,
     discussComposingPending: discussComment.isPending,
     editingThreadBody,
-    editingThreadError: updateThreadComment.error && updateThreadComment.variables?.id === editingThreadId
-      ? errorMessage(updateThreadComment.error, t("review_update_error"))
-      : null,
+    editingThreadError:
+      updateThreadComment.error && updateThreadComment.variables?.id === editingThreadId
+        ? errorMessage(updateThreadComment.error, t("review_update_error"))
+        : null,
     editingThreadId,
     onCancelComposing: cancelComposer,
     onCancelEditThread: cancelEditThread,
@@ -417,6 +428,7 @@ export function useDiffReviewFeedback({
 function DiffReviewFeedbackPanel({
   actionableComments,
   body,
+  chatFeedback,
   comments,
   createError,
   currentVersionId,
@@ -462,6 +474,7 @@ function DiffReviewFeedbackPanel({
 }: {
   actionableComments: DiffReviewComment[]
   body: string
+  chatFeedback: JobFeedbackHistoryEntry[]
   comments: DiffReviewComment[]
   createError: Error | null
   currentVersionId: number | null
@@ -511,12 +524,13 @@ function DiffReviewFeedbackPanel({
     () =>
       groupReviewSidebarItems({
         comments,
+        chatFeedback,
         currentVersionId,
         reviewAnnotationPanels,
         reviewFilePaths,
         versions
       }),
-    [comments, currentVersionId, reviewAnnotationPanels, reviewFilePaths, versions]
+    [chatFeedback, comments, currentVersionId, reviewAnnotationPanels, reviewFilePaths, versions]
   )
   const hasReviewItems = reviewItems.length > 0
 
@@ -526,7 +540,10 @@ function DiffReviewFeedbackPanel({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("review_feedback_title")}</h3>
         <div className="flex flex-wrap gap-2">
           <ReviewStatePill label={t("review_pending_state", { count: actionableComments.length })} tone="pending" />
-          <ReviewStatePill label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })} tone={workflowActive ? "submitted" : "handled"} />
+          <ReviewStatePill
+            label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })}
+            tone={workflowActive ? "submitted" : "handled"}
+          />
         </div>
       </div>
       {reviewAnnotationCounts.length > 0 ? (
@@ -547,43 +564,49 @@ function DiffReviewFeedbackPanel({
         </div>
       ) : null}
       <div className="mt-3 space-y-4">
-        {!hasReviewItems ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : reviewItems.map((group) => {
-          const isCurrent = group.versionId === currentVersionId
-          return (
-            <div key={group.versionId}>
-              <VersionSectionHeader ambiguousRunIds={ambiguousRunIds} isCurrent={isCurrent} t={t} version={group.version} />
-              <div className={isCurrent ? "mt-2 space-y-3" : surfaceClasses("warning", "sm", "mt-2 space-y-3")}>
-                {group.items.map((item) =>
-                  item.kind === "annotation" ? (
-                    <ReviewAnnotationCard item={item.panel} key={item.key} />
-                  ) : (
-                    <CommentCard
-                      comment={item.comment}
-                      deletePending={deletePending}
-                      key={item.key}
-                      onChangeReplyBody={onChangeReplyBody}
-                      onCancelReply={onCancelReply}
-                      onDelete={onDelete}
-                      onEdit={onEdit}
-                      onReply={onReply}
-                      onResolve={onResolve}
-                      onStartReply={onStartReply}
-                      onViewInDiff={onViewInDiff}
-                      replyBody={replyBody}
-                      replyError={replyError}
-                      replyPending={replyPending}
-                      replyingId={replyingId}
-                      resolveError={resolveErrorCommentId === item.comment.id ? resolveError : null}
-                      resolvePending={resolvePending}
-                      supportsGlobalComments={supportsGlobalComments}
-                      t={t}
-                    />
-                  )
-                )}
+        {!hasReviewItems ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p>
+        ) : (
+          reviewItems.map((group) => {
+            const isCurrent = group.versionId === currentVersionId
+            return (
+              <div key={group.versionId}>
+                <VersionSectionHeader ambiguousRunIds={ambiguousRunIds} isCurrent={isCurrent} t={t} version={group.version} />
+                <div className={isCurrent ? "mt-2 space-y-3" : surfaceClasses("warning", "sm", "mt-2 space-y-3")}>
+                  {group.items.map((item) =>
+                    item.kind === "annotation" ? (
+                      <ReviewAnnotationCard item={item.panel} key={item.key} />
+                    ) : item.kind === "chat_feedback" ? (
+                      <ChatFeedbackCard entry={item.entry} key={item.key} t={t} />
+                    ) : (
+                      <CommentCard
+                        comment={item.comment}
+                        deletePending={deletePending}
+                        key={item.key}
+                        onChangeReplyBody={onChangeReplyBody}
+                        onCancelReply={onCancelReply}
+                        onDelete={onDelete}
+                        onEdit={onEdit}
+                        onReply={onReply}
+                        onResolve={onResolve}
+                        onStartReply={onStartReply}
+                        onViewInDiff={onViewInDiff}
+                        replyBody={replyBody}
+                        replyError={replyError}
+                        replyPending={replyPending}
+                        replyingId={replyingId}
+                        resolveError={resolveErrorCommentId === item.comment.id ? resolveError : null}
+                        resolvePending={resolvePending}
+                        supportsGlobalComments={supportsGlobalComments}
+                        t={t}
+                      />
+                    )
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
       {deleteError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
 
@@ -597,8 +620,12 @@ function DiffReviewFeedbackPanel({
             value={body}
           />
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button disabled={!body.trim() || createPending || updatePending} onClick={onSave} size="sm">{editing ? t("review_save_comment") : t("review_create_comment")}</Button>
-            <Button onClick={onCancel} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+            <Button disabled={!body.trim() || createPending || updatePending} onClick={onSave} size="sm">
+              {editing ? t("review_save_comment") : t("review_create_comment")}
+            </Button>
+            <Button onClick={onCancel} size="sm" variant="secondary">
+              {t("tags_cancel")}
+            </Button>
           </div>
           {createError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(createError, t("review_create_error"))}</p> : null}
           {updateError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(updateError, t("review_update_error"))}</p> : null}
@@ -632,7 +659,31 @@ function DiffReviewFeedbackPanel({
   )
 }
 
-function VersionSectionHeader({ ambiguousRunIds, isCurrent, t, version }: { ambiguousRunIds?: Set<number>; isCurrent: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
+function ChatFeedbackCard({ entry, t }: { entry: JobFeedbackHistoryEntry; t: TFunction<"jobs"> }) {
+  return (
+    <div className="min-w-0 rounded border border-info-border bg-info-bg p-3 text-sm text-info-text" data-testid="review-chat-feedback">
+      <div className="mb-2 flex items-center gap-2">
+        <ChatBubbleIcon />
+        <span className="text-xs font-semibold uppercase tracking-wide">{t("feedback_trigger_chat")}</span>
+      </div>
+      <div className={CHAT_FEEDBACK_BODY_CLASS}>
+        <Markdown text={entry.body} />
+      </div>
+    </div>
+  )
+}
+
+function VersionSectionHeader({
+  ambiguousRunIds,
+  isCurrent,
+  t,
+  version
+}: {
+  ambiguousRunIds?: Set<number>
+  isCurrent: boolean
+  t: TFunction<"jobs">
+  version: DiffReviewVersion
+}) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-1">
       <div className="min-w-0">
@@ -691,7 +742,10 @@ function CommentCard({
         <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
           {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
         </span>
-        <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
+        <ReviewStatePill
+          label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state}
+          tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"}
+        />
       </div>
       {!isGlobal && comment.diff_hunk ? (
         <div className="mt-2">
@@ -700,11 +754,31 @@ function CommentCard({
       ) : null}
       <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
-        {supportsGlobalComments && (comment.path || isGlobal) ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
-        {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
-        {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
-        {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
+        {comment.state === "draft" && isGlobal ? (
+          <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">
+            {t("review_edit_comment")}
+          </Button>
+        ) : null}
+        {supportsGlobalComments && (comment.path || isGlobal) ? (
+          <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">
+            {t("review_view_in_diff")}
+          </Button>
+        ) : null}
+        {comment.state !== "resolved" ? (
+          <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">
+            {t("review_resolve_comment")}
+          </Button>
+        ) : null}
+        {replyingId !== comment.id ? (
+          <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">
+            {t("review_reply_comment")}
+          </Button>
+        ) : null}
+        {comment.state === "draft" && isGlobal ? (
+          <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">
+            {t("review_delete_comment")}
+          </Button>
+        ) : null}
       </div>
       {resolveError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(resolveError, t("review_resolve_error"))}</p> : null}
       {replyingId === comment.id ? (
@@ -716,8 +790,12 @@ function CommentCard({
             value={replyBody}
           />
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">{t("review_send_reply")}</Button>
-            <Button onClick={onCancelReply} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+            <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">
+              {t("review_send_reply")}
+            </Button>
+            <Button onClick={onCancelReply} size="sm" variant="secondary">
+              {t("tags_cancel")}
+            </Button>
           </div>
           {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
         </div>
@@ -819,27 +897,21 @@ function discussionMessageForSelection({ body, headRef, selection }: { body: str
   const line = selection.side === "old" ? selection.line.oldLine : selection.line.newLine
   const location = [selection.file.path, line].filter((part) => part != null && part !== "").join(":")
 
-  return [
-    "Discuss this code review comment.",
-    `Revision: ${headRef || "unknown"}`,
-    `Location: ${location}`,
-    "",
-    "Comment:",
-    body
-  ].join("\n")
+  return ["Discuss this code review comment.", `Revision: ${headRef || "unknown"}`, `Location: ${location}`, "", "Comment:", body].join("\n")
 }
 
 export function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
   if (!patch) return null
   const rows = splitLines(patch)
   const parsedLines = parseUnifiedDiff(patch)
-  const index = parsedLines.findIndex((parsedLine) => (
-    parsedLine.kind === line.kind &&
-    parsedLine.code === line.code &&
-    (line.oldLine == null || parsedLine.oldLine === line.oldLine) &&
-    (line.newLine == null || parsedLine.newLine === line.newLine) &&
-    (line.oldLine != null || line.newLine != null)
-  ))
+  const index = parsedLines.findIndex(
+    (parsedLine) =>
+      parsedLine.kind === line.kind &&
+      parsedLine.code === line.code &&
+      (line.oldLine == null || parsedLine.oldLine === line.oldLine) &&
+      (line.newLine == null || parsedLine.newLine === line.newLine) &&
+      (line.oldLine != null || line.newLine != null)
+  )
   if (index === -1) return rows.find((row) => row.startsWith("@@ ")) || null
   return rows.slice(Math.max(0, index - 4), Math.min(rows.length, index + 5)).join("\n")
 }
@@ -889,6 +961,13 @@ type ReviewSidebarItem =
       line: number | null
     }
   | {
+      kind: "chat_feedback"
+      key: string
+      entry: JobFeedbackHistoryEntry
+      path: null
+      line: null
+    }
+  | {
       kind: "comment"
       key: string
       comment: DiffReviewComment
@@ -903,12 +982,14 @@ type ReviewSidebarGroup = {
 }
 
 function groupReviewSidebarItems({
+  chatFeedback,
   comments,
   currentVersionId,
   reviewAnnotationPanels,
   reviewFilePaths,
   versions
 }: {
+  chatFeedback: JobFeedbackHistoryEntry[]
   comments: DiffReviewComment[]
   currentVersionId: number | null
   reviewAnnotationPanels: DiffReviewAnnotationPanel[]
@@ -935,15 +1016,28 @@ function groupReviewSidebarItems({
   for (const panel of reviewAnnotationPanels) {
     const item = annotationPanelSidebarItem(panel)
     const versionId = annotationPanelVersionId(panel) ?? currentVersionId ?? versions?.[0]?.id ?? 0
-    const group =
-      groups.get(versionId) ??
-      {
-        version: versionForGroup(versionId, null, versions),
-        versionId,
-        items: []
-      }
+    const group = groups.get(versionId) ?? {
+      version: versionForGroup(versionId, null, versions),
+      versionId,
+      items: []
+    }
     group.items.push(item)
     groups.set(versionId, group)
+  }
+
+  for (const entry of chatFeedback) {
+    const version = versions?.find((candidate) => candidate.workflow_id === entry.workflow_id)
+    if (!version) continue
+
+    const group = groups.get(version.id) ?? { version, versionId: version.id, items: [] }
+    group.items.push({
+      kind: "chat_feedback",
+      key: `chat-feedback:${entry.workflow_id ?? entry.created_at ?? version.id}`,
+      entry,
+      path: null,
+      line: null
+    })
+    groups.set(version.id, group)
   }
 
   return [...groups.values()]
@@ -979,6 +1073,9 @@ function annotationPanelVersionId(panel: DiffReviewAnnotationPanel) {
 }
 
 function compareReviewSidebarItems(a: ReviewSidebarItem, b: ReviewSidebarItem, fileOrder: Map<string, number>) {
+  if (a.kind === "chat_feedback" && b.kind !== "chat_feedback") return -1
+  if (b.kind === "chat_feedback" && a.kind !== "chat_feedback") return 1
+
   const aPathOrder = a.path ? (fileOrder.get(a.path) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
   const bPathOrder = b.path ? (fileOrder.get(b.path) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
   if (aPathOrder !== bPathOrder) return aPathOrder - bPathOrder
@@ -1013,9 +1110,7 @@ function groupCommentsByVersion(comments: DiffReviewComment[], versions?: DiffRe
     order.push(versionId)
     groups.set(versionId, { comments: [comment], version: versionForGroup(versionId, comment.diff_review_version, versions), versionId })
   }
-  return order
-    .map((versionId) => groups.get(versionId)!)
-    .sort((a, b) => a.version.version_index - b.version.version_index || a.versionId - b.versionId)
+  return order.map((versionId) => groups.get(versionId)!).sort((a, b) => a.version.version_index - b.version.version_index || a.versionId - b.versionId)
 }
 
 function versionForGroup(versionId: number, embedded: DiffReviewComment["diff_review_version"], versions?: DiffReviewVersion[]): DiffReviewVersion {
@@ -1063,7 +1158,16 @@ function versionForGroup(versionId: number, embedded: DiffReviewComment["diff_re
   }
 }
 
-function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, surfaces, workflowId }: {
+function diffReviewCommentsSearch({
+  baseRef,
+  diffReviewVersionId,
+  headRef,
+  includeAllVersions,
+  runId,
+  surface,
+  surfaces,
+  workflowId
+}: {
   baseRef?: string | null
   diffReviewVersionId?: number | null
   headRef?: string | null
