@@ -41,4 +41,17 @@ RSpec.describe HandleRegistry do
 
     expect(described_class.claim_generated!(owner: owner, source: "racer").handle).to eq("racer-2")
   end
+
+  it "returns the winning handle when the same owner is claimed concurrently" do
+    owner = Factories.user
+    described_class.release!(owner: owner)
+    original_create = Handle.method(:create!)
+    allow(Handle).to receive(:create!) do |**attributes|
+      original_create.call(handle: "winner", owner: owner)
+      raise ActiveRecord::RecordNotUnique
+    end
+
+    expect(described_class.claim_generated!(owner: owner, source: "racer").handle).to eq("winner")
+    expect(Handle).to have_received(:create!).once
+  end
 end

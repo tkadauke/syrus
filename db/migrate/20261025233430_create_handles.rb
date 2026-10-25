@@ -20,7 +20,9 @@ class CreateHandles < ActiveRecord::Migration[8.1]
         t.bigint :owner_id
         t.datetime :created_at, null: false
       end
-      add_index :handles, :handle, unique: true
+    end
+    add_index :handles, :handle, unique: true unless index_exists?(:handles, :handle, unique: true)
+    unless index_exists?(:handles, [ :owner_type, :owner_id ], unique: true)
       add_index :handles, [ :owner_type, :owner_id ], unique: true
     end
 
