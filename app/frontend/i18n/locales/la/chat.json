@@ -726,6 +726,21 @@
       "failed": "Defecit"
     }
   },
+  "wake_landing_queue": {
+    "target": "Scopus",
+    "landing_queue": "Ordo appulsus",
+    "outcome": "Exitus",
+    "summary": "Ordinem appulsus excita",
+    "summary_with_outcome": "Ordinem appulsus excita · {{outcome}}",
+    "states": {
+      "pending": "Pendet",
+      "waking": "Excitatur",
+      "queued": "In ordinem relatum",
+      "rejected": "Reiectum",
+      "cancelled": "Revocatum",
+      "failed": "Defecit"
+    }
+  },
   "daemon_invocation_context": {
     "summary": "contextus invocationis: {{surface}}{{identity}}",
     "summary_denied": "contextus invocationis negatus: {{error}}",
