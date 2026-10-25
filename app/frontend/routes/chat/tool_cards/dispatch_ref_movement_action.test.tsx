@@ -46,9 +46,7 @@ describe("dispatch_ref_movement_action tool card", () => {
       workflow_id: 42
     }
 
-    expect(dispatchRefMovementActionToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "promote development to release (dispatched)"
-    )
+    expect(dispatchRefMovementActionToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("promote development to release (dispatched)")
     render(<>{dispatchRefMovementActionToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByText("develop")).toBeInTheDocument()
     expect(screen.getByText("main")).toBeInTheDocument()
