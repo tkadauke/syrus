@@ -21,8 +21,14 @@ class LandingGraderPlan
     new(plan, trigger_kind: trigger_kind, iteration: iteration, repository: repository, job: job).effective
   end
 
-  def self.landing(plan)
-    new(plan, trigger_kind: "auto_merge", iteration: 1).effective
+  def self.landing(plan, repository: nil, job: nil)
+    new(
+      plan,
+      trigger_kind: "auto_merge",
+      iteration: 1,
+      repository: repository,
+      job: job
+    ).effective
   end
 
   def self.phase_for(trigger_kind:, iteration:, repository: nil, job: nil)

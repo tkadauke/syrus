@@ -2128,6 +2128,26 @@ RSpec.describe SyrusYml do
         )
       end
 
+      it "rejects an explicitly selected built-in phase that no grader declares" do
+        expect {
+          parse(<<~YAML)
+            grade:
+              steps:
+                - name: tests
+                  run: bin/test
+                  phases: [review, landing]
+            delivery:
+              tracks:
+                default:
+                  grade_phases:
+                    landing: promotion
+          YAML
+        }.to raise_error(
+          SyrusYml::ParseError,
+          /delivery\.tracks\.default\.grade_phases\.landing.*promotion.*not declared/
+        )
+      end
+
       it "accepts custom review and landing phases declared by graders" do
         config = parse(<<~YAML)
           grade:
@@ -2154,7 +2174,7 @@ RSpec.describe SyrusYml do
             steps:
               - name: custom-phases
                 run: bin/test
-                phases: [review_minimal, landing_minimal]
+                phases: [review_minimal, landing_minimal, promotion]
           delivery:
             tracks:
               default:
@@ -2473,7 +2493,7 @@ RSpec.describe SyrusYml do
           steps:
             - name: custom-phases
               run: bin/test
-              phases: [review_minimal, landing_minimal]
+              phases: [review_minimal, landing_minimal, promotion]
         delivery:
           tracks:
             default:
