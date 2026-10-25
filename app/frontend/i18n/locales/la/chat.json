@@ -2868,6 +2868,8 @@
   "mutation_before": "Ante",
   "mutation_after": "Post",
   "mutation_example_dependency_added": "Dependentia addita",
+  "mutation_example_job_removed_from_epic": "Opus ex Epico remotum",
+  "mutation_example_job_not_in_epic": "Opus in Epico non est",
   "mutation_example_reopen_pending_without_input": "Reapertura sine argumento pendet",
   "mutation_example_bulk_reopen_confirmation": "Confirmatio plurium reapertionum",
   "mutation_example_job_cannot_be_reopened": "Opus reaperiri non potest",
