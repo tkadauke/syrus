@@ -12,6 +12,7 @@ module AlertmanagerInvestigations
     icon_url "/plugin-icons/alertmanager_investigations.svg"
     author "Thomas Kadauke"
     category "observability"
+    experimental true
     default_enabled false
     disableable true
     tick_interval 1.minute
