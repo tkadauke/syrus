@@ -137,11 +137,16 @@ RSpec.describe PendingActionGroup do
       )
       applied, skipped, failed = group.chat_pending_actions.order(:id).to_a
       applied.update!(state: "confirmed", execution_status: "applied")
-      skipped.update!(state: "failed", execution_status: "rejected", execution_error: "state changed")
-      failed.update!(state: "failed", execution_status: "failed", execution_error: "worker error")
+      skipped.update!(state: "confirmed", execution_status: "no_longer_eligible")
+      failed.update!(state: "confirmed", execution_status: "partial", execution_error: "audit persistence failed")
 
       expect(group.confirmed_notice).to eq("Batch result: 1 applied, 1 skipped/ineligible, 1 failed.")
       expect(applied.group_outcome).to eq("applied")
+      expect(skipped.group_outcome).to eq("skipped")
+      expect(failed.group_outcome).to eq("failed")
+
+      skipped.update!(state: "failed", execution_status: "rejected", execution_error: "state changed")
+      failed.update!(state: "failed", execution_status: "failed", execution_error: "worker error")
       expect(skipped.group_outcome).to eq("skipped")
       expect(failed.group_outcome).to eq("failed")
     end

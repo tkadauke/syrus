@@ -329,8 +329,8 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def group_outcome
-    return "skipped" if execution_status.in?(%w[noop rejected]) || rejected? || cancelled?
-    return "failed" if failed?
+    return "skipped" if execution_status.in?(%w[noop rejected skipped no_longer_eligible]) || rejected? || cancelled?
+    return "failed" if execution_status == "partial" || failed?
     return "applied" if confirmed?
 
     nil
