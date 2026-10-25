@@ -16843,7 +16843,6 @@ describe("App", () => {
           )
         )
       }
-
       return Promise.resolve(
         new Response(JSON.stringify(chatPayload({ hasMoreOlder: true })), { status: 200, headers: { "Content-Type": "application/json" } })
       )
@@ -17042,6 +17041,9 @@ describe("App", () => {
           )
         )
       }
+      if (path === "/api/v1/app/chats/8/bookmarks") {
+        return Promise.resolve(jsonResponse({ bookmarks: initialPayload.bookmarks }))
+      }
 
       return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -17057,7 +17059,7 @@ describe("App", () => {
 
       expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
       fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Aqueduct planning" }))
-      expect(screen.getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(await screen.findByText("Bookmarks")).toHaveClass("font-semibold")
       const bookmark = await screen.findByRole("link", { name: "Earlier aqueduct note" })
       expect(bookmark).toHaveAttribute("href", "#message-5")
       fireEvent.click(bookmark)
@@ -17115,7 +17117,7 @@ describe("App", () => {
       return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "11", ""], inactivePayload)
+    queryClient.setQueryData(["chat-bookmarks", "11", ""], { bookmarks: inactivePayload.bookmarks })
 
     try {
       render(
@@ -17130,7 +17132,7 @@ describe("App", () => {
       // The dropdown renders through a FloatingPortal outside `recentNav`; query
       // its content on `screen`.
       fireEvent.click(await within(recentNav).findByRole("button", { name: "Chat actions for Canal follow-up" }))
-      expect(screen.getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(await screen.findByText("Bookmarks")).toHaveClass("font-semibold")
       expect(screen.queryByText("No bookmarks yet")).not.toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
     } finally {
@@ -17187,7 +17189,7 @@ describe("App", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
-      if (path === "/api/v1/app/chats/11") {
+      if (path === "/api/v1/app/chats/11/bookmarks") {
         return inactiveChatRequest
       }
 
@@ -17210,13 +17212,13 @@ describe("App", () => {
       expect(screen.getByText("Loading bookmarks...")).toBeInTheDocument()
 
       await act(async () => {
-        resolveInactiveChat(new Response(JSON.stringify(inactivePayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+        resolveInactiveChat(jsonResponse({ bookmarks: inactivePayload.bookmarks }))
         await inactiveChatRequest
       })
 
       expect(await screen.findByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
       expect(screen.queryByText("Loading bookmarks...")).not.toBeInTheDocument()
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/11", expect.objectContaining({ credentials: "same-origin" }))
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/11/bookmarks", expect.objectContaining({ credentials: "same-origin" }))
     } finally {
       fetchSpy.mockRestore()
       script.remove()

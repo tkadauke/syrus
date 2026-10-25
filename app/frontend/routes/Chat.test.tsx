@@ -2675,17 +2675,16 @@ describe("chat bookmark picker command", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
+      if (path === "/api/v1/app/chats/8/bookmarks") {
+        return Promise.resolve(jsonResponse({
+          bookmarks: [
+            { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
+            { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
+          ]
+        }))
+      }
 
-      return Promise.resolve(
-        jsonResponse(
-          chatPayload({
-            bookmarks: [
-              { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
-              { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
-            ]
-          })
-        )
-      )
+      return Promise.resolve(jsonResponse(chatPayload()))
     })
 
     renderRoute()
@@ -2695,7 +2694,7 @@ describe("chat bookmark picker command", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const dialog = await screen.findByRole("dialog", { name: "Bookmarks" })
-    expect(within(dialog).getByText("Aqueduct marker")).toBeInTheDocument()
+    expect(await within(dialog).findByText("Aqueduct marker")).toBeInTheDocument()
     expect(within(dialog).getByText("Canal follow-up")).toBeInTheDocument()
   })
 
@@ -2734,14 +2733,13 @@ describe("chat bookmark picker command", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
+      if (path === "/api/v1/app/chats/8/bookmarks") {
+        return Promise.resolve(jsonResponse({
+          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
+        }))
+      }
 
-      return Promise.resolve(
-        jsonResponse(
-          chatPayload({
-            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
-          })
-        )
-      )
+      return Promise.resolve(jsonResponse(chatPayload()))
     })
 
     renderRoute()
@@ -2769,6 +2767,9 @@ describe("chat bookmark picker command", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
+      if (path === "/api/v1/app/chats/8/bookmarks") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
 
       return Promise.resolve(jsonResponse(chatPayload()))
     })
@@ -2789,14 +2790,13 @@ describe("chat bookmark picker command", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
+      if (path === "/api/v1/app/chats/8/bookmarks") {
+        return Promise.resolve(jsonResponse({
+          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
+        }))
+      }
 
-      return Promise.resolve(
-        jsonResponse(
-          chatPayload({
-            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
-          })
-        )
-      )
+      return Promise.resolve(jsonResponse(chatPayload()))
     })
 
     renderRoute()
