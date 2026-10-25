@@ -1,7 +1,7 @@
 import { Children, cloneElement, createContext, isValidElement, useContext } from "react"
 import type { ReactNode } from "react"
 import { DataTable } from "../../components/ui"
-import { displayValue, InternalLink, StatePill } from "./toolCardUi"
+import { displayValue, EntityReference, StatePill } from "./toolCardUi"
 
 // Shared presentation helpers for the core admin status/diagnostics/
 // provider-circuit chat tool cards (the tool-card work): admin_overview,
@@ -90,7 +90,7 @@ export function parseWorkerHealthCounts(value: unknown): WorkerHealthCounts | nu
 
 export function JobRefLink({ jobId }: { jobId: number | string | null }) {
   if (jobId == null) return <>—</>
-  return <InternalLink href={`/jobs/${jobId}`}>JOB-{jobId}</InternalLink>
+  return <EntityReference id={jobId} kind="job" />
 }
 
 type ResponsiveTableContextValue = {

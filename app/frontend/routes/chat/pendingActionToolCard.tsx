@@ -5,6 +5,7 @@ import { MarkdownPreview } from "./toolCardMarkdown"
 import {
   Badge,
   CardShell,
+  CopyableValue,
   displayValue,
   EntityReference,
   entityReferenceLabel,
@@ -75,7 +76,7 @@ export type PendingActionResult =
 export type PendingActionInputField = {
   key: string
   label?: string
-  format?: "plain" | "badge" | "list" | "markdown" | "entity" | "entity_list"
+  format?: "plain" | "badge" | "copyable_badge" | "list" | "markdown" | "entity" | "entity_list"
   entityKind?: ToolCardEntityKind
   hrefPrefix?: string
   emptyLabel?: string
@@ -307,11 +308,13 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
 
 function ContextRows({
   omitBlocker = false,
+  omitBranch = false,
   omitJob = false,
   omitRun = false,
   value
 }: {
   omitBlocker?: boolean
+  omitBranch?: boolean
   omitJob?: boolean
   omitRun?: boolean
   value: TargetContext
@@ -331,7 +334,7 @@ function ContextRows({
         <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} />
       ) : null}
       {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
-      {value.branch ? (
+      {!omitBranch && value.branch ? (
         <Row
           label="Branch"
           value={
@@ -452,6 +455,12 @@ function InputValue({ field, value }: { field: PendingActionInputField; value: u
     )
   const displayed = displayValue(value)
   if (!displayed) return null
+  if (format === "copyable_badge")
+    return (
+      <Badge wrap>
+        <CopyableValue value={displayed} />
+      </Badge>
+    )
   return format === "badge" ? <Badge>{displayed}</Badge> : <span className="break-all text-text-primary [overflow-wrap:anywhere]">{displayed}</span>
 }
 
@@ -519,6 +528,7 @@ export function PendingActionResultCard({
   linkifyMessageUrls = true,
   linkifyReasonUrls = true,
   omitBlocker = false,
+  omitBranch = false,
   omitJob = false,
   omitInstructions = false,
   observedSummary = false,
@@ -534,6 +544,7 @@ export function PendingActionResultCard({
   linkifyMessageUrls?: boolean
   linkifyReasonUrls?: boolean
   omitBlocker?: boolean
+  omitBranch?: boolean
   omitJob?: boolean
   omitInstructions?: boolean
   observedSummary?: boolean
@@ -552,7 +563,7 @@ export function PendingActionResultCard({
         </div>
         <InputDetails fields={inputFields} input={input} />
         <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
-        <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} omitRun={omitRun} value={result.evidence ?? result} />
+        <ContextRows omitBlocker={omitBlocker} omitBranch={omitBranch} omitJob={omitJob} omitRun={omitRun} value={result.evidence ?? result} />
         {details}
         {result.evidence ? <EvidenceShaRows evidence={result.evidence} /> : null}
         {!details && !omitReason && result.inputReason && result.inputReason !== displayValue(input?.reason) ? (
@@ -581,7 +592,7 @@ export function PendingActionResultCard({
       </div>
       <InputDetails fields={inputFields} input={input} />
       {observedSummary ? <ObservedSummary value={result.observed} /> : null}
-      <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} omitRun={omitRun} value={result} />
+      <ContextRows omitBlocker={omitBlocker} omitBranch={omitBranch} omitJob={omitJob} omitRun={omitRun} value={result} />
       {details}
       {!omitResource && result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
