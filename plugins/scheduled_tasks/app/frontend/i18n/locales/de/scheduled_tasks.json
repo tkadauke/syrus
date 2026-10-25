@@ -87,7 +87,7 @@
   "tool_resume_error_title": "Geplanten Task fortsetzen",
   "tool_resume_empty_summary": "Das Fortsetzen des geplanten Tasks lieferte keine Details",
   "tool_resume_empty_detail": "Es wurde kein verwendbares Ergebnis für das Fortsetzen zurückgegeben.",
-  "tool_enabled": "Aktiviert",
+  "tool_enabled_label": "Aktiviert",
   "tool_yes": "Ja",
   "tool_no": "Nein",
   "tool_next_fire_relative": "Nächster Lauf (relativ)",

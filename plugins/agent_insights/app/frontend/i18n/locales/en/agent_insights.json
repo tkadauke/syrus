@@ -197,7 +197,6 @@
   "tool_retire_empty": "No retirement details were returned.",
   "tool_retire_accepted": "Accepted insights allowed",
   "tool_retired_insights": "Retired insights",
-  "tool_result_states": "Result states",
   "tool_superseding_insights": "Superseding insights",
   "tool_superseding_jobs": "Superseding Jobs",
   "tool_result_jobs": "Created Jobs",

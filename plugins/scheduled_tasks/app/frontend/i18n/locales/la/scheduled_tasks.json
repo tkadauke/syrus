@@ -87,7 +87,7 @@
   "tool_resume_error_title": "Opus ordinatum resumere",
   "tool_resume_empty_summary": "Resumptio operis ordinati nulla singularia reddidit",
   "tool_resume_empty_detail": "Nullus exitus utilis resumendi redditus est.",
-  "tool_enabled": "Activum",
+  "tool_enabled_label": "Activum",
   "tool_yes": "Ita",
   "tool_no": "Non",
   "tool_next_fire_relative": "Proximus cursus (relative)",

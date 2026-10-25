@@ -78,7 +78,7 @@ function renderExpanded(context: ToolCardContext) {
           <EntityReference id={outcome.id} kind="scheduled_task" wrap="nowrap" />
         </div>
         <div className="min-w-0 break-words text-sm font-medium text-text-primary">{outcome.label}</div>
-        {outcome.enabled != null ? <Row label={t("tool_enabled")} value={outcome.enabled ? t("tool_yes") : t("tool_no")} /> : null}
+        {outcome.enabled != null ? <Row label={t("tool_enabled_label")} value={outcome.enabled ? t("tool_yes") : t("tool_no")} /> : null}
         <div className="text-text-secondary">{t("tool_resumed_detail")}</div>
       </CardShell>
     )
@@ -93,7 +93,7 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <div className="min-w-0 break-words text-sm font-medium text-text-primary">{outcome.label}</div>
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
-        {outcome.enabled != null ? <Row label={t("tool_enabled")} value={outcome.enabled ? t("tool_yes") : t("tool_no")} /> : null}
+        {outcome.enabled != null ? <Row label={t("tool_enabled_label")} value={outcome.enabled ? t("tool_yes") : t("tool_no")} /> : null}
         {outcome.task.repositorySlug ? (
           <div className="min-w-0">
             <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_repository")}</div>
@@ -141,6 +141,7 @@ export const examples: ToolCardExample[] = [
     id: "empty_response",
     label: "Empty response",
     input: { scheduled_task_id: 12 },
+    resultBody: "",
     resultSettled: true
   }
 ]
