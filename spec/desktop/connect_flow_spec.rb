@@ -14,8 +14,8 @@ RSpec.describe "desktop connect flow" do
     File.read(File.join(desktop_root, relative_path), encoding: "UTF-8")
   end
 
-  def desktop_i18n
-    read("src/i18n.ts")
+  def i18n_catalog
+    read("electron/i18nCatalog.ts")
   end
 
   it "keeps the two instanceUrl copies byte-identical" do
@@ -95,7 +95,7 @@ RSpec.describe "desktop connect flow" do
     expect(form).to include("PROBE_DEBOUNCE_MS")
     expect(form).to include("probeSeq")
     expect(form).to include('t("onboarding.connect.found", { url: probe.url })')
-    expect(desktop_i18n).to include("Syrus found at")
+    expect(i18n_catalog).to include("Syrus found at")
   end
 
   it "rejects partial numeric hosts instead of previewing a mangled address" do
