@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { normalizedToolName } from "../toolRendering"
-import forceStateTransitionToolCard from "./force_state_transition"
+import forceStateTransitionToolCard, { examples } from "./force_state_transition"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -16,6 +16,19 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("force_state_transition tool card", () => {
+  it("registers visual catalog examples for pending, confirmed, and error states", () => {
+    expect(examples.map((example) => example.id)).toEqual(["pending_confirmation", "confirmed_transition", "tool_error"])
+
+    for (const example of examples) {
+      const exampleContext = toolCardContextForExample(forceStateTransitionToolCard.toolName, example)
+      expect(forceStateTransitionToolCard.renderExpanded(exampleContext), example.id).not.toBeNull()
+    }
+
+    const pendingContext = toolCardContextForExample(forceStateTransitionToolCard.toolName, examples[0])
+    render(<>{forceStateTransitionToolCard.renderExpanded(pendingContext)}</>)
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(forceStateTransitionToolCard.toolName).toBe("force_state_transition")
     expect(normalizedToolName("mcp__syrus-chat-sidecar__force_state_transition")).toBe(forceStateTransitionToolCard.toolName)
