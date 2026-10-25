@@ -393,7 +393,9 @@ module Api
               needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
               credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
               health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
-              delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) { ::App::DeliveryTracksPayload.for(repository: repository) },
+              delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) do
+                ::App::DeliveryTracksPayload.for(repository: repository, user: Current.user)
+              end,
               recommended_actions: PerformanceLogging.phase("repository_detail.recommended_actions", repository_id: repository.id) do
                 ::App::RepositoryFeatureRecommendations.for(repository: repository, user: Current.user)
               end,

@@ -11,17 +11,17 @@ module Mcp::Tools
     class << self
       def call(server_context:)
         chat_session = server_context.fetch(:chat_session)
-        Mcp::Tools.success(tags: chat_session.user.tags.ordered.map { |tag| tag_payload(tag) })
+        Mcp::Tools.success(tags: chat_session.user.tags.ordered.map { |tag| tag_payload(tag, user: chat_session.user) })
       end
 
       private
 
-      def tag_payload(tag)
+      def tag_payload(tag, user:)
         {
           id: tag.id,
           name: tag.name,
           color: tag.color,
-          job_ids: tag.jobs.order(:id).pluck(:id)
+          job_ids: Job.visible_to(user, scope: tag.jobs).order(:id).pluck(:id)
         }
       end
     end

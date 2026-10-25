@@ -1238,13 +1238,19 @@ module App
       if @job.linked_chat_id.present?
         existing = ChatSession.find_by(id: @job.linked_chat_id, user_id: @user.id)
         if existing&.coding?
-          active_job = Job.where(linked_chat_id: existing.id, state: "coding").where.not(id: @job.id).first
+          active_job = Job.visible_to(
+            @user,
+            scope: Job.where(linked_chat_id: existing.id, state: "coding")
+          ).where.not(id: @job.id).first
           return "#{active_job.slug} is already linked to this coding chat." if active_job
 
           checkout_branch = existing.coding_checkout_branch.to_s
           return nil if checkout_branch.blank? || checkout_branch == @job.branch_name
 
-          checkout_job = Job.where(repository_id: @job.repository_id, branch_name: checkout_branch).where.not(id: @job.id).first
+          checkout_job = Job.visible_to(
+            @user,
+            scope: Job.where(repository_id: @job.repository_id, branch_name: checkout_branch)
+          ).where.not(id: @job.id).first
           return "This chat already has an active coding checkout for #{checkout_job.slug}." if checkout_job
 
           return "This chat already has an active coding checkout. Cancel it before taking over #{@job.slug}."

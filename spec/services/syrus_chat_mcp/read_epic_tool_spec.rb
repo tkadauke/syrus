@@ -114,6 +114,33 @@ RSpec.describe Mcp::Tools::ReadEpicTool do
     )
   end
 
+  it "omits origin-restricted child Jobs and their aggregate metadata" do
+    user.update!(global_role: "user")
+    epic = Factories.epic(user: user, repository: repository, title: "Private work")
+    visible = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Visible child")
+    visible.update_column(:commits_behind_base, 2)
+    hidden = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 43,
+      issue_title: "Hidden child",
+      origin: "private_tasks",
+      origin_id: "7"
+    )
+    hidden.update_column(:commits_behind_base, 9)
+
+    with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+      payload = tool_payload(call_tool(id: epic.id))
+
+      expect(payload[:child_jobs].map { |job| job[:id] }).to eq([ visible.id ])
+      expect(payload[:epic]).to include(
+        max_commits_behind_base: 2,
+        furthest_behind_job: { id: visible.id, slug: visible.slug }
+      )
+    end
+  end
+
   it "includes landed_sha and configured deployment stages on landed child jobs" do
     staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
     production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)

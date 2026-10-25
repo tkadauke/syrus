@@ -6644,6 +6644,33 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
   end
 
+  it "does not serialize pending-action metadata for an origin-restricted Job" do
+    user.update!(global_role: "user")
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Private background task",
+      origin: "private_tasks",
+      origin_id: "7"
+    )
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      action: "cancel_job",
+      requested_by: "agent",
+      payload: { "job_id" => job.id }
+    )
+
+    sign_in_as(user)
+    with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+      get "/api/v1/app/chats/#{chat.id}"
+
+      serialized = parse_body.fetch("pending_actions").find { |pending| pending.fetch("id") == action.id }
+      expect(serialized).not_to have_key("resource_title")
+      expect(serialized).not_to have_key("resource_url")
+      expect(response.body).not_to include(job.issue_title)
+    end
+  end
+
   it "links the target Epic for unanchored archive_epic pending actions" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Careful archive target")

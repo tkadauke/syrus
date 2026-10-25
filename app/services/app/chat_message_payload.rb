@@ -605,7 +605,9 @@ module App
     def cached_user_jobs(user, ids)
       cache = @jobs_by_user_and_id[user.id] ||= {}
       missing_ids = ids.map(&:to_i).uniq - cache.keys
-      cache.merge!(user.jobs.where(id: missing_ids).index_by(&:id)) if missing_ids.any?
+      if missing_ids.any?
+        cache.merge!(Job.visible_to(user, scope: user.jobs).where(id: missing_ids).index_by(&:id))
+      end
       cache
     end
 
@@ -622,7 +624,7 @@ module App
 
       if action.user.admin?
         @admin_jobs_by_id ||= {}
-        @admin_jobs_by_id[id] ||= Job.find_by(id: id)
+        @admin_jobs_by_id[id] ||= Job.visible_to(action.user, scope: Job.all).find_by(id: id)
       else
         cached_user_jobs(action.user, [ id ])[id]
       end

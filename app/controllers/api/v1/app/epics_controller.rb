@@ -257,7 +257,7 @@ module Api
 
 
         def compact_epic_json(epic)
-          jobs = epic.jobs.to_a
+          jobs = visible_epic_jobs(epic).to_a
           {
             id: epic.id,
             number: epic.number,
@@ -285,7 +285,7 @@ module Api
 
         def detail_payload(epic, message: nil)
           jobs = PerformanceLogging.phase("epic_detail.jobs", epic_id: epic.id) do
-            unordered_jobs = epic.jobs
+            unordered_jobs = visible_epic_jobs(epic)
                                  .with_latest_workflow_snapshot
                                  .includes(:repository, :owner_user, :deployment_stage_statuses, :dependencies, :dependent_links)
                                  .order(:id)
@@ -362,6 +362,10 @@ module Api
           end
           payload[:deployment_stages] = aggregate_stages if aggregate_stages
           payload
+        end
+
+        def visible_epic_jobs(epic)
+          Job.visible_to(Current.user, scope: epic.jobs)
         end
 
         def epic_blocked_reason(dependency)
