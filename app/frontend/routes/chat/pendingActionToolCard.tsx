@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import i18n from "../../i18n"
 import type { ToolCardContext, ToolCardRenderer } from "../../pluginToolCards"
 import { isPlainObject, normalizedToolCardParsedResult } from "../../toolCardParsing"
 import { MarkdownPreview } from "./toolCardMarkdown"
@@ -256,14 +257,14 @@ function compactCollapsedSummary(text: string) {
   return `${plainText.slice(0, COLLAPSED_SUMMARY_MAX_CHARS - 1).trimEnd()}…`
 }
 
-export function pendingActionCollapsedSummary(result: PendingActionResult): string {
+export function pendingActionCollapsedSummary(result: PendingActionResult, messageOverride?: string): string {
   if (result.kind === "error") return compactCollapsedSummary(result.code ? `${result.code}: ${result.message}` : result.message)
   if (result.kind === "dry_run_evidence") {
     const jobId = result.context.jobId || result.evidence?.jobId
     return `Dry run: ${result.action}${jobId ? ` for ${entityReferenceLabel({ kind: "job", id: jobId })}` : ""}`
   }
   const identifier = result.groupId ? `Pending action group #${result.groupId}` : `Pending action #${result.pendingActionId}`
-  const base = result.message || `${identifier} (${result.state})`
+  const base = messageOverride || result.message || `${identifier} (${result.state})`
   const summary = result.memberCount == null ? base : `${base} · ${result.memberCount} ${result.memberCount === 1 ? "action" : "actions"}`
   return compactCollapsedSummary(summary)
 }
@@ -469,7 +470,7 @@ export function InputDetails({ fields, input }: { fields: PendingActionInputFiel
   if (populated.length === 0) return null
   return (
     <div>
-      <SectionLabel>Targets and parameters</SectionLabel>
+      <SectionLabel>{i18n.t("chat:ops_targets_and_parameters_1eb3f8")}</SectionLabel>
       <dl className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
         {populated.map((field) => (
           <div className={field.format === "markdown" ? "min-w-0 sm:col-span-2" : "min-w-0"} key={field.key}>
@@ -497,7 +498,7 @@ function ResultDetails({ fields, value }: { fields: PendingActionResultField[]; 
 
   return (
     <div>
-      <SectionLabel>Previewed impact</SectionLabel>
+      <SectionLabel>{i18n.t("chat:ops_previewed_impact_d8971a")}</SectionLabel>
       <dl className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
         {populated.map(({ field, value: fieldValue }) => {
           const displayed = field.format === "number" ? numberValue(fieldValue)?.toLocaleString() : displayValue(fieldValue)
@@ -530,6 +531,7 @@ export function PendingActionResultCard({
   omitRun = false,
   omitReason = false,
   omitResource = false,
+  messageOverride,
   result
 }: {
   detailTitle?: string
@@ -545,6 +547,7 @@ export function PendingActionResultCard({
   omitRun?: boolean
   omitReason?: boolean
   omitResource?: boolean
+  messageOverride?: string
   result: PendingActionResult
 }) {
   if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
@@ -593,14 +596,14 @@ export function PendingActionResultCard({
       ) : null}
       {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
       {result.executionStep ? <Row label="Execution step" value={<span className="break-all font-mono">{result.executionStep}</span>} /> : null}
-      {result.message ? (
+      {messageOverride || result.message ? (
         <MarkdownPreview
           linkifySlugs
           linkifyUrls={linkifyMessageUrls}
           maxChars={600}
           maxLines={4}
           modalLabel="Pending action message"
-          text={linkedPendingProse(result.message)}
+          text={linkedPendingProse(messageOverride || result.message || "")}
         />
       ) : null}
       {!omitReason && result.reason && result.reason !== displayValue(input?.reason) ? (
