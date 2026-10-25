@@ -277,19 +277,52 @@ class MergeTrainFailureHandler
   # assembly is known stale; `keep_fixes` can still preserve its branch for
   # repair replay after the train is terminalized.
   #
-  # Only retryable failures qualify. A member whose own code broke the train
-  # must still fail out; preserving the assembly around it would wedge the
-  # train on the same defect indefinitely. A failure we cannot classify is
-  # treated as attributable, which keeps the default conservative.
+  # Only failures that are not a member's own fault qualify. A member whose
+  # code broke the train must still fail out; preserving the assembly around it
+  # would wedge the train on the same defect indefinitely. A failure we cannot
+  # attribute is treated as the member's, which keeps the default conservative.
   def preserve_train_for_failure_policy?
     return false if @cancelled
     return false if MergeTrainFixReplay.stale_base_rebuild_required?(@workflow)
 
-    resolved_failure_policy.preserve_train?(retryable_failure: retryable_failure?)
+    resolved_failure_policy.preserve_train?(preservable_failure: preservable_failure?)
+  end
+
+  # Steps that run before any member's code is exercised, or after grading has
+  # already passed. A failure here is the train's own machinery -- an assemble
+  # that lost the landing lock, a reconcile that could not reach the forge, a
+  # land whose base moved underneath it -- and tearing the assembly down for it
+  # rebuilds and regrades the identical members, which costs 45-167 minutes of
+  # a landing lock that is already the throughput ceiling.
+  #
+  # `merge_train_build` is deliberately absent: a conflict while rebasing
+  # members into the integration branch IS a member's fault. So is anything in
+  # the grade loop, and so is `prepare` (a member can break dependency install).
+  TRAIN_ATTRIBUTED_STEP_KINDS = %w[
+    merge_train_assemble
+    merge_train_reconcile
+    merge_train_land
+    merge_train_land_after_rebase
+  ].freeze
+
+  # Retryability was the original proxy for "not the member's fault" and it is
+  # wrong in the direction that matters: an assemble-step LockConflict, a base
+  # that moved mid-start, and `no_capable_worker` are all classified
+  # non-retryable AND are nobody's code, so every one of them tore down a sound
+  # assembly. Retryable still qualifies on its own; step attribution only adds
+  # the non-retryable train-level failures it was missing.
+  def preservable_failure?
+    return true if retryable_failure?
+
+    TRAIN_ATTRIBUTED_STEP_KINDS.include?(failed_step_kind)
   end
 
   def retryable_failure?
     failed_run&.run_failure_classification&.retryable == true
+  end
+
+  def failed_step_kind
+    (failed_run&.step || @workflow.steps.where(state: "failed").order(:position).last)&.kind.to_s
   end
 
   def preserve_train_for_terminal_multisect_result?
@@ -335,13 +368,19 @@ class MergeTrainFailureHandler
 
   def start_multisect_rung!(train)
     config = merge_train_config
-    return false unless config&.failure_rungs&.include?("multisect")
-    return false if @workflow.artifact(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY).present?
-    return false if @workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY).present?
+
+    # Each guard reports itself. Multisect ran zero times across a week of
+    # failed trains with `failure_rungs: [multisect]` configured, and because
+    # every guard returned a bare false there was no way to tell which one --
+    # the config not loading, an artifact already present, or the workflow
+    # being unable to reopen because a newer workflow had superseded it.
+    declined = multisect_decline_reason(config)
+    if declined
+      job_log(@workflow.job, "merge_train: multisect rung not started (#{declined})")
+      return false
+    end
 
     failed_step = failed_run&.step || @workflow.steps.where(state: "failed").order(:position).last
-    return false unless failed_step
-    return false unless @workflow.may_reopen?
 
     prepare_step = nil
     Step.transaction do
@@ -390,6 +429,23 @@ class MergeTrainFailureHandler
     false
   end
 
+  # nil when the rung may start; otherwise the reason it may not, in the same
+  # order the guards used to run.
+  def multisect_decline_reason(config)
+    return "not configured in merge_train.failure_rungs" unless config&.failure_rungs&.include?("multisect")
+    return "already started for this workflow" if @workflow.artifact(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY).present?
+    return "a result is already recorded" if @workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY).present?
+    return "no failed step to bisect from" unless failed_run&.step || @workflow.steps.where(state: "failed").order(:position).last
+
+    unless @workflow.may_reopen?
+      return "workflow cannot reopen" if @workflow.send(:latest_for_job?)
+
+      return "workflow cannot reopen: a newer workflow has superseded it on #{@workflow.job&.slug}"
+    end
+
+    nil
+  end
+
   def merge_train_config
     loaded = RepoDefaultBranchSyrusYml.for_job(@workflow.job)
     return nil unless loaded.loaded?
@@ -397,18 +453,36 @@ class MergeTrainFailureHandler
     loaded.config&.merge_train
   end
 
+  # Gated on the rung as the failure-policy comment always claimed it was. The
+  # rung was never asked, so `keep_fixes` preserved nothing `keep_assembly`
+  # did not, and the branch was kept on every rung including `restart` --
+  # whose entire purpose is to tear the assembly down.
   def preserve_branch_for_fix_replay?(train)
     return false if @cancelled
+    return false unless resolved_failure_policy.preserve_branch_for_replay?
 
     MergeTrainFixReplay.eligible_source?(train)
   end
 
   def resolved_failure_policy
-    MergeTrainFailurePolicy.resolve(
+    @resolved_failure_policy ||= MergeTrainFailurePolicy.resolve(
       repository: @workflow.job&.repository,
       attempt_number: failure_policy_attempt_number,
       retry_classification: failure_policy_retry_classification
-    )
+    ).tap do |rung|
+      # A week of failed trains left no record of what the ladder decided --
+      # not the rung, not why preservation was refused, not which multisect
+      # guard declined. Tuning a ladder you cannot observe is guesswork, so
+      # every decision this handler makes now says so once, on the Job.
+      job_log(
+        @workflow.job,
+        "merge_train: failure rung #{rung.class.name} " \
+        "(attempt #{failure_policy_attempt_number}, " \
+        "classification #{failure_policy_retry_classification}, " \
+        "failed step #{failed_step_kind.presence || 'unknown'}, " \
+        "retryable=#{retryable_failure?}, preservable=#{preservable_failure?})"
+      )
+    end
   end
 
   def failure_policy_attempt_number

@@ -123,10 +123,28 @@ Currently implemented rungs:
 - `restart` tears down the failed assembly and returns members through normal
   landing-failure handling.
 - `keep_assembly` preserves the existing train and integration branch when the
-  failed run is classified as retryable.
-- `keep_fixes` preserves retryable failures like `keep_assembly`; for
-  rebuild-required stale-base failures, it leaves the failed integration branch
-  available so the replacement train can replay repair commits.
+  failure is not attributable to a member's own code.
+- `keep_fixes` does everything `keep_assembly` does, and additionally keeps the
+  integration branch after the train IS torn down, so the replacement train can
+  replay the landing fixes committed during the grade loop.
+
+A failure counts as not-the-member's-fault when either its run classification is
+retryable, or it occurred in a step that runs before any member's code is
+exercised — `merge_train_assemble`, `merge_train_reconcile`, `merge_train_land`,
+`merge_train_land_after_rebase`. Retryability alone used to be the test, which
+missed every non-retryable train-level failure: an assemble that lost the
+landing lock, a base that moved mid-start, no capable worker. Each of those tore
+down a sound assembly and reassembled and regraded the identical members.
+
+`merge_train_build` is deliberately not on that list — a conflict while rebasing
+members into the integration branch is a member's fault — and neither is the
+grade loop or `prepare`. An unclassifiable failure stays attributable, so the
+default remains conservative.
+
+Every resolution is recorded on the Job: the rung, the attempt number, the
+classification, the failed step, and both `retryable` and `preservable`. When a
+`multisect` rung declines to start, the reason is logged too rather than
+returning a bare false.
 
 When `merge_train.failure_policy` is confirmed absent, Syrus falls back to the
 instance `AppSetting.merge_train_failure_policy` compatibility default. If

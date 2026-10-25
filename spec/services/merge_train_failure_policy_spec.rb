@@ -17,6 +17,42 @@ RSpec.describe MergeTrainFailurePolicy do
     expect(policy).to be_a(MergeTrainFailurePolicy::Rungs::KeepAssembly)
   end
 
+  describe "rung behaviour" do
+    # These two levers are what make the three rung names three rungs. While
+    # KeepFixes subclassed KeepAssembly and added nothing, a ladder listing both
+    # escalated from a rung to its own duplicate.
+    it "separates keeping the assembly from keeping the branch for replay" do
+      restart = MergeTrainFailurePolicy::Rungs::Restart.new
+      keep_assembly = MergeTrainFailurePolicy::Rungs::KeepAssembly.new
+      keep_fixes = MergeTrainFailurePolicy::Rungs::KeepFixes.new
+
+      expect(restart.preserve_train?(preservable_failure: true)).to be(false)
+      expect(keep_assembly.preserve_train?(preservable_failure: true)).to be(true)
+      expect(keep_fixes.preserve_train?(preservable_failure: true)).to be(true)
+
+      expect(restart.preserve_branch_for_replay?).to be(false)
+      expect(keep_assembly.preserve_branch_for_replay?).to be(false)
+      expect(keep_fixes.preserve_branch_for_replay?).to be(true)
+    end
+
+    it "never preserves the assembly for a member-attributable failure" do
+      [
+        MergeTrainFailurePolicy::Rungs::Restart,
+        MergeTrainFailurePolicy::Rungs::KeepAssembly,
+        MergeTrainFailurePolicy::Rungs::KeepFixes
+      ].each do |rung_class|
+        expect(rung_class.new.preserve_train?(preservable_failure: false)).to be(false),
+          "#{rung_class.name} must not preserve an assembly around a member's own failure"
+      end
+    end
+
+    # keep_fixes and keep_assembly must stay distinguishable by name as well as
+    # behaviour -- the ladder is configured by name.
+    it "keeps the three rung names distinct" do
+      expect(MergeTrainFailurePolicy::IMPLEMENTED_RUNGS.keys).to contain_exactly("restart", "keep_assembly", "keep_fixes")
+    end
+  end
+
   it "falls back to the instance default when the repository has no ladder" do
     AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
     stub_ladder(nil)

@@ -43,6 +43,9 @@ Branch refs are fetched through the repository's authenticated GitHub URL so pri
 
 Once the integration branch is assembled, `merge_train_build` immediately pushes it to the repository and records it as the workflow's required workspace branch. Workflow workspaces live on each worker's local disk, but every Run is picked up by whichever worker is free, so a train routinely continues on a machine that has no copy of the workspace and re-clones. Publishing the branch means that re-clone can check out the branch the train is actually about to land; recording it means `WorkflowWorkspace` refuses to substitute anything else. Without both, the re-clone fell back to a single member's branch, and every later step — graders, `landing_fix`, and finally the land push — silently operated on that member branch while reporting on the train.
 
+`keep_fixes` is the only rung that preserves the branch for replay; under
+`keep_assembly` or `restart` the branch is deleted as usual.
+
 When `merge_train_failure_policy` is `keep_fixes`, a rebuilt train may carry a
 `merge_train_keep_fixes_source_train_id` artifact from a previous failed train.
 After member branches have been rebuilt on the current base, `merge_train_build`

@@ -36,6 +36,19 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
     run
   end
 
+  # A non-retryable failure in a named step, which is how almost every real
+  # merge-train failure arrives: grader_failure and application_error are both
+  # retryable: false.
+  def record_non_retryable_failure!(workflow, job, step_kind:, classification: "application_error")
+    step = Step.create!(workflow: workflow, kind: step_kind, state: "failed", position: 1)
+    run = Run.create!(job: job, step: step, trigger_kind: "merge_train", state: "failed")
+    RunFailureClassification.create!(
+      run: run, classification: classification, retryable: false, confidence: 0.9,
+      reason: "Operator review is required.", classified_at: Time.current
+    )
+    run
+  end
+
   def create_auto_retry_attempt!(workflow:, run:, classification:, attempt_number:, retry_kind: "retry_workflow")
     AutoRetryAttempt.create!(
       job: run.job,
@@ -164,6 +177,64 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.reload).not_to be_terminal
       expect(train.members.first.reload.state).not_to eq("failed")
       expect(a.reload).to be_landing
+    end
+
+    # The gate used to be retryability alone. An assemble that lost the landing
+    # lock is classified non-retryable and is nobody's code, so the train was
+    # torn down and the identical members were reassembled and regraded -- tens
+    # of minutes of the one landing lock, to reach the same place.
+    it "keeps the assembly when a train-level step failed and nothing is retryable" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    # The conservative half of the same gate: a member that broke the build
+    # must still fail out, or the train wedges on that defect forever.
+    it "tears the assembly down when a member-attributable step failed" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_non_retryable_failure!(workflow, a, step_kind: "merge_train_build")
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+    end
+
+    it "still tears the assembly down for a grader failure, which a member can cause" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_non_retryable_failure!(workflow, a, step_kind: "grader", classification: "grader_failure")
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+    end
+
+    it "records the rung it resolved and why, so the ladder can be tuned on evidence" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+
+      described_class.call(workflow: workflow)
+
+      logged = JobLog.where(run_id: Run.where(job_id: a.id).select(:id)).map(&:chunk).join("\n")
+      expect(logged).to include("failure rung")
+      expect(logged).to include("merge_train_assemble")
+      expect(logged).to include("preservable=true")
     end
 
     it "lets the repository .syrus.yml ladder override the instance default" do
