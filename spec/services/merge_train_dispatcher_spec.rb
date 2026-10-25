@@ -271,6 +271,22 @@ RSpec.describe MergeTrainDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "uses the members' non-default track when checking the landing lock" do
+    child = approved_child(1)
+    child.update!(delivery_track: "release")
+    landing_owner = Factories.job_record(
+      user: user, repository: repository, issue_number: 99, state: "approved",
+      pr_number: 999, delivery_track: "release"
+    )
+    policy = instance_double(DeliveryPolicy, approval_configured?: false)
+    allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:job_landing_branch).and_return("release")
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_owner)
+    workflow.work_unit.update!(state: "running")
+
+    expect(described_class.blocker_reason(epic)).to eq("#{landing_owner.slug} is already landing for #{repository.slug}")
+  end
+
   it "rechecks WorkUnit landing locks inside the dispatch transaction" do
     approved_child(1)
     landing_owner = Factories.job_record(user: user, repository: repository, issue_number: 99, state: "implemented", pr_number: 999)
