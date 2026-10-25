@@ -1,21 +1,10 @@
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "i18next"
 import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
 import { Badge, CardShell, Disclosure, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 export type BrowserAction =
-  | "navigate"
-  | "snapshot"
-  | "screenshot"
-  | "resize"
-  | "wait"
-  | "close"
-  | "click"
-  | "fill"
-  | "evaluate"
-  | "hover"
-  | "drag"
-  | "drop"
-  | "file_upload"
+  "navigate" | "snapshot" | "screenshot" | "resize" | "wait" | "close" | "click" | "fill" | "evaluate" | "hover" | "drag" | "drop" | "file_upload"
 
 type BrowserPreview = {
   src: string | null
@@ -53,24 +42,28 @@ type BrowserObjectPayload = {
 
 type ActionConfig = {
   action: BrowserAction
-  label: string
-  targetLabel: string
+  labelKey: string
+  targetLabelKey: string
 }
 
 const ACTION_CONFIGS: Record<BrowserAction, ActionConfig> = {
-  navigate: { action: "navigate", label: "Navigate", targetLabel: "Target" },
-  snapshot: { action: "snapshot", label: "Snapshot", targetLabel: "Target" },
-  screenshot: { action: "screenshot", label: "Screenshot", targetLabel: "Target" },
-  resize: { action: "resize", label: "Resize", targetLabel: "Viewport" },
-  wait: { action: "wait", label: "Wait", targetLabel: "Condition" },
-  close: { action: "close", label: "Close browser", targetLabel: "Target" },
-  click: { action: "click", label: "Click", targetLabel: "Target" },
-  fill: { action: "fill", label: "Fill", targetLabel: "Target" },
-  evaluate: { action: "evaluate", label: "Evaluate", targetLabel: "Target" },
-  hover: { action: "hover", label: "Hover", targetLabel: "Target" },
-  drag: { action: "drag", label: "Drag", targetLabel: "Path" },
-  drop: { action: "drop", label: "Drop", targetLabel: "Target" },
-  file_upload: { action: "file_upload", label: "File upload", targetLabel: "Files" }
+  navigate: { action: "navigate", labelKey: "actions.navigate", targetLabelKey: "targets.target" },
+  snapshot: { action: "snapshot", labelKey: "actions.snapshot", targetLabelKey: "targets.target" },
+  screenshot: { action: "screenshot", labelKey: "actions.screenshot", targetLabelKey: "targets.target" },
+  resize: { action: "resize", labelKey: "actions.resize", targetLabelKey: "targets.viewport" },
+  wait: { action: "wait", labelKey: "actions.wait", targetLabelKey: "targets.condition" },
+  close: { action: "close", labelKey: "actions.close", targetLabelKey: "targets.target" },
+  click: { action: "click", labelKey: "actions.click", targetLabelKey: "targets.target" },
+  fill: { action: "fill", labelKey: "actions.fill", targetLabelKey: "targets.target" },
+  evaluate: { action: "evaluate", labelKey: "actions.evaluate", targetLabelKey: "targets.target" },
+  hover: { action: "hover", labelKey: "actions.hover", targetLabelKey: "targets.target" },
+  drag: { action: "drag", labelKey: "actions.drag", targetLabelKey: "targets.path" },
+  drop: { action: "drop", labelKey: "actions.drop", targetLabelKey: "targets.target" },
+  file_upload: { action: "file_upload", labelKey: "actions.file_upload", targetLabelKey: "targets.files" }
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`browser:${key}`, options)
 }
 
 const MAX_INLINE_IMAGE_DATA_CHARS = 1_500_000
@@ -107,9 +100,10 @@ export function parseBrowserCard(context: ToolCardContext, action: BrowserAction
 
 export function browserCardSummary(card: BrowserCard) {
   const config = ACTION_CONFIGS[card.action]
-  const subject = card.target ? `${config.label} ${card.target}` : config.label
+  const label = t(config.labelKey)
+  const subject = card.target ? `${label} ${card.target}` : label
   const identity = card.action === "evaluate" ? card.resultSummary || pageIdentity(card) : pageIdentity(card)
-  const suffix = card.status === "error" ? "failed" : card.status
+  const suffix = card.status === "error" ? t("status.failed") : card.status === "success" ? t("status.success") : card.status
   return [subject, identity, suffix].filter(Boolean).join(" · ")
 }
 
@@ -119,22 +113,25 @@ export function BrowserCardBody({ card }: { card: BrowserCard }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>{config.label}</Badge>
-        <StatePill state={card.status} />
+        <Badge>{t(config.labelKey)}</Badge>
+        <StatePill
+          state={card.status === "success" || card.status === "error" ? t(`status.${card.status}`) : card.status}
+          tone={card.status === "success" ? "success" : card.status === "error" ? "failure" : undefined}
+        />
       </div>
       {card.errorMessage ? <div className="text-red-600 dark:text-red-300">{card.errorMessage}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        {card.target && card.action !== "resize" ? <Row label={config.targetLabel} value={card.target} /> : null}
-        {card.title ? <Row label="Title" value={card.title} /> : null}
-        {card.url ? <Row label="Current URL" value={card.url} /> : null}
-        {card.viewport ? <Row label="Viewport" value={card.viewport} /> : null}
-        {card.snapshotLabel ? <Row label="Snapshot" value={card.snapshotLabel} /> : null}
-        {card.inputTextSummary ? <Row label="Text" value={card.inputTextSummary} /> : null}
+        {card.target && card.action !== "resize" ? <Row label={t(config.targetLabelKey)} value={card.target} /> : null}
+        {card.title ? <Row label={t("rows.title")} value={card.title} /> : null}
+        {card.url ? <Row label={t("rows.current_url")} value={card.url} /> : null}
+        {card.viewport ? <Row label={t("rows.viewport")} value={card.viewport} /> : null}
+        {card.snapshotLabel ? <Row label={t("rows.snapshot")} value={card.snapshotLabel} /> : null}
+        {card.inputTextSummary ? <Row label={t("rows.text")} value={card.inputTextSummary} /> : null}
       </dl>
       {card.resultSummary ? <BrowserResultPanel summary={card.resultSummary} details={card.resultDetails} /> : null}
       {card.preview ? <BrowserPreviewPanel preview={card.preview} /> : card.action === "screenshot" ? <BrowserPreviewFallback /> : null}
       {card.details ? (
-        <Disclosure label="Browser details">
+        <Disclosure label={t("disclosures.browser_details")}>
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{card.details}</pre>
         </Disclosure>
       ) : null}
@@ -157,7 +154,7 @@ export function browserCardRenderer(action: BrowserAction) {
 
 function BrowserPreviewPanel({ preview }: { preview: BrowserPreview }) {
   if (!preview.src || preview.large) {
-    return <BrowserPreviewFallback detail={preview.large ? "Image payload is too large to preview inline." : undefined} />
+    return <BrowserPreviewFallback detail={preview.large ? t("preview.too_large") : undefined} />
   }
 
   return (
@@ -169,14 +166,14 @@ function BrowserPreviewPanel({ preview }: { preview: BrowserPreview }) {
         alt: preview.label,
         badge: preview.mimeType?.split("/").pop()?.toUpperCase() ?? null,
         actions: [
-          { label: "Open", href: preview.src },
-          { label: "Copy link", copyValue: preview.src }
+          { label: t("preview.open"), href: preview.src },
+          { label: t("preview.copy_link"), copyValue: preview.src }
         ],
         meta: [
-          { label: "Label", value: preview.label },
-          { label: "Type", value: preview.mimeType },
-          { label: "Size", value: preview.byteSize != null ? formatBytes(preview.byteSize) : null },
-          { label: "Source", value: preview.src, copyValue: preview.src }
+          { label: t("preview.label"), value: preview.label },
+          { label: t("preview.type"), value: preview.mimeType },
+          { label: t("preview.size"), value: preview.byteSize != null ? formatBytes(preview.byteSize) : null },
+          { label: t("preview.source"), value: preview.src, copyValue: preview.src }
         ]
       }}
       modalLabel={preview.label}
@@ -188,10 +185,10 @@ function BrowserPreviewPanel({ preview }: { preview: BrowserPreview }) {
 function BrowserResultPanel({ summary, details }: { summary: string; details: string | null }) {
   return (
     <div className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-      <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Result</div>
+      <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("result.label")}</div>
       <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-gray-700 dark:text-gray-300">{summary}</pre>
       {details && details !== summary ? (
-        <Disclosure label="Full result">
+        <Disclosure label={t("result.full_result")}>
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{details}</pre>
         </Disclosure>
       ) : null}
@@ -199,7 +196,7 @@ function BrowserResultPanel({ summary, details }: { summary: string; details: st
   )
 }
 
-function BrowserPreviewFallback({ detail = "Captured screenshots are available from the Media tab when the browser returns a stored media link." }: { detail?: string }) {
+function BrowserPreviewFallback({ detail = t("preview.fallback") }: { detail?: string }) {
   return (
     <div className="rounded border border-dashed border-gray-300 bg-white px-3 py-4 text-center text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-400">
       {detail}
@@ -219,7 +216,8 @@ function actionTarget(context: ToolCardContext, action: BrowserAction) {
   if (action === "wait") return waitTarget(input)
   if (action === "screenshot") return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref)
   if (["click", "fill", "hover", "drop"].includes(action)) return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref)
-  if (action === "evaluate") return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref) || (displayValue(input.function) ? "page" : null)
+  if (action === "evaluate")
+    return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref) || (displayValue(input.function) ? t("targets.page") : null)
   if (action === "drag") return dragTarget(input)
   if (action === "file_upload") return fileUploadTarget(input)
   return null
@@ -227,13 +225,13 @@ function actionTarget(context: ToolCardContext, action: BrowserAction) {
 
 function waitTarget(input: Record<string, unknown>) {
   const text = displayValue(input.text)
-  if (text) return `for "${text}"`
+  if (text) return t("wait.for_text", { text })
 
   const textGone = displayValue(input.text_gone) || displayValue(input.textGone)
-  if (textGone) return `until "${textGone}" disappears`
+  if (textGone) return t("wait.until_disappears", { text: textGone })
 
   const time = numberValue(input.time)
-  return time != null ? `for ${time}s` : null
+  return time != null ? t("wait.for_seconds", { time }) : null
 }
 
 function dragTarget(input: Record<string, unknown>) {
@@ -244,10 +242,10 @@ function dragTarget(input: Record<string, unknown>) {
 }
 
 function fileUploadTarget(input: Record<string, unknown>) {
-  if (!Array.isArray(input.paths)) return "cancel chooser"
+  if (!Array.isArray(input.paths)) return t("upload.cancel_chooser")
   const count = input.paths.length
-  if (count === 0) return "cancel chooser"
-  return `${count} file${count === 1 ? "" : "s"}`
+  if (count === 0) return t("upload.cancel_chooser")
+  return t("upload.file_count", { count })
 }
 
 function parseObjectPayload(value: unknown) {
@@ -299,17 +297,13 @@ function snapshotLabelValue(value: Record<string, unknown>) {
 
   const nodes = numberValue(metadata.node_count) || numberValue(metadata.nodes)
   const elements = numberValue(metadata.element_count) || numberValue(metadata.elements)
-  if (nodes != null) return `${nodes} node${nodes === 1 ? "" : "s"}`
-  if (elements != null) return `${elements} element${elements === 1 ? "" : "s"}`
+  if (nodes != null) return t("snapshot.node_count", { count: nodes })
+  if (elements != null) return t("snapshot.element_count", { count: elements })
   return displayValue(metadata.label)
 }
 
 function imagePreviewFromContent(value: unknown): BrowserPreview | null {
-  const content = Array.isArray(value)
-    ? value
-    : isPlainObject(value) && Array.isArray(value.content)
-      ? value.content
-      : null
+  const content = Array.isArray(value) ? value : isPlainObject(value) && Array.isArray(value.content) ? value.content : null
   if (!content) return null
 
   for (const block of content) {
@@ -326,7 +320,7 @@ function imagePreviewFromObject(value: Record<string, unknown>): BrowserPreview 
   const rawImageUrl = displayValue(value.image_url) || displayValue(value.file_path) || displayValue(value.artifact_url) || displayValue(value.src)
   const imageUrl = displayMediaUrl(rawImageUrl)
   const mimeType = displayValue(value.mimeType) || displayValue(value.mime_type) || displayValue(value.content_type)
-  const title = displayValue(value.title) || displayValue(value.filename) || "Browser screenshot"
+  const title = displayValue(value.title) || displayValue(value.filename) || t("preview.default_title")
   const byteSize = numberValue(value.byte_size) || numberValue(value.bytes)
 
   if (imageUrl) return { src: imageUrl, label: title, mimeType, byteSize, large: false }
@@ -377,7 +371,7 @@ function parseTextPayload(body: string) {
   const url = lineValue(text, /(?:Page URL|Current URL|URL):\s*(.+)/i)
   const title = lineValue(text, /(?:Page Title|Title):\s*(.+)/i)
   const viewport = lineValue(text, /(?:Viewport):\s*(.+)/i) || viewportFromText(text)
-  const snapshotLabel = text.match(/(?:^|\n)\s*-?\s*(?:Page Snapshot|accessibility[- ]tree|aria snapshot)\s*:/i) ? "accessibility tree" : null
+  const snapshotLabel = text.match(/(?:^|\n)\s*-?\s*(?:Page Snapshot|accessibility[- ]tree|aria snapshot)\s*:/i) ? t("snapshot.accessibility_tree") : null
 
   return { url, title, viewport, snapshotLabel }
 }
@@ -399,7 +393,7 @@ function viewportFromText(text: string) {
 function browserErrorMessage(body: string, parsed: BrowserObjectPayload | null) {
   if (parsed?.errorMessage) return parsed.errorMessage
   const text = body.trim()
-  if (!text) return "Browser tool failed."
+  if (!text) return t("errors.tool_failed")
   return text.replace(/^Error:\s*/i, "")
 }
 
@@ -435,7 +429,7 @@ function resultPreview(value: unknown) {
   }
 
   if (Array.isArray(value)) {
-    return { summary: `Array(${value.length})`, details: prettyJson(value) }
+    return { summary: t("result.array_count", { count: value.length }), details: prettyJson(value) }
   }
 
   if (isPlainObject(value)) {
@@ -459,7 +453,7 @@ function isScalar(value: unknown): value is string | number | boolean | null {
 function objectSummary(value: Record<string, unknown>) {
   const entries = Object.entries(value)
   const scalars = entries.filter((entry): entry is [string, string | number | boolean | null] => isScalar(entry[1])).slice(0, 3)
-  if (scalars.length === 0) return `Object(${entries.length} key${entries.length === 1 ? "" : "s"})`
+  if (scalars.length === 0) return t("result.object_key_count", { count: entries.length })
 
   const preview = scalars.map(([key, entryValue]) => `${key}: ${scalarSummary(entryValue)}`).join(", ")
   const suffix = entries.length > scalars.length ? ", ..." : ""
@@ -481,5 +475,5 @@ function truncateText(value: string, max: number) {
 function inputTextSummary(inputValue: unknown) {
   const input = isPlainObject(inputValue) ? inputValue : null
   const text = input ? displayValue(input.text) : null
-  return text ? `${text.length} character${text.length === 1 ? "" : "s"}` : null
+  return text ? t("input.character_count", { count: text.length }) : null
 }
