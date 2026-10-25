@@ -908,16 +908,18 @@ export const ToolGroup = memo(function ToolGroup({
   chatSessionId,
   item,
   payload,
-  chatMedia
+  chatMedia,
+  presentation: suppliedPresentation
 }: {
   chatSessionId?: number | string
   item: ChatToolGroupItem
   payload?: ChatPayload
   chatMedia?: ChatMediaPayload
+  presentation?: ToolCardContext["presentation"]
 }) {
   const { t } = useT("chat")
   const [open, setOpen] = useState(false)
-  const presentation = payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined
+  const presentation = suppliedPresentation ?? (payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined)
   const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
 
   function handleMarkdownLink(href: string, event: MouseEvent<HTMLAnchorElement>) {
@@ -994,6 +996,7 @@ export const ToolGroup = memo(function ToolGroup({
                       chatMedia={chatMedia}
                       item={nestedGroup}
                       payload={payload}
+                      presentation={presentation}
                       key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}
                     />
                   ))}
