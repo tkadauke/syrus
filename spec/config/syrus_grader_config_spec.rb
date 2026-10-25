@@ -454,6 +454,53 @@ RSpec.describe "Syrus grader configuration" do
     expect(graph.affected("//website:grade/build", changed_files: [ "app/models/job.rb" ]).affected).to be(false)
   end
 
+  it "selects the Website preview and relative visual-review policy only for rendered website changes" do
+    config = SyrusYml.new(Rails.root.join("website/.syrus.yml").read, project_path: "website").parse
+    graph = TargetGraph::Compiler.compile(Rails.root)
+    website = graph.project("website")
+
+    expect(website).to have_attributes(
+      label: "Website",
+      path: "website",
+      owner_config_path: "website/.syrus.yml"
+    )
+    expect(website.preview).to eq(config.preview)
+    expect(website.preview).to have_attributes(
+      start: "npm run dev -- --hostname 0.0.0.0 --port $PORT",
+      health_check: "/"
+    )
+    expect(website.visual_review).to eq(config.visual_review)
+    expect(website.visual_review).to have_attributes(enabled: true, rounds: 2)
+    expect(website.visual_review.when_files_changed).to include(
+      "src/app/**/*",
+      "src/content/docs/**/*.md",
+      "src/content/blog/**/*.md",
+      "components/**/*",
+      "lib/locales.ts",
+      "lib/marketing.ts",
+      "public/**/*"
+    )
+
+    docs_review = App::VisualReviewProjects.call(
+      workspace_path: Rails.root,
+      changed_files: [ "website/src/content/docs/dogfooding.md" ]
+    )
+    expect(docs_review.choices.map(&:id)).to eq([ "website" ])
+    expect(docs_review.when_files_changed).to include(
+      "website/src/content/docs/**/*.md",
+      "website/components/**/*"
+    )
+    expect(docs_review.seed_notes).to include("/docs/dogfooding", "/de/", "/blog")
+    expect(RepositoryContent::Glob.match?(docs_review.when_files_changed, "website/src/content/docs/dogfooding.md")).to be(true)
+    expect(RepositoryContent::Glob.match?(docs_review.when_files_changed, "website/lib/marketing.test.ts")).to be(false)
+
+    backend_review = App::VisualReviewProjects.call(
+      workspace_path: Rails.root,
+      changed_files: [ "app/models/job.rb" ]
+    )
+    expect(backend_review.choices.map(&:id)).to eq([ "repo" ])
+  end
+
   # migration-baselines ran `bin/rails db:create` with no bundle installed and
   # died in two seconds with "Could not find rails-8.1.3.1, propshaft-...",
   # i.e. the whole bundle missing. It is a REQUIRED grader in the landing and
