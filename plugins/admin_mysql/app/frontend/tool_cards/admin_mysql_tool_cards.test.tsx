@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import killQueryToolCard from "./admin_mysql_kill_query"
 import statusToolCard from "./admin_mysql_status"
@@ -110,6 +111,24 @@ describe("Admin MySQL tool cards", () => {
     expect(screen.queryByText("sensitive_user")).not.toBeInTheDocument()
     expect(screen.queryByText("db.internal")).not.toBeInTheDocument()
     expect(screen.queryByText("syrus_production")).not.toBeInTheDocument()
+  })
+
+  it("localizes status labels, table headings, and empty sections", async () => {
+    await i18n.changeLanguage("de")
+    const parsedResult = {
+      ...healthyPayload,
+      process_list: [],
+      statement_digests: { available: true, rows: [] },
+      slow_log: { available: true, rows: [] }
+    }
+
+    render(<>{statusToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("Aktive Abfragen")).toBeInTheDocument()
+    expect(screen.getByText("Keine aktiven MySQL-Prozesszeilen zurückgegeben.")).toBeInTheDocument()
+    expect(screen.getByText("Keine Statement-Digest-Zeilen zurückgegeben.")).toBeInTheDocument()
+    expect(screen.getByText("Keine Slow-Log-Zeilen zurückgegeben.")).toBeInTheDocument()
+    await i18n.changeLanguage("en")
   })
 
   it("renders degraded status when process rows are locked or waiting", () => {

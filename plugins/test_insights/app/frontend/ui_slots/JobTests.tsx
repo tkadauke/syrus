@@ -16,19 +16,16 @@ function TestCaseRow({ testCase }: { testCase: JobTestCase }) {
       <div
         className={`flex items-start gap-2 px-4 py-2 text-sm ${testCase.status === "skipped" ? "text-gray-400 dark:text-gray-500" : "text-gray-800 dark:text-gray-200"}`}
       >
-        <span className="mt-0.5 shrink-0 font-mono text-xs"><TestStatusIcon status={testCase.status} /></span>
+        <span className="mt-0.5 shrink-0 font-mono text-xs">
+          <TestStatusIcon status={testCase.status} />
+        </span>
         <span className="min-w-0 flex-1 break-words">{testCase.name}</span>
         <FlakinessBadge testCase={testCase} />
         {testCase.duration_ms != null ? (
           <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{formatTestDuration(testCase.duration_ms)}</span>
         ) : null}
         {hasDetail ? (
-          <button
-            aria-expanded={expanded}
-            className="shrink-0 text-xs text-brand hover:underline"
-            onClick={() => setExpanded((v) => !v)}
-            type="button"
-          >
+          <button aria-expanded={expanded} className="shrink-0 text-xs text-brand hover:underline" onClick={() => setExpanded((v) => !v)} type="button">
             {expanded ? t("tests_hide_detail") : t("tests_show_detail")}
           </button>
         ) : null}
@@ -78,23 +75,25 @@ function SuiteGroup({ suite }: { suite: JobTestSuite }) {
       >
         <span className="font-medium text-gray-800 dark:text-gray-200">{suite.suite_name}</span>
         <span className="flex items-center gap-3 text-xs">
-          {suite.failed_count > 0 ? <span className="text-red-600 dark:text-red-400">{suite.failed_count} failed</span> : null}
-          {suite.error_count > 0 ? <span className="text-red-600 dark:text-red-400">{suite.error_count} error</span> : null}
-          {suite.passed_count > 0 ? <span className="text-emerald-600 dark:text-emerald-400">{suite.passed_count} passed</span> : null}
-          {suite.skipped_count > 0 ? <span className="text-gray-400 dark:text-gray-500">{suite.skipped_count} skipped</span> : null}
+          {suite.failed_count > 0 ? <span className="text-red-600 dark:text-red-400">{t("tests_failed_count", { count: suite.failed_count })}</span> : null}
+          {suite.error_count > 0 ? <span className="text-red-600 dark:text-red-400">{t("tests_error_count", { count: suite.error_count })}</span> : null}
+          {suite.passed_count > 0 ? (
+            <span className="text-emerald-600 dark:text-emerald-400">{t("tests_passed_count", { count: suite.passed_count })}</span>
+          ) : null}
+          {suite.skipped_count > 0 ? (
+            <span className="text-gray-400 dark:text-gray-500">{t("tests_skipped_count", { count: suite.skipped_count })}</span>
+          ) : null}
           <span className={`transition-transform ${expanded ? "rotate-90" : ""} text-gray-400 dark:text-gray-500`}>›</span>
         </span>
       </button>
       {expanded ? (
         <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
-          {nonSkipped.map((tc) => <TestCaseRow key={tc.id} testCase={tc} />)}
+          {nonSkipped.map((tc) => (
+            <TestCaseRow key={tc.id} testCase={tc} />
+          ))}
           {skipped.length > 0 ? (
             <div>
-              <button
-                className="px-4 py-1.5 text-xs text-gray-400 hover:underline dark:text-gray-500"
-                onClick={() => setShowSkipped((v) => !v)}
-                type="button"
-              >
+              <button className="px-4 py-1.5 text-xs text-gray-400 hover:underline dark:text-gray-500" onClick={() => setShowSkipped((v) => !v)} type="button">
                 {showSkipped ? t("tests_hide_skipped") : `${t("tests_show_skipped")} (${skipped.length})`}
               </button>
               {showSkipped ? skipped.map((tc) => <TestCaseRow key={tc.id} testCase={tc} />) : null}
@@ -115,19 +114,29 @@ function TestRunSection({ testRun }: { testRun: JobTestRun }) {
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
         <SectionHeading>{testRun.grader_name}</SectionHeading>
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <TonePill tone="green">{testRun.passed_count} passed</TonePill>
-          {testRun.failed_count > 0 ? <TonePill tone="red">{testRun.failed_count} failed</TonePill> : null}
-          {testRun.error_count > 0 ? <TonePill tone="red">{testRun.error_count} error</TonePill> : null}
-          {testRun.skipped_count > 0 ? <TonePill tone="gray">{testRun.skipped_count} skipped</TonePill> : null}
-          {testRun.duration_ms != null ? <Text as="span" variant="caption" tone="muted">{formatTestDuration(testRun.duration_ms)}</Text> : null}
-          <Text as="span" variant="caption" tone="muted">{testRun.total_count} total</Text>
+          <TonePill tone="green">{t("tests_passed_count", { count: testRun.passed_count })}</TonePill>
+          {testRun.failed_count > 0 ? <TonePill tone="red">{t("tests_failed_count", { count: testRun.failed_count })}</TonePill> : null}
+          {testRun.error_count > 0 ? <TonePill tone="red">{t("tests_error_count", { count: testRun.error_count })}</TonePill> : null}
+          {testRun.skipped_count > 0 ? <TonePill tone="gray">{t("tests_skipped_count", { count: testRun.skipped_count })}</TonePill> : null}
+          {testRun.duration_ms != null ? (
+            <Text as="span" variant="caption" tone="muted">
+              {formatTestDuration(testRun.duration_ms)}
+            </Text>
+          ) : null}
+          <Text as="span" variant="caption" tone="muted">
+            {t("tests_total_count", { count: testRun.total_count })}
+          </Text>
         </div>
       </div>
       {allPassing ? (
-        <Text className="border-t border-border px-4 py-3" tone="success">{t("tests_all_passing")}</Text>
+        <Text className="border-t border-border px-4 py-3" tone="success">
+          {t("tests_all_passing")}
+        </Text>
       ) : (
         <div className="border-t border-border">
-          {testRun.suites.map((suite) => <SuiteGroup key={suite.suite_name} suite={suite} />)}
+          {testRun.suites.map((suite) => (
+            <SuiteGroup key={suite.suite_name} suite={suite} />
+          ))}
         </div>
       )}
     </Section.Root>
@@ -147,17 +156,32 @@ function TestsPanel({ jobId }: { jobId: number }) {
 
   return (
     <div className="space-y-4">
-      {data.test_runs.map((testRun) => <TestRunSection key={testRun.id} testRun={testRun} />)}
+      {data.test_runs.map((testRun) => (
+        <TestRunSection key={testRun.id} testRun={testRun} />
+      ))}
     </div>
   )
 }
 
 function TestStatusIcon({ status }: { status: JobTestCase["status"] }) {
-  if (status === "passed") return <span aria-hidden="true" className="text-emerald-600 dark:text-emerald-400">✓</span>
-  if (status === "failed" || status === "error") return <span aria-hidden="true" className="text-red-600 dark:text-red-400">✗</span>
-  return <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">−</span>
+  if (status === "passed")
+    return (
+      <span aria-hidden="true" className="text-emerald-600 dark:text-emerald-400">
+        ✓
+      </span>
+    )
+  if (status === "failed" || status === "error")
+    return (
+      <span aria-hidden="true" className="text-red-600 dark:text-red-400">
+        ✗
+      </span>
+    )
+  return (
+    <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">
+      −
+    </span>
+  )
 }
-
 
 function FlakinessSparkline({ statuses }: { statuses: Array<"passed" | "failed" | "skipped" | "error"> }) {
   return (
@@ -178,7 +202,6 @@ function FlakinessSparkline({ statuses }: { statuses: Array<"passed" | "failed" 
   )
 }
 
-
 function FlakinessBadge({ testCase }: { testCase: JobTestCase }) {
   const { t } = useT("test_insights")
   const score = testCase.flakiness_score
@@ -194,12 +217,13 @@ function FlakinessBadge({ testCase }: { testCase: JobTestCase }) {
       title={t("tests_flaky_tooltip", { failed, total })}
     >
       {t("tests_flaky_label")}
-      <span className="font-normal opacity-75">{failed}/{total}</span>
+      <span className="font-normal opacity-75">
+        {failed}/{total}
+      </span>
       {statuses && statuses.length > 1 ? <FlakinessSparkline statuses={statuses} /> : null}
     </span>
   )
 }
-
 
 function formatTestDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
