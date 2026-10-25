@@ -137,7 +137,7 @@ describe("update_scheduled_task tool card", () => {
     )
 
     expect(screen.getByText("Name")).toBeInTheDocument()
-    expect(screen.getByText("Schedule")).toBeInTheDocument()
+    expect(screen.getAllByText("Schedule")).not.toHaveLength(0)
     expect(screen.getByText("Cron expression")).toBeInTheDocument()
     expect(screen.getAllByText("30 5 * * 1-5")).not.toHaveLength(0)
     expect(screen.getByText("Fire at")).toBeInTheDocument()

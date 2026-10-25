@@ -1,4 +1,5 @@
-import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
 import i18n from "i18next"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 import { CardShell, displayValue, Row } from "@app/routes/chat/toolCardUi"

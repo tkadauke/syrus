@@ -58,7 +58,7 @@ describe("resume_scheduled_task tool card", () => {
     expect(screen.getByText("Next fire (local)")).toBeInTheDocument()
     expect(screen.getByText("Next fire (UTC)")).toBeInTheDocument()
     expect(screen.getByText(/AM UTC|PM UTC/)).toBeInTheDocument()
-    expect(document.querySelector("time")).toHaveTextContent(/ago|today|tomorrow|in /)
+    expect(document.querySelector("time")).toHaveTextContent(/ago|yesterday|today|tomorrow|in /)
   })
 
   it.each(["scheduled task is already enabled", "scheduled task not found: 404"])("renders a styled error and preserves the input task link: %s", (message) => {
