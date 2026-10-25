@@ -338,6 +338,7 @@ Rails.application.routes.draw do
         get "repositories/repos", to: "repositories#repos"
         get "repositories/branches", to: "repositories#branches"
         resources :repositories, only: %i[ index show create update ] do
+          post "ref_movement_actions", to: "repository_ref_movement_actions#create"
           member do
             post :poll
             post :archive

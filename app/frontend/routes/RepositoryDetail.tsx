@@ -35,6 +35,7 @@ import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   fetchRepositoryCognitiveDebt,
   fetchRepositoryDetail,
+  dispatchRepositoryRefMovementAction,
   pollRepositoryDetail,
   releaseNeedsTriageRepositoryJob,
   runInsightAnalysis,
@@ -85,7 +86,16 @@ function RepositoryDetail({
   const { t } = useT("settings")
   const setupStatus = useSetupStatus()
   const payload = detail.data
+  const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload?.message || null)
+  const refMovementAction = useMutation({
+    mutationFn: (actionName: string) => dispatchRepositoryRefMovementAction(payload!.paths.app_ref_movement_actions_repository_path!, actionName),
+    onSuccess: (result) => {
+      setNotice(result.message)
+      void queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error) => setNotice(errorMessage(error, t("delivery.dispatch_failed")))
+  })
 
   return (
     <RepositoryPageShell
@@ -114,7 +124,15 @@ function RepositoryDetail({
               <RepositorySummary payload={payload} />
               <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-              {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
+              {payload.delivery ? (
+                <DeliveryTracksSection
+                  canDispatch={Boolean(payload.can_dispatch_ref_movement_actions && payload.paths.app_ref_movement_actions_repository_path)}
+                  delivery={payload.delivery}
+                  dispatchingAction={refMovementAction.isPending ? refMovementAction.variables : null}
+                  onDispatch={(actionName) => refMovementAction.mutate(actionName)}
+                  prefix={prefix}
+                />
+              ) : null}
               <PluginUiSlot panels={payload.ui_panels} props={{ repository: payload.repository }} />
               <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
             </div>

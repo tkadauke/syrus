@@ -703,6 +703,9 @@
     "action_available": "Verfügbar",
     "action_blocked": "Blockiert",
     "action_disabled": "Deaktiviert",
+    "promote": "Zum Release promoten",
+    "promoting": "Promotion läuft…",
+    "dispatch_failed": "Promotion konnte nicht gestartet werden.",
     "recent_ref_movements_heading": "Letzte Ref-Movement-Workflows",
     "recent_pr_ingestions_heading": "Letzte PR-Übernahmen"
   },

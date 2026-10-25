@@ -337,6 +337,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PUT | `/api/v1/app/repositories/:repository_id/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#update` |
 | core | PATCH | `/api/v1/app/repositories/:repository_id/provider_routing_rules/reorder` | `api/v1/app/provider_routing_rules#reorder` |
 | core | POST | `/api/v1/app/repositories/:repository_id/recommendations/:recommendation_id` | `api/v1/app/repository_recommendations#create` |
+| core | POST | `/api/v1/app/repositories/:repository_id/ref_movement_actions` | `api/v1/app/repository_ref_movement_actions#create` |
 | core | GET | `/api/v1/app/repositories/:repository_id/skills` | `api/v1/app/skills#index` |
 | core | POST | `/api/v1/app/repositories/:repository_id/skills` | `api/v1/app/skills#create` |
 | core | GET | `/api/v1/app/repositories/:repository_id/team_grants` | `api/v1/app/repository_team_grants#index` |

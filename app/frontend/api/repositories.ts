@@ -304,6 +304,7 @@ export type RepositoryDetailPayload = {
     }
   }
   can_edit: boolean
+  can_dispatch_ref_movement_actions?: boolean
   can_release_triage_jobs: boolean
   needs_triage_count: number
   needs_triage_jobs: RepositoryNeedsTriageJob[]
@@ -331,6 +332,7 @@ export type RepositoryDetailPayload = {
     app_run_main_branch_graders_repository_path: string
     app_repair_main_branch_repository_path: string
     app_check_ci_now_repository_path: string
+    app_ref_movement_actions_repository_path?: string
     repositories_path: string
     repository_documents_path: string
     repository_scheduled_tasks_path: string
@@ -731,6 +733,10 @@ export function repairMainBranch(path: string, page: number) {
 
 export function checkCiNow(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+}
+
+export function dispatchRepositoryRefMovementAction(path: string, actionName: string) {
+  return postJson<{ message: string; ref_movement_action_id: number; workflow_id: number }>(path, { action_name: actionName })
 }
 
 export function runRepositoryRecommendation(path: string, page: number) {

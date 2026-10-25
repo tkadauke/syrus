@@ -64,9 +64,64 @@ RSpec.describe "App API repository delivery payload", type: :request do
       expect(delivery).not_to be_nil
       expect(delivery["tracks"].map { |track| track["name"] }).to contain_exactly("default")
       expect(delivery["tracks"].first["branch"]).to eq("develop")
-      expect(delivery["ref_movement_actions"]).to eq([])
+      expect(delivery["ref_movement_actions"]).to contain_exactly(
+        a_hash_including("name" => "promote_development_to_release", "enabled" => true, "available" => true)
+      )
       expect(delivery["recent_ref_movement_workflows"]).to eq([])
       expect(delivery["recent_pr_ingestions"]).to eq([])
+    end
+  end
+
+  describe "POST /api/v1/app/repositories/:id/ref_movement_actions" do
+    let(:policy) do
+      instance_double(
+        DeliveryPolicy,
+        promotion_enabled?: true,
+        promotion_mode: "manual_pr",
+        promotion_grade_phases: [ "promotion" ],
+        promotion_source_branch: "develop",
+        promotion_target_branch: "main"
+      )
+    end
+
+    before do
+      allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(policy)
+      allow(StepDispatcher).to receive(:start_workflow)
+    end
+
+    it "dispatches promotion for a repository writer" do
+      expect {
+        post "/api/v1/app/repositories/#{repo.id}/ref_movement_actions",
+          params: { action_name: "promote_development_to_release" }, as: :json
+      }.to change(RefMovementAction, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("message" => "Promotion started.", "workflow_id" => Workflow.last.id)
+      expect(RefMovementAction.last).to be_dispatched
+    end
+
+    it "returns the in-flight blocker to the UI" do
+      pending_job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: pending_job, trigger_kind: "promotion", state: "queued")
+
+      post "/api/v1/app/repositories/#{repo.id}/ref_movement_actions",
+        params: { action_name: "promote_development_to_release" }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.body).to include("promotion workflow #{workflow.id} is already queued")
+      expect(RefMovementAction.last).to be_blocked
+    end
+
+    it "forbids a read-only repository member" do
+      reader = Factories.user
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      sign_in_as(reader)
+
+      post "/api/v1/app/repositories/#{repo.id}/ref_movement_actions",
+        params: { action_name: "promote_development_to_release" }, as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(RefMovementAction.count).to eq(0)
     end
   end
 end
