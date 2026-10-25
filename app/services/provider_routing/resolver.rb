@@ -6,11 +6,43 @@ module ProviderRouting
   # Job::ProviderSetting::Default#resolve, but returns a list instead of
   # a single value so callers can fail over between candidates.
   class Resolver
+    PanelResolutionRequired = Class.new(StandardError)
+
     Candidate = Data.define(:provider, :model, :effort_level) do
       def to_h = super.compact
     end
+    PanelResolution = Data.define(:members, :consensus, :on_unavailable, :min_members, :source_scope, :source_id, :matched_rule, :match_details) do
+      def candidates = members
+      def held? = false
+      def panel? = true
+      def fallback = false
+      def reason = "matched_panel_rule"
+      def decision = { "status" => "panel", "failure" => false }
+
+      def explanation
+        {
+          "source_scope" => source_scope,
+          "source_id" => source_id,
+          "fallback" => false,
+          "reason" => reason,
+          "decision" => decision,
+          "matched_rule" => {
+            "id" => matched_rule.id,
+            "scope_type" => matched_rule.scope_type,
+            "scope_id" => matched_rule.scope_id,
+            "position" => matched_rule.position,
+            "enabled" => matched_rule.enabled?,
+            "trigger" => matched_rule.trigger,
+            "conditions" => matched_rule.conditions
+          },
+          "condition_results" => match_details,
+          "final_action" => matched_rule.serialized_action.merge("candidates" => members.map { |member| member.to_h.stringify_keys })
+        }
+      end
+    end
     Resolution = Data.define(:candidates, :source_scope, :source_id, :matched_rule, :match_details, :fallback, :reason) do
       def held? = matched_rule&.hold_action? || false
+      def panel? = false
 
       def decision
         if held?
@@ -67,7 +99,10 @@ module ProviderRouting
     HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil) ].freeze
 
     def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
-      resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).candidates
+      resolution = resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
+      raise PanelResolutionRequired, "panel routing must be consumed through the panel resolution path" if resolution.panel?
+
+      resolution.candidates
     end
 
     def self.resolve(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, released_hold_rule_ids: [])
@@ -211,6 +246,19 @@ module ProviderRouting
       return nil if rule.action_candidates.blank? && !rule.hold_action?
 
       candidates = rule.action_candidates.map { |candidate| candidate_from_hash(candidate) }
+      if rule.panel_action?
+        action = rule.serialized_action
+        return PanelResolution.new(
+          members: candidates,
+          consensus: action["consensus"],
+          on_unavailable: action["on_unavailable"],
+          min_members: action["min_members"],
+          source_scope: scope_type,
+          source_id: scope_id,
+          matched_rule: rule,
+          match_details: match.fetch(:details)
+        )
+      end
       Resolution.new(
         candidates: candidates,
         source_scope: scope_type,

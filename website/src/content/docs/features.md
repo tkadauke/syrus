@@ -897,7 +897,20 @@ rules losing their ordered position. Disabled rules remain visible but muted,
 are skipped during evaluation, and the first enabled matching rule wins. A rule
 can route to ordered provider candidates or hold work with a reason and manual,
 condition-based, or timed resumption policy. Job pages show active hold status
-and the next scheduled wake when applicable. A matching hold action
+and the next scheduled wake when applicable. Adversarial and security review
+rules can also define an ordered provider panel with unanimous, strict-majority,
+or minimum-approval consensus. Each member uses the same availability checks as
+normal routing; the rule decides whether an unavailable member is dropped,
+holds admission, or fails panel admission, and a minimum-member guard prevents
+an undersized panel from producing a review decision.
+The Job review and workflow views keep each panel iteration together as one
+round: its consensus verdict stays visible while the individual provider/model
+verdicts, critiques, unavailable members, and non-blocking notes can be expanded.
+Panel members run serially with their configured provider, model, and effort.
+Syrus retains each attributed finding, then appends a consensus result that
+drives the existing review/repair loop; findings from an approving minority
+remain visible as non-blocking notes.
+A matching hold action
 stops first-match evaluation and leaves the workflow queued without launching a
 Run or treating the decision as provider failure. Holds are durable and retain
 their matched scope, reason, condition evidence, and resumption policy. They can

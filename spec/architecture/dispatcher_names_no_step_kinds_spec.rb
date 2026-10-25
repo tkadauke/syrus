@@ -50,7 +50,7 @@ RSpec.describe "StepDispatcher names no specific step kind" do
   # kinds those are is declared now, so a second fan-out step kind is a
   # registry entry rather than another name in the dispatcher.
   it "declares which step kinds are inserted at run time" do
-    expect(Step::Kind.runtime_inserted_kinds).to contain_exactly("grader", "merge_train_multisect_evaluate")
+    expect(Step::Kind.runtime_inserted_kinds).to contain_exactly("grader", "merge_train_multisect_evaluate", "review_panel_collect")
   end
 
   it "does not name a runtime-inserted step kind anywhere in StepDispatcher" do

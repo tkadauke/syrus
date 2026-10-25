@@ -44,6 +44,9 @@ export type ProviderRoutingAction = {
   candidates?: ProviderRoutingCandidate[]
   reason?: string
   name?: string
+  consensus?: "unanimous" | "majority" | { at_least: number }
+  on_unavailable?: "drop" | "hold" | "fail"
+  min_members?: number
   [key: string]: unknown
 }
 
@@ -69,6 +72,7 @@ export type ProviderRoutingRegistryOption = {
   value: string
   label: string
   style?: string
+  panel_capable?: boolean
 }
 
 export type ProviderRoutingRegistryOptions = {

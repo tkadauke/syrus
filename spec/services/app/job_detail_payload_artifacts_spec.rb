@@ -72,6 +72,24 @@ RSpec.describe App::JobDetailPayload do
     )
   end
 
+  it "preserves review panel members, consensus, unavailable members, and notes" do
+    job = Factories.job_record(user: user, repository: repo)
+    panel_entries = [
+      { "iteration" => 1, "panel_id" => "panel-1", "provider" => "claude", "model" => "sonnet", "verdict" => "approved", "critique" => "Clean." },
+      {
+        "iteration" => 1, "panel_id" => "panel-1", "aggregate" => true, "verdict" => "approved", "consensus" => "majority",
+        "votes" => [ { "provider" => "claude", "model" => "sonnet", "verdict" => "approved" } ],
+        "dropped_members" => [ { "provider" => "codex", "model" => "gpt-5" } ],
+        "non_blocking_findings" => [ { "provider" => "gemini", "critique" => "Optional hardening." } ]
+      }
+    ]
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", artifacts: { "adversarial_review_iterations" => panel_entries })
+
+    serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
+
+    expect(serialized.dig(:artifacts, "adversarial_review_iterations")).to eq(panel_entries)
+  end
+
   describe "resource admission diagnostics visibility" do
     # The `user` let is the first User created in the example, so
     # User#promote_first_user_to_admin makes it an admin. A second user

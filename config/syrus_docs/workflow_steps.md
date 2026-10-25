@@ -442,7 +442,40 @@ day/time windows, repository predicates, and Job metadata predicates live in
 the structured `conditions` payload. Provider selection lives in the
 structured `action` payload. Route actions use `type: route` with ordered
 fallback provider triples (legacy actions that omit `type` remain route actions)
-and reserve a weighted strategy for future load balancing. A `type: hold` action
+and reserve a weighted strategy for future load balancing. Review steps whose
+`Step::Kind` entry declares `panel_capable` may instead use a panel action:
+
+```json
+{
+  "type": "route",
+  "strategy": "panel",
+  "candidates": [
+    { "provider": "claude", "model": "claude-sonnet-4-6" },
+    { "provider": "codex", "effort_level": "high" }
+  ],
+  "consensus": "majority",
+  "on_unavailable": "drop",
+  "min_members": 1
+}
+```
+
+Panels require at least two distinct members and currently apply to
+`adversarial_review` and `security_review`. Consensus may be `unanimous`,
+`majority` (strictly more than half of non-skipped votes), or
+`{"at_least": N}`. Unavailable members are evaluated with the normal provider
+credential, availability, and circuit evidence. `drop` removes them and
+recomputes count-based quorum, subject to `min_members`; `hold` defers admission
+through the provider-routing hold path; and `fail` reports the panel as unable
+to proceed. If fewer than `min_members` non-skipped verdicts remain, consensus
+is `skipped`.
+Panel resolutions are deliberately separate from the ordinary single-candidate
+fallback path: `Resolver.call` and `AvailabilitySelector.call` reject them
+rather than silently selecting the first available member. Panel-aware workflow
+steps consume `Resolver.resolve` and `AvailabilitySelector.panel`; until such a
+step owns execution, configuring a panel cannot degrade into one ordinary
+reviewer run.
+
+A `type: hold` action
 is a terminal successful routing decision: broader scopes are not consulted and
 the explanation contains the matched hold rather than presenting provider
 exhaustion as a routing failure. A held workflow remains queued with no Run;

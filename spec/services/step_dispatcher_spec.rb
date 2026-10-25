@@ -46,6 +46,31 @@ RSpec.describe StepDispatcher, :ci_only do
     s2.update!(next_step_id: s3.id)
   end
 
+  describe ".run_provider_candidate_for" do
+    it "does not launch one ordinary candidate for a panel-routed review step" do
+      review_step = Step.create!(workflow: workflow, kind: "security_review", position: 3)
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        trigger: { type: "step", kind: "security_review" },
+        action: {
+          strategy: "panel",
+          candidates: [ { provider: "claude" }, { provider: "codex" } ],
+          consensus: "majority",
+          on_unavailable: "drop",
+          min_members: 1
+        }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      expect {
+        described_class.run_provider_candidate_for(review_step, workflow)
+      }.to raise_error(ProviderRouting::Resolver::PanelResolutionRequired, /AvailabilitySelector\.panel/)
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
+      expect(workflow.reload.artifact("agent_provider_routing_decision")).to be_nil
+    end
+  end
+
   describe ".fail_from" do
     it "expands a retry_until failure branch after the bounded grader loop exhausts" do
       train_workflow = Workflows::MergeTrain.instantiate(
@@ -2968,6 +2993,46 @@ RSpec.describe StepDispatcher, :ci_only do
       review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
       expect(review_workflow.steps.where(loop_id: review.loop_id, iteration: 1).pluck(:kind)).to eq(%w[ adversarial_review ])
       expect(review_workflow.steps.where(loop_id: review.loop_id).to_a).to eq([ review ])
+    end
+
+    it "uses an approved panel aggregate at the collect step to exit the review loop" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      continuation = review.next_step
+      review_workflow.steps.where("position >= ?", continuation.position).update_all("position = position + 1")
+      collect = Step.create!(
+        workflow: review_workflow, kind: "review_panel_collect", position: review.position + 1,
+        iteration: 1, loop_id: review.loop_id,
+        details: { "panel_review_kind" => "adversarial_review", "panel_id" => "routing-rule-44" },
+        next_step: continuation
+      )
+      review.update!(next_step: collect, details: review.details.merge("panel_fanout" => true))
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "aggregate" => true, "verdict" => "approved" }
+      ])
+
+      expect { described_class.advance_from(collect) }.to change { continuation.runs.count }.by(1)
+      expect(review_workflow.steps.where(loop_id: review.loop_id, iteration: 2)).to be_empty
+    end
+
+    it "uses a needs_work panel aggregate at the collect step to enqueue repair" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      continuation = review.next_step
+      review_workflow.steps.where("position >= ?", continuation.position).update_all("position = position + 1")
+      collect = Step.create!(
+        workflow: review_workflow, kind: "review_panel_collect", position: review.position + 1,
+        iteration: 1, loop_id: review.loop_id,
+        details: { "panel_review_kind" => "adversarial_review", "panel_id" => "routing-rule-44" },
+        next_step: continuation
+      )
+      review.update!(next_step: collect, details: review.details.merge("panel_fanout" => true))
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "aggregate" => true, "verdict" => "needs_work" }
+      ])
+
+      expect { described_class.advance_from(collect) }.to change { review_workflow.steps.count }.by(2)
+      expect(review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).order(:position).pluck(:kind)).to eq(%w[implement adversarial_review])
     end
 
     it "materializes the next adversarial review iteration, wired from the review step and into it" do

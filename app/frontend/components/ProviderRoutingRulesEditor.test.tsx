@@ -17,7 +17,9 @@ const options: ProviderRoutingOptions = {
   triggers: {
     step_kinds: [
       { value: "implement", label: "Implement" },
-      { value: "rebase", label: "Rebase" }
+      { value: "rebase", label: "Rebase" },
+      { value: "adversarial_review", label: "Adversarial review", panel_capable: true },
+      { value: "security_review", label: "Security review", panel_capable: true }
     ],
     chat_roles: [{ value: "chat:supervisor", label: "Supervisor" }]
   },
@@ -29,7 +31,8 @@ const options: ProviderRoutingOptions = {
   },
   action_strategies: [
     { value: "fallback_order", label: "Fallback order" },
-    { value: "weighted", label: "Weighted" }
+    { value: "weighted", label: "Weighted" },
+    { value: "panel", label: "Panel" }
   ],
   condition_keys: []
 }
@@ -170,6 +173,48 @@ describe("ProviderRoutingRulesEditor", () => {
     )
     expect(onParentSubmit).not.toHaveBeenCalled()
     expect(screen.queryByRole("dialog", { name: "New routing rule" })).not.toBeInTheDocument()
+  })
+
+  it("creates a review panel with consensus and unavailable-member policy", async () => {
+    const onUpdateRule = vi.fn()
+    const panelRule: ProviderRoutingRule = {
+      id: 51,
+      scope_type: "repository",
+      scope_id: 7,
+      task_key: "security_review",
+      trigger: { type: "step", kind: "security_review" },
+      conditions: {},
+      action: {
+        strategy: "panel",
+        name: "Security panel",
+        candidates: [{ provider: "codex" }, { provider: "claude" }],
+        consensus: { at_least: 2 },
+        on_unavailable: "hold",
+        min_members: 2
+      },
+      candidates: [{ provider: "codex" }, { provider: "claude" }]
+    }
+    renderPanel({ onUpdateRule, rules: [panelRule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        panelRule,
+        expect.objectContaining({
+          trigger: { type: "step", kind: "security_review" },
+          action: expect.objectContaining({
+            strategy: "panel",
+            consensus: { at_least: 2 },
+            on_unavailable: "hold",
+            min_members: 2,
+            candidates: [{ provider: "codex" }, { provider: "claude" }]
+          })
+        })
+      )
+    )
   })
 
   it("displays mutation error states", () => {

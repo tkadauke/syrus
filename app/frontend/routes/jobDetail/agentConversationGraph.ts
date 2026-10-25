@@ -11,6 +11,10 @@ import { humanize } from "./stepModel"
 
 export type ConversationRow = AgentConversationNode[]
 
+export function isPanelConversationRow(row: ConversationRow): boolean {
+  return row.length > 0 && row.every((node) => detailString(node.detail || {}, "panel_id") != null)
+}
+
 function sortedKey(ids: string[] | undefined): string {
   if (!ids || ids.length === 0) return ""
   return [...ids].sort().join(",")
@@ -32,6 +36,24 @@ export function buildConversationRows(nodes: AgentConversationNode[], edges: Age
   let index = 0
   while (index < nodes.length) {
     const node = nodes[index]
+    const panelId = detailString(node.detail || {}, "panel_id")
+    if (node.kind === "agent_session" && panelId) {
+      const group = [node]
+      let next = index + 1
+      while (
+        next < nodes.length &&
+        nodes[next].kind === "agent_session" &&
+        detailString(nodes[next].detail || {}, "panel_id") === panelId &&
+        nodes[next].iteration === node.iteration &&
+        nodes[next].step_kind === node.step_kind
+      ) {
+        group.push(nodes[next])
+        next += 1
+      }
+      rows.push(group)
+      index = next
+      continue
+    }
     if (node.kind !== "deterministic_check") {
       rows.push([node])
       index += 1
@@ -101,6 +123,10 @@ export function edgeLabel(from: AgentConversationNode, to: AgentConversationNode
 
 export function connectorLabel(fromRow: ConversationRow, toRow: ConversationRow): string {
   if (fromRow.length > 1) {
+    if (detailString(fromRow[0].detail || {}, "panel_id")) {
+      const verdict = detailString(fromRow[0].detail || {}, "panel_verdict")
+      return `${fromRow[0].label} panel ${verdict || "finished"} — ${toAction(toRow[0], verdict === "needs_work")}`
+    }
     const total = fromRow.length
     const passed = fromRow.filter((node) => node.state === "succeeded").length
     return `${passed}/${total} checks passed — ${toAction(toRow[0], passed < total)}`

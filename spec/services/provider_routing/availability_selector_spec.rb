@@ -14,6 +14,81 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
   end
 
   describe "#call" do
+    it "refuses to collapse a panel into the ordinary fallback selection path" do
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "security_review" },
+        action: {
+          strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ],
+          consensus: "majority", on_unavailable: "drop", min_members: 1
+        }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      expect {
+        described_class.call(job: job, task_key: "security_review")
+      }.to raise_error(ProviderRouting::Resolver::PanelResolutionRequired, /AvailabilitySelector\.panel/)
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
+    end
+
+    it "reports availability for every panel member and applies drop policy" do
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "security_review" },
+        action: {
+          strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ],
+          consensus: "majority", on_unavailable: "drop", min_members: 1
+        }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(state: "available")
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(state: "rate_limited")
+
+      decision = described_class.panel(job: job, task_key: "security_review")
+
+      expect(decision).to be_dropped
+      expect(decision.available_members.pluck("provider")).to eq([ "claude" ])
+      expect(decision.unavailable_members.pluck("provider")).to eq([ "codex" ])
+      expect(decision.artifact).to include("consensus" => "majority", "disposition" => "drop")
+    end
+
+    it "reports hold or fail when unavailable panel members use those policies" do
+      %w[hold fail].each do |policy|
+        ProviderRoutingRule.delete_all
+        ProviderRoutingRule.create!(
+          scope_type: "repository", scope_id: repository.id,
+          trigger: { type: "step", kind: "security_review" },
+          action: {
+            strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ],
+            consensus: "unanimous", on_unavailable: policy, min_members: 2
+          }
+        )
+        allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "rate_limited")
+
+        decision = described_class.panel(job: job, task_key: "security_review")
+
+        expect(decision.disposition).to eq(policy)
+      end
+    end
+
+    it "keeps drop disposition below min_members so consensus can return skipped" do
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "security_review" },
+        action: {
+          strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ],
+          consensus: "unanimous", on_unavailable: "drop", min_members: 2
+        }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(state: "available")
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(state: "rate_limited")
+
+      decision = described_class.panel(job: job, task_key: "security_review")
+
+      expect(decision).to be_dropped
+      result = ProviderRouting::PanelConsensus.call(member_verdicts: [ "approved" ], consensus: decision.consensus, min_members: decision.min_members)
+      expect(result.verdict).to eq("skipped")
+    end
+
     it "preserves a terminal hold as a non-failure decision without selecting a fallback" do
       rule = ProviderRoutingRule.create!(
         scope_type: "repository",

@@ -1604,13 +1604,72 @@ function StepTextReviewPanel({
                 <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t(`${kind}_round`, { n: iteration.iteration })}</h5>
                 <SmallPill tone={isFinal ? (isApproved || isSkipped ? "success" : "warning") : "neutral"}>{verdictLabel}</SmallPill>
               </div>
-              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
+              {iteration.aggregate ? (
+                <details className="mt-2 text-sm">
+                  <summary className="cursor-pointer text-gray-600 dark:text-gray-300">
+                    {t("review_panel_members", { count: iteration.members?.length || 0 })} ·{" "}
+                    {t("review_panel_consensus", { rule: panelConsensusLabel(iteration.consensus, t) })}
+                    {iteration.vote_breakdown ? (
+                      <span className="mt-1 block text-xs">
+                        {t("review_panel_vote_breakdown", {
+                          approved: iteration.vote_breakdown.approved,
+                          needsWork: iteration.vote_breakdown.needs_work,
+                          skipped: iteration.vote_breakdown.skipped,
+                          count: iteration.vote_breakdown.required_approvals
+                        })}
+                      </span>
+                    ) : null}
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {(iteration.members || []).map((member, memberIndex) => (
+                      <div
+                        className="border-l-2 border-gray-200 pl-3 dark:border-gray-700"
+                        key={`${member.provider}-${member.model || "default"}-${memberIndex}`}
+                      >
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <span>
+                            {member.provider}
+                            {member.model ? ` / ${member.model}` : ""}
+                          </span>
+                          {member.verdict ? <SmallPill>{t(`${kind}_verdict_${member.verdict}`)}</SmallPill> : null}
+                        </div>
+                        {member.critique ? <Markdown className="chat-prose mt-1 text-sm text-gray-700 dark:text-gray-300" text={member.critique} /> : null}
+                      </div>
+                    ))}
+                    {(iteration.dropped_members || []).map((member, memberIndex) => (
+                      <p className="text-xs text-gray-500 dark:text-gray-400" key={`dropped-${member.provider}-${memberIndex}`}>
+                        {t("review_panel_member_dropped", { member: member.model ? `${member.provider} / ${member.model}` : member.provider })}
+                      </p>
+                    ))}
+                    {(iteration.non_blocking_findings || []).length > 0 ? (
+                      <div className="pt-1">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">{t("review_panel_non_blocking")}</p>
+                        {(iteration.non_blocking_findings || []).map((finding, findingIndex) => (
+                          <Markdown
+                            className="chat-prose mt-1 text-sm text-gray-700 dark:text-gray-300"
+                            key={`${finding.provider}-${findingIndex}`}
+                            text={`${finding.provider}${finding.model ? ` / ${finding.model}` : ""}: ${finding.critique}`}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </details>
+              ) : (
+                <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
+              )}
             </div>
           )
         })}
       </div>
     </section>
   )
+}
+
+function panelConsensusLabel(consensus: JobAdversarialReviewIteration["consensus"], t: (key: string, options?: Record<string, unknown>) => string) {
+  if (typeof consensus === "string") return consensus.replaceAll("_", " ")
+  if (consensus && typeof consensus.at_least === "number") return t("review_panel_at_least", { count: consensus.at_least })
+  return t("review_panel_configured_rule")
 }
 
 export function StepVisualReviewPanel({ iterations, onClose }: { iterations: JobVisualReviewIteration[]; onClose: () => void }) {
@@ -2148,7 +2207,7 @@ function RunArtifactsPanel({
             showFileHeaders
           />
         ) : (
-          <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>
+          <p className="p-3 text-sm text-text-muted">{t("artifact_no_diff")}</p>
         )}
       </section>
     )
@@ -2166,7 +2225,7 @@ function RunArtifactsPanel({
             showFileHeaders
           />
         ) : (
-          <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>
+          <p className="p-3 text-sm text-text-muted">{t("artifact_no_diff")}</p>
         )}
       </section>
     )
@@ -2178,7 +2237,7 @@ function RunArtifactsPanel({
       {payload.logs && payload.logs.length > 0 ? (
         <RunTranscriptLogs logs={payload.logs} />
       ) : (
-        <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
+        <p className="p-3 text-sm text-text-muted">{t("artifact_no_transcript")}</p>
       )}
       <TranscriptPagination
         hasOlder={payload.logs_has_older || false}
@@ -2213,11 +2272,11 @@ function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<ty
 function ArtifactPanelHeader({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   const { t } = useT("jobs")
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-      <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{children}</h4>
+    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
+      <h4 className="text-xs font-semibold uppercase text-text-muted">{children}</h4>
       <button
         aria-label={t("artifact_close")}
-        className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+        className="hidden rounded p-2 text-text-muted hover:bg-surface-subtle hover:text-text-primary max-md:block"
         onClick={onClose}
         type="button"
       >

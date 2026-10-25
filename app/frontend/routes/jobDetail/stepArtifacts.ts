@@ -16,18 +16,65 @@ export function stepArtifactTestPlan(raw: unknown): { steps: string[]; notes: st
 export function stepArtifactAdversarialReview(raw: unknown): JobAdversarialReviewIteration[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null
   const result: JobAdversarialReviewIteration[] = []
-  for (const item of raw) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue
-    const obj = item as Record<string, unknown>
-    if (
-      typeof obj.iteration === "number" &&
-      typeof obj.critique === "string" &&
-      (obj.verdict === "approved" || obj.verdict === "needs_work" || obj.verdict === "skipped")
-    ) {
+  const entries = raw.filter(isRecord)
+  for (const obj of entries) {
+    if (obj.aggregate === true && typeof obj.iteration === "number" && isReviewVerdict(obj.verdict)) {
+      const panelId = typeof obj.panel_id === "string" ? obj.panel_id : null
+      const members = entries
+        .filter((entry) => entry.aggregate !== true && entry.iteration === obj.iteration && entry.panel_id === panelId)
+        .flatMap(parsePanelMember)
+      result.push({
+        iteration: obj.iteration,
+        critique: typeof obj.critique === "string" ? obj.critique : "",
+        verdict: obj.verdict,
+        panel_id: panelId,
+        aggregate: true,
+        consensus:
+          typeof obj.consensus === "string"
+            ? obj.consensus
+            : isRecord(obj.consensus) && typeof obj.consensus.at_least === "number"
+              ? { at_least: obj.consensus.at_least }
+              : null,
+        vote_breakdown: parseVoteBreakdown(obj.vote_breakdown),
+        members,
+        dropped_members: Array.isArray(obj.dropped_members) ? obj.dropped_members.flatMap(parsePanelMember) : [],
+        non_blocking_findings: Array.isArray(obj.non_blocking_findings) ? obj.non_blocking_findings.flatMap(parsePanelFinding) : []
+      })
+      continue
+    }
+    if (typeof obj.iteration === "number" && typeof obj.critique === "string" && isReviewVerdict(obj.verdict) && typeof obj.panel_id !== "string") {
       result.push({ iteration: obj.iteration, critique: obj.critique, verdict: obj.verdict })
     }
   }
   return result.length > 0 ? result : null
+}
+
+function parseVoteBreakdown(raw: unknown) {
+  if (!isRecord(raw)) return null
+  const keys = ["approved", "needs_work", "skipped", "counted", "total", "required_approvals", "min_members"] as const
+  if (!keys.every((key) => typeof raw[key] === "number")) return null
+  return Object.fromEntries(keys.map((key) => [key, raw[key]])) as Record<(typeof keys)[number], number>
+}
+
+function isReviewVerdict(value: unknown): value is "approved" | "needs_work" | "skipped" {
+  return value === "approved" || value === "needs_work" || value === "skipped"
+}
+
+function parsePanelMember(raw: unknown) {
+  if (!isRecord(raw) || typeof raw.provider !== "string") return []
+  return [
+    {
+      provider: raw.provider,
+      model: typeof raw.model === "string" ? raw.model : null,
+      verdict: isReviewVerdict(raw.verdict) ? raw.verdict : null,
+      critique: typeof raw.critique === "string" ? raw.critique : null
+    }
+  ]
+}
+
+function parsePanelFinding(raw: unknown) {
+  if (!isRecord(raw) || typeof raw.provider !== "string" || typeof raw.critique !== "string") return []
+  return [{ provider: raw.provider, model: typeof raw.model === "string" ? raw.model : null, critique: raw.critique }]
 }
 
 export function stepArtifactSecurityReview(raw: unknown): JobSecurityReviewIteration[] | null {

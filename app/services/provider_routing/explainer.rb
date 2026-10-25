@@ -13,7 +13,7 @@ module ProviderRouting
 
     def call
       resolution = Resolver.resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
-      {
+      result = {
         job_id: job.id,
         invocation: invocation,
         scope_precedence: scope_trace(resolution),
@@ -21,6 +21,15 @@ module ProviderRouting
         winning_decision: resolution.explanation,
         active_holds: active_holds
       }.compact
+      if resolution.panel?
+        result[:panel_availability] = AvailabilitySelector.panel(
+          job: job,
+          task_key: task_key,
+          trigger: trigger,
+          workflow_trigger_kind: workflow_trigger_kind
+        )&.artifact
+      end
+      result
     end
 
     private

@@ -53,7 +53,7 @@ class Step
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_fallback_step_kinds, :resource_profile_default_overrides, :waits_for_terminal_step_kind,
-                        :review_gate, :runtime_inserted, :placement_policy) do
+                        :review_gate, :panel_capable, :runtime_inserted, :placement_policy) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      dynamic_required_mcp_tools: nil,
@@ -70,6 +70,7 @@ class Step
                      resource_profile_default_overrides: nil,
                      waits_for_terminal_step_kind: nil,
                      review_gate: nil,
+                     panel_capable: false,
                      runtime_inserted: false,
                      placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
         repair_semantics ||= agentic ? :agentic : :operator_review
@@ -161,6 +162,7 @@ class Step
                 required_mcp_tools: %w[submit_report],
                 skip_if_artifact: "investigation_report"),
       Entry.new(kind: "adversarial_review", handler: "AdversarialReview",  label: "Adversarial review",        style: "bg-rose-100 text-rose-700",   agentic: true,
+                panel_capable: true,
                 required_mcp_tools: %w[submit_adversarial_review],
                 resource_profile_fallback_step_kinds: %w[implement],
                 review_gate: {
@@ -169,6 +171,7 @@ class Step
                   cancellation_reason: "adversarial_review_approved"
                 }),
       Entry.new(kind: "security_review",    handler: "SecurityReview",     label: "Security review",           style: "bg-orange-100 text-orange-700", agentic: true,
+                panel_capable: true,
                 required_mcp_tools: %w[submit_security_review],
                 resource_profile_fallback_step_kinds: %w[implement],
                 review_gate: {
@@ -176,6 +179,10 @@ class Step
                   exit_verdicts: %w[approved skipped],
                   cancellation_reason: "security_review_approved"
                 }),
+      Entry.new(kind: "review_panel_collect", handler: "ReviewPanelCollect", label: "Aggregate review panel", style: "bg-rose-100 text-rose-700", agentic: false,
+                repair_semantics: :deterministic_idempotent,
+                runtime_inserted: true,
+                placement_policy: Step::PlacementPolicy::CONTROL_PLANE),
       # Three verdicts rather than two: "skipped" (not visually testable, or
       # filtered out by when_files_changed) exits the loop the same way
       # "approved" does, since there is nothing for another iteration to

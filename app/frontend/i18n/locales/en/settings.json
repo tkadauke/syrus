@@ -1285,12 +1285,25 @@
     "validation_name": "Enter a rule name.",
     "validation_trigger": "Choose a trigger.",
     "validation_candidates": "Add at least one provider candidate.",
+    "validation_panel_trigger": "Panels are available only for adversarial or security review steps.",
+    "validation_panel_members": "Add at least two distinct members and keep approval and minimum-member counts within the panel size.",
+    "panel_consensus": "Consensus",
+    "panel_unanimous": "Unanimous",
+    "panel_majority": "Strict majority",
+    "panel_at_least": "At least",
+    "panel_required_approvals": "Required approvals",
+    "panel_unavailable": "When a member is unavailable",
+    "panel_drop": "Drop member",
+    "panel_hold": "Hold admission",
+    "panel_fail": "Fail admission",
+    "panel_min_members": "Minimum members",
     "validation_hold_reason": "Enter a reason for holding work.",
     "validation_resume_time": "Choose when work should resume.",
     "effort_candidate": "{{effort}} effort",
     "action_strategies": {
       "fallback_order": "Fallback order",
-      "weighted": "Weighted"
+      "weighted": "Weighted",
+      "panel": "Panel"
     },
     "effort_levels": {
       "none": "None",

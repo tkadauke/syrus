@@ -171,6 +171,30 @@ RSpec.describe ProviderRoutingRule do
     expect(record).to be_valid
   end
 
+  it "accepts panels only for panel-capable review step triggers" do
+    panel = {
+      strategy: "panel",
+      candidates: [ { provider: "claude" }, { provider: "codex" } ],
+      consensus: "majority",
+      on_unavailable: "drop",
+      min_members: 1
+    }
+
+    expect(rule(trigger: { type: "step", kind: "adversarial_review" }, action: panel)).to be_valid
+    expect(rule(trigger: { type: "step", kind: "security_review" }, action: panel)).to be_valid
+    expect(rule(trigger: { type: "step", kind: "implement" }, action: panel)).not_to be_valid
+    expect(rule(trigger: { type: "chat_role", role: AgentRole::CHAT_PLANNER }, action: panel)).not_to be_valid
+  end
+
+  it "validates panel membership, consensus, unavailable policy, and minimum members" do
+    attrs = { trigger: { type: "step", kind: "adversarial_review" } }
+
+    expect(rule(**attrs, action: { strategy: "panel", candidates: [ { provider: "claude" } ], consensus: "unanimous", on_unavailable: "drop", min_members: 1 })).not_to be_valid
+    expect(rule(**attrs, action: { strategy: "panel", candidates: [ { provider: "claude" }, { provider: "claude" } ], consensus: "unanimous", on_unavailable: "drop", min_members: 1 })).not_to be_valid
+    expect(rule(**attrs, action: { strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ], consensus: { at_least: 3 }, on_unavailable: "drop", min_members: 1 })).not_to be_valid
+    expect(rule(**attrs, action: { strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ], consensus: "unanimous", on_unavailable: "wait", min_members: 3 })).not_to be_valid
+  end
+
   it "accepts a hold action without provider candidates" do
     record = rule(candidates: [], action: { type: "hold", reason: "Await operator approval" })
 

@@ -80,6 +80,33 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(rule.candidates).to eq([ { "provider" => "codex", "effort_level" => "medium" } ])
   end
 
+  it "round-trips panel actions through the rules API" do
+    post "/api/v1/app/repositories/#{repository.id}/provider_routing_rules",
+      params: {
+        provider_routing_rule: {
+          trigger: { type: "step", kind: "security_review" },
+          action: {
+            type: "route",
+            strategy: "panel",
+            candidates: [ { provider: "claude" }, { provider: "codex" } ],
+            consensus: { at_least: 2 },
+            on_unavailable: "hold",
+            min_members: 2
+          }
+        }
+      },
+      as: :json
+
+    expect(response).to have_http_status(:created)
+    action = parse_body.fetch("provider_routing_rules").first.fetch("action")
+    expect(action).to include(
+      "strategy" => "panel",
+      "consensus" => { "at_least" => 2 },
+      "on_unavailable" => "hold",
+      "min_members" => 2
+    )
+  end
+
   it "creates, updates, and deletes job-scoped override rules for writable jobs" do
     post "/api/v1/app/jobs/#{job.id}/provider_routing_rules",
       params: {

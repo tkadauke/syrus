@@ -18,3 +18,9 @@ page shows its default-branch `.syrus.yml` security review rounds and criteria
 alongside the other repository review configuration.
 
 The reviewer is read-only. A `needs_work` verdict feeds its critique to the next repair step; `approved` ends the loop. Provider routing rules can select a provider with the `security_review` step-kind trigger.
+Security review supports the same provider-routing panels as adversarial
+review. A multi-member panel runs serially, pins each member Run to its routed
+provider/model/effort, and finishes with a collect step whose aggregate verdict
+is appended after the member findings. Consensus and unavailable-member
+handling come from the matched routing rule. No matching panel, or a panel
+with one effective member, uses the existing single-review path unchanged.

@@ -3758,6 +3758,39 @@ describe("StepAdversarialReviewPanel", () => {
     expect(screen.getByText("Round 1")).toBeInTheDocument()
     expect(screen.getByText("Round 2")).toBeInTheDocument()
   })
+
+  it("renders a panel as one consensus round with expandable member verdicts", () => {
+    render(
+      <StepAdversarialReviewPanel
+        iterations={[
+          {
+            iteration: 1,
+            verdict: "approved",
+            critique: "",
+            aggregate: true,
+            consensus: "majority",
+            vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 1, min_members: 2 },
+            members: [
+              { provider: "claude", model: "sonnet", verdict: "approved", critique: "Clean." },
+              { provider: "codex", model: "gpt-5", verdict: "needs_work", critique: "Minor concern." }
+            ],
+            dropped_members: [{ provider: "gemini", model: null }],
+            non_blocking_findings: [{ provider: "codex", model: "gpt-5", critique: "Minor concern." }]
+          }
+        ]}
+        onClose={() => {}}
+      />
+    )
+
+    expect(screen.getAllByText("Approved")).toHaveLength(2)
+    expect(screen.getByText(/2 panel members/)).toBeInTheDocument()
+    expect(screen.getByText(/Consensus: majority/)).toBeInTheDocument()
+    expect(screen.getByText(/1 approved, 1 needs work, 0 skipped/)).toBeInTheDocument()
+    expect(screen.getByText(/1 approval required/)).toBeInTheDocument()
+    expect(screen.getByText("claude / sonnet")).toBeInTheDocument()
+    expect(screen.getByText(/gemini was unavailable/)).toBeInTheDocument()
+    expect(screen.getByText("Non-blocking notes")).toBeInTheDocument()
+  })
 })
 
 describe("StepVisualReviewPanel", () => {
