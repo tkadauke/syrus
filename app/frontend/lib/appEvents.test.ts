@@ -352,6 +352,39 @@ describe("applyAppEvent", () => {
     expect(queryClient.getQueryState(["chat-pins", "10", ""])?.isInvalidated).toBe(false)
   })
 
+  it("refetches cached bookmark variants when a chat channel reconnects", async () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chat-bookmarks", "9", ""], {
+      bookmarks: [{ id: 1, label: "Stale", chat_message_id: 1 }]
+    })
+    queryClient.setQueryData(["chat-bookmarks", "10", ""], {
+      bookmarks: [{ id: 2, label: "Other chat", chat_message_id: 2 }]
+    })
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const observer = new QueryObserver(queryClient, {
+      queryKey: ["chat-bookmarks", "9", ""],
+      queryFn: async () => ({ bookmarks: [{ id: 3, label: "Recovered", chat_message_id: 3 }] }),
+      staleTime: Infinity
+    })
+    const unsubscribe = observer.subscribe(() => {})
+
+    try {
+      recoverChatResourceContinuity(queryClient, 9)
+
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat-bookmarks", "9"] })
+      await vi.waitFor(() => {
+        expect(queryClient.getQueryData(["chat-bookmarks", "9", ""])).toEqual({
+          bookmarks: [{ id: 3, label: "Recovered", chat_message_id: 3 }]
+        })
+      })
+      expect(queryClient.getQueryData(["chat-bookmarks", "10", ""])).toEqual({
+        bookmarks: [{ id: 2, label: "Other chat", chat_message_id: 2 }]
+      })
+    } finally {
+      unsubscribe()
+    }
+  })
+
   it("coalesces dashboard invalidations from event bursts", () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-05-30T12:00:00.000Z"))
