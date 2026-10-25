@@ -30,6 +30,7 @@ afterEach(() => setSlugReferenceRegistryForTests(null))
 describe("publish_memory tool card", () => {
   it("registers under the normalized MCP tool name", () => {
     expect(publishMemoryToolCard.toolName).toBe("publish_memory")
+    expect(publishMemoryToolCard.renderWhilePending).toBe(true)
     expect(normalizedToolName("mcp__syrus__publish_memory")).toBe(publishMemoryToolCard.toolName)
   })
 
