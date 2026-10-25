@@ -1,0 +1,51 @@
+{
+  "actions": {
+    "navigate": "Navigieren",
+    "snapshot": "Snapshot",
+    "screenshot": "Screenshot",
+    "resize": "Größe ändern",
+    "wait": "Warten",
+    "close": "Browser schließen",
+    "click": "Klicken",
+    "fill": "Ausfüllen",
+    "evaluate": "Auswerten",
+    "hover": "Darüberfahren",
+    "drag": "Ziehen",
+    "drop": "Ablegen",
+    "file_upload": "Datei hochladen"
+  },
+  "targets": { "target": "Ziel", "viewport": "Ansichtsbereich", "condition": "Bedingung", "path": "Pfad", "files": "Dateien", "page": "Seite" },
+  "status": { "success": "erfolgreich", "error": "Fehler", "failed": "fehlgeschlagen" },
+  "rows": { "title": "Titel", "current_url": "Aktuelle URL", "viewport": "Ansichtsbereich", "snapshot": "Snapshot", "text": "Text" },
+  "disclosures": { "browser_details": "Browserdetails" },
+  "preview": {
+    "too_large": "Die Bilddaten sind zu groß für eine Vorschau.",
+    "open": "Öffnen",
+    "copy_link": "Link kopieren",
+    "label": "Bezeichnung",
+    "type": "Typ",
+    "size": "Größe",
+    "source": "Quelle",
+    "fallback": "Aufgenommene Screenshots sind im Medien-Tab verfügbar, wenn der Browser einen gespeicherten Medienlink zurückgibt.",
+    "default_title": "Browser-Screenshot"
+  },
+  "result": {
+    "label": "Ergebnis",
+    "full_result": "Vollständiges Ergebnis",
+    "array_count_one": "Array({{count}})",
+    "array_count_other": "Array({{count}})",
+    "object_key_count_one": "Objekt({{count}} Schlüssel)",
+    "object_key_count_other": "Objekt({{count}} Schlüssel)"
+  },
+  "wait": { "for_text": "auf \"{{text}}\"", "until_disappears": "bis \"{{text}}\" verschwindet", "for_seconds": "für {{time}} s" },
+  "upload": { "cancel_chooser": "Auswahl abbrechen", "file_count_one": "{{count}} Datei", "file_count_other": "{{count}} Dateien" },
+  "snapshot": {
+    "node_count_one": "{{count}} Knoten",
+    "node_count_other": "{{count}} Knoten",
+    "element_count_one": "{{count}} Element",
+    "element_count_other": "{{count}} Elemente",
+    "accessibility_tree": "Barrierefreiheitsbaum"
+  },
+  "errors": { "tool_failed": "Browser-Tool fehlgeschlagen." },
+  "input": { "character_count_one": "{{count}} Zeichen", "character_count_other": "{{count}} Zeichen" }
+}

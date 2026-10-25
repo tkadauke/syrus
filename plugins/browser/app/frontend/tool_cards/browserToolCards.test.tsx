@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import browserCloseToolCard from "./browser_close"
 import browserClickToolCard from "./browser_click"
@@ -24,6 +25,10 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
     ...overrides
   }
 }
+
+afterEach(async () => {
+  await i18n.changeLanguage("en")
+})
 
 describe("browser tool cards", () => {
   it("registers under the exact Browser MCP tool names", () => {
@@ -61,10 +66,7 @@ describe("browser tool cards", () => {
   })
 
   it("summarizes and renders a successful navigation with page identity", () => {
-    const resultBody = [
-      "- Page URL: http://127.0.0.1:3001/dashboard",
-      "- Page Title: Dashboard"
-    ].join("\n")
+    const resultBody = ["- Page URL: http://127.0.0.1:3001/dashboard", "- Page Title: Dashboard"].join("\n")
     const toolContext = context({
       toolName: "browser_navigate",
       input: { url: "http://127.0.0.1:3001/dashboard" },
@@ -87,7 +89,7 @@ describe("browser tool cards", () => {
     const toolContext = context({
       toolName: "browser_navigate",
       input: { url: "http://evil.example.com" },
-      resultBody: "Error: Navigation to \"http://evil.example.com\" was blocked",
+      resultBody: 'Error: Navigation to "http://evil.example.com" was blocked',
       resultError: true
     })
 
@@ -96,7 +98,7 @@ describe("browser tool cards", () => {
     render(<>{browserNavigateToolCard.renderExpanded(toolContext)}</>)
 
     expect(screen.getByText("error")).toBeInTheDocument()
-    expect(screen.getByText("Navigation to \"http://evil.example.com\" was blocked")).toBeInTheDocument()
+    expect(screen.getByText('Navigation to "http://evil.example.com" was blocked')).toBeInTheDocument()
   })
 
   it("summarizes DOM snapshots with metadata and page identity", () => {
@@ -105,7 +107,7 @@ describe("browser tool cards", () => {
       "- Page Title: Settings",
       "- Page Snapshot:",
       "```yaml",
-      "- button \"Save\" [ref=e1]",
+      '- button "Save" [ref=e1]',
       "```"
     ].join("\n")
     const toolContext = context({
@@ -113,9 +115,7 @@ describe("browser tool cards", () => {
       resultBody
     })
 
-    expect(browserSnapshotToolCard.collapsedSummary?.(toolContext)).toBe(
-      "Snapshot · Settings (http://127.0.0.1:3001/settings) · success"
-    )
+    expect(browserSnapshotToolCard.collapsedSummary?.(toolContext)).toBe("Snapshot · Settings (http://127.0.0.1:3001/settings) · success")
 
     render(<>{browserSnapshotToolCard.renderExpanded(toolContext)}</>)
 
@@ -128,9 +128,7 @@ describe("browser tool cards", () => {
     const toolContext = context({
       toolName: "browser_screenshot",
       input: { element: "Hero panel", target: "e7" },
-      parsedResult: [
-        { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }
-      ]
+      parsedResult: [{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }]
     })
 
     expect(browserScreenshotToolCard.collapsedSummary?.(toolContext)).toBe("Screenshot Hero panel · Browser screenshot · success")
@@ -162,9 +160,7 @@ describe("browser tool cards", () => {
       }
     })
 
-    expect(browserScreenshotToolCard.collapsedSummary?.(toolContext)).toBe(
-      "Screenshot · Checkout (http://127.0.0.1:3001/checkout) · success"
-    )
+    expect(browserScreenshotToolCard.collapsedSummary?.(toolContext)).toBe("Screenshot · Checkout (http://127.0.0.1:3001/checkout) · success")
 
     render(<>{browserScreenshotToolCard.renderExpanded(toolContext)}</>)
 
@@ -215,9 +211,7 @@ describe("browser tool cards", () => {
   it("does not inline very large screenshot payloads", () => {
     const toolContext = context({
       toolName: "browser_screenshot",
-      parsedResult: [
-        { type: "image", data: "a".repeat(1_500_001), mimeType: "image/png" }
-      ]
+      parsedResult: [{ type: "image", data: "a".repeat(1_500_001), mimeType: "image/png" }]
     })
 
     expect(browserScreenshotToolCard.collapsedSummary?.(toolContext)).toBe("Screenshot · Browser screenshot · success")
@@ -244,23 +238,17 @@ describe("browser tool cards", () => {
   })
 
   it("summarizes wait outcomes from text, disappearing text, and time inputs", () => {
-    expect(
-      browserWaitForToolCard.collapsedSummary?.(
-        context({ toolName: "browser_wait_for", input: { text: "Loaded" }, resultBody: "" })
-      )
-    ).toBe("Wait for \"Loaded\" · success")
+    expect(browserWaitForToolCard.collapsedSummary?.(context({ toolName: "browser_wait_for", input: { text: "Loaded" }, resultBody: "" }))).toBe(
+      'Wait for "Loaded" · success'
+    )
 
-    expect(
-      browserWaitForToolCard.collapsedSummary?.(
-        context({ toolName: "browser_wait_for", input: { text_gone: "Loading" }, resultBody: "" })
-      )
-    ).toBe("Wait until \"Loading\" disappears · success")
+    expect(browserWaitForToolCard.collapsedSummary?.(context({ toolName: "browser_wait_for", input: { text_gone: "Loading" }, resultBody: "" }))).toBe(
+      'Wait until "Loading" disappears · success'
+    )
 
-    expect(
-      browserWaitForToolCard.collapsedSummary?.(
-        context({ toolName: "browser_wait_for", input: { time: 2.5 }, resultBody: "" })
-      )
-    ).toBe("Wait for 2.5s · success")
+    expect(browserWaitForToolCard.collapsedSummary?.(context({ toolName: "browser_wait_for", input: { time: 2.5 }, resultBody: "" }))).toBe(
+      "Wait for 2.5s · success"
+    )
   })
 
   it("renders Browser close outcomes", () => {
@@ -282,15 +270,10 @@ describe("browser tool cards", () => {
     const toolContext = context({
       toolName: "browser_click",
       input: { element: "Submit button", target: "e3" },
-      resultBody: [
-        "- Page URL: http://127.0.0.1:3001/submitted",
-        "- Page Title: Submitted"
-      ].join("\n")
+      resultBody: ["- Page URL: http://127.0.0.1:3001/submitted", "- Page Title: Submitted"].join("\n")
     })
 
-    expect(browserClickToolCard.collapsedSummary?.(toolContext)).toBe(
-      "Click Submit button · Submitted (http://127.0.0.1:3001/submitted) · success"
-    )
+    expect(browserClickToolCard.collapsedSummary?.(toolContext)).toBe("Click Submit button · Submitted (http://127.0.0.1:3001/submitted) · success")
 
     render(<>{browserClickToolCard.renderExpanded(toolContext)}</>)
 
@@ -322,21 +305,25 @@ describe("browser tool cards", () => {
       toolName: "browser_evaluate",
       input: { function: "() => document.title" },
       parsedResult: "Dashboard",
-      resultBody: "\"Dashboard\""
+      resultBody: '"Dashboard"'
     })
 
-    expect(browserEvaluateToolCard.collapsedSummary?.(toolContext)).toBe("Evaluate page · \"Dashboard\" · success")
+    expect(browserEvaluateToolCard.collapsedSummary?.(toolContext)).toBe('Evaluate page · "Dashboard" · success')
 
     render(<>{browserEvaluateToolCard.renderExpanded(toolContext)}</>)
 
     expect(screen.getByText("Evaluate")).toBeInTheDocument()
-    expect(screen.getAllByText("\"Dashboard\"").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('"Dashboard"').length).toBeGreaterThanOrEqual(1)
   })
 
   it("summarizes evaluate object results and keeps full JSON behind disclosure", () => {
     const toolContext = context({
       toolName: "browser_evaluate",
-      input: { element: "Cart badge", target: "e7", function: "(element) => ({ count: Number(element.textContent), visible: true, nested: { ignored: true } })" },
+      input: {
+        element: "Cart badge",
+        target: "e7",
+        function: "(element) => ({ count: Number(element.textContent), visible: true, nested: { ignored: true } })"
+      },
       parsedResult: { result: { count: 3, visible: true, nested: { ignored: true } } },
       resultBody: JSON.stringify({ result: { count: 3, visible: true, nested: { ignored: true } } })
     })
@@ -380,11 +367,9 @@ describe("browser tool cards", () => {
   })
 
   it("summarizes other Browser interaction tools exposed by the plugin", () => {
-    expect(
-      browserHoverToolCard.collapsedSummary?.(
-        context({ toolName: "browser_hover", input: { element: "Help icon", target: "e8" }, resultBody: "" })
-      )
-    ).toBe("Hover Help icon · success")
+    expect(browserHoverToolCard.collapsedSummary?.(context({ toolName: "browser_hover", input: { element: "Help icon", target: "e8" }, resultBody: "" }))).toBe(
+      "Hover Help icon · success"
+    )
 
     expect(
       browserDragToolCard.collapsedSummary?.(
@@ -403,10 +388,30 @@ describe("browser tool cards", () => {
     ).toBe("Drop Drop zone · success")
 
     expect(
-      browserFileUploadToolCard.collapsedSummary?.(
-        context({ toolName: "browser_file_upload", input: { paths: ["/tmp/a.png", "/tmp/b.png"] }, resultBody: "" })
-      )
+      browserFileUploadToolCard.collapsedSummary?.(context({ toolName: "browser_file_upload", input: { paths: ["/tmp/a.png", "/tmp/b.png"] }, resultBody: "" }))
     ).toBe("File upload 2 files · success")
+  })
+
+  it("localizes Browser card copy and count-driven summaries", async () => {
+    await i18n.changeLanguage("de")
+    const fillContext = context({
+      toolName: "browser_fill",
+      input: { element: "Passwortfeld", text: "geheim" },
+      parsedResult: { ok: true }
+    })
+
+    expect(browserFillToolCard.collapsedSummary?.(fillContext)).toBe("Ausfüllen Passwortfeld · erfolgreich")
+    expect(
+      browserFileUploadToolCard.collapsedSummary?.(context({ toolName: "browser_file_upload", input: { paths: ["/tmp/a.png", "/tmp/b.png"] }, resultBody: "" }))
+    ).toBe("Datei hochladen 2 Dateien · erfolgreich")
+
+    render(<>{browserFillToolCard.renderExpanded(fillContext)}</>)
+
+    expect(screen.getByText("Ausfüllen")).toBeInTheDocument()
+    expect(screen.getByText("erfolgreich")).toBeInTheDocument()
+    expect(screen.getByText("Ziel")).toBeInTheDocument()
+    expect(screen.getByText("Text")).toBeInTheDocument()
+    expect(screen.getByText("6 Zeichen")).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for unknown or malformed Browser payloads", () => {

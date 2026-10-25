@@ -1,0 +1,51 @@
+{
+  "actions": {
+    "navigate": "Navigare",
+    "snapshot": "Snapshot",
+    "screenshot": "Screenshot",
+    "resize": "Magnitudinem mutare",
+    "wait": "Exspectare",
+    "close": "Navigatrum claudere",
+    "click": "Premere",
+    "fill": "Implere",
+    "evaluate": "Aestimare",
+    "hover": "Superponere",
+    "drag": "Trahere",
+    "drop": "Deponere",
+    "file_upload": "Fasciculum imponere"
+  },
+  "targets": { "target": "Scopus", "viewport": "Prospectus", "condition": "Condicio", "path": "Iter", "files": "Fasciculi", "page": "pagina" },
+  "status": { "success": "successus", "error": "error", "failed": "defecit" },
+  "rows": { "title": "Titulus", "current_url": "URL praesens", "viewport": "Prospectus", "snapshot": "Snapshot", "text": "Textus" },
+  "disclosures": { "browser_details": "Singula navigatri" },
+  "preview": {
+    "too_large": "Data imaginis maiora sunt quam ut hic praemonstrentur.",
+    "open": "Aperire",
+    "copy_link": "Vinculum exscribere",
+    "label": "Nota",
+    "type": "Genus",
+    "size": "Magnitudo",
+    "source": "Fons",
+    "fallback": "Imagines captae in tabula Media praesto sunt cum navigatrum vinculum medii servati reddit.",
+    "default_title": "Imago navigatri"
+  },
+  "result": {
+    "label": "Exitus",
+    "full_result": "Exitus plenus",
+    "array_count_one": "Series({{count}})",
+    "array_count_other": "Series({{count}})",
+    "object_key_count_one": "Objectum({{count}} clavis)",
+    "object_key_count_other": "Objectum({{count}} claves)"
+  },
+  "wait": { "for_text": "pro \"{{text}}\"", "until_disappears": "donec \"{{text}}\" evanescat", "for_seconds": "per {{time}} s" },
+  "upload": { "cancel_chooser": "delectum omittere", "file_count_one": "{{count}} fasciculus", "file_count_other": "{{count}} fasciculi" },
+  "snapshot": {
+    "node_count_one": "{{count}} nodus",
+    "node_count_other": "{{count}} nodi",
+    "element_count_one": "{{count}} elementum",
+    "element_count_other": "{{count}} elementa",
+    "accessibility_tree": "arbor accessibilitatis"
+  },
+  "errors": { "tool_failed": "Instrumentum navigatri defecit." },
+  "input": { "character_count_one": "{{count}} littera", "character_count_other": "{{count}} litterae" }
+}
