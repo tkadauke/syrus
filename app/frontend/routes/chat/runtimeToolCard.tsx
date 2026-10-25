@@ -536,10 +536,6 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
   return null
 }
 
-function plural(count: number, singular: string, pluralLabel = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : pluralLabel}`
-}
-
 function leaseLabel(lease: RuntimeLease | null): string {
   if (!lease) return i18n.t("chat:runtime_no_active_agent_lease")
   const owner = lease.owner ?? i18n.t("chat:runtime_unknown_owner")
