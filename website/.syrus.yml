@@ -6,6 +6,40 @@ project:
 prepare:
   - npm ci
 
+preview:
+  start: npm run dev -- --hostname 0.0.0.0 --port $PORT
+  health_check: /
+
+visual_review:
+  enabled: true
+  rounds: 2
+  when_files_changed:
+    - "src/app/**/*"
+    - "src/content/docs/**/*.md"
+    - "src/content/blog/**/*.md"
+    - "components/**/*"
+    - "lib/blog.ts"
+    - "lib/chrome.ts"
+    - "lib/control-plane-copy.ts"
+    - "lib/docs.ts"
+    - "lib/locales.ts"
+    - "lib/markdown.ts"
+    - "lib/marketing.ts"
+    - "lib/metadata.ts"
+    - "lib/plugins.ts"
+    - "lib/release.json"
+    - "lib/release.ts"
+    - "lib/site.ts"
+    - "lib/sitemap.ts"
+    - "public/**/*"
+    - "next.config.ts"
+    - "postcss.config.mjs"
+  seed_notes: |
+    Review the homepage at /, a representative documentation page such as
+    /docs/dogfooding, the localized homepage at /de/, and representative blog
+    index and article routes under /blog. Check both desktop and narrow mobile
+    viewports, navigation, typography, content formatting, and image loading.
+
 grade:
   - name: build
     description: |
