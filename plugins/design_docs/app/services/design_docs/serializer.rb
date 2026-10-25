@@ -25,6 +25,7 @@ module DesignDocs
         summary(design_doc).merge(
           markdown: design_doc.markdown,
           rendered_markdown: DesignDocs::AnchorMarkers.strip(design_doc.markdown),
+          canonical_revision: design_doc.canonical_revision,
           permissions: permissions_json(design_doc, user),
           collaborator_ids: design_doc.collaborator_users.map(&:id),
           collaborators: design_doc.collaborator_users.map { |user| user_json(user) },

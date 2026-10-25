@@ -71,6 +71,8 @@ module Api
           render json: payload
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ::DesignDocs::Update::RevisionConflict => e
+          render_error("revision_conflict", e.message, status: :conflict)
         rescue Pundit::NotAuthorizedError
           render_error("forbidden", "You are not allowed to edit this design doc.", status: :forbidden)
         end
@@ -407,6 +409,7 @@ module Api
             :start_offset,
             :end_offset,
             :selected_markdown,
+            :base_revision,
             repository_ids: [],
             collaborator_user_ids: []
           )

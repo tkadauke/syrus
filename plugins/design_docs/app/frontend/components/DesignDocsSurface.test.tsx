@@ -41,6 +41,7 @@ const docDetail = {
   created_at: "2026-08-29T11:00:00Z",
   markdown: "Alpha beta gamma",
   rendered_markdown: "Alpha beta gamma",
+  canonical_revision: "revision-1",
   permissions: {
     can_write_canonical: true,
     can_suggest: true,
@@ -274,6 +275,7 @@ const openQuestionsDocDetail = {
   markdown: openQuestionsMarkdown,
   rendered_markdown: openQuestionsMarkdown,
   current_version_number: 13,
+  canonical_revision: "open-questions-revision-1",
   pending_suggestions_count: 3,
   open_threads_count: 3,
   threads: [],
@@ -2451,6 +2453,77 @@ describe("DesignDocsSurface", () => {
     expect(markdown).not.toContain("automatic or opt-in?Nested")
     expect(markdown).not.toContain("first-class targets?Graders")
     expect(markdown).not.toContain("repository defaults?Project")
+  })
+
+  it("orders multiple Rich Text accepts after a pending autosave without serializing review decorations", async () => {
+    let resolveAutosave: ((response: Response) => void) | undefined
+    const calls: string[] = []
+    const firstAcceptedMarkdown = openQuestionsMarkdown.replace(
+      "Should nested .syrus.yml discovery be automatic or opt-in?",
+      "Nested .syrus.yml discovery should be automatic once a target graph exists."
+    )
+    const secondAcceptedMarkdown = firstAcceptedMarkdown.replace(
+      "Should graders be first-class targets?",
+      "Graders should be first-class targets with explicit ownership."
+    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/4" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: openQuestionsDocDetail })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/4" && init?.method === "PATCH") {
+        calls.push("autosave")
+        return new Promise<Response>((resolve) => { resolveAutosave = resolve })
+      }
+      if (url.pathname.endsWith("/suggestions/31/accept")) {
+        calls.push("accept-31")
+        return jsonResponse({
+          design_doc: { ...openQuestionsDocDetail, markdown: firstAcceptedMarkdown, rendered_markdown: firstAcceptedMarkdown, canonical_revision: "open-questions-revision-2", suggestions: openQuestionsDocDetail.suggestions.slice(1) },
+          suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" },
+          message: "Suggestion accepted."
+        })
+      }
+      if (url.pathname.endsWith("/suggestions/32/accept")) {
+        calls.push("accept-32")
+        return jsonResponse({
+          design_doc: { ...openQuestionsDocDetail, markdown: secondAcceptedMarkdown, rendered_markdown: secondAcceptedMarkdown, canonical_revision: "open-questions-revision-3", suggestions: openQuestionsDocDetail.suggestions.slice(2) },
+          suggestion: { ...openQuestionsDocDetail.suggestions[1], state: "accepted" },
+          message: "Suggestion accepted."
+        })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    renderSurface("/design_docs/4")
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    // Exercise the Rich Text serializer with a Markdown heading, inline code,
+    // and list items while its review decorations are still mounted.
+    editor.insertAdjacentHTML("beforeend", "<p>Use the <code>target</code> command.</p>")
+    fireEvent.input(editor)
+    await waitFor(() => expect(calls).toEqual(["autosave"]), { timeout: 1500 })
+
+    const acceptButtons = screen.getAllByRole("button", { name: "Accept" })
+    fireEvent.click(acceptButtons[0])
+    fireEvent.click(acceptButtons[1])
+    await act(async () => Promise.resolve())
+    expect(calls).toEqual(["autosave"])
+
+    const patchRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/4" && call[1]?.method === "PATCH")
+    const patchBody = JSON.parse(String(patchRequest?.[1]?.body)).design_doc
+    expect(patchBody.base_revision).toBe("open-questions-revision-1")
+    expect(patchBody.markdown).toContain("## Open Questions")
+    expect(patchBody.markdown).toContain("- Should nested .syrus.yml discovery")
+    expect(patchBody.markdown).toContain("Use the `target` command.")
+    expect(patchBody.markdown).not.toContain("automatic once a target graph")
+    expect(patchBody.markdown).not.toContain("data-review")
+
+    resolveAutosave?.(jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" }))
+    await waitFor(() => expect(calls).toEqual(["autosave", "accept-31", "accept-32"]))
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Nested .syrus.yml discovery should be automatic once a target graph exists.")
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).not.toHaveTextContent("Use the target command.")
   })
 
   it("resets draft editor state when opening a different focused design doc route", async () => {
