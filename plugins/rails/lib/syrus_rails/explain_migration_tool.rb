@@ -14,7 +14,7 @@ module SyrusRails
       properties: {
         file_path: {
           type: "string",
-          description: "Relative path to the migration file, e.g. db/migrate/20240101_add_name_to_users.rb"
+          description: "Repository-relative migration path, e.g. db/migrate/20240101_add_name_to_users.rb or apps/shop/db/migrate/20240102_create_orders.rb"
         }
       },
       required: [ "file_path" ]
