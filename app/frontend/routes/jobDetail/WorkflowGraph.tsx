@@ -1609,6 +1609,16 @@ function StepTextReviewPanel({
                   <summary className="cursor-pointer text-gray-600 dark:text-gray-300">
                     {t("review_panel_members", { count: iteration.members?.length || 0 })} ·{" "}
                     {t("review_panel_consensus", { rule: panelConsensusLabel(iteration.consensus, t) })}
+                    {iteration.vote_breakdown ? (
+                      <span className="mt-1 block text-xs">
+                        {t("review_panel_vote_breakdown", {
+                          approved: iteration.vote_breakdown.approved,
+                          needsWork: iteration.vote_breakdown.needs_work,
+                          skipped: iteration.vote_breakdown.skipped,
+                          required: iteration.vote_breakdown.required_approvals
+                        })}
+                      </span>
+                    ) : null}
                   </summary>
                   <div className="mt-2 space-y-2">
                     {(iteration.members || []).map((member, memberIndex) => (

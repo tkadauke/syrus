@@ -18,7 +18,8 @@ import {
   deterministicCommandLine,
   deterministicRawOutput,
   externalTriggerContent,
-  externalTriggerSourceUrl
+  externalTriggerSourceUrl,
+  isPanelConversationRow
 } from "./agentConversationGraph"
 
 // The Agent Conversation tab: a causal node/edge graph of everything that fed
@@ -75,7 +76,9 @@ export function AgentConversationTab({ jobId, prUrl }: { jobId: number; prUrl: s
               <li key={row.map((node) => node.id).join(",")}>
                 {index > 0 ? <ConnectorLabel text={connectorLabel(rows[index - 1], row)} /> : null}
                 <div className="flex min-w-0 flex-wrap items-stretch gap-3">
-                  {row.map((node) => (
+                  {isPanelConversationRow(row) ? (
+                    <PanelRoundCard nodes={row} onOpenTranscript={setTranscriptNodeId} transcriptNodeId={transcriptNodeId} />
+                  ) : row.map((node) => (
                     <NodeCard
                       jobId={jobId}
                       key={node.id}
@@ -192,6 +195,45 @@ function AgentSessionCard({ node, onOpenTranscript, transcriptOpen }: { node: Ag
       </button>
     </div>
   )
+}
+
+function PanelRoundCard({ nodes, onOpenTranscript, transcriptNodeId }: { nodes: AgentConversationNode[]; onOpenTranscript: (nodeId: string) => void; transcriptNodeId: string | null }) {
+  const { t } = useT("jobs")
+  const first = nodes[0]
+  const verdict = typeof first.detail.panel_verdict === "string" ? first.detail.panel_verdict : null
+  const breakdown = isNumberRecord(first.detail.vote_breakdown) ? first.detail.vote_breakdown : null
+
+  return (
+    <details className="min-w-0 flex-1 overflow-hidden rounded border border-border bg-surface">
+      <summary className="cursor-pointer list-none p-3">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-text-primary">{t("conversation_panel_round", { label: first.label, number: first.iteration || 1 })}</span>
+          {verdict ? <SmallPill tone={verdict === "needs_work" ? "warning" : "success"}>{t(`adversarial_review_verdict_${verdict}`, { defaultValue: verdict })}</SmallPill> : null}
+        </span>
+        <span className="mt-1 block text-xs text-text-secondary">
+          {breakdown ? t("review_panel_vote_breakdown", { approved: breakdown.approved, needsWork: breakdown.needs_work, skipped: breakdown.skipped, required: breakdown.required_approvals }) : t("review_panel_members", { count: nodes.length })}
+        </span>
+      </summary>
+      <div className="divide-y divide-border border-t border-border">
+        {nodes.map((node) => (
+          <button className="flex w-full items-start justify-between gap-3 p-3 text-left hover:bg-surface-subtle" key={node.id} onClick={() => onOpenTranscript(node.id)} type="button">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-text-primary">{node.agent_provider || node.label}{node.agent_model ? ` / ${node.agent_model}` : ""}</span>
+              <span className="mt-1 block break-words text-xs text-text-secondary">{node.summary || t("conversation_no_summary")}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              {typeof node.detail.verdict === "string" ? <SmallPill>{t(`adversarial_review_verdict_${node.detail.verdict}`, { defaultValue: node.detail.verdict })}</SmallPill> : null}
+              {node.id === transcriptNodeId ? <SmallPill>{t("conversation_transcript_open")}</SmallPill> : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function isNumberRecord(value: unknown): value is Record<string, number> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) && Object.values(value).every((item) => typeof item === "number")
 }
 
 // Hidden by default; shown on the right when an agent_session node is

@@ -168,6 +168,7 @@ RSpec.describe "serial review panels" do
 
     aggregate = workflow.reload.artifact("security_review_iterations").last
     expect(aggregate).to include("aggregate" => true, "verdict" => "approved", "consensus" => "majority")
+    expect(aggregate["vote_breakdown"]).to include("approved" => 2, "needs_work" => 1, "required_approvals" => 2, "total" => 3)
     expect(aggregate["non_blocking_findings"]).to contain_exactly(include("provider" => "codex", "critique" => "Minor concern."))
   end
 

@@ -13,6 +13,7 @@ describe("stepArtifactAdversarialReview", () => {
           aggregate: true,
           verdict: "approved",
           consensus: "majority",
+          vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 2, min_members: 2 },
           dropped_members: [{ provider: "gemini", model: "pro" }],
           non_blocking_findings: [{ provider: "codex", model: "gpt-5", critique: "Minor concern." }]
         }
@@ -23,6 +24,7 @@ describe("stepArtifactAdversarialReview", () => {
         verdict: "approved",
         aggregate: true,
         consensus: "majority",
+        vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 2, min_members: 2 },
         members: [
           expect.objectContaining({ provider: "claude", verdict: "approved", critique: "Clean." }),
           expect.objectContaining({ provider: "codex", verdict: "needs_work", critique: "Minor concern." })
