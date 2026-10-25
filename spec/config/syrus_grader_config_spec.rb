@@ -478,7 +478,10 @@ RSpec.describe "Syrus grader configuration" do
       "components/**/*",
       "lib/locales.ts",
       "lib/marketing.ts",
-      "public/**/*"
+      "public/**/*",
+      "package.json",
+      "package-lock.json",
+      "scripts/sync-plugin-icons.mjs"
     )
 
     docs_review = App::VisualReviewProjects.call(
@@ -492,6 +495,8 @@ RSpec.describe "Syrus grader configuration" do
     )
     expect(docs_review.seed_notes).to include("/docs/dogfooding", "/de/", "/blog")
     expect(RepositoryContent::Glob.match?(docs_review.when_files_changed, "website/src/content/docs/dogfooding.md")).to be(true)
+    expect(RepositoryContent::Glob.match?(docs_review.when_files_changed, "website/package-lock.json")).to be(true)
+    expect(RepositoryContent::Glob.match?(docs_review.when_files_changed, "website/scripts/sync-plugin-icons.mjs")).to be(true)
     expect(RepositoryContent::Glob.match?(docs_review.when_files_changed, "website/lib/marketing.test.ts")).to be(false)
 
     backend_review = App::VisualReviewProjects.call(
