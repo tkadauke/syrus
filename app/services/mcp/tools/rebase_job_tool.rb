@@ -3,6 +3,7 @@ require "mcp"
 module Mcp::Tools
   class RebaseJobTool < MCP::Tool
     extend ProposalToolSupport
+    extend BulkPendingActionToolSupport
     extend AuthorizationSupport
     singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
@@ -16,22 +17,35 @@ module Mcp::Tools
     input_schema(
       properties: {
         job_id: { type: "integer", description: "Syrus Job id to rebase." },
+        job_ids: { type: "array", items: { type: "integer" }, maxItems: BulkPendingActionToolSupport::MAX_BATCH_SIZE, description: "Multiple Job ids to rebase normally as one grouped pending action." },
         reason: { type: "string", description: "Operator-facing reason for rebasing this Job." }
       },
-      required: %w[job_id reason]
+      required: %w[reason]
     )
 
     class << self
-      def call(job_id:, reason:, server_context:)
+      def call(job_id: nil, job_ids: nil, reason:, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        job_id = Integer(job_id, exception: false)
-        return Mcp::Tools.invalid("job_id is required") unless job_id
         reason = reason.to_s.strip
         return Mcp::Tools.invalid("reason is required") if reason.empty?
 
-        job = find_job!(job_id)
+        ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
+        return error if error
+        jobs = ids.map { |id| find_job!(id) }
+        ineligible = jobs.filter_map do |job|
+          if !job.pr_number.present? && !job.external_pr_number.present?
+            "#{job.slug}: no PR"
+          elsif RebaseWorkflowSelector.active_for_stack?(job)
+            "#{job.slug}: a rebase is already in progress"
+          elsif RebaseWorkflowSelector.active_merge_train_for_stack?(job)
+            "#{job.slug}: a merge train is already active"
+          end
+        end
+        return Mcp::Tools.invalid(ineligible.join(" | ")) if ineligible.any?
 
-        pending_action = create_pending_action_for_current_message!(
+        unless bulk
+          job = jobs.first
+          pending_action = create_pending_action_for_current_message!(
           server_context,
           chat_session,
           action: "rebase_job",
@@ -40,13 +54,19 @@ module Mcp::Tools
           requested_by: "agent"
         )
 
-        Mcp::Tools.success(
+          return Mcp::Tools.success(
           pending_confirmation_id: pending_action.id,
           pending_action_id: pending_action.id,
           state: pending_action.state,
           reason: pending_action.reason,
           message: "Job rebase requires operator confirmation."
-        )
+          )
+        end
+
+        group = create_pending_action_group!(server_context:, chat_session:, reason:, member_attributes: jobs.map { |job|
+          { action: "rebase_job", payload: { "job_id" => job.id }, reason: reason, requested_by: "agent" }
+        })
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.rebase_jobs", count: jobs.size), extra: { reason: reason })
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end

@@ -33,6 +33,7 @@ RSpec.describe PendingActions::RepairQueueAffinity do
     ensure_solid_queue_test_tables!
     clear_solid_queue_test_tables!
     clear_enqueued_jobs
+    live_worker!(queue_name: "runs")
   end
 
   after do
@@ -102,6 +103,7 @@ RSpec.describe PendingActions::RepairQueueAffinity do
   end
 
   it "repairs a queued Run whose affinity no live worker satisfies and lets it start on a different worker" do
+    workflow.update!(artifacts: { "grader_results" => { "output" => "x" * 45_000 } })
     stale_queue_job = solid_queue_run_job(run)
     action = pending_action_for
 
@@ -114,6 +116,9 @@ RSpec.describe PendingActions::RepairQueueAffinity do
     expect(workflow.reload.worker_hostname).to be_nil
     expect(workflow.worker_storage_key).to be_nil
     expect(JobLog.where(run: run).pluck(:chunk)).to include(a_string_matching(/repaired queue affinity/))
+    audit = AdminAction.where(action: "repair_repair_queue_affinity").last
+    expect(JSON.generate(audit.params).bytesize).to be <= PendingActions::RepairAuditPayload::MAX_BYTES
+    expect(audit.params.dig("evidence", "before", "bytes")).to be > 40_000
 
     allow(SyrusVersion).to receive(:hostname).and_return("worker-new")
     allow(WorkerStorageIdentity).to receive(:queue_key).and_return("new-storage")
@@ -130,12 +135,50 @@ RSpec.describe PendingActions::RepairQueueAffinity do
     expect(workflow.worker_storage_key).to eq("new-storage")
   end
 
-  it "refuses a Run that is not queued" do
+  it "records a partial outcome when the final audit fails after the queue database mutation" do
+    stale_queue_job = solid_queue_run_job(run)
+    action = pending_action_for
+    allow_any_instance_of(described_class).to receive(:delete_solid_queue_jobs!).and_wrap_original do |original, *args|
+      expect(workflow.reload.worker_hostname).to be_nil
+      expect(workflow.worker_storage_key).to be_nil
+      original.call(*args)
+    end
+    allow(AdminAction).to receive(:log!).and_wrap_original do |original, **kwargs|
+      if kwargs[:action] == "repair_repair_queue_affinity"
+        expect(SolidQueue::Job.where(id: stale_queue_job.id)).not_to exist
+        expect(AdminAction.where(action: "repair_intent_repair_queue_affinity", user: admin)).to exist
+        raise ActiveRecord::StatementInvalid, "audit unavailable"
+      end
+
+      original.call(**kwargs)
+    end
+
+    expect(action.confirm!(user: admin)).to be true
+
+    expect(SolidQueue::Job.where(id: stale_queue_job.id)).not_to exist
+    expect(workflow.reload.worker_hostname).to be_nil
+    expect(workflow.worker_storage_key).to be_nil
+    expect(action.reload).to be_confirmed
+    expect(action.execution_status).to eq("partial")
+    expect(AdminAction.where(action: "repair_intent_repair_queue_affinity", user: admin)).to exist
+  end
+
+  it "refuses to churn a shared queue when affinity is already null" do
+    workflow.update!(worker_hostname: nil, worker_storage_key: nil)
+    queue_job = solid_queue_run_job(run, queue_name: "runs")
+    action = pending_action_for
+
+    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /no dead explicit worker\/storage queue/)
+    expect(SolidQueue::Job.where(id: queue_job.id)).to exist
+  end
+
+  it "safely noops when a Run is no longer queued" do
     running_run = run
     running_run.update!(state: "running", started_at: Time.current)
     action = pending_action_for(target_run: running_run)
 
-    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /not queued/)
+    expect(action.confirm!(user: admin)).to be true
+    expect(action.reload.execution_status).to eq("no_longer_eligible")
   end
 
   it "rejects non-integer job and Run ids before confirmation" do
@@ -159,14 +202,15 @@ RSpec.describe PendingActions::RepairQueueAffinity do
     expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /live worker satisfying its affinity/)
   end
 
-  it "refuses when a matching queue row is already claimed" do
+  it "safely skips when a matching queue row is already claimed" do
     queue_job = solid_queue_run_job(run)
     SolidQueue::ReadyExecution.where(job_id: queue_job.id).delete_all
     process = live_worker!(queue_name: "resume-other-storage")
     SolidQueue::ClaimedExecution.create!(job_id: queue_job.id, process_id: process.id, created_at: Time.current)
     action = pending_action_for
 
-    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /claimed Solid Queue jobs/)
+    expect(action.confirm!(user: admin)).to be true
+    expect(action.reload.execution_status).to eq("skipped")
     expect(workflow.reload.worker_storage_key).to eq("dead-storage")
   end
 

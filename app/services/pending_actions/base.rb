@@ -93,6 +93,8 @@ module PendingActions
 
     def group_confirmation_strategy = "independent"
 
+    def confirmation_outcome = nil
+
     def repair_action?
       false
     end
@@ -179,6 +181,11 @@ module PendingActions
 
     def action_user_job
       user.jobs.find(payload.fetch("job_id"))
+    end
+
+    def accessible_action_job
+      scope = user.admin? ? Job.all : Job.accessible_to(user)
+      scope.find(payload.fetch("job_id"))
     end
 
     def action_user_repository

@@ -34,6 +34,18 @@ en:
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."
+    mcp:
+      bulk_confirmation:
+        cleanup_workspaces: "Delete %{count} workflow workspaces?"
+        cancel_stale_work: "Cancel stale work for %{count} Jobs?"
+        check_mergeability: "Check mergeability for %{count} Jobs?"
+        force_state_transition: "Apply %{event} to %{count} Jobs?"
+        override_planned_execution: "Override planned execution for %{count} Jobs?"
+        poll_job_feedback: "Poll PR feedback for %{count} Jobs?"
+        rebase_jobs: "Rebase %{count} Jobs normally?"
+        repair_queue_affinity: "Repair %{count} dead-queue Runs as one batch?"
+        rerun_ci_repair: "Rerun CI repair for %{count} Jobs?"
+        retire_work_units: "Retire %{count} terminal WorkUnits?"
 
   time:
     formats:

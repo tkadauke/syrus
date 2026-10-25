@@ -479,7 +479,7 @@
   "run_queued_suffix": "seit {{elapsed}} eingereiht",
   "run_queue_wait": {
     "ready_waiting_for_slot": "{{count}} aktiver Worker verarbeitet {{queue}}, aber alle Threads sind belegt. Dieser Lauf startet, sobald ein Platz frei wird; er steckt nicht fest.",
-    "ready_no_consumer": "Der RunJob ist in {{queue}} bereit, aber kein aktiver Worker verarbeitet diese Warteschlange. Aktive Worker verarbeiten: {{queues}}. Stellen Sie den Consumer wieder her und starten Sie den Job erneut.",
+    "ready_no_consumer": "Der RunJob wartet in der nicht verfügbaren Warteschlange {{queue}}. Über das aktuelle Routing sind {{count}} kompatible aktive Worker verfügbar.",
     "concurrency_blocked": "Der RunJob wartet hinter der Parallelitätssperre dieses Jobs. Starten Sie den Job erneut, falls die frühere Arbeit nicht mehr aktiv ist.",
     "scheduled": "Der RunJob wird planmäßig {{time}} bereit; er steckt nicht fest.",
     "claimed_not_started": "Ein Worker hat den RunJob übernommen, aber der Lauf wurde noch nicht gestartet.",
@@ -493,7 +493,8 @@
     "unknown": "Der Lauf ist eingereiht, aber Syrus konnte nicht bestimmen, worauf er wartet.",
     "check": "Prüfen:",
     "pending_link": "Admin → Warteschlange → Ausstehend",
-    "workers_link": "Admin → Warteschlange → Worker"
+    "workers_link": "Admin → Warteschlange → Worker",
+    "repair_link": "Admin → Hängende Jobs – Sammelreparatur"
   },
   "run_running": "Lauf #{{id}} läuft",
   "run_running_suffix": "(seit {{date}})",

@@ -872,6 +872,12 @@ way, but only once the agent supplies one shared justification explaining
 the root cause behind the whole batch; that justification is shown on the
 grouped confirmation card and kept in the audit trail alongside each item's
 outcome.
+Incident fan-out can likewise group normal rebases, feedback and mergeability
+polls, stale-work cancellation, terminal WorkUnit retirement, workspace
+cleanup, state transitions, execution-placement overrides, and CI-repair
+reruns. These batches are capped and deduplicated. Each target is revalidated
+when confirmed and reports its own applied, ineligible, or failed outcome, so
+one changed target does not roll back successful repairs for the others.
 Successful Job close is separate from cancellation: `close_job_successfully`
 records a successful closure reason such as `no_changes`, which satisfies
 dependencies and Epic progress, while `cancel_job` remains non-successful. When
@@ -1203,6 +1209,16 @@ expandable list of the affected targets, and one Confirm all/Reject all
 control. Confirming applies
 every target independently and shows which ones succeeded and which failed
 and why; rejecting discards the whole batch without applying any of it.
+Dead worker queues use this same bulk review flow: admins can review up to 100
+queued Runs detected on unavailable worker/storage queues, confirm once, and
+receive an outcome for every Run. Confirmation rechecks claims and Run state,
+never interrupts claimed work, removes only stale unclaimed queue records, and
+routes eligible Runs through current worker capability and admission rules.
+Repair audits store bounded snapshot references so large workflow artifacts do
+not turn a successful repair into an audit-overflow failure. A durable repair
+intent is recorded before touching a separately configured queue database; if
+final evidence cannot be saved afterward, the item reports a partial outcome
+instead of falsely reporting failure.
 Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
 without closing the Job. The stuck Jobs page and admin stuck APIs paginate

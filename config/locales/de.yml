@@ -3,6 +3,18 @@ de:
     errors:
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
+    mcp:
+      bulk_confirmation:
+        cleanup_workspaces: "%{count} Workflow-Arbeitsbereiche löschen?"
+        cancel_stale_work: "Veraltete Arbeit für %{count} Jobs abbrechen?"
+        check_mergeability: "Zusammenführbarkeit für %{count} Jobs prüfen?"
+        force_state_transition: "%{event} auf %{count} Jobs anwenden?"
+        override_planned_execution: "Geplante Ausführung für %{count} Jobs überschreiben?"
+        poll_job_feedback: "PR-Feedback für %{count} Jobs abrufen?"
+        rebase_jobs: "%{count} Jobs normal rebasen?"
+        repair_queue_affinity: "%{count} Läufe aus ausgefallenen Warteschlangen als Stapel reparieren?"
+        rerun_ci_repair: "CI-Reparatur für %{count} Jobs erneut ausführen?"
+        retire_work_units: "%{count} abgeschlossene WorkUnits stilllegen?"
   hello: "Hallo Welt"
 
   time:

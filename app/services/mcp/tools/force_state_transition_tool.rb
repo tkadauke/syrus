@@ -3,6 +3,7 @@ require "mcp"
 module Mcp::Tools
   class ForceStateTransitionTool < MCP::Tool
     extend AdminPendingActionToolSupport
+    extend BulkPendingActionToolSupport
 
     tool_name "force_state_transition"
     description <<~DESC
@@ -17,6 +18,7 @@ module Mcp::Tools
     input_schema(
       properties: {
         job_id: { type: "integer", description: "Syrus Job id." },
+        job_ids: { type: "array", items: { type: "integer" }, maxItems: BulkPendingActionToolSupport::MAX_BATCH_SIZE, description: "Multiple Job ids sharing one event and audit reason." },
         event: {
           type: "string",
           enum: JobStateRepair::ForceTransition::ALLOWED_EVENTS,
@@ -24,27 +26,42 @@ module Mcp::Tools
         },
         reason: { type: "string", description: "Operator-facing audit reason for the transition." }
       },
-      required: %w[job_id event reason]
+      required: %w[event reason]
     )
 
     class << self
-      def call(job_id:, event:, reason:, server_context:)
+      def call(job_id: nil, job_ids: nil, event:, reason:, server_context:)
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
-        job_id = integer_param(job_id, "job_id")
-        return job_id if job_id.is_a?(MCP::Tool::Response)
-        job = Job.find_by(id: job_id)
-        return Mcp::Tools.invalid("job not found: #{job_id}") unless job
+        ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
+        return error if error
+        jobs = ids.map { |id| Job.find_by(id: id) }
+        missing = ids.zip(jobs).filter_map { |id, job| id unless job }
+        return Mcp::Tools.invalid("job not found: #{missing.join(', ')}") if missing.any?
+        invalid = jobs.reject { |job| JobStateRepair::ForceTransition::ALLOWED_EVENTS.include?(event.to_s) && job.public_send("may_#{event}?") }
+        if invalid.any?
+          details = invalid.map { |job| "#{job.slug} cannot apply #{event} from #{job.state}" }
+          return Mcp::Tools.invalid(details.join(" | "))
+        end
 
-        create_pending_admin_action(
+        unless bulk
+          job = jobs.first
+          return create_pending_admin_action(
           server_context: server_context,
           chat_session: chat_session,
           action: "force_state_transition",
           payload: { "job_id" => job.id, "event" => event.to_s },
           reason: reason,
           message: "Apply #{event} to #{job.slug}?"
-        )
+          )
+        end
+        reason = reason.to_s.strip
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
+        group = create_pending_action_group!(server_context:, chat_session:, reason:, member_attributes: jobs.map { |job|
+          { action: "force_state_transition", payload: { "job_id" => job.id, "event" => event.to_s }, requested_by: "agent", reason: reason }
+        })
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.force_state_transition", event: event, count: jobs.size))
       end
     end
   end

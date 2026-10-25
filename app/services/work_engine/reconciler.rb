@@ -640,7 +640,7 @@ module WorkEngine
             explanation: "Run ##{run.id} has been queued since its SolidQueue job was claimed " \
                          "#{(seconds_since(sq[:claimed_at]).to_i / 3600.0).round(1)}h ago and never started."
           )
-        elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:ready] && dead_resume_queue?(candidate[:queue_name]) })
+        elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:ready] && dead_worker_queue?(candidate[:queue_name]) })
           if grader_collect_cached_failure?(run)
             issue(**grader_collect_cached_failure_issue(run, workflow, sq, "dead_resume_queue"))
           else
@@ -651,7 +651,7 @@ module WorkEngine
               safe_to_auto_repair: workflow&.running? || workflow&.queued?,
               recommended_repair_action: "reenqueue_run",
               evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "dead_resume_queue"),
-              explanation: "Run ##{run.id} is queued on a storage-affinity resume queue with no live worker."
+              explanation: "Run ##{run.id} is queued on an explicit worker/storage queue with no live consumer."
             )
           end
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:failed] })
@@ -3195,8 +3195,8 @@ module WorkEngine
 
     def queue_job_can_progress?(sq)
       return false if sq[:failed]
-      return true if sq[:scheduled] && !dead_resume_queue?(sq[:queue_name])
-      return true if sq[:ready] && !sq[:claimed] && !dead_resume_queue?(sq[:queue_name])
+      return true if sq[:scheduled] && !dead_worker_queue?(sq[:queue_name])
+      return true if sq[:ready] && !sq[:claimed] && !dead_worker_queue?(sq[:queue_name])
       return false if wedged_queue_claim?(sq)
       return true if sq[:claimed] && solid_queue_process_live?(sq[:process_id])
 
@@ -3247,6 +3247,13 @@ module WorkEngine
     def dead_resume_queue?(queue_name)
       queue_name = queue_name.to_s
       return false unless queue_name.start_with?("resume-")
+
+      !InstanceVersion.worker_queue_live?(queue_name)
+    end
+
+    def dead_worker_queue?(queue_name)
+      queue_name = queue_name.to_s
+      return false unless queue_name.start_with?("resume-", "worker-")
 
       !InstanceVersion.worker_queue_live?(queue_name)
     end

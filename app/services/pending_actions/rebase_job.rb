@@ -3,7 +3,7 @@ module PendingActions
     action_key "rebase_job"
 
     def execute
-      job = repair_action_job
+      job = accessible_action_job
       unless job.pr_number.present? || job.external_pr_number.present?
         raise ArgumentError, "No PR on this Job to rebase."
       end
@@ -43,7 +43,7 @@ module PendingActions
     end
 
     def repair_snapshot_targets
-      [ repair_action_job_or_nil ]
+      [ accessible_action_job ]
     end
   end
 end

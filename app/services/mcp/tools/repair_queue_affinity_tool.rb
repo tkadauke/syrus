@@ -3,46 +3,66 @@ require "mcp"
 module Mcp::Tools
   class RepairQueueAffinityTool < MCP::Tool
     extend AdminPendingActionToolSupport
+    extend BulkPendingActionToolSupport
+
+    MAX_TARGETS = 100
 
     tool_name "repair_queue_affinity"
-    description "Request repair of a queued Run stuck behind unsatisfied worker affinity. Requires operator confirmation."
+    description "Detect or select up to 100 queued Runs on unavailable worker/storage queues and repair them through one grouped operator confirmation."
 
     input_schema(
       properties: {
         job_id: { type: "integer", description: "Syrus Job id." },
         run_id: { type: "integer", description: "Queued Run id under this Job." },
+        run_ids: { type: "array", items: { type: "integer" }, maxItems: MAX_TARGETS, description: "Queued Run ids to repair as one reviewed batch." },
+        detector_scope: { type: "boolean", description: "Use the current dead-worker-queue detector result (up to 100 Runs)." },
         reason: { type: "string", description: "Operator-facing audit reason for repairing queue affinity." }
       },
-      required: %w[job_id run_id reason]
+      required: %w[reason]
     )
 
     class << self
-      def call(job_id:, run_id:, reason:, server_context:)
+      def call(reason:, server_context:, job_id: nil, run_id: nil, run_ids: nil, detector_scope: false)
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
-        job_id = integer_param(job_id, "job_id")
-        return job_id if job_id.is_a?(MCP::Tool::Response)
-        run_id = integer_param(run_id, "run_id")
-        return run_id if run_id.is_a?(MCP::Tool::Response)
+        selected_ids = (Array(run_ids).presence || Array(run_id).presence)&.map(&:to_i)&.uniq
+        detected = detector_scope ? DeadWorkerQueueDetector.call : DeadWorkerQueueDetector.call(run_ids: selected_ids)
+        selected_ids = detected.map(&:run_id) if detector_scope
+        return Mcp::Tools.invalid("provide run_id, run_ids, or detector_scope") if selected_ids.blank?
+        return Mcp::Tools.invalid("at most #{MAX_TARGETS} Runs may be repaired together") if selected_ids.size > MAX_TARGETS
 
-        job = Job.find_by(id: job_id)
-        return Mcp::Tools.invalid("job not found: #{job_id}") unless job
+        runs = Run.where(id: selected_ids).includes(:job).index_by(&:id)
+        missing = selected_ids.map(&:to_i).uniq - runs.keys
+        return Mcp::Tools.invalid("runs not found: #{missing.join(', ')}") if missing.any?
+        if job_id.present? && runs.values.any? { |candidate| candidate.job_id != job_id.to_i }
+          return Mcp::Tools.invalid("one or more Runs do not belong to job #{job_id}")
+        end
 
-        run = job.runs.find_by(id: run_id)
-        return Mcp::Tools.invalid("run not found for #{job.slug}: #{run_id}") unless run
-
-        create_pending_admin_action(
+        group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
-          action: "repair_queue_affinity",
-          payload: {
-            "job_id" => job.id,
-            "run_id" => run.id
-          },
           reason: reason,
-          message: "Repair queue affinity for #{run.slug}?"
+          member_attributes: selected_ids.map do |id|
+            candidate = runs.fetch(id.to_i)
+            {
+              action: "repair_queue_affinity",
+              requested_by: "agent",
+              reason: reason,
+              payload: {
+                "job_id" => candidate.job_id,
+                "workflow_id" => candidate.workflow_id,
+                "run_id" => candidate.id,
+                "queue_name" => detected.find { |item| item.run_id == candidate.id }&.queue_name
+              }.compact
+            }
+          end
         )
+        bulk_action_response(group: group, message: I18n.t("server.mcp.bulk_confirmation.repair_queue_affinity", count: selected_ids.size), extra: {
+          run_ids: selected_ids,
+          workflow_ids: runs.values.map(&:workflow_id).compact.uniq,
+          dead_queues: detected.map(&:queue_name).uniq.sort
+        })
       end
     end
   end

@@ -124,24 +124,42 @@ describe("PendingActionGroupCard", () => {
     const confirmed = pendingActionGroup({
       state: "confirmed",
       members: [
-        { id: 501, label: "Reopen JOB-262", state: "confirmed" },
-        { id: 502, label: "Reopen JOB-263", state: "failed", execution_error: "Job isn't closed." }
+        { id: 501, label: "Reopen JOB-262", state: "confirmed", outcome: "applied" },
+        { id: 502, label: "Reopen JOB-263", state: "failed", outcome: "failed", execution_error: "Job isn't closed." }
       ]
     })
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
         pending_action_groups: [confirmed],
-        message: "Confirmed 1 of 2 pending actions; 1 failed."
+        message: "Batch result: 1 applied, 0 skipped/ineligible, 1 failed."
       })
     )
     const { onNotice } = renderGroupCard(pendingActionGroup())
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm all" }))
 
-    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Confirmed 1 of 2 pending actions; 1 failed."))
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Batch result: 1 applied, 0 skipped/ineligible, 1 failed."))
     const [url, init] = fetchSpy.mock.calls[0]
     expect(url).toBe("/api/v1/app/chats/122/pending_action_groups/7/confirm")
     expect(init?.method).toBe("POST")
+  })
+
+  it("distinguishes skipped or ineligible members from failures", () => {
+    renderGroupCard(
+      pendingActionGroup({
+        state: "confirmed",
+        members: [
+          { id: 501, label: "Repair JOB-262", state: "confirmed", outcome: "applied" },
+          { id: 502, label: "Repair JOB-263", state: "failed", outcome: "skipped", execution_error: "State changed." },
+          { id: 503, label: "Repair JOB-264", state: "failed", outcome: "failed", execution_error: "Worker error." }
+        ]
+      })
+    )
+
+    expect(screen.getByText("Applied")).toBeInTheDocument()
+    expect(screen.getByText("Skipped/ineligible")).toBeInTheDocument()
+    expect(screen.getByText("Failed: Worker error.")).toBeInTheDocument()
+    expect(screen.getByText("1 applied, 1 skipped/ineligible, 1 failed.")).toBeInTheDocument()
   })
 
   it("rejects every member on Reject all", async () => {

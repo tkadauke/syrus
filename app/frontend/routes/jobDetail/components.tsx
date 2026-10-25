@@ -73,9 +73,9 @@ export function useNow(active: boolean) {
   return now
 }
 
-const queueWaitPresentation: Record<NonNullable<JobRun["queue_wait"]>["kind"], { tone: NoticeTone; link?: "pending" | "workers" }> = {
+const queueWaitPresentation: Record<NonNullable<JobRun["queue_wait"]>["kind"], { tone: NoticeTone; link?: "pending" | "workers" | "repair" }> = {
   ready_waiting_for_slot: { tone: "info", link: "pending" },
-  ready_no_consumer: { tone: "warning", link: "workers" },
+  ready_no_consumer: { tone: "warning", link: "repair" },
   concurrency_blocked: { tone: "warning", link: "pending" },
   scheduled: { tone: "info", link: "pending" },
   claimed_not_started: { tone: "info", link: "workers" },
@@ -146,9 +146,9 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
             deferred: wait.details.first_deferred_at ? formatRelativeDate(new Date(wait.details.first_deferred_at)) : "",
             binding
           })
-    const linkPath = presentation.link === "workers" ? "/admin/queue/workers" : "/admin/queue/pending"
+    const linkPath = presentation.link === "workers" ? "/admin/queue/workers" : presentation.link === "repair" ? "/admin/stuck" : "/admin/queue/pending"
     return (
-      <Notice className="mt-2 px-3 py-2 text-xs" tone={presentation.tone}>
+      <Notice className="mt-2 min-w-0 break-words px-3 py-2 text-xs" tone={presentation.tone}>
         <span className="font-semibold">
           {t("run_queued_waiting", { id: run.id })}
           {elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}
