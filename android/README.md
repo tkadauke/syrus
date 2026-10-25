@@ -28,13 +28,12 @@ Use the repository's Android worker/toolchain when available. From this
 directory:
 
 ```sh
-gradle --no-daemon :app:assembleDebug
-gradle --no-daemon :app:testDebugUnitTest
+./gradlew --no-daemon :app:assembleDebug
+./gradlew --no-daemon :app:testDebugUnitTest
 ```
 
-If a Gradle wrapper is later generated for this project, prefer
-`./gradlew --no-daemon ...`; Syrus Android graders already prefer a wrapper
-when one is present and fall back to `gradle`.
+The committed Gradle wrapper pins the build tool used by local development and
+Syrus Android graders, so workers do not need a global Gradle installation.
 
 The project declares JDK 17 in `.java-version`, matching the Android Gradle
 Plugin baseline used by the worker image.
