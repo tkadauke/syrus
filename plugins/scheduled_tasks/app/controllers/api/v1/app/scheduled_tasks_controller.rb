@@ -184,7 +184,7 @@ module Api
         def scheduled_task_detail_payload(task)
           {
             task: task_detail_json(task),
-            recent_jobs: task.jobs.order(created_at: :desc).limit(20).map { |job| recent_job_json(job) },
+            recent_jobs: Job.visible_to(Current.user, scope: task.jobs).order(created_at: :desc).limit(20).map { |job| recent_job_json(job) },
             options: scheduled_task_options
           }
         end

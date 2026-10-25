@@ -443,7 +443,7 @@ module Api
         end
 
         def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
+          find_job_by_ref(Job.visible_to(Current.user, scope: Current.user.jobs).includes(:repository), params[:job_id])
         end
 
         # Mutations other than the creator-only initial start resolve through

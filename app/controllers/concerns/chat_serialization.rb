@@ -195,7 +195,10 @@ module ChatSerialization
     linked_job = chat_session.linked_job
     return linked_job if linked_job&.coding?
 
-    Job.where(linked_chat_id: chat_session.id, state: "coding").order(:id).first
+    Job.visible_to(
+      chat_session.user,
+      scope: Job.where(linked_chat_id: chat_session.id, state: "coding")
+    ).order(:id).first
   end
 
   def documents_in_scope_for_payload(chat_session)
@@ -466,7 +469,11 @@ module ChatSerialization
     id = id.to_i
     return nil if id <= 0
 
-    scope = action.user.admin? ? Job.all : action.user.jobs
+    scope = if action.user.admin?
+      Job.visible_to(action.user, scope: Job.all)
+    else
+      Job.visible_to(action.user, scope: action.user.jobs)
+    end
     scope.find_by(id: id)
   end
 

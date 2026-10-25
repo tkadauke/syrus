@@ -381,7 +381,7 @@ module App
       def epic_json(epic)
         owner_user = epic_owner_user(epic)
         stats = epic_dashboard_job_stats(epic)
-        child_jobs = stats ? nil : epic.jobs.to_a
+        child_jobs = stats ? nil : Job.visible_to(user, scope: epic.jobs).to_a
         claimable = epic.claimable?
 
         {

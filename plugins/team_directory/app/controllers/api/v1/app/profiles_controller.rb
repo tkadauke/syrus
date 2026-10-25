@@ -57,7 +57,7 @@ module Api
             profile_path: profile_path(user),
             repositories: user.repositories.active.order(:owner, :name, :id).limit(RECENT_LIMIT).map { |repository| repository_json(repository) },
             epics: user.epics.includes(:repository).where.not(state: Epic::ARCHIVED_STATE).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |epic| epic_json(epic) },
-            jobs: user.jobs.includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job, show_owner: show_owner_labels_for?(user)) },
+            jobs: visible_jobs_for(user).includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job, show_owner: show_owner_labels_for?(user)) },
             recent_activity: recent_activity_json(user)
           }
         end
@@ -66,8 +66,8 @@ module Api
           {
             repositories: user.repositories.active.count,
             epics: user.epics.where.not(state: Epic::ARCHIVED_STATE).count,
-            jobs: user.jobs.count,
-            open_jobs: user.jobs.where.not(state: "closed").count
+            jobs: visible_jobs_for(user).count,
+            open_jobs: visible_jobs_for(user).where.not(state: "closed").count
           }
         end
 
@@ -75,8 +75,9 @@ module Api
           user_ids = users.map(&:id)
           repository_counts = Repository.active.where(user_id: user_ids).group(:user_id).count
           epic_counts = Epic.where(user_id: user_ids).where.not(state: Epic::ARCHIVED_STATE).group(:user_id).count
-          job_counts = Job.where(user_id: user_ids).group(:user_id).count
-          open_job_counts = Job.where(user_id: user_ids).where.not(state: "closed").group(:user_id).count
+          visible_jobs = Job.visible_to(Current.user, scope: Job.where(user_id: user_ids))
+          job_counts = visible_jobs.group(:user_id).count
+          open_job_counts = visible_jobs.where.not(state: "closed").group(:user_id).count
 
           user_ids.index_with do |user_id|
             {
@@ -127,7 +128,7 @@ module Api
 
         def recent_activity_json(user)
           activities = []
-          user.jobs.includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).each do |job|
+          visible_jobs_for(user).includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).each do |job|
             activities << {
               type: "job",
               title: job.issue_title.presence || job.kind.humanize,
@@ -157,6 +158,10 @@ module Api
             display_name: user.display_name,
             profile_path: profile_path(user)
           }
+        end
+
+        def visible_jobs_for(profile_user)
+          Job.visible_to(Current.user, scope: profile_user.jobs)
         end
 
         def show_owner_labels_for?(profile_user)
