@@ -6,7 +6,7 @@ function DestructiveWarning() {
   return (
     <div className="rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface px-3 py-2 text-danger-text" role="alert">
       <div className="text-xs font-bold uppercase tracking-wide">{i18n.t("chat:emergency_land.warning_title")}</div>
-      <div className="mt-1 font-medium">{i18n.t("chat:emergency_land.warning_message")}</div>
+      <div className="mt-1 font-medium">{i18n.t("chat:emergency_land.warning_body")}</div>
     </div>
   )
 }
@@ -26,8 +26,8 @@ function renderExpanded(context: ToolCardContext) {
       details={warning}
       input={context.input}
       inputFields={[
-        { key: "job_id", label: i18n.t("chat:emergency_land.job"), format: "entity", entityKind: "job" },
-        { key: "branch_name", label: i18n.t("chat:emergency_land.branch"), format: "copyable_badge" }
+        { key: "job_id", label: () => i18n.t("chat:emergency_land.job"), format: "entity", entityKind: "job" },
+        { key: "branch_name", label: () => i18n.t("chat:emergency_land.branch"), format: "copyable_badge" }
       ]}
       omitBranch
       omitJob
@@ -57,7 +57,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "feature_disabled",
-    label: i18n.t("chat:emergency_land.example_feature_disabled"),
+    label: i18n.t("chat:emergency_land.example_disabled"),
     input: { job_id: 4242, branch_name: "syrus/incident-fix" },
     resultBody: "Emergency land is not enabled on this instance. Enable it, or use complete_implement_step for the normal handoff path.",
     resultError: true
