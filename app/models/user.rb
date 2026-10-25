@@ -33,6 +33,7 @@ class User < ApplicationRecord
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
   has_many :passkeys, dependent: :destroy
   has_many :platform_identities, dependent: :destroy
+  has_one :handle_record, as: :owner, class_name: "Handle", dependent: :destroy
   belongs_to :color_theme, class_name: "Theme", optional: true
 
   after_update_commit :wake_default_provider_work_after_agent_provider_change, if: :saved_change_to_agent_provider?
@@ -259,13 +260,19 @@ class User < ApplicationRecord
   validates :profile_location, :profile_company, length: { maximum: 100 }
   validates :profile_website, length: { maximum: 255 }
   validate :provider_availability_pause_thresholds_valid
+  validate :handle_registry_entry_present, on: :update
   after_initialize :seed_notification_preferences
   after_initialize :seed_ui_preferences
   after_initialize :seed_locale
   before_create :promote_first_user_to_admin
   before_create :generate_webauthn_id
   before_create :seed_default_color_theme
+  after_create :claim_initial_handle
   after_create :publish_user_created_event
+
+  def handle
+    handle_record&.handle
+  end
 
   def admin?
     unless has_attribute?(:global_role)
@@ -983,6 +990,15 @@ class User < ApplicationRecord
       @first_user = !User.exists?
       self.global_role = "admin" if @first_user
     end
+  end
+
+  def claim_initial_handle
+    HandleRegistry.claim_generated!(owner: self)
+    association(:handle_record).reset
+  end
+
+  def handle_registry_entry_present
+    errors.add(:handle, "is required") unless Handle.exists?(owner: self)
   end
 
   # A new Syrus installation should start with a useful set of Cron
