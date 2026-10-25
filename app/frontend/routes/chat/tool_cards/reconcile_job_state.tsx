@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
@@ -19,9 +20,12 @@ function ReconcileJobStateDetails({ context }: { context: ToolCardContext }) {
   return (
     <div className="space-y-2">
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
-        <Row label="Mode" value={mode ? <span className="break-all font-mono">{mode}</span> : "Not provided"} />
         <Row
-          label={jobIds.length === 1 ? "Job" : "Jobs"}
+          label={i18n.t("chat:ops_mode_a7b93d")}
+          value={mode ? <span className="break-all font-mono">{mode}</span> : i18n.t("chat:ops_not_provided_20a041")}
+        />
+        <Row
+          label={jobIds.length === 1 ? i18n.t("chat:ops_job_30c8cb") : i18n.t("chat:ops_jobs_437736")}
           value={
             jobIds.length ? (
               <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
@@ -30,12 +34,16 @@ function ReconcileJobStateDetails({ context }: { context: ToolCardContext }) {
                 ))}
               </div>
             ) : (
-              "Not provided"
+              i18n.t("chat:ops_not_provided_20a041")
             )
           }
         />
       </dl>
-      {reason ? <MarkdownPreview maxLines={4} modalLabel="Reconciliation reason" text={reason} title="Reason" /> : <Row label="Reason" value="Not provided" />}
+      {reason ? (
+        <MarkdownPreview maxLines={4} modalLabel={i18n.t("chat:ops_reconciliation_reason_feaf5e")} text={reason} title={i18n.t("chat:ops_reason_f219cc")} />
+      ) : (
+        <Row label={i18n.t("chat:ops_reason_f219cc")} value={i18n.t("chat:ops_not_provided_20a041")} />
+      )}
     </div>
   )
 }
@@ -64,9 +72,9 @@ export default reconcileJobStateToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "single_pending",
-    label: "Single pending reconciliation",
-    description: "Shows the requested mode, linked Job, and Markdown audit reason before confirmation.",
-    input: { job_id: 4222, mode: "mark_failed", reason: "Repair the **stale state** after reviewing the failed workflow." },
+    label: i18n.t("chat:ops_single_pending_reconciliation_25eb1e"),
+    description: i18n.t("chat:ops_shows_the_requested_mode_linked_job_and_markdown_71ba5e"),
+    input: { job_id: 4222, mode: "mark_failed", reason: i18n.t("chat:ops_repair_the_stale_state_after_reviewing_the_failed_workfl_29f3de") },
     parsedResult: {
       pending_action_id: 501,
       state: "pending",
@@ -75,32 +83,32 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "bulk_pending",
-    label: "Bulk automatic reconciliation",
-    description: "A long list of linked Jobs wraps responsively while retaining the shared mode and reason.",
+    label: i18n.t("chat:ops_bulk_automatic_reconciliation_f6809a"),
+    description: i18n.t("chat:ops_a_long_list_of_linked_jobs_wraps_responsively_wh_cc5393"),
     input: {
       job_ids: [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52],
       mode: "auto",
-      reason: "These Jobs share the same **reconciler drift**."
+      reason: i18n.t("chat:ops_these_jobs_share_the_same_reconciler_drift_2c7e1f")
     },
     parsedResult: {
       pending_action_group_id: 88,
       pending_action_id: 502,
       state: "pending",
       member_count: 12,
-      message: "Reconcile 12 Jobs using mode auto?"
+      message: i18n.t("chat:ops_reconcile_12_jobs_using_mode_auto_ecc22d")
     }
   },
   {
     id: "validation_error",
-    label: "Validation error retains request",
-    input: { job_id: 4222, mode: "auto", reason: "Retry after **checking ownership**." },
-    parsedResult: { error: "invalid_request", message: "The requested reconciliation is not eligible." },
+    label: i18n.t("chat:ops_validation_error_retains_request_878fbe"),
+    input: { job_id: 4222, mode: "auto", reason: i18n.t("chat:ops_retry_after_checking_ownership_2d2854") },
+    parsedResult: { error: "invalid_request", message: i18n.t("chat:ops_the_requested_reconciliation_is_not_eligible_892893") },
     resultError: true
   },
   {
     id: "missing_input",
-    label: "Missing request input",
-    description: "Labels unavailable mode, Job, and reason fields instead of inferring them from the message.",
-    parsedResult: { pending_action_id: 503, state: "pending", message: "Reconcile JOB-4222 using mode auto?" }
+    label: i18n.t("chat:ops_missing_request_input_13053c"),
+    description: i18n.t("chat:ops_labels_unavailable_mode_job_and_reason_fields_in_4693d2"),
+    parsedResult: { pending_action_id: 503, state: "pending", message: i18n.t("chat:ops_reconcile_job_4222_using_mode_auto_ef460b") }
   }
 ]

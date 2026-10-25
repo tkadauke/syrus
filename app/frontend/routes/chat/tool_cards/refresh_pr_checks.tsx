@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
@@ -28,13 +29,13 @@ type RefreshCard = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "PR check refresh",
+  title: i18n.t("chat:ops_pr_check_refresh_0364d9"),
   attempted: (context) => {
     const jobId = stringFromInput(context, ["job_id"])
-    return jobId ? `Refresh checks for JOB-${jobId}` : "Refresh PR checks"
+    return jobId ? `Refresh checks for JOB-${jobId}` : i18n.t("chat:ops_refresh_pr_checks_6c2e50")
   },
   retrySafety: "safe",
-  recovery: "Retry after GitHub or the check provider recovers; verify the Job has a tracked PR if the error says no PR was found."
+  recovery: i18n.t("chat:ops_retry_after_github_or_the_check_provider_recovers_verify_46b725")
 }
 
 function stringsFromArray(value: unknown): string[] {
@@ -135,16 +136,17 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseRefresh(context)
   if (!card) return null
 
-  return `${targetLabel(card)} checks ${succeeded(card) ? "refreshed" : "not refreshed"}: ${card.currentState}`
+  return `${targetLabel(card)} checks ${succeeded(card) ? "refreshed" : i18n.t("chat:ops_not_refreshed_6535ee")}: ${card.currentState}`
 }
 
 function NextActionHint({ card }: { card: RefreshCard }) {
   if (card.currentState === "failing")
-    return <div className="text-text-secondary">Next: inspect the failing checks before rerunning CI repair or marking the repair no-op.</div>
+    return <div className="text-text-secondary">{i18n.t("chat:ops_next_inspect_the_failing_checks_before_rerunning_c36f2f")}</div>
   if (card.currentState === "pending")
-    return <div className="text-text-secondary">Next: wait for checks to finish, then refresh again before taking repair action.</div>
-  if (card.currentState === "passing") return <div className="text-text-secondary">Next: continue mergeability or landing checks.</div>
-  return <div className="text-text-secondary">Next: verify the PR and provider state, then refresh again if the result still looks incomplete.</div>
+    return <div className="text-text-secondary">{i18n.t("chat:ops_next_wait_for_checks_to_finish_then_refresh_agai_016910")}</div>
+  if (card.currentState === "passing")
+    return <div className="text-text-secondary">{i18n.t("chat:ops_next_continue_mergeability_or_landing_checks_16f37e")}</div>
+  return <div className="text-text-secondary">{i18n.t("chat:ops_next_verify_the_pr_and_provider_state_then_refre_8e616a")}</div>
 }
 
 const CHECK_NAME_WRAP_CLASS = "min-w-0 break-words [overflow-wrap:anywhere]"
@@ -172,7 +174,7 @@ function CheckList({ checks }: { checks: CheckRow[] }) {
           </div>
           {check.summary ? (
             <div className="mt-1">
-              <MarkdownPreview maxLines={3} modalLabel={`Full summary for ${check.name}`} text={check.summary} />
+              <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:full_summary_for", { name: check.name })} text={check.summary} />
             </div>
           ) : null}
         </li>
@@ -226,16 +228,16 @@ function renderExpanded(context: ToolCardContext) {
       </div>
 
       <dl className="grid gap-1 sm:grid-cols-2">
-        {card.priorState ? <Row label="Prior state" value={card.priorState} /> : null}
-        <Row label="Current state" value={card.currentState} />
-        {card.headSha ? <ShaRow label="Head SHA" repositoryUrl={repositoryUrl} sha={card.headSha} /> : null}
-        {card.baseSha ? <ShaRow label="Base SHA" repositoryUrl={repositoryUrl} sha={card.baseSha} /> : null}
-        {card.checkedAt ? <Row label="Refreshed at" value={card.checkedAt} /> : null}
+        {card.priorState ? <Row label={i18n.t("chat:ops_prior_state_ac7c9e")} value={card.priorState} /> : null}
+        <Row label={i18n.t("chat:ops_current_state_8e20a6")} value={card.currentState} />
+        {card.headSha ? <ShaRow label={i18n.t("chat:ops_head_sha_2591c3")} repositoryUrl={repositoryUrl} sha={card.headSha} /> : null}
+        {card.baseSha ? <ShaRow label={i18n.t("chat:ops_base_sha_d39360")} repositoryUrl={repositoryUrl} sha={card.baseSha} /> : null}
+        {card.checkedAt ? <Row label={i18n.t("chat:ops_refreshed_at_397284")} value={card.checkedAt} /> : null}
       </dl>
 
       {card.providers.length > 0 ? (
         <div className="space-y-1">
-          <SectionLabel>Refreshed providers</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_refreshed_providers_f9e8b4")}</SectionLabel>
           <div className="flex flex-wrap gap-1">
             {card.providers.map((provider) => (
               <Badge key={`provider-${provider}`}>{provider}</Badge>
@@ -246,24 +248,24 @@ function renderExpanded(context: ToolCardContext) {
 
       {card.refreshedChecks.length > 0 ? (
         <div className="space-y-1">
-          <SectionLabel>Refreshed checks</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_refreshed_checks_2a48b2")}</SectionLabel>
           <CheckList checks={card.refreshedChecks} />
         </div>
       ) : (
-        <EmptyState>No refreshed checks reported.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_refreshed_checks_reported_02bd9c")}</EmptyState>
       )}
 
       {card.failingChecks.length > 0 ? (
         <div className="space-y-1">
-          <SectionLabel>Failing checks</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_failing_checks_2e896b")}</SectionLabel>
           <CheckList checks={card.failingChecks} />
         </div>
       ) : (
-        <EmptyState>No failing checks reported.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_failing_checks_reported_59c7b8")}</EmptyState>
       )}
 
       <div>
-        <SectionLabel>Next action</SectionLabel>
+        <SectionLabel>{i18n.t("chat:ops_next_action_d816c3")}</SectionLabel>
         <NextActionHint card={card} />
       </div>
     </CardShell>
@@ -281,7 +283,7 @@ export default refreshPrChecksToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "successful_refresh",
-    label: "Successful refresh with failing checks",
+    label: i18n.t("chat:ops_successful_refresh_with_failing_checks_693d8e"),
     input: { job_id: 42 },
     parsedResult: {
       job_id: 42,
@@ -292,15 +294,25 @@ export const examples: ToolCardExample[] = [
       pr_checks_checked_at: "2026-10-01T15:45:12Z",
       head_sha: "abc1234567890000000000000000000000000000",
       base_sha: "def1234567890000000000000000000000000000",
-      refreshed_providers: ["GitHub Actions"],
+      refreshed_providers: [i18n.t("chat:ops_github_actions_395409")],
       refreshed_checks: [
-        { name: "rspec", provider: "GitHub Actions", conclusion: "failure", details_url: "https://github.com/acme/widgets/actions/runs/1" },
-        { name: "frontend-lint", provider: "GitHub Actions", conclusion: "success", details_url: "https://github.com/acme/widgets/actions/runs/2" }
+        {
+          name: "rspec",
+          provider: i18n.t("chat:ops_github_actions_395409"),
+          conclusion: "failure",
+          details_url: "https://github.com/acme/widgets/actions/runs/1"
+        },
+        {
+          name: "frontend-lint",
+          provider: i18n.t("chat:ops_github_actions_395409"),
+          conclusion: "success",
+          details_url: "https://github.com/acme/widgets/actions/runs/2"
+        }
       ],
       failing_checks: [
         {
           name: "rspec",
-          provider: "GitHub Actions",
+          provider: i18n.t("chat:ops_github_actions_395409"),
           conclusion: "failure",
           summary: "1 example failed",
           details_url: "https://github.com/acme/widgets/actions/runs/1"
@@ -310,7 +322,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "already_current",
-    label: "No-op, already current",
+    label: i18n.t("chat:ops_no_op_already_current_ea0e9d"),
     input: { job_id: 43 },
     parsedResult: {
       job_id: 43,
@@ -318,26 +330,36 @@ export const examples: ToolCardExample[] = [
       pr_number: 315,
       previous_pr_checks_state: "passing",
       pr_checks_state: "passing",
-      refreshed_providers: ["GitHub Actions"],
+      refreshed_providers: [i18n.t("chat:ops_github_actions_395409")],
       refreshed_checks: [
-        { name: "rspec", provider: "GitHub Actions", conclusion: "success", details_url: "https://github.com/acme/widgets/actions/runs/3" },
-        { name: "frontend-lint", provider: "GitHub Actions", conclusion: "success", details_url: "https://github.com/acme/widgets/actions/runs/4" }
+        {
+          name: "rspec",
+          provider: i18n.t("chat:ops_github_actions_395409"),
+          conclusion: "success",
+          details_url: "https://github.com/acme/widgets/actions/runs/3"
+        },
+        {
+          name: "frontend-lint",
+          provider: i18n.t("chat:ops_github_actions_395409"),
+          conclusion: "success",
+          details_url: "https://github.com/acme/widgets/actions/runs/4"
+        }
       ],
       failing_checks: []
     }
   },
   {
     id: "missing_pr",
-    label: "Missing PR",
+    label: i18n.t("chat:ops_missing_pr_97ac9c"),
     input: { job_id: 44 },
-    resultBody: "Job has no tracked PR.",
+    resultBody: i18n.t("chat:ops_job_has_no_tracked_pr_247c9e"),
     resultError: true
   },
   {
     id: "provider_failure",
-    label: "Provider/check failure",
+    label: i18n.t("chat:ops_provider_check_failure_329bfa"),
     input: { job_id: 45 },
-    resultBody: "Error: Timed out fetching check runs.",
+    resultBody: i18n.t("chat:ops_error_timed_out_fetching_check_runs_a21c40"),
     resultError: true
   }
 ]

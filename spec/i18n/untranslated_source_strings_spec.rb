@@ -4,11 +4,6 @@ require "tempfile"
 
 RSpec.describe "Untranslated source strings", type: :unit do
   CHAT_I18N_DEBT_FILES = %w[
-    app/frontend/routes/chat/issueTagArtifactToolCard.tsx
-    app/frontend/routes/chat/jobEpicMaintenanceToolCard.tsx
-    app/frontend/routes/chat/pendingActionToolCard.tsx
-    app/frontend/routes/chat/refMovementToolCard.tsx
-    app/frontend/routes/chat/runtimeToolCard.tsx
     app/frontend/routes/chat/streamBuilders.ts
     app/frontend/routes/chat/streamChrome.tsx
     app/frontend/routes/chat/tool_cards/add_epic_dependency.tsx
@@ -24,7 +19,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/admin_overview.tsx
     app/frontend/routes/chat/tool_cards/admin_pause_runs.tsx
     app/frontend/routes/chat/tool_cards/admin_pause_user_scheduling.tsx
-    app/frontend/routes/chat/tool_cards/admin_queue_detail.tsx
     app/frontend/routes/chat/tool_cards/admin_read_operational_logs.tsx
     app/frontend/routes/chat/tool_cards/admin_retry_step.tsx
     app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx
@@ -49,13 +43,11 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/emergency_land.tsx
     app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
     app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx
-    app/frontend/routes/chat/tool_cards/force_rebase.tsx
     app/frontend/routes/chat/tool_cards/force_state_transition.tsx
     app/frontend/routes/chat/tool_cards/get_job_diff.tsx
     app/frontend/routes/chat/tool_cards/git_diff.tsx
     app/frontend/routes/chat/tool_cards/git_status.tsx
     app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx
-    app/frontend/routes/chat/tool_cards/inspect_provider_circuit.tsx
     app/frontend/routes/chat/tool_cards/list_artifacts.tsx
     app/frontend/routes/chat/tool_cards/list_chat_media.tsx
     app/frontend/routes/chat/tool_cards/list_chats.tsx
@@ -76,7 +68,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
     app/frontend/routes/chat/tool_cards/open_in_coding_mode.tsx
     app/frontend/routes/chat/tool_cards/open_in_local_mode.tsx
-    app/frontend/routes/chat/tool_cards/override_landing_blocker_once.tsx
     app/frontend/routes/chat/tool_cards/pause_landing_queue.tsx
     app/frontend/routes/chat/tool_cards/propose_epic.tsx
     app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx
@@ -88,18 +79,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/read_pr.tsx
     app/frontend/routes/chat/tool_cards/read_ref_movement_status.tsx
     app/frontend/routes/chat/tool_cards/read_run_transcript.tsx
-    app/frontend/routes/chat/tool_cards/read_worker_health.tsx
     app/frontend/routes/chat/tool_cards/read_workflow.tsx
-    app/frontend/routes/chat/tool_cards/reconcile_job_state.tsx
-    app/frontend/routes/chat/tool_cards/reenqueue_work.tsx
-    app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx
     app/frontend/routes/chat/tool_cards/remove_job_tag.tsx
     app/frontend/routes/chat/tool_cards/remove_pinned_context.tsx
     app/frontend/routes/chat/tool_cards/rename_chat.tsx
     app/frontend/routes/chat/tool_cards/reopen_job.tsx
-    app/frontend/routes/chat/tool_cards/repair_provider_circuit_evidence.tsx
     app/frontend/routes/chat/tool_cards/repo_info.tsx
-    app/frontend/routes/chat/tool_cards/resolve_delivery_policy.tsx
     app/frontend/routes/chat/tool_cards/run_command.tsx
     app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
     app/frontend/routes/chat/tool_cards/search_syrus_docs.tsx
@@ -133,6 +118,21 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/chatSearchToolCard.tsx
     app/frontend/routes/chat/chatHelperToolCard.tsx
     app/frontend/routes/chat/adminToolCard.tsx
+    app/frontend/routes/chat/issueTagArtifactToolCard.tsx
+    app/frontend/routes/chat/jobEpicMaintenanceToolCard.tsx
+    app/frontend/routes/chat/pendingActionToolCard.tsx
+    app/frontend/routes/chat/refMovementToolCard.tsx
+    app/frontend/routes/chat/runtimeToolCard.tsx
+    app/frontend/routes/chat/tool_cards/admin_queue_detail.tsx
+    app/frontend/routes/chat/tool_cards/force_rebase.tsx
+    app/frontend/routes/chat/tool_cards/inspect_provider_circuit.tsx
+    app/frontend/routes/chat/tool_cards/override_landing_blocker_once.tsx
+    app/frontend/routes/chat/tool_cards/read_worker_health.tsx
+    app/frontend/routes/chat/tool_cards/reconcile_job_state.tsx
+    app/frontend/routes/chat/tool_cards/reenqueue_work.tsx
+    app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx
+    app/frontend/routes/chat/tool_cards/repair_provider_circuit_evidence.tsx
+    app/frontend/routes/chat/tool_cards/resolve_delivery_policy.tsx
   ].freeze
 
   # Run with:
@@ -215,6 +215,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/ProposalCards.tsx|jsx_expression|#message-
       app/frontend/routes/chat/ProposalCards.tsx|jsx_expression|EPIC-
       app/frontend/routes/chat/ProposalCards.tsx|jsx_expression|JOB-
+      app/frontend/routes/chat/issueTagArtifactToolCard.tsx|ternary|tag #
+      app/frontend/routes/chat/tool_cards/force_rebase.tsx|ternary|JOB- ()
+      app/frontend/routes/chat/tool_cards/force_rebase.tsx|ternary|JOB-
+      app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|ternary|JOB- ()
+      app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|ternary|JOB-
+      app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|jsx_expression|JOB-
       app/frontend/routes/chat/WorkspacePanels.tsx|jsx_expression|(+ -)
       app/frontend/routes/chat/adminToolCard.tsx|jsx_text|JOB-
       app/frontend/routes/chat/adminToolCard.tsx|jsx_text|isValidElement

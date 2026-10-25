@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { redactToolCardText, redactToolCardValue } from "../../../toolCardSecurity"
 import { TextPreview } from "../toolCardMarkdown"
@@ -278,23 +279,23 @@ function parseQueueDetail(context: ToolCardContext): QueueDetailCard | null {
 
 function collapsedSummary(context: ToolCardContext) {
   const inputTab = displayValue(context.input?.tab)
-  if (context.resultError) return inputTab ? `${inputTab} queue failed` : "Queue detail failed"
+  if (context.resultError) return inputTab ? `${inputTab} queue failed` : i18n.t("chat:ops_queue_detail_failed_56fae6")
   const card = parseQueueDetail(context)
   if (!card) return null
 
   switch (card.tab) {
     case "active":
-      return `${card.total ?? card.jobs.length} active job${(card.total ?? card.jobs.length) === 1 ? "" : "s"}`
+      return i18n.t("chat:active_job_count", { count: card.total ?? card.jobs.length })
     case "pending": {
       const count = card.total ?? card.jobs.length
-      return `${count} pending job${count === 1 ? "" : "s"}`
+      return i18n.t("chat:pending_job_count", { count })
     }
     case "failed":
-      return `${card.total ?? card.failures.length} failure${(card.total ?? card.failures.length) === 1 ? "" : "s"}`
+      return i18n.t("chat:failure_count", { count: card.total ?? card.failures.length })
     case "recurring":
-      return `${card.tasks.length} recurring task${card.tasks.length === 1 ? "" : "s"}`
+      return i18n.t("chat:recurring_task_count", { count: card.tasks.length })
     case "workers":
-      return `${card.workers.length} worker${card.workers.length === 1 ? "" : "s"}, ${card.processes.length} process${card.processes.length === 1 ? "" : "es"}`
+      return `${i18n.t("chat:worker_count", { count: card.workers.length })}, ${i18n.t("chat:all_process_count", { count: card.processes.length })}`
   }
 }
 
@@ -315,14 +316,25 @@ function MacosDrainCell({ drain }: { drain: MacosDrain | null }) {
 }
 
 function ArgumentsPreview({ text }: { text: string | null }) {
-  return text ? <TextPreview maxLines={3} modalLabel="Full job arguments" text={text} /> : <>—</>
+  return text ? <TextPreview maxLines={3} modalLabel={i18n.t("chat:ops_full_job_arguments_c3d19a")} text={text} /> : <>—</>
 }
 
 function JobsTable({ jobs, pending = false }: { jobs: JobRow[]; pending?: boolean }) {
-  if (jobs.length === 0) return <EmptyState>No jobs found.</EmptyState>
+  if (jobs.length === 0) return <EmptyState>{i18n.t("chat:ops_no_jobs_found_be43a9")}</EmptyState>
   return (
     <Table responsive>
-      <THead columns={["Id", "Class", "Queue", "Priority", "Arguments", "Created", "Scheduled", pending ? "Ready" : "Claimed"]} />
+      <THead
+        columns={[
+          "Id",
+          i18n.t("chat:ops_class_41ff35"),
+          i18n.t("chat:ops_queue_d325fc"),
+          i18n.t("chat:ops_priority_886cbf"),
+          i18n.t("chat:ops_arguments_cbb9fa"),
+          i18n.t("chat:ops_created_accf40"),
+          i18n.t("chat:ops_scheduled_1cd1bd"),
+          pending ? i18n.t("chat:ops_ready_20c7c5") : i18n.t("chat:ops_claimed_83c878")
+        ]}
+      />
       <TBody>
         {jobs.map((job) => (
           <tr key={job.key}>
@@ -362,7 +374,7 @@ function Metadata({ values }: { values: Array<[string, unknown]> }) {
   if (present.length === 0) return null
   return (
     <details className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted">Result metadata</summary>
+      <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:ops_result_metadata_92881a")}</summary>
       <div className="mt-2 space-y-2">
         {present.map(([label, text]) => (
           <TextPreview key={label} maxLines={4} text={text} title={label} />
@@ -376,8 +388,8 @@ function RequestTab({ context, resultTab }: { context: ToolCardContext; resultTa
   const requested = displayValue(context.input?.tab)
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      <Row label="Requested tab" value={requested || "—"} />
-      {resultTab ? <Row label="Result tab" value={resultTab} /> : null}
+      <Row label={i18n.t("chat:ops_requested_tab_ebefbf")} value={requested || "—"} />
+      {resultTab ? <Row label={i18n.t("chat:ops_result_tab_731a3e")} value={resultTab} /> : null}
     </div>
   )
 }
@@ -387,7 +399,7 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         <RequestTab context={context} />
-        <TextPreview maxLines={6} text={redactToolCardText(context.resultBody)} title="Error" />
+        <TextPreview maxLines={6} text={redactToolCardText(context.resultBody)} title={i18n.t("chat:ops_error_7f2f6a")} />
       </CardShell>
     )
   const card = parseQueueDetail(context)
@@ -401,12 +413,12 @@ function renderExpanded(context: ToolCardContext) {
         <JobsTable jobs={card.jobs} />
         <Metadata
           values={[
-            ["Pagination", card.pagination],
-            ["Sort", card.sort],
-            ["Filter", card.filter],
-            ["Controls", card.controls],
-            ["Smart folders", card.smartFolders],
-            ["Active smart folder id", card.activeSmartFolderId]
+            [i18n.t("chat:ops_pagination_100325"), card.pagination],
+            [i18n.t("chat:ops_sort_adc4e9"), card.sort],
+            [i18n.t("chat:ops_filter_d7decf"), card.filter],
+            [i18n.t("chat:ops_controls_bee75c"), card.controls],
+            [i18n.t("chat:ops_smart_folders_7ee466"), card.smartFolders],
+            [i18n.t("chat:ops_active_smart_folder_id_9898bd"), card.activeSmartFolderId]
           ]}
         />
       </CardShell>
@@ -416,17 +428,17 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         <RequestTab context={context} resultTab={card.tab} />
-        {card.total != null ? <Row label="Total pending" value={String(card.total)} /> : null}
+        {card.total != null ? <Row label={i18n.t("chat:ops_total_pending_7dd598")} value={String(card.total)} /> : null}
         <TruncationNotice shown={card.jobs.length} total={card.total} />
         <JobsTable jobs={card.jobs} pending />
         <Metadata
           values={[
-            ["Pagination", card.pagination],
-            ["Sort", card.sort],
-            ["Filter", card.filter],
-            ["Controls", card.controls],
-            ["Smart folders", card.smartFolders],
-            ["Active smart folder id", card.activeSmartFolderId]
+            [i18n.t("chat:ops_pagination_100325"), card.pagination],
+            [i18n.t("chat:ops_sort_adc4e9"), card.sort],
+            [i18n.t("chat:ops_filter_d7decf"), card.filter],
+            [i18n.t("chat:ops_controls_bee75c"), card.controls],
+            [i18n.t("chat:ops_smart_folders_7ee466"), card.smartFolders],
+            [i18n.t("chat:ops_active_smart_folder_id_9898bd"), card.activeSmartFolderId]
           ]}
         />
       </CardShell>
@@ -437,13 +449,25 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         <RequestTab context={context} resultTab={card.tab} />
-        {card.since ? <Row label="Since" value={card.since} /> : null}
+        {card.since ? <Row label={i18n.t("chat:ops_since_22a4ed")} value={card.since} /> : null}
         <TruncationNotice shown={card.failures.length} total={card.total} />
         {card.failures.length === 0 ? (
-          <EmptyState>No failures found.</EmptyState>
+          <EmptyState>{i18n.t("chat:ops_no_failures_found_63222e")}</EmptyState>
         ) : (
           <Table responsive>
-            <THead columns={["Id", "Job", "Class", "Priority", "Scheduled", "Arguments", "Exception", "Message", "Created"]} />
+            <THead
+              columns={[
+                "Id",
+                "Job",
+                i18n.t("chat:ops_class_41ff35"),
+                i18n.t("chat:ops_priority_886cbf"),
+                i18n.t("chat:ops_scheduled_1cd1bd"),
+                i18n.t("chat:ops_arguments_cbb9fa"),
+                i18n.t("chat:ops_exception_20049b"),
+                i18n.t("chat:ops_message_68f414"),
+                i18n.t("chat:ops_created_accf40")
+              ]}
+            />
             <TBody>
               {card.failures.map((failure) => (
                 <tr key={failure.key}>
@@ -457,8 +481,16 @@ function renderExpanded(context: ToolCardContext) {
                   <Td wrap>
                     <ArgumentsPreview text={failure.arguments} />
                   </Td>
-                  <Td wrap>{failure.exceptionClass ? <TextPreview maxLines={3} modalLabel="Full exception class" text={failure.exceptionClass} /> : "—"}</Td>
-                  <Td wrap>{failure.message ? <TextPreview maxLines={3} modalLabel="Full failure message" text={failure.message} /> : "—"}</Td>
+                  <Td wrap>
+                    {failure.exceptionClass ? (
+                      <TextPreview maxLines={3} modalLabel={i18n.t("chat:ops_full_exception_class_da971f")} text={failure.exceptionClass} />
+                    ) : (
+                      "—"
+                    )}
+                  </Td>
+                  <Td wrap>
+                    {failure.message ? <TextPreview maxLines={3} modalLabel={i18n.t("chat:ops_full_failure_message_5b2379")} text={failure.message} /> : "—"}
+                  </Td>
                   <Td mono>{failure.createdAt || "—"}</Td>
                 </tr>
               ))}
@@ -467,12 +499,12 @@ function renderExpanded(context: ToolCardContext) {
         )}
         <Metadata
           values={[
-            ["Pagination", card.pagination],
-            ["Sort", card.sort],
-            ["Filter", card.filter],
-            ["Controls", card.controls],
-            ["Smart folders", card.smartFolders],
-            ["Active smart folder id", card.activeSmartFolderId]
+            [i18n.t("chat:ops_pagination_100325"), card.pagination],
+            [i18n.t("chat:ops_sort_adc4e9"), card.sort],
+            [i18n.t("chat:ops_filter_d7decf"), card.filter],
+            [i18n.t("chat:ops_controls_bee75c"), card.controls],
+            [i18n.t("chat:ops_smart_folders_7ee466"), card.smartFolders],
+            [i18n.t("chat:ops_active_smart_folder_id_9898bd"), card.activeSmartFolderId]
           ]}
         />
       </CardShell>
@@ -484,10 +516,18 @@ function renderExpanded(context: ToolCardContext) {
       <CardShell>
         <RequestTab context={context} resultTab={card.tab} />
         {card.tasks.length === 0 ? (
-          <EmptyState>No recurring tasks found.</EmptyState>
+          <EmptyState>{i18n.t("chat:ops_no_recurring_tasks_found_d9c892")}</EmptyState>
         ) : (
           <Table responsive>
-            <THead columns={["Key", "Class", "Schedule", "Last run", "Last finished"]} />
+            <THead
+              columns={[
+                "Key",
+                i18n.t("chat:ops_class_41ff35"),
+                i18n.t("chat:ops_schedule_0a8ada"),
+                i18n.t("chat:ops_last_run_333c63"),
+                i18n.t("chat:ops_last_finished_a8d1cb")
+              ]}
+            />
             <TBody>
               {card.tasks.map((task) => (
                 <tr key={task.key}>
@@ -503,7 +543,7 @@ function renderExpanded(context: ToolCardContext) {
             </TBody>
           </Table>
         )}
-        <Metadata values={[["Sort", card.sort]]} />
+        <Metadata values={[[i18n.t("chat:ops_sort_adc4e9"), card.sort]]} />
       </CardShell>
     )
   }
@@ -511,12 +551,24 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <RequestTab context={context} resultTab={card.tab} />
-      <SectionLabel>Workers ({card.workers.length})</SectionLabel>
+      <SectionLabel>{i18n.t("chat:worker_count", { count: card.workers.length })}</SectionLabel>
       {card.workers.length === 0 ? (
-        <EmptyState>No active workers found.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_active_workers_found_7970c5")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["Host", "Pid", "Queues", "Capabilities", "Diagnostics", "Mac update", "Threads", "Heartbeat", "Status"]} />
+          <THead
+            columns={[
+              i18n.t("chat:ops_host_3960ec"),
+              "Pid",
+              i18n.t("chat:ops_queues_83dbc3"),
+              i18n.t("chat:ops_capabilities_ca09c5"),
+              i18n.t("chat:ops_diagnostics_3af227"),
+              i18n.t("chat:ops_mac_update_f41288"),
+              i18n.t("chat:ops_threads_bb12e8"),
+              i18n.t("chat:ops_heartbeat_eb4d41"),
+              i18n.t("chat:ops_status_bae7d5")
+            ]}
+          />
           <TBody>
             {card.workers.map((worker) => (
               <tr key={worker.key}>
@@ -544,12 +596,23 @@ function renderExpanded(context: ToolCardContext) {
           </TBody>
         </Table>
       )}
-      <SectionLabel>All processes ({card.processes.length})</SectionLabel>
+      <SectionLabel>{i18n.t("chat:all_process_count", { count: card.processes.length })}</SectionLabel>
       {card.processes.length === 0 ? (
-        <EmptyState>No processes found.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_processes_found_59c7bd")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["Kind", "Host", "Pid", "Capabilities", "Diagnostics", "Mac update", "Heartbeat", "Status"]} />
+          <THead
+            columns={[
+              i18n.t("chat:ops_kind_e00ac2"),
+              i18n.t("chat:ops_host_3960ec"),
+              "Pid",
+              i18n.t("chat:ops_capabilities_ca09c5"),
+              i18n.t("chat:ops_diagnostics_3af227"),
+              i18n.t("chat:ops_mac_update_f41288"),
+              i18n.t("chat:ops_heartbeat_eb4d41"),
+              i18n.t("chat:ops_status_bae7d5")
+            ]}
+          />
           <TBody>
             {card.processes.map((process) => (
               <tr key={process.key}>
@@ -576,8 +639,8 @@ function renderExpanded(context: ToolCardContext) {
       )}
       <Metadata
         values={[
-          ["Sort", card.sort],
-          ["Worker health", card.workerHealth]
+          [i18n.t("chat:ops_sort_adc4e9"), card.sort],
+          [i18n.t("chat:ops_worker_health_1ad1ef"), card.workerHealth]
         ]}
       />
     </CardShell>

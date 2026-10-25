@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, EntityReference, Row, SectionLabel } from "../toolCardUi"
 import { ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
@@ -26,11 +27,13 @@ type ResolvePolicyResult = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Delivery policy resolution",
+  title: i18n.t("chat:ops_delivery_policy_resolution_311cfb"),
   attempted: (context) =>
-    displayValue(context.input?.job_id) ? `Resolve policy for JOB-${displayValue(context.input?.job_id)}` : "Resolve repository delivery policy",
+    displayValue(context.input?.job_id)
+      ? `Resolve policy for JOB-${displayValue(context.input?.job_id)}`
+      : i18n.t("chat:ops_resolve_repository_delivery_policy_5b97b2"),
   retrySafety: "unknown",
-  recovery: "Check that a repository is attached and that the Job belongs to it, then retry."
+  recovery: i18n.t("chat:ops_check_that_a_repository_is_attached_and_that_the_job_bel_fb3f39")
 }
 
 function toggleRow(value: unknown): ToggleRow | null {
@@ -90,14 +93,14 @@ function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
   const track = result.deliveryTrack || "default"
-  return result.jobId ? `Track: ${track} for JOB-${result.jobId}` : `Track: ${track}`
+  return result.jobId ? i18n.t("chat:delivery_track_for_job", { track, id: result.jobId }) : i18n.t("chat:delivery_track_summary", { track })
 }
 
 function ToggleBadge({ label, toggle }: { label: string; toggle: ToggleRow | null }) {
   if (!toggle) return null
   return (
     <Badge>
-      {label}: {toggle.enabled ? (toggle.mode ? `on (${toggle.mode})` : "on") : "off"}
+      {label}: {toggle.enabled ? (toggle.mode ? i18n.t("chat:enabled_with_mode", { mode: toggle.mode }) : i18n.t("chat:enabled")) : i18n.t("chat:disabled")}
     </Badge>
   )
 }
@@ -119,30 +122,37 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Delivery track" value={result.deliveryTrack || "default"} />
-        {result.jobLandingBranch ? <Row label="Landing branch" value={result.jobLandingBranch} wrap /> : null}
-        {result.reviewGradePhase ? <Row label="Review phase" value={result.reviewGradePhase} /> : null}
-        {result.landingGradePhase ? <Row label="Landing phase" value={result.landingGradePhase} /> : null}
+        <Row label={i18n.t("chat:ops_delivery_track_cf2fab")} value={result.deliveryTrack || "default"} />
+        {result.jobLandingBranch ? <Row label={i18n.t("chat:ops_landing_branch_0e503e")} value={result.jobLandingBranch} wrap /> : null}
+        {result.reviewGradePhase ? <Row label={i18n.t("chat:ops_review_phase_507ec1")} value={result.reviewGradePhase} /> : null}
+        {result.landingGradePhase ? <Row label={i18n.t("chat:ops_landing_phase_987d16")} value={result.landingGradePhase} /> : null}
       </dl>
       {result.approvalConfigured != null ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Badge>approval: {result.approvalConfigured ? "configured" : "not configured"}</Badge>
-          {result.jobApprovalSatisfied != null ? <Badge>job approval: {result.jobApprovalSatisfied ? "satisfied" : "pending"}</Badge> : null}
+          <Badge>approval: {result.approvalConfigured ? "configured" : i18n.t("chat:ops_not_configured_67f214")}</Badge>
+          {result.jobApprovalSatisfied != null ? (
+            <Badge>{i18n.t("chat:job_approval_state", { state: result.jobApprovalSatisfied ? i18n.t("chat:satisfied") : i18n.t("chat:pending") })}</Badge>
+          ) : null}
           {result.requiresOperatorApprovalForPromotion != null ? (
-            <Badge>promotion approval: {result.requiresOperatorApprovalForPromotion ? "operator required" : "not required"}</Badge>
+            <Badge>
+              promotion approval:{" "}
+              {result.requiresOperatorApprovalForPromotion ? i18n.t("chat:ops_operator_required_a4b75a") : i18n.t("chat:ops_not_required_c64105")}
+            </Badge>
           ) : null}
         </div>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <ToggleBadge label="promotion" toggle={result.promotion} />
-        <ToggleBadge label="hotfix sync" toggle={result.hotfixSync} />
-        <ToggleBadge label="upstream export" toggle={result.upstreamExport} />
+        <ToggleBadge label={i18n.t("chat:ops_hotfix_sync_b202ff")} toggle={result.hotfixSync} />
+        <ToggleBadge label={i18n.t("chat:ops_upstream_export_4d9da1")} toggle={result.upstreamExport} />
         {result.upstreamExport?.afterLocalApproval != null ? (
-          <Badge>export after local approval: {result.upstreamExport.afterLocalApproval ? "yes" : "no"}</Badge>
+          <Badge>
+            {i18n.t("chat:export_after_local_approval", { value: result.upstreamExport.afterLocalApproval ? i18n.t("chat:yes") : i18n.t("chat:no") })}
+          </Badge>
         ) : null}
       </div>
       {result.refMovementActions.length > 0 ? (
-        <Disclosure label={`${result.refMovementActions.length} ref movement ${result.refMovementActions.length === 1 ? "action" : "actions"}`}>
+        <Disclosure label={i18n.t("chat:ref_movement_action_count", { count: result.refMovementActions.length })}>
           <div className="space-y-1">
             <div className="text-xs text-text-secondary">
               Dispatch enabled actions with <span className="font-mono">dispatch_ref_movement_action</span>.
@@ -151,7 +161,7 @@ function renderExpanded(context: ToolCardContext) {
               <div key={action.name}>
                 <SectionLabel>{action.name}</SectionLabel>
                 <div>
-                  {action.enabled ? (action.mode ? `enabled (${action.mode})` : "enabled") : "disabled"}
+                  {action.enabled ? (action.mode ? i18n.t("chat:enabled_with_mode", { mode: action.mode }) : i18n.t("chat:enabled")) : i18n.t("chat:disabled")}
                   {action.gradePhases.length > 0 ? ` · ${action.gradePhases.join(", ")}` : ""}
                 </div>
               </div>
@@ -174,7 +184,7 @@ export default resolveDeliveryPolicyToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "job_policy",
-    label: "Job-specific delivery policy",
+    label: i18n.t("chat:ops_job_specific_delivery_policy_8ad031"),
     input: { job_id: 42 },
     parsedResult: {
       repository: "acme/widgets",
@@ -192,7 +202,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "default_repository_policy",
-    label: "Repository policy without optional actions",
+    label: i18n.t("chat:ops_repository_policy_without_optional_actions_6dd73b"),
     parsedResult: {
       repository: "acme/widgets",
       delivery_track: "default",
@@ -205,8 +215,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "missing_repository",
-    label: "No repository attached",
-    resultBody: "Error: no repository attached",
+    label: i18n.t("chat:ops_no_repository_attached_b11206"),
+    resultBody: i18n.t("chat:ops_error_no_repository_attached_e14fd9"),
     resultError: true
   }
 ]
