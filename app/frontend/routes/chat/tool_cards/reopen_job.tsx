@@ -10,28 +10,30 @@ import {
 } from "../toolFailureSummaryCard"
 import i18n from "@app/i18n"
 
-const failureConfig: ToolFailureConfig = {
-  title: i18n.t("chat:mutation_job_reopen"),
-  attempted: (context) => {
-    const jobId = stringFromInput(context, ["job_id"])
-    const count = countFromInputArray(context, "job_ids")
-    if (jobId) return i18n.t("chat:mutation_reopen_job_id", { id: jobId })
-    if (count != null) return i18n.t("chat:mutation_reopen_jobs", { count })
-    return i18n.t("chat:mutation_reopen_job")
-  },
-  retrySafety: "caution",
-  recovery: i18n.t("chat:mutation_reopen_recovery")
+function failureConfig(): ToolFailureConfig {
+  return {
+    title: i18n.t("chat:mutation_job_reopen"),
+    attempted: (context) => {
+      const jobId = stringFromInput(context, ["job_id"])
+      const count = countFromInputArray(context, "job_ids")
+      if (jobId) return i18n.t("chat:mutation_reopen_job_id", { id: jobId })
+      if (count != null) return i18n.t("chat:mutation_reopen_jobs", { count })
+      return i18n.t("chat:mutation_reopen_job")
+    },
+    retrySafety: "caution",
+    recovery: i18n.t("chat:mutation_reopen_recovery")
+  }
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig())
   if (failureSummary) return failureSummary
 
   return jobEpicMaintenanceCollapsedSummary(context)
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig()} context={context} />
 
   return jobEpicMaintenanceExpandedBody(context)
 }

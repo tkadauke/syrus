@@ -38,7 +38,9 @@ function collapsedSummary(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "released_job",
-    label: i18n.t("chat:mutation_example_checkout_job_released"),
+    get label() {
+      return i18n.t("chat:mutation_example_checkout_job_released")
+    },
     input: { repository_id: 7 },
     parsedResult: {
       canceled: true,
@@ -58,7 +60,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "checkout_only",
-    label: i18n.t("chat:mutation_example_checkout_released"),
+    get label() {
+      return i18n.t("chat:mutation_example_checkout_released")
+    },
     parsedResult: {
       canceled: true,
       repository_id: 7,
@@ -71,7 +75,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error",
-    label: i18n.t("chat:mutation_example_cancellation_failed"),
+    get label() {
+      return i18n.t("chat:mutation_example_cancellation_failed")
+    },
     input: { repository_id: 7 },
     resultBody: "No active Coding Mode checkout.",
     resultError: true

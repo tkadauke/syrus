@@ -6,16 +6,20 @@ import i18n from "@app/i18n"
 // Core-owned tool card for select_job_delivery_track (the tool-card work).
 type SelectTrackResult = { jobId: string; previousTrack: string | null; storedTrack: string | null; resolvedTrack: string | null }
 
-const failureConfig: ToolFailureConfig = {
-  title: i18n.t("chat:mutation_delivery_track_selection"),
-  attempted: (context) => {
-    const jobId = stringFromInput(context, ["job_id"])
-    const requestedTrack = displayValue(context.input?.track)
-    const action = requestedTrack ? i18n.t("chat:mutation_set_delivery_track", { track: requestedTrack }) : i18n.t("chat:mutation_clear_delivery_track_default")
-    return jobId ? i18n.t("chat:mutation_action_for_job", { action, id: jobId }) : action
-  },
-  retrySafety: "caution",
-  recovery: i18n.t("chat:mutation_delivery_track_recovery")
+function failureConfig(): ToolFailureConfig {
+  return {
+    title: i18n.t("chat:mutation_delivery_track_selection"),
+    attempted: (context) => {
+      const jobId = stringFromInput(context, ["job_id"])
+      const requestedTrack = displayValue(context.input?.track)
+      const action = requestedTrack
+        ? i18n.t("chat:mutation_set_delivery_track", { track: requestedTrack })
+        : i18n.t("chat:mutation_clear_delivery_track_default")
+      return jobId ? i18n.t("chat:mutation_action_for_job", { action, id: jobId }) : action
+    },
+    retrySafety: "caution",
+    recovery: i18n.t("chat:mutation_delivery_track_recovery")
+  }
 }
 
 function trackLabel(track: string | null) {
@@ -41,14 +45,14 @@ function parseResult(context: ToolCardContext): SelectTrackResult | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (toolFailureDetected(context)) return toolFailureCollapsedSummary(context, failureConfig)
+  if (toolFailureDetected(context)) return toolFailureCollapsedSummary(context, failureConfig())
   const result = parseResult(context)
   if (!result) return null
   return `JOB-${result.jobId}: ${trackLabel(result.previousTrack)} → ${trackLabel(result.storedTrack)}`
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (toolFailureDetected(context)) return <ToolFailureSummaryCard context={context} config={failureConfig} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard context={context} config={failureConfig()} />
   const result = parseResult(context)
   if (!result) return null
 
@@ -76,25 +80,33 @@ const selectJobDeliveryTrackToolCard: ToolCardRenderer = {
 export const examples: ToolCardExample[] = [
   {
     id: "configured_track",
-    label: i18n.t("chat:mutation_example_configured_track"),
+    get label() {
+      return i18n.t("chat:mutation_example_configured_track")
+    },
     input: { job_id: 4225, track: "staging" },
     parsedResult: { job_id: 4225, previous_delivery_track: null, delivery_track: "staging", resolved_delivery_track: "staging" }
   },
   {
     id: "cleared_to_default",
-    label: i18n.t("chat:mutation_example_cleared_track"),
+    get label() {
+      return i18n.t("chat:mutation_example_cleared_track")
+    },
     input: { job_id: 4225, track: "" },
     parsedResult: { job_id: 4225, previous_delivery_track: "staging", delivery_track: null, resolved_delivery_track: "default" }
   },
   {
     id: "unconfigured_fallback",
-    label: i18n.t("chat:mutation_example_fallback_track"),
+    get label() {
+      return i18n.t("chat:mutation_example_fallback_track")
+    },
     input: { job_id: 4225, track: "canary" },
     parsedResult: { job_id: 4225, previous_delivery_track: "staging", delivery_track: "canary", resolved_delivery_track: "default" }
   },
   {
     id: "closed_job_error",
-    label: i18n.t("chat:mutation_example_closed_job_error"),
+    get label() {
+      return i18n.t("chat:mutation_example_closed_job_error")
+    },
     input: { job_id: 4225, track: "staging" },
     resultBody: "Error: job is not open",
     resultError: true

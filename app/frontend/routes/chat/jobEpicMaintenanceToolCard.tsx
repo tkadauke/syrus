@@ -51,8 +51,12 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   reopen_job: {
     toolName: "reopen_job",
     subjectKind: "job",
-    actionLabel: i18n.t("chat:ops_reopen_job_298406"),
-    verb: i18n.t("chat:ops_reopen_requested_316246")
+    get actionLabel() {
+      return i18n.t("chat:ops_reopen_job_298406")
+    },
+    get verb() {
+      return i18n.t("chat:ops_reopen_requested_316246")
+    }
   },
   poll_job_feedback: {
     toolName: "poll_job_feedback",
@@ -102,8 +106,12 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   add_epic_dependency: {
     toolName: "add_epic_dependency",
     subjectKind: "epic",
-    actionLabel: i18n.t("chat:ops_add_epic_dependency_c33b9d"),
-    verb: i18n.t("chat:ops_dependency_added_cfef73")
+    get actionLabel() {
+      return i18n.t("chat:ops_add_epic_dependency_c33b9d")
+    },
+    get verb() {
+      return i18n.t("chat:ops_dependency_added_cfef73")
+    }
   },
   remove_epic_dependency: {
     toolName: "remove_epic_dependency",

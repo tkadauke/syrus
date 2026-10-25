@@ -16,7 +16,9 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "opened",
-    label: i18n.t("chat:mutation_example_opened_coding_mode"),
+    get label() {
+      return i18n.t("chat:mutation_example_opened_coding_mode")
+    },
     input: { job_id: 4225 },
     parsedResult: {
       job_id: 4225,
@@ -29,7 +31,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error",
-    label: i18n.t("chat:mutation_example_open_failed"),
+    get label() {
+      return i18n.t("chat:mutation_example_open_failed")
+    },
     input: { job_id: 4225 },
     resultBody: "The job cannot be opened in Coding Mode.",
     resultError: true

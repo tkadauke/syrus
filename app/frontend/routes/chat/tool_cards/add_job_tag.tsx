@@ -24,18 +24,32 @@ export default addJobTagToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "resolved_from_tag_list",
-    label: i18n.t("chat:mutation_example_tag_added"),
-    description: i18n.t("chat:mutation_example_tag_resolved_description"),
+    get label() {
+      return i18n.t("chat:mutation_example_tag_added")
+    },
+    get description() {
+      return i18n.t("chat:mutation_example_tag_resolved_description")
+    },
     input: { job_id: 7, tag_id: 10 },
     parsedResult: { success: true },
     priorResults: { list_tags: { tags: [{ id: 10, name: "area:ui", color: "blue", job_ids: [] }] } }
   },
   {
     id: "unknown_tag_error",
-    label: i18n.t("chat:mutation_example_unknown_tag"),
+    get label() {
+      return i18n.t("chat:mutation_example_unknown_tag")
+    },
     input: { job_id: 7, tag_id: 99 },
     parsedResult: { error: "tag not found for this user: 99" },
     resultError: true
   },
-  { id: "pending", label: i18n.t("chat:tool_card_example_pending"), input: { job_id: 7, tag_id: 10 }, resultBody: "", resultSettled: false }
+  {
+    id: "pending",
+    get label() {
+      return i18n.t("chat:tool_card_example_pending")
+    },
+    input: { job_id: 7, tag_id: 10 },
+    resultBody: "",
+    resultSettled: false
+  }
 ]

@@ -49,7 +49,9 @@ export default removePinnedContextToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "removed_markdown",
-    label: i18n.t("chat:mutation_example_removed_markdown"),
+    get label() {
+      return i18n.t("chat:mutation_example_removed_markdown")
+    },
     parsedResult: {
       chat_id: 7,
       pinned_context: null,
@@ -60,7 +62,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "nothing_pinned",
-    label: i18n.t("chat:mutation_example_nothing_pinned"),
+    get label() {
+      return i18n.t("chat:mutation_example_nothing_pinned")
+    },
     resultBody: "No pinned context exists for this chat.",
     resultError: true,
     sourceType: "codex"

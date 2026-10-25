@@ -22,11 +22,13 @@ type SubmitCodingChangesResult = {
   autoConfirmed: boolean
 }
 
-const failureConfig: ToolFailureConfig = {
-  title: i18n.t("chat:mutation_submit_coding_changes"),
-  attempted: (context) => stringFromInput(context, ["title"]) || i18n.t("chat:mutation_submit_coding_changes"),
-  retrySafety: "caution",
-  recovery: i18n.t("chat:mutation_submit_coding_recovery")
+function failureConfig(): ToolFailureConfig {
+  return {
+    title: i18n.t("chat:mutation_submit_coding_changes"),
+    attempted: (context) => stringFromInput(context, ["title"]) || i18n.t("chat:mutation_submit_coding_changes"),
+    retrySafety: "caution",
+    recovery: i18n.t("chat:mutation_submit_coding_recovery")
+  }
 }
 
 function parseResult(context: ToolCardContext): SubmitCodingChangesResult | null {
@@ -51,7 +53,7 @@ function parseResult(context: ToolCardContext): SubmitCodingChangesResult | null
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig())
   if (failureSummary) return failureSummary
 
   const result = parseResult(context)
@@ -88,7 +90,7 @@ function WrappingValue({ label, value, mono = false }: { label: string; value: s
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig()} context={context} />
 
   const result = parseResult(context)
   if (!result) return null
@@ -138,7 +140,9 @@ export default submitCodingChangesToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "pending_markdown_submission",
-    label: i18n.t("chat:mutation_example_pending_submission"),
+    get label() {
+      return i18n.t("chat:mutation_example_pending_submission")
+    },
     input: {
       repository_id: 12,
       branch: "syrus/chat-42-handoff-7",
@@ -149,13 +153,17 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "auto_confirmed_submission",
-    label: i18n.t("chat:mutation_example_auto_confirmed_submission"),
+    get label() {
+      return i18n.t("chat:mutation_example_auto_confirmed_submission")
+    },
     input: { repository_id: 12, branch: "syrus/chat-42-handoff-7", title: "Add dark mode", description: "Adds theme controls." },
     parsedResult: { pending_action_id: 89, state: "confirming", message: "Submit coding changes was auto-confirmed by the active goal policy." }
   },
   {
     id: "submission_error",
-    label: i18n.t("chat:mutation_example_submission_error"),
+    get label() {
+      return i18n.t("chat:mutation_example_submission_error")
+    },
     input: { repository_id: 12, branch: "main", title: "Invalid submission" },
     parsedResult: { error: { message: "Branch must contain committed changes." } },
     resultError: true

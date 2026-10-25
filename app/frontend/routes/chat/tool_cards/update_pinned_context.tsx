@@ -43,14 +43,18 @@ export default updatePinnedContextToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "updated_markdown",
-    label: i18n.t("chat:mutation_example_updated_markdown"),
+    get label() {
+      return i18n.t("chat:mutation_example_updated_markdown")
+    },
     input: { content: "Remember **JOB-42** and https://example.test/runbook" },
     parsedResult: { pinned_context: "Remember **JOB-42** and https://example.test/runbook", message: "Pinned context updated.", chat_id: 7 },
     sourceType: "generic"
   },
   {
     id: "validation_error",
-    label: i18n.t("chat:tool_card_example_validation_error"),
+    get label() {
+      return i18n.t("chat:tool_card_example_validation_error")
+    },
     input: { content: " " },
     resultBody: "content is required",
     resultError: true,
