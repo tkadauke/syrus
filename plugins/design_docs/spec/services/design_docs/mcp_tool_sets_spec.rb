@@ -165,6 +165,34 @@ RSpec.describe "DesignDocs MCP tool sets" do
       expect(message.reload.pending_action_id).to eq(group.chat_pending_actions.order(:id).first.id)
     end
 
+    it "batch-loads document visibility and preview associations without per-target selects" do
+      docs = 8.times.map { |index| create_design_doc(title: "Design #{index + 1}") }
+
+      queries = capture_sql do
+        response = call_tool(
+          chat_server,
+          "archive_design_docs",
+          doc_refs: docs.map(&:display_id),
+          reason: "Completed designs"
+        )
+        expect(response.dig(:result, :isError)).to be_falsey
+      end
+      selects = queries.grep(/\ASELECT\b/i)
+
+      %w[
+        design_docs
+        design_doc_versions
+        design_doc_threads
+        design_doc_comments
+        design_doc_suggestions
+        design_doc_repositories
+      ].each do |table|
+        matching = selects.grep(/\ASELECT [`"]?#{table}[`"]?\.\* FROM/i)
+        expect(matching.size).to be <= 1, "expected at most one SELECT from #{table}, got:\n#{matching.join("\n")}"
+      end
+      expect(selects.grep(/COUNT\([^)]*\).*\bFROM [`"]?design_doc_(?:threads|comments|suggestions|repositories)[`"]?/i)).to be_empty
+    end
+
     it "preflights visibility and authorization for every target before creating a group" do
       allowed = create_design_doc(title: "Allowed")
       inaccessible = create_design_doc(user: collaborator, repo: nil, title: "Hidden", visibility: "private")
