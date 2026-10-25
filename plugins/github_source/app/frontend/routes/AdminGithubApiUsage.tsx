@@ -5,8 +5,10 @@ import {
   AdminEventLogTable,
   AdminEventPageShell,
   AdminEventPanelMessage,
+  type AdminEventFilterField,
   type AdminEventLogTableColumn
 } from "@app/components/AdminEventLogPanel"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 import { fetchGithubApiUsage, type GithubApiUsageOperationRow, type GithubApiUsageRepositoryRow } from "../api/githubApiUsage"
 import { Button } from "@app/components/Button"
 import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
@@ -37,6 +39,26 @@ function time(value: string | null | undefined) {
   return new Date(value).toLocaleString()
 }
 
+function localizeFilterSchema(schema: FilterSchemaField[] | undefined, fields: AdminEventFilterField[]) {
+  if (!schema) return undefined
+
+  const localizedFields = new Map(fields.map((field) => [field.name, field]))
+  return schema.map((schemaField) => {
+    const localizedField = localizedFields.get(schemaField.field)
+    if (!localizedField) return schemaField
+
+    const localizedOptions = new Map(localizedField.options?.map((option) => [option.value, option.label]))
+    return {
+      ...schemaField,
+      label: localizedField.label,
+      values: schemaField.values?.map((option) => {
+        if (typeof option === "string") return option
+        return { ...option, label: localizedOptions.get(String(option.value)) ?? option.label }
+      })
+    }
+  })
+}
+
 export default function AdminGithubApiUsage() {
   const { t } = useT("github_source")
   const location = useLocation()
@@ -48,6 +70,32 @@ export default function AdminGithubApiUsage() {
     refetchInterval: 60_000
   })
   const payload = query.data
+  const fields: AdminEventFilterField[] = [
+    {
+      name: "hours",
+      label: t("api_usage.filters.window"),
+      defaultValue: "24",
+      options: [
+        { label: t("api_usage.filters.one_hour"), value: "1" },
+        { label: t("api_usage.filters.six_hours"), value: "6" },
+        { label: t("api_usage.filters.twenty_four_hours"), value: "24" },
+        { label: t("api_usage.filters.three_days"), value: "72" },
+        { label: t("api_usage.filters.seven_days"), value: "168" }
+      ]
+    },
+    { name: "operation", label: t("api_usage.filters.operation"), placeholder: "pull_request" },
+    { name: "resource", label: t("api_usage.filters.resource"), placeholder: "core" },
+    { name: "auth_source", label: t("api_usage.filters.auth_source"), placeholder: "pat" },
+    { name: "credential_key", label: t("api_usage.filters.credential_key"), placeholder: "user:1" },
+    { name: "repository_id", label: t("api_usage.filters.repository_id"), inputMode: "numeric" },
+    { name: "repo_slug", label: t("api_usage.filters.repository_slug"), placeholder: "owner/name" },
+    { name: "user_id", label: t("api_usage.filters.user_id"), inputMode: "numeric" },
+    { name: "installation_id", label: t("api_usage.filters.installation_id"), inputMode: "numeric" },
+    { name: "status", label: t("api_usage.filters.last_status"), inputMode: "numeric" },
+    { name: "rate_limited", label: t("api_usage.filters.rate_limited"), options: [{ label: t("api_usage.filters.yes"), value: "true" }] },
+    { name: "bucket_since", label: t("api_usage.filters.bucket_since"), placeholder: "1h" },
+    { name: "last_seen_since", label: t("api_usage.filters.last_seen_since"), placeholder: "1h" }
+  ]
 
   function navigateSearch(params: URLSearchParams) {
     const next = params.toString()
@@ -69,33 +117,8 @@ export default function AdminGithubApiUsage() {
       <AdminEventFilterBar
         buildLink={buildFlatFilterLink(FILTER_FIELDS)}
         filter={payload?.filter}
-        filterSchema={payload?.filter_schema}
-        fields={[
-          {
-            name: "hours",
-            label: t("api_usage.filters.window"),
-            defaultValue: "24",
-            options: [
-              { label: t("api_usage.filters.one_hour"), value: "1" },
-              { label: t("api_usage.filters.six_hours"), value: "6" },
-              { label: t("api_usage.filters.twenty_four_hours"), value: "24" },
-              { label: t("api_usage.filters.three_days"), value: "72" },
-              { label: t("api_usage.filters.seven_days"), value: "168" }
-            ]
-          },
-          { name: "operation", label: t("api_usage.filters.operation"), placeholder: "pull_request" },
-          { name: "resource", label: t("api_usage.filters.resource"), placeholder: "core" },
-          { name: "auth_source", label: t("api_usage.filters.auth_source"), placeholder: "pat" },
-          { name: "credential_key", label: t("api_usage.filters.credential_key"), placeholder: "user:1" },
-          { name: "repository_id", label: t("api_usage.filters.repository_id"), inputMode: "numeric" },
-          { name: "repo_slug", label: t("api_usage.filters.repository_slug"), placeholder: "owner/name" },
-          { name: "user_id", label: t("api_usage.filters.user_id"), inputMode: "numeric" },
-          { name: "installation_id", label: t("api_usage.filters.installation_id"), inputMode: "numeric" },
-          { name: "status", label: t("api_usage.filters.last_status"), inputMode: "numeric" },
-          { name: "rate_limited", label: t("api_usage.filters.rate_limited"), options: [{ label: t("api_usage.filters.yes"), value: "true" }] },
-          { name: "bucket_since", label: t("api_usage.filters.bucket_since"), placeholder: "1h" },
-          { name: "last_seen_since", label: t("api_usage.filters.last_seen_since"), placeholder: "1h" }
-        ]}
+        filterSchema={localizeFilterSchema(payload?.filter_schema, fields)}
+        fields={fields}
         search={search}
         searchLabel={t("api_usage.filters.search")}
         clearLabel={t("api_usage.filters.clear")}
