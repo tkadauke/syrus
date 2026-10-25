@@ -727,6 +727,7 @@ export type ChatSidebarSettings = {
   chat_types: ChatType[]
   sort_by: ChatSidebarSortBy
   show_empty_groups: boolean
+  unread_only: boolean
   per_group: ChatSidebarPerGroup
 }
 
@@ -736,6 +737,7 @@ export const DEFAULT_CHAT_SIDEBAR_SETTINGS: ChatSidebarSettings = {
   chat_types: [],
   sort_by: "last_activity",
   show_empty_groups: false,
+  unread_only: false,
   per_group: 10
 }
 
@@ -1087,7 +1089,7 @@ export function unhideChat(path: string) {
   return patchJson<{ message: string; chat: ChatNavRecord }>(path)
 }
 
-function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupOffset?: number | null) {
+function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupOffset?: number | null, activeChatId?: number | null) {
   const search = new URLSearchParams()
   if (groupOffset != null && groupOffset > 0) search.set("group_offset", String(groupOffset))
   if (!settings) return search
@@ -1097,17 +1099,21 @@ function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupO
   if (settings.chat_types && settings.chat_types.length > 0) search.set("chat_types", settings.chat_types.join(","))
   if (settings.sort_by && settings.sort_by !== "last_activity") search.set("sort_by", settings.sort_by)
   if (settings.show_empty_groups === true) search.set("show_empty_groups", "1")
+  if (settings.unread_only === true) {
+    search.set("unread_only", "1")
+    if (activeChatId != null) search.set("active_chat_id", String(activeChatId))
+  }
   if (settings.per_group && settings.per_group !== 10) search.set("per_group", String(settings.per_group))
   return search
 }
 
-export function fetchChats(settings?: Partial<ChatSidebarSettings>) {
-  const search = chatSidebarSearchParams(settings).toString()
+export function fetchChats(settings?: Partial<ChatSidebarSettings>, activeChatId?: number | null) {
+  const search = chatSidebarSearchParams(settings, null, activeChatId).toString()
   return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
 }
 
-export function fetchChatGroupsPage(settings: Partial<ChatSidebarSettings>, groupOffset: number) {
-  const search = chatSidebarSearchParams(settings, groupOffset).toString()
+export function fetchChatGroupsPage(settings: Partial<ChatSidebarSettings>, groupOffset: number, activeChatId?: number | null) {
+  const search = chatSidebarSearchParams(settings, groupOffset, activeChatId).toString()
   return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
 }
 
@@ -1122,9 +1128,10 @@ export function fetchHiddenChats(page = 1) {
 export function fetchMoreChatsForGroup(
   group: Pick<ChatGroupRecord, "group_by" | "group_value" | "repository_id">,
   beforeChatId: number,
-  settings?: Partial<ChatSidebarSettings>
+  settings?: Partial<ChatSidebarSettings>,
+  activeChatId?: number | null
 ) {
-  const search = chatSidebarSearchParams(settings)
+  const search = chatSidebarSearchParams(settings, null, activeChatId)
   const groupBy = group.group_by || "repository"
   const groupValue = group.group_value ?? (group.repository_id == null ? "general" : String(group.repository_id))
   search.set("group_by", groupBy)

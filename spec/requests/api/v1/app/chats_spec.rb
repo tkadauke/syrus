@@ -487,6 +487,20 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.to_s).not_to include(hidden_chat.title)
   end
 
+  it "filters recent chat groups to unread chats while retaining the active read chat" do
+    sign_in_as(user)
+    unread_chat = ChatSession.create!(user: user, repository: repository, title: "Unread chat", last_message_at: Time.current, last_read_at: 1.hour.ago)
+    active_read_chat = ChatSession.create!(user: user, repository: repository, title: "Open read chat", last_message_at: 2.hours.ago, last_read_at: 1.hour.ago)
+    other_read_chat = ChatSession.create!(user: user, repository: repository, title: "Other read chat", last_message_at: 3.hours.ago, last_read_at: 1.hour.ago)
+
+    get "/api/v1/app/chats", params: { unread_only: "1", active_chat_id: active_read_chat.id }
+
+    expect(response).to have_http_status(:ok)
+    chat_ids = parse_body["groups"].flat_map { |group| group["chats"].map { |chat| chat["id"] } }
+    expect(chat_ids).to contain_exactly(unread_chat.id, active_read_chat.id)
+    expect(chat_ids).not_to include(other_read_chat.id)
+  end
+
   it "includes every repository chat group instead of only the global top twenty" do
     sign_in_as(user)
     old_repo = Factories.repository(user: user, owner: "acme", name: "old")

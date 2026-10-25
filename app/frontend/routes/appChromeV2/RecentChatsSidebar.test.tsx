@@ -220,6 +220,27 @@ describe("RecentChatsSidebar settings", () => {
     vi.unstubAllGlobals()
   })
 
+  it("filters to unread chats while keeping the open chat in the request", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload()))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/chats/42"]}>
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Recent chats settings" }))
+    fireEvent.click(screen.getByRole("switch", { name: "Unread only" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats?unread_only=1&active_chat_id=42", expect.anything())
+    })
+    expect(screen.getByRole("switch", { name: "Unread only" })).toHaveAttribute("aria-checked", "true")
+  })
+
   it("refetches with selected settings and uses the same page size for show more", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
