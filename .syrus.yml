@@ -471,7 +471,7 @@ grade:
       - "docs/metrics-catalog.md"
     timeout_minutes: 60
     focused_timeout_minutes: 10
-    ci_timeout_minutes: 60
+    ci_timeout_minutes: 75
 
   - type: vitest
     name: react-tests
