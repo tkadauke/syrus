@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import adminStuckJobsToolCard from "./admin_stuck_jobs"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -32,6 +33,20 @@ describe("admin_stuck_jobs tool card", () => {
 
     render(<>{adminStuckJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByText("Page 2 of 4")).toBeInTheDocument()
+  })
+
+  it("localizes pagination and headings", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const parsedResult = { items: [{ kind: "waiting" }], pagination: { page: 2, total_pages: 4, total_items: 8 } }
+      render(<>{adminStuckJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+      expect(screen.getByText("Seite 2 von 4")).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Aufmerksamkeit" })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Nächste Aktion" })).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("renders the Job link, kind, attention state, detail, step, age, and recommended action", () => {

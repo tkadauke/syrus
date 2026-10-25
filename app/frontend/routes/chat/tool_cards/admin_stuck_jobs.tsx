@@ -76,35 +76,31 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <>
-      {page && totalPages ? (
-        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-          Page {page} of {totalPages}
-        </p>
-      ) : null}
+      {page && totalPages ? <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">{i18n.t("chat:admin_stuck_page", { page, totalPages })}</p> : null}
       <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
               <th className="px-2 py-1 font-semibold" scope="col">
-                Job
+                {i18n.t("chat:admin_column_job")}
               </th>
               <th className="px-2 py-1 font-semibold" scope="col">
-                Kind
+                {i18n.t("chat:admin_column_kind")}
               </th>
               <th className="px-2 py-1 font-semibold" scope="col">
-                Attention
+                {i18n.t("chat:admin_stuck_attention")}
               </th>
               <th className="px-2 py-1 font-semibold" scope="col">
-                Detail
+                {i18n.t("chat:admin_stuck_detail")}
               </th>
               <th className="px-2 py-1 font-semibold" scope="col">
-                Step
+                {i18n.t("chat:ops_step_dc416e")}
               </th>
               <th className="px-2 py-1 font-semibold" scope="col">
-                Age
+                {i18n.t("chat:admin_stuck_age")}
               </th>
               <th className="px-2 py-1 font-semibold" scope="col">
-                Next action
+                {i18n.t("chat:admin_stuck_next_action")}
               </th>
             </tr>
           </thead>

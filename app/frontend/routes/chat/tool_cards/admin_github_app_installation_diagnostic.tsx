@@ -282,7 +282,7 @@ function renderExpanded(context: ToolCardContext) {
   const syncError = [card.sync.errorClass, card.sync.error].filter(Boolean).join(": ")
   return (
     <CardShell>
-      <Row label={i18n.t("chat:ops_requested_repository_82c600")} value={displayValue(context.input?.repository) ?? "All active repositories"} />
+      <Row label={i18n.t("chat:ops_requested_repository_82c600")} value={displayValue(context.input?.repository) ?? i18n.t("chat:admin_all_active_repositories")} />
       <div>
         <SectionLabel>{i18n.t("chat:ops_github_app_registration_96dbd7")}</SectionLabel>
         <dl className="grid gap-1 sm:grid-cols-2">

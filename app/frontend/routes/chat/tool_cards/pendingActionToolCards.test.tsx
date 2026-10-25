@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import retryJobCard from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
@@ -143,6 +144,19 @@ describe("pending action tool card family", () => {
     render(<>{adminKillProcessCard.renderExpanded(context("admin_kill_process", parsedResult))}</>)
     expect(screen.getByText("Pending action group #88")).toBeInTheDocument()
     expect(screen.getByText("3 actions")).toBeInTheDocument()
+  })
+
+  it("resolves admin pending-action labels after a locale switch", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const parsedResult = { pending_action_id: 501, pending_confirmation_id: 501, state: "pending", message: "Scheduling paused" }
+      render(<>{adminPauseUserSchedulingCard.renderExpanded({ ...context("admin_pause_user_scheduling", parsedResult), input: { user_id: 17 } })}</>)
+
+      expect(screen.getByText("Benutzer")).toBeInTheDocument()
+      expect(screen.queryByText("User")).not.toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("publishes catalog examples for linked targets, long Markdown, and tool errors", () => {

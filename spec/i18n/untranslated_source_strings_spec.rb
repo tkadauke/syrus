@@ -505,6 +505,42 @@ RSpec.describe "Untranslated source strings", type: :unit do
     expect(chat_wide_exemptions).to be_empty
   end
 
+  it "keeps reviewed admin cards free of the literal copy missed by the conservative scanner" do
+    literals_by_path = {
+      "app/frontend/routes/chat/tool_cards/admin_maintenance_tasks.tsx" => [ "Task ID", "Definition", "Current step", "Requested by" ],
+      "app/frontend/routes/chat/tool_cards/admin_mcp_tool_usage.tsx" => [ "Volume priorities", "Missing high-volume cards", "Unused advertised tools" ],
+      "app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx" => [ "Attention", "Next action" ]
+    }
+
+    literals_by_path.each do |relative_path, literals|
+      source = Rails.root.join(relative_path).read
+      literals.each do |literal|
+        expect(source).not_to match(/["']#{Regexp.escape(literal)}["']/), "#{relative_path} still hard-codes #{literal.inspect}"
+      end
+    end
+  end
+
+  it "translates representative admin-card copy in German and Latin" do
+    locales = %w[de la].to_h do |locale|
+      [ locale, JSON.parse(Rails.root.join("app/frontend/i18n/locales/#{locale}/chat.json").read) ]
+    end
+    english = JSON.parse(Rails.root.join("app/frontend/i18n/locales/en/chat.json").read)
+    keys = %w[
+      ops_no_maintenance_tasks_found_77c53e
+      ops_no_mcp_tool_calls_found_for_this_window_d0d947
+      ops_fleet_needs_attention_large_result_a725ac
+      ops_operational_log_search_failed_f4e50b
+      ops_filter_log_rows_840891
+      ops_no_stuck_jobs_found_de4657
+    ]
+
+    locales.each do |locale, translations|
+      keys.each do |key|
+        expect(translations.fetch(key)).not_to eq(english.fetch(key)), "#{locale}.chat.#{key} must be translated"
+      end
+    end
+  end
+
   it "keeps legacy path-level debt exemptions retired" do
     expect(self).not_to respond_to(:legacy_untranslated_paths)
     expect(self).not_to respond_to(:legacy_untranslated_literals)
