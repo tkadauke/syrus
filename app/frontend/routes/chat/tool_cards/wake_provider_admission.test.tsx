@@ -77,8 +77,25 @@ describe("wake_provider_admission tool card", () => {
       render(<>{card.renderExpanded(context(result, { input: { provider: "codex", reason: "Recovered." } }))}</>)
       expect(screen.getByText("Benutzerbereich")).toBeInTheDocument()
       expect(screen.getByText("Alle Benutzer")).toBeInTheDocument()
+      expect(screen.getByText("Ziele und Parameter")).toBeInTheDocument()
+      expect(screen.getAllByText("Grund").length).toBeGreaterThan(0)
+      expect(screen.getByText("Voraussichtliche Auswirkung")).toBeInTheDocument()
       expect(screen.getByText("Workflows in der Warteschlange").nextElementSibling).toHaveTextContent("12")
       expect(screen.getByText("Verzögerte automatische Wiederholungen").nextElementSibling).toHaveTextContent("3")
+      expect(screen.getByText("12 wartende codex-Workflows und 3 verzögerte automatische Wiederholungen aufwecken?")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
+
+  it("uses count-driven singular action copy", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const singularResult = {
+        ...result,
+        observed_preview: { ...result.observed_preview, workflow_count: 1, auto_retry_count: 1 }
+      }
+      expect(card.collapsedSummary?.(context(singularResult))).toBe("Einen wartenden codex-Workflow und 1 verzögerte automatische Wiederholung aufwecken?")
     } finally {
       await i18n.changeLanguage("en")
     }
