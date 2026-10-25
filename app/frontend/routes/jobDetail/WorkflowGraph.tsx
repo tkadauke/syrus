@@ -1615,7 +1615,7 @@ function StepTextReviewPanel({
                           approved: iteration.vote_breakdown.approved,
                           needsWork: iteration.vote_breakdown.needs_work,
                           skipped: iteration.vote_breakdown.skipped,
-                          required: iteration.vote_breakdown.required_approvals
+                          count: iteration.vote_breakdown.required_approvals
                         })}
                       </span>
                     ) : null}

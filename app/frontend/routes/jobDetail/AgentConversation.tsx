@@ -211,7 +211,7 @@ function PanelRoundCard({ nodes, onOpenTranscript, transcriptNodeId }: { nodes: 
           {verdict ? <SmallPill tone={verdict === "needs_work" ? "warning" : "success"}>{t(`adversarial_review_verdict_${verdict}`, { defaultValue: verdict })}</SmallPill> : null}
         </span>
         <span className="mt-1 block text-xs text-text-secondary">
-          {breakdown ? t("review_panel_vote_breakdown", { approved: breakdown.approved, needsWork: breakdown.needs_work, skipped: breakdown.skipped, required: breakdown.required_approvals }) : t("review_panel_members", { count: nodes.length })}
+          {breakdown ? t("review_panel_vote_breakdown", { approved: breakdown.approved, needsWork: breakdown.needs_work, skipped: breakdown.skipped, count: breakdown.required_approvals }) : t("review_panel_members", { count: nodes.length })}
         </span>
       </summary>
       <div className="divide-y divide-border border-t border-border">
