@@ -393,7 +393,7 @@ module App
       def add_agent_session_node(step, run)
         id = "agent_session-#{run.id}"
         outcome = review_or_summary_outcome(step, run)
-        panel_id = step.details.to_h["panel_id"].presence
+        panel_id = step.details.to_h["panel_member"] ? step.details.to_h["panel_id"].presence : nil
         aggregate = panel_id && Array(@workflow.artifact(REVIEW_ARTIFACT_KEYS[step.kind])).find do |entry|
           entry.is_a?(Hash) && entry["panel_id"] == panel_id && entry["iteration"].to_i == step.iteration.to_i && entry["aggregate"]
         end
@@ -408,6 +408,7 @@ module App
           run_id: run.id,
           role: AgentRole.for_step_kind(step.kind),
           agent_provider: run.agent_provider,
+          agent_model: run.model,
           iteration: step.iteration,
           label: Step::Kind.label_for(step.kind),
           state: run.state,
@@ -419,7 +420,10 @@ module App
             "verdict" => outcome[:verdict],
             "panel_id" => panel_id,
             "panel_verdict" => aggregate&.dig("verdict"),
-            "consensus" => aggregate&.dig("consensus")
+            "consensus" => aggregate&.dig("consensus"),
+            "vote_breakdown" => aggregate&.dig("vote_breakdown"),
+            "dropped_members" => aggregate&.dig("dropped_members"),
+            "non_blocking_findings" => aggregate&.dig("non_blocking_findings")
           }.compact
         }
         id

@@ -111,6 +111,34 @@ describe("AgentConversationTab", () => {
     expect(sidebar).not.toBeInTheDocument()
   })
 
+  it("renders panel members as one expandable consensus round", async () => {
+    const panel = { panel_id: "panel-1", panel_verdict: "approved", vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 1, min_members: 2 } }
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
+      nodes: [
+        {
+          id: "agent_session-601", kind: "agent_session", workflow_id: 9, trigger_kind: "initial", step_id: 61,
+          step_kind: "adversarial_review", run_id: 601, role: "workflow:adversarial_reviewer", agent_provider: "claude", agent_model: "sonnet",
+          iteration: 1, label: "Adversarial review", state: "succeeded", started_at: null, finished_at: null, agentic: true,
+          summary: "Clean.", detail: { ...panel, verdict: "approved" }
+        },
+        {
+          id: "agent_session-602", kind: "agent_session", workflow_id: 9, trigger_kind: "initial", step_id: 62,
+          step_kind: "adversarial_review", run_id: 602, role: "workflow:adversarial_reviewer", agent_provider: "codex", agent_model: "gpt-5",
+          iteration: 1, label: "Adversarial review", state: "succeeded", started_at: null, finished_at: null, agentic: true,
+          summary: "Minor concern.", detail: { ...panel, verdict: "needs_work" }
+        }
+      ]
+    })))
+
+    renderTab()
+
+    expect(await screen.findByText("Adversarial review · Round 1")).toBeInTheDocument()
+    expect(screen.getByText(/1 approved, 1 needs work, 0 skipped/)).toBeInTheDocument()
+    expect(screen.getByText("claude / sonnet")).toBeInTheDocument()
+    expect(screen.getByText("codex / gpt-5")).toBeInTheDocument()
+    expect(document.querySelectorAll("details")).toHaveLength(1)
+  })
+
   it("renders a deterministic_check card and shows raw output only, no reasoning framing", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
       nodes: [

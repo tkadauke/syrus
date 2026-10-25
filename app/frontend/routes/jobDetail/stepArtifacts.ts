@@ -35,6 +35,7 @@ export function stepArtifactAdversarialReview(raw: unknown): JobAdversarialRevie
             : isRecord(obj.consensus) && typeof obj.consensus.at_least === "number"
               ? { at_least: obj.consensus.at_least }
               : null,
+        vote_breakdown: parseVoteBreakdown(obj.vote_breakdown),
         members,
         dropped_members: Array.isArray(obj.dropped_members) ? obj.dropped_members.flatMap(parsePanelMember) : [],
         non_blocking_findings: Array.isArray(obj.non_blocking_findings) ? obj.non_blocking_findings.flatMap(parsePanelFinding) : []
@@ -46,6 +47,13 @@ export function stepArtifactAdversarialReview(raw: unknown): JobAdversarialRevie
     }
   }
   return result.length > 0 ? result : null
+}
+
+function parseVoteBreakdown(raw: unknown) {
+  if (!isRecord(raw)) return null
+  const keys = ["approved", "needs_work", "skipped", "counted", "total", "required_approvals", "min_members"] as const
+  if (!keys.every((key) => typeof raw[key] === "number")) return null
+  return Object.fromEntries(keys.map((key) => [key, raw[key]])) as Record<(typeof keys)[number], number>
 }
 
 function isReviewVerdict(value: unknown): value is "approved" | "needs_work" | "skipped" {

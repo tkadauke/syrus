@@ -18,6 +18,7 @@ module Steps
         "panel_id" => details["panel_id"],
         "aggregate" => true,
         "verdict" => result.verdict,
+        "vote_breakdown" => result.breakdown,
         "votes" => votes.map { |vote| vote.slice("provider", "model", "verdict") },
         "consensus" => details["consensus"],
         "dropped_members" => details["dropped_members"],

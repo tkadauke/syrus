@@ -11,6 +11,10 @@ import { humanize } from "./stepModel"
 
 export type ConversationRow = AgentConversationNode[]
 
+export function isPanelConversationRow(row: ConversationRow): boolean {
+  return row.length > 0 && row.every((node) => detailString(node.detail || {}, "panel_id") != null)
+}
+
 function sortedKey(ids: string[] | undefined): string {
   if (!ids || ids.length === 0) return ""
   return [...ids].sort().join(",")

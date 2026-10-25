@@ -64,6 +64,10 @@ RSpec.describe App::AgentConversationPayload do
 
   it "matches panel verdicts to the member run that submitted them" do
     workflow = create_workflow
+    coordinator_step = create_step(
+      workflow: workflow, kind: "adversarial_review", position: 0,
+      details: { "panel_id" => "panel-1", "panel_execution" => { "panel_id" => "panel-1" } }
+    )
     claude_step = create_step(
       workflow: workflow, kind: "adversarial_review", position: 1,
       details: { "panel_member" => true, "panel_id" => "panel-1" }
@@ -72,6 +76,7 @@ RSpec.describe App::AgentConversationPayload do
       workflow: workflow, kind: "adversarial_review", position: 2,
       details: { "panel_member" => true, "panel_id" => "panel-1" }
     )
+    coordinator_run = create_run(step: coordinator_step, agent_provider: "claude")
     claude_run = create_run(step: claude_step, agent_provider: "claude")
     codex_run = create_run(step: codex_step, agent_provider: "codex")
     workflow.set_artifact!("adversarial_review_iterations", [
@@ -82,6 +87,7 @@ RSpec.describe App::AgentConversationPayload do
 
     payload = described_class.build(job: job)
 
+    expect(node(payload, "agent_session-#{coordinator_run.id}")[:detail]).not_to have_key("panel_id")
     expect(node(payload, "agent_session-#{claude_run.id}")).to include(summary: "Clean")
     expect(node(payload, "agent_session-#{claude_run.id}")[:detail]).to include("verdict" => "approved", "panel_verdict" => "approved")
     expect(node(payload, "agent_session-#{codex_run.id}")).to include(summary: "Concern")
