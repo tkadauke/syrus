@@ -805,7 +805,7 @@ describe("tool result rendering", () => {
     expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "README.md")
   })
 
-  it("keeps grouped tool summaries on one truncated row on narrow screens", () => {
+  it("wraps grouped tool summaries on narrow screens and truncates their detail", () => {
     const calls = [
       [1, "memory_id: 21", "Unpublished memory #21", false],
       [2, "memory_id: 999", "Memory unpublish failed: memory not found or not owned: 999", true],
@@ -830,8 +830,7 @@ describe("tool result rendering", () => {
     const detail = screen.getByText(/Unpublished memory #21/)
     const count = screen.getByText("3")
 
-    expect(summary).toHaveClass("flex-nowrap")
-    expect(summary).not.toHaveClass("flex-wrap")
+    expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
     expect(detail).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(detail).not.toHaveClass("basis-full", "break-words")
     expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
@@ -926,7 +925,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Fehlgeschlagen").parentElement).toHaveClass("bg-danger-surface")
   })
 
-  it("keeps an 18-call group on one ellipsized line at a 402px mobile viewport and preserves full expanded details", () => {
+  it("wraps an 18-call group at a mobile viewport and preserves full expanded details", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
     const detail = "a very long source path and query that must remain available after expansion"
@@ -949,8 +948,7 @@ describe("tool result rendering", () => {
     const metadata = screen.getByText(Array(18).fill(`A long result summary · ${detail}`).join(", "))
     expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(metadata).not.toHaveClass("basis-full", "break-words")
-    expect(metadata.closest("summary")).toHaveClass("flex-nowrap")
-    expect(metadata.closest("summary")).not.toHaveClass("flex-wrap")
+    expect(metadata.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
     expect(screen.getByText("Inspected 18 sources")).toBeVisible()
     expect(screen.getByText("Done")).toBeVisible()
     const count = screen.getByText("18")
@@ -1588,10 +1586,9 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const details = screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')
-    expect(details).toHaveClass("basis-full", "break-words", "[overflow-wrap:anywhere]")
-    expect(details).not.toHaveClass("sm:basis-auto")
-    expect(details.closest("summary")).toHaveClass("max-w-full", "flex-wrap")
-    expect(details.closest("summary")).not.toHaveClass("sm:flex-nowrap")
+    expect(details).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(details).not.toHaveClass("basis-full", "break-words")
+    expect(details.closest("summary")).toHaveClass("max-w-full", "flex-wrap", "sm:flex-nowrap")
     expect(details.closest("details")).toHaveClass("max-w-full", "overflow-hidden")
   })
 
@@ -2005,7 +2002,7 @@ describe("tool result rendering", () => {
     expect(summary).not.toHaveClass("shrink-0")
   })
 
-  it("keeps long registered-card summaries on the shared one-line collapsed row on mobile", () => {
+  it("wraps long registered-card summaries on mobile and keeps them truncated", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
     const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
@@ -2035,8 +2032,7 @@ describe("tool result rendering", () => {
     const resultSummary = screen.getByText(`${title} (running)`)
     expect(resultSummary).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(resultSummary).not.toHaveClass("order-2", "basis-full", "break-words", "pl-5")
-    expect(resultSummary.closest("summary")).toHaveClass("flex-nowrap")
-    expect(resultSummary.closest("summary")).not.toHaveClass("flex-wrap")
+    expect(resultSummary.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
