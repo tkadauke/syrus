@@ -7,7 +7,7 @@ import type { TFunction } from "i18next"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatJobSummary, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarAgentOption, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatType, type ChatsIndexPayload } from "../../api/chats"
+import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatJobSummary, type ChatMode, type ChatNavRecord, type ChatSidebarAgentOption, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatType, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -18,7 +18,7 @@ import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabili
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
-import { chatQueryKey } from "../Chat"
+import { useChatBookmarks } from "../chat/bookmarks"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
 const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
@@ -1025,16 +1025,9 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
   const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const active = chat.id === activeChatIdFromPath(location.pathname)
-  const queryKey = chatQueryKey(String(chat.id), search)
-  const cachedChatData = queryClient.getQueryData<ChatPayload>(queryKey)
-  const chatBookmarks = useQuery({
-    queryKey,
-    queryFn: () => fetchChat(String(chat.id), search),
-    enabled: open && !cachedChatData
-  })
-  const chatData = open ? cachedChatData ?? chatBookmarks.data : undefined
-  const bookmarks = chatData?.bookmarks ?? []
-  const loadingBookmarks = open && !chatData && chatBookmarks.isPending
+  const chatBookmarks = useChatBookmarks(chat.id, search, open)
+  const bookmarks = chatBookmarks.data?.bookmarks ?? []
+  const loadingBookmarks = open && chatBookmarks.isPending
   const currentUserIsOwner = chat.user_id === chat.current_user_id
 
   const markRead = useMutation({

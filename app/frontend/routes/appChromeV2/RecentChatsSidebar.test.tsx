@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ChatBookmark, ChatGoal, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
 import { jsonResponse } from "../../testSupport"
+import { applyAppEvent } from "../../lib/appEvents"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
@@ -1012,9 +1013,9 @@ describe("RecentChatsSidebar bookmarks menu", () => {
     queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
       groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
     }))
-    queryClient.setQueryData(["chats", String(chatId), ""], { bookmarks } as unknown as ChatPayload)
+    queryClient.setQueryData(["chat-bookmarks", String(chatId), ""], { bookmarks })
 
-    return render(
+    const view = render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/"]}>
           <RecentChatsSidebar
@@ -1027,6 +1028,7 @@ describe("RecentChatsSidebar bookmarks menu", () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
+    return { ...view, queryClient }
   }
 
   it("wraps bookmark list in a scrollable container when there are more than 6 bookmarks", () => {
@@ -1061,6 +1063,52 @@ describe("RecentChatsSidebar bookmarks menu", () => {
 
     const pinButton = screen.getByRole("button", { name: /pin/i })
     expect(pinButton.previousElementSibling).toHaveClass("border-t")
+  })
+
+  it("keeps a broadcast bookmark visible after the active chat payload is replaced", () => {
+    const { queryClient } = renderWithBookmarks([], 1)
+    queryClient.setQueryData(["chats", "1", ""], { bookmarks: [] } as unknown as ChatPayload)
+
+    applyAppEvent(queryClient, {
+      type: "chat_updated",
+      resource: "chat",
+      id: 1,
+      payload: {
+        action: "upsert_bookmark",
+        bookmark: { id: 8, label: "Resolved bookmark", chat_message_id: 14, anchor_message_id: 21 }
+      }
+    })
+    queryClient.setQueryData(["chats", "1", ""], { bookmarks: [] } as unknown as ChatPayload)
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Chat With Bookmarks" }))
+
+    expect(screen.getByRole("link", { name: "Resolved bookmark" })).toHaveAttribute("href", "/chats/1#message-21")
+  })
+
+  it("loads uncached bookmarks from the dedicated endpoint once", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      bookmarks: [{ id: 9, label: "Loaded bookmark", chat_message_id: 30, anchor_message_id: 31 }]
+    }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 2, title: "Uncached chat" })] })]
+    }))
+    queryClient.setQueryData(["chats", "2", ""], { bookmarks: [] } as unknown as ChatPayload)
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Uncached chat" }))
+
+    expect(await screen.findByRole("link", { name: "Loaded bookmark" })).toHaveAttribute("href", "/chats/2#message-31")
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/2/bookmarks", expect.anything())
+    fetchSpy.mockRestore()
   })
 })
 
