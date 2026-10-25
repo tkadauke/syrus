@@ -50,7 +50,7 @@ module Mcp::Tools
         group = create_pending_action_group!(server_context:, chat_session:, reason:, member_attributes: units.map { |unit|
           { action: "retire_terminal_work_unit", payload: { "work_unit_id" => unit.id }, requested_by: "agent", reason: reason }
         })
-        bulk_action_response(group:, message: "Retire #{units.size} terminal WorkUnits?")
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.retire_work_units", count: units.size))
       end
     end
   end

@@ -41,7 +41,7 @@ module Mcp::Tools
         group = create_pending_action_group!(server_context:, chat_session:, member_attributes: jobs.map { |job|
           { action: "poll_job_feedback", payload: { "job_id" => job.id }, requested_by: "agent" }
         })
-        bulk_action_response(group:, message: "Poll PR feedback for #{jobs.size} Jobs?")
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.poll_job_feedback", count: jobs.size))
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)
       end

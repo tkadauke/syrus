@@ -61,7 +61,7 @@ module Mcp::Tools
         group = create_pending_action_group!(server_context:, chat_session:, reason:, member_attributes: jobs.map { |job|
           { action: "force_state_transition", payload: { "job_id" => job.id, "event" => event.to_s }, requested_by: "agent", reason: reason }
         })
-        bulk_action_response(group:, message: "Apply #{event} to #{jobs.size} Jobs?")
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.force_state_transition", event: event, count: jobs.size))
       end
     end
   end

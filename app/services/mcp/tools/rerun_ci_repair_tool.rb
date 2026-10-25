@@ -63,7 +63,7 @@ module Mcp::Tools
           )
         end
         group = create_pending_action_group!(server_context:, chat_session:, reason:, member_attributes: attributes)
-        bulk_action_response(group:, message: "Rerun CI repair for #{jobs.size} Jobs?")
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.rerun_ci_repair", count: jobs.size))
       rescue ArgumentError => e
         Mcp::Tools.invalid(e.message)
       end

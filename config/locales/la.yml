@@ -3,6 +3,18 @@ la:
     errors:
       invalid_request: "Petitio invalida est."
       unavailable: "Haec actio ad tempus praesto non est."
+    mcp:
+      bulk_confirmation:
+        cleanup_workspaces: "%{count} spatia laboris workflow delere?"
+        cancel_stale_work: "Opera obsoleta pro %{count} Job abrogare?"
+        check_mergeability: "Facultatem coniungendi pro %{count} Job explorare?"
+        force_state_transition: "%{event} ad %{count} Job applicare?"
+        override_planned_execution: "Executionem destinatam pro %{count} Job mutare?"
+        poll_job_feedback: "Responsa PR pro %{count} Job requirere?"
+        rebase_jobs: "%{count} Job modo ordinario rebasare?"
+        repair_queue_affinity: "%{count} Run ex caudis mortuis una serie reficere?"
+        rerun_ci_repair: "Reparationem CI pro %{count} Job iterare?"
+        retire_work_units: "%{count} WorkUnit terminales removere?"
   hello: "Salve munde"
 
   time:

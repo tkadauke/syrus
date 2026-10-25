@@ -41,7 +41,7 @@ module Mcp::Tools
         group = create_pending_action_group!(server_context:, chat_session:, member_attributes: jobs.map { |job|
           { action: "check_job_mergeability", payload: { "job_id" => job.id }, requested_by: "agent" }
         })
-        bulk_action_response(group:, message: "Check mergeability for #{jobs.size} Jobs?")
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.check_mergeability", count: jobs.size))
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)
       end

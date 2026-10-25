@@ -45,7 +45,7 @@ module Mcp::Tools
         group = create_pending_action_group!(server_context:, chat_session:, reason:, member_attributes: workflows.map { |workflow|
           { action: "admin_cleanup_workspace", payload: { "workflow_id" => workflow.id }, requested_by: "agent", reason: reason }
         })
-        bulk_action_response(group:, message: "Delete #{workflows.size} workflow workspaces?")
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.cleanup_workspaces", count: workflows.size))
       end
     end
   end

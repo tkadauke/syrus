@@ -145,7 +145,7 @@ module Mcp::Tools
           end,
           reason: reason
         )
-        bulk_action_response(group: group, message: "Cancel stale work for #{normalized_targets.size} Jobs?")
+        bulk_action_response(group: group, message: I18n.t("server.mcp.bulk_confirmation.cancel_stale_work", count: normalized_targets.size))
       end
     end
   end

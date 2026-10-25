@@ -58,7 +58,7 @@ module Mcp::Tools
             }
           end
         )
-        bulk_action_response(group: group, message: "Repair #{selected_ids.size} dead-queue Runs as one batch?", extra: {
+        bulk_action_response(group: group, message: I18n.t("server.mcp.bulk_confirmation.repair_queue_affinity", count: selected_ids.size), extra: {
           run_ids: selected_ids,
           workflow_ids: runs.values.map(&:workflow_id).compact.uniq,
           dead_queues: detected.map(&:queue_name).uniq.sort

@@ -66,7 +66,7 @@ module Mcp::Tools
         group = create_pending_action_group!(server_context:, chat_session:, reason:, member_attributes: jobs.map { |job|
           { action: "rebase_job", payload: { "job_id" => job.id }, reason: reason, requested_by: "agent" }
         })
-        bulk_action_response(group:, message: "Rebase #{jobs.size} Jobs normally?", extra: { reason: reason })
+        bulk_action_response(group:, message: I18n.t("server.mcp.bulk_confirmation.rebase_jobs", count: jobs.size), extra: { reason: reason })
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
