@@ -193,25 +193,20 @@ RSpec.describe ChatProposalFiler do
       expect(workflow.trigger_kind).to eq("investigation")
     end
 
-    it "propagates investigation intent even when the proposal also targets an existing, non-empty Epic" do
+    it "rejects investigation intent when the proposal targets an Epic" do
       epic = Factories.epic(user: user, repository: repository)
-      existing_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 42)
-      job_proposal = proposal(
+      job_proposal = session.proposals.build(
         slug: "investigate-under-epic",
         title: "Investigate under epic",
+        body: "Look into it.",
         kind: "job",
         investigation: true,
         target_epic: epic,
-        depends_on_job_ids: [ existing_child.id ]
+        repository: repository
       )
 
-      expect(job_proposal.epic_bundle?).to eq(false)
-
-      described_class.new(user: user, repository: repository).file!([ job_proposal ])
-
-      job = job_proposal.reload.job
-      expect(job.investigation?).to eq(true)
-      expect(job.epic).to eq(epic)
+      expect(job_proposal).not_to be_valid
+      expect(job_proposal.errors[:base]).to include(Job::INVESTIGATION_EPIC_ERROR)
     end
 
     it "does not flag a Job investigation when the proposal omits it" do
