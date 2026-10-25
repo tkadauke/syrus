@@ -5,15 +5,26 @@ import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionR
 // pending-action parsing/rendering, which preserves target context from the
 // tool call when the result only carries the confirmation shape.
 function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
+  const result = parsePendingActionResult(context, true)
   return result ? pendingActionCollapsedSummary(result) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
+  const result = parsePendingActionResult(context, true)
   if (!result) return null
 
-  return <PendingActionResultCard result={result} />
+  return (
+    <PendingActionResultCard
+      input={context.input}
+      inputFields={[
+        { key: "job_id", label: "Job", format: "entity", entityKind: "job" },
+        { key: "branch_name", label: "Branch", format: "copyable_badge", emptyLabel: "Active checkout branch" }
+      ]}
+      omitBranch
+      omitJob
+      result={result}
+    />
+  )
 }
 
 const completeImplementStepToolCard: ToolCardRenderer = {
