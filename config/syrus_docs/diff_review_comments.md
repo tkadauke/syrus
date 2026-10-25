@@ -74,6 +74,16 @@ branch. When the branch still exists, the final snapshot is computed from the
 repository compare for the Job's full base-to-head range. For legacy closed
 Jobs whose branch is already gone, operators can run:
 
+Branch cleanup remains retryable regardless of a closed Job's age. Each run is
+bounded and rotates failed or snapshot-blocked candidates behind untouched
+candidates. Deletion is conservative: Syrus protects default branches, open PR
+heads and bases, active work, stack dependencies, and integration refs whose
+remote SHA differs from the SHA Syrus recorded. Terminal merge-train and job-
+bundle integration branches use the same checks in a recurring cleanup pass.
+Both cleanup jobs accept `dry_run: true` through `perform_now` for an
+operator-visible, structured-log candidate report without changing records or
+remote refs.
+
 ```bash
 bin/rails syrus:backfill_final_diff_review_versions
 ```

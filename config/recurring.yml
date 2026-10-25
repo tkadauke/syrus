@@ -149,6 +149,10 @@ default: &default
     class: ReapStaleBranchesJob
     queue: cleanup
     schedule: every day at 3:40am
+  reconcile_integration_branches:
+    class: ReconcileIntegrationBranchesJob
+    queue: cleanup
+    schedule: every day at 3:45am
   prune_spawned_processes:
     class: SpawnedProcessPruneJob
     queue: cleanup

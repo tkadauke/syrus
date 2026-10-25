@@ -44,6 +44,10 @@ the rest of the landing attempt can continue on any worker. It is temporary
 bookkeeping under a `syrus/` name unique to that train, and Syrus deletes it
 once the train lands, fails, or is cancelled, except when the failure policy
 keeps a stale branch briefly so a replacement train can reuse its fixes.
+If inline deletion is interrupted, recurring reconciliation retries terminal
+merge-train and job-bundle branches in bounded batches. Before deleting, Syrus
+checks that the ref is still Syrus-owned, is not used by an open pull request
+or active work, and still points at the recorded integration SHA.
 
 When the instance is configured to keep merge-train fixes, a stale failed train
 can rebuild from the current base while replaying repair commits from the
