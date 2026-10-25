@@ -87,6 +87,7 @@ export type PendingActionResultField = {
 
 export type PendingActionToolCardOptions = {
   inputFields?: PendingActionInputField[]
+  messageOverride?: (context: ToolCardContext, result: PendingActionResult) => string | null
   observedSummary?: boolean
   resultFields?: PendingActionResultField[]
 }
@@ -672,7 +673,7 @@ export function pendingActionToolCard(toolName: string, options: PendingActionTo
     toolName,
     collapsedSummary(context) {
       const result = parsePendingActionResult(context, true)
-      return result ? pendingActionCollapsedSummary(result) : null
+      return result ? pendingActionCollapsedSummary(result, options.messageOverride?.(context, result) || undefined) : null
     },
     renderExpanded(context) {
       const result = parsePendingActionResult(context, true)
@@ -682,6 +683,7 @@ export function pendingActionToolCard(toolName: string, options: PendingActionTo
           details={<ResultDetails fields={options.resultFields || []} value={normalizedToolCardParsedResult(context.parsedResult)} />}
           input={context.input}
           inputFields={options.inputFields}
+          messageOverride={options.messageOverride?.(context, result) || undefined}
           observedSummary={options.observedSummary}
           result={result}
         />

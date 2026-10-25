@@ -1,6 +1,24 @@
-import type { ToolCardExample } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardExample } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { pendingActionToolCard } from "../pendingActionToolCard"
 import i18n from "@app/i18n"
+import { displayValue, numberValue } from "../toolCardUi"
+
+function localizedActionQuestion(context: ToolCardContext) {
+  const parsed = normalizedToolCardParsedResult(context.parsedResult)
+  if (!isPlainObject(parsed)) return null
+  const preview = isPlainObject(parsed.observed_preview) ? parsed.observed_preview : null
+  const provider = preview ? displayValue(preview.provider) : null
+  const workflowCount = preview ? numberValue(preview.workflow_count) : null
+  const retryCount = preview ? numberValue(preview.auto_retry_count) : null
+  if (!provider || workflowCount == null || retryCount == null) return null
+
+  return i18n.t("chat:wake_provider_admission.question", {
+    count: workflowCount,
+    provider,
+    retryPhrase: i18n.t("chat:wake_provider_admission.retry_count", { count: retryCount })
+  })
+}
 
 // Pending-action tool card (the pending-action tool-card work). All of the parsing and
 // presentation lives in ../pendingActionToolCard so the whole family stays
@@ -15,8 +33,9 @@ const wakeProviderAdmissionToolCard = pendingActionToolCard("wake_provider_admis
       hrefPrefix: "/admin/users",
       emptyLabel: () => i18n.t("chat:wake_provider_admission.all_users")
     },
-    { key: "reason", format: "markdown" }
+    { key: "reason", label: () => i18n.t("chat:wake_provider_admission.reason"), format: "markdown" }
   ],
+  messageOverride: localizedActionQuestion,
   resultFields: [
     { path: "observed_preview.workflow_count", label: () => i18n.t("chat:wake_provider_admission.queued_workflows"), format: "number" },
     { path: "observed_preview.auto_retry_count", label: () => i18n.t("chat:wake_provider_admission.delayed_retries"), format: "number" }
