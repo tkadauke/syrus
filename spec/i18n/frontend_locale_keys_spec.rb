@@ -515,6 +515,35 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(locales.dig("la", "chat", "tool_card_list_artifacts_summary_other")).to eq("{{count}} artificia")
   end
 
+  it "does not leave ordinary English prose among exact Latin chat matches" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+    english = flatten_json(locales.dig("en", "chat"))
+    latin = flatten_json(locales.dig("la", "chat"))
+    english_prose = /\b(?:the|was|were|is|are|with|after|before|from|and|when|this|that|failed|requested|pending|created|removed|could|unable|should|owns|using|already)\b/i
+    leaked_matches = english.filter_map do |key, value|
+      "#{key}=#{value}" if latin.fetch(key) == value && value.match?(english_prose)
+    end
+
+    expect(leaked_matches).to be_empty, <<~MESSAGE
+      Exact Latin/English chat matches containing ordinary English prose must be translated.
+      Protected domain nouns, proper names, tokens, abbreviations, and placeholder-only values
+      remain intentionally identical and are excluded by the prose marker audit.
+      #{leaked_matches.join("\n")}
+    MESSAGE
+
+    %w[
+      aria_edit_queued_message aria_delete_queued_message tool_card_question_missing
+      chat_pin_title chat_unpin_title chat_pin_failed chat_unpin_failed chat_pin_malformed
+      chat_unpin_malformed proposal_route_start_hint proposal_route_backlog_hint
+    ].each do |key|
+      expect(latin.fetch(key)).not_to eq(english.fetch(key)), "la.chat.#{key} must not remain English"
+    end
+
+    expect(locales.dig("de", "nav", "smart_folder", "all_items_job")).to eq("Alle Jobs")
+    expect(locales.dig("de", "nav", "smart_folder", "names", "all_jobs")).to eq("Alle Jobs")
+    expect(locales.dig("de", "nav", "onboarding", "configure_credentials_description")).to include("Jobs ausführen")
+  end
+
   it "translates the reviewed settings scopes except for documented intentional matches" do
     settings = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).transform_values { |locales| locales.fetch("settings") }
     english = settings.fetch("en")
