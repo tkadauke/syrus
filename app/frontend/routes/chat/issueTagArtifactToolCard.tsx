@@ -3,7 +3,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import { isPlainObject } from "../../toolCardParsing"
 import { DataTable } from "../../components/ui"
 import { Table, TBody, Td, THead } from "./adminToolCard"
-import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill, toolCardStateLabel } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import { MediaPreviewShell } from "./mediaPreviewShell"
@@ -134,15 +134,16 @@ function IssueQuerySummary({ context, count }: { context: ToolCardContext; count
   return (
     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
       <span>
-        State: <span className="font-medium text-text-primary">{state}</span>
+        {i18n.t("chat:tool_card_issue_filter_state")}: <span className="font-medium text-text-primary">{toolCardStateLabel(state)}</span>
       </span>
       <span>
-        Label: <span className="font-medium text-text-primary">{label || "all"}</span>
+        {i18n.t("chat:tool_card_issue_filter_label")}:{" "}
+        <span className="font-medium text-text-primary">{label || i18n.t("chat:tool_card_issue_filter_all")}</span>
       </span>
       <span>
-        Limit: <span className="font-medium text-text-primary">{limit}</span>
+        {i18n.t("chat:tool_card_issue_filter_limit")}: <span className="font-medium text-text-primary">{limit}</span>
       </span>
-      {Number(limit) === count ? <span>Limit reached; more issues may be available.</span> : null}
+      {Number(limit) === count ? <span>{i18n.t("chat:tool_card_issue_filter_limit_reached")}</span> : null}
     </div>
   )
 }
@@ -174,12 +175,20 @@ export function IssueListCard({ rows }: { rows: IssueRow[] }) {
             </Td>
             <Td maxWidth wrap>
               <div className="break-words font-medium text-text-primary">{issue.title}</div>
-              {issue.author ? <div className="mt-0.5 text-2xs text-text-muted">by {issue.author}</div> : null}
-              {issue.bodyExcerpt ? <MarkdownPreview maxLines={3} modalLabel={`${issue.title} body`} text={issue.bodyExcerpt} /> : null}
+              {issue.author ? (
+                <div className="mt-0.5 text-2xs text-text-muted">{i18n.t("chat:tool_card_issue_by_author", { author: issue.author })}</div>
+              ) : null}
+              {issue.bodyExcerpt ? (
+                <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:tool_card_issue_body_label", { title: issue.title })} text={issue.bodyExcerpt} />
+              ) : null}
               {issueImageUrls(issue.bodyExcerpt).length ? (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {issueImageUrls(issue.bodyExcerpt).map((src, index) => (
-                    <MediaPreviewShell item={{ title: `${issue.title} image ${index + 1}`, src }} key={src} thumbnailClassName="w-28" />
+                    <MediaPreviewShell
+                      item={{ title: i18n.t("chat:tool_card_issue_image_label", { title: issue.title, count: index + 1 }), src }}
+                      key={src}
+                      thumbnailClassName="w-28"
+                    />
                   ))}
                 </div>
               ) : null}
