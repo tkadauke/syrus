@@ -468,6 +468,12 @@ recomputes count-based quorum, subject to `min_members`; `hold` defers admission
 through the provider-routing hold path; and `fail` reports the panel as unable
 to proceed. If fewer than `min_members` non-skipped verdicts remain, consensus
 is `skipped`.
+Panel resolutions are deliberately separate from the ordinary single-candidate
+fallback path: `Resolver.call` and `AvailabilitySelector.call` reject them
+rather than silently selecting the first available member. Panel-aware workflow
+steps consume `Resolver.resolve` and `AvailabilitySelector.panel`; until such a
+step owns execution, configuring a panel cannot degrade into one ordinary
+reviewer run.
 
 A `type: hold` action
 is a terminal successful routing decision: broader scopes are not consulted and
