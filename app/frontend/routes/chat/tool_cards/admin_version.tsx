@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import type { ReactNode } from "react"
 import { readInitialBootstrap } from "../../../api/bootstrap"
@@ -85,15 +86,15 @@ function DiskUsage({ instance }: { instance: InstanceRow }) {
         {instance.diskUsedPercent != null ? <span className="font-mono">{instance.diskUsedPercent.toFixed(1)}%</span> : null}
       </div>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 text-2xs text-text-muted">
-        <dt>Host</dt>
+        <dt>{i18n.t("chat:ops_host_3960ec")}</dt>
         <dd className="break-all font-mono text-text-primary">{instance.diskHostname || "—"}</dd>
-        <dt>Path</dt>
+        <dt>{i18n.t("chat:ops_path_519e39")}</dt>
         <dd className="break-all font-mono text-text-primary">{instance.diskPath || "—"}</dd>
-        <dt>Available</dt>
+        <dt>{i18n.t("chat:ops_available_7c62a1")}</dt>
         <dd className="font-mono text-text-primary">{formatBytesLarge(instance.diskAvailableBytes)}</dd>
-        <dt>Total</dt>
+        <dt>{i18n.t("chat:ops_total_b25928")}</dt>
         <dd className="font-mono text-text-primary">{formatBytesLarge(instance.diskTotalBytes)}</dd>
-        <dt>Observed</dt>
+        <dt>{i18n.t("chat:ops_observed_2e159b")}</dt>
         <dd className="break-all font-mono text-text-primary">{instance.diskObservedAt || "—"}</dd>
       </dl>
     </div>
@@ -128,8 +129,9 @@ function collapsedSummary(context: ToolCardContext) {
   if (!card) return null
 
   const versions = new Set(card.instances.map((instance) => instance.version).filter(Boolean))
-  const mixed = versions.size > 1 ? " (mixed versions -- deploy in progress?)" : ""
-  return `${card.instances.length} live instance${card.instances.length === 1 ? "" : "s"}${mixed}`
+  return i18n.t(versions.size > 1 ? "chat:admin_live_instance_count_mixed" : "chat:admin_live_instance_count", {
+    count: card.instances.length
+  })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -139,17 +141,19 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <dl className="grid gap-1 sm:grid-cols-3">
-        <HeaderValue label="Handling host">{card.requestHandlerHostname ? <CopyableValue value={card.requestHandlerHostname} /> : <>—</>}</HeaderValue>
-        <Row label="Role" value={card.requestHandlerRole ?? "—"} />
-        <HeaderValue label="Version">
+        <HeaderValue label={i18n.t("chat:ops_handling_host_ae12dc")}>
+          {card.requestHandlerHostname ? <CopyableValue value={card.requestHandlerHostname} /> : <>—</>}
+        </HeaderValue>
+        <Row label={i18n.t("chat:ops_role_c3f104")} value={card.requestHandlerRole ?? "—"} />
+        <HeaderValue label={i18n.t("chat:ops_version_2da600")}>
           <VersionValue value={card.requestHandlerVersion} />
         </HeaderValue>
       </dl>
       {card.instances.length === 0 ? (
-        <EmptyState>No live instances found.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_live_instances_found_729e5b")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["ID", "Host", "Role", "Version", "Started", "Heartbeat", "Disk"]} />
+          <THead columns={["id", "host", "role", "version", "started", "heartbeat", "disk"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
           <TBody>
             {card.instances.map((instance) => (
               <tr key={instance.key}>

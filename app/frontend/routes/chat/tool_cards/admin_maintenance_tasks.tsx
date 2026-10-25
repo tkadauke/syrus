@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { Table, TBody, Td, THead } from "../adminToolCard"
@@ -136,7 +137,7 @@ function parseTask(value: unknown): MaintenanceTask | null {
 type MaintenancePayload = { kind: "list"; tasks: MaintenanceTask[] } | { kind: "single"; task: MaintenanceTask }
 const INPUT_FIELDS: PendingActionInputField[] = [
   { key: "action", format: "badge" },
-  { key: "task_id", label: "Task ID" },
+  { key: "task_id", label: i18n.t("chat:ops_task_id_0491c6") },
   { key: "state", format: "badge" },
   { key: "limit" }
 ]
@@ -194,19 +195,21 @@ function TaskDetails({ task, compact = false }: { task: MaintenanceTask; compact
         <StatePill state={task.state} />
         {task.category ? <Badge>{task.category}</Badge> : null}
         {task.recurrence ? <Badge>{task.recurrence}</Badge> : null}
-        {task.adminPath ? <InternalLink href={task.adminPath}>Open task</InternalLink> : null}
+        {task.adminPath ? <InternalLink href={task.adminPath}>{i18n.t("chat:ops_open_task_a1f175")}</InternalLink> : null}
       </div>
       <div className="whitespace-normal break-words font-medium text-text-primary [overflow-wrap:anywhere]">{task.title}</div>
-      {task.summary ? <MarkdownPreview maxChars={compact ? 400 : undefined} maxLines={compact ? 4 : 8} text={task.summary} title="Summary" /> : null}
+      {task.summary ? (
+        <MarkdownPreview maxChars={compact ? 400 : undefined} maxLines={compact ? 4 : 8} text={task.summary} title={i18n.t("chat:ops_summary_12b71c")} />
+      ) : null}
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
         {taskRows(task).map(([label, value]) => (value != null ? <Row key={label} label={label} value={value} /> : null))}
       </dl>
-      {task.apiPath ? <Row label="API path" value={task.apiPath} /> : null}
-      {task.pendingReason ? <MarkdownPreview maxLines={4} text={task.pendingReason} title="Pending reason" /> : null}
-      {task.lastError ? <TextPreview maxLines={8} text={task.lastError} title="Last error" wrap /> : null}
+      {task.apiPath ? <Row label={i18n.t("chat:ops_api_path_58046d")} value={task.apiPath} /> : null}
+      {task.pendingReason ? <MarkdownPreview maxLines={4} text={task.pendingReason} title={i18n.t("chat:ops_pending_reason_a4ccfe")} /> : null}
+      {task.lastError ? <TextPreview maxLines={8} text={task.lastError} title={i18n.t("chat:ops_last_error_5e4df8")} wrap /> : null}
       {task.steps.length > 0 ? (
         <div>
-          <SectionLabel>Steps</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_steps_cdde4f")}</SectionLabel>
           <div className="mt-1 space-y-2">
             {task.steps.map((step) => (
               <div className="min-w-0" key={step.key}>
@@ -223,14 +226,14 @@ function TaskDetails({ task, compact = false }: { task: MaintenanceTask; compact
         <TextPreview
           maxLines={10}
           text={typeof task.checkpoint === "string" ? task.checkpoint : JSON.stringify(task.checkpoint, null, 2)}
-          title="Checkpoint"
+          title={i18n.t("chat:ops_checkpoint_5cb9af")}
           wrap
         />
       ) : null}
-      {!compact && task.documentation ? <MarkdownPreview maxLines={12} text={task.documentation} title="Documentation" /> : null}
+      {!compact && task.documentation ? <MarkdownPreview maxLines={12} text={task.documentation} title={i18n.t("chat:ops_documentation_9e9cf3")} /> : null}
       {!compact && task.events.length > 0 ? (
         <div>
-          <SectionLabel>Events</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_events_c5497b")}</SectionLabel>
           <div className="mt-1 space-y-3">
             {task.events.map((event) => (
               <div className="rounded-[var(--radius-panel)] border border-border p-2" key={event.id}>
@@ -240,13 +243,16 @@ function TaskDetails({ task, compact = false }: { task: MaintenanceTask; compact
                   {event.stepTitle ? <Badge>{event.stepTitle}</Badge> : null}
                 </div>
                 <dl className="mb-2 grid gap-2 sm:grid-cols-2">
-                  {event.stepKey ? <Row label="Step key" value={event.stepKey} /> : null}
+                  {event.stepKey ? <Row label={i18n.t("chat:ops_step_key_0ae8d5")} value={event.stepKey} /> : null}
                   {event.unitsDone != null ? (
-                    <Row label="Units" value={event.unitsTotal == null ? String(event.unitsDone) : `${event.unitsDone} / ${event.unitsTotal}`} />
+                    <Row
+                      label={i18n.t("chat:ops_units_127482")}
+                      value={event.unitsTotal == null ? String(event.unitsDone) : `${event.unitsDone} / ${event.unitsTotal}`}
+                    />
                   ) : null}
-                  {event.createdAt ? <Row label="Created" value={event.createdAt} /> : null}
+                  {event.createdAt ? <Row label={i18n.t("chat:ops_created_accf40")} value={event.createdAt} /> : null}
                 </dl>
-                <TextPreview maxLines={8} text={event.message} title="Message" wrap />
+                <TextPreview maxLines={8} text={event.message} title={i18n.t("chat:ops_message_68f414")} wrap />
               </div>
             ))}
           </div>
@@ -265,7 +271,7 @@ function collapsedSummary(context: ToolCardContext) {
   const payload = parsePayload(context)
   if (!payload) return null
   return payload.kind === "list"
-    ? `${payload.tasks.length} maintenance task${payload.tasks.length === 1 ? "" : "s"}`
+    ? i18n.t("chat:admin_maintenance_task_count", { count: payload.tasks.length })
     : `${payload.task.title} (${payload.task.state})`
 }
 function renderExpanded(context: ToolCardContext) {
@@ -284,14 +290,14 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         <InputDetails fields={INPUT_FIELDS} input={context.input} />
-        <EmptyState>No maintenance tasks found.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_maintenance_tasks_found_77c53e")}</EmptyState>
       </CardShell>
     )
   return (
     <CardShell>
       <InputDetails fields={INPUT_FIELDS} input={context.input} />
       <Table responsive>
-        <THead columns={["Task", "Details"]} />
+        <THead columns={[i18n.t("chat:admin_column_task"), i18n.t("chat:admin_column_details")]} />
         <TBody>
           {payload.tasks.map((task) => (
             <tr key={task.id}>
@@ -318,7 +324,7 @@ const catalogTask = {
   state: "running",
   recurrence: "one_off",
   category: "search",
-  title: "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title",
+  title: i18n.t("chat:ops_rebuild_the_repository_search_index_while_preserving_vis_6509ef"),
   summary: "Rebuilds the **repository search index** in bounded batches.",
   trigger_kind: "manual",
   trigger_key: "catalog_preview",
@@ -337,7 +343,13 @@ const catalogTask = {
   dismissed_at: null,
   last_error: null,
   pending_reason: null,
-  steps: [{ key: "index_records", title: "Index repository records", description: "Writes searchable records in **small batches**." }],
+  steps: [
+    {
+      key: "index_records",
+      title: i18n.t("chat:ops_index_repository_records_0bf341"),
+      description: i18n.t("chat:ops_writes_searchable_records_in_small_batches_606373")
+    }
+  ],
   requested_by: { id: 12, display_name: "Preview Operator" },
   paths: { admin: "/admin/maintenance_tasks/47", api: "/api/v1/app/admin/maintenance_tasks/47" }
 }
@@ -345,22 +357,22 @@ const catalogTask = {
 export const examples: ToolCardExample[] = [
   {
     id: "pending_pause",
-    label: "Pending pause",
-    description: "Mutation result using the shared pending-action presentation with its task target and action.",
+    label: i18n.t("chat:ops_pending_pause_36b0dc"),
+    description: i18n.t("chat:ops_mutation_result_using_the_shared_pending_action_presenta_6aa208"),
     input: { action: "pause", task_id: 47 },
     parsedResult: { pending_action_id: 801, pending_confirmation_id: 801, state: "pending", message: "Pause maintenance task #47?" }
   },
   {
     id: "populated_list",
-    label: "Populated task list",
-    description: "Responsive list layout with complete task metadata, Markdown summary, long-title wrapping, and links.",
+    label: i18n.t("chat:ops_populated_task_list_046a86"),
+    description: i18n.t("chat:ops_responsive_list_layout_with_complete_task_metadata_markd_b46b66"),
     input: { action: "list", state: "running", limit: 20 },
     parsedResult: { tasks: [catalogTask] }
   },
   {
     id: "rich_detail",
-    label: "Rich task detail",
-    description: "Read result with documentation, checkpoint, events, and already-redacted log previews.",
+    label: i18n.t("chat:ops_rich_task_detail_4bda73"),
+    description: i18n.t("chat:ops_read_result_with_documentation_checkpoint_events_and_alr_d00961"),
     input: { action: "read", task_id: 47 },
     parsedResult: {
       task: {
@@ -387,15 +399,15 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "empty_filtered_list",
-    label: "Empty filtered list",
-    description: "Empty state that preserves the action, state filter, and limit that produced it.",
+    label: i18n.t("chat:ops_empty_filtered_list_508127"),
+    description: i18n.t("chat:ops_empty_state_that_preserves_the_action_state_filter_and_l_8fdc91"),
     input: { action: "list", state: "paused", limit: 20 },
     parsedResult: { tasks: [] }
   },
   {
     id: "tool_error",
-    label: "Task lookup error",
-    description: "Error result with the attempted read target and redacted diagnostic text.",
+    label: i18n.t("chat:ops_task_lookup_error_654993"),
+    description: i18n.t("chat:ops_error_result_with_the_attempted_read_target_and_redacted_4f3576"),
     input: { action: "read", task_id: 999 },
     resultBody: "authorization=[redacted]: maintenance task not found",
     resultError: true
