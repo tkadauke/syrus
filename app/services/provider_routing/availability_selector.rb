@@ -131,6 +131,10 @@ module ProviderRouting
     end
 
     def call
+      if routing_resolution.panel?
+        raise Resolver::PanelResolutionRequired, "panel routing must be evaluated with AvailabilitySelector.panel"
+      end
+
       return decision(nil, candidate_availability: nil, exhausted: false) if routing_resolution.held?
 
       first_unavailable_candidate = nil

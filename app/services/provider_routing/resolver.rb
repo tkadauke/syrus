@@ -6,6 +6,8 @@ module ProviderRouting
   # Job::ProviderSetting::Default#resolve, but returns a list instead of
   # a single value so callers can fail over between candidates.
   class Resolver
+    PanelResolutionRequired = Class.new(StandardError)
+
     Candidate = Data.define(:provider, :model, :effort_level) do
       def to_h = super.compact
     end
@@ -97,7 +99,10 @@ module ProviderRouting
     HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil) ].freeze
 
     def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
-      resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).candidates
+      resolution = resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
+      raise PanelResolutionRequired, "panel routing must be consumed through the panel resolution path" if resolution.panel?
+
+      resolution.candidates
     end
 
     def self.resolve(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, released_hold_rule_ids: [])
