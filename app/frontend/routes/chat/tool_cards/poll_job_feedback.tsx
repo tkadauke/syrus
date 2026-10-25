@@ -1,4 +1,5 @@
 import type { ToolCardExample } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
 
 export default maintenanceToolCard("poll_job_feedback")
@@ -6,7 +7,7 @@ export default maintenanceToolCard("poll_job_feedback")
 export const examples: ToolCardExample[] = [
   {
     id: "pending_confirmation",
-    label: "Pending feedback poll",
+    label: i18n.t("chat:tool_card_examples.pending_feedback_poll"),
     input: { job_id: 46 },
     parsedResult: {
       pending_confirmation_id: 29,
@@ -17,7 +18,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "pending_without_input",
-    label: "Pending feedback poll without call input",
+    label: i18n.t("chat:tool_card_examples.pending_feedback_poll_without_input"),
     parsedResult: {
       pending_confirmation_id: 30,
       pending_action_id: 30,
@@ -27,8 +28,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "confirmed_with_pr",
-    label: "Confirmed feedback poll with PR outcome",
-    description: "Shows the live pending-action state after the poll has been queued, using the PR metadata emitted by the backend presenter.",
+    label: i18n.t("chat:tool_card_examples.confirmed_feedback_poll"),
+    description: i18n.t("chat:tool_card_examples.confirmed_feedback_poll_description"),
     input: { job_id: 46 },
     parsedResult: {
       pending_confirmation_id: 31,
@@ -40,7 +41,7 @@ export const examples: ToolCardExample[] = [
       id: 31,
       action: "poll_job_feedback",
       state: "confirmed",
-      label: "Poll PR feedback for JOB-46",
+      label: i18n.t("chat:tool_card_examples.poll_feedback_job_label", { job: "JOB-46" }),
       detail: "job_id: 46",
       execution_status: "succeeded",
       execution_step: "Queueing PR feedback poll...",

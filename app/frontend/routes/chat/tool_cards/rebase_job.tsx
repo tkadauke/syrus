@@ -1,4 +1,5 @@
 import type { ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
 
 const rebaseJobCard: ToolCardRenderer = {
@@ -14,19 +15,19 @@ export default rebaseJobCard
 export const examples: ToolCardExample[] = [
   {
     id: "pending_confirmation",
-    label: "Pending Job rebase",
+    label: i18n.t("chat:tool_card_examples.pending_job_rebase"),
     input: { job_id: 48, reason: "Refresh the branch after **main** changed." },
     parsedResult: {
       pending_confirmation_id: 32,
       pending_action_id: 32,
       state: "pending",
       reason: "Refresh the branch after **main** changed.",
-      message: "Job rebase requires operator confirmation."
+      message: i18n.t("chat:tool_card_examples.rebase_confirmation_required")
     }
   },
   {
     id: "failed_request",
-    label: "Failed Job rebase request",
+    label: i18n.t("chat:tool_card_examples.failed_job_rebase"),
     input: { job_id: 49, reason: "Retry after the dependency landed." },
     parsedResult: { error: "A rebase is already in progress." },
     resultError: true,
@@ -34,8 +35,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "long_reason",
-    label: "Long rebase reason",
-    description: "Exercises the expandable Markdown reason on narrow and wide layouts.",
+    label: i18n.t("chat:tool_card_examples.long_rebase_reason"),
+    description: i18n.t("chat:tool_card_examples.long_rebase_reason_description"),
     input: {
       job_id: 50,
       reason: `Rebase after **main** changed. ${"Preserve the dependency updates and rerun affected checks. ".repeat(10)}`
@@ -44,7 +45,7 @@ export const examples: ToolCardExample[] = [
       pending_confirmation_id: 33,
       pending_action_id: 33,
       state: "pending",
-      message: "Job rebase requires operator confirmation."
+      message: i18n.t("chat:tool_card_examples.rebase_confirmation_required")
     }
   }
 ]

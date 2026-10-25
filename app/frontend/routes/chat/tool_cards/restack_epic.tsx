@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
+import i18n from "../../../i18n"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
@@ -43,10 +44,10 @@ type RestackCard = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Restack Epic",
+  title: i18n.t("chat:restack_epic.title"),
   attempted: (context) => {
     const epicId = stringFromInput(context, ["epic_id"])
-    return epicId ? `Restack EPIC-${epicId}` : "Restack Epic"
+    return epicId ? i18n.t("chat:restack_epic.attempted_epic", { epic: `EPIC-${epicId}` }) : i18n.t("chat:restack_epic.title")
   },
   retrySafety: "caution",
   recovery: "Resolve the reported Epic, dependency, branch, or permission error, then preview the restack again before requesting it."
@@ -112,7 +113,8 @@ function parseCard(context: ToolCardContext): RestackCard | null {
 }
 
 function epicLabel(plan: RestackPlan) {
-  return plan.slug ? `EPIC-${plan.epicId} (${plan.slug})` : `EPIC-${plan.epicId}`
+  const epic = `EPIC-${plan.epicId}`
+  return plan.slug ? i18n.t("chat:restack_epic.epic_with_slug", { epic, slug: plan.slug }) : epic
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -156,11 +158,13 @@ function BranchNode({ index, node, repositorySlug }: { index: number; node: Plan
           <NodeHeader node={node} repositorySlug={repositorySlug} />
           {node.branchName ? <BranchValue repositorySlug={repositorySlug} value={node.branchName} /> : null}
           <dl className="mt-1 grid min-w-0 grid-cols-1 gap-1">
-            {node.currentBase || node.targetBase ? <Row label="Base change" value={`${node.currentBase || "—"} → ${node.targetBase || "—"}`} /> : null}
-            {node.targetParentJobId ? <Row label="Target parent" value={`JOB-${node.targetParentJobId}`} /> : null}
-            {node.commitsBehind ? <Row label="Commits behind" value={node.commitsBehind} /> : null}
-            {node.checksState ? <Row label="Checks" value={node.checksState} /> : null}
-            {node.mergeableState ? <Row label="Mergeability" value={node.mergeableState} /> : null}
+            {node.currentBase || node.targetBase ? (
+              <Row label={i18n.t("chat:restack_epic.base_change")} value={`${node.currentBase || "—"} → ${node.targetBase || "—"}`} />
+            ) : null}
+            {node.targetParentJobId ? <Row label={i18n.t("chat:restack_epic.target_parent")} value={`JOB-${node.targetParentJobId}`} /> : null}
+            {node.commitsBehind ? <Row label={i18n.t("chat:restack_epic.commits_behind")} value={node.commitsBehind} /> : null}
+            {node.checksState ? <Row label={i18n.t("chat:restack_epic.checks")} value={node.checksState} /> : null}
+            {node.mergeableState ? <Row label={i18n.t("chat:restack_epic.mergeability")} value={node.mergeableState} /> : null}
           </dl>
           {node.repairReasons.length ? (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -214,28 +218,28 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <EntityReference id={plan.epicId} kind="epic" label={epicLabel(plan)} slug={plan.slug} touchTarget />
         <StatePill state={card.noOp ? "no_op" : card.state} />
-        <Badge>{card.dryRun ? "dry run" : "pending action"}</Badge>
+        <Badge>{card.dryRun ? i18n.t("chat:restack_epic.dry_run") : i18n.t("chat:restack_epic.pending_action")}</Badge>
         {plan.strategy ? <Badge wrap>{plan.strategy}</Badge> : null}
-        {card.pendingActionId ? <Badge>pending #{card.pendingActionId}</Badge> : null}
+        {card.pendingActionId ? <Badge>{i18n.t("chat:restack_epic.pending_number", { id: card.pendingActionId })}</Badge> : null}
       </div>
       {card.message ? <MarkdownPreview maxLines={3} modalLabel="Restack message" text={card.message} /> : null}
       {card.reason ? (
         <div>
-          <SectionLabel>Reason</SectionLabel>
+          <SectionLabel>{i18n.t("chat:restack_epic.reason")}</SectionLabel>
           <MarkdownPreview maxLines={3} modalLabel="Restack reason" text={card.reason} />
         </div>
       ) : null}
       {card.executionError ? <div className="break-words text-danger-text [overflow-wrap:anywhere]">{card.executionError}</div> : null}
       {plan.expectedLandingImpact ? (
         <div>
-          <SectionLabel>Expected landing impact</SectionLabel>
+          <SectionLabel>{i18n.t("chat:restack_epic.expected_landing_impact")}</SectionLabel>
           <MarkdownPreview maxLines={3} modalLabel="Expected landing impact" text={plan.expectedLandingImpact} />
         </div>
       ) : null}
-      {card.noOp ? <EmptyState>{card.message || "No child branches need restacking."}</EmptyState> : null}
+      {card.noOp ? <EmptyState>{card.message || i18n.t("chat:restack_epic.no_child_branches")}</EmptyState> : null}
       {plan.branchOrder.length ? (
         <section>
-          <SectionLabel>Branch order</SectionLabel>
+          <SectionLabel>{i18n.t("chat:restack_epic.branch_order")}</SectionLabel>
           <ol className="mt-1 space-y-2">
             {plan.branchOrder.map((node, index) => (
               <BranchNode index={index} key={node.jobId} node={node} repositorySlug={plan.repositorySlug} />
@@ -243,10 +247,10 @@ function renderExpanded(context: ToolCardContext) {
           </ol>
         </section>
       ) : (
-        <EmptyState>No branches are in the restack plan.</EmptyState>
+        <EmptyState>{i18n.t("chat:restack_epic.no_branches")}</EmptyState>
       )}
-      <CompactNodes label="Actions" nodes={plan.actions} repositorySlug={plan.repositorySlug} />
-      <CompactNodes label="Skipped nodes" nodes={plan.skippedNodes} repositorySlug={plan.repositorySlug} />
+      <CompactNodes label={i18n.t("chat:restack_epic.actions")} nodes={plan.actions} repositorySlug={plan.repositorySlug} />
+      <CompactNodes label={i18n.t("chat:restack_epic.skipped_nodes")} nodes={plan.skippedNodes} repositorySlug={plan.repositorySlug} />
     </CardShell>
   )
 }
@@ -291,36 +295,36 @@ const plan = {
 export const examples: ToolCardExample[] = [
   {
     id: "dry_run",
-    label: "Dry-run plan",
+    label: i18n.t("chat:restack_epic.example_dry_run"),
     input: { epic_id: 91, reason: "Repair the stack.", strategy: "dependency_topology", dry_run: true },
     parsedResult: { plan }
   },
   {
     id: "no_op",
-    label: "Nothing to restack",
+    label: i18n.t("chat:restack_epic.example_no_op"),
     input: { epic_id: 91, dry_run: true },
     parsedResult: {
       plan: { ...plan, branch_order: [], actions: [], skipped_nodes: [], expected_landing_impact: "No open child PR branches need restacking." },
       no_op: true,
-      message: "No open child PR branches need restacking."
+      message: i18n.t("chat:restack_epic.no_open_child_prs")
     }
   },
   {
     id: "pending",
-    label: "Pending confirmation",
+    label: i18n.t("chat:restack_epic.example_pending"),
     input: { epic_id: 91, reason: "Repair the stack." },
     parsedResult: { pending_action_id: 77, state: "pending", reason: "Repair the stack.", message: "Restack stack-repair?", plan }
   },
   {
     id: "live_confirmed",
-    label: "Confirmed live action",
+    label: i18n.t("chat:restack_epic.example_confirmed"),
     input: { epic_id: 91 },
     parsedResult: { pending_action_id: 77, state: "pending", plan },
     livePendingAction: {
       id: 77,
       action: "restack_epic",
       state: "confirmed",
-      label: "Restack Epic",
+      label: i18n.t("chat:restack_epic.title"),
       detail: null,
       app_confirm_path: "/chats/1/pending_actions/77/confirm",
       app_reject_path: "/chats/1/pending_actions/77/reject"
@@ -328,9 +332,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error",
-    label: "Structured error",
+    label: i18n.t("chat:restack_epic.example_error"),
     input: { epic_id: 404 },
-    resultBody: JSON.stringify({ code: "invalid_params", message: "epic not found: 404" }),
+    resultBody: JSON.stringify({ code: "invalid_params", message: i18n.t("chat:restack_epic.epic_not_found", { id: 404 }) }),
     resultError: true
   }
 ]
