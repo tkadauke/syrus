@@ -17,24 +17,37 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "returned_to_implemented",
-    label: i18n.t("chat:mutation_example_returned_implemented"),
+    get label() {
+      return i18n.t("chat:mutation_example_returned_implemented")
+    },
     input: { job_id: 42 },
     parsedResult: { job_id: 42, job_state: "implemented", message: "JOB-42 returned to `implemented`." }
   },
   {
     id: "closed",
-    label: i18n.t("chat:mutation_example_closed_after_cancellation"),
+    get label() {
+      return i18n.t("chat:mutation_example_closed_after_cancellation")
+    },
     input: { job_id: 43 },
     parsedResult: { job_id: 43, job_state: "closed", message: "JOB-43 was `closed`." }
   },
   {
     id: "error",
-    label: i18n.t("chat:mutation_example_cancellation_failed"),
+    get label() {
+      return i18n.t("chat:mutation_example_cancellation_failed")
+    },
     input: { job_id: 44 },
     resultBody: "Unable to cancel Local Mode",
     resultError: true
   },
-  { id: "empty", label: i18n.t("chat:mutation_example_empty_result"), input: { job_id: 45 }, parsedResult: {} }
+  {
+    id: "empty",
+    get label() {
+      return i18n.t("chat:mutation_example_empty_result")
+    },
+    input: { job_id: 45 },
+    parsedResult: {}
+  }
 ]
 
 const cancelLocalModeToolCard: ToolCardRenderer = {

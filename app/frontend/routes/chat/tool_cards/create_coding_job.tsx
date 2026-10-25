@@ -17,7 +17,9 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "created",
-    label: i18n.t("chat:mutation_example_coding_job_created"),
+    get label() {
+      return i18n.t("chat:mutation_example_coding_job_created")
+    },
     input: {
       title: "Improve repository search",
       body: `Add **ranked results** and preserve the selected filters.\n\n${"Include keyboard and mobile coverage. ".repeat(30)}`,
@@ -32,7 +34,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error",
-    label: i18n.t("chat:mutation_coding_job_creation_failed"),
+    get label() {
+      return i18n.t("chat:mutation_coding_job_creation_failed")
+    },
     input: { title: "Improve repository search", body: "Add **ranked results**.", repository_id: 12 },
     resultBody: "Repository is not available for coding jobs.",
     resultError: true
