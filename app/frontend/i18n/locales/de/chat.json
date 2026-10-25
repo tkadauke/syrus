@@ -2804,6 +2804,8 @@
   "mutation_example_updated_markdown": "Aktualisierter Markdown-Kontext",
   "mutation_example_removed_markdown": "Entfernter Markdown-Kontext",
   "mutation_example_nothing_pinned": "Fehler bei leerem angeheftetem Kontext",
+  "mutation_example_job_removed_from_epic": "Job aus Epic entfernt",
+  "mutation_example_job_not_in_epic": "Job ist keinem Epic zugeordnet",
   "mutation_repository_number": "Repository Nr. {{id}}",
   "ops_no_repository_memberships_found_9b444e": "Keine Repository-Mitgliedschaften gefunden.",
   "ops_user_id_a69608": "Benutzer-ID",
