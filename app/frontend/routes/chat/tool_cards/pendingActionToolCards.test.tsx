@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "../toolRendering"
-import retryJobCard from "./retry_job"
+import retryJobCard, { examples as retryJobExamples } from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
 import delegateIssueCard from "./delegate_issue"
@@ -114,6 +114,10 @@ describe("pending action tool card family", () => {
       "validation_error",
       "missing_input"
     ])
+  })
+
+  it("registers every retry Job state for visual review", () => {
+    expect(retryJobExamples.map((example) => example.id)).toEqual(["single_pending", "bulk_pending", "retry_started", "ineligible", "missing_input"])
   })
 
   it("registers every visual-review state for the queue affinity repair card", () => {

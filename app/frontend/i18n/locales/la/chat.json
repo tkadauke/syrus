@@ -836,5 +836,6 @@
     "execution_target": "Scopus executionis",
     "execution_status": "Status executionis",
     "execution_message": "Nuntius executionis"
-  }
+  },
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" }
 }

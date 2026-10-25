@@ -836,5 +836,6 @@
     "execution_target": "Ausführungsziel",
     "execution_status": "Ausführungsstatus",
     "execution_message": "Ausführungsmeldung"
-  }
+  },
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" }
 }
