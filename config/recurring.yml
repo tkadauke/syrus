@@ -129,6 +129,10 @@ default: &default
     class: WorkerHostHealthSamplePruneJob
     queue: cleanup
     schedule: every day at 3:15am
+  prune_ui_engagement_samples:
+    class: UiEngagementSamplePruneJob
+    queue: cleanup
+    schedule: every day at 3:17am
   prune_run_resource_summaries:
     class: RunResourceSummaryPruneJob
     queue: cleanup

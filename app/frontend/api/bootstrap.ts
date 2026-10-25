@@ -63,6 +63,7 @@ export type BootstrapPayload = {
     // The configured report_issue_repo_slug (e.g. "tkadauke/syrus"); used
     // in the GitHub-issue indicator line shown inside the dialog.
     report_issue_repo_slug: string
+    ui_engagement_telemetry_enabled?: boolean
   }
   setup_status: {
     state: "not_started" | "first_admin" | "credentials_only" | "repository_only" | "ready_for_first_chat" | "first_chat_started" | "first_successful_job"

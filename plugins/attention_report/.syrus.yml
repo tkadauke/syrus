@@ -1,0 +1,10 @@
+project:
+  id: attention_report
+  label: "attention_report plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest

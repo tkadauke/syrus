@@ -130,6 +130,10 @@ class AppSetting < ApplicationRecord
     current.beta_mode_enabled
   end
 
+  def self.ui_engagement_telemetry_enabled?
+    current.ui_engagement_telemetry_enabled
+  end
+
   def self.macos_worker_desired_release
     current.macos_worker_desired_release.presence || {}
   end

@@ -52,6 +52,7 @@ Rails.application.routes.draw do
         post "browser_errors", to: "browser_errors#create"
         post "event_actions/file_job", to: "event_actions#file_job"
         post "performance_events", to: "performance_events#create"
+        post "ui_engagement_samples", to: "ui_engagement_samples#create"
         post "client_metrics", to: "client_metrics#create"
         post "report_issue", to: "report_issue#create"
         get "slug_refs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }

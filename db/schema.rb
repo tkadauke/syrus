@@ -248,6 +248,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
     t.boolean "beta_mode_enabled", default: false, null: false
     t.integer "merge_train_multisect_section_width", default: 4, null: false
     t.integer "repository_full_poll_interval_hours", default: 24, null: false
+    t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -3621,6 +3622,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
     t.index ["owner_user_id", "position"], name: "index_themes_on_owner_user_id_and_position"
     t.index ["owner_user_id"], name: "index_themes_on_owner_user_id"
     t.index ["slug"], name: "index_themes_on_slug", unique: true
+  end
+
+  create_table "ui_engagement_samples", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "route_id", null: false
+    t.json "route_params", null: false
+    t.datetime "started_at", null: false
+    t.datetime "ended_at", null: false
+    t.integer "active_ms", null: false
+    t.integer "visible_ms", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "started_at"], name: "index_ui_engagement_samples_on_user_id_and_started_at"
+    t.index ["user_id"], name: "index_ui_engagement_samples_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|

@@ -121,6 +121,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [signupsOpen, setSignupsOpen] = useState(payload.settings.signups_open)
+  const [uiEngagementTelemetryEnabled, setUiEngagementTelemetryEnabled] = useState(Boolean(payload.settings.ui_engagement_telemetry_enabled))
   const [gradeMaxIterations, setGradeMaxIterations] = useState(String(payload.settings.grade_max_iterations))
   const [adversarialReviewRounds, setAdversarialReviewRounds] = useState(String(payload.settings.adversarial_review_rounds))
   const [securityReviewRounds, setSecurityReviewRounds] = useState(String(payload.settings.security_review_rounds))
@@ -145,6 +146,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     mutationFn: () =>
       updateAdminSettings({
         signups_open: signupsOpen,
+        ui_engagement_telemetry_enabled: uiEngagementTelemetryEnabled,
         grade_max_iterations: optionalNumber(gradeMaxIterations),
         adversarial_review_rounds: optionalNumber(adversarialReviewRounds),
         security_review_rounds: optionalNumber(securityReviewRounds),
@@ -168,12 +170,14 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       onNotice(updated.message || t("settings.settings_updated"))
     }
   })
 
   useEffect(() => {
     setSignupsOpen(payload.settings.signups_open)
+    setUiEngagementTelemetryEnabled(Boolean(payload.settings.ui_engagement_telemetry_enabled))
     setGradeMaxIterations(String(payload.settings.grade_max_iterations))
     setAdversarialReviewRounds(String(payload.settings.adversarial_review_rounds))
     setSecurityReviewRounds(String(payload.settings.security_review_rounds))
@@ -196,6 +200,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setChatCodingWorkspaceBudgetMb(String(payload.settings.chat_coding_workspace_budget_mb))
   }, [
     payload.settings.signups_open,
+    payload.settings.ui_engagement_telemetry_enabled,
     payload.settings.grade_max_iterations,
     payload.settings.adversarial_review_rounds,
     payload.settings.security_review_rounds,
@@ -236,6 +241,18 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           </>
         }
         onChange={(event) => setSignupsOpen(event.target.checked)}
+      />
+
+      <Checkbox
+        checked={uiEngagementTelemetryEnabled}
+        className="mt-1"
+        label={
+          <>
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">{t("settings.ui_engagement_telemetry_label")}</span>
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.ui_engagement_telemetry_help")}</span>
+          </>
+        }
+        onChange={(event) => setUiEngagementTelemetryEnabled(event.target.checked)}
       />
 
       <div>
@@ -553,10 +570,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setWorkflowAdmissionControlEnabled(event.target.checked)}
         />
         <div className="mt-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-policy">
+          <label className="block text-sm font-medium text-text-primary" htmlFor="admin-settings-workflow-admission-policy">
             {t("settings.workflow_admission_policy_label")}
           </label>
-          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_policy_help")}</span>
+          <span className="mt-1 block text-xs text-text-secondary">{t("settings.workflow_admission_policy_help")}</span>
           <Select
             className="mt-2"
             fullWidth={false}
