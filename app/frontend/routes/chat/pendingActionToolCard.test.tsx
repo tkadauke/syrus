@@ -13,6 +13,7 @@ import overrideLandingBlockerOnceCard from "./tool_cards/override_landing_blocke
 import reconcileJobStateCard from "./tool_cards/reconcile_job_state"
 import reenqueueWorkCard from "./tool_cards/reenqueue_work"
 import retryFromCurrentPrBranchCard from "./tool_cards/retry_from_current_pr_branch"
+import retryJobCard from "./tool_cards/retry_job"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -171,6 +172,75 @@ describe("pending action tool card: standard shape", () => {
     const result = parsePendingActionResult(context(standardPayload({ state: "pending" }), null))
 
     expect(result).toMatchObject({ pendingActionId: "501", state: "pending" })
+  })
+})
+
+describe("retry_job pending action card", () => {
+  const pending = {
+    pending_confirmation_id: 501,
+    pending_action_id: 501,
+    state: "pending",
+    message: "Job retry requires operator confirmation."
+  }
+
+  function retryContext(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
+    return {
+      toolName: "retry_job",
+      input: { job_id: 4222 },
+      resultBody: "",
+      resultError: false,
+      parsedResult: pending,
+      ...overrides
+    }
+  }
+
+  it.each([
+    ["text content", { content: [{ type: "text", text: JSON.stringify(pending) }], structured_content: null }],
+    ["structured content", { content: [], structured_content: pending }]
+  ])("links the input Job from a normalizer-built %s envelope", (_label, envelope) => {
+    const cardContext = retryContext({ parsedResult: normalizedToolCardParsedResult(envelope) })
+
+    render(<>{retryJobCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("pending")).toBeInTheDocument()
+  })
+
+  it("links every bulk target and preserves the grouped pending state", () => {
+    const parsedResult = { ...pending, pending_action_group_id: 88, member_count: 3, message: "Retry 3 Jobs?" }
+    render(<>{retryJobCard.renderExpanded(retryContext({ input: { job_ids: [41, 42, 43] }, parsedResult }))}</>)
+
+    for (const id of [41, 42, 43]) expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    expect(screen.getByText("Pending action group #88")).toBeInTheDocument()
+    expect(screen.getByText("3 actions")).toBeInTheDocument()
+  })
+
+  it("shows the live retry Workflow outcome with a Job-scoped link", () => {
+    const livePendingAction = liveAction({
+      action: "retry_job",
+      execution_status: "applied",
+      outcome: { workflows: [{ workflow_id: 61270, job_id: 4222 }] }
+    })
+    render(<>{retryJobCard.renderExpanded(retryContext({ livePendingAction }))}</>)
+
+    expect(screen.getByText("Retry workflow started")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "WF-61270" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-61270")
+    expect(screen.getByText("applied")).toBeInTheDocument()
+  })
+
+  it("renders the Error: result with the attempted Job", () => {
+    const envelope = { content: [{ type: "text", text: "Error: Job is not eligible for retry." }], structured_content: null }
+    const cardContext = retryContext({ parsedResult: normalizedToolCardParsedResult(envelope), resultBody: JSON.stringify(envelope), resultError: true })
+
+    expect(retryJobCard.collapsedSummary?.(cardContext)).toContain("not eligible")
+    render(<>{retryJobCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Error: Job is not eligible for retry.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toBeInTheDocument()
+  })
+
+  it("labels a recorded pending action whose input is missing", () => {
+    render(<>{retryJobCard.renderExpanded(retryContext({ input: undefined }))}</>)
+    expect(screen.getByText("Not provided")).toBeInTheDocument()
   })
 })
 

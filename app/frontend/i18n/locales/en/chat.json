@@ -785,5 +785,6 @@
   "tool_card_classify_pr_head_repository": "Head repository",
   "tool_card_classify_pr_head_ref": "Head ref",
   "tool_card_classify_pr_base_ref": "Base ref",
-  "tool_card_classify_pr_marker_details": "Marker details"
+  "tool_card_classify_pr_marker_details": "Marker details",
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" }
 }

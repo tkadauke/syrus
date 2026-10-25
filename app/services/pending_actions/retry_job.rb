@@ -48,5 +48,16 @@ module PendingActions
         label
       end
     end
+
+    def tool_card_outcome
+      members = (action.pending_action_group&.chat_pending_actions || [ action ]).sort_by(&:id)
+      workflows = members.filter_map do |member|
+        workflow = member.result
+        next unless workflow.is_a?(Workflow)
+
+        { workflow_id: workflow.id, job_id: workflow.job_id }
+      end
+      workflows.any? ? { workflows: workflows } : nil
+    end
   end
 end
