@@ -1,18 +1,19 @@
 import type { ToolCardExample } from "@app/pluginToolCards"
 import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
+import i18n from "@app/i18n"
 
 export default maintenanceToolCard("set_job_priority")
 
 export const examples: ToolCardExample[] = [
   {
     id: "priority_changed",
-    label: "Priority changed",
+    label: i18n.t("chat:mutation_example_priority_changed"),
     input: { job_id: 51, priority: "urgent" },
     parsedResult: { job_id: 51, previous_priority: "medium", new_priority: "urgent" }
   },
   {
     id: "invalid_priority",
-    label: "Invalid priority",
+    label: i18n.t("chat:mutation_example_invalid_priority"),
     input: { job_id: 51, priority: "immediate" },
     resultBody: "Error: priority must be urgent, high, medium, or low",
     resultError: true
