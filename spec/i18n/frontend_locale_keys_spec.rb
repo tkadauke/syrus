@@ -486,6 +486,35 @@ RSpec.describe "Frontend locale keys", type: :unit do
     end
   end
 
+  it "preserves the reviewed shell and chat placeholders, plurals, and terminology" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+    reviewed_namespaces = %w[chat common dashboard nav landing auth tours]
+
+    %w[de la].each do |locale|
+      reviewed_namespaces.each do |namespace|
+        english = flatten_json(locales.dig("en", namespace))
+        localized = flatten_json(locales.dig(locale, namespace))
+        english.each do |key, value|
+          expect(interpolation_names(localized.fetch(key))).to eq(interpolation_names(value)),
+            "#{locale}.#{namespace}.#{key} changed placeholders"
+        end
+      end
+    end
+
+    german_copy = reviewed_namespaces.flat_map { |namespace| flatten_json(locales.dig("de", namespace)).values }.join("\n")
+    expect(german_copy).not_to match(/\b(?:Ihnen|Ihr\p{L}*)\b/)
+    expect(locales.dig("de", "common", "workflows")).to eq("Workflows")
+    expect(locales.dig("de", "chat", "retire_terminal_work_unit", "runs")).to eq("Läufe")
+    expect(locales.dig("de", "dashboard", "move_to_backlog_confirm_one")).to include("Job")
+    expect(locales.dig("de", "dashboard", "move_to_backlog_confirm_other")).to include("Jobs")
+
+    expect(locales.dig("la", "common", "blocked_reasons", "resource_safety")).to eq("Intermissio ad facultates tuendas")
+    expect(locales.dig("la", "chat", "worker_count_one")).to eq("{{count}} operarius")
+    expect(locales.dig("la", "chat", "worker_count_other")).to eq("{{count}} operarii")
+    expect(locales.dig("la", "chat", "tool_card_list_artifacts_summary_one")).to eq("{{count}} artificium")
+    expect(locales.dig("la", "chat", "tool_card_list_artifacts_summary_other")).to eq("{{count}} artificia")
+  end
+
   it "translates the reviewed settings scopes except for documented intentional matches" do
     settings = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).transform_values { |locales| locales.fetch("settings") }
     english = settings.fetch("en")
