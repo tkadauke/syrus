@@ -19,15 +19,19 @@ module DesignDocs
     def call
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).review?
 
-      DesignDoc.transaction do
+      result = DesignDoc.transaction do
         design_doc.lock!
         suggestion.lock!
         raise ActiveRecord::RecordInvalid.new(suggestion) unless suggestion.state == "pending"
 
-        return reject if decision == "reject"
+        next reject if decision == "reject"
 
         accept
       end
+
+      changed = result.applied ? [ "suggestions", "markdown" ] : [ "suggestions" ]
+      CommentBroadcaster.call(design_doc: result.design_doc, changed: changed)
+      result
     end
 
     private
