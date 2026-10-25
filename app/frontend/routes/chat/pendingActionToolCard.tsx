@@ -251,7 +251,10 @@ function compactCollapsedSummary(text: string) {
   const plainText = text
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[`*_~]/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/(\*\*|__)(?=\S)(.*?\S)\1/g, "$2")
+    .replace(/(?<!\w)([*_])(?=\S)(.*?\S)\1(?!\w)/g, "$2")
+    .replace(/~~(?=\S)(.*?\S)~~/g, "$1")
     .replace(/\s+/g, " ")
     .trim()
   if (plainText.length <= COLLAPSED_SUMMARY_MAX_CHARS) return plainText

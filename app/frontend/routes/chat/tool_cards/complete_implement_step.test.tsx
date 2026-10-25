@@ -48,7 +48,9 @@ describe("complete_implement_step tool card", () => {
     expect(screen.getByText("rejected")).toBeInTheDocument()
     rejectedView.unmount()
 
-    render(<>{completeImplementStepToolCard.renderExpanded(toolCardContextForExample(completeImplementStepToolCard.toolName, error))}</>)
+    const errorContext = toolCardContextForExample(completeImplementStepToolCard.toolName, error)
+    expect(completeImplementStepToolCard.collapsedSummary?.(errorContext)).toBe("Error: branch_name is required for Jobs without an existing pull request.")
+    render(<>{completeImplementStepToolCard.renderExpanded(errorContext)}</>)
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("Error: branch_name is required for Jobs without an existing pull request.")).toBeInTheDocument()
   })
