@@ -25,7 +25,9 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <div className="text-gray-700 dark:text-gray-300">{i18n.t("chat:tool_card_wakeup_cancelled_label")} <span className="font-mono font-medium">#{result.wakeupId}</span></div>
+      <div className="text-gray-700 dark:text-gray-300">
+        {i18n.t("chat:tool_card_wakeup_cancelled_label")} <span className="font-mono font-medium">#{result.wakeupId}</span>
+      </div>
     </CardShell>
   )
 }
