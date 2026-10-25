@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_25_233430) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1464,6 +1464,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
     t.index ["repository_id", "grader_name", "status", "created_at"], name: "idx_grader_conclusions_history_lookup"
     t.index ["run_id"], name: "index_grader_conclusions_on_run_id"
     t.index ["workflow_id"], name: "index_grader_conclusions_on_workflow_id"
+  end
+
+  create_table "handles", force: :cascade do |t|
+    t.string "handle", null: false, collation: "NOCASE"
+    t.string "owner_type"
+    t.bigint "owner_id"
+    t.datetime "created_at", null: false
+    t.index ["handle"], name: "index_handles_on_handle", unique: true
+    t.index ["owner_type", "owner_id"], name: "index_handles_on_owner_type_and_owner_id", unique: true
   end
 
   create_table "input_sources", force: :cascade do |t|
