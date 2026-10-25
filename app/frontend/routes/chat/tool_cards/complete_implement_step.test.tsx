@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName, toolLabel, toolResultPresentation } from "../toolRendering"
-import completeImplementStepToolCard from "./complete_implement_step"
+import completeImplementStepToolCard, { examples } from "./complete_implement_step"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -17,6 +17,40 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 describe("complete_implement_step tool card", () => {
   it("registers under the exact MCP tool name", () => {
     expect(completeImplementStepToolCard.toolName).toBe("complete_implement_step")
+  })
+
+  it("publishes visually reviewable pending, rejected, and error catalog fixtures", () => {
+    expect(examples.map((example) => example.id)).toEqual(["pending_with_branch", "rejected_active_checkout", "tool_error"])
+
+    for (const example of examples) {
+      const view = render(<>{completeImplementStepToolCard.renderExpanded(toolCardContextForExample(completeImplementStepToolCard.toolName, example))}</>)
+      expect(view.container).not.toBeEmptyDOMElement()
+      view.unmount()
+    }
+  })
+
+  it("keeps branch, Markdown, fallback, and error details visible in catalog fixtures", () => {
+    const pending = examples.find((example) => example.id === "pending_with_branch")
+    const rejected = examples.find((example) => example.id === "rejected_active_checkout")
+    const error = examples.find((example) => example.id === "tool_error")
+    if (!pending || !rejected || !error) throw new Error("missing complete_implement_step catalog fixture")
+
+    const pendingView = render(<>{completeImplementStepToolCard.renderExpanded(toolCardContextForExample(completeImplementStepToolCard.toolName, pending))}</>)
+    expect(screen.getByRole("link", { name: "JOB-4048" })).toHaveAttribute("href", "/jobs/4048")
+    expect(screen.getByRole("button", { name: "Copy syrus/complete-implement-step-responsive-card-review to clipboard" })).toBeInTheDocument()
+    expect(screen.getByText("implementation handoff").tagName).toBe("STRONG")
+    pendingView.unmount()
+
+    const rejectedView = render(
+      <>{completeImplementStepToolCard.renderExpanded(toolCardContextForExample(completeImplementStepToolCard.toolName, rejected))}</>
+    )
+    expect(screen.getByText("Active checkout branch")).toBeInTheDocument()
+    expect(screen.getByText("rejected")).toBeInTheDocument()
+    rejectedView.unmount()
+
+    render(<>{completeImplementStepToolCard.renderExpanded(toolCardContextForExample(completeImplementStepToolCard.toolName, error))}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: branch_name is required for Jobs without an existing pull request.")).toBeInTheDocument()
   })
 
   it("summarizes the collapsed row via the shared pending-action message", () => {
