@@ -2207,7 +2207,7 @@ function RunArtifactsPanel({
             showFileHeaders
           />
         ) : (
-          <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>
+          <p className="p-3 text-sm text-text-muted">{t("artifact_no_diff")}</p>
         )}
       </section>
     )
@@ -2225,7 +2225,7 @@ function RunArtifactsPanel({
             showFileHeaders
           />
         ) : (
-          <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>
+          <p className="p-3 text-sm text-text-muted">{t("artifact_no_diff")}</p>
         )}
       </section>
     )
@@ -2237,7 +2237,7 @@ function RunArtifactsPanel({
       {payload.logs && payload.logs.length > 0 ? (
         <RunTranscriptLogs logs={payload.logs} />
       ) : (
-        <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
+        <p className="p-3 text-sm text-text-muted">{t("artifact_no_transcript")}</p>
       )}
       <TranscriptPagination
         hasOlder={payload.logs_has_older || false}
@@ -2272,11 +2272,11 @@ function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<ty
 function ArtifactPanelHeader({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   const { t } = useT("jobs")
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-      <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{children}</h4>
+    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
+      <h4 className="text-xs font-semibold uppercase text-text-muted">{children}</h4>
       <button
         aria-label={t("artifact_close")}
-        className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+        className="hidden rounded p-2 text-text-muted hover:bg-surface-subtle hover:text-text-primary max-md:block"
         onClick={onClose}
         type="button"
       >
