@@ -131,6 +131,10 @@ export type ToolCardExample = {
   resultBody?: string
   parsedResult?: unknown
   priorResults?: Readonly<Record<string, unknown>>
+  // Optional chat-owned display data for fixtures that resolve media refs or
+  // preview-panel versions. This mirrors the live chat context without
+  // adding presentation-only fields to MCP payload examples.
+  presentation?: ToolCardContext["presentation"]
   resultError?: boolean
   resultSettled?: boolean
   sourceType?: ToolCardExampleSourceType
@@ -181,6 +185,7 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
     resultSettled: example.resultSettled ?? true,
     parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody),
     priorResults: example.priorResults,
+    presentation: example.presentation,
     livePendingAction: example.livePendingAction
   }
 }

@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import type { ChatPendingActionInline } from "../../../api/chats"
 import { normalizedToolName } from "../toolRendering"
-import submitChatFeedbackToolCard from "./submit_chat_feedback"
+import submitChatFeedbackToolCard, { examples } from "./submit_chat_feedback"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -30,6 +30,20 @@ function liveAction(overrides: Partial<ChatPendingActionInline> = {}): ChatPendi
 }
 
 describe("submit_chat_feedback tool card", () => {
+  it("registers catalog fixtures for pending media, queued, and error states", () => {
+    expect(examples.map((example) => example.id)).toEqual(["pending_with_feedback_and_media", "queued_feedback", "feedback_error"])
+
+    for (const example of examples) {
+      const exampleContext = toolCardContextForExample(submitChatFeedbackToolCard.toolName, example)
+      expect(submitChatFeedbackToolCard.renderExpanded(exampleContext), example.id).not.toBeNull()
+    }
+
+    render(<>{submitChatFeedbackToolCard.renderExpanded(toolCardContextForExample(submitChatFeedbackToolCard.toolName, examples[0]))}</>)
+    expect(screen.getByRole("img", { name: "Mobile header" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/svg\+xml/))
+    expect(screen.getByRole("button", { name: "Open Header hierarchy" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(submitChatFeedbackToolCard.toolName).toBe("submit_chat_feedback")
     expect(normalizedToolName("mcp__syrus-chat-sidecar__submit_chat_feedback")).toBe(submitChatFeedbackToolCard.toolName)
