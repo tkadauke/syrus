@@ -579,12 +579,15 @@ RSpec.describe "maintenance task definitions" do
       allow(definition).to receive(:jobs_need_rebuild?).and_return(false)
       allow(definition).to receive(:epics_need_rebuild?).and_return(false)
       allow(definition).to receive(:operational_logs_need_rebuild?).and_return(false)
+      allow(definition).to receive(:finish_chat_content_version!)
 
-      definition.perform_batch(task)
+      result = definition.perform_batch(task)
 
       expect(definition).to have_received(:prepare_chat_content_version!)
+      expect(definition).to have_received(:finish_chat_content_version!)
       expect(task.checkpoint).to include("chat_content_version_prepared" => true, "last_chat_message_id" => 0)
       expect(task.checkpoint).not_to have_key("chats_done")
+      expect(result.done).to be(true)
     end
   end
 

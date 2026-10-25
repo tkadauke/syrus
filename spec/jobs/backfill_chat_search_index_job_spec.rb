@@ -79,6 +79,23 @@ RSpec.describe BackfillChatSearchIndexJob do
     }
   end
 
+  it "recovers an interrupted repair with a reindexing marker and stale cursor" do
+    message = ChatMessage.create!(
+      chat_session: session,
+      role: "assistant",
+      content: [ { "type" => "text", "text" => "Recovered interruptionneedle result" } ]
+    )
+    write_metadata(ChatMessageSearchIndex::CONTENT_VERSION_KEY, ChatMessageSearchIndex::CONTENT_VERSION_REINDEXING)
+    write_metadata("last_backfilled_id", message.id.to_s)
+
+    described_class.perform_now
+
+    expect(ChatMessageSearchIndex.search("interruptionneedle", chat_session_id: session.id)).to contain_exactly(
+      include(chat_message_id: message.id, snippet: "Recovered <mark>interruptionneedle</mark> result")
+    )
+    expect(metadata_value(ChatMessageSearchIndex::CONTENT_VERSION_KEY)).to eq(ChatMessageSearchIndex::CONTENT_VERSION)
+  end
+
   it "indexes an oversized message prefix without loading a batch of message bodies" do
     stub_const("SearchIndexWriteLimits::MAX_ROW_BYTES", 40)
     message = ChatMessage.create!(chat_session: session, role: "user", content: { "text" => "searchable prefix #{'x' * 100} omitted" })
