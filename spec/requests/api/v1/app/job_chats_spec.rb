@@ -7,6 +7,27 @@ RSpec.describe "App API job chats", type: :request do
 
   def parse_body = JSON.parse(response.body)
   def path(job_record) = "/api/v1/app/jobs/#{job_record.id}/start_chat"
+  def diff_draft_handoff
+    <<~TEXT.strip
+      The operator opened this chat discussion from an unposted diff draft. No review comment was created.
+      Job: JOB-#{job.id}
+      Revision: abc123
+      File: app/models/widget.rb
+      Side: new
+      Selected line: 12
+      Selected source: +validate!
+
+      Surrounding diff hunk:
+      ```diff
+      @@ -11,1 +11,2 @@
+       existing
+      +validate!
+      ```
+
+      Draft note:
+      Please check this.
+    TEXT
+  end
 
   before do
     allow(User).to receive(:chat_providers).and_return(%w[claude])
@@ -83,8 +104,9 @@ RSpec.describe "App API job chats", type: :request do
       job.chat_attachments.create!(chat_session: existing_chat)
 
       expect {
-        post path(job), params: { message: "Revision: abc123\nLocation: app/models/widget.rb:12\n\nComment:\nPlease check this." }, as: :json
+        post path(job), params: { message: diff_draft_handoff }, as: :json
       }.to change(ChatMessage, :count).by(1)
+        .and change(DiffReviewComment, :count).by(0)
         .and have_enqueued_job(ChatTurnJob).with(existing_chat.id, kind_of(Integer))
 
       expect(response).to have_http_status(:ok)
@@ -92,27 +114,24 @@ RSpec.describe "App API job chats", type: :request do
       expect(message.content["text"]).to eq(<<~TEXT.strip)
         Context: discuss JOB-#{job.id}.
 
-        Revision: abc123
-        Location: app/models/widget.rb:12
-
-        Comment:
-        Please check this.
+        #{diff_draft_handoff}
       TEXT
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
     end
 
-    it "adds a supplied prompt to a fresh job chat after the job reference" do
+    it "adds a supplied diff draft to a fresh job chat without creating a review comment" do
       expect {
-        post path(job), params: { message: "Please explain what is blocked." }, as: :json
+        post path(job), params: { message: diff_draft_handoff }, as: :json
       }.to change(ChatSession, :count).by(1)
         .and change(ChatMessage, :count).by(1)
+        .and change(DiffReviewComment, :count).by(0)
         .and have_enqueued_job(ChatTurnJob).with(kind_of(Integer), kind_of(Integer))
 
       message = job.reload.discussion_chat.messages.sole
       expect(message.content["text"]).to eq(<<~TEXT.strip)
         Context: discuss JOB-#{job.id}.
 
-        Please explain what is blocked.
+        #{diff_draft_handoff}
       TEXT
     end
 
