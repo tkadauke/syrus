@@ -150,6 +150,7 @@ Chat agents receive deferred Design Docs tools:
 - `propose_design_doc`
 - `comment_on_design_doc`
 - `suggest_design_doc_change`
+- `archive_design_docs`
 - `delete_design_doc`
 
 Workflow agents receive read-only tools:
@@ -177,7 +178,15 @@ selection. Creating a suggestion inserts anchor markers and creates a new
 document version, so agents must re-read the Design Doc before sending another
 suggestion.
 
-Despite its name, `delete_design_doc` archives the target document by setting
+For multi-document archive requests, agents should use `archive_design_docs`.
+It accepts up to 100 canonical `DOC-<id>` references plus one shared audit
+reason, removes duplicates without changing the requested order, skips docs
+that are already archived, and creates one grouped confirmation. The group
+preview lists every eligible document and every skip; confirmation reports an
+outcome for each document if state or authorization changes after preview.
+
+Despite its name, the backward-compatible `delete_design_doc` archives one
+target document by setting
 `state: archived`; it never physically deletes the doc, versions, comments,
 threads, suggestions, anchors, or repository links. A fresh version 1 doc that
 is less than 10 minutes old and has no comments, threads, or suggestions is

@@ -5,7 +5,7 @@ module DesignDocs
     extend ToolSupport
     extend ::Mcp::Tools::ProposalToolSupport
 
-    FAST_PATH_MAX_AGE = 10.minutes
+    FAST_PATH_MAX_AGE = ArchivePreview::FAST_PATH_MAX_AGE
 
     tool_name "delete_design_doc"
 
@@ -46,7 +46,7 @@ module DesignDocs
           action: "delete_design_doc",
           requested_by: "agent",
           reason: reason,
-          payload: audit_payload(design_doc)
+          payload: ArchivePreview.payload(design_doc)
         )
 
         success(
@@ -58,7 +58,7 @@ module DesignDocs
           design_doc_id: design_doc.id,
           title: design_doc.title,
           confirmation_required: true,
-          confirmation_reason: confirmation_reason(design_doc)
+          confirmation_reason: ArchivePreview.confirmation_reason(design_doc)
         )
       rescue ActiveRecord::RecordNotFound
         invalid("design doc not found in this agent context: #{doc_ref}. Use DOC-<id> references from list_design_docs.")
@@ -79,44 +79,12 @@ module DesignDocs
           design_doc.suggestions.count.zero?
       end
 
-      def audit_payload(design_doc)
-        {
-          doc_ref: design_doc.display_id,
-          design_doc_id: design_doc.id,
-          title: design_doc.title,
-          state: design_doc.state,
-          age: distance_of_time_in_words(design_doc.created_at, Time.current),
-          age_seconds: (Time.current - design_doc.created_at).to_i,
-          current_version_number: current_version_number(design_doc),
-          threads_count: design_doc.threads.count,
-          comments_count: comments_count(design_doc),
-          suggestions_count: design_doc.suggestions.count,
-          repository_ids: design_doc.repositories.pluck(:id),
-          repository_slugs: design_doc.repositories.map(&:slug),
-          confirmation_reason: confirmation_reason(design_doc)
-        }
-      end
-
-      def confirmation_reason(design_doc)
-        reasons = []
-        reasons << "current version is v#{current_version_number(design_doc) || "unknown"}" unless current_version_number(design_doc) == 1
-        reasons << "doc is older than 10 minutes" if design_doc.created_at < FAST_PATH_MAX_AGE.ago
-        reasons << "doc has #{design_doc.threads.count} thread(s)" if design_doc.threads.exists?
-        reasons << "doc has #{comments_count(design_doc)} comment(s)" if comments_count(design_doc).positive?
-        reasons << "doc has #{design_doc.suggestions.count} suggestion(s)" if design_doc.suggestions.exists?
-        reasons.presence&.to_sentence || "confirmation required before archiving"
-      end
-
       def current_version_number(design_doc)
         design_doc.current_version&.version_number
       end
 
       def comments_count(design_doc)
         DesignDocs::DesignDocComment.joins(:thread).where(design_doc_threads: { design_doc_id: design_doc.id }).count
-      end
-
-      def distance_of_time_in_words(...)
-        ActionController::Base.helpers.distance_of_time_in_words(...)
       end
     end
   end
