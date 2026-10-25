@@ -465,8 +465,8 @@
     "polling_enabled": "aktiv",
     "polling_paused": "pausiert",
     "poll_failed": "fehlgeschlagen",
-    "poll_quarantined_one": "1 Issue quarantänisiert",
-    "poll_quarantined_other": "{{count}} Issues quarantänisiert",
+    "poll_quarantined_one": "1 Issue wurde unter Quarantäne gestellt",
+    "poll_quarantined_other": "{{count}} Issues wurden unter Quarantäne gestellt",
     "poll_ok": "OK"
   },
   "repository": {
@@ -479,8 +479,8 @@
     "count_failed_7d": "7 Tage fehlgeschlagen",
     "polling_enabled": "Polling aktiv",
     "polling_paused": "Polling pausiert",
-    "poll_quarantined_one": "1 Issue quarantänisiert",
-    "poll_quarantined_other": "{{count}} Issues quarantänisiert",
+    "poll_quarantined_one": "1 Issue wurde unter Quarantäne gestellt",
+    "poll_quarantined_other": "{{count}} Issues wurden unter Quarantäne gestellt",
     "cognitive_debt": "Kognitive Schuld",
     "cognitive_debt_aria": "Review-Warteschlange für kognitive Schuld",
     "cognitive_debt_loading": "Kognitive Schuld wird geladen...",
