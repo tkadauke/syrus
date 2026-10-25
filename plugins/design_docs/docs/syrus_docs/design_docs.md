@@ -142,6 +142,16 @@ title-bar dropdown loads that version's Markdown into the current working copy;
 it is autosaved like any other edit, while `Save` creates a new auditable
 version/checkpoint from the current persisted working copy.
 
+Detail responses include `canonical_revision`, a SHA-256 fingerprint of the
+stored canonical Markdown (including private anchor markers). Owner Markdown
+updates send that value as `base_revision`. If a suggestion accept or another
+canonical write changed the document meanwhile, the API returns `409` with
+`error.code == "revision_conflict"` and leaves the newer canonical text
+untouched. The editor waits for an already-started autosave before reviewing
+suggestions and applies consecutive reviews in order. On conflict, reload the
+current document, reconcile the local draft, and retry from its new revision.
+Successful autosaves still create no version checkpoint.
+
 Pending suggestions are classified before rendering. Inline-safe suggestions
 appear inline at their anchored range in both editor modes where practical: the
 original Markdown range is struck through in the active theme warning color and

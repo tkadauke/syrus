@@ -1,4 +1,5 @@
 require "cgi"
+require "digest"
 
 module DesignDocs
   class DesignDoc < ApplicationRecord
@@ -74,6 +75,10 @@ module DesignDocs
 
     def display_name
       "#{display_id} #{title}"
+    end
+
+    def canonical_revision
+      Digest::SHA256.hexdigest(markdown.to_s)
     end
 
     def private?
