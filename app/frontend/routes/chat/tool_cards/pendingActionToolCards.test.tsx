@@ -159,6 +159,17 @@ describe("pending action tool card family", () => {
     }
   })
 
+  it("localizes the fixture-backed process confirmation with count-driven wording", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const targets = i18n.t("chat:admin_kill_process_catalog_targets")
+      expect(i18n.t("chat:admin_kill_process_confirmation", { count: 1, targets: "#41" })).toBe("Prozess #41 beenden?")
+      expect(i18n.t("chat:admin_kill_process_confirmation", { count: 3, targets })).toBe("Prozesse #41, #42 und #43 beenden?")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
+
   it("publishes catalog examples for linked targets, long Markdown, and tool errors", () => {
     expect(adminKillProcessExamples.map((example) => example.id)).toEqual(["bulk_process_targets"])
     expect(clearProviderCircuitExamples.map((example) => example.id)).toEqual(["long_markdown_evidence"])

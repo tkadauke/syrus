@@ -24,7 +24,7 @@ export const examples: ToolCardExample[] = [
       pending_confirmation_id: 501,
       state: "pending",
       member_count: 3,
-      message: "Kill processes #41, #42, and #43?"
+      message: i18n.t("chat:admin_kill_process_confirmation", { count: 3, targets: i18n.t("chat:admin_kill_process_catalog_targets") })
     }
   }
 ]
