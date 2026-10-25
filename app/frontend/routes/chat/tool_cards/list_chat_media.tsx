@@ -185,7 +185,7 @@ function MediaTile({ item }: { item: Media }) {
   )
 }
 
-function safeMediaUrl(value: string) {
+export function safeMediaUrl(value: string) {
   return value && (value.startsWith("/") || value.startsWith("data:image/") || /^https?:\/\//i.test(value)) ? value : null
 }
 

@@ -3,6 +3,7 @@ import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { MediaPreviewShell } from "../mediaPreviewShell"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard, type PendingActionInputField } from "../pendingActionToolCard"
 import { Badge, displayValue, SectionLabel } from "../toolCardUi"
+import { safeMediaUrl } from "./list_chat_media"
 
 const inputFields: PendingActionInputField[] = [{ key: "feedback", label: "Feedback", format: "markdown" }]
 
@@ -50,7 +51,7 @@ function FeedbackMediaItem({ context, reference }: { context: ToolCardContext; r
       context.presentation?.chatId != null
         ? `/api/v1/app/chats/${encodeURIComponent(String(context.presentation.chatId))}/media/chat_images/${encodeURIComponent(String(id))}/file`
         : null
-    const src = image?.image_url || image?.file_path || derivedSrc
+    const src = safeMediaUrl(image?.image_url || image?.file_path || derivedSrc || "")
     if (!src) return <Badge wrap>{reference}</Badge>
     const title = image?.title || image?.filename || reference
     return (

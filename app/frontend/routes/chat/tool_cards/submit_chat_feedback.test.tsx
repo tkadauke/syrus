@@ -91,6 +91,26 @@ describe("submit_chat_feedback tool card", () => {
     expect(screen.getByText("artifact:very-long-unresolved-reference").parentElement).toHaveClass("break-words")
   })
 
+  it("rejects unsafe stored media URLs and falls back to the reference badge", () => {
+    const context_ = context({
+      input: { job_id: 4048, feedback: "Review the attachment.", media: ["chat_image:7"] },
+      parsedResult: { pending_action_id: 501, state: "pending", message: "Confirm feedback." },
+      presentation: {
+        chatMedia: {
+          snapshots: [],
+          chat_images: [{ id: 7, title: "Unsafe image", filename: "unsafe.png", content_type: "image/png", image_url: "javascript:alert('unsafe')" }],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }
+      }
+    })
+    render(<>{submitChatFeedbackToolCard.renderExpanded(context_)}</>)
+
+    expect(screen.queryByRole("img", { name: "Unsafe image" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Open image" })).not.toBeInTheDocument()
+    expect(screen.getByText("chat_image:7")).toBeInTheDocument()
+  })
+
   it("renders the queued state distinctly from the pending-confirmation state", () => {
     const context_ = context({
       input: { job_id: 4048, feedback: "Please fix the header." },
