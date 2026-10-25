@@ -47,7 +47,7 @@ describe("load_canvas tool card", () => {
 
     render(<>{loadCanvasToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Snapshot #8" }))
+    fireEvent.click(screen.getByRole("button", { name: "Snapshot #8 öffnen" }))
     expect(await screen.findByText("Snapshot-ID")).toBeInTheDocument()
     expect(screen.getByText("Modus")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "ID kopieren" })).toBeInTheDocument()

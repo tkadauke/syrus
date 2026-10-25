@@ -56,7 +56,8 @@ RSpec.describe "desktop stale-token healing" do
   it "routes the tray's unauthorized state to Open Syrus, not a dead-end retry" do
     expect(renderer).to include("isUnauthorizedError(inboxQuery.error)")
     unauthorized_panel = renderer[/isUnauthorizedError\(inboxQuery\.error\)[\s\S]{0,700}/]
-    expect(unauthorized_panel).to include("Sign-in needs a refresh")
+    expect(unauthorized_panel).to include('t("renderer.signin_refresh")')
+    expect(read("electron/i18nCatalog.ts")).to include('"renderer.signin_refresh": "Sign-in needs a refresh"')
     expect(unauthorized_panel).to include("openSyrusWindow")
   end
 

@@ -91,6 +91,67 @@ RSpec.describe "German localization orthography", type: :unit do
     desktop/src/i18n.ts:runtime.running_installer
     desktop/src/i18n.ts:runtime.wait_available
     desktop/src/i18n.ts:runtime.wsl_body
+    desktop/src/i18n.ts:dialog.action_failed
+    desktop/src/i18n.ts:dialog.action_failed_detail
+    desktop/src/i18n.ts:dialog.data_gone_detail
+    desktop/src/i18n.ts:dialog.pause_runs_detail
+    desktop/src/i18n.ts:dialog.reset
+    desktop/src/i18n.ts:dialog.reset_button
+    desktop/src/i18n.ts:dialog.reset_title
+    desktop/src/i18n.ts:dialog.resume_runs_detail
+    desktop/src/i18n.ts:dialog.setup_detail
+    desktop/src/i18n.ts:dialog.stop_detail
+    desktop/src/i18n.ts:dialog.uninstall_data
+    desktop/src/i18n.ts:dialog.update_backend_detail
+    desktop/src/i18n.ts:dialog.update_busy_test
+    desktop/src/i18n.ts:notification.pr_merged
+    desktop/src/i18n.ts:notification.pr_ready
+    desktop/src/i18n.ts:renderer.already_signed_in
+    desktop/src/i18n.ts:renderer.behind
+    desktop/src/i18n.ts:renderer.checking
+    desktop/src/i18n.ts:renderer.choose
+    desktop/src/i18n.ts:renderer.choose_repository
+    desktop/src/i18n.ts:renderer.clear
+    desktop/src/i18n.ts:renderer.cli_install_required
+    desktop/src/i18n.ts:renderer.cli_new_terminal
+    desktop/src/i18n.ts:renderer.close_compose
+    desktop/src/i18n.ts:renderer.dismiss
+    desktop/src/i18n.ts:renderer.feedback_placeholder
+    desktop/src/i18n.ts:renderer.job_unavailable
+    desktop/src/i18n.ts:renderer.menu_bar
+    desktop/src/i18n.ts:renderer.no_test_plan
+    desktop/src/i18n.ts:renderer.open_actions
+    desktop/src/i18n.ts:renderer.open_in_syrus
+    desktop/src/i18n.ts:renderer.open_new_terminal
+    desktop/src/i18n.ts:renderer.open_pr
+    desktop/src/i18n.ts:renderer.open_pull_request
+    desktop/src/i18n.ts:renderer.open_syrus
+    desktop/src/i18n.ts:renderer.open_url
+    desktop/src/i18n.ts:renderer.press_shortcut
+    desktop/src/i18n.ts:renderer.running
+    desktop/src/i18n.ts:renderer.runs
+    desktop/src/i18n.ts:renderer.shortcut_cleared
+    desktop/src/i18n.ts:renderer.signin_refresh_detail
+    desktop/src/i18n.ts:renderer.skill_added
+    desktop/src/i18n.ts:renderer.skill_install_title
+    desktop/src/i18n.ts:renderer.status_loading
+    desktop/src/i18n.ts:screen.detail
+    desktop/src/i18n.ts:self_install.open_new_detail
+    desktop/src/i18n.ts:self_install.open_new_failed
+    desktop/src/i18n.ts:self_install.open_old_detail
+    desktop/src/i18n.ts:self_install.open_old_failed
+    desktop/src/i18n.ts:shell.data_folder
+    desktop/src/i18n.ts:shell.install_log
+    desktop/src/i18n.ts:shell.open
+    desktop/src/i18n.ts:shell.projects_root
+    desktop/src/i18n.ts:shell.reset_test
+    desktop/src/i18n.ts:shell.window_only
+    desktop/src/i18n.ts:updates.failed
+    desktop/src/i18n.ts:updates.failed_detail
+    desktop/src/i18n.ts:updates.ready_detail
+    desktop/src/i18n.ts:updates.unavailable
+    desktop/src/i18n.ts:updates.unavailable_mac_detail
+    desktop/src/i18n.ts:updates.unavailable_windows_detail
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:col_rows_examined
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:confirm_kill_query
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:killed_query
@@ -198,16 +259,14 @@ RSpec.describe "German localization orthography", type: :unit do
     entries
   end
 
-  def desktop_entries(path = Rails.root.join("desktop/src/i18n.ts"), contents: File.read(path))
+  def desktop_entries(path = Rails.root.join("desktop/electron/i18nCatalog.ts"), contents: File.read(path))
     body = contents[/\bconst deMessages\s*=\s*\{(?<body>.*?)\n\}\s+satisfies\s+Record<DesktopMessageKey, string>/m, :body]
-    raise "Could not find the bounded deMessages object in desktop/src/i18n.ts" unless body
+    raise "Could not find the bounded deMessages object in desktop/electron/i18nCatalog.ts" unless body
 
-    body.lines.filter_map do |line|
-      match = line.match(/^\s*"(?<key>(?:[^"\\]|\\.)+)"\s*:\s*"(?<value>(?:[^"\\]|\\.)*)"\s*,?\s*$/)
-      next if line.strip.empty?
-      raise "Unsupported deMessages entry: #{line.strip}" unless match
-
-      Entry.new("desktop/src/i18n.ts", JSON.parse(%("#{match[:key]}")), JSON.parse(%("#{match[:value]}")))
+    body.scan(/^[ \t]*"(?<key>(?:[^"\\]|\\.)+)"[ \t]*:[ \t]*(?:\n[ \t]*)?"(?<value>(?:[^"\\]|\\.)*)"[ \t]*,?[ \t]*$/).map do |key, value|
+      # Preserve the established coordinate label so the exact debt baseline
+      # remains stable after moving the shared catalog to the Electron tree.
+      Entry.new("desktop/src/i18n.ts", JSON.parse(%("#{key}")), JSON.parse(%("#{value}")))
     end
   end
 
@@ -314,7 +373,7 @@ RSpec.describe "German localization orthography", type: :unit do
 
       expect(structured_entries(Pathname(yaml.path)).map(&:key)).to eq([ "de.nested.label" ])
       expect(structured_entries(Pathname(json.path)).map(&:key)).to eq([ "nested.label" ])
-      expect(desktop_entries(Pathname("desktop/src/i18n.ts"), contents: desktop)).to eq([
+      expect(desktop_entries(Pathname("desktop/electron/i18nCatalog.ts"), contents: desktop)).to eq([
         Entry.new("desktop/src/i18n.ts", "desktop.label", "Schliessen")
       ])
     ensure
