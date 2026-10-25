@@ -1194,7 +1194,10 @@ export function PendingActionGroupCard({
             <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-800 dark:bg-gray-950">
               {members.map((member) => (
                 <li className="flex flex-wrap items-start justify-between gap-2" key={member.id}>
-                  <span className="text-gray-700 dark:text-gray-300">{linkifySlugs(member.label)}</span>
+                  <span className="min-w-0 text-gray-700 dark:text-gray-300">
+                    <span>{linkifySlugs(member.label)}</span>
+                    {member.detail ? <span className="mt-0.5 block break-words text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{member.detail}</span> : null}
+                  </span>
                   {member.outcome === "skipped" ? (
                     <span className="text-amber-700 dark:text-amber-300">{t("batch_outcome_skipped")}</span>
                   ) : member.state === "confirmed" ? (

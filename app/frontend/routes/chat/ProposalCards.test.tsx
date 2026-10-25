@@ -162,6 +162,27 @@ describe("PendingActionGroupCard", () => {
     expect(screen.getByText("1 applied, 1 skipped/ineligible, 1 failed.")).toBeInTheDocument()
   })
 
+  it("shows Design Doc titles and per-document archive outcomes", () => {
+    renderGroupCard(
+      pendingActionGroup({
+        label: "Delete design doc (3)",
+        reason: "The designs have shipped.",
+        state: "confirmed",
+        members: [
+          { id: 501, label: "Archive DOC-42", detail: "Checkout design", state: "confirmed", outcome: "applied" },
+          { id: 502, label: "Archive DOC-43", detail: "Review design", state: "failed", outcome: "skipped", execution_error: "DOC-43 is already archived" },
+          { id: 503, label: "Archive DOC-44", detail: "Landing design", state: "failed", outcome: "failed", execution_error: "Authorization changed" }
+        ]
+      })
+    )
+
+    expect(screen.getByText((_, element) => element?.textContent === "Archive DOC-42")).toBeInTheDocument()
+    expect(screen.getByText("Checkout design")).toBeInTheDocument()
+    expect(screen.getByText("Skipped/ineligible")).toBeInTheDocument()
+    expect(screen.getByText("Failed: Authorization changed")).toBeInTheDocument()
+    expect(screen.getByText("1 applied, 1 skipped/ineligible, 1 failed.")).toBeInTheDocument()
+  })
+
   it("rejects every member on Reject all", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
