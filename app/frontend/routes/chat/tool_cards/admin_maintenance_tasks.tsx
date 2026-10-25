@@ -137,7 +137,7 @@ function parseTask(value: unknown): MaintenanceTask | null {
 type MaintenancePayload = { kind: "list"; tasks: MaintenanceTask[] } | { kind: "single"; task: MaintenanceTask }
 const INPUT_FIELDS: PendingActionInputField[] = [
   { key: "action", format: "badge" },
-  { key: "task_id", label: i18n.t("chat:ops_task_id_0491c6") },
+  { key: "task_id", label: () => i18n.t("chat:ops_task_id_0491c6") },
   { key: "state", format: "badge" },
   { key: "limit" }
 ]
@@ -159,28 +159,28 @@ function parsePayload(context: ToolCardContext): MaintenancePayload | null {
 
 function taskRows(task: MaintenanceTask) {
   const rows: Array<[string, string | null]> = [
-    ["Task ID", task.id],
-    ["Definition", task.definitionKey],
-    ["Task key", task.taskKey],
-    ["Trigger kind", task.triggerKind],
-    ["Trigger key", task.triggerKey],
-    ["Required role", task.requiredRole],
-    ["Current step key", task.currentStepKey],
-    ["Current step", task.currentStepTitle],
-    ["Total units", task.totalUnits?.toString() ?? null],
-    ["Completed units", task.completedUnits?.toString() ?? null],
-    ["Failed units", task.failedUnits?.toString() ?? null],
-    ["Progress", task.progressPercent == null ? null : `${task.progressPercent}%`],
-    ["ETA", task.etaSeconds == null ? null : `${task.etaSeconds}s`],
-    ["Started", task.startedAt],
-    ["Finished", task.finishedAt],
-    ["Paused", task.pausedAt],
-    ["Cancelled", task.cancelledAt],
-    ["Dismissed", task.dismissedAt]
+    [i18n.t("chat:ops_task_id_0491c6"), task.id],
+    [i18n.t("chat:admin_maintenance_definition"), task.definitionKey],
+    [i18n.t("chat:admin_maintenance_task_key"), task.taskKey],
+    [i18n.t("chat:admin_maintenance_trigger_kind"), task.triggerKind],
+    [i18n.t("chat:admin_maintenance_trigger_key"), task.triggerKey],
+    [i18n.t("chat:admin_maintenance_required_role"), task.requiredRole],
+    [i18n.t("chat:admin_maintenance_current_step_key"), task.currentStepKey],
+    [i18n.t("chat:admin_maintenance_current_step"), task.currentStepTitle],
+    [i18n.t("chat:admin_maintenance_total_units"), task.totalUnits?.toString() ?? null],
+    [i18n.t("chat:admin_maintenance_completed_units"), task.completedUnits?.toString() ?? null],
+    [i18n.t("chat:admin_maintenance_failed_units"), task.failedUnits?.toString() ?? null],
+    [i18n.t("chat:admin_maintenance_progress"), task.progressPercent == null ? null : `${task.progressPercent}%`],
+    [i18n.t("chat:admin_maintenance_eta"), task.etaSeconds == null ? null : `${task.etaSeconds}s`],
+    [i18n.t("chat:admin_column_started"), task.startedAt],
+    [i18n.t("chat:admin_column_finished"), task.finishedAt],
+    [i18n.t("chat:admin_maintenance_paused"), task.pausedAt],
+    [i18n.t("chat:admin_maintenance_cancelled"), task.cancelledAt],
+    [i18n.t("chat:admin_maintenance_dismissed"), task.dismissedAt]
   ]
   if (task.requestedBy)
     rows.push([
-      "Requested by",
+      i18n.t("chat:admin_maintenance_requested_by"),
       task.requestedBy.displayName && task.requestedBy.id
         ? `${task.requestedBy.displayName} (#${task.requestedBy.id})`
         : task.requestedBy.displayName || task.requestedBy.id

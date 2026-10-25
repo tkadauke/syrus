@@ -7,8 +7,8 @@ import { pendingActionToolCard } from "../pendingActionToolCard"
 // consistent; this file only binds it to one MCP tool name.
 const adminKillProcessToolCard = pendingActionToolCard("admin_kill_process", {
   inputFields: [
-    { key: "process_id", label: i18n.t("chat:ops_process_12f4c1"), format: "entity", hrefPrefix: "/admin/processes" },
-    { key: "process_ids", label: i18n.t("chat:ops_processes_ed7308"), format: "entity_list", hrefPrefix: "/admin/processes" }
+    { key: "process_id", label: () => i18n.t("chat:ops_process_12f4c1"), format: "entity", hrefPrefix: "/admin/processes" },
+    { key: "process_ids", label: () => i18n.t("chat:ops_processes_ed7308"), format: "entity_list", hrefPrefix: "/admin/processes" }
   ]
 })
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import i18n from "../../../i18n"
 import adminMaintenanceTasksToolCard, { examples } from "./admin_maintenance_tasks"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -85,6 +86,18 @@ describe("admin_maintenance_tasks tool card", () => {
     expect(screen.getByText("owner_id")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open task" })).toHaveAttribute("href", "/admin/maintenance_tasks/7")
     expect(screen.getByRole("table")).toHaveClass("block")
+  })
+
+  it("localizes task-detail labels", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [task()] } }))}</>)
+      expect(screen.getAllByText("Aktueller Schritt").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("Angefordert von").length).toBeGreaterThan(0)
+      expect(screen.queryByText("Current step")).not.toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("renders read-only detail fields, markdown, checkpoint, events, and redacted log previews", () => {

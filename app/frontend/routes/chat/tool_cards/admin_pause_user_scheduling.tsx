@@ -7,8 +7,8 @@ import { parsePendingActionResult, pendingActionToolCard } from "../pendingActio
 // consistent; this file only binds it to one MCP tool name.
 const sharedPendingActionToolCard = pendingActionToolCard("admin_pause_user_scheduling", {
   inputFields: [
-    { key: "user_id", label: i18n.t("chat:ops_user_9f8a23"), format: "entity", hrefPrefix: "/admin/users" },
-    { key: "user_ids", label: i18n.t("chat:ops_users_57f2b1"), format: "entity_list", hrefPrefix: "/admin/users" },
+    { key: "user_id", label: () => i18n.t("chat:ops_user_9f8a23"), format: "entity", hrefPrefix: "/admin/users" },
+    { key: "user_ids", label: () => i18n.t("chat:ops_users_57f2b1"), format: "entity_list", hrefPrefix: "/admin/users" },
     { key: "reason", format: "markdown" }
   ]
 })
@@ -23,7 +23,7 @@ const adminPauseUserSchedulingToolCard: ToolCardRenderer = {
   argumentSummary: () => "",
   collapsedSummary(context: ToolCardContext) {
     const result = parsePendingActionResult(context, true)
-    return result?.kind === "error" ? "Error" : null
+    return result?.kind === "error" ? i18n.t("chat:ops_error_7f2f6a") : null
   }
 }
 

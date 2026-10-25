@@ -273,8 +273,17 @@ function collapsedSummary(context: ToolCardContext) {
   if (card.unavailableMessage) return card.unavailableMessage
 
   const rate = card.totals.calls > 0 ? card.totals.errors / card.totals.calls : 0
-  const window = card.window.start && card.window.end ? `${card.window.start} to ${card.window.end}` : i18n.t("chat:ops_selected_window_027202")
-  return `${window}, ${card.surface || "all"} surface, ${card.totals.calls} calls, ${card.totals.errors} errors, ${percent(rate)} error rate`
+  const window =
+    card.window.start && card.window.end
+      ? i18n.t("chat:admin_mcp_window_range", { start: card.window.start, end: card.window.end })
+      : i18n.t("chat:ops_selected_window_027202")
+  return i18n.t("chat:admin_mcp_usage_summary", {
+    window,
+    surface: card.surface || i18n.t("chat:admin_mcp_all_surfaces"),
+    calls: card.totals.calls,
+    errors: card.totals.errors,
+    rate: percent(rate)
+  })
 }
 
 function StatTile({ label, value, tone = "neutral" }: { label: string; value: string | number; tone?: "neutral" | "volume" | "error" }) {
@@ -366,11 +375,9 @@ function CardGapRows({ heading, rows, showVolume = true }: { heading: string; ro
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-1">
                 <StatePill state={row.cardStatus} tone={row.cardStatus === "registered" ? "success" : "warning"} />
-                {showVolume && row.calls != null ? <Badge>{row.calls} calls</Badge> : null}
+                {showVolume && row.calls != null ? <Badge>{i18n.t("chat:admin_mcp_call_count", { count: row.calls })}</Badge> : null}
                 {showVolume && row.errors != null && row.errorRate != null ? (
-                  <Badge>
-                    {row.errors} errors, {percent(row.errorRate)}
-                  </Badge>
+                  <Badge>{i18n.t("chat:admin_mcp_error_count_with_rate", { count: row.errors, rate: percent(row.errorRate) })}</Badge>
                 ) : null}
               </div>
               <div className="min-w-0 break-words font-mono text-2xs text-gray-600 dark:text-gray-300">{row.recommendationTarget}</div>
@@ -404,8 +411,8 @@ function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
                   </div>
                 </Td>
                 <Td>
-                  <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{row.calls ?? 0} calls</div>
-                  <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{row.errors ?? 0} errors</div>
+                  <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{i18n.t("chat:admin_mcp_call_count", { count: row.calls ?? 0 })}</div>
+                  <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{i18n.t("chat:admin_mcp_error_count", { count: row.errors ?? 0 })}</div>
                   <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{formatBytes(row.resultBytes)}</div>
                 </Td>
                 <Td maxWidth title={row.recommendationTarget}>
@@ -414,7 +421,7 @@ function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
                     {row.serverNames.length > 0 ? row.serverNames.join(", ") : row.recommendationTarget}
                   </div>
                 </Td>
-                <Td mono>{row.lastUsedAt || "unused"}</Td>
+                <Td mono>{row.lastUsedAt || i18n.t("chat:admin_mcp_unused")}</Td>
               </tr>
             ))}
           </TBody>
@@ -479,11 +486,9 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>{card.surface || "all"} surface</Badge>
+        <Badge>{i18n.t("chat:admin_mcp_surface", { surface: card.surface || i18n.t("chat:admin_mcp_all_surfaces") })}</Badge>
         {card.window.start && card.window.end ? (
-          <Badge>
-            {card.window.start} to {card.window.end}
-          </Badge>
+          <Badge>{i18n.t("chat:admin_mcp_window_range", { start: card.window.start, end: card.window.end })}</Badge>
         ) : null}
         {filters.map((filter) => (
           <Badge key={filter}>{filter}</Badge>
@@ -496,15 +501,19 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       {card.totals.calls === 0 ? <EmptyState>{i18n.t("chat:ops_no_mcp_tool_calls_found_for_this_window_d0d947")}</EmptyState> : null}
       <div className="grid gap-2 lg:grid-cols-2">
-        <ToolRows heading="Volume priorities" intent="volume" rows={card.topTools} />
-        <ToolRows heading="Error priorities" intent="error" rows={card.errorRates} />
+        <ToolRows heading={i18n.t("chat:admin_mcp_volume_priorities")} intent="volume" rows={card.topTools} />
+        <ToolRows heading={i18n.t("chat:admin_mcp_error_priorities")} intent="error" rows={card.errorRates} />
       </div>
       <RankedCardGaps rows={card.customCardGaps.rankedGaps} />
       <div className="grid min-w-0 gap-2 lg:grid-cols-4">
-        <CardGapRows heading="Missing high-volume cards" rows={card.customCardGaps.highVolumeWithoutCustomCard} />
-        <CardGapRows heading="Weak or missing error cards" rows={card.customCardGaps.highErrorWithWeakOrNoCustomCard} />
-        <CardGapRows heading="Unused advertised tools" rows={card.customCardGaps.unusedAdvertisedTools} showVolume={false} />
-        <CardGapRows heading="Unclassified advertised tools" rows={card.customCardGaps.unclassifiedAdvertisedTools} showVolume={false} />
+        <CardGapRows heading={i18n.t("chat:admin_mcp_missing_high_volume_cards")} rows={card.customCardGaps.highVolumeWithoutCustomCard} />
+        <CardGapRows heading={i18n.t("chat:admin_mcp_weak_error_cards")} rows={card.customCardGaps.highErrorWithWeakOrNoCustomCard} />
+        <CardGapRows heading={i18n.t("chat:ops_unused_advertised_tools_3d0e89")} rows={card.customCardGaps.unusedAdvertisedTools} showVolume={false} />
+        <CardGapRows
+          heading={i18n.t("chat:admin_mcp_unclassified_advertised_tools")}
+          rows={card.customCardGaps.unclassifiedAdvertisedTools}
+          showVolume={false}
+        />
       </div>
       <div className="grid gap-2 lg:grid-cols-2">
         <BreakdownRows label={i18n.t("chat:ops_surface_cda05c")} rows={card.surfaceBreakdown} />
