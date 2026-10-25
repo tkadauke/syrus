@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference } from "../toolCardUi"
@@ -68,7 +69,7 @@ function BranchLink({ branch, repository }: { branch: string | null; repository:
 function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
-  return `${result.tracks.length} delivery track${result.tracks.length === 1 ? "" : "s"} · ${result.repository}`
+  return i18n.t("chat:tool_card_list_delivery_tracks_summary", { count: result.tracks.length, repository: result.repository })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -79,7 +80,7 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         <div>{repositoryReference}</div>
-        <EmptyState>No delivery tracks configured.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_list_delivery_tracks_empty")}</EmptyState>
       </CardShell>
     )
 
@@ -87,14 +88,14 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div>{repositoryReference}</div>
       <Table responsive>
-        <THead columns={["Track", "Branch", "Review phase", "Landing phase", "CI failure phase", "Branch health phase", "Sync after landing"]} />
+        <THead columns={["track", "branch", "review", "landing", "ci_failure", "branch_health", "sync_after_landing"].map((key) => i18n.t(`chat:tool_card_list_delivery_tracks_${key}`))} />
         <TBody>
           {result.tracks.map((row) => (
             <tr key={row.name}>
               <Td mono primary>
                 <span className="flex flex-wrap items-center gap-1">
                   {row.name}
-                  {row.isDefault ? <Badge>default</Badge> : null}
+                  {row.isDefault ? <Badge>{i18n.t("chat:tool_card_list_delivery_tracks_default")}</Badge> : null}
                 </span>
               </Td>
               <Td wrap>
@@ -121,7 +122,7 @@ export default listDeliveryTracksToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "multiple_tracks",
-    label: "Multiple delivery tracks",
+    label: i18n.t("chat:tool_card_list_delivery_tracks_example_multiple"),
     parsedResult: {
       repository: "acme/widgets",
       tracks: [
@@ -139,6 +140,6 @@ export const examples: ToolCardExample[] = [
       ]
     }
   },
-  { id: "empty", label: "No delivery tracks", parsedResult: { repository: "acme/widgets", tracks: [] } },
-  { id: "error", label: "Repository unavailable", resultBody: "No repository attached.", resultError: true }
+  { id: "empty", label: i18n.t("chat:tool_card_list_delivery_tracks_example_empty"), parsedResult: { repository: "acme/widgets", tracks: [] } },
+  { id: "error", label: i18n.t("chat:tool_card_list_delivery_tracks_example_error"), resultBody: i18n.t("chat:tool_card_list_delivery_tracks_example_error_message"), resultError: true }
 ]

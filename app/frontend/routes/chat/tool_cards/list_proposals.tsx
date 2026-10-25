@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { EmptyState, EntityReference, StatePill } from "../toolCardUi"
 import { parseProposalOutcome, type ProposalOutcome } from "../proposalToolCard"
@@ -16,23 +17,22 @@ function proposalRows(context: ToolCardContext): ProposalOutcome[] | null {
 function collapsedSummary(context: ToolCardContext) {
   const rows = proposalRows(context)
   if (!rows) return null
-  return `${rows.length} proposal${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_list_proposals_summary", { count: rows.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
   const rows = proposalRows(context)
   if (!rows) return null
-  if (rows.length === 0) return <EmptyState>No proposals in this chat yet.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:tool_card_list_proposals_empty")}</EmptyState>
 
   return (
     <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Slug</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Title</th>
+            {["slug", "kind", "state", "title"].map((column) => (
+              <th className="px-2 py-1 font-semibold" key={column} scope="col">{i18n.t(`chat:tool_card_list_proposals_${column}`)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -63,18 +63,18 @@ export default listProposalsToolCard
 export const examples = [
   {
     id: "mixed_proposals",
-    label: "Mixed proposal states",
+    label: i18n.t("chat:tool_card_list_proposals_example_mixed"),
     parsedResult: {
       proposals: [
-        { slug: "fix-output", title: "Fix output", kind: "job", state: "proposed" },
-        { slug: "tier-2-cards", title: "Tier 2 Custom Tool Cards", kind: "epic", state: "withdrawn" }
+        { slug: "fix-output", title: i18n.t("chat:tool_card_list_proposals_example_job"), kind: "job", state: "proposed" },
+        { slug: "tier-2-cards", title: i18n.t("chat:tool_card_list_proposals_example_epic"), kind: "epic", state: "withdrawn" }
       ]
     }
   },
   {
     id: "no_proposals",
-    label: "No proposals",
-    description: "Empty result set -- the card renders EmptyState instead of a bare table header.",
+    label: i18n.t("chat:tool_card_list_proposals_example_empty"),
+    description: i18n.t("chat:tool_card_list_proposals_example_empty_description"),
     parsedResult: { proposals: [] }
   }
 ]

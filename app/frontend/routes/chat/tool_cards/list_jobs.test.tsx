@@ -1,5 +1,9 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
+import deChat from "@app/i18n/locales/de/chat.json"
+import enChat from "@app/i18n/locales/en/chat.json"
+import laChat from "@app/i18n/locales/la/chat.json"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { toolResultPresentation } from "../toolRendering"
 import listJobsToolCard from "./list_jobs"
@@ -32,6 +36,39 @@ describe("list_jobs tool card", () => {
       ]
     }
     expect(listJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 Jobs")
+  })
+
+  it("defines count-driven German Job summaries and empty-state copy", () => {
+    const t = i18n.getFixedT("de", "chat")
+    expect(t("tool_card_list_jobs_summary", { count: 1 })).toBe("1 Job")
+    expect(t("tool_card_list_jobs_summary", { count: 2 })).toBe("2 Jobs")
+    expect(t("tool_card_list_jobs_empty")).toBe("Keine Jobs gefunden.")
+  })
+
+  it("defines the localized list/search card keys in every chat locale", () => {
+    const prefixes = [
+      "tool_card_list_jobs_",
+      "tool_card_search_jobs_",
+      "tool_card_list_epics_",
+      "tool_card_list_chats_",
+      "tool_card_list_repositories_",
+      "tool_card_list_issues_",
+      "tool_card_list_prs_",
+      "tool_card_list_files_",
+      "tool_card_list_artifacts_",
+      "tool_card_list_media_",
+      "tool_card_list_delivery_tracks_",
+      "tool_card_list_proposals_",
+      "tool_card_list_ref_actions_",
+      "tool_card_list_tags_",
+      "tool_card_list_wakeups_",
+      "tool_card_search_docs_"
+    ]
+    const englishKeys = Object.keys(enChat).filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
+    expect(englishKeys.length).toBeGreaterThan(50)
+    for (const locale of [deChat, laChat]) {
+      for (const key of englishKeys) expect(locale[key as keyof typeof locale], key).toBeTruthy()
+    }
   })
 
   it("renders a dense table with one row per Job", () => {

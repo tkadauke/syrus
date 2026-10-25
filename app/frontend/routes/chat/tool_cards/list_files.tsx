@@ -1,4 +1,5 @@
 import { CopyableSlug } from "@app/components/CopyableSlug"
+import i18n from "@app/i18n"
 import { formatBytes } from "@app/lib/format"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
@@ -8,10 +9,10 @@ type FileRow = { name: string; isDir: boolean; size: number | null }
 type ListFilesResult = { kind: "files"; rows: FileRow[] } | { kind: "pending"; message: string | null }
 
 const failureConfig: ToolFailureConfig = {
-  title: "List files",
-  attempted: (context) => `List ${displayValue(context.input?.path) || "."}`,
+  title: i18n.t("chat:tool_card_list_files_title"),
+  attempted: (context) => i18n.t("chat:tool_card_list_files_attempted", { path: displayValue(context.input?.path) || "." }),
   retrySafety: "safe",
-  recovery: "Reconnect the Local Mode daemon or correct the requested path, then retry."
+  recovery: i18n.t("chat:tool_card_list_files_recovery")
 }
 
 function parseResult(context: ToolCardContext): ListFilesResult | null {
@@ -38,8 +39,8 @@ function collapsedSummary(context: ToolCardContext) {
   if (failure) return failure
   const result = parseResult(context)
   if (!result) return null
-  if (result.kind === "pending") return "File listing pending"
-  return result.rows.length === 0 ? "No files" : `${result.rows.length} item${result.rows.length === 1 ? "" : "s"}`
+  if (result.kind === "pending") return i18n.t("chat:tool_card_list_files_pending")
+  return i18n.t("chat:tool_card_list_files_summary", { count: result.rows.length })
 }
 
 function FolderIcon() {
@@ -69,13 +70,13 @@ function InputDetails({ context, path }: { context: ToolCardContext; path: strin
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-3">
       <div className="min-w-0">
-        <dt className="text-2xs font-medium uppercase text-text-muted">Path</dt>
+        <dt className="text-2xs font-medium uppercase text-text-muted">{i18n.t("chat:tool_card_list_files_path")}</dt>
         <dd>
           <CopyableSlug className="-ml-1" slug={path} />
         </dd>
       </div>
-      {typeof recursive === "boolean" ? <Row label="Recursive" value={recursive ? "Yes" : "No"} /> : null}
-      {depth != null ? <Row label="Depth" value={String(depth)} /> : null}
+      {typeof recursive === "boolean" ? <Row label={i18n.t("chat:tool_card_list_files_recursive")} value={recursive ? i18n.t("chat:tool_card_yes") : i18n.t("chat:tool_card_no")} /> : null}
+      {depth != null ? <Row label={i18n.t("chat:tool_card_list_files_depth")} value={String(depth)} /> : null}
     </dl>
   )
 }
@@ -100,7 +101,7 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <InputDetails context={context} path={path} />
       {result.rows.length === 0 ? (
-        <EmptyState>{path} is empty.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_list_files_path_empty", { path })}</EmptyState>
       ) : (
         <ul className="max-h-72 min-w-0 space-y-0.5 overflow-auto rounded border border-border bg-surface px-2 py-1 font-mono text-xs">
           {sortedRows(result.rows).map((row) => (
@@ -122,7 +123,7 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "files",
-    label: "Files and directories",
+    label: i18n.t("chat:tool_card_list_files_example_files"),
     input: { path: "app", recursive: false, depth: 1 },
     parsedResult: {
       files: [
@@ -131,11 +132,11 @@ export const examples: ToolCardExample[] = [
       ]
     }
   },
-  { id: "empty", label: "Empty directory", input: { path: "tmp/empty" }, parsedResult: { files: [] } },
-  { id: "pending", label: "Pending", input: { path: "." }, parsedResult: { state: "pending", message: "Waiting for the local daemon." } },
+  { id: "empty", label: i18n.t("chat:tool_card_list_files_example_empty"), input: { path: "tmp/empty" }, parsedResult: { files: [] } },
+  { id: "pending", label: i18n.t("chat:tool_card_list_files_example_pending"), input: { path: "." }, parsedResult: { state: "pending", message: i18n.t("chat:tool_card_list_files_example_waiting") } },
   {
     id: "error",
-    label: "Daemon disconnected",
+    label: i18n.t("chat:tool_card_list_files_example_disconnected"),
     input: { path: "." },
     resultBody: "Local daemon not connected. Run `syrus local` in your repo to continue.",
     resultError: true

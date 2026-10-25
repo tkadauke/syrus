@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState, numberValue } from "../toolCardUi"
 
@@ -31,23 +32,22 @@ function wakeupRows(context: ToolCardContext): WakeupRow[] | null {
 function collapsedSummary(context: ToolCardContext) {
   const rows = wakeupRows(context)
   if (!rows) return null
-  return `${rows.length} wakeup${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_list_wakeups_summary", { count: rows.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
   const rows = wakeupRows(context)
   if (!rows) return null
-  if (rows.length === 0) return <EmptyState>No pending wakeups in this chat.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:tool_card_list_wakeups_empty")}</EmptyState>
 
   return (
     <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Wakeup</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Fires at</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Remaining</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Prompt</th>
+            {["wakeup", "fires_at", "remaining", "prompt"].map((column) => (
+              <th className="px-2 py-1 font-semibold" key={column} scope="col">{i18n.t(`chat:tool_card_list_wakeups_${column}`)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">

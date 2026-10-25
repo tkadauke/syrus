@@ -44,20 +44,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx
     app/frontend/routes/chat/tool_cards/force_state_transition.tsx
     app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx
-    app/frontend/routes/chat/tool_cards/list_artifacts.tsx
-    app/frontend/routes/chat/tool_cards/list_chat_media.tsx
-    app/frontend/routes/chat/tool_cards/list_chats.tsx
-    app/frontend/routes/chat/tool_cards/list_delivery_tracks.tsx
-    app/frontend/routes/chat/tool_cards/list_epics.tsx
-    app/frontend/routes/chat/tool_cards/list_files.tsx
-    app/frontend/routes/chat/tool_cards/list_jobs.tsx
-    app/frontend/routes/chat/tool_cards/list_open_issues.tsx
-    app/frontend/routes/chat/tool_cards/list_open_prs.tsx
-    app/frontend/routes/chat/tool_cards/list_proposals.tsx
-    app/frontend/routes/chat/tool_cards/list_ref_movement_actions.tsx
-    app/frontend/routes/chat/tool_cards/list_repositories.tsx
-    app/frontend/routes/chat/tool_cards/list_tags.tsx
-    app/frontend/routes/chat/tool_cards/list_wakeups.tsx
     app/frontend/routes/chat/tool_cards/mark_ci_repair_noop.tsx
     app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
     app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
@@ -73,7 +59,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/reopen_job.tsx
     app/frontend/routes/chat/tool_cards/run_command.tsx
     app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
-    app/frontend/routes/chat/tool_cards/search_syrus_docs.tsx
     app/frontend/routes/chat/tool_cards/select_job_delivery_track.tsx
     app/frontend/routes/chat/tool_cards/send_chat_message.tsx
     app/frontend/routes/chat/tool_cards/set_bookmark.tsx

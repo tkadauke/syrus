@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Surface } from "../../../components/ui"
 import { displayValue, EmptyState, EntityReference } from "../toolCardUi"
@@ -23,14 +24,14 @@ type ListRepositoriesResult = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Repository list",
+  title: i18n.t("chat:tool_card_list_repositories_title"),
   attempted: (context) => {
     const page = stringFromInput(context, ["page"])
     const perPage = stringFromInput(context, ["per_page"])
-    return [page ? `page ${page}` : null, perPage ? `${perPage} per page` : null].filter(Boolean).join(", ") || "List repositories"
+    return [page ? i18n.t("chat:page_number", { page }) : null, perPage ? i18n.t("chat:per_page", { count: perPage }) : null].filter(Boolean).join(", ") || i18n.t("chat:tool_card_list_repositories_action")
   },
   retrySafety: "safe",
-  recovery: "Retry after checking repository access and the requested page."
+  recovery: i18n.t("chat:tool_card_list_repositories_recovery")
 }
 
 function parseRow(value: unknown): RepositoryRow | null {
@@ -78,7 +79,7 @@ function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
   const count = result.totalCount ?? result.rows.length
-  return count === 0 ? "No repositories" : `${count} repositor${count === 1 ? "y" : "ies"}`
+  return i18n.t("chat:tool_card_list_repositories_summary", { count })
 }
 
 function RepositoryLink({ row }: { row: RepositoryRow }) {
@@ -87,7 +88,7 @@ function RepositoryLink({ row }: { row: RepositoryRow }) {
       <EntityReference kind="repository" repositoryId={row.id} repositorySlug={row.slug} slug={row.slug} />
       {row.url ? (
         <a
-          aria-label={`Open ${row.slug} on GitHub`}
+          aria-label={i18n.t("chat:tool_card_list_repositories_open_github", { repository: row.slug })}
           className="shrink-0 text-2xs font-medium text-brand hover:underline dark:text-brand-emphasis"
           href={row.url}
           rel="noreferrer"
@@ -102,10 +103,18 @@ function RepositoryLink({ row }: { row: RepositoryRow }) {
 
 function PaginationSummary({ result }: { result: ListRepositoriesResult }) {
   const parts = [
-    result.page != null ? `Page ${result.page}${result.totalPages != null ? ` of ${result.totalPages}` : ""}` : null,
-    result.perPage != null ? `${result.perPage} per page` : null,
-    result.totalCount != null ? `${result.totalCount} total` : null,
-    result.hasNextPage != null ? (result.hasNextPage ? "More pages available" : "Last page") : null
+    result.page != null
+      ? result.totalPages != null
+        ? i18n.t("chat:page_of_pages", { page: result.page, total: result.totalPages })
+        : i18n.t("chat:page_number", { page: result.page })
+      : null,
+    result.perPage != null ? i18n.t("chat:per_page", { count: result.perPage }) : null,
+    result.totalCount != null ? i18n.t("chat:total_count", { count: result.totalCount }) : null,
+    result.hasNextPage != null
+      ? result.hasNextPage
+        ? i18n.t("chat:tool_card_list_repositories_more_pages")
+        : i18n.t("chat:tool_card_list_repositories_last_page")
+      : null
   ].filter(Boolean)
   return parts.length > 0 ? <div className="text-2xs text-gray-500 dark:text-gray-400">{parts.join(" · ")}</div> : null
 }
@@ -116,7 +125,7 @@ function InputSummary({ context }: { context: ToolCardContext }) {
   if (!page && !perPage) return null
   return (
     <div className="break-words text-2xs text-gray-500 dark:text-gray-400">
-      Requested: {[page ? `page ${page}` : null, perPage ? `${perPage} per page` : null].filter(Boolean).join(" · ")}
+      {i18n.t("chat:requested")}: {[page ? i18n.t("chat:page_number", { page }) : null, perPage ? i18n.t("chat:per_page", { count: perPage }) : null].filter(Boolean).join(" · ")}
     </div>
   )
 }
@@ -138,7 +147,7 @@ function renderExpanded(context: ToolCardContext) {
     <div className="mt-1 min-w-0 space-y-2">
       <InputSummary context={context} />
       {result.rows.length === 0 ? (
-        <EmptyState>No repositories found.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_list_repositories_empty")}</EmptyState>
       ) : (
         <>
           <div className="space-y-2 sm:hidden">
@@ -146,11 +155,11 @@ function renderExpanded(context: ToolCardContext) {
               <Surface className="min-w-0 space-y-2 text-xs" key={row.id} padding="sm">
                 <RepositoryLink row={row} />
                 <dl className="grid min-w-0 grid-cols-2 gap-2">
-                  <MobileField label="Owner" value={row.owner || "—"} />
-                  <MobileField label="Name" value={row.name || "—"} />
-                  <MobileField label="Default branch" value={row.defaultBranch || "—"} />
-                  <MobileField label="Epic policy" value={row.epicDependencyPolicy || "—"} />
-                  <MobileField label="Created" value={row.createdAt || "—"} />
+                  <MobileField label={i18n.t("chat:tool_card_list_repositories_owner")} value={row.owner || "—"} />
+                  <MobileField label={i18n.t("chat:tool_card_list_repositories_name")} value={row.name || "—"} />
+                  <MobileField label={i18n.t("chat:tool_card_list_repositories_default_branch")} value={row.defaultBranch || "—"} />
+                  <MobileField label={i18n.t("chat:tool_card_list_repositories_epic_policy")} value={row.epicDependencyPolicy || "—"} />
+                  <MobileField label={i18n.t("chat:tool_card_list_repositories_created")} value={row.createdAt || "—"} />
                 </dl>
               </Surface>
             ))}
@@ -158,9 +167,9 @@ function renderExpanded(context: ToolCardContext) {
           <table className="hidden w-full table-fixed text-left text-xs sm:table">
             <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
-                {["Repository", "Owner", "Name", "Default branch", "Epic policy", "Created"].map((label) => (
-                  <th className="px-2 py-1 font-semibold" key={label} scope="col">
-                    {label}
+                {["repository", "owner", "name", "default_branch", "epic_policy", "created"].map((key) => (
+                  <th className="px-2 py-1 font-semibold" key={key} scope="col">
+                    {i18n.t(`chat:tool_card_list_repositories_${key}`)}
                   </th>
                 ))}
               </tr>
@@ -193,7 +202,7 @@ export default listRepositoriesToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "repositories_with_links",
-    label: "Repositories with links and pagination",
+    label: i18n.t("chat:tool_card_list_repositories_example_results"),
     input: { page: 1, per_page: 20 },
     parsedResult: {
       repositories: [
@@ -222,13 +231,13 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "no_repositories",
-    label: "No repositories",
-    description: "Empty result set with complete pagination metadata.",
+    label: i18n.t("chat:tool_card_list_repositories_example_empty"),
+    description: i18n.t("chat:tool_card_list_repositories_example_empty_description"),
     parsedResult: { repositories: [], pagination: { page: 1, per_page: 20, total_count: 0, total_pages: 0, has_next_page: false } }
   },
   {
     id: "repository_list_error",
-    label: "Error loading repositories",
+    label: i18n.t("chat:tool_card_list_repositories_example_error"),
     input: { page: 2 },
     resultError: true,
     resultBody: "Repository access is temporarily unavailable."

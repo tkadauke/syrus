@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { EmptyState } from "../toolCardUi"
 import { JobsTable, jobResult, parseJobRow, resultErrorMessage, type JobRow } from "../jobsTableCard"
@@ -20,7 +21,7 @@ function collapsedSummary(context: ToolCardContext) {
   if (!result) return null
 
   const count = result.total
-  return `${count} matching Job${count === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_search_jobs_summary", { count })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -28,7 +29,7 @@ function renderExpanded(context: ToolCardContext) {
   if (error) return <EmptyState>{error}</EmptyState>
   const result = jobResultRows(context)
   if (!result) return null
-  return <JobsTable emptyMessage="No Jobs matched the search." rows={result.rows} />
+  return <JobsTable emptyMessage={i18n.t("chat:tool_card_search_jobs_empty")} rows={result.rows} />
 }
 
 const searchJobsToolCard: ToolCardRenderer = {

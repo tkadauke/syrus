@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { ListChatsCard, listChatsCollapsedSummary, parseListChats } from "../chatSearchToolCard"
 
@@ -18,20 +19,20 @@ export default listChatsToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "filtered_chats_with_jobs",
-    label: "Filtered chats with attached Jobs",
+    label: i18n.t("chat:tool_card_list_chats_example_filtered"),
     input: { mode: "coding", has_attached_jobs: true },
     parsedResult: {
       chats: [
         {
           id: 42,
-          title: "Landing queue notes",
+          title: i18n.t("chat:tool_card_list_chats_example_title"),
           mode: "coding",
           repository_id: 7,
           repository: "acme/widgets",
           message_count: 9,
           updated_at: "2026-09-01T12:00:00Z",
           attached_jobs_count: 1,
-          attached_jobs: [{ id: 101, slug: "repair-queue", title: "Repair the queue", state: "running", repository_id: 7, repository: "acme/widgets" }]
+          attached_jobs: [{ id: 101, slug: "repair-queue", title: i18n.t("chat:tool_card_list_chats_example_job"), state: "running", repository_id: 7, repository: "acme/widgets" }]
         }
       ],
       pagination: { page: 1, per_page: 20, total_count: 1, total_pages: 1, has_next_page: false }
@@ -39,7 +40,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "list_chats_error",
-    label: "Error",
+    label: i18n.t("chat:tool_card_example_error"),
     resultBody: "Chat search service is unavailable.",
     resultError: true
   }
