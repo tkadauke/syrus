@@ -2804,6 +2804,8 @@
   "mutation_example_updated_markdown": "Contextus Markdown renovatus",
   "mutation_example_removed_markdown": "Contextus Markdown remotus",
   "mutation_example_nothing_pinned": "Error nullius contextus affixi",
+  "mutation_example_job_removed_from_epic": "Negotium ex Epico remotum",
+  "mutation_example_job_not_in_epic": "Negotium in Epico non est",
   "mutation_repository_number": "Repositorium #{{id}}",
   "ops_no_repository_memberships_found_9b444e": "Nullae sodalitates repository inventae.",
   "ops_user_id_a69608": "ID usoris",
