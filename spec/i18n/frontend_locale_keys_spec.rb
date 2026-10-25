@@ -3,6 +3,23 @@ require "json"
 
 RSpec.describe "Frontend locale keys", type: :unit do
   REVIEWED_SETTINGS_SCOPES = %w[
+    themes
+    profile
+    design_system
+    personal_documents
+    target_graph
+    repositories
+    repository
+    delivery
+    repository_documents
+    repository_memberships
+    tags
+    github_token
+    github_app_panel
+    add_repository
+    repository_form
+    provider_routing
+    notifications
     connected_platforms
     input_sources
     linear_source
@@ -14,6 +31,50 @@ RSpec.describe "Frontend locale keys", type: :unit do
   ].freeze
   INTENTIONAL_SETTINGS_ENGLISH_MATCHES = {
     "de" => {
+      "themes.name" => "shared German UI term",
+      "themes.token_label" => "placeholder-only value",
+      "themes.token_groups.status" => "shared German UI term",
+      "profile.epics" => "approved domain noun",
+      "profile.jobs" => "approved domain noun",
+      "design_system.semantic.badge" => "release-stage label",
+      "personal_documents.col_content_cache_state" => "established technical term",
+      "target_graph.workflow" => "approved domain noun with placeholder",
+      "repositories.col_repository" => "approved domain noun",
+      "repositories.col_agent" => "approved domain noun",
+      "repository.agent_prefix" => "approved domain noun",
+      "repository.cognitive_blind" => "same word in German",
+      "repository.cognitive_state_blind" => "same word in German",
+      "repository.cognitive_chip_blind" => "same word in German",
+      "repository.col_job" => "approved domain noun",
+      "repository.col_issue" => "approved domain noun",
+      "repository.pr_number" => "abbreviation with placeholder",
+      "repository.health_ci" => "abbreviation",
+      "repository.health_col_sha" => "established technical term",
+      "repository.health_col_ci" => "abbreviation",
+      "repository.health_source_ci_poll" => "abbreviation",
+      "repository.health_source_concern_quorum" => "shared German technical term",
+      "repository.aria_repository" => "approved domain noun",
+      "repository.flaky_col_test" => "shared German technical term",
+      "repository.flaky_col_suite" => "established technical term",
+      "repository.syrus_yml_status" => "shared German UI term",
+      "repository.syrus_yml_merge_train_rung_restart" => "configuration token",
+      "repository.syrus_yml_merge_train_rung_keep_assembly" => "configuration token",
+      "repository.syrus_yml_merge_train_rung_keep_fixes" => "configuration token",
+      "repository.syrus_yml_merge_train_yaml" => "code filename",
+      "delivery.col_branch" => "established Git technical term",
+      "delivery.col_job" => "approved domain noun",
+      "delivery.col_refs" => "abbreviation",
+      "delivery.col_pr" => "abbreviation",
+      "repository_documents.placeholder_optional" => "same word in German",
+      "repository_memberships.role_admin" => "abbreviated role name",
+      "repository_memberships.email_placeholder" => "example address",
+      "tags.field_name" => "shared German UI term",
+      "tags.col_jobs" => "approved domain noun",
+      "github_token.step_app_label" => "product name",
+      "add_repository.field_repository" => "approved domain noun",
+      "provider_routing.trigger_step" => "product terminology with placeholder",
+      "provider_routing.trigger_chat_role" => "product terminology with placeholder",
+      "provider_routing.workflow_condition_pill" => "approved domain noun with placeholder",
       "connected_platforms.platforms.telegram" => "product name",
       "connected_platforms.platforms.slack" => "product name",
       "linear_source.section_heading" => "product name",
@@ -54,6 +115,24 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "configure_agent.tab_muse" => "product name"
     },
     "la" => {
+      "themes.token_label" => "placeholder-only value",
+      "themes.token_groups.status" => "valid Latin noun",
+      "design_system.semantic.badge" => "release-stage label",
+      "personal_documents.col_content_cache_state" => "established technical term",
+      "repository.pr_number" => "abbreviation with placeholder",
+      "repository.health_ci" => "abbreviation",
+      "repository.health_col_ci" => "abbreviation",
+      "repository.health_source_ci_poll" => "abbreviation",
+      "repository.health_source_concern_quorum" => "Latin technical term",
+      "repository.syrus_yml_status" => "valid Latin noun",
+      "repository.syrus_yml_merge_train_rung_restart" => "configuration token",
+      "repository.syrus_yml_merge_train_rung_keep_assembly" => "configuration token",
+      "repository.syrus_yml_merge_train_rung_keep_fixes" => "configuration token",
+      "repository.syrus_yml_merge_train_yaml" => "code filename",
+      "delivery.col_pr" => "abbreviation",
+      "repository_memberships.role_admin" => "abbreviated role name",
+      "tags.field_color" => "valid Latin noun",
+      "tags.col_color" => "valid Latin noun",
       "connected_platforms.platforms.telegram" => "product name",
       "connected_platforms.platforms.slack" => "product name",
       "linear_source.section_heading" => "product name",
@@ -328,6 +407,12 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(dig_key(german, "input_sources.issues_ingested_other")).to eq("{{count}} Issues aufgenommen")
     expect(dig_key(german, "account_settings.provider_availability_desc")).to include("Jobs dieses Providers")
     expect(dig_key(german, "scheduled_tasks.schedule_placeholder")).to eq("Jeden Montag um 09:00 Uhr")
+    expect(dig_key(german, "themes.description")).to eq("Verwalte deine eigenen Farbthemen.")
+    expect(dig_key(german, "profile.repositories")).to eq("Repositorys")
+    expect(dig_key(german, "profile.jobs")).to eq("Jobs")
+    expect(dig_key(german, "repository.health_repair_start")).to eq("Reparatur-Job starten")
+    expect(dig_key(german, "delivery.heading")).to eq("Auslieferung")
+    expect(dig_key(german, "provider_routing.trigger")).to eq("Auslöser")
     expect(dig_key(german, "configure_agent.exchange_error")).to eq(
       "Das von Claude zurückgegebene Token hat nicht funktioniert. Versuche es erneut."
     )
@@ -343,6 +428,8 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(dig_key(latin, "account_settings.provider_availability_desc")).to include("Jobs huius praebitoris")
     expect(dig_key(latin, "scheduled_tasks.schedule_placeholder")).to eq("Omni die Lunae hora 09:00")
     expect(dig_key(latin, "credential_cards.muse_description")).to include("cursibus operum")
+    expect(dig_key(latin, "repository.syrus_yml_coverage")).to eq("Cobertura")
+    expect(dig_key(latin, "provider_routing.remove")).to eq("Removere")
   end
 
   it "detects either missing half of a plural pair" do
