@@ -49,6 +49,8 @@ module Api
           render json: payload
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ::DesignDocs::Update::RevisionConflict => e
+          render_error("revision_conflict", e.message, status: :conflict)
         rescue Pundit::NotAuthorizedError
           render_error("forbidden", "You are not allowed to edit this design doc.", status: :forbidden)
         end
@@ -93,7 +95,7 @@ module Api
         # the SPA's request shape.
         def design_doc_params
           source = params[:design_doc].present? ? params.require(:design_doc) : params
-          source.permit(:title, :markdown, :visibility, :state, :change_summary, :checkpoint)
+          source.permit(:title, :markdown, :visibility, :state, :change_summary, :checkpoint, :base_revision)
         end
 
         def serialize_summary(design_doc)
