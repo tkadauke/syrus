@@ -148,9 +148,9 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(child.job).not_to be_backlog
   end
 
-  it "propagates investigation intent onto a bundled Epic's child Job" do
+  it "rejects investigation intent on a bundled Epic's child proposal" do
     proposal = epic_proposal
-    child = proposal.child_proposals.create!(
+    child = proposal.child_proposals.build(
       chat_session: chat_session,
       slug: "child",
       title: "Child",
@@ -159,10 +159,8 @@ RSpec.describe ChatEpicProposalMaterializer do
       investigation: true
     )
 
-    result = described_class.new(user: user).file!(proposal)
-
-    expect(child.reload.job).to eq(result.jobs.sole)
-    expect(child.job.investigation?).to eq(true)
+    expect(child).not_to be_valid
+    expect(child.errors[:base]).to include(Job::INVESTIGATION_EPIC_ERROR)
   end
 
   it "attaches child proposal media to materialized child Jobs" do

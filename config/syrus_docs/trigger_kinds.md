@@ -60,7 +60,8 @@ dispatch this chain instead of `Workflows::Initial`.
 
 Investigation Jobs are for read-only exploration — QA walkthroughs, audits,
 "why is X slow" questions — where no PR is ever expected and no code change
-is the normal, successful outcome. `investigate` invokes the agent with
+is the normal, successful outcome. They are always standalone and cannot be
+assigned to an Epic, whose children must be implementation Jobs. `investigate` invokes the agent with
 `Prompts::Investigation` (the operator's prompt plus the standard
 safety/context blocks) but, unlike `implement`/`run_skill`, never commits,
 captures a diff, or calls `raise_no_changes_produced!` — it is read-only, the

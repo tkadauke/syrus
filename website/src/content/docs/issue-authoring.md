@@ -97,7 +97,8 @@ implementation. The agent explores the repository and writes up what it found;
 it is not expected to change any code, and no pull request is opened. A blank
 diff is a perfectly successful outcome. Use it for "go look into this and tell
 me what you find" work — an audit, a QA walkthrough, or a question about how
-something behaves.
+something behaves. Investigation Jobs are standalone and cannot belong to an
+Epic; Epic children must be implementation work.
 
 The Job finishes in **Implemented** with a report to read, and you close it
 from the Job page once you have. Add the label when you file the issue: it is

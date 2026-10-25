@@ -84,6 +84,7 @@ class ChatProposal < ApplicationRecord
   validates :planned_execution_source, inclusion: { in: PlannedExecutionRequirement::SOURCES }, allow_nil: true
   validate :repository_belongs_to_chat_user
   validate :target_epic_matches_repository
+  validate :investigation_excludes_epic
   validate :media_ids_valid_format
   validate :media_ids_belong_to_chat_session
 
@@ -358,5 +359,12 @@ class ChatProposal < ApplicationRecord
     return unless repo && target_epic.repository_id != repo.id
 
     errors.add(:target_epic, "must belong to the proposal repository")
+  end
+
+  def investigation_excludes_epic
+    return unless investigation?
+    return unless target_epic_id.present? || parent_proposal&.epic?
+
+    errors.add(:base, Job::INVESTIGATION_EPIC_ERROR)
   end
 end
