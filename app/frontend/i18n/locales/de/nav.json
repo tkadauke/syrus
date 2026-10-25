@@ -55,10 +55,10 @@
     "configure_credentials_description": "Syrus benötigt sowohl GitHub-Zugang als auch einen Agenten-Anbieter, bevor es Repositories abfragen oder Aufgaben ausführen kann.",
     "configure_credentials_action": "Zugangsdaten öffnen",
     "add_repository_title": "Erstes Repository hinzufügen",
-    "add_repository_description": "Zugangsdaten sind bereit. Fügen Sie ein Repository hinzu, damit Syrus weiß, wo Issues beobachtet und direkte Aufgaben ausgeführt werden sollen.",
+    "add_repository_description": "Zugangsdaten sind bereit. Füge ein Repository hinzu, damit Syrus weiß, wo Issues beobachtet und direkte Jobs ausgeführt werden sollen.",
     "add_repository_action": "Repository hinzufügen",
     "start_first_chat_title": "Syrus im Chat kennenlernen",
-    "start_first_chat_description": "Zugangsdaten und ein Repository sind bereit. Chatten Sie mit Syrus, um Ihr erstes Epic zu erstellen und zu landen – es erklärt, wie Aufgaben und Epics durch die Pipeline fließen.",
+    "start_first_chat_description": "Zugangsdaten und ein Repository sind bereit. Chatte mit Syrus, um dein erstes Epic zu erstellen und zu landen – Syrus erklärt dir, wie Jobs und Epics durch die Pipeline fließen.",
     "start_first_chat_action": "Syrus-Chat starten"
   },
   "smart_folder": {
