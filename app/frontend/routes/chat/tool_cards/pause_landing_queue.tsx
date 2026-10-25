@@ -55,14 +55,14 @@ const pendingResult = {
 export const examples: ToolCardExample[] = [
   {
     id: "pending_confirmation",
-    label: "Pending queue pause",
-    description: "Shows the landing queue target and pending confirmation state before the operator decides.",
+    label: i18n.t("chat:pause_landing_queue.example_pending"),
+    description: i18n.t("chat:pause_landing_queue.example_pending_description"),
     parsedResult: pendingResult
   },
   {
     id: "paused",
-    label: "Landing queue paused",
-    description: "Shows the live applied outcome after the operator confirms the pause.",
+    label: i18n.t("chat:pause_landing_queue.example_paused"),
+    description: i18n.t("chat:pause_landing_queue.example_paused_description"),
     parsedResult: pendingResult,
     livePendingAction: {
       id: 501,
@@ -78,8 +78,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "rejected",
-    label: "Queue pause rejected",
-    description: "Shows the live rejected outcome while retaining the original pause request.",
+    label: i18n.t("chat:pause_landing_queue.example_rejected"),
+    description: i18n.t("chat:pause_landing_queue.example_rejected_description"),
     parsedResult: pendingResult,
     livePendingAction: {
       id: 501,

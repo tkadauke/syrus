@@ -699,7 +699,104 @@
       "rejected": "Reiectum",
       "cancelled": "Revocatum",
       "failed": "Defecit"
-    }
+    },
+    "example_pending": "Pausa ordinis landing pendet",
+    "example_pending_description": "Ordinem landing et confirmationem pendentem ante arbitrium operatoris ostendit.",
+    "example_paused": "Ordo landing pausatus",
+    "example_paused_description": "Exitum effectum post confirmationem pausae ostendit.",
+    "example_rejected": "Pausa ordinis repudiata",
+    "example_rejected_description": "Exitum repudiatum servata petitione pristina ostendit."
+  },
+  "classify_pull_request": {
+    "summary_failed_with_number": "Classificatio PR #{{prNumber}} defecit",
+    "summary_failed": "Classificatio petitionis extractionis defecit",
+    "summary": "PR #{{prNumber}}: {{classification}}",
+    "example_classified": "Petitio extractionis classificata cum nota originis",
+    "example_disabled": "Classificatio inhibita",
+    "example_not_found": "Petitio extractionis non inventa"
+  },
+  "clear_provider_circuit": {
+    "user": "Utens",
+    "users": "Utentes",
+    "example_evidence": "Indicium Markdown longum",
+    "example_evidence_description": "Fines conexos, insignia, fractiones, praevias Markdown, et dialogum communem plura monstrandi ostendit."
+  },
+  "dispatch_ref_movement_action": {
+    "failed": "{{action}} defecit",
+    "pending": "{{action}} (pendet)",
+    "ref_movement": "Motus ref",
+    "full_error": "Error plenus",
+    "job": "Job",
+    "workflow": "Workflow",
+    "source_branch": "Ramus fontis",
+    "target_branch": "Ramus destinatus",
+    "example_dispatched": "Motus ref emissus",
+    "example_blocked": "Impedita cum consilio operatoris",
+    "example_error": "Error provisoris cum dato pristino"
+  },
+  "run_command": {
+    "summary_error": "Error mandati: {{error}}",
+    "summary_killed": "Mandatum interfectum",
+    "summary_succeeded": "Mandatum prospere perfectum (exit 0)",
+    "summary_failed": "Mandatum defecit (exit {{exitCode}})",
+    "status_error": "error",
+    "status_killed": "interfectum",
+    "status_exit": "exit {{exitCode}}",
+    "command": "Mandatum",
+    "copy_command": "Mandatum exscribe",
+    "copied": "Exscriptum",
+    "working_directory": "Directorium operis",
+    "timeout_ms": "Tempus maximum (ms)",
+    "no_output": "Nullus exitus."
+  },
+  "adopt_current_pr_head": {
+    "example_dry_run": "Tentatio cum indicio rami",
+    "example_dry_run_description": "Identitatem finis ex exitu acceptam ostendit cum datum vocationis retentum deest.",
+    "example_pending": "Confirmatio pendens cum contextu dati",
+    "example_pending_description": "Fines solum ex dato conexos et Markdown terminatum dum confirmatio pendet ostendit.",
+    "example_error": "Error validationis ordinatus",
+    "example_empty": "Exitus perfectus vacuus",
+    "example_empty_description": "Subsidium commune exitus vacui responsi provisoris perfecti exercet."
+  },
+  "emergency_land": { "example_pending": "Confirmatio landing subiti pendet" },
+  "force_landing_recheck": {
+    "not_provided": "Non datum",
+    "jobs_one": "Job",
+    "jobs_other": "Jobs",
+    "pending_reason": "Causa actionis pendentis",
+    "reason": "Causa",
+    "outcome": "Exitus recognitionis landing",
+    "example_bulk_pending": "Plura pendent cum impedimentis observatis",
+    "example_bulk_pending_description": "Indices Job conexi longi franguntur dum actio statum landing cuiusque finis observatum ostendit.",
+    "example_bulk_confirmed": "Plura confirmata cum exitu renovato",
+    "example_error": "Error causam Markdown servat",
+    "example_missing_input": "Datum Job deest"
+  },
+  "mark_ci_repair_noop": {
+    "workflows_one": "Workflow",
+    "workflows_other": "Workflows",
+    "pending_reason": "Causa actionis pendentis",
+    "reason": "Causa",
+    "example_single": "Una reparatio CI pendens sine mutatione",
+    "example_single_description": "Fines Job et Workflow conexos atque nexus probationis deficientis et causae inspectionis ostendit.",
+    "example_bulk": "Plures reparationes CI pendent sine mutatione",
+    "example_bulk_description": "Index Workflow conexus longus fractiones in aspectibus angustis latisque exercet.",
+    "example_error": "Error validationis cum finibus petitis",
+    "example_error_description": "Job, Workflow, causam, et nexum auxilii visibiles servat cum validatio deficit."
+  },
+  "wake_provider_admission": {
+    "user_scope": "Ambitus utentis",
+    "all_users": "Omnes utentes",
+    "queued_workflows": "Workflows in ordine",
+    "delayed_retries": "Iterationes automaticae dilatae",
+    "example_pending": "Excitatio definita pendet",
+    "example_pending_description": "Insigne provisoris, ambitum utentis conexum, causam Markdown, et effectum praevisum ante confirmationem ostendit.",
+    "example_confirmed": "Excitatio definita confirmata",
+    "example_confirmed_description": "Eandem praevisionem post confirmationem actionis pendentis ostendit.",
+    "example_rejected": "Excitatio omnium utentium repudiata",
+    "example_rejected_description": "Petitionem repudiatam cum ambitu omnium utentium et nullis iterationibus dilatis ostendit.",
+    "example_error": "Error praevisionis",
+    "example_error_description": "Data petita una cum defectu praevisionis admissionis provisoris ostendit."
   },
   "daemon_invocation_context": {
     "summary": "contextus invocationis: {{surface}}{{identity}}",

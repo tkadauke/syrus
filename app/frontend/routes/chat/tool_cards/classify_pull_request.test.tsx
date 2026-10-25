@@ -4,6 +4,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import deChat from "../../../i18n/locales/de/chat.json"
 import enChat from "../../../i18n/locales/en/chat.json"
 import laChat from "../../../i18n/locales/la/chat.json"
+import i18n from "../../../i18n"
 import { normalizedToolCardParsedResult, toolResultPresentation } from "../toolRendering"
 import classifyPullRequestToolCard from "./classify_pull_request"
 
@@ -19,6 +20,19 @@ describe("classify_pull_request tool card", () => {
   it("summarizes the PR number and classification", () => {
     const parsedResult = { repository: "tkadauke/syrus", pr_number: 42, classification: "syrus_job_export", evidence: {} }
     expect(classifyPullRequestToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("PR #42: syrus_job_export")
+  })
+
+  it("localizes summaries when the language changes", async () => {
+    const parsedResult = { repository: "tkadauke/syrus", pr_number: 42, classification: "syrus_job_export", evidence: {} }
+    await i18n.changeLanguage("de")
+    try {
+      expect(classifyPullRequestToolCard.collapsedSummary?.(context({ input: { pr_number: 404 }, resultError: true }))).toBe(
+        "Klassifizierung von PR #404 fehlgeschlagen"
+      )
+      expect(classifyPullRequestToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("PR #42: syrus_job_export")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("renders linked repositories, PR, refs, fork status, and every marker field", () => {
@@ -104,6 +118,7 @@ describe("classify_pull_request tool card", () => {
     ] as const
     for (const locale of [enChat, deChat, laChat]) {
       for (const key of keys) expect(locale[key]).toBeTruthy()
+      expect(locale.classify_pull_request.summary_failed).toBeTruthy()
     }
   })
 

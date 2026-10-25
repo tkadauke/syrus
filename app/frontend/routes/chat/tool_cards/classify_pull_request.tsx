@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { useT } from "../../../hooks/useT"
+import i18n from "../../../i18n"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference } from "../toolCardUi"
 
@@ -49,11 +50,11 @@ function githubUrl(repository: string, suffix = "") {
 function collapsedSummary(context: ToolCardContext) {
   if (context.resultError) {
     const prNumber = displayValue(context.input?.pr_number)
-    return prNumber ? `PR #${prNumber} classification failed` : "Pull request classification failed"
+    return prNumber ? i18n.t("chat:classify_pull_request.summary_failed_with_number", { prNumber }) : i18n.t("chat:classify_pull_request.summary_failed")
   }
   const result = parseResult(context)
   if (!result) return null
-  return `PR #${result.prNumber}: ${result.classification}`
+  return i18n.t("chat:classify_pull_request.summary", { prNumber: result.prNumber, classification: result.classification })
 }
 
 function ClassifyPullRequestCard({ context, result }: { context: ToolCardContext; result: ClassifyResult | null }) {
@@ -92,24 +93,36 @@ function ClassifyPullRequestCard({ context, result }: { context: ToolCardContext
       <dl className="grid gap-2 sm:grid-cols-2">
         <div className="min-w-0">
           <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_repository")}</dt>
-          <dd><EntityReference href={githubUrl(result.repository)} kind="repository" repositorySlug={result.repository} /></dd>
+          <dd>
+            <EntityReference href={githubUrl(result.repository)} kind="repository" repositorySlug={result.repository} />
+          </dd>
         </div>
         {result.headRepository ? (
           <div className="min-w-0">
             <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_head_repository")}</dt>
-            <dd><EntityReference href={githubUrl(result.headRepository)} kind="repository" repositorySlug={result.headRepository} /></dd>
+            <dd>
+              <EntityReference href={githubUrl(result.headRepository)} kind="repository" repositorySlug={result.headRepository} />
+            </dd>
           </div>
         ) : null}
         {result.headRef ? (
           <div className="min-w-0 break-all">
             <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_head_ref")}</dt>
-            <dd><a className="font-mono text-xs text-brand hover:underline" href={githubUrl(headRepository, `/tree/${encodeURIComponent(result.headRef)}`)}>{result.headRef}</a></dd>
+            <dd>
+              <a className="font-mono text-xs text-brand hover:underline" href={githubUrl(headRepository, `/tree/${encodeURIComponent(result.headRef)}`)}>
+                {result.headRef}
+              </a>
+            </dd>
           </div>
         ) : null}
         {result.baseRef ? (
           <div className="min-w-0 break-all">
             <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_base_ref")}</dt>
-            <dd><a className="font-mono text-xs text-brand hover:underline" href={githubUrl(result.repository, `/tree/${encodeURIComponent(result.baseRef)}`)}>{result.baseRef}</a></dd>
+            <dd>
+              <a className="font-mono text-xs text-brand hover:underline" href={githubUrl(result.repository, `/tree/${encodeURIComponent(result.baseRef)}`)}>
+                {result.baseRef}
+              </a>
+            </dd>
           </div>
         ) : null}
       </dl>
@@ -141,7 +154,7 @@ const classifyPullRequestToolCard: ToolCardRenderer = {
 export const examples: ToolCardExample[] = [
   {
     id: "classified_job_export",
-    label: "Classified pull request with provenance marker",
+    label: i18n.t("chat:classify_pull_request.example_classified"),
     input: { pr_number: 42 },
     parsedResult: {
       repository: "acme/widgets",
@@ -159,7 +172,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "classification_disabled",
-    label: "Classification disabled",
+    label: i18n.t("chat:classify_pull_request.example_disabled"),
     input: { pr_number: 43 },
     parsedResult: {
       repository: "acme/widgets",
@@ -170,7 +183,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "pull_request_not_found",
-    label: "Pull request not found",
+    label: i18n.t("chat:classify_pull_request.example_not_found"),
     input: { pr_number: 404 },
     resultBody: "pull request not found: #404",
     resultError: true

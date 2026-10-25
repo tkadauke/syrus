@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import runCommandToolCard from "./run_command"
+import i18n from "../../../i18n"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "run_command", resultBody: "", resultError: false, parsedResult: null, ...overrides }
@@ -25,6 +26,19 @@ describe("run_command tool card", () => {
   it("summarizes a successful command", () => {
     const parsedResult = { stdout: "ok\n", stderr: "", exit_code: 0 }
     expect(runCommandToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Command succeeded (exit 0)")
+  })
+
+  it("localizes command outcomes while preserving diagnostic output", async () => {
+    await i18n.changeLanguage("la")
+    try {
+      const parsedResult = { stdout: "verbatim output", stderr: "", exit_code: 9 }
+      expect(runCommandToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Mandatum defecit (exit 9)")
+      render(<>{runCommandToolCard.renderExpanded(context({ parsedResult, input: { command: "printf raw" } }))}</>)
+      expect(screen.getByText("Mandatum")).toBeInTheDocument()
+      expect(screen.getByText("verbatim output")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("summarizes and renders command failure output (non-zero exit is a successful tool call, not a tool error)", () => {
