@@ -1013,10 +1013,10 @@
     "job": "Job",
     "branch": "Branch",
     "warning_title": "Destructive emergency action",
-    "warning_message": "Confirming this action will land the change and skip graders, adversarial review, and visual review.",
+    "warning_body": "Confirming this action will land the change and skip graders, adversarial review, and visual review.",
     "example_pending": "Pending emergency land confirmation",
     "example_pending_message": "Emergency land requires **operator confirmation**.",
-    "example_feature_disabled": "Emergency land feature disabled"
+    "example_disabled": "Emergency land feature disabled"
   },
   "complete_implement_step": {
     "job": "Job",
@@ -1030,6 +1030,18 @@
     "example_rejected_message": "The **active checkout branch** was not handed off.",
     "example_error": "Handoff validation error",
     "example_error_description": "Shows a plain-text tool error with the submitted Job and active-checkout branch context."
+  },
+  "force_state_transition": {
+    "reason": "Reason",
+    "transition": "Transition",
+    "example_pending": "Pending transition with Markdown",
+    "example_pending_description": "Shows the linked Job, requested event, and expandable operator reason and confirmation message.",
+    "example_confirmed": "Confirmed transition snapshot",
+    "example_confirmed_description": "Shows the audited current-to-resulting Job state after the pending action executes.",
+    "example_confirmed_message": "Apply **force fail** to JOB-4048?",
+    "example_live_label": "Force force_fail on JOB-4048",
+    "example_error": "Tool error retains request context",
+    "example_error_description": "Keeps the linked Job, requested event, Markdown reason, and failure detail visible when the request fails."
   },
   "force_landing_recheck": {
     "not_provided": "Not provided",
