@@ -786,5 +786,13 @@
   "tool_card_classify_pr_head_ref": "Head ref",
   "tool_card_classify_pr_base_ref": "Base ref",
   "tool_card_classify_pr_marker_details": "Marker details",
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" }
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" },
+  "run_visual_review": {
+    "job": "Job",
+    "missing_target": "Not provided",
+    "media": "Review media",
+    "screenshot": "Screenshot",
+    "preview_unavailable": "Preview unavailable",
+    "open_image": "Open image"
+  }
 }

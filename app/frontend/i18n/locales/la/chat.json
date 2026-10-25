@@ -786,5 +786,13 @@
   "tool_card_classify_pr_head_ref": "Relatio capitis",
   "tool_card_classify_pr_base_ref": "Relatio basis",
   "tool_card_classify_pr_marker_details": "Singula notae",
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" }
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
+  "run_visual_review": {
+    "job": "Job",
+    "missing_target": "Non datum",
+    "media": "Media recensionis",
+    "screenshot": "Imago",
+    "preview_unavailable": "Praevisio non praesto",
+    "open_image": "Imaginem aperire"
+  }
 }
