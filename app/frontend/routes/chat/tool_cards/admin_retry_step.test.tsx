@@ -51,8 +51,8 @@ describe("admin_retry_step tool card", () => {
   it("renders every target and parameter with linked workflows, a step badge, Markdown, and grouped result details", () => {
     const { container } = render(<>{adminRetryStepToolCard.renderExpanded(redactedContext())}</>)
 
-    expect(screen.getByRole("link", { name: "WF-612" })).toHaveAttribute("href", "/admin/workflows/612")
-    expect(screen.getByRole("link", { name: "WF-613" })).toHaveAttribute("href", "/admin/workflows/613")
+    for (const link of screen.getAllByRole("link", { name: "WF-612" })) expect(link).toHaveAttribute("href", "/admin/workflows/612")
+    for (const link of screen.getAllByRole("link", { name: "WF-613" })) expect(link).toHaveAttribute("href", "/admin/workflows/613")
     expect(screen.getByRole("link", { name: "WF-614" })).toHaveAttribute("href", "/admin/workflows/614")
     expect(screen.getByText(INPUT.step_slug)).toBeInTheDocument()
     expect(screen.getByText("reviewing the failure").tagName).toBe("STRONG")
@@ -65,7 +65,7 @@ describe("admin_retry_step tool card", () => {
     expect(screen.getByRole("link", { name: "workflow #613" })).toHaveAttribute("href", "/admin/workflows/613")
 
     expect(container.firstElementChild).toHaveClass("min-w-0")
-    expect(screen.getByRole("link", { name: "WF-612" })).toHaveClass("break-all")
+    for (const link of screen.getAllByRole("link", { name: "WF-612" })) expect(link).toHaveClass("break-all")
   })
 
   it.each([
@@ -120,7 +120,7 @@ describe("admin_retry_step tool card", () => {
     const view = render(<>{adminRetryStepToolCard.renderExpanded(context({ input: INPUT, parsedResult }))}</>)
 
     expect(screen.getByText("Pending action group #91")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "WF-612" })).toHaveAttribute("href", "/admin/workflows/612")
+    for (const link of screen.getAllByRole("link", { name: "WF-612" })) expect(link).toHaveAttribute("href", "/admin/workflows/612")
     view.unmount()
   })
 

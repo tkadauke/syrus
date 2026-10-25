@@ -125,7 +125,7 @@ export const examples: ToolCardExample[] = [
     resultBody: "Error: global memories cannot be published",
     resultError: true
   },
-  { id: "pending", label: "Pending publish", input: { memory_id: "20" } },
+  { id: "pending", label: "Pending publish", input: { memory_id: "20" }, resultBody: "" },
   {
     id: "blank_content",
     label: "Published memory with blank content",
