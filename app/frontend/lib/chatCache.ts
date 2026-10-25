@@ -16,9 +16,7 @@ export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: Query
 
   queryClient.setQueryData<ChatPayload>(queryKey, (current) => {
     if (isFullChatPayload(update)) {
-      merged = current
-        ? { ...update, messages: mergeMessageTail(current.messages, update.messages) }
-        : update
+      merged = current ? { ...update, messages: mergeMessageTail(current.messages, update.messages) } : update
       return merged
     }
 
@@ -76,25 +74,28 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
 }
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
-  queryClient.getQueryCache().findAll({ queryKey: ["chats", "recent"] }).forEach((query) => {
-    queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
-      if (!current || !Array.isArray(current.groups)) return current
+  queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["chats", "recent"] })
+    .forEach((query) => {
+      queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
+        if (!current || !Array.isArray(current.groups)) return current
 
-      const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
-      if (!existing && !recentChatBelongsInQuery(chat, query.queryKey)) return current
+        const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
+        if (!existing && !recentChatBelongsInQuery(chat, query.queryKey)) return current
 
-      const updated = recentChatRecord(chat, existing, options.occurredAt)
-      const targetKey = chatGroupKey(updated)
-      const groups = withoutChat(current.groups, chat.id)
-      const targetIndex = groups.findIndex((group) => group.key === targetKey)
-      const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
-      const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
-      const nextGroup = { ...targetGroup, chats: nextChats }
-      const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
+        const updated = recentChatRecord(chat, existing, options.occurredAt)
+        const targetKey = chatGroupKey(updated)
+        const groups = withoutChat(current.groups, chat.id)
+        const targetIndex = groups.findIndex((group) => group.key === targetKey)
+        const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
+        const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
+        const nextGroup = { ...targetGroup, chats: nextChats }
+        const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
 
-      return { ...current, groups: nextGroups }
+        return { ...current, groups: nextGroups }
+      })
     })
-  })
 }
 
 export function refreshRecentChats(queryClient: QueryClient) {
@@ -102,15 +103,18 @@ export function refreshRecentChats(queryClient: QueryClient) {
 }
 
 export function updateChatUnread(queryClient: QueryClient, id: number, unread: boolean) {
-  queryClient.getQueryCache().findAll({ queryKey: ["chats", "recent"] }).forEach((query) => {
-    queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
-      if (!current) return current
-      return {
-        ...current,
-        groups: chatBelongsAfterUnreadUpdate(query.queryKey, id, unread) ? updateUnreadGroups(current.groups, id, unread) : withoutChat(current.groups, id)
-      }
+  queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["chats", "recent"] })
+    .forEach((query) => {
+      queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
+        if (!current) return current
+        return {
+          ...current,
+          groups: chatBelongsAfterUnreadUpdate(query.queryKey, id, unread) ? updateUnreadGroups(current.groups, id, unread) : withoutChat(current.groups, id)
+        }
+      })
     })
-  })
 }
 
 function chatBelongsAfterUnreadUpdate(queryKey: QueryKey, id: number, unread: boolean) {
