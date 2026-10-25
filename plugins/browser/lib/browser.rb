@@ -22,6 +22,7 @@ module SyrusBrowser
     # withhold every one of its providers -- not just the service
     # acceleration -- on a stock install where nobody touched Plugin Runtime.
     optionally_depends_on [ "plugin_runtime" ]
+    frontend i18n: [ "app/frontend/i18n/locales/*/browser.json" ]
     provides mcp_tool_set: "SyrusBrowser::McpToolSet",
              chat_mcp_tool_set: "SyrusBrowser::ChatToolSet",
              artifact_renderer: "SyrusBrowser::ImageDiffRenderer",
