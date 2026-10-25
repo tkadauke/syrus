@@ -133,6 +133,12 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       export default maintenanceToolCard("core_factory_tool")
     TS
 
+    add_card("app/frontend/routes/chat/tool_cards/core_decorated_factory_tool.tsx", <<~TS)
+      import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
+      const card = maintenanceToolCard("core_decorated_factory_tool")
+      export default { ...card, argumentSummary: () => "" }
+    TS
+
     deferred_tool_set = Class.new do
       include Syrus::Plugin::ChatMcpToolSet
 
@@ -173,6 +179,7 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
 
     advertised_tools = %w[
       core_factory_tool
+      core_decorated_factory_tool
       core_generic_tool
       core_hidden_tool
       core_unclassified_tool
@@ -419,11 +426,13 @@ RSpec.describe "chat MCP custom-card coverage inventory" do
         source = File.read(path)
         next unless source.include?("collapsedSummary") ||
           source.match?(Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN) ||
-          source.match?(Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN)
+          source.match?(Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN) ||
+          source.match?(Admin::McpToolCardCoverage::TOOL_CARD_SPREAD_FACTORY_PATTERN)
 
         source[Admin::McpToolCardCoverage::TOOL_NAME_PATTERN, 1] ||
           source[Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN, 1] ||
-          source[Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN, 2]
+          source[Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN, 2] ||
+          source[Admin::McpToolCardCoverage::TOOL_CARD_SPREAD_FACTORY_PATTERN, 2]
       end
 
     expect(explicit_tool_names & registered_tool_names).to eq([])
