@@ -15,7 +15,7 @@ RSpec.describe ReapStaleBranchesJob do
       .and_return(OpenStruct.new(materialized?: true, reason: "existing_final_snapshot"))
   end
 
-  def closed_job(branch_name:, finished_at:, branch_deleted_at: nil)
+  def closed_job(branch_name:, finished_at:, branch_deleted_at: nil, recorded_sha: "remote-sha")
     job = Factories.job_record(
       user: user,
       repository: repository,
@@ -23,6 +23,7 @@ RSpec.describe ReapStaleBranchesJob do
       state: "closed"
     )
     job.update_columns(finished_at: finished_at, branch_deleted_at: branch_deleted_at)
+    job.runs.create!(trigger_kind: "initial", agent_provider: job.agent_provider, head_sha: recorded_sha) if recorded_sha
     job
   end
 
@@ -151,6 +152,35 @@ RSpec.describe ReapStaleBranchesJob do
       described_class.perform_now
 
       expect(job.reload.branch_deleted_at).to be_nil
+    end
+
+    it "protects a Job branch that was moved or recreated at a different SHA" do
+      job = closed_job(branch_name: "syrus/recreated", finished_at: 2.days.ago, recorded_sha: "owned-sha")
+      allow(client).to receive(:branch_head_sha).with(repository.slug, job.branch_name).and_return("replacement-sha")
+
+      described_class.perform_now
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(job.reload.branch_deleted_at).to be_nil
+    end
+
+    it "protects an existing Job branch when no recorded head SHA is available" do
+      job = closed_job(branch_name: "syrus/unproven", finished_at: 2.days.ago, recorded_sha: nil)
+
+      described_class.perform_now
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(job.reload.branch_deleted_at).to be_nil
+    end
+
+    it "reconciles an already-missing Job branch without recorded SHA evidence" do
+      job = closed_job(branch_name: "syrus/already-missing", finished_at: 2.days.ago, recorded_sha: nil)
+      allow(client).to receive(:branch_head_sha).with(repository.slug, job.branch_name).and_return(nil)
+
+      described_class.perform_now
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(job.reload.branch_deleted_at).to be_present
     end
 
     it "reports candidates in dry-run mode without materializing or deleting" do
