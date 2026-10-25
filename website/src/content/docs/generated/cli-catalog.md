@@ -95,7 +95,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus schedule list` | List schedules | `--debug`, `--profile` | no |
 | `syrus schedule run ID` | Run a schedule now | `--debug`, `--profile` | no |
 | `syrus schedule show ID` | Show a schedule | `--debug`, `--profile` | no |
-| `syrus search <query>` | Search Jobs, Epics, and chats | `--debug`, `--json`, `--limit`, `--profile`, `--type` | yes |
+| `syrus search <query>` | Search repositories, Jobs, Epics, and chats | `--debug`, `--json`, `--limit`, `--profile`, `--type` | yes |
 | `syrus skill` | Manage the Claude Code skill for Syrus | `--debug`, `--profile` | no |
 | `syrus skill install` | Install the Syrus skill for Claude Code | `--debug`, `--dir`, `--profile` | no |
 | `syrus status` | Show which Syrus job is checked out here | `--debug`, `--json`, `--profile` | yes |

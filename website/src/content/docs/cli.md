@@ -732,7 +732,7 @@ the wrapper command and handle, not plaintext key or token material.
 
 `syrus search` is contributed by the bundled `global_search` plugin and
 calls the same unified search endpoint the app's search bar uses to rank
-results across Jobs, Epics, and chats in one query:
+results across repositories, Jobs, Epics, and chats in one query:
 
 ```bash
 syrus search "dark mode"
@@ -741,8 +741,8 @@ syrus search deploy --limit 10
 syrus search deploy --json
 ```
 
-`--type` restricts the search to a comma-separated list of `job`, `epic`,
-and/or `chat`; omitting it searches all three. `--limit` caps the number
+`--type` restricts the search to a comma-separated list of `repository`, `job`,
+`epic`, and/or `chat`; omitting it searches all types. `--limit` caps the number
 of results (server default: 30, capped at 100). Results print as a
 compact one-line-per-result table grouped by type, in the order each
 type first appears in the server's relevance ranking. `--json` prints

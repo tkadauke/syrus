@@ -26,6 +26,7 @@ function searchPayload(results: unknown[]) {
     filter: null,
     controls: {
       types: [
+        { type: "repository", label: "Repositories" },
         { type: "job", label: "Jobs" },
         { type: "epic", label: "Epics" },
         { type: "chat", label: "Chats" },
@@ -50,6 +51,26 @@ function renderRoute(results: unknown[], initialEntry = "/search?query=preview+e
 }
 
 describe("SearchRoute result rows", () => {
+  it("renders repository results and their type filter", async () => {
+    renderRoute([
+      {
+        type: "repository",
+        id: 7,
+        title: "tkadauke/syrus",
+        snippet: "<mark>tkadauke/syrus</mark>",
+        rank: 0,
+        path: "/repositories/7",
+        state: null,
+        repository_slug: "tkadauke/syrus",
+        created_at: "2026-01-01T00:00:00Z"
+      }
+    ])
+
+    expect(await screen.findByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/7")
+    expect(screen.getByText("Repository")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/search?query=preview+environment&types%5B%5D=repository")
+  })
+
   it("renders a copyable job slug for job results", async () => {
     renderRoute([
       {

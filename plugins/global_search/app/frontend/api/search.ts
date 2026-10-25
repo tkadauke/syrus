@@ -1,7 +1,7 @@
 import { getJson } from "@app/api/client"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
-export type SearchResultType = "job" | "epic" | "chat" | "test_case" | "design_doc"
+export type SearchResultType = "repository" | "job" | "epic" | "chat" | "test_case" | "design_doc"
 
 export type SearchTypeOption = {
   type: SearchResultType
@@ -38,6 +38,12 @@ export type JobSearchResult = BaseSearchResult & {
   repository_slug: string
 }
 
+export type RepositorySearchResult = BaseSearchResult & {
+  type: "repository"
+  state: "archived" | null
+  repository_slug: string
+}
+
 export type EpicSearchResult = BaseSearchResult & {
   type: "epic"
   slug: string
@@ -71,7 +77,7 @@ export type DesignDocSearchResult = BaseSearchResult & {
   current_version_number: number | null
 }
 
-export type SearchResult = JobSearchResult | EpicSearchResult | ChatSearchResult | TestCaseSearchResult | DesignDocSearchResult
+export type SearchResult = RepositorySearchResult | JobSearchResult | EpicSearchResult | ChatSearchResult | TestCaseSearchResult | DesignDocSearchResult
 
 export type SearchPayload = {
   results: SearchResult[]
@@ -129,6 +135,7 @@ function searchPayload(results: SearchResult[]): SearchPayload {
 }
 
 export const fallbackSearchTypeOptions: SearchTypeOption[] = [
+  { type: "repository", label: "Repositories" },
   { type: "job", label: "Jobs" },
   { type: "epic", label: "Epics" },
   { type: "chat", label: "Chats" },

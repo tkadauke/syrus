@@ -24,7 +24,7 @@ RSpec.describe Api::V1::App::SearchController do
     it "includes the built-in types" do
       # Core's own types only; plugin-contributed ones are the next example's
       # subject, and naming one here makes its plugin undeletable.
-      expect(described_class.types).to include("job", "epic", "chat")
+      expect(described_class.types).to include("repository", "job", "epic", "chat")
     end
 
     it "appends a plugin-contributed type after the built-ins" do

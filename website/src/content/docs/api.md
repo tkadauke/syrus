@@ -617,10 +617,10 @@ curl "https://syrus.example.com/api/v1/app/settings/hidden_chats?page=1" \
 
 ## Search Chats
 
-`GET /api/v1/app/search` searches the authenticated user's Jobs, Epics,
-and chat messages with one relevance-ranked result list. Pass `q` with at
-least two characters. Optional `types[]` values are `job`, `epic`, and
-`chat`; omit `types[]` to search all three. `limit` defaults to 30 and is
+`GET /api/v1/app/search` searches the authenticated user's repositories, Jobs,
+Epics, and chat messages with one relevance-ranked result list. Pass `q` with at
+least two characters. Optional `types[]` values are `repository`, `job`, `epic`,
+and `chat`; omit `types[]` to search all types. `limit` defaults to 30 and is
 capped at 100. Results include the result `type`, `id`, `title`, matched
 `snippet`, normalized `rank`, app navigation `path`, state and repository
 context for Jobs and Epics, and `created_at`. Job and Epic slugs such as
@@ -631,6 +631,8 @@ and `foo "bar baz"` combines a required word with a required phrase. Chat
 results are grouped by conversation: the best matching message is the
 representative result, and grouped chat rows may include `grouped_matches`,
 `total_match_count`, and `has_more_matches` for inline expansion.
+Repository results match an exact full `owner/name` slug or repository name,
+case-insensitively, without using the full-text index.
 
 ```bash
 curl "https://syrus.example.com/api/v1/app/search?q=deploy&types[]=job&types[]=chat" \

@@ -25,7 +25,7 @@ func NewSearchCommand() *cobra.Command {
 	var jsonOutput bool
 	cmd := &cobra.Command{
 		Use:           "search <query>",
-		Short:         "Search Jobs, Epics, and chats",
+		Short:         "Search repositories, Jobs, Epics, and chats",
 		Args:          cobra.ExactArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -51,13 +51,13 @@ func NewSearchCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&typesFlag, "type", "", "comma-separated result types to search: job,epic,chat (default: all)")
+	cmd.Flags().StringVar(&typesFlag, "type", "", "comma-separated result types to search: repository,job,epic,chat (default: all)")
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum number of results (server default: 30, capped at 100)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "print the raw JSON response")
 	return cmd
 }
 
-var validSearchTypes = map[string]bool{"job": true, "epic": true, "chat": true}
+var validSearchTypes = map[string]bool{"repository": true, "job": true, "epic": true, "chat": true}
 
 func parseTypes(flag string) ([]string, error) {
 	trimmed := strings.TrimSpace(flag)

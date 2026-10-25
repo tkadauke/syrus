@@ -150,6 +150,14 @@ module Filters
   end
 
   SUBJECTS = {
+    repository: Subject.new(
+      name: :repository,
+      model: Repository,
+      chips: {
+        "created_at" => "Filters::Chips::CreatedAt",
+        "updated_at" => "Filters::Chips::UpdatedAt"
+      }
+    ),
     job: Subject.new(
       name: :job,
       model: Job,

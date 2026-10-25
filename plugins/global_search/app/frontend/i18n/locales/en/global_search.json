@@ -4,12 +4,13 @@
     "page": "Search",
     "type_filters": "Search type filters"
   },
-  "description": "Search Jobs, Epics, chats, and tests.",
+  "description": "Search repositories, Jobs, Epics, chats, and tests.",
   "error": "Unable to load search results.",
   "filter_types": {
     "chats": "Chats",
     "epics": "Epics",
     "jobs": "Jobs",
+    "repositories": "Repositories",
     "tests": "Tests"
   },
   "filters": {
@@ -31,6 +32,7 @@
     "design_doc": "Design Doc",
     "epic": "Epic",
     "job": "Job",
+    "repository": "Repository",
     "result": "Result",
     "test_case": "Test"
   },

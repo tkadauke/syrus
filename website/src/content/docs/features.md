@@ -721,13 +721,15 @@ counts, evaluator state counts, and recent failure reasons. Failed evaluator
 events can be retried without duplicating already delivered visible wakeups.
 In the V2 layout, the
 sidebar search field opens a dedicated search
-page where operators can search Jobs, Epics, chat messages, and enabled
+page where operators can search repositories, Jobs, Epics, chat messages, and enabled
 plugin-contributed sources such as Tests and Design Docs from one ranked result
 list, then narrow results to a single type. Search terms
 use the `query=` URL parameter and Google-style matching: unquoted words are independent required terms, and
 quoted words search for an exact phrase. Matching chat messages are grouped
 by conversation, with the strongest snippet shown first and additional
-matches expandable inline. The global results page also supports the same
+matches expandable inline. Repositories match their exact full `owner/name`
+slug or repository name and do not require a search index. The global results
+page also supports the same
 predicate FilterBar used on dashboard lists: combined results expose common
 repository and timestamp filters, while single-type views expose the relevant
 Job, Epic, Test, or Design Doc filters. Design Doc results include their

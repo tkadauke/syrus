@@ -33,7 +33,35 @@ RSpec.describe "App API unified search", type: :request do
     get "/api/v1/app/search", params: { query: "deploy", types: [ "job", "note" ] }
 
     expect(response).to have_http_status(:bad_request)
-    expect(parse_body.dig("error", "message")).to include("job, epic, chat")
+    expect(parse_body.dig("error", "message")).to include("repository, job, epic, chat")
+  end
+
+  it "finds accessible repositories by exact full slug or repository name without an index" do
+    repository.repository_memberships.create!(user: user, role: "admin") unless repository.repository_memberships.exists?(user: user)
+    similarly_named = Factories.repository(user: user, owner: "acme", name: "widgets-extra")
+    inaccessible = Factories.repository(user: Factories.user, owner: "private", name: "widgets")
+
+    get "/api/v1/app/search", params: { query: "ACME/WIDGETS", types: [ "repository" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include(
+        "type" => "repository",
+        "id" => repository.id,
+        "title" => "acme/widgets",
+        "path" => repository_path(repository),
+        "repository_slug" => "acme/widgets"
+      )
+    )
+    expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") })
+      .to contain_exactly("created_at", "updated_at")
+
+    get "/api/v1/app/search", params: { query: "widgets", types: [ "repository" ] }
+    expect(results).to contain_exactly(include("id" => repository.id))
+
+    get "/api/v1/app/search", params: { query: "widget", types: [ "repository" ] }
+    expect(results).to be_empty
+    expect(results.map { |result| result["id"] }).not_to include(similarly_named.id, inaccessible.id)
   end
 
   it "merges jobs, epics, and chat messages into normalized ranked results" do

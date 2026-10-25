@@ -25,6 +25,7 @@ type SearchFilter = string | "all"
 const fallbackFilters: SearchTypeOption[] = fallbackSearchTypeOptions
 
 const builtInFilterLabelKeys: Record<string, string> = {
+  repository: "filter_types.repositories",
   job: "filter_types.jobs",
   epic: "filter_types.epics",
   chat: "filter_types.chats",
@@ -32,6 +33,11 @@ const builtInFilterLabelKeys: Record<string, string> = {
 }
 
 const typeStyles: Record<SearchResultType, { border: string; tone: "amber" | "blue" | "gray" | "green"; labelKey: string }> = {
+  repository: {
+    border: "border-l-gray-500",
+    tone: "gray",
+    labelKey: "result_types.repository"
+  },
   job: {
     border: "border-l-info",
     tone: "blue",
@@ -162,7 +168,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
                 <CopyableSlug slug={result.slug} />
               </SlugHoverCard>
             ) : null}
-            {result.repository_slug ? (
+            {result.repository_slug && result.type !== "repository" ? (
               <Text as="span" variant="caption" tone="muted">
                 {result.repository_slug}
               </Text>

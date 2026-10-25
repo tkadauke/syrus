@@ -2,13 +2,15 @@ module Api
   module V1
     module App
       class SearchController < BaseController
-        BUILT_IN_TYPES = %w[job epic chat].freeze
+        BUILT_IN_TYPES = %w[repository job epic chat].freeze
         BUILT_IN_TYPE_OPTIONS = [
+          { type: "repository", label: "Repositories" },
           { type: "job", label: "Jobs" },
           { type: "epic", label: "Epics" },
           { type: "chat", label: "Chats" }
         ].freeze
         BUILT_IN_FILTER_SUBJECTS = {
+          "repository" => :repository,
           "job"   => :job,
           "epic"  => :epic,
           "chat"  => :chat_message
@@ -167,6 +169,26 @@ module Api
           return [] unless source
 
           apply_filter_to_rows(type, Array(source.search_rows(query: query, user: Current.user, limit: limit)), source.row_id_key)
+        end
+
+        def repository_search_rows(query, limit)
+          normalized_query = query.to_s.strip.downcase
+          repositories = Repository.accessible_to(Current.user).where("LOWER(name) = ?", normalized_query)
+          owner, name = normalized_query.split("/", 2)
+          repositories = repositories.or(
+            Repository.accessible_to(Current.user).where("LOWER(owner) = ? AND LOWER(name) = ?", owner, name)
+          ) if owner.present? && name.present?
+          repositories
+            .order(:id)
+            .limit(limit)
+            .map do |repository|
+              {
+                repository_id: repository.id,
+                priority: -1,
+                rank: 0.0,
+                snippet: "<mark>#{ERB::Util.html_escape(repository.slug)}</mark>"
+              }
+            end
         end
 
         def job_search_rows(query, limit)
@@ -354,6 +376,23 @@ module Api
           source_for(row.fetch(:type))&.result_json(row: row, user: Current.user)
         end
 
+        def repository_result_json(row)
+          repository = repositories_by_id[row.fetch(:repository_id).to_i]
+          return unless repository
+
+          {
+            type: "repository",
+            id: repository.id,
+            title: repository.slug,
+            snippet: row.fetch(:snippet),
+            rank: row.fetch(:rank),
+            path: repository_path(repository),
+            state: repository.archived? ? "archived" : nil,
+            repository_slug: repository.slug,
+            created_at: repository.created_at&.iso8601
+          }
+        end
+
         def job_result_json(row)
           job = jobs_by_id[row.fetch(:job_id).to_i]
           return unless job
@@ -428,6 +467,10 @@ module Api
 
         def jobs_by_id
           @jobs_by_id ||= Job.accessible_to(Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
+        end
+
+        def repositories_by_id
+          @repositories_by_id ||= Repository.accessible_to(Current.user).where(id: result_ids(:repository_id)).index_by(&:id)
         end
 
         def epics_by_id
@@ -519,6 +562,22 @@ module Api
           def result_json(row:, user:) = controller.send(:job_result_json, row)
         end
 
+        class RepositorySearchSource < BuiltInSearchSource
+          def search_rows(query:, user:, limit:) = controller.send(:repository_search_rows, query, limit)
+          def row_id_key = :repository_id
+
+          def filtered_scope(ids:, tree:, user:)
+            ::Filters::Compiler.call(
+              ::Filters::Ast.parse(tree),
+              scope: Repository.accessible_to(user).where(id: ids),
+              user: user,
+              subject: :repository
+            )
+          end
+
+          def result_json(row:, user:) = controller.send(:repository_result_json, row)
+        end
+
         class EpicSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:epic_search_rows, query, limit)
           def row_id_key = :epic_id
@@ -548,6 +607,7 @@ module Api
         end
 
         BuiltInSearchSource::SOURCES.replace(
+          "repository" => RepositorySearchSource,
           "job" => JobSearchSource,
           "epic" => EpicSearchSource,
           "chat" => ChatSearchSource
