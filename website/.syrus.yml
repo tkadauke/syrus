@@ -33,7 +33,10 @@ visual_review:
     - "lib/sitemap.ts"
     - "public/**/*"
     - "next.config.ts"
+    - "package.json"
+    - "package-lock.json"
     - "postcss.config.mjs"
+    - "scripts/sync-plugin-icons.mjs"
   seed_notes: |
     Review the homepage at /, a representative documentation page such as
     /docs/dogfooding, the localized homepage at /de/, and representative blog
