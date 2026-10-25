@@ -219,7 +219,7 @@ RSpec.describe JobBundleDispatcher do
   it "does not dispatch a second bundle when the repository already has an active job bundle" do
     approved_job(1)
     approved_job(2)
-    active_train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium", state: "grading")
+    active_train = MergeTrain.create!(repository: repository, base_branch: repository.default_branch, priority: "medium", state: "grading")
 
     expect(described_class.try_dispatch!(repository)).to be_nil
     expect(MergeTrain.all).to contain_exactly(active_train)
@@ -233,7 +233,7 @@ RSpec.describe JobBundleDispatcher do
   it "names the train that is actually holding the repository" do
     approved_job(1)
     approved_job(2)
-    active_train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium", state: "grading")
+    active_train = MergeTrain.create!(repository: repository, base_branch: repository.default_branch, priority: "medium", state: "grading")
 
     expect(described_class.blocker_reason(repository))
       .to eq("#{repository.slug} already has an active job bundle (train ##{active_train.id}, grading)")
@@ -274,6 +274,48 @@ RSpec.describe JobBundleDispatcher do
 
     expect(described_class.blocker_reason(repository)).to eq("#{owner.slug} is already landing for #{repository.slug}")
     expect(described_class.try_dispatch!(repository)).to be_nil
+  end
+
+  it "sees an active bundle holding a non-default track landing lock" do
+    owner = approved_job(50)
+    owner.update!(delivery_track: "release")
+    approved_job(1).update!(delivery_track: "release")
+    approved_job(2).update!(delivery_track: "release")
+    policy = instance_double(DeliveryPolicy, approval_configured?: false)
+    allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:job_landing_branch).and_return("release")
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+    workflow.work_unit.update!(state: "running", kind: "job_bundle")
+
+    expect(described_class.blocker_reason(repository)).to eq("#{repository.slug} already has an active job bundle")
+  end
+
+  it "does not let a landing lock on another delivery track block a bundle" do
+    owner = approved_job(50)
+    owner.update!(delivery_track: "hotfix")
+    approved_job(1).update!(delivery_track: "release")
+    approved_job(2).update!(delivery_track: "release")
+    policy = instance_double(DeliveryPolicy, approval_configured?: false)
+    allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:job_landing_branch) { |job| job.delivery_track }
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+    workflow.work_unit.update!(state: "running")
+
+    expect(described_class.blocker_reason(repository)).to be_nil
+  end
+
+  it "names the holder of a non-default track landing lock" do
+    owner = approved_job(50)
+    owner.update!(delivery_track: "release")
+    approved_job(1).update!(delivery_track: "release")
+    approved_job(2).update!(delivery_track: "release")
+    policy = instance_double(DeliveryPolicy, approval_configured?: false)
+    allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:job_landing_branch).and_return("release")
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+    workflow.work_unit.update!(state: "running")
+
+    expect(described_class.blocker_reason(repository)).to eq("#{owner.slug} is already landing for #{repository.slug}")
   end
 
   it "dispatches the remaining members when a non-member's work cannot finish" do

@@ -41,9 +41,9 @@ class MergeTrainDispatcher
     workflow = nil
     MergeTrain.transaction do
       members = result.members.map { |job| job.tap(&:lock!) }
-      delivery_policy = DeliveryPolicy.for(repository: @epic.repository)
+      delivery_policy = self.delivery_policy
 
-      raise ActiveRecord::Rollback if landing_job_in_progress
+      raise ActiveRecord::Rollback if landing_job_in_progress(job: members.last, policy: delivery_policy)
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all?(&:eligible_for_landing_dispatch?)
       raise ActiveRecord::Rollback unless members.all? { |job| LandingApprovalGate.satisfied?(job, policy: delivery_policy) }
@@ -153,12 +153,32 @@ class MergeTrainDispatcher
       )
   end
 
-  def landing_job_in_progress
-    if (unit = WorkUnits::Ownership.active_unit_for_lock_key("landing:repository:#{@epic.repository_id}", kinds: WorkDefinitions.landing_lock_kinds))
+  def landing_job_in_progress(job: landing_lock_job, policy: delivery_policy)
+    lock_key = WorkDefinitions.landing_lock_key_for(job, policy: policy)
+    if lock_key && (unit = WorkUnits::Ownership.active_unit_for_lock_key(lock_key, kinds: WorkDefinitions.landing_lock_kinds))
       return unit.member_jobs.order(:id).first || unit.workflow&.job
     end
 
-    Job.landing.where(repository_id: @epic.repository_id).order(:id).first
+    return unless lock_key
+
+    Job.landing.where(repository_id: @epic.repository_id).order(:id).detect do |landing_job|
+      WorkDefinitions.landing_lock_key_for(landing_job, policy: policy) == lock_key
+    end
+  end
+
+  # A train takes one landing slot, so its members must resolve to one branch.
+  # If they disagree, leave the lock lookup alone and let the branch resolver
+  # report the configuration error instead of arbitrarily choosing a member.
+  def landing_lock_job
+    members = @epic.jobs.approved.to_a
+    return if members.empty?
+
+    branches = members.map { |member| delivery_policy.job_landing_branch(member).presence || @epic.repository.default_branch }.uniq
+    members.last if branches.one?
+  end
+
+  def delivery_policy
+    @delivery_policy ||= DeliveryPolicy.for(repository: @epic.repository)
   end
 
   def cooling_down_failure
