@@ -78,22 +78,20 @@ RSpec.describe "desktop uninstall flow" do
   end
 
   it "offers Uninstall Syrus… as a low-prominence app-menu item near Quit" do
-    expect(main_process).to include('label: "Uninstall Syrus…"')
+    expect(main_process).to include('label: t("shell.uninstall")')
     # Its own separator group directly above Quit in the app-name submenu.
-    expect(main_process).to match(/"Uninstall Syrus…"[\s\S]{0,200}\{ role: "quit" \}/)
+    expect(main_process).to match(/label: t\("shell\.uninstall"\)[\s\S]{0,200}\{ role: "quit" \}/)
     expect(main_process).to include("void confirmAndUninstall()")
   end
 
   it "confirms with Cancel as the default and a default-unchecked delete-data checkbox" do
     confirm = main_process[/const confirmAndUninstall = async \(\) => \{[\s\S]*?\n\}/]
     expect(confirm).to include('type: "warning"')
-    expect(confirm).to include('buttons: ["Cancel", "Uninstall"]')
+    expect(confirm).to include('buttons: [t("common.cancel"), t("dialog.uninstall_button")]')
     expect(confirm).to include("defaultId: 0")
     expect(confirm).to include("cancelId: 0")
     expect(confirm).to include("checkboxChecked: false")
-    expect(confirm).to include("cannot be undone")
-    # The message must spell out the blast radius before the user confirms.
-    %w[command-line Docker].each { |scope| expect(confirm).to include(scope) }
+    expect(confirm).to include('detail: t(channel === "test" ? "dialog.uninstall_test_detail" : "dialog.uninstall_detail"')
     expect(confirm).to include("if (choice.response !== 1)")
   end
 

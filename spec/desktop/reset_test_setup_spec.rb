@@ -72,7 +72,7 @@ RSpec.describe "desktop reset test setup" do
       # under it would delete files it's reading and let it re-create the .env
       # after the reset. Refuse cleanly until it finishes.
       expect(confirm).to match(/if \(backendLifecycle\.backendBusy\(\)\) \{[\s\S]{0,300}return/)
-      expect(confirm).to include("Finishing backend update…")
+      expect(confirm).to include('message: t("dialog.finishing_update")')
     end
 
     it "shows an info+confirm dialog that names every wiped resource" do
@@ -92,7 +92,7 @@ RSpec.describe "desktop reset test setup" do
     end
 
     it "defaults to Cancel and only proceeds on the explicit Reset button" do
-      expect(confirm).to include('buttons: ["Cancel", "Reset & Restart"]')
+      expect(confirm).to include('buttons: [t("common.cancel"), t("dialog.reset_button")]')
       expect(confirm).to include("defaultId: 0")
       expect(confirm).to include("cancelId: 0")
       expect(confirm).to include("if (choice.response !== 1) {")
@@ -114,10 +114,10 @@ RSpec.describe "desktop reset test setup" do
     it "shows Reset Test Setup… only on the test channel, in the destructive group above Uninstall" do
       # Spread-guarded so the item is absent from a stable build's menu entirely.
       expect(main).to match(
-        /currentChannel\(\) === "test"\s*\n\s*\? \[\s*\n\s*\{\s*\n\s*label: "Reset Test Setup…"[\s\S]{0,160}confirmAndResetTestSetup\(\)/
+        /currentChannel\(\) === "test"\s*\n\s*\? \[\s*\n\s*\{\s*\n\s*label: t\("shell\.reset_test"\)[\s\S]{0,160}confirmAndResetTestSetup\(\)/
       )
       # It sits directly above "Uninstall Syrus…" (both are wipe actions).
-      expect(main).to match(/confirmAndResetTestSetup\(\)[\s\S]{0,200}label: "Uninstall Syrus…"/)
+      expect(main).to match(/confirmAndResetTestSetup\(\)[\s\S]{0,200}label: t\("shell\.uninstall"\)/)
     end
   end
 end
