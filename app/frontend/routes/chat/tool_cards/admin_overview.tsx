@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { HealthPill, parseWorkerHealthCounts, type WorkerHealthCounts } from "../adminToolCard"
@@ -63,10 +64,16 @@ function parseOverview(context: ToolCardContext): OverviewCard | null {
   const overview = isPlainObject(parsed.overview) ? parsed.overview : {}
   const rateLimits = Array.isArray(overview.github_rate_limits) ? overview.github_rate_limits : []
   const blockedUsers = Array.isArray(overview.github_api_blocked_users)
-    ? overview.github_api_blocked_users.flatMap((user, index) => { const row = parseBlockedUser(user, index); return row ? [row] : [] })
+    ? overview.github_api_blocked_users.flatMap((user, index) => {
+        const row = parseBlockedUser(user, index)
+        return row ? [row] : []
+      })
     : []
   const openProviderCircuits = Array.isArray(overview.provider_circuits)
-    ? overview.provider_circuits.flatMap((circuit, index) => { const row = parseProviderCircuit(circuit, index); return row ? [row] : [] })
+    ? overview.provider_circuits.flatMap((circuit, index) => {
+        const row = parseProviderCircuit(circuit, index)
+        return row ? [row] : []
+      })
     : []
 
   return {
@@ -87,12 +94,12 @@ function collapsedSummary(context: ToolCardContext) {
   if (!card) return null
 
   const parts = [
-    card.openJobs != null ? `${card.openJobs} open Job${card.openJobs === 1 ? "" : "s"}` : null,
-    card.runningWorkflows != null ? `${card.runningWorkflows} running` : null,
-    card.queueSummary.failed != null ? `${card.queueSummary.failed} failed (24h)` : null
+    card.openJobs != null ? i18n.t("chat:admin_open_job_count", { count: card.openJobs }) : null,
+    card.runningWorkflows != null ? i18n.t("chat:admin_running_workflow_count", { count: card.runningWorkflows }) : null,
+    card.queueSummary.failed != null ? i18n.t("chat:admin_failed_queue_count", { count: card.queueSummary.failed }) : null
   ].filter(Boolean)
 
-  return parts.length > 0 ? parts.join(", ") : "Admin overview"
+  return parts.length > 0 ? parts.join(", ") : i18n.t("chat:admin_overview_summary")
 }
 
 function StatTile({ label, value }: { label: string; value: number | null }) {
@@ -108,24 +115,28 @@ function renderExpanded(context: ToolCardContext) {
   const card = parseOverview(context)
   if (!card) return null
 
-  const hasNotable = card.openProviderCircuits.length > 0 || card.blockedUsers.length > 0 || card.lowRateLimitCount > 0 || (card.workerHealth && card.workerHealth.worst !== "ok")
+  const hasNotable =
+    card.openProviderCircuits.length > 0 ||
+    card.blockedUsers.length > 0 ||
+    card.lowRateLimitCount > 0 ||
+    (card.workerHealth && card.workerHealth.worst !== "ok")
 
   return (
     <CardShell>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile label="Users" value={card.totalUsers} />
-        <StatTile label="Active repos" value={card.activeRepositories} />
-        <StatTile label="Open Jobs" value={card.openJobs} />
-        <StatTile label="Running Workflows" value={card.runningWorkflows} />
+        <StatTile label={i18n.t("chat:ops_users_57f2b1")} value={card.totalUsers} />
+        <StatTile label={i18n.t("chat:ops_active_repos_bb39bb")} value={card.activeRepositories} />
+        <StatTile label={i18n.t("chat:ops_open_jobs_46636a")} value={card.openJobs} />
+        <StatTile label={i18n.t("chat:ops_running_workflows_caf006")} value={card.runningWorkflows} />
       </div>
       <dl className="grid gap-1 sm:grid-cols-3">
-        <Row label="Queue active" value={String(card.queueSummary.active ?? "—")} />
-        <Row label="Queue pending" value={String(card.queueSummary.pending ?? "—")} />
-        <Row label="Queue failed (24h)" value={String(card.queueSummary.failed ?? "—")} />
+        <Row label={i18n.t("chat:ops_queue_active_ba2450")} value={String(card.queueSummary.active ?? "—")} />
+        <Row label={i18n.t("chat:ops_queue_pending_9accc4")} value={String(card.queueSummary.pending ?? "—")} />
+        <Row label={i18n.t("chat:ops_queue_failed_24h_6f9375")} value={String(card.queueSummary.failed ?? "—")} />
       </dl>
       {hasNotable ? (
         <div className="space-y-2">
-          <SectionLabel>Notable</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_notable_304dac")}</SectionLabel>
           {card.workerHealth && card.workerHealth.worst !== "ok" ? (
             <div className="flex items-center gap-2">
               <HealthPill level={card.workerHealth.worst} />
@@ -136,7 +147,7 @@ function renderExpanded(context: ToolCardContext) {
           ) : null}
           {card.openProviderCircuits.length > 0 ? (
             <div>
-              <div className="text-2xs text-gray-500 dark:text-gray-400">Open provider circuits</div>
+              <div className="text-2xs text-gray-500 dark:text-gray-400">{i18n.t("chat:ops_open_provider_circuits_101ee5")}</div>
               <ul className="mt-1 space-y-1">
                 {card.openProviderCircuits.map((circuit) => (
                   <li className="flex flex-wrap items-center gap-2" key={circuit.key}>
@@ -151,7 +162,9 @@ function renderExpanded(context: ToolCardContext) {
           ) : null}
           {card.blockedUsers.length > 0 ? (
             <div>
-              <div className="text-2xs text-gray-500 dark:text-gray-400">GitHub API blocked users ({card.blockedUsers.length})</div>
+              <div className="text-2xs text-gray-500 dark:text-gray-400">
+                {i18n.t("chat:admin_github_blocked_user_count", { count: card.blockedUsers.length })}
+              </div>
               <ul className="mt-1 space-y-1">
                 {card.blockedUsers.map((user) => (
                   <li className="flex flex-wrap items-center gap-2" key={user.key}>
@@ -163,7 +176,9 @@ function renderExpanded(context: ToolCardContext) {
             </div>
           ) : null}
           {card.lowRateLimitCount > 0 ? (
-            <div className="text-gray-600 dark:text-gray-300">{card.lowRateLimitCount} user{card.lowRateLimitCount === 1 ? "" : "s"} under 10% GitHub rate limit</div>
+            <div className="text-gray-600 dark:text-gray-300">
+              {card.lowRateLimitCount} user{card.lowRateLimitCount === 1 ? "" : "s"} under 10% GitHub rate limit
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -189,7 +204,7 @@ export default adminOverviewToolCard
 export const examples = [
   {
     id: "healthy_fleet",
-    label: "Healthy fleet, nothing notable",
+    label: i18n.t("chat:ops_healthy_fleet_nothing_notable_7ac8f5"),
     parsedResult: {
       total_users: 6,
       active_repositories: 4,
@@ -200,14 +215,15 @@ export const examples = [
         github_rate_limits: [],
         github_api_blocked_users: [],
         provider_circuits: [],
-        worker_health: { current: [ { health: { level: "ok" } }, { health: { level: "ok" } } ] }
+        worker_health: { current: [{ health: { level: "ok" } }, { health: { level: "ok" } }] }
       }
     }
   },
   {
     id: "fleet_needs_attention",
-    label: "Fleet needs attention (large result)",
-    description: "Twelve workers plus rate limits, blocked users, and an open provider circuit -- exercises the card's \"Notable\" section and the Raw details disclosure with a genuinely large payload.",
+    label: i18n.t("chat:ops_fleet_needs_attention_large_result_a725ac"),
+    description:
+      'Twelve workers plus rate limits, blocked users, and an open provider circuit -- exercises the card\'s "Notable" section and the Raw details disclosure with a genuinely large payload.',
     parsedResult: {
       total_users: 41,
       active_repositories: 19,
@@ -223,9 +239,7 @@ export const examples = [
           { id: 12, email: "alice@example.com", reason: "secondary rate limit" },
           { id: 44, email: "carol@example.com", reason: "token revoked" }
         ],
-        provider_circuits: [
-          { open: true, provider: "claude", model: "claude-sonnet-5", reason: "5 consecutive 529s", retry_after: "2026-09-16T21:10:00Z" }
-        ],
+        provider_circuits: [{ open: true, provider: "claude", model: "claude-sonnet-5", reason: "5 consecutive 529s", retry_after: "2026-09-16T21:10:00Z" }],
         worker_health: {
           current: Array.from({ length: 12 }, (_, index) => ({
             hostname: `syrus-worker-${index}`,

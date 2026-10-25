@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState, InternalLink, StatePill } from "../toolCardUi"
 
@@ -53,7 +54,7 @@ function collapsedSummary(context: ToolCardContext) {
   const parsed = context.parsedResult
   const pagination = isPlainObject(parsed) && isPlainObject(parsed.pagination) ? parsed.pagination : null
   const total = pagination ? displayValue(pagination.total_items) : null
-  return total ? `${rows.length} of ${total} stuck items` : `${rows.length} stuck item${rows.length === 1 ? "" : "s"}`
+  return total ? i18n.t("chat:admin_stuck_item_page_count", { count: rows.length, total }) : i18n.t("chat:admin_stuck_item_count", { count: rows.length })
 }
 
 function JobCell({ row }: { row: StuckItemRow }) {
@@ -66,7 +67,7 @@ function renderExpanded(context: ToolCardContext) {
   const rows = stuckRows(context)
   if (!rows) return null
 
-  if (rows.length === 0) return <EmptyState>No stuck Jobs found.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:ops_no_stuck_jobs_found_de4657")}</EmptyState>
 
   const parsed = context.parsedResult
   const pagination = isPlainObject(parsed) && isPlainObject(parsed.pagination) ? parsed.pagination : null

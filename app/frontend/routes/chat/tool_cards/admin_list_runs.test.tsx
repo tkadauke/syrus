@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import i18n from "../../../i18n"
 import adminListRunsToolCard from "./admin_list_runs"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -23,6 +24,19 @@ describe("admin_list_runs tool card", () => {
   it("summarizes the collapsed row with a count", () => {
     const parsedResult = { runs: [{ id: 1 }, { id: 2 }] }
     expect(adminListRunsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 Runs")
+  })
+
+  it("localizes count-driven Run plurals and presentation labels", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      expect(adminListRunsToolCard.collapsedSummary?.(context({ parsedResult: { runs: [{ id: 1 }] } }))).toBe("1 Lauf")
+      expect(adminListRunsToolCard.collapsedSummary?.(context({ parsedResult: { runs: [{ id: 1 }, { id: 2 }] } }))).toBe("2 Läufe")
+
+      render(<>{adminListRunsToolCard.renderExpanded(context({ parsedResult: { runs: [] } }))}</>)
+      expect(screen.getByText("Keine Runs gefunden.")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("renders linked entities, every filter, result field, and responsive labels", () => {

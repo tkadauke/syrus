@@ -74,7 +74,7 @@ describe("admin_version tool card", () => {
         { hostname: "web-2", role: "web", version: "def456" }
       ]
     }
-    expect(adminVersionToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 live instances (mixed versions -- deploy in progress?)")
+    expect(adminVersionToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 live instances (mixed versions — deploy in progress?)")
   })
 
   it("renders every instance and disk field, copyable identities, commit links, and the handler marker", () => {

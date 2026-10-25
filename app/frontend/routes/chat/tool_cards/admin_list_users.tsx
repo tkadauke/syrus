@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, Row, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
@@ -46,7 +47,7 @@ function userRows(context: ToolCardContext): UserRow[] | null {
 function collapsedSummary(context: ToolCardContext) {
   const rows = userRows(context)
   if (!rows) return null
-  return `${rows.length} user${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:admin_user_count", { count: rows.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -57,12 +58,12 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <Row label="Requested limit" value={requestedLimit == null ? "20 (default)" : String(requestedLimit)} />
+      <Row label={i18n.t("chat:ops_requested_limit_127334")} value={requestedLimit == null ? "20 (default)" : String(requestedLimit)} />
       {rows.length === 0 ? (
-        <EmptyState>No users found.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_users_found_e611ef")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["ID", "Email", "Admin", "Provider", "Scheduling", "Created", "Jobs"]} />
+          <THead columns={["id", "email", "admin", "provider", "scheduling", "created", "jobs"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
           <TBody>
             {rows.map((row) => (
               <tr key={row.key}>
@@ -97,7 +98,7 @@ export default adminListUsersToolCard
 export const examples = [
   {
     id: "users_with_account_details",
-    label: "Users with account details",
+    label: i18n.t("chat:ops_users_with_account_details_00573a"),
     input: { limit: 20 },
     parsedResult: {
       users: [
@@ -115,7 +116,7 @@ export const examples = [
   },
   {
     id: "no_users",
-    label: "No users",
+    label: i18n.t("chat:ops_no_users_c4b060"),
     input: { limit: 20 },
     parsedResult: { users: [] }
   }
