@@ -837,6 +837,22 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(payload[:investigation]).to be(true)
   end
 
+  it "rejects an investigation proposal that targets an Epic" do
+    epic = Factories.epic(user: user, repository: repository)
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Investigate inside the Epic",
+      description: "Look into it.",
+      epic_id: epic.id,
+      investigation: true
+    )
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include(Job::INVESTIGATION_EPIC_ERROR)
+    expect(chat_session.proposals.find_by(title: "Investigate inside the Epic")).to be_nil
+  end
+
   it "defaults investigation to false" do
     response = call_tool(
       repo: repository.slug,

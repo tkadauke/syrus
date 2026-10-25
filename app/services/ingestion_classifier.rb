@@ -205,6 +205,11 @@ class IngestionClassifier
     epic = user.epics.find_by(id: epic_id, repository_id: repository.id)
     raise ActiveRecord::RecordInvalid.new(job), "classifier returned unknown Epic ##{epic_id}" unless epic
 
+    if job.investigation?
+      job.errors.add(:base, Job::INVESTIGATION_EPIC_ERROR)
+      raise ActiveRecord::RecordInvalid.new(job)
+    end
+
     job.update!(epic: epic)
   end
 

@@ -43,6 +43,7 @@ class Job < ApplicationRecord
   TERMINAL_STATES = %w[ closed no_change_needed ].freeze
   REQUESTED_CHANGES_ATTENTION_REASON = "upstream_pr_changes_requested".freeze
   INVESTIGATION_ESCALATED_ATTENTION_REASON = "investigation_escalated".freeze
+  INVESTIGATION_EPIC_ERROR = "Investigation Jobs cannot belong to Epics".freeze
   WITHDRAWN_APPROVAL_DEPENDENCY_BLOCK_REASON = "dependency_approval_withdrawn".freeze
 
   PRIORITIES = %w[ urgent high medium low ].freeze
@@ -146,6 +147,7 @@ class Job < ApplicationRecord
   validate  :skill_name_requires_direct_or_cron_kind, if: -> { skill_name.present? }
   validate  :investigation_requires_investigable_kind, if: :investigation?
   validate  :investigation_excludes_skill_name, if: -> { investigation? && skill_name.present? }
+  validate  :investigation_excludes_epic, if: -> { investigation? && epic_id.present? }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -2223,6 +2225,10 @@ class Job < ApplicationRecord
 
   def investigation_excludes_skill_name
     errors.add(:investigation, :incompatible_with_skill_name)
+  end
+
+  def investigation_excludes_epic
+    errors.add(:base, INVESTIGATION_EPIC_ERROR)
   end
 
   def external_pr_starts_implemented
