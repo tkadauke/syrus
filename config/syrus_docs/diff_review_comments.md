@@ -244,6 +244,15 @@ number, shown on row hover (GitHub-style), not a right-edge column.
 render the same diff-line coloring used inside the diff itself for its
 compact context snippets.
 
+An inline draft has two deliberately separate exits. "Create comment"
+persists a `DiffReviewComment`; "Discuss in chat" sends the draft to the
+Job's discussion chat without creating a review comment or adding anything
+to a later "Submit feedback" action. The chat handoff states that distinction
+and includes the Job, revision, repository-relative path, old/new side, line,
+selected source, and a compact surrounding diff hunk. The composer remains
+open while chat creation is pending and retains its draft and anchor if the
+request fails.
+
 ### Scalable diff loading and navigation
 
 `ReviewableDiff` guards against huge diffs without dropping any data:

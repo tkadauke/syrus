@@ -56,8 +56,9 @@
     "edit_comment_aria": "Edit comment {{id}}",
     "create_comment": "Create comment",
     "create_error": "Unable to create diff comment.",
-    "discuss": "Discuss",
+    "discuss": "Discuss in chat",
     "discussing": "Starting...",
+    "discuss_hint": "Moves this unposted draft into Job chat without creating a diff comment.",
     "discuss_error": "Unable to start discussion."
   },
   "onboarding": {

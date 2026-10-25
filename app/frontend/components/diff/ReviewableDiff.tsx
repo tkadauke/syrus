@@ -1779,6 +1779,7 @@ export function UnifiedDiffTable({
               {t("cancel")}
             </Button>
           </div>
+          {onDiscussComposing ? <p className="text-xs text-gray-600 dark:text-gray-400">{t("diff_review_composer.discuss_hint")}</p> : null}
           {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
           {composingDiscussError ? <p className="text-xs text-danger-text">{t("diff_review_composer.discuss_error")}</p> : null}
         </div>
