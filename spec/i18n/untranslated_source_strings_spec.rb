@@ -25,20 +25,14 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/admin_unpause_user_scheduling.tsx
     app/frontend/routes/chat/tool_cards/admin_version.tsx
     app/frontend/routes/chat/tool_cards/adopt_current_pr_head.tsx
-    app/frontend/routes/chat/tool_cards/ask_user_question.tsx
-    app/frontend/routes/chat/tool_cards/attach_repository.tsx
     app/frontend/routes/chat/tool_cards/cancel_coding_checkout.tsx
     app/frontend/routes/chat/tool_cards/cancel_local_mode.tsx
-    app/frontend/routes/chat/tool_cards/cancel_wakeup.tsx
     app/frontend/routes/chat/tool_cards/classify_pull_request.tsx
     app/frontend/routes/chat/tool_cards/clear_provider_circuit.tsx
     app/frontend/routes/chat/tool_cards/create_coding_job.tsx
-    app/frontend/routes/chat/tool_cards/create_repo_document.tsx
     app/frontend/routes/chat/tool_cards/create_tag.tsx
     app/frontend/routes/chat/tool_cards/daemon_ping.tsx
     app/frontend/routes/chat/tool_cards/delegate_issue.tsx
-    app/frontend/routes/chat/tool_cards/delete_repo_document.tsx
-    app/frontend/routes/chat/tool_cards/detach_repository.tsx
     app/frontend/routes/chat/tool_cards/dispatch_ref_movement_action.tsx
     app/frontend/routes/chat/tool_cards/emergency_land.tsx
     app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx
@@ -50,29 +44,35 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/open_in_coding_mode.tsx
     app/frontend/routes/chat/tool_cards/open_in_local_mode.tsx
     app/frontend/routes/chat/tool_cards/pause_landing_queue.tsx
-    app/frontend/routes/chat/tool_cards/propose_epic.tsx
-    app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx
-    app/frontend/routes/chat/tool_cards/propose_job.tsx
     app/frontend/routes/chat/tool_cards/remove_job_tag.tsx
     app/frontend/routes/chat/tool_cards/remove_pinned_context.tsx
-    app/frontend/routes/chat/tool_cards/rename_chat.tsx
     app/frontend/routes/chat/tool_cards/reopen_job.tsx
     app/frontend/routes/chat/tool_cards/run_command.tsx
-    app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
     app/frontend/routes/chat/tool_cards/select_job_delivery_track.tsx
-    app/frontend/routes/chat/tool_cards/send_chat_message.tsx
-    app/frontend/routes/chat/tool_cards/set_bookmark.tsx
-    app/frontend/routes/chat/tool_cards/spawn_chats.tsx
     app/frontend/routes/chat/tool_cards/submit_artifact.tsx
     app/frontend/routes/chat/tool_cards/submit_chat_feedback.tsx
     app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx
-    app/frontend/routes/chat/tool_cards/suggest_next_step.tsx
     app/frontend/routes/chat/tool_cards/update_pinned_context.tsx
     app/frontend/routes/chat/tool_cards/wake_provider_admission.tsx
     app/frontend/routes/chat/tool_cards/write_file.tsx
   ].freeze
 
   CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/routes/chat/tool_cards/propose_job.tsx
+    app/frontend/routes/chat/tool_cards/propose_epic.tsx
+    app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx
+    app/frontend/routes/chat/tool_cards/ask_user_question.tsx
+    app/frontend/routes/chat/tool_cards/send_chat_message.tsx
+    app/frontend/routes/chat/tool_cards/spawn_chats.tsx
+    app/frontend/routes/chat/tool_cards/set_bookmark.tsx
+    app/frontend/routes/chat/tool_cards/suggest_next_step.tsx
+    app/frontend/routes/chat/tool_cards/attach_repository.tsx
+    app/frontend/routes/chat/tool_cards/detach_repository.tsx
+    app/frontend/routes/chat/tool_cards/create_repo_document.tsx
+    app/frontend/routes/chat/tool_cards/delete_repo_document.tsx
+    app/frontend/routes/chat/tool_cards/rename_chat.tsx
+    app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
+    app/frontend/routes/chat/tool_cards/cancel_wakeup.tsx
     app/frontend/routes/chat/Compose.tsx
     app/frontend/routes/chat/AgentQuestions.tsx
     app/frontend/routes/chat/ParticipantPicker.tsx
@@ -207,6 +207,27 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|ternary|JOB- ()
       app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|ternary|JOB-
       app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|jsx_expression|JOB-
+      app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|Waiting on the operator to answer in chat.
+      app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|result_error true -- renders through the shared ToolFailureSummaryCard instead of the waiting-state card.
+      app/frontend/routes/chat/tool_cards/create_repo_document.tsx|user_visible_property|API Guide
+      app/frontend/routes/chat/tool_cards/create_repo_document.tsx|user_visible_property|Create **API Guide** in
+      app/frontend/routes/chat/tool_cards/delete_repo_document.tsx|user_visible_property|Delete document
+      app/frontend/routes/chat/tool_cards/propose_epic.tsx|user_visible_property|Improve proposal cards
+      app/frontend/routes/chat/tool_cards/propose_epic.tsx|user_visible_property|Render **rich proposal details**.
+      app/frontend/routes/chat/tool_cards/propose_epic.tsx|user_visible_property|Add core cards
+      app/frontend/routes/chat/tool_cards/propose_epic.tsx|user_visible_property|Add plugin cards
+      app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx|user_visible_property|Release readiness
+      app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx|user_visible_property|Coordinate the **release** work.
+      app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx|user_visible_property|Prepare release
+      app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx|user_visible_property|Prepare artifacts for JOB-12.
+      app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx|user_visible_property|Publish release
+      app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx|user_visible_property|Publish after preparation.
+      app/frontend/routes/chat/tool_cards/propose_job.tsx|user_visible_property|Improve proposal card
+      app/frontend/routes/chat/tool_cards/set_bookmark.tsx|user_visible_property|Launch notes
+      app/frontend/routes/chat/tool_cards/set_bookmark.tsx|user_visible_property|Epic kickoff
+      app/frontend/routes/chat/tool_cards/set_bookmark.tsx|user_visible_property|Nothing yet
+      app/frontend/routes/chat/tool_cards/set_bookmark.tsx|user_visible_property|Waiting for result
+      app/frontend/routes/chat/tool_cards/spawn_chats.tsx|user_visible_property|Review
       app/frontend/routes/chat/WorkspacePanels.tsx|jsx_expression|(+ -)
       app/frontend/routes/chat/adminToolCard.tsx|jsx_text|JOB-
       app/frontend/routes/chat/adminToolCard.tsx|jsx_text|isValidElement

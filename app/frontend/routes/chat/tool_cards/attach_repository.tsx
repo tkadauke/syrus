@@ -66,7 +66,11 @@ function renderExpanded(context: ToolCardContext) {
   if (!result) {
     if (context.parsedResult != null || context.resultBody.trim()) return null
     const requestedSlug = stringFromInput(context, ["slug", "repository", "repository_slug"])
-    return <EmptyState>{requestedSlug ? i18n.t("chat:tool_card_repository_attaching", { slug: requestedSlug }) : i18n.t("chat:tool_card_repository_attach_waiting")}</EmptyState>
+    return (
+      <EmptyState>
+        {requestedSlug ? i18n.t("chat:tool_card_repository_attaching", { slug: requestedSlug }) : i18n.t("chat:tool_card_repository_attach_waiting")}
+      </EmptyState>
+    )
   }
 
   return (

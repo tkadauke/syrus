@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { CopyableSlug } from "../../../components/CopyableSlug"
 import { Badge, displayValue, Row } from "../toolCardUi"
 import { ErrorCard, MalformedCard, StatusCard, successOrError } from "../chatHelperToolCard"
@@ -17,7 +18,7 @@ type SetBookmarkResult = {
 function parseResult(context: ToolCardContext) {
   const input = isPlainObject(context.input) ? context.input : {}
 
-  return successOrError<SetBookmarkResult>(context, "Bookmark creation failed.", (parsed) => {
+  return successOrError<SetBookmarkResult>(context, i18n.t("chat:tool_card_bookmark_failed_period"), (parsed) => {
     const label = displayValue(parsed.label) ?? displayValue(input.label)
     if (!label) return null
 
@@ -33,31 +34,31 @@ function parseResult(context: ToolCardContext) {
 
 function collapsedSummary(context: ToolCardContext) {
   const parsed = parseResult(context)
-  if (parsed.kind === "error") return "Bookmark creation failed"
-  if (parsed.kind === "malformed") return "Bookmark returned an unexpected response"
+  if (parsed.kind === "error") return i18n.t("chat:tool_card_bookmark_failed")
+  if (parsed.kind === "malformed") return i18n.t("chat:tool_card_bookmark_unexpected")
   const result = parsed.data
 
-  return `Bookmark added: ${result.label}${result.kind ? ` (${result.kind})` : ""}`
+  return i18n.t("chat:tool_card_bookmark_added", { label: result.label, kind: result.kind ? ` (${result.kind})` : "" })
 }
 
 function renderExpanded(context: ToolCardContext) {
   const parsed = parseResult(context)
-  if (parsed.kind === "error") return <ErrorCard title="Bookmark" message={parsed.message} />
-  if (parsed.kind === "malformed") return <MalformedCard title="Bookmark" />
+  if (parsed.kind === "error") return <ErrorCard title={i18n.t("chat:tool_card_bookmark")} message={parsed.message} />
+  if (parsed.kind === "malformed") return <MalformedCard title={i18n.t("chat:tool_card_bookmark")} />
   const result = parsed.data
   const targetAnchor = result.anchor ?? (result.messageId ? `message-${result.messageId}` : null)
   const href = context.chatSessionId != null && targetAnchor ? `#${encodeURIComponent(targetAnchor.replace(/^#/, ""))}` : null
 
   return (
-    <StatusCard title="Bookmark" status="added">
+    <StatusCard title={i18n.t("chat:tool_card_bookmark")} status="added">
       <div className="flex flex-wrap items-center gap-2">
         {result.kind ? <Badge>{result.kind}</Badge> : null}
         {result.id ? <Badge>#{result.id}</Badge> : null}
       </div>
       <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-        <Row label="Label" value={result.label} />
-        {result.anchor ? <BookmarkReference href={href} label="Anchor" value={result.anchor} /> : null}
-        {result.messageId ? <BookmarkReference href={href} label="Message" value={`#${result.messageId}`} /> : null}
+        <Row label={i18n.t("chat:tool_card_bookmark_label")} value={result.label} />
+        {result.anchor ? <BookmarkReference href={href} label={i18n.t("chat:tool_card_anchor")} value={result.anchor} /> : null}
+        {result.messageId ? <BookmarkReference href={href} label={i18n.t("chat:tool_card_message")} value={`#${result.messageId}`} /> : null}
       </div>
     </StatusCard>
   )
@@ -87,19 +88,25 @@ const setBookmarkToolCard: ToolCardRenderer = {
 export const examples: ToolCardExample[] = [
   {
     id: "topic_bookmark",
-    label: "Topic bookmark",
+    label: i18n.t("chat:tool_card_bookmark_example_topic"),
     input: { label: "Launch notes", kind: "topic" },
     parsedResult: { id: 4, label: "Launch notes", kind: "topic", message_id: 12, anchor: "message-12" }
   },
   {
     id: "input_fallback",
-    label: "Result omits input fields",
+    label: i18n.t("chat:tool_card_bookmark_example_omits"),
     input: { label: "Epic kickoff", kind: "epic_origin" },
     parsedResult: { id: 5, message_id: 18, anchor: "message-18" }
   },
-  { id: "error", label: "Bookmark error", input: { label: "Nothing yet", kind: "topic" }, resultBody: "cannot bookmark an empty chat", resultError: true },
-  { id: "pending", label: "Pending result", input: { label: "Waiting for result", kind: "topic" }, parsedResult: null },
-  { id: "empty", label: "Empty success response", parsedResult: {} }
+  {
+    id: "error",
+    label: i18n.t("chat:tool_card_bookmark_example_error"),
+    input: { label: "Nothing yet", kind: "topic" },
+    resultBody: "cannot bookmark an empty chat",
+    resultError: true
+  },
+  { id: "pending", label: i18n.t("chat:tool_card_example_pending"), input: { label: "Waiting for result", kind: "topic" }, parsedResult: null },
+  { id: "empty", label: i18n.t("chat:tool_card_example_empty_response"), parsedResult: {} }
 ]
 
 export default setBookmarkToolCard

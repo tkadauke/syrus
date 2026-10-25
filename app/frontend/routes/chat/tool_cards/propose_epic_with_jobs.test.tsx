@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import proposeEpicWithJobsToolCard from "./propose_epic_with_jobs"
@@ -25,6 +26,20 @@ describe("propose_epic_with_jobs tool card", () => {
     }
 
     expect(proposeEpicWithJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Epic proposal: tier-2-cards (proposed, 2 Jobs)")
+  })
+
+  it("uses locale-aware count plurals while preserving proposal text", async () => {
+    const previousLanguage = i18n.language
+    const oneChild = { slug: "operator-slug", title: "Operator title", state: "proposed", child_jobs: [{ slug: "child", state: "proposed" }] }
+    const twoChildren = { ...oneChild, child_jobs: [...oneChild.child_jobs, { slug: "child-two", state: "proposed" }] }
+
+    try {
+      await i18n.changeLanguage("de")
+      expect(proposeEpicWithJobsToolCard.collapsedSummary?.(context({ parsedResult: oneChild }))).toBe("Epic-Vorschlag: Operator title (proposed, 1 Job)")
+      expect(proposeEpicWithJobsToolCard.collapsedSummary?.(context({ parsedResult: twoChildren }))).toBe("Epic-Vorschlag: Operator title (proposed, 2 Jobs)")
+    } finally {
+      await i18n.changeLanguage(previousLanguage)
+    }
   })
 
   it("renders titles, markdown, dependencies, execution, media, and a materialized child", () => {

@@ -65,7 +65,9 @@ function TitleField({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs font-medium text-text-subtle">{label}</dt>
-      <dd className="whitespace-pre-wrap break-words font-mono text-xs text-text-primary">{value ?? <EmptyState>{i18n.t("chat:tool_card_not_provided")}</EmptyState>}</dd>
+      <dd className="whitespace-pre-wrap break-words font-mono text-xs text-text-primary">
+        {value ?? <EmptyState>{i18n.t("chat:tool_card_not_provided")}</EmptyState>}
+      </dd>
     </div>
   )
 }

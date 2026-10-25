@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { workerCapabilitiesText } from "@app/lib/workerCapabilities"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { MediaPreviewShell } from "../mediaPreviewShell"
@@ -48,14 +49,15 @@ type Outcome = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Epic with Jobs proposal",
+  title: i18n.t("chat:tool_card_epic_jobs_proposal"),
   attempted: (context) => {
     const title = stringFromInput(context, ["title", "epic_title", "name"])
     const count = countFromInputArray(context, "jobs")
-    return `${title ? `Propose epic: ${title}` : "Propose epic"}${count == null ? "" : ` with ${count} Job${count === 1 ? "" : "s"}`}`
+    const action = title ? i18n.t("chat:tool_card_propose_epic_named", { title }) : i18n.t("chat:tool_card_propose_epic")
+    return count == null ? action : i18n.t("chat:tool_card_propose_epic_with_jobs", { action, count })
   },
   retrySafety: "caution",
-  recovery: "Check whether any epic or child Job proposals were created before retrying."
+  recovery: i18n.t("chat:tool_card_epic_jobs_recovery")
 }
 
 function strings(value: unknown) {
@@ -92,7 +94,7 @@ function requirements(value: unknown) {
     const target = displayValue(item.proposal_slug) || displayValue(item.depends_on) || displayValue(item.slug) || (jobId ? `JOB-${jobId}` : null)
     const mode = displayValue(item.satisfaction_mode)?.replace(/_/g, " ")
     const stage = displayValue(item.required_deployment_stage_name)
-    const detail = [mode, stage ? `stage: ${stage}` : null].filter(Boolean).join(" · ")
+    const detail = [mode, stage ? i18n.t("chat:tool_card_stage", { stage }) : null].filter(Boolean).join(" · ")
     return target || detail ? [[target, detail].filter(Boolean).join(" — ")] : []
   })
 }
@@ -176,11 +178,11 @@ function collapsedSummary(context: ToolCardContext) {
   if (failure) return failure
   const outcome = parse(context)
   if (!outcome) return null
-  return `Epic proposal: ${outcome.title || outcome.slug} (${outcome.state}, ${outcome.children.length} Job${outcome.children.length === 1 ? "" : "s"})`
+  return i18n.t("chat:tool_card_epic_jobs_summary", { title: outcome.title || outcome.slug, state: outcome.state, count: outcome.children.length })
 }
 
 function Dependencies({ proposals, epics, jobs }: { proposals: string[]; epics: string[]; jobs: string[] }) {
-  if (proposals.length + epics.length + jobs.length === 0) return <span className="text-text-subtle">None</span>
+  if (proposals.length + epics.length + jobs.length === 0) return <span className="text-text-subtle">{i18n.t("chat:tool_card_none")}</span>
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       {proposals.map((slug) => (
@@ -200,10 +202,10 @@ function ChildCard({ child, index }: { child: Child; index: number }) {
   const executionText =
     child.execution &&
     [
-      child.execution.project && `project: ${child.execution.project}`,
-      child.execution.target && `target: ${child.execution.target}`,
+      child.execution.project && i18n.t("chat:tool_card_project_value", { value: child.execution.project }),
+      child.execution.target && i18n.t("chat:tool_card_target_value", { value: child.execution.target }),
       child.execution.capabilities,
-      child.execution.source && `source: ${child.execution.source}`
+      child.execution.source && i18n.t("chat:tool_card_source_value", { value: child.execution.source })
     ]
       .filter(Boolean)
       .join(" · ")
@@ -215,48 +217,48 @@ function ChildCard({ child, index }: { child: Child; index: number }) {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <EntityReference kind="proposal" slug={child.slug} />
             <StatePill state={child.state} />
-            {child.id ? <span className="text-2xs text-text-subtle">Proposal #{child.id}</span> : null}
+            {child.id ? <span className="text-2xs text-text-subtle">{i18n.t("chat:tool_card_proposal_number", { id: child.id })}</span> : null}
           </div>
           {child.title ? <div className="break-words text-sm font-semibold text-text-primary">{child.title}</div> : null}
           <MarkdownPreview
-            emptyLabel="No description provided."
+            emptyLabel={i18n.t("chat:tool_card_no_description")}
             linkifyUrls
             maxChars={720}
-            modalLabel={`${child.title || child.slug} description`}
+            modalLabel={i18n.t("chat:tool_card_description_label", { title: child.title || child.slug })}
             text={child.description}
           />
           <dl className="grid min-w-0 gap-2 text-xs sm:grid-cols-2">
             {child.repo ? (
               <div className="min-w-0">
-                <SectionLabel>Repository</SectionLabel>
+                <SectionLabel>{i18n.t("chat:tool_card_repository")}</SectionLabel>
                 <EntityReference kind="repository" repositorySlug={child.repo} slug={child.repo} />
               </div>
             ) : null}
             {child.provider && child.provider !== "default" ? (
               <div>
-                <SectionLabel>Provider</SectionLabel>
+                <SectionLabel>{i18n.t("chat:tool_card_provider")}</SectionLabel>
                 <span>{child.provider}</span>
               </div>
             ) : null}
             {executionText ? (
               <div className="min-w-0 sm:col-span-2">
-                <SectionLabel>Planned execution</SectionLabel>
+                <SectionLabel>{i18n.t("chat:tool_card_planned_execution")}</SectionLabel>
                 <span>{executionText}</span>
               </div>
             ) : null}
             {child.goalId ? (
               <div>
-                <SectionLabel>Goal provenance</SectionLabel>
-                <span>Goal #{child.goalId}</span>
+                <SectionLabel>{i18n.t("chat:tool_card_goal_provenance")}</SectionLabel>
+                <span>{i18n.t("chat:tool_card_goal_number", { id: child.goalId })}</span>
               </div>
             ) : null}
             <div className="min-w-0 sm:col-span-2">
-              <SectionLabel>Depends on</SectionLabel>
+              <SectionLabel>{i18n.t("chat:tool_card_depends_on")}</SectionLabel>
               <Dependencies epics={child.epics} jobs={child.jobs} proposals={child.proposals} />
             </div>
             {child.requirements.length ? (
               <div className="min-w-0 sm:col-span-2">
-                <SectionLabel>Dependency requirements</SectionLabel>
+                <SectionLabel>{i18n.t("chat:tool_card_dependency_requirements")}</SectionLabel>
                 <div className="flex flex-wrap gap-1">
                   {child.requirements.map((label) => (
                     <Badge key={label}>{label}</Badge>
@@ -267,7 +269,7 @@ function ChildCard({ child, index }: { child: Child; index: number }) {
           </dl>
           {child.media.length ? (
             <div>
-              <SectionLabel>Media</SectionLabel>
+              <SectionLabel>{i18n.t("chat:tool_card_media")}</SectionLabel>
               <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {child.media.map((item) => (
                   <MediaPreviewShell
@@ -278,7 +280,7 @@ function ChildCard({ child, index }: { child: Child; index: number }) {
                       alt: item.title,
                       badge: item.badge,
                       fallbackLabel: item.badge,
-                      actions: [{ label: "Copy ID", copyValue: item.ref }]
+                      actions: [{ label: i18n.t("chat:tool_card_copy_id"), copyValue: item.ref }]
                     }}
                     key={item.ref}
                     thumbnailClassName="w-full"
@@ -289,7 +291,7 @@ function ChildCard({ child, index }: { child: Child; index: number }) {
           ) : null}
           {child.materialized ? (
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span>Materialized as</span>
+              <span>{i18n.t("chat:tool_card_materialized_as")}</span>
               <EntityReference id={child.materialized.id} kind="job" label={child.materialized.title || undefined} />
               {child.materialized.state ? <StatePill state={child.materialized.state} /> : null}
             </div>
@@ -307,23 +309,23 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <Badge>Epic</Badge>
+        <Badge>{i18n.t("chat:tool_card_epic")}</Badge>
         <StatePill state={outcome.state} />
         <EntityReference kind="proposal" slug={outcome.slug} />
-        {outcome.id ? <span className="text-2xs text-text-subtle">Proposal #{outcome.id}</span> : null}
+        {outcome.id ? <span className="text-2xs text-text-subtle">{i18n.t("chat:tool_card_proposal_number", { id: outcome.id })}</span> : null}
       </div>
       {outcome.title ? <div className="break-words text-sm font-semibold text-text-primary">{outcome.title}</div> : null}
       <MarkdownPreview
-        emptyLabel="No Epic description provided."
+        emptyLabel={i18n.t("chat:tool_card_no_epic_description")}
         linkifyUrls
         maxChars={720}
-        modalLabel={`${outcome.title || outcome.slug} description`}
+        modalLabel={i18n.t("chat:tool_card_description_label", { title: outcome.title || outcome.slug })}
         text={outcome.description}
       />
       <dl className="grid min-w-0 gap-2 text-xs sm:grid-cols-2">
         {outcome.targetEpicLabel || outcome.targetEpicId ? (
           <div>
-            <SectionLabel>Target epic</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_target_epic")}</SectionLabel>
             {outcome.targetEpicId ? (
               <EntityReference id={outcome.targetEpicId} kind="epic" label={outcome.targetEpicLabel} slug={outcome.targetEpicLabel} />
             ) : (
@@ -333,17 +335,17 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         {outcome.goalId ? (
           <div>
-            <SectionLabel>Goal provenance</SectionLabel>
-            <span>Goal #{outcome.goalId}</span>
+            <SectionLabel>{i18n.t("chat:tool_card_goal_provenance")}</SectionLabel>
+            <span>{i18n.t("chat:tool_card_goal_number", { id: outcome.goalId })}</span>
           </div>
         ) : null}
         <div className="min-w-0 sm:col-span-2">
-          <SectionLabel>Epic dependencies</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_epic_dependencies")}</SectionLabel>
           <Dependencies epics={outcome.epics} jobs={outcome.jobs} proposals={outcome.proposals} />
         </div>
       </dl>
       <div>
-        <SectionLabel>Dependency chain ({outcome.children.length})</SectionLabel>
+        <SectionLabel>{i18n.t("chat:tool_card_dependency_chain", { count: outcome.children.length })}</SectionLabel>
         {outcome.children.length ? (
           <ol className="mt-1 space-y-2">
             {outcome.children.map((child, index) => (
@@ -351,7 +353,7 @@ function renderExpanded(context: ToolCardContext) {
             ))}
           </ol>
         ) : (
-          <EmptyState>No child Job proposals returned.</EmptyState>
+          <EmptyState>{i18n.t("chat:tool_card_no_child_jobs")}</EmptyState>
         )}
       </div>
     </CardShell>
@@ -364,7 +366,7 @@ export default card
 export const examples: ToolCardExample[] = [
   {
     id: "dependency_chain",
-    label: "Epic with linked child dependency chain",
+    label: i18n.t("chat:tool_card_epic_jobs_example"),
     sourceType: "generic",
     parsedResult: {
       id: 42,
