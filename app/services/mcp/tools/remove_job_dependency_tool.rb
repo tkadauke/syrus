@@ -54,7 +54,7 @@ module Mcp::Tools
       end
 
       def job_scope_for(user)
-        user.admin? ? Job.all : Job.accessible_to(user)
+        user.admin? ? Job.visible_to(user, scope: Job.all) : Job.visible_to(user)
       end
     end
   end

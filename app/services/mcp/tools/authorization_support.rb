@@ -1,6 +1,6 @@
 module Mcp::Tools
   # Resource scoping convention for chat MCP tools:
-  # - Jobs: scope through Job.accessible_to(current_user), further restricted by context.allowed_job_ids when set.
+  # - Jobs: scope through Job.visible_to(current_user), further restricted by context.allowed_job_ids when set.
   # - Epics: scope through Epic.accessible_to(current_user).
   # - Workflows and Runs: join through jobs visible to current_user; further restricted
   #   by allowed_workflow_ids / allowed_run_ids.
@@ -57,7 +57,7 @@ module Mcp::Tools
     end
 
     def find_job!(id, includes: nil)
-      scope = admin? ? Job.all : Job.accessible_to(current_user)
+      scope = admin? ? Job.visible_to(current_user, scope: Job.all) : Job.visible_to(current_user)
       scope = scope.where(id: mcp_context.allowed_job_ids) if mcp_context&.allowed_job_ids
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
@@ -74,7 +74,7 @@ module Mcp::Tools
     end
 
     def find_workflow!(id, includes: nil)
-      scope = admin? ? Workflow.all : Workflow.joins(:job).where(jobs: { id: Job.accessible_to(current_user).select(:id) })
+      scope = admin? ? Workflow.all : Workflow.joins(:job).where(jobs: { id: Job.visible_to(current_user).select(:id) })
       scope = scope.where(id: mcp_context.allowed_workflow_ids) if mcp_context&.allowed_workflow_ids
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
@@ -83,7 +83,7 @@ module Mcp::Tools
     end
 
     def find_run!(id)
-      scope = admin? ? Run.all : Run.joins(step: { workflow: :job }).where(jobs: { id: Job.accessible_to(current_user).select(:id) })
+      scope = admin? ? Run.all : Run.joins(step: { workflow: :job }).where(jobs: { id: Job.visible_to(current_user).select(:id) })
       scope = scope.where(id: mcp_context.allowed_run_ids) if mcp_context&.allowed_run_ids
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound

@@ -184,11 +184,23 @@ class Job < ApplicationRecord
   # Jobs visible to a user: any job on a repository they're a member of
   # (directly or via a Team grant), plus jobs on upstream repositories of
   # any such repository. Mirrors Epic.accessible_to.
-  scope :accessible_to, ->(user) {
+  scope :repository_accessible_to, ->(user) {
     member_repo_ids = Repository.accessible_repository_ids_for(user)
     upstream_ids = Repository.where(id: member_repo_ids).where.not(upstream_repository_id: nil).select(:upstream_repository_id)
     where(repository_id: member_repo_ids).or(where(repository_id: upstream_ids))
   }
+
+  # Canonical user-facing read scope. The optional relation lets callers keep
+  # an already-narrowed repository or invocation scope while still applying
+  # every enabled plugin's per-origin restriction.
+  def self.visible_to(user, scope: nil)
+    JobVisibility.apply(scope || repository_accessible_to(user), user: user)
+  end
+
+  # Backward-compatible name for the canonical user-facing scope. Keeping the
+  # restriction here makes older and plugin-owned callers fail closed instead
+  # of silently falling back to repository membership alone.
+  scope :accessible_to, ->(user) { visible_to(user) }
   scope :landing_queue, -> { where(state: %w[ approved landing ]) }
   scope :without_requested_changes_attention, -> {
     where(needs_attention_reason: nil).or(where.not(needs_attention_reason: REQUESTED_CHANGES_ATTENTION_REASON))

@@ -215,7 +215,7 @@ module App
 
     def jobs_base_scope
       @jobs_base_scope ||= apply_ownership_scope(
-        Job.where(repository_id: active_repo_ids),
+        Job.visible_to(user, scope: Job.where(repository_id: active_repo_ids)),
         :job
       )
     end
@@ -226,7 +226,9 @@ module App
 
     def workflows_base_scope
       @workflows_base_scope ||= apply_ownership_scope(
-        Workflow.joins(:job).where(jobs: { repository_id: active_repo_ids }),
+        Workflow.joins(:job).merge(
+          Job.visible_to(user, scope: Job.where(repository_id: active_repo_ids))
+        ),
         :workflow
       )
     end

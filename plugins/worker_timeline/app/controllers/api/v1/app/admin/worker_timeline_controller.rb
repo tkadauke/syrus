@@ -21,7 +21,7 @@ module Api
               from: filter.from,
               to: filter.to,
               expression: filter,
-              allowed_job_ids: ::Job.accessible_to(Current.user).select(:id)
+              allowed_job_ids: ::Job.visible_to(Current.user).select(:id)
             )
             render json: payload.merge(
               filter: filter.to_h,
@@ -73,7 +73,7 @@ module Api
             filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Current.user)
             ::Timeline::MacroQuery.new(
               from: filter.from, to: filter.to, expression: filter,
-              allowed_job_ids: ::Job.accessible_to(Current.user).select(:id)
+              allowed_job_ids: ::Job.visible_to(Current.user).select(:id)
             ).capped_count
           end
 

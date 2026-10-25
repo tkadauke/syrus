@@ -344,7 +344,7 @@ class ChatProposalFiler
     end
 
     Array(proposal.depends_on_job_ids).each do |job_id|
-      depends_on_job = Job.accessible_to(user).find_by(id: job_id)
+      depends_on_job = Job.visible_to(user).find_by(id: job_id)
       next unless depends_on_job
 
       requirement = ProposalJobDependencyRequirements.for_job_id(proposal, job_id)
@@ -379,7 +379,7 @@ class ChatProposalFiler
     end
 
     Array(proposal.depends_on_job_ids).each do |job_id|
-      dep_job = Job.accessible_to(user).find_by(id: job_id)
+      dep_job = Job.visible_to(user).find_by(id: job_id)
       next unless dep_job
 
       validate_dependency_target!(dep_job)

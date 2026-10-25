@@ -39,11 +39,11 @@ module Mcp::Tools
 
       def job_scope(context)
         if context.run?
-          Job.accessible_to(context.user).where(repository_id: context.allowed_repository_ids)
+          Job.visible_to(context.user).where(repository_id: context.allowed_repository_ids)
         elsif context.user.admin?
-          Job.all
+          Job.visible_to(context.user, scope: Job.all)
         else
-          Job.accessible_to(context.user)
+          Job.visible_to(context.user)
         end
       end
 

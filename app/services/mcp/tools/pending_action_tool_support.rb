@@ -23,7 +23,11 @@ module Mcp::Tools
       normalized_id = Integer(job_id, exception: false)
       return [ nil, Mcp::Tools.invalid("job_id is required") ] unless normalized_id
 
-      scope = chat_session.user.admin? ? Job.all : Job.accessible_to(chat_session.user)
+      scope = if chat_session.user.admin?
+        Job.visible_to(chat_session.user, scope: Job.all)
+      else
+        Job.visible_to(chat_session.user)
+      end
       job = scope.find_by(id: normalized_id)
       return [ nil, Mcp::Tools.invalid("job not found: #{normalized_id}") ] unless job
 

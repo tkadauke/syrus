@@ -35,6 +35,48 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_git_transport`
 - `purge_contributor`
 - `slug_type`
+- `job_visibility_restriction`
+
+## Per-origin Job visibility
+
+A plugin whose Jobs contain data for only a subset of repository members can
+register a `job_visibility_restriction`. Repository membership remains the
+outer access boundary; this provider narrows only Jobs whose `origin` matches
+its `origin_key`.
+
+```ruby
+class PrivateTasks::JobVisibility
+  include Syrus::Plugin::JobVisibilityRestriction
+
+  def self.origin_key = "private_tasks"
+
+  def self.visible_origin_ids(user:)
+    PrivateTasks::Task.where(owner_user_id: user.id).select(:id)
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "private_tasks",
+  version: "1.0.0",
+  provides: { job_visibility_restriction: PrivateTasks::JobVisibility }
+)
+```
+
+`visible_origin_ids` may return an array or a one-column relation. Core applies
+it through `Job.visible_to(user)`, which is the mandatory scope for every
+user-facing Job list, search, count, detail lookup, serializer, and related
+Workflow/Run lookup. Origins with no registered restriction retain their
+existing repository visibility. Only one provider may restrict an origin;
+duplicate providers fail closed with an error. Global admins bypass origin
+restrictions, matching their existing cross-instance access.
+
+The owning plugin may use a direct origin-scoped relation for lifecycle work
+that is not serving a user, such as `Job.where(origin: origin_key)`. Its own UI,
+API, MCP, and search queries are user-facing and must start from
+`Job.visible_to(user)` like core queries. Disabling or uninstalling the plugin
+removes its restriction along with its provider, so a plugin that stores
+sensitive Job output must clean up or otherwise retain protection for those
+records as part of its disable lifecycle.
 
 Plugins may also declare credential type names for discovery by a
 credential-management plugin. This is not an extension point with executable

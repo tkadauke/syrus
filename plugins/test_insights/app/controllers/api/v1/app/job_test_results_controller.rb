@@ -14,7 +14,7 @@ module Api
         private
 
         def find_job
-          scope = Job.accessible_to(Current.user)
+          scope = Job.visible_to(Current.user)
           find_job_by_ref(scope, params[:job_id])
         end
       end
