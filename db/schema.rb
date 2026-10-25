@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_25_221105) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1440,6 +1440,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
     t.index ["repository_id"], name: "index_github_collaborator_discrepancies_on_repository_id"
   end
 
+  create_table "github_source_issues", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.bigint "github_id", null: false
+    t.integer "number", null: false
+    t.string "title", null: false
+    t.text "body"
+    t.string "state", null: false
+    t.string "html_url", null: false
+    t.string "author_login"
+    t.json "labels", null: false
+    t.datetime "github_created_at"
+    t.datetime "github_updated_at"
+    t.datetime "synced_at"
+    t.json "linked_open_pr"
+    t.datetime "linked_open_pr_checked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id", "github_id"], name: "index_github_source_issues_on_repository_id_and_github_id", unique: true
+    t.index ["repository_id", "number"], name: "index_github_source_issues_on_repository_id_and_number", unique: true
+    t.index ["repository_id", "state"], name: "index_github_source_issues_on_repository_id_and_state"
+    t.index ["repository_id"], name: "index_github_source_issues_on_repository_id"
+  end
+
   create_table "grader_conclusions", force: :cascade do |t|
     t.datetime "checked_at", null: false
     t.string "commit_sha", limit: 64, null: false
@@ -2842,6 +2865,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
     t.json "poll_external_pr_errors"
     t.string "vcs", default: "git", null: false
     t.boolean "ci_repair_enabled", default: true, null: false
+    t.datetime "github_issues_synced_at"
+    t.datetime "github_issues_full_synced_at"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"

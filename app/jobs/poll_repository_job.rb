@@ -42,18 +42,32 @@ class PollRepositoryJob < ApplicationJob
     incremental_since = full_poll ? nil : previous_poll_started_at
 
     client = GithubClient.for(repository: repository, user: repository.user)
-    listed_issues = list_labeled_issues(client, repository, since: incremental_since)
+    scanned_issues = client.list_all_issues(repository.slug, state: "all", since: incremental_since)
+    listed_issues = scanned_issues.select { |issue| label_names(issue).include?(repository.trigger_label) }
     retried_issues = retry_quarantined_issues(client, repository, listed_issues: listed_issues, at: poll_started_at)
     issues = open_issues_for_ingestion(listed_issues + retried_issues)
     closed_issues = unique_issues_by_number(
-      list_labeled_issues(client, repository, state: "closed", since: incremental_since) + closed_issues_for_resolution(retried_issues)
+      listed_issues.select { |issue| issue.state.to_s == "closed" } + closed_issues_for_resolution(retried_issues)
     )
+    issue_cache = "GithubSource::IssueCache".safe_constantize
     prior_jobs_by_issue_number = latest_jobs_by_issue_number(repository, issues)
-    linked_lookup_candidates = linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number)
+    linked_lookup_candidates = (
+      linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number) +
+      Array(issue_cache&.linked_open_pr_lookup_numbers(repository, scanned_issues))
+    ).uniq
     linked_lookup_issue_numbers = linked_lookup_candidates.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
     linked_lookup_overflow_numbers = linked_lookup_candidates.drop(LINKED_OPEN_PR_LOOKUP_LIMIT).index_with(true)
     linked_open_prs = linked_lookup_issue_numbers.any? ? client.linked_open_prs_for_issues(repository.slug, linked_lookup_issue_numbers) : {}
     linked_lookup_numbers = linked_lookup_issue_numbers.index_with(true)
+
+    issue_cache&.synchronize!(
+      repository,
+      scanned_issues,
+      linked_open_prs: linked_open_prs,
+      linked_lookup_numbers: linked_lookup_numbers,
+      synced_at: poll_started_at,
+      full_poll: full_poll
+    )
 
     stats = Hash.new(0)
     issues.each do |issue|
@@ -71,7 +85,7 @@ class PollRepositoryJob < ApplicationJob
     closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
     clear_closed_poll_issue_errors!(repository, closed_issues)
     InputSources::PendingWorkWakeup.call(repository)
-    update_untagged_open_issue_count!(repository, client)
+    update_untagged_open_issue_count_from_cache!(repository, issue_cache)
 
     log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
     if linked_lookup_overflow_numbers.any?
@@ -182,16 +196,11 @@ class PollRepositoryJob < ApplicationJob
   # Best-effort, cheap dashboard signal — never part of the ingestion
   # contract. A failure here (rate limit, transient GitHub error) must
   # not fail the poll or block labeled-issue ingestion.
-  def update_untagged_open_issue_count!(repository, client)
+  def update_untagged_open_issue_count_from_cache!(repository, issue_cache)
     return if repository.archived? || !repository.polling_enabled?
     return unless untagged_open_issue_count_stale?(repository)
 
-    open_issues = client.list_all_issues(repository.slug, state: "open")
-    untagged_count = open_issues.count { |issue| untagged?(issue, repository) }
-    repository.update_columns(
-      untagged_open_issue_count: untagged_count,
-      untagged_open_issues_checked_at: Time.current
-    )
+    issue_cache&.update_untagged_open_issue_count!(repository)
   rescue => e
     Rails.logger.warn("[PollRepositoryJob] #{repository.slug} failed to refresh untagged open issue count: #{e.message}")
   end
@@ -206,11 +215,6 @@ class PollRepositoryJob < ApplicationJob
   def untagged_open_issue_count_stale?(repository)
     repository.untagged_open_issues_checked_at.blank? ||
       repository.untagged_open_issues_checked_at < UNTAGGED_OPEN_ISSUE_REFRESH_INTERVAL.ago
-  end
-
-  def untagged?(issue, repository)
-    names = label_names(issue)
-    !names.include?(repository.trigger_label) && !names.include?(IngestPolicy::SKIP_LABEL)
   end
 
   def list_labeled_issues(client, repository, state: "open", since: nil)
