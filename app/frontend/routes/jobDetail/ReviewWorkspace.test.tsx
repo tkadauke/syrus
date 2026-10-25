@@ -3021,27 +3021,27 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => {
       expect(startJobDiscussionChat).toHaveBeenCalledWith(
         42,
-        [
-          "The operator opened this chat discussion from an unposted diff draft. No review comment was created.",
-          "Job: JOB-42",
-          "Revision: head-sha",
-          "File: app/models/user.rb",
-          "Side: new",
-          "Selected line: 1",
-          "Selected source: +new",
-          "",
-          "Surrounding diff hunk:",
-          "```diff",
-          "--- a/app/models/user.rb",
-          "+++ b/app/models/user.rb",
-          "@@ -1,2 +1,2 @@",
-          "-old",
-          "+new",
-          "```",
-          "",
-          "Draft note:",
-          "Please add a regression spec."
-        ].join("\n")
+        {
+          context: [
+            "The operator opened this chat discussion from an unposted diff draft. No review comment was created.",
+            "Job: JOB-42",
+            "Revision: head-sha",
+            "File: app/models/user.rb",
+            "Side: new",
+            "Selected line: 1",
+            "Selected source: +new",
+            "",
+            "Surrounding diff hunk:",
+            "```diff",
+            "--- a/app/models/user.rb",
+            "+++ b/app/models/user.rb",
+            "@@ -1,2 +1,2 @@",
+            "-old",
+            "+new",
+            "```"
+          ].join("\n"),
+          draftNote: "Please add a regression spec."
+        }
       )
     })
 

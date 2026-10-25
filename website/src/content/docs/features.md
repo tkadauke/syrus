@@ -985,7 +985,9 @@ Job's discussion chat without posting a review comment or including it in a
 later feedback submission. The chat message carries the revision, file,
 old/new side, selected line and source, and nearby diff context so the
 discussion remains understandable away from the review screen. If chat
-creation fails, the draft and selected line remain available for retry.
+creation fails, the draft and selected line remain available for retry. Syrus
+bounds the generated diff context separately so a large source line or hunk
+cannot truncate the operator's draft note.
 If a feedback workflow fails before the comment is addressed, the source PR
 comment remains on the Job detail pending-feedback panel with the last failure
 reason and a retry action. Retrying reuses the stored comment and workflow

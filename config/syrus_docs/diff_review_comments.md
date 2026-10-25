@@ -261,7 +261,9 @@ to a later "Submit feedback" action. The chat handoff states that distinction
 and includes the Job, revision, repository-relative path, old/new side, line,
 selected source, and a compact surrounding diff hunk. The composer remains
 open while chat creation is pending and retains its draft and anchor if the
-request fails.
+request fails. The start-chat request sends generated context separately from
+the draft note; the server bounds only the generated context, preserving the
+operator's complete note in the persisted user message.
 
 ### Scalable diff loading and navigation
 
