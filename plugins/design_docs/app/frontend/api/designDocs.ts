@@ -137,6 +137,7 @@ export type DesignDocPreviewPayload = {
 export type DesignDocDetail = DesignDocSummary & {
   markdown: string
   rendered_markdown: string
+  canonical_revision: string
   permissions: {
     can_write_canonical: boolean
     can_suggest: boolean
@@ -226,6 +227,7 @@ export type DesignDocInput = {
   start_offset?: number
   end_offset?: number
   selected_markdown?: string
+  base_revision?: string
 }
 
 export function fetchDesignDocs(search = "") {
