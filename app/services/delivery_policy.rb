@@ -57,6 +57,17 @@ class DeliveryPolicy
     delivery.promotion.mode
   end
 
+  def promotion_grade_phases
+    delivery.promotion.grade_phases
+  end
+
+  # Distinguishes an explicitly configured delivery policy from the implicit
+  # single-track defaults. Repository action lists should stay empty until a
+  # repository opts into delivery configuration.
+  def delivery_configured?
+    config.raw_delivery.present?
+  end
+
   # The skill name (`delivery.promotion.repair_skill`) a promotion
   # ref-movement workflow should invoke — via the same `Skills.for`
   # resolution `Steps::RunSkill` uses — when the deterministic merge attempt

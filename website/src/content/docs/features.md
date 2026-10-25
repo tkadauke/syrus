@@ -1367,7 +1367,8 @@ Once a repository configures delivery tracks, its overview page gains a
 **Delivery** section: a table of tracks with branch, grade phases, health,
 landing-queue length, and the last promotion/hotfix-sync into that track;
 the repository's configured ref-movement actions and whether each is
-currently available to dispatch; recent promotion/hotfix-sync/upstream-export
+currently available to dispatch (including the manual development-to-release
+promotion action when delivery is configured); recent promotion/hotfix-sync/upstream-export
 Workflows with their source and target refs; and recent PR ingestions with
 their Syrus-provenance classification. The Dashboard's Jobs table shows a
 small delivery-status badge (waiting for upstream approval, waiting for

@@ -6,7 +6,7 @@ module Mcp::Tools
 
     tool_name "list_ref_movement_actions"
 
-    description "List this repository's configured delivery.ref_movement_actions, whether each is " \
+    description "List this repository's configured ref-movement actions, whether each is " \
                 "currently available to dispatch, and why an unavailable one is blocked. Pass job_id " \
                 "to check availability for a job-scoped action like send_job_upstream."
 

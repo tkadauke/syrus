@@ -80,6 +80,34 @@ RSpec.describe "Mcp::Tools ref-movement action tools" do
       expect(response).to be_error
       expect(response.content.first[:text]).to include("different repository")
     end
+
+    it "dispatches promote_development_to_release with branch overrides" do
+      policy = instance_double(
+        DeliveryPolicy,
+        promotion_enabled?: true,
+        promotion_mode: "auto_pr",
+        promotion_grade_phases: [ "promotion" ],
+        promotion_source_branch: "develop",
+        promotion_target_branch: "main"
+      )
+      allow(DeliveryPolicy).to receive(:for).with(repository: fork_repo).and_return(policy)
+
+      response = described_class.call(
+        action: "promote_development_to_release",
+        source_branch: "candidate",
+        target_branch: "stable",
+        server_context: chat_context
+      )
+
+      expect(response).not_to be_error
+      expect(payload(response)).to include(
+        state: "dispatched",
+        source_ref: "candidate",
+        target_ref: "stable",
+        target_repository: fork_repo.slug,
+        target_inferred: false
+      )
+    end
   end
 
   describe Mcp::Tools::ReadRefMovementStatusTool do

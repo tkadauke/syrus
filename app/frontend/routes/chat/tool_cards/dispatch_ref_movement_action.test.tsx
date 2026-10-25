@@ -35,6 +35,26 @@ describe("dispatch_ref_movement_action tool card", () => {
     expect(screen.getByRole("link", { name: /WF-900/ })).toHaveAttribute("href", "/jobs/4225?tab=workflows#workflow-900")
   })
 
+  it("renders a development-to-release promotion through the existing action card", () => {
+    const parsedResult = {
+      ref_movement_action_id: 13,
+      action_name: "promote_development_to_release",
+      state: "dispatched",
+      source_ref: "develop",
+      target_ref: "main",
+      job_id: 43,
+      workflow_id: 42
+    }
+
+    expect(dispatchRefMovementActionToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
+      "promote development to release (dispatched)"
+    )
+    render(<>{dispatchRefMovementActionToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByText("develop")).toBeInTheDocument()
+    expect(screen.getByText("main")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /WF-42/ })).toBeInTheDocument()
+  })
+
   it("still renders a blocked dispatch (the audit record is always created)", () => {
     const parsedResult = {
       ref_movement_action_id: 8,

@@ -9,6 +9,30 @@ RSpec.describe RefMovementActionsSummary do
     expect(described_class.for(repository: repository)).to eq([])
   end
 
+  it "includes promotion for an explicitly configured delivery policy" do
+    policy = instance_double(
+      DeliveryPolicy,
+      ref_movement_actions: {},
+      delivery_configured?: true,
+      promotion_enabled?: true,
+      promotion_mode: "auto_pr",
+      promotion_grade_phases: [ "promotion" ]
+    )
+    allow(DeliveryPolicy).to receive(:for).with(repository: repository).and_return(policy)
+    allow(RefMovementActions::Base).to receive(:for).with("promote_development_to_release").and_return(
+      instance_double(RefMovementActions::PromoteDevelopmentToRelease, available?: [ true, nil ])
+    )
+
+    expect(described_class.for(repository: repository)).to contain_exactly(
+      name: "promote_development_to_release",
+      enabled: true,
+      mode: "auto_pr",
+      grade_phases: [ "promotion" ],
+      available: true,
+      blocked_reason: nil
+    )
+  end
+
   it "reports an enabled, available action" do
     allow_any_instance_of(DeliveryPolicy).to receive(:ref_movement_actions).and_return({ "send_job_upstream" => config })
     allow(RefMovementActions::Base).to receive(:for).with("send_job_upstream").and_return(

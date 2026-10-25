@@ -1,6 +1,6 @@
 # Durable audit record for one dispatch of a Story 11
 # (docs/plans/complete/delivery-tracks-and-promotion.md) named ref-movement action —
-# `send_job_upstream` or `submit_branch_upstream` today. Every dispatch
+# `send_job_upstream`, `submit_branch_upstream`, or promotion today. Every dispatch
 # attempt gets a row, whether it actually launched a Workflow or was
 # blocked by config/eligibility, so operators can see who requested a ref
 # movement, what source/target refs were resolved, whether the target was

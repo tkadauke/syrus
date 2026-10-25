@@ -5,9 +5,8 @@
 # `ExternalPrIngestions::Base.for(classification)` (see CLAUDE.md's
 # enum-driven-behavior convention).
 #
-# Every subclass reuses an existing dispatch primitive from earlier Jobs in
-# this Epic (`UpstreamExportDispatcher`, `WorkUnits::Launcher` +
-# `Workflows::UpstreamExport`) rather than re-implementing ref movement —
+# Every subclass reuses an existing dispatch primitive (`UpstreamExportDispatcher`,
+# `PromotionDispatcher`, or `WorkUnits::Launcher`) rather than re-implementing ref movement —
 # this layer only adds config gating (`DeliveryPolicy#ref_movement_action_*`)
 # and the durable `RefMovementAction` audit row.
 module RefMovementActions
@@ -15,7 +14,8 @@ module RefMovementActions
     def self.for(name)
       {
         "send_job_upstream" => RefMovementActions::SendJobUpstream,
-        "submit_branch_upstream" => RefMovementActions::SubmitBranchUpstream
+        "submit_branch_upstream" => RefMovementActions::SubmitBranchUpstream,
+        "promote_development_to_release" => RefMovementActions::PromoteDevelopmentToRelease
       }.fetch(name.to_s, RefMovementActions::Unsupported).new
     end
 

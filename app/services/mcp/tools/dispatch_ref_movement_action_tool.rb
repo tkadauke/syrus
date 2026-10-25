@@ -10,16 +10,18 @@ module Mcp::Tools
                 "send_job_upstream requires job_id (exports that Job's own branch upstream). " \
                 "submit_branch_upstream optionally takes source_branch (defaults to the repository's " \
                 "development track branch) and target_branch (defaults to the canonical repository's " \
-                "resolved development track branch). Always creates a durable RefMovementAction audit " \
+                "resolved development track branch). promote_development_to_release optionally takes " \
+                "source_branch and target_branch overrides for the configured promotion refs. Always " \
+                "creates a durable RefMovementAction audit " \
                 "record, whether or not the dispatch actually launches a Workflow — check the returned " \
                 "state and blocked_reason."
 
     input_schema(
       properties: {
-        action: { type: "string", enum: %w[send_job_upstream submit_branch_upstream], description: "Ref-movement action name." },
+        action: { type: "string", enum: %w[send_job_upstream submit_branch_upstream promote_development_to_release], description: "Ref-movement action name." },
         job_id: { type: "integer", description: "Required for send_job_upstream: the Job whose branch to export." },
-        source_branch: { type: "string", description: "submit_branch_upstream only: branch to export. Defaults to the development track branch." },
-        target_branch: { type: "string", description: "submit_branch_upstream only: explicit target branch override on the canonical repository." }
+        source_branch: { type: "string", description: "Optional source override for a branch submission or promotion." },
+        target_branch: { type: "string", description: "Optional target override for a branch submission or promotion." }
       },
       required: %w[action]
     )
@@ -41,6 +43,8 @@ module Mcp::Tools
 
             job
           when "submit_branch_upstream"
+            source_branch.to_s.strip.presence
+          when "promote_development_to_release"
             source_branch.to_s.strip.presence
           end
 
