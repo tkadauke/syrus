@@ -1711,6 +1711,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       "merge_train_multisect_evaluate",
       "merge_train_multisect_prepare",
       "preflight_grader",
+      "review_panel_collect",
       "review_plan"
     )
 

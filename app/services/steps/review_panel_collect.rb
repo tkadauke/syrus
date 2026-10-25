@@ -26,7 +26,7 @@ module Steps
       }
       workflow.set_artifact!(artifact_key, entries)
       if result.verdict == "skipped" && details["required"]
-        fail_with!(:required_review_unavailable, "required #{review_kind} panel did not meet its minimum member count")
+        fail_with!(:review_execution_unavailable, "required #{review_kind} panel did not meet its minimum member count")
       end
     end
   end
