@@ -468,7 +468,7 @@ describe("issue, tag, and artifact tool cards", () => {
 
     expect(screen.getByRole("img", { name: "Mobile view" })).toHaveAttribute("src", "/media/mobile.png")
     fireEvent.click(screen.getByRole("button", { name: "Open Mobile view" }))
-    expect(screen.getByRole("dialog", { name: "media preview" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: /media preview/i })).toBeInTheDocument()
   })
 
   it("renders pending, empty, and error artifact states", () => {

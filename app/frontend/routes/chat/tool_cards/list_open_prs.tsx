@@ -1,5 +1,5 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "@app/i18n"
+import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { intlLocale } from "@app/lib/relativeTime"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 import { Badge, displayValue, EmptyState, EntityReference, InternalLink, StatePill } from "../toolCardUi"
@@ -161,13 +161,13 @@ export default listOpenPrsToolCard
 export const examples = [
   {
     id: "mixed_mergeability",
-    label: "Mixed mergeability and draft state",
+    label: i18n.t("chat:tool_card_list_prs_example_results"),
     input: { state: "open", limit: 20 },
     parsedResult: {
       pull_requests: [
         {
           number: 41,
-          title: "Add dark mode toggle to the settings page",
+          title: i18n.t("chat:tool_card_list_prs_example_first_title"),
           url: "https://github.com/acme/widgets/pull/41",
           head_ref: "feature/dark-mode",
           head_url: "https://github.com/acme/widgets/tree/feature%2Fdark-mode",
@@ -180,7 +180,7 @@ export const examples = [
         },
         {
           number: 38,
-          title: "WIP: rework pagination heuristics with a title long enough to demonstrate wrapping",
+          title: i18n.t("chat:tool_card_list_prs_example_second_title"),
           url: "https://github.com/acme/widgets/pull/38",
           head_ref: "feature/pagination",
           head_url: "https://github.com/acme/widgets/tree/feature%2Fpagination",
@@ -194,6 +194,6 @@ export const examples = [
       ]
     }
   },
-  { id: "no_merged_prs", label: "No merged pull requests", input: { state: "merged", limit: 10 }, parsedResult: { pull_requests: [] } },
-  { id: "provider_error", label: "Provider error", resultError: true, parsedResult: { error: "GitHub is temporarily unavailable" } }
+  { id: "no_merged_prs", label: i18n.t("chat:tool_card_list_prs_example_empty"), input: { state: "merged", limit: 10 }, parsedResult: { pull_requests: [] } },
+  { id: "provider_error", label: i18n.t("chat:tool_card_provider_error"), resultError: true, parsedResult: { error: i18n.t("chat:tool_card_github_temporarily_unavailable") } }
 ]

@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, FilterableList, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
@@ -52,7 +53,7 @@ function parseCard(context: ToolCardContext): SyrusDocsCard {
       kind: "error",
       query: queryFromInput,
       limit,
-      message: displayValue(context.resultBody) ?? "Syrus Docs search failed."
+      message: displayValue(context.resultBody) ?? i18n.t("chat:tool_card_search_docs_failed")
     }
   }
 
@@ -74,18 +75,14 @@ function parseCard(context: ToolCardContext): SyrusDocsCard {
   }
 }
 
-function pluralHits(count: number) {
-  return `${count} hit${count === 1 ? "" : "s"}`
-}
-
 function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
-  if (card.kind === "pending") return card.query ? `Searching Syrus Docs for "${card.query}"` : "Searching Syrus Docs"
-  if (card.kind === "error") return card.query ? `"${card.query}" failed` : "Syrus Docs search failed"
-  if (card.kind === "malformed") return card.query ? `"${card.query}" returned an unexpected response` : "Syrus Docs search returned an unexpected response"
+  if (card.kind === "pending") return card.query ? i18n.t("chat:tool_card_search_docs_searching_query", { query: card.query }) : i18n.t("chat:tool_card_search_docs_searching")
+  if (card.kind === "error") return card.query ? i18n.t("chat:tool_card_search_docs_query_failed", { query: card.query }) : i18n.t("chat:tool_card_search_docs_failed")
+  if (card.kind === "malformed") return card.query ? i18n.t("chat:tool_card_search_docs_query_unexpected", { query: card.query }) : i18n.t("chat:tool_card_search_docs_unexpected")
 
   const query = card.query || "Syrus Docs"
-  return `"${query}" - ${pluralHits(card.count)}`
+  return i18n.t("chat:tool_card_search_docs_summary", { query, count: card.count })
 }
 
 function githubDocUrl(path: string, heading?: string | null) {
@@ -125,7 +122,7 @@ function ResultReference({ result }: { result: SyrusDocsResult }) {
           {result.reference}
         </DocLink>
       ) : null}
-      {result.score != null ? <Badge>score {result.score}</Badge> : null}
+      {result.score != null ? <Badge>{i18n.t("chat:tool_card_search_docs_score", { score: result.score })}</Badge> : null}
     </div>
   )
 }
@@ -147,11 +144,11 @@ function ResultList({ results }: { results: SyrusDocsResult[] }) {
           <ResultReference result={result} />
           <div className="mt-1 min-w-0 max-w-full overflow-hidden">
             <MarkdownPreview
-              emptyState="No snippet text was returned."
+              emptyState={i18n.t("chat:tool_card_search_docs_no_snippet")}
               linkifySlugs
               linkifyUrls
               maxChars={SNIPPET_CHARS}
-              modalLabel={`Full documentation snippet for ${result.title}`}
+              modalLabel={i18n.t("chat:tool_card_search_docs_full_snippet", { title: result.title })}
               text={result.text ?? ""}
               title={result.heading ?? result.title}
             />
@@ -168,9 +165,9 @@ function renderExpanded(context: ToolCardContext) {
   if (card.kind === "pending") {
     return (
       <CardShell>
-        {card.query ? <Row label="Query" value={card.query} /> : null}
-        {card.limit != null ? <Row label="Limit" value={String(card.limit)} /> : null}
-        <EmptyState>Searching Syrus Docs…</EmptyState>
+        {card.query ? <Row label={i18n.t("chat:query")} value={card.query} /> : null}
+        {card.limit != null ? <Row label={i18n.t("chat:limit")} value={String(card.limit)} /> : null}
+        <EmptyState>{i18n.t("chat:tool_card_search_docs_searching")}</EmptyState>
       </CardShell>
     )
   }
@@ -181,8 +178,8 @@ function renderExpanded(context: ToolCardContext) {
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           {card.message}
         </div>
-        {card.query ? <Row label="Query" value={card.query} /> : null}
-        {card.limit != null ? <Row label="Limit" value={String(card.limit)} /> : null}
+        {card.query ? <Row label={i18n.t("chat:query")} value={card.query} /> : null}
+        {card.limit != null ? <Row label={i18n.t("chat:limit")} value={String(card.limit)} /> : null}
       </CardShell>
     )
   }
@@ -190,9 +187,9 @@ function renderExpanded(context: ToolCardContext) {
   if (card.kind === "malformed") {
     return (
       <CardShell>
-        {card.query ? <Row label="Query" value={card.query} /> : null}
-        {card.limit != null ? <Row label="Limit" value={String(card.limit)} /> : null}
-        <EmptyState>Unexpected Syrus Docs search response.</EmptyState>
+        {card.query ? <Row label={i18n.t("chat:query")} value={card.query} /> : null}
+        {card.limit != null ? <Row label={i18n.t("chat:limit")} value={String(card.limit)} /> : null}
+        <EmptyState>{i18n.t("chat:tool_card_search_docs_unexpected_response")}</EmptyState>
       </CardShell>
     )
   }
@@ -200,21 +197,21 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Query" value={card.query || "(blank)"} />
-        {card.limit != null ? <Row label="Limit" value={String(card.limit)} /> : null}
-        <Row label="Hits" value={String(card.count)} />
+        <Row label={i18n.t("chat:query")} value={card.query || i18n.t("chat:blank")} />
+        {card.limit != null ? <Row label={i18n.t("chat:limit")} value={String(card.limit)} /> : null}
+        <Row label={i18n.t("chat:hits")} value={String(card.count)} />
       </dl>
       {card.results.length === 0 ? (
-        <EmptyState>{card.message || "No matching documentation found."}</EmptyState>
+        <EmptyState>{card.message || i18n.t("chat:tool_card_search_docs_empty")}</EmptyState>
       ) : (
         <div className="space-y-1">
-          <SectionLabel>Ranked results</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_search_docs_ranked_results")}</SectionLabel>
           <FilterableList
             itemText={(result) =>
               [result.title, result.heading, result.path, result.source, result.reference, result.text, result.score].filter((value) => value != null).join(" ")
             }
             items={card.results}
-            placeholder="Filter doc results"
+            placeholder={i18n.t("chat:tool_card_search_docs_filter")}
           >
             {(results) => <ResultList results={results} />}
           </FilterableList>
@@ -227,8 +224,8 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "ranked_markdown_results",
-    label: "Ranked Markdown documentation results",
-    description: "Shows linked document references, relevance scores, and an expandable Markdown snippet.",
+    label: i18n.t("chat:tool_card_search_docs_example_results"),
+    description: i18n.t("chat:tool_card_search_docs_example_description"),
     input: { query: "landing queue", limit: 3 },
     parsedResult: {
       query: "landing queue",
@@ -237,7 +234,7 @@ export const examples: ToolCardExample[] = [
         {
           rank: 1,
           score: 2,
-          title: "Landing Queue",
+          title: i18n.t("chat:tool_card_search_docs_example_title"),
           heading: "How landing works",
           path: "config/syrus_docs/landing_queue.md",
           source: "core",

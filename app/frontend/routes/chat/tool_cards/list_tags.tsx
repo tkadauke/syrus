@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { renderTagList, tagListSummary } from "../issueTagArtifactToolCard"
 
@@ -12,7 +13,7 @@ export default listTagsToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "tags_with_jobs",
-    label: "Tags with Jobs",
+    label: i18n.t("chat:tool_card_list_tags_example_results"),
     parsedResult: {
       tags: [
         { id: 1, name: "area:ui", color: "blue", job_ids: [7, 8] },
@@ -20,7 +21,7 @@ export const examples: ToolCardExample[] = [
       ]
     }
   },
-  { id: "empty", label: "No tags", parsedResult: { tags: [] } },
-  { id: "loading", label: "Loading", resultBody: "" },
-  { id: "error", label: "Error", resultBody: "Unable to list tags", resultError: true }
+  { id: "empty", label: i18n.t("chat:tool_card_list_tags_example_empty"), parsedResult: { tags: [] } },
+  { id: "loading", label: i18n.t("chat:loading"), resultBody: "" },
+  { id: "error", label: i18n.t("chat:tool_card_example_error"), resultBody: i18n.t("chat:tool_card_list_tags_example_error"), resultError: true }
 ]
