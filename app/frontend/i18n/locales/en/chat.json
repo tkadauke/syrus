@@ -834,6 +834,23 @@
     "execution_message": "Execution message"
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" },
+  "manual_agentic_run": {
+    "job": "Job",
+    "base": "Base",
+    "push": "Push",
+    "true": "true",
+    "false": "false",
+    "failed_workflow": "Failed workflow",
+    "instructions": "Instructions",
+    "full_instructions": "Full instructions",
+    "reason": "Reason",
+    "full_reason": "Full reason",
+    "no_push_hint": "The temporary workspace is deleted after success. Read the resulting diff with get_job_diff.",
+    "failed_summary": "Manual agentic run failed: {{message}}",
+    "error_details": "Error details",
+    "valid_bases": "Valid bases",
+    "example_pending": "Pending manual run"
+  },
   "retire_terminal_work_unit": {
     "reason": "Reason",
     "none": "None",

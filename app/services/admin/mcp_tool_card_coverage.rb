@@ -20,7 +20,6 @@ module Admin
       "withdraw_pending_action" => "generic",
       "assign_job_to_epic" => "generic",
       "force_fail_job" => "generic",
-      "manual_agentic_run" => "generic",
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",
