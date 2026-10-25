@@ -9,6 +9,8 @@ RSpec.describe ReapStaleBranchesJob do
   before do
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:delete_branch).and_return(true)
+    allow(client).to receive(:list_open_pull_requests).and_return([])
+    allow(client).to receive(:branch_head_sha).and_return("remote-sha")
     allow(DiffReviewVersions::FinalSnapshot).to receive(:materialize)
       .and_return(OpenStruct.new(materialized?: true, reason: "existing_final_snapshot"))
   end
@@ -54,12 +56,13 @@ RSpec.describe ReapStaleBranchesJob do
       expect(client).not_to have_received(:delete_branch)
     end
 
-    it "skips jobs outside the branch cleanup retention window" do
-      closed_job(branch_name: "syrus/old-issue", finished_at: 31.days.ago)
+    it "keeps old jobs eligible after the former retention window" do
+      job = closed_job(branch_name: "syrus/old-issue", finished_at: 31.days.ago)
 
       described_class.perform_now
 
-      expect(client).not_to have_received(:delete_branch)
+      expect(client).to have_received(:delete_branch).with("acme/widgets", job.branch_name)
+      expect(job.reload.branch_deleted_at).to be_present
     end
 
     it "skips jobs where branch_deleted_at is already set" do
@@ -148,6 +151,17 @@ RSpec.describe ReapStaleBranchesJob do
       described_class.perform_now
 
       expect(job.reload.branch_deleted_at).to be_nil
+    end
+
+    it "reports candidates in dry-run mode without materializing or deleting" do
+      job = closed_job(branch_name: "syrus/issue-dry-run", finished_at: 2.days.ago)
+
+      described_class.perform_now(dry_run: true)
+
+      expect(DiffReviewVersions::FinalSnapshot).not_to have_received(:materialize)
+      expect(client).not_to have_received(:delete_branch)
+      expect(job.reload.branch_cleanup_attempted_at).to be_nil
+      expect(job.branch_deleted_at).to be_nil
     end
 
     it "does not delete branches of runaway-protected jobs (state=failed, not closed)" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_25_221105) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2162,10 +2162,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_221105) do
     t.string "state", default: "building", null: false
     t.datetime "updated_at", null: false
     t.string "failure_code"
+    t.datetime "branch_cleanup_attempted_at"
+    t.datetime "branch_deleted_at"
     t.index ["epic_id"], name: "index_merge_trains_on_epic_id"
     t.index ["failure_code"], name: "index_merge_trains_on_failure_code"
     t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
+    t.index ["state", "branch_deleted_at", "branch_cleanup_attempted_at", "finished_at"], name: "idx_merge_trains_branch_cleanup_candidates"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
   end
 
