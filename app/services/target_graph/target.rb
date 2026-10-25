@@ -22,11 +22,6 @@ class TargetGraph
     # `builder` targets are compiled from explicit `targets:` declarations and
     # can be warmed opportunistically on main by `builder_fanout`.
     KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
-    # Mirrors SyrusYml::GRADE_PHASES's vocabulary, but this graph model does
-    # not depend on SyrusYml -- it is meant to stand on its own so a future
-    # compiler (not part of this slice) can populate it from legacy config.
-    PHASES = %w[review landing ci promotion].freeze
-
     def initialize(
       label:, kind:, project_id:,
       source_scope: [], command: nil, dependencies: [], phases: [],
@@ -42,8 +37,6 @@ class TargetGraph
       end
 
       phases = Array(phases).map(&:to_s)
-      invalid_phases = phases - PHASES
-      raise ArgumentError, "phases #{invalid_phases.join(', ')} must be one of #{PHASES.join(', ')}" if invalid_phases.any?
 
       if !timeout_minutes.nil? && !(timeout_minutes.is_a?(Integer) && timeout_minutes.positive?)
         raise ArgumentError, "timeout_minutes must be a positive integer"

@@ -1405,6 +1405,10 @@ track); leaving it unset lands the Job on the repository's normal default
 track. A GitHub issue can select a track the same way with a
 `syrus-track-<name>` label (e.g. `syrus-track-hotfix`). See
 `config/syrus_docs/delivery_tracks.md` for the full `.syrus.yml` shape.
+Each track can select custom review and landing grader phases for a cheaper
+development loop or stricter release path. Every custom phase must be listed
+by at least one `grade.steps[].phases` entry; invalid configuration is rejected
+instead of silently running no graders.
 
 Once a repository configures delivery tracks, its overview page gains a
 **Delivery** section: a table of tracks with branch, grade phases, health,
