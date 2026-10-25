@@ -2,18 +2,23 @@ import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import i18n from "@app/i18n"
 import { SearchRoute } from "./Search"
 
 // Stub preview cards so tests don't trigger live API calls from SlugHoverCard
 vi.mock("@app/components/JobPreviewCard", () => ({
   JobPreviewCard: () => <div />,
-  JobPreviewSkeleton: () => <div />,
+  JobPreviewSkeleton: () => <div />
 }))
 vi.mock("@app/components/EpicPreviewCard", () => ({
   EpicPreviewCard: () => <div />,
-  EpicPreviewSkeleton: () => <div />,
+  EpicPreviewSkeleton: () => <div />
 }))
+
+afterEach(async () => {
+  await i18n.changeLanguage("en")
+})
 
 function searchPayload(results: unknown[]) {
   return {
@@ -24,6 +29,7 @@ function searchPayload(results: unknown[]) {
         { type: "job", label: "Jobs" },
         { type: "epic", label: "Epics" },
         { type: "chat", label: "Chats" },
+        { type: "test_case", label: "Tests" },
         { type: "design_doc", label: "Design Docs" }
       ],
       filter_schema: []
@@ -129,33 +135,47 @@ describe("SearchRoute result rows", () => {
   })
 })
 
-function chatGroupPayload(results = [
-  {
-    type: "chat",
-    id: 11,
-    title: "Forum planning",
-    snippet: "Best <mark>needle</mark>",
-    rank: 0,
-    path: "/chats/77?message_id=11",
-    state: null,
-    repository_slug: null,
-    created_at: "2026-06-20T10:00:00Z",
-    grouped_matches: [
-      { id: 12, snippet: "Second <mark>needle</mark>", path: "/chats/77?message_id=12", created_at: "2026-06-20T10:01:00Z" },
-      { id: 13, snippet: "Third <mark>needle</mark>", path: "/chats/77?message_id=13", created_at: "2026-06-20T10:02:00Z" }
-    ],
-    total_match_count: 4,
-    has_more_matches: true
-  }
-]) {
+function chatGroupPayload(
+  results = [
+    {
+      type: "chat",
+      id: 11,
+      title: "Forum planning",
+      snippet: "Best <mark>needle</mark>",
+      rank: 0,
+      path: "/chats/77?message_id=11",
+      state: null,
+      repository_slug: null,
+      created_at: "2026-06-20T10:00:00Z",
+      grouped_matches: [
+        { id: 12, snippet: "Second <mark>needle</mark>", path: "/chats/77?message_id=12", created_at: "2026-06-20T10:01:00Z" },
+        { id: 13, snippet: "Third <mark>needle</mark>", path: "/chats/77?message_id=13", created_at: "2026-06-20T10:02:00Z" }
+      ],
+      total_match_count: 4,
+      has_more_matches: true
+    }
+  ]
+) {
   return {
     results,
     filter: null,
     controls: {
       filter_schema: [
-        { field: "repository_id", label: "Repository", bucket: "fk", operators: [ "is", "is_not", "is_one_of", "is_none_of" ], typeahead: true },
-        { field: "created_at", label: "Created", bucket: "date", operators: [ "before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset" ], values: [] },
-        { field: "updated_at", label: "Updated", bucket: "date", operators: [ "before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset" ], values: [] }
+        { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is", "is_not", "is_one_of", "is_none_of"], typeahead: true },
+        {
+          field: "created_at",
+          label: "Created",
+          bucket: "date",
+          operators: ["before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset"],
+          values: []
+        },
+        {
+          field: "updated_at",
+          label: "Updated",
+          bucket: "date",
+          operators: ["before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset"],
+          values: []
+        }
       ]
     }
   }
@@ -179,7 +199,7 @@ function renderWithPayload(payload: unknown, initialEntry = "/search?query=needl
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ initialEntry ]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <SearchRoute />
       </MemoryRouter>
     </QueryClientProvider>
@@ -189,6 +209,53 @@ function renderWithPayload(payload: unknown, initialEntry = "/search?query=needl
 }
 
 describe("SearchRoute results", () => {
+  it("localizes plugin-owned search copy and preserves dynamic values", async () => {
+    await i18n.changeLanguage("de")
+    renderWithPayload(
+      searchPayload([
+        {
+          type: "design_doc",
+          id: 20,
+          slug: "DOC-20",
+          title: null,
+          snippet: "",
+          rank: 0,
+          path: "/design_docs/20",
+          state: "draft",
+          visibility: "private",
+          repository_slug: "tkadauke/syrus",
+          owner: { id: 4, name: "Ada Lovelace", email_address: "ada@example.com" },
+          current_version_number: 3,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-02T00:00:00Z"
+        }
+      ]),
+      "/search?query=needle"
+    )
+
+    expect(await screen.findByRole("heading", { name: "Suche" })).toBeInTheDocument()
+    expect(screen.getByText('Ergebnisse für "needle"')).toBeInTheDocument()
+    expect(await screen.findByText("Design Doc")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Alle" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Jobs" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Epics" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Chats" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Testfälle" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Design Docs" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Unbenannt" })).toBeInTheDocument()
+    expect(screen.getByText(/Private · Besitzer: Ada Lovelace · v3 · Aktualisiert/)).toBeInTheDocument()
+  })
+
+  it("localizes fallback filter labels", async () => {
+    await i18n.changeLanguage("la")
+    renderWithPayload({ results: [], filter: null, controls: { types: [], filter_schema: [] } })
+
+    expect(await screen.findByRole("link", { name: "Jobs" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Epics" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Colloquia" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Probationes" })).toBeInTheDocument()
+  })
+
   it("renders grouped chat matches", async () => {
     renderWithPayload(chatGroupPayload())
 
@@ -217,10 +284,12 @@ describe("SearchRoute results", () => {
     fireEvent.click(screen.getByRole("button", { name: "Repository reference" }))
 
     await waitFor(() => {
-      expect(fetchSpy.mock.calls.some((call) => {
-        const path = String(call[0])
-        return path.startsWith("/api/v1/app/search?") && path.includes("query=needle") && path.includes("q=")
-      })).toBe(true)
+      expect(
+        fetchSpy.mock.calls.some((call) => {
+          const path = String(call[0])
+          return path.startsWith("/api/v1/app/search?") && path.includes("query=needle") && path.includes("q=")
+        })
+      ).toBe(true)
     })
   })
 
@@ -247,16 +316,18 @@ describe("SearchRoute results", () => {
         expect(url.searchParams.get("subject")).toBe("chat_message")
         expect(url.searchParams.get("q")).toBe("syrus")
 
-        return Promise.resolve(jsonResponse({
-          suggestions: [
-            {
-              id: "value-repository",
-              label: "Repository is tkadauke/syrus",
-              filter: { field: "repository_id", op: "is", value: 2 },
-              source: "value"
-            }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            suggestions: [
+              {
+                id: "value-repository",
+                label: "Repository is tkadauke/syrus",
+                filter: { field: "repository_id", op: "is", value: 2 },
+                source: "value"
+              }
+            ]
+          })
+        )
       }
       if (path.startsWith("/api/v1/app/search")) {
         return Promise.resolve(jsonResponse(chatGroupPayload()))
@@ -267,7 +338,7 @@ describe("SearchRoute results", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[ "/search?query=needle&types%5B%5D=chat" ]}>
+        <MemoryRouter initialEntries={["/search?query=needle&types%5B%5D=chat"]}>
           <SearchRoute />
         </MemoryRouter>
       </QueryClientProvider>
@@ -278,6 +349,8 @@ describe("SearchRoute results", () => {
     fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "syrus" } })
 
     expect(await screen.findByRole("button", { name: "Repository is tkadauke/syrus" })).toBeInTheDocument()
-    expect(fetchSpy.mock.calls.some((call) => String(call[0]).startsWith("/api/v1/app/filters/suggestions?surface=dashboard&subject=chat_message&q=syrus"))).toBe(true)
+    expect(
+      fetchSpy.mock.calls.some((call) => String(call[0]).startsWith("/api/v1/app/filters/suggestions?surface=dashboard&subject=chat_message&q=syrus"))
+    ).toBe(true)
   })
 })

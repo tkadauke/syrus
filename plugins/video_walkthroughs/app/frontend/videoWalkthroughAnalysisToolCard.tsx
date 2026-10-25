@@ -100,7 +100,7 @@ function sectionText(report: string, heading: string): string | null {
 
 function parseFullAnalysis(context: ToolCardContext): FullAnalysisCard | null {
   const report = firstReportText(context)
-  const error = context.resultError ? textBlocks(context).join("\n").trim() || "Walkthrough analysis failed." : null
+  const error = context.resultError ? textBlocks(context).join("\n").trim() || i18n.t("video_walkthroughs:analysis.failed_message") : null
   const walkthroughId = displayValue(context.input?.walkthrough_id)
   if (!report && !error && !walkthroughId) return null
 
@@ -202,7 +202,7 @@ function mediaReferences(context: ToolCardContext): MediaReference[] {
       const mimeType = displayValue(block.mimeType) || displayValue(block.mime_type) || "image/jpeg"
       if (!data) continue
       media.push({
-        label: pendingLabel || displayValue(block.title) || "Walkthrough frame",
+        label: pendingLabel || displayValue(block.title) || i18n.t("video_walkthroughs:frame.title"),
         timestamp: pendingTimestamp,
         mimeType,
         src: data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`
@@ -218,12 +218,14 @@ function mediaReferences(context: ToolCardContext): MediaReference[] {
 export function fullAnalysisSummary(context: ToolCardContext) {
   const card = parseFullAnalysis(context)
   if (!card) return null
-  if (card.error) return "Walkthrough analysis failed"
-  if (card.pending) return i18n.t("chat:walkthrough_analysis.pending_summary")
-  const segments = card.sections.length === 1 ? "1 segment" : `${card.sections.length} segments`
-  const issues = card.issueCount === 1 ? "1 issue" : `${card.issueCount} issues`
-  const media = card.media.length > 0 ? `, ${card.media.length} frame${card.media.length === 1 ? "" : "s"}` : ""
-  return card.empty ? `Walkthrough analysis: no issues across ${segments}${media}` : `Walkthrough analysis: ${issues} across ${segments}${media}`
+  if (card.error) return i18n.t("video_walkthroughs:analysis.failed")
+  if (card.pending) return i18n.t("video_walkthroughs:analysis.pending_summary")
+  const segments = i18n.t("video_walkthroughs:counts.segments", { count: card.sections.length })
+  const issues = i18n.t("video_walkthroughs:counts.issues", { count: card.issueCount })
+  const media = card.media.length > 0 ? i18n.t("video_walkthroughs:analysis.frame_suffix", { count: card.media.length }) : ""
+  return card.empty
+    ? i18n.t("video_walkthroughs:analysis.empty_summary", { segments, media })
+    : i18n.t("video_walkthroughs:analysis.summary", { issues, segments, media })
 }
 
 export function renderFullAnalysis(context: ToolCardContext) {
@@ -232,45 +234,39 @@ export function renderFullAnalysis(context: ToolCardContext) {
 }
 
 function FullAnalysisBody({ card }: { card: FullAnalysisCard }) {
-  const { t } = useT("chat")
+  const { t } = useT("video_walkthroughs")
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Walkthrough analysis</Badge>
+        <Badge>{t("analysis.title")}</Badge>
         <StatePill
-          state={card.error ? "failed" : card.pending ? t("walkthrough_analysis.pending_state") : card.empty ? "no issues" : "issues found"}
+          state={card.error ? t("states.failed") : card.pending ? t("states.pending") : card.empty ? t("states.no_issues") : t("states.issues_found")}
           tone={card.error ? "failure" : card.pending ? "neutral" : card.empty ? "success" : "warning"}
         />
-        {!card.error && !card.pending ? (
-          <Badge>
-            {card.issueCount} issue{card.issueCount === 1 ? "" : "s"}
-          </Badge>
-        ) : null}
+        {!card.error && !card.pending ? <Badge>{t("counts.issues", { count: card.issueCount })}</Badge> : null}
       </div>
       {card.walkthroughId ? (
         <div className="text-xs text-text-muted">
-          {t("walkthrough_analysis.walkthrough_label")}: <EntityReference id={card.walkthroughId} kind="walkthrough" />
+          {t("walkthrough")}: <EntityReference id={card.walkthroughId} kind="walkthrough" />
         </div>
       ) : null}
       {card.error ? <RecoveryPanel message={card.error} /> : null}
-      {card.pending ? <EmptyState>{t("walkthrough_analysis.pending")}</EmptyState> : null}
-      {card.summary ? (
-        <MarkdownPreview linkifyUrls maxChars={900} maxLines={5} modalLabel={t("walkthrough_analysis.session_summary")} text={card.summary} />
-      ) : null}
+      {card.pending ? <EmptyState>{t("analysis.pending")}</EmptyState> : null}
+      {card.summary ? <MarkdownPreview linkifyUrls maxChars={900} maxLines={5} modalLabel={t("analysis.session_summary")} text={card.summary} /> : null}
       {!card.error && !card.pending ? (
         <dl className="grid gap-1 sm:grid-cols-3">
-          <Row label="Segments" value={String(card.sections.length)} />
-          <Row label="Issues" value={String(card.issueCount)} />
-          <Row label="Frames" value={String(card.media.length)} />
+          <Row label={t("segments")} value={String(card.sections.length)} />
+          <Row label={t("issues")} value={String(card.issueCount)} />
+          <Row label={t("frames")} value={String(card.media.length)} />
         </dl>
       ) : null}
       {card.sections.length > 0 ? <SectionsList sections={card.sections} /> : null}
-      {card.issues.length > 0 ? <IssuesList issues={card.issues} /> : card.empty ? <EmptyState>No issues were detected in this walkthrough.</EmptyState> : null}
+      {card.issues.length > 0 ? <IssuesList issues={card.issues} /> : card.empty ? <EmptyState>{t("analysis.no_issues")}</EmptyState> : null}
       {card.media.length > 0 ? <MediaList media={card.media} /> : null}
-      {card.openQuestions.length > 0 ? <CompactList label="Open questions" items={card.openQuestions} /> : null}
+      {card.openQuestions.length > 0 ? <CompactList label={t("analysis.open_questions")} items={card.openQuestions} /> : null}
       {card.transcript.length > 0 ? (
-        <Disclosure label="Narration transcript">
+        <Disclosure label={t("analysis.narration_transcript")}>
           <div className="max-h-64 space-y-1 overflow-auto text-xs">
             {card.transcript.map((line, index) => (
               <div className="break-words font-mono" key={`${line}-${index}`}>
@@ -281,20 +277,21 @@ function FullAnalysisBody({ card }: { card: FullAnalysisCard }) {
         </Disclosure>
       ) : null}
       {!card.error && !card.pending && card.report && shouldRenderCompleteReport(card.report) ? (
-        <MarkdownPreview linkifyUrls maxChars={1_400} maxLines={8} modalLabel={t("walkthrough_analysis.complete_report")} text={card.report} />
+        <MarkdownPreview linkifyUrls maxChars={1_400} maxLines={8} modalLabel={t("analysis.complete_report")} text={card.report} />
       ) : null}
     </CardShell>
   )
 }
 
 function SectionsList({ sections }: { sections: WalkthroughSection[] }) {
+  const { t } = useT("video_walkthroughs")
   return (
     <div className="space-y-1">
-      <SectionLabel>Segments</SectionLabel>
+      <SectionLabel>{t("segments")}</SectionLabel>
       <div className="divide-y divide-border rounded-[var(--radius-panel)] border border-border">
         {sections.map((section) => (
           <div className="grid gap-1 px-2 py-1.5 sm:grid-cols-[8rem_minmax(0,1fr)]" key={`${section.title}-${section.range}`}>
-            <div className="font-mono text-xs text-text-muted">{section.range || "time n/a"}</div>
+            <div className="font-mono text-xs text-text-muted">{section.range || t("time_unavailable")}</div>
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-text-primary" title={section.title}>
                 {section.title}
@@ -309,9 +306,10 @@ function SectionsList({ sections }: { sections: WalkthroughSection[] }) {
 }
 
 function IssuesList({ issues }: { issues: WalkthroughIssue[] }) {
+  const { t } = useT("video_walkthroughs")
   return (
     <div className="space-y-1">
-      <SectionLabel>Key findings</SectionLabel>
+      <SectionLabel>{t("key_findings")}</SectionLabel>
       <div className="space-y-1">
         {issues.map((issue) => (
           <div className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1.5" key={`${issue.title}-${issue.timestamp}`}>
@@ -337,11 +335,11 @@ function IssuesList({ issues }: { issues: WalkthroughIssue[] }) {
 }
 
 function MediaList({ media }: { media: MediaReference[] }) {
-  const { t } = useT("chat")
+  const { t } = useT("video_walkthroughs")
 
   return (
     <div className="space-y-1">
-      <SectionLabel>Frame references</SectionLabel>
+      <SectionLabel>{t("frame_references")}</SectionLabel>
       <div className="grid min-w-0 gap-2 sm:grid-cols-2">
         {media.map((item, index) => (
           <MediaPreviewShell
@@ -350,18 +348,18 @@ function MediaList({ media }: { media: MediaReference[] }) {
               subtitle: item.timestamp,
               src: item.src,
               alt: item.timestamp
-                ? t("walkthrough_analysis.frame_alt", { label: item.label, timestamp: item.timestamp })
-                : t("walkthrough_analysis.frame_alt_untimed", { label: item.label }),
+                ? t("media.frame_alt", { label: item.label, timestamp: item.timestamp })
+                : t("media.frame_alt_untimed", { label: item.label }),
               badge: item.mimeType?.split("/").pop()?.toUpperCase(),
               meta: [
-                { label: t("walkthrough_analysis.timestamp"), value: item.timestamp },
-                { label: t("walkthrough_analysis.label"), value: item.label, copyValue: item.label },
-                { label: t("walkthrough_analysis.content_type"), value: item.mimeType }
+                { label: t("frame.timestamp"), value: item.timestamp },
+                { label: t("media.label"), value: item.label, copyValue: item.label },
+                { label: t("frame.content_type"), value: item.mimeType }
               ],
-              actions: [{ label: t("walkthrough_analysis.copy_image"), copyValue: item.src }]
+              actions: [{ label: t("media.copy_image"), copyValue: item.src }]
             }}
             key={`${item.label}-${index}`}
-            modalLabel={t("walkthrough_analysis.frame_modal", { label: item.label })}
+            modalLabel={t("media.frame_modal", { label: item.label })}
             thumbnailClassName="w-full"
           />
         ))}
@@ -387,7 +385,7 @@ function CompactList({ label, items }: { label: string; items: string[] }) {
 
 function parseSegment(context: ToolCardContext): SegmentCard | null {
   const payload = objectPayload(context.parsedResult)
-  const error = context.resultError ? textBlocks(context).join("\n").trim() || "Segment analysis failed." : null
+  const error = context.resultError ? textBlocks(context).join("\n").trim() || i18n.t("video_walkthroughs:segment.failed_message") : null
   if (!payload && !error) return null
   const analysis = payload ? payload.analysis : null
   const normalizedAnalysis = normalizeAnalysis(analysis)
@@ -448,7 +446,7 @@ function analysisObservations(analysis: unknown): string[] {
 function analysisIssues(analysis: unknown): WalkthroughIssue[] {
   if (!isPlainObject(analysis) || !Array.isArray(analysis.issues)) return []
   return analysis.issues.filter(isPlainObject).map((issue) => ({
-    title: displayValue(issue.title) || displayValue(issue.description) || "Segment issue",
+    title: displayValue(issue.title) || displayValue(issue.description) || i18n.t("video_walkthroughs:segment.issue"),
     severity: displayValue(issue.severity),
     surface: displayValue(issue.surface),
     timestamp: displayValue(issue.timestamp),
@@ -480,7 +478,7 @@ function structuredMediaReferences(payload: Record<string, unknown> | null, anal
       const mimeType = displayValue(item.mime_type) || displayValue(item.mimeType) || "image/jpeg"
       return [
         {
-          label: displayValue(item.label) || displayValue(item.title) || `Walkthrough frame ${index + 1}`,
+          label: displayValue(item.label) || displayValue(item.title) || i18n.t("video_walkthroughs:frame.numbered", { number: index + 1 }),
           timestamp: displayValue(item.timestamp),
           mimeType,
           src: rawSource.startsWith("data:") || /^https?:\/\//.test(rawSource) ? rawSource : `data:${mimeType};base64,${rawSource}`
@@ -497,8 +495,8 @@ function analysisMarkdown(analysis: Record<string, unknown> | string): string {
   const findings = displayValue(analysis.findings) || displayValue(analysis.summary)
   if (findings) sections.push(findings)
 
-  appendMarkdownList(sections, "Exact text", analysis.exact_text)
-  appendMarkdownList(sections, "Steps", analysis.steps, true)
+  appendMarkdownList(sections, i18n.t("video_walkthroughs:segment.exact_text"), analysis.exact_text)
+  appendMarkdownList(sections, i18n.t("video_walkthroughs:segment.steps"), analysis.steps, true)
   appendTranscript(sections, analysis.transcript)
 
   const represented = new Set([
@@ -538,7 +536,7 @@ function appendTranscript(sections: string[], value: unknown) {
       return text ? `${timestamp ? `- **${readableTimestamp(timestamp)}** ` : "- "}${text}` : null
     })
     .filter((line): line is string => Boolean(line))
-  if (lines.length > 0) sections.push(`**Transcript**\n\n${lines.join("\n")}`)
+  if (lines.length > 0) sections.push(`**${i18n.t("video_walkthroughs:frame.transcript")}**\n\n${lines.join("\n")}`)
 }
 
 function humanizeKey(key: string) {
@@ -548,14 +546,14 @@ function humanizeKey(key: string) {
 export function segmentSummary(context: ToolCardContext) {
   const card = parseSegment(context)
   if (!card) return null
-  if (card.error) return "Segment analysis failed"
-  const subject = card.range ? `Segment ${card.range}` : "Segment analysis"
-  if (card.empty) return `${subject}: no findings`
+  if (card.error) return i18n.t("video_walkthroughs:segment.failed")
+  const subject = card.range ? i18n.t("video_walkthroughs:segment.subject", { range: card.range }) : i18n.t("video_walkthroughs:segment.analysis")
+  if (card.empty) return i18n.t("video_walkthroughs:segment.empty_summary", { subject })
   const findings =
     card.issues.length > 0
-      ? `${card.issues.length} issue${card.issues.length === 1 ? "" : "s"}`
-      : `${card.observations.length || (card.analysis ? 1 : 0)} finding${card.observations.length === 1 ? "" : "s"}`
-  return `${subject}: ${findings}`
+      ? i18n.t("video_walkthroughs:counts.issues", { count: card.issues.length })
+      : i18n.t("video_walkthroughs:counts.findings", { count: card.observations.length || (card.analysis ? 1 : 0) })
+  return i18n.t("video_walkthroughs:segment.summary", { subject, findings })
 }
 
 export function renderSegment(context: ToolCardContext) {
@@ -564,24 +562,27 @@ export function renderSegment(context: ToolCardContext) {
 }
 
 function SegmentBody({ card }: { card: SegmentCard }) {
-  const { t } = useT("chat")
+  const { t } = useT("video_walkthroughs")
   const prose = card.analysis ? analysisMarkdown(card.analysis) : ""
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Walkthrough segment</Badge>
-        <StatePill state={card.error ? "failed" : card.empty ? "no findings" : "analyzed"} tone={card.error ? "failure" : card.empty ? "neutral" : "success"} />
+        <Badge>{t("segment.title")}</Badge>
+        <StatePill
+          state={card.error ? t("states.failed") : card.empty ? t("states.no_findings") : t("states.analyzed")}
+          tone={card.error ? "failure" : card.empty ? "neutral" : "success"}
+        />
       </div>
       {card.error ? <RecoveryPanel message={card.error} /> : null}
       <dl className="grid gap-1 sm:grid-cols-3">
         {card.walkthroughId ? (
           <div className="min-w-0">
-            <SectionLabel>{t("walkthrough_analysis.walkthrough_label")}</SectionLabel>
+            <SectionLabel>{t("walkthrough")}</SectionLabel>
             <EntityReference id={card.walkthroughId} kind="walkthrough" wrap="break" />
           </div>
         ) : null}
-        {card.range ? <Row label="Range" value={card.range} /> : null}
-        {card.focus ? <Row label="Focus" value={card.focus} /> : null}
+        {card.range ? <Row label={t("frame.range")} value={card.range} /> : null}
+        {card.focus ? <Row label={t("segment.focus")} value={card.focus} /> : null}
       </dl>
       {card.note ? (
         <div className="rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1">
@@ -595,23 +596,31 @@ function SegmentBody({ card }: { card: SegmentCard }) {
           linkifyUrls
           maxChars={1_000}
           maxLines={6}
-          modalLabel="Complete observations"
+          modalLabel={t("segment.complete_observations")}
           text={card.observations.map((item) => `- ${item}`).join("\n")}
-          title="Observations"
+          title={t("segment.observations")}
         />
       ) : null}
-      {card.timestamps.length > 0 ? <CompactList label="Relevant timestamps" items={card.timestamps} /> : null}
+      {card.timestamps.length > 0 ? <CompactList label={t("segment.relevant_timestamps")} items={card.timestamps} /> : null}
       {!card.error && prose ? (
-        <MarkdownPreview linkifySlugs linkifyUrls maxChars={1_400} maxLines={8} modalLabel="Complete segment analysis" text={prose} title="Analysis" />
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={1_400}
+          maxLines={8}
+          modalLabel={t("segment.complete_analysis")}
+          text={prose}
+          title={t("segment.analysis_heading")}
+        />
       ) : null}
-      {card.empty ? <EmptyState>No segment analysis was returned.</EmptyState> : null}
+      {card.empty ? <EmptyState>{t("segment.empty")}</EmptyState> : null}
       {card.media.length > 0 ? <MediaList media={card.media} /> : null}
     </CardShell>
   )
 }
 
 function RecoveryPanel({ message }: { message: string }) {
-  const { t } = useT("chat")
+  const { t } = useT("video_walkthroughs")
   const guidance = recoveryGuidance(message, t)
   return (
     <div className="space-y-1 rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface px-2 py-1.5">
@@ -622,12 +631,14 @@ function RecoveryPanel({ message }: { message: string }) {
 }
 
 function recoveryGuidance(message: string, t: ReturnType<typeof useT>["t"]) {
-  if (/quota|rate.?limit/i.test(message)) return t("walkthrough_analysis.recovery_quota")
-  if (/api.?key|key.*(?:invalid|reject|unauthor)/i.test(message)) return t("walkthrough_analysis.recovery_key_rejected")
-  if (/pruned|expired|stored video|upload.*(?:missing|unavailable)/i.test(message)) return t("walkthrough_analysis.recovery_video_unavailable")
-  return t("walkthrough_analysis.recovery_generic")
+  if (/quota|rate.?limit/i.test(message)) return t("recovery.quota")
+  if (/api.?key|key.*(?:invalid|reject|unauthor)/i.test(message)) return t("recovery.key_rejected")
+  if (/pruned|expired|stored video|upload.*(?:missing|unavailable)/i.test(message)) return t("recovery.video_unavailable")
+  return t("recovery.generic")
 }
 
+// These headings are part of the analysis-report input protocol. Keep parsing
+// them in English even though the labels rendered around their content are localized.
 const RENDERED_REPORT_HEADINGS = new Set(["Session summary", "Sections", "Issues found", "Narration transcript", "Open questions from the analysis"])
 
 function shouldRenderCompleteReport(report: string) {
@@ -638,7 +649,9 @@ function shouldRenderCompleteReport(report: string) {
 export const fullAnalysisExamples: ToolCardExample[] = [
   {
     id: "full_analysis",
-    label: "Full analysis with issues",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.full_analysis")
+    },
     input: { walkthrough_id: 42 },
     parsedResult: {
       content: [
@@ -674,7 +687,9 @@ export const fullAnalysisExamples: ToolCardExample[] = [
   },
   {
     id: "empty_analysis",
-    label: "No issues analysis",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.no_issues_analysis")
+    },
     input: { walkthrough_id: 43 },
     parsedResult: {
       content: [
@@ -696,13 +711,17 @@ export const fullAnalysisExamples: ToolCardExample[] = [
   },
   {
     id: "pending_analysis",
-    label: "Pending analysis",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.pending_analysis")
+    },
     input: { walkthrough_id: 44 },
     parsedResult: {}
   },
   {
     id: "failed_analysis",
-    label: "Analysis failure",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.analysis_failure")
+    },
     input: { walkthrough_id: 45 },
     resultError: true,
     parsedResult: {
@@ -714,7 +733,9 @@ export const fullAnalysisExamples: ToolCardExample[] = [
 export const segmentExamples: ToolCardExample[] = [
   {
     id: "segment_analysis",
-    label: "Segment analysis with findings",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_analysis")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     parsedResult: {
       structured_content: {
@@ -734,7 +755,9 @@ export const segmentExamples: ToolCardExample[] = [
   },
   {
     id: "segment_quota_failure",
-    label: "Segment quota failure",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_quota_failure")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "08:30", focus: "everything" },
     resultError: true,
     resultBody: JSON.stringify({
@@ -744,21 +767,27 @@ export const segmentExamples: ToolCardExample[] = [
   },
   {
     id: "segment_key_failure",
-    label: "Segment API key failure",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_key_failure")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     resultError: true,
     parsedResult: { content: [{ type: "text", text: "Gemini rejected the API key: invalid key" }], isError: true }
   },
   {
     id: "segment_pruned_failure",
-    label: "Segment pruned-video failure",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_pruned_failure")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     resultError: true,
     parsedResult: { content: [{ type: "text", text: "Could not read the stored video — it may have been pruned." }], isError: true }
   },
   {
     id: "segment_empty",
-    label: "Empty segment analysis",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.empty_segment")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     parsedResult: { walkthrough_id: 42, range: "1:10–1:30", focus: "the exact error text", analysis: {} }
   }

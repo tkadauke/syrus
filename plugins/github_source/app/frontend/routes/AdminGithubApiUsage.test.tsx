@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import i18n from "@app/i18n"
 import AdminGithubApiUsage from "./AdminGithubApiUsage"
 import type { GithubApiUsagePayload } from "../api/githubApiUsage"
 
@@ -26,12 +27,18 @@ function payload(overrides: Partial<GithubApiUsagePayload> = {}): GithubApiUsage
     generated_at: "2026-09-25T12:00:00Z",
     totals: { requests: 12, rate_limited: 1 },
     by_operation: [
-      { auth_source: "app", operation: "issues.list", resource: "core", requests: 10, rate_limited: 1, min_remaining: 42, last_seen_at: "2026-09-25T11:00:00Z" },
+      {
+        auth_source: "app",
+        operation: "issues.list",
+        resource: "core",
+        requests: 10,
+        rate_limited: 1,
+        min_remaining: 42,
+        last_seen_at: "2026-09-25T11:00:00Z"
+      },
       { auth_source: "pat", operation: "pulls.get", resource: "core", requests: 2, rate_limited: 0, min_remaining: 99, last_seen_at: "2026-09-25T10:00:00Z" }
     ],
-    by_repository: [
-      { auth_source: "app", repo_slug: "acme/widgets", requests: 8, rate_limited: 1, min_remaining: 42, last_seen_at: "2026-09-25T11:00:00Z" }
-    ],
+    by_repository: [{ auth_source: "app", repo_slug: "acme/widgets", requests: 8, rate_limited: 1, min_remaining: 42, last_seen_at: "2026-09-25T11:00:00Z" }],
     recent_rate_limits: [],
     ...overrides
   }
@@ -51,7 +58,10 @@ function renderRoute(initialEntry = "/admin/github_api_usage") {
 }
 
 describe("AdminGithubApiUsage", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await i18n.changeLanguage("en")
+  })
 
   it("renders the shared FilterBar and configurable sortable data tables", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
@@ -85,5 +95,22 @@ describe("AdminGithubApiUsage", () => {
     await waitFor(() => {
       expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("hours=168"))).toBe(true)
     })
+  })
+
+  it("renders plugin-owned copy in German", async () => {
+    await i18n.changeLanguage("de")
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute()
+
+    expect(await screen.findByRole("heading", { name: "GitHub-API-Nutzung" })).toBeInTheDocument()
+    expect(screen.getByText("Stündliche Zusammenfassungen nach Zugangsdaten, Vorgang, Repository und Rate-Limit-Ressource.")).toBeInTheDocument()
+    expect(await screen.findByText("Nach Vorgang")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Zeitraum ist 24 Stunden" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Filter Zeitraum entfernen" })).toBeInTheDocument()
+    expect(screen.getAllByText("Anfragen").length).toBeGreaterThan(0)
+    expect(screen.queryByRole("button", { name: "Window is 24 hours" })).not.toBeInTheDocument()
+    expect(screen.queryByText("By Operation")).not.toBeInTheDocument()
   })
 })

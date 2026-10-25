@@ -24,43 +24,50 @@ type SearchFilter = string | "all"
 
 const fallbackFilters: SearchTypeOption[] = fallbackSearchTypeOptions
 
-const typeStyles: Record<SearchResultType, { border: string; tone: "amber" | "blue" | "gray" | "green"; label: string }> = {
+const builtInFilterLabelKeys: Record<string, string> = {
+  job: "filter_types.jobs",
+  epic: "filter_types.epics",
+  chat: "filter_types.chats",
+  test_case: "filter_types.tests"
+}
+
+const typeStyles: Record<SearchResultType, { border: string; tone: "amber" | "blue" | "gray" | "green"; labelKey: string }> = {
   job: {
     border: "border-l-info",
     tone: "blue",
-    label: "Job"
+    labelKey: "result_types.job"
   },
   epic: {
     border: "border-l-purple-500",
     tone: "gray",
-    label: "Epic"
+    labelKey: "result_types.epic"
   },
   chat: {
     border: "border-l-green-500",
     tone: "green",
-    label: "Chat"
+    labelKey: "result_types.chat"
   },
   test_case: {
     border: "border-l-amber-500",
     tone: "amber",
-    label: "Test"
+    labelKey: "result_types.test_case"
   },
   design_doc: {
     border: "border-l-cyan-500",
     tone: "gray",
-    label: "Design Doc"
+    labelKey: "result_types.design_doc"
   }
 }
 
 const fallbackTypeStyle = {
   border: "border-l-gray-400",
   tone: "gray",
-  label: "Result"
+  labelKey: "result_types.result"
 }
 
 export function SearchRoute() {
-  const { t } = useT("common")
-  usePageTitle(t("search.heading"))
+  const { t } = useT("global_search")
+  usePageTitle(t("heading"))
   const location = useLocation()
   const params = new URLSearchParams(location.search)
   const query = searchTextFromParams(params)
@@ -72,19 +79,29 @@ export function SearchRoute() {
   })
   const results = search.data?.results || []
   const typeFilters = search.data?.controls.types?.length ? search.data.controls.types : fallbackFilters
-  const filters = [{ type: "all", label: "All" }, ...typeFilters]
+  const filters = [
+    { type: "all", label: t("filters.all") },
+    ...typeFilters.map((filter) => ({
+      ...filter,
+      label: builtInFilterLabelKeys[filter.type] ? t(builtInFilterLabelKeys[filter.type]) : filter.label
+    }))
+  ]
 
   return (
-    <Page.Root aria-label={t("search_aria")} className="max-w-[72rem]" gutter="responsive">
+    <Page.Root aria-label={t("aria.page")} className="max-w-[72rem]" gutter="responsive">
       <Page.Header layout="stacked">
         <div>
-          <PageHeading>{t("search.heading")}</PageHeading>
-          <Page.Description>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</Page.Description>
+          <PageHeading>{t("heading")}</PageHeading>
+          <Page.Description>{query ? t("results_for", { query }) : t("description")}</Page.Description>
         </div>
         <div className="space-y-3">
-          <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
+          <nav aria-label={t("aria.type_filters")} className="flex flex-wrap gap-2">
             {filters.map((filter) => (
-              <Link className={filterChipClass(activeFilter === filter.type)} key={filter.type} to={filterPath(location.pathname, location.search, filter.type)}>
+              <Link
+                className={filterChipClass(activeFilter === filter.type)}
+                key={filter.type}
+                to={filterPath(location.pathname, location.search, filter.type)}
+              >
                 {filter.label}
               </Link>
             ))}
@@ -106,15 +123,15 @@ export function SearchRoute() {
       </Page.Header>
 
       {query.length === 0 ? (
-        <Notice>{t("search.use_sidebar")}</Notice>
+        <Notice>{t("use_sidebar")}</Notice>
       ) : query.length < 2 ? (
-        <Notice>{t("search.min_chars")}</Notice>
+        <Notice>{t("min_chars")}</Notice>
       ) : search.isPending ? (
         <SearchSkeleton />
       ) : search.isError ? (
-        <Notice tone="danger">{t("search.error")}</Notice>
+        <Notice tone="danger">{t("error")}</Notice>
       ) : results.length === 0 ? (
-        <Notice>{t("search.no_results")}</Notice>
+        <Notice>{t("no_results")}</Notice>
       ) : (
         <Section.Root className="divide-y divide-border overflow-hidden p-0">
           {results.map((result) => (
@@ -127,9 +144,10 @@ export function SearchRoute() {
 }
 
 function SearchResultRow({ result }: { result: SearchResult }) {
+  const { t } = useT("global_search")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
-  const styles = typeStyles[result.type] || { ...fallbackTypeStyle, label: humanizeType(result.type) }
+  const styles = typeStyles[result.type] || fallbackTypeStyle
   const groupedMatches = result.type === "chat" ? result.grouped_matches || [] : []
   const hasGroupedMatches = result.type === "chat" && groupedMatches.length > 0
 
@@ -138,7 +156,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <TonePill tone={styles.tone}>{styles.label}</TonePill>
+            <TonePill tone={styles.tone}>{t(styles.labelKey)}</TonePill>
             {result.slug ? (
               <SlugHoverCard id={result.id} kind={slugHoverKind(result.type)} prefix={slugPrefix(result.slug)}>
                 <CopyableSlug slug={result.slug} />
@@ -157,7 +175,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
           </div>
           <SectionHeading className="mt-2">
             <Link className="break-words hover:text-brand hover:underline dark:hover:text-brand-emphasis" to={withRoutePrefix(result.path, prefix)}>
-              {result.title || "Untitled"}
+              {result.title || t("untitled")}
             </Link>
           </SectionHeading>
           <Snippet html={result.snippet || ""} />
@@ -174,11 +192,12 @@ function SearchResultRow({ result }: { result: SearchResult }) {
 }
 
 function ResultMetadata({ result }: { result: SearchResult }) {
+  const { t } = useT("global_search")
   const parts = [
     result.visibility ? humanizeType(result.visibility) : null,
-    result.owner ? `Owner ${result.owner.name || result.owner.email_address || `#${result.owner.id}`}` : null,
+    result.owner ? t("metadata.owner", { owner: result.owner.name || result.owner.email_address || `#${result.owner.id}` }) : null,
     result.current_version_number ? `v${result.current_version_number}` : null,
-    result.updated_at ? "Updated" : null
+    result.updated_at ? t("metadata.updated") : null
   ].filter(Boolean)
   if (parts.length === 0) return null
 
@@ -207,11 +226,10 @@ function TestCaseDetails({ result }: { result: TestCaseSearchResult }) {
 }
 
 function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchResult, { type: "chat" }>; routePrefix: string }) {
-  const { t } = useT("common")
+  const { t } = useT("global_search")
   const [expanded, setExpanded] = useState(false)
   const groupedMatches = result.grouped_matches || []
   const hiddenMatchCount = Math.max((result.total_match_count || groupedMatches.length + 1) - 1, groupedMatches.length)
-  const matchLabel = hiddenMatchCount === 1 ? "match" : "matches"
 
   return (
     <div className="mt-3">
@@ -222,12 +240,11 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
         type="button"
       >
         <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
-        {expanded ? t("search.hide") : t("search.show")} {groupedMatches.length}{" "}
-        {groupedMatches.length === 1 ? t("search.match_more") : t("search.matches_more")}
+        {expanded ? t("hide_more_matches", { count: groupedMatches.length }) : t("show_more_matches", { count: groupedMatches.length })}
       </button>
       {!expanded ? (
         <Text as="span" className="ml-2" variant="caption" tone="muted">
-          {hiddenMatchCount} {t("search.more")} {matchLabel} {t("search.in_this_chat")}
+          {t("more_matches_in_chat", { count: hiddenMatchCount })}
         </Text>
       ) : null}
       {expanded ? (
@@ -240,7 +257,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
           ))}
           {result.has_more_matches ? (
             <Text className="py-3" variant="caption" tone="muted">
-              {t("search.top_matches_shown", { count: groupedMatches.length })}
+              {t("top_matches_shown", { count: groupedMatches.length })}
             </Text>
           ) : null}
         </div>
@@ -250,7 +267,6 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
 }
 
 function Snippet({ html }: { html: string }) {
-  const { t } = useT("common")
   return (
     <p
       className="mt-2 text-sm leading-6 text-text-secondary [&_mark]:rounded [&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:text-gray-950 dark:[&_mark]:bg-yellow-500/40 dark:[&_mark]:text-yellow-50"
@@ -260,9 +276,9 @@ function Snippet({ html }: { html: string }) {
 }
 
 function SearchSkeleton() {
-  const { t } = useT("common")
+  const { t } = useT("global_search")
   return (
-    <section aria-label={t("loading_search_aria")} className="space-y-3">
+    <section aria-label={t("aria.loading_results")} className="space-y-3">
       {[0, 1, 2, 3].map((index) => (
         <Section.Root className="animate-pulse" key={index}>
           <Skeleton className="h-4 w-20" />

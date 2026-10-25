@@ -1,6 +1,8 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction, type MediaPreviewMeta } from "@app/routes/chat/mediaPreviewShell"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
+import { useT } from "@app/hooks/useT"
+import i18n from "i18next"
 import {
   Badge,
   CardShell,
@@ -58,9 +60,9 @@ const EXAMPLE_FRAME_IMAGE = [
       <rect x="18" y="18" width="284" height="144" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
       <rect x="38" y="42" width="122" height="16" rx="3" fill="#cbd5e1"/>
       <rect x="38" y="70" width="244" height="34" rx="4" fill="#fee2e2" stroke="#ef4444"/>
-      <text x="52" y="92" fill="#991b1b" font-family="Arial, sans-serif" font-size="15" font-weight="700">Checkout error</text>
+      <rect x="52" y="81" width="112" height="10" rx="2" fill="#991b1b"/>
       <rect x="38" y="122" width="92" height="24" rx="4" fill="#2563eb"/>
-      <text x="61" y="139" fill="#ffffff" font-family="Arial, sans-serif" font-size="12" font-weight="700">Save</text>
+      <rect x="61" y="132" width="46" height="6" rx="2" fill="#ffffff"/>
     </svg>
   `)
 ].join("")
@@ -121,9 +123,13 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  const subject = card.walkthroughName || (card.walkthroughId ? `Walkthrough ${card.walkthroughId}` : "Walkthrough frame")
-  const frame = [card.frameIndex ? `frame ${card.frameIndex}` : null, card.timestamp].filter(Boolean).join(" @ ")
-  const state = card.status === "pending" ? "pending" : card.status === "success" ? "captured" : card.status === "missing" ? "missing frame" : "failed"
+  const subject =
+    card.walkthroughName ||
+    (card.walkthroughId ? i18n.t("video_walkthroughs:frame.walkthrough_subject", { id: card.walkthroughId }) : i18n.t("video_walkthroughs:frame.title"))
+  const frame = [card.frameIndex ? i18n.t("video_walkthroughs:frame.frame_subject", { index: card.frameIndex }) : null, card.timestamp]
+    .filter(Boolean)
+    .join(" @ ")
+  const state = i18n.t(`video_walkthroughs:frame.summary_states.${card.status}`)
 
   return [subject, frame || null, state].filter(Boolean).join(" - ")
 }
@@ -134,53 +140,55 @@ function renderExpanded(context: ToolCardContext) {
 }
 
 function WalkthroughFrameCardBody({ card }: { card: WalkthroughFrameCard }) {
-  const state = card.status === "pending" ? "pending" : card.status === "success" ? "captured" : card.status === "missing" ? "missing" : "failed"
+  const { t } = useT("video_walkthroughs")
+  const state = t(`frame.states.${card.status}`)
   const tone = card.status === "pending" ? "info" : card.status === "success" ? "success" : card.status === "missing" ? "warning" : "failure"
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Walkthrough frame</Badge>
+        <Badge>{t("frame.title")}</Badge>
         <StatePill state={state} tone={tone} />
       </div>
       {card.message ? <ErrorNotice message={card.message} /> : null}
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
-        {card.walkthroughName ? <Row label="Walkthrough" value={card.walkthroughName} /> : null}
+        {card.walkthroughName ? <Row label={t("frame.walkthrough")} value={card.walkthroughName} /> : null}
         {card.walkthroughId ? (
           <div className="min-w-0">
-            <SectionLabel>Walkthrough</SectionLabel>
+            <SectionLabel>{t("frame.walkthrough")}</SectionLabel>
             <EntityReference id={card.walkthroughId} kind="walkthrough" wrap="nowrap" />
           </div>
         ) : null}
-        {card.timestamp ? <Row label="Timestamp" value={card.timestamp} /> : null}
-        {card.range ? <Row label="Range" value={card.range} /> : null}
-        {card.frameIndex ? <Row label="Frame" value={card.frameIndex} /> : null}
+        {card.timestamp ? <Row label={t("frame.timestamp")} value={card.timestamp} /> : null}
+        {card.range ? <Row label={t("frame.range")} value={card.range} /> : null}
+        {card.frameIndex ? <Row label={t("frame.frame")} value={card.frameIndex} /> : null}
       </dl>
       {card.image ? (
         <FramePreview card={card} image={card.image} />
       ) : card.status === "pending" ? (
-        <EmptyState>Waiting for a frame image.</EmptyState>
+        <EmptyState>{t("frame.waiting")}</EmptyState>
       ) : (
         <MissingFrameNotice />
       )}
-      {card.transcript ? <ProsePanel label="Transcript" text={card.transcript} /> : null}
-      {card.context ? <ProsePanel label="Context" text={card.context} /> : null}
+      {card.transcript ? <ProsePanel label={t("frame.transcript")} text={card.transcript} /> : null}
+      {card.context ? <ProsePanel label={t("frame.context")} text={card.context} /> : null}
       {card.links.length > 0 ? <ArtifactLinks links={card.links} /> : null}
     </CardShell>
   )
 }
 
 function FramePreview({ card, image }: { card: WalkthroughFrameCard; image: FrameImage }) {
+  const { t } = useT("video_walkthroughs")
   const actions: MediaPreviewAction[] = [
-    { label: "Open", href: image.src },
-    { label: "Download", href: image.src, download: true }
+    { label: t("frame.open"), href: image.src },
+    { label: t("frame.download"), href: image.src, download: true }
   ]
   const meta: MediaPreviewMeta[] = [
-    { label: "Walkthrough", value: card.walkthroughName || card.walkthroughId },
-    { label: "Timestamp", value: card.timestamp },
-    { label: "Range", value: card.range },
-    { label: "Frame", value: card.frameIndex },
-    { label: "Content type", value: image.mimeType }
+    { label: t("frame.walkthrough"), value: card.walkthroughName || card.walkthroughId },
+    { label: t("frame.timestamp"), value: card.timestamp },
+    { label: t("frame.range"), value: card.range },
+    { label: t("frame.frame"), value: card.frameIndex },
+    { label: t("frame.content_type"), value: image.mimeType }
   ]
 
   return (
@@ -190,7 +198,7 @@ function FramePreview({ card, image }: { card: WalkthroughFrameCard; image: Fram
         subtitle: [card.timestamp, card.range].filter(Boolean).join(" - "),
         src: image.src,
         alt: image.label,
-        badge: image.mimeType.split("/").pop()?.toUpperCase() ?? "IMAGE",
+        badge: image.mimeType.split("/").pop()?.toUpperCase() ?? t("frame.image"),
         actions,
         meta
       }}
@@ -201,7 +209,8 @@ function FramePreview({ card, image }: { card: WalkthroughFrameCard; image: Fram
 }
 
 function MissingFrameNotice() {
-  return <EmptyState>No frame image or thumbnail was returned.</EmptyState>
+  const { t } = useT("video_walkthroughs")
+  return <EmptyState>{t("frame.missing")}</EmptyState>
 }
 
 function ProsePanel({ label, text }: { label: string; text: string }) {
@@ -217,9 +226,10 @@ function ErrorNotice({ message }: { message: string }) {
 }
 
 function ArtifactLinks({ links }: { links: ArtifactLink[] }) {
+  const { t } = useT("video_walkthroughs")
   return (
     <div className="space-y-1">
-      <SectionLabel>Artifacts</SectionLabel>
+      <SectionLabel>{t("frame.artifacts")}</SectionLabel>
       <div className="flex flex-wrap gap-2">
         {links.map((link) => (
           <InternalLink href={link.href} key={`${link.label}-${link.href}`}>
@@ -240,7 +250,7 @@ function imageFromContent(value: unknown): FrameImage | null {
     return {
       src: dataUrl(data, mimeType),
       mimeType,
-      label: displayValue(block.title) || displayValue(block.label) || "Walkthrough frame"
+      label: displayValue(block.title) || displayValue(block.label) || i18n.t("video_walkthroughs:frame.title")
     }
   }
   return null
@@ -262,7 +272,7 @@ function imageFromPayload(payload: Record<string, unknown> | null): FrameImage |
     return {
       src,
       mimeType,
-      label: displayValue(candidate.title) || displayValue(candidate.label) || "Walkthrough frame"
+      label: displayValue(candidate.title) || displayValue(candidate.label) || i18n.t("video_walkthroughs:frame.title")
     }
   }
 
@@ -299,16 +309,16 @@ function artifactLinks(payload: Record<string, unknown> | null): ArtifactLink[] 
     links.push({ label, href })
   }
 
-  add("Frame", payload.frame_url)
-  add("Thumbnail", payload.thumbnail_url)
-  add("Artifact", payload.artifact_url)
+  add(i18n.t("video_walkthroughs:frame.frame"), payload.frame_url)
+  add(i18n.t("video_walkthroughs:frame.thumbnail"), payload.thumbnail_url)
+  add(i18n.t("video_walkthroughs:frame.artifact"), payload.artifact_url)
 
   const collections = [payload.links, payload.artifacts, payload.artifact_links]
   for (const collection of collections) {
     if (!Array.isArray(collection)) continue
     for (const item of collection) {
-      if (typeof item === "string") add("Artifact", item)
-      if (isPlainObject(item)) add(displayValue(item.label) || displayValue(item.name) || "Artifact", item.href || item.url)
+      if (typeof item === "string") add(i18n.t("video_walkthroughs:frame.artifact"), item)
+      if (isPlainObject(item)) add(displayValue(item.label) || displayValue(item.name) || i18n.t("video_walkthroughs:frame.artifact"), item.href || item.url)
     }
   }
 
@@ -317,7 +327,13 @@ function artifactLinks(payload: Record<string, unknown> | null): ArtifactLink[] 
 
 function diagnosticMessage(context: ToolCardContext, payload: Record<string, unknown> | null, textBlocks: string[]) {
   if (!context.resultError && !errorFlag(payload) && !missingFlag(payload)) return null
-  return displayValue(payload?.error) || displayValue(payload?.message) || textBlocks.join("\n") || context.resultBody.trim() || "Frame capture failed."
+  return (
+    displayValue(payload?.error) ||
+    displayValue(payload?.message) ||
+    textBlocks.join("\n") ||
+    context.resultBody.trim() ||
+    i18n.t("video_walkthroughs:frame.capture_failed")
+  )
 }
 
 function frameInstruction(textBlocks: string[]): FrameInstruction {
@@ -362,9 +378,13 @@ const readWalkthroughFrameToolCard: ToolCardRenderer = {
 export const examples: ToolCardExample[] = [
   {
     id: "normal_frame",
-    label: "Captured frame",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.captured_frame")
+    },
     input: { walkthrough_id: 42, timestamp: "01:12" },
-    description: "The real MCP image-plus-agent-instruction content envelope; the instruction is used only for frame metadata.",
+    get description() {
+      return i18n.t("video_walkthroughs:examples.frame_description")
+    },
     parsedResult: [
       { type: "image", data: EXAMPLE_FRAME_IMAGE, mimeType: "image/svg+xml" },
       {
@@ -376,7 +396,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "missing_frame",
-    label: "Missing frame image",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.missing_frame")
+    },
     input: { walkthrough_id: 42, timestamp: "05:00" },
     parsedResult: {
       walkthrough_id: 42,
@@ -388,7 +410,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "capture_error",
-    label: "Error payload",
+    get label() {
+      return i18n.t("video_walkthroughs:examples.error_payload")
+    },
     input: { walkthrough_id: 42, timestamp: "banana" },
     resultError: true,
     parsedResult: {

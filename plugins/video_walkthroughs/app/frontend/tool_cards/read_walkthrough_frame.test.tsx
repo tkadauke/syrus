@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolName } from "@app/routes/chat/toolRendering"
 import { setSlugReferenceRegistryForTests } from "@app/lib/slugReferenceRegistry"
+import i18n from "@app/i18n"
 import readWalkthroughFrameToolCard, { examples } from "./read_walkthrough_frame"
 
 const IMAGE_BLOCK = { type: "image", data: "ZmFrZS1qcGVn", mimeType: "image/jpeg" }
@@ -40,9 +41,36 @@ beforeEach(() => {
   ])
 })
 
-afterEach(() => setSlugReferenceRegistryForTests(null))
+afterEach(async () => {
+  setSlugReferenceRegistryForTests(null)
+  await i18n.changeLanguage("en")
+})
 
 describe("read_walkthrough_frame tool card", () => {
+  it("updates catalog example metadata after a live locale change", async () => {
+    expect(examples[0].label).toBe("Captured frame")
+    expect(examples[0].description).toMatch(/real MCP image/)
+
+    await i18n.changeLanguage("de")
+
+    expect(examples[0].label).toBe("Erfasster Frame")
+    expect(examples[0].description).toMatch(/echte MCP-Inhaltsumschlag/)
+    expect(examples[1].label).toBe("Fehlendes Frame-Bild")
+  })
+
+  it("localizes frame summaries, metadata, state, and empty copy", async () => {
+    await i18n.changeLanguage("de")
+    const cardContext = context({ parsedResult: {}, resultBody: "{}" })
+
+    expect(readWalkthroughFrameToolCard.collapsedSummary?.(cardContext)).toBe("Walkthrough 42 - 01:11 - Frame fehlt")
+    render(<>{readWalkthroughFrameToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Walkthrough-Frame")).toBeInTheDocument()
+    expect(screen.getByText("fehlt")).toBeInTheDocument()
+    expect(screen.getByText("Zeitstempel")).toBeInTheDocument()
+    expect(screen.getByText("Es wurde kein Frame-Bild oder Vorschaubild zurückgegeben.")).toBeInTheDocument()
+  })
+
   it.each([
     ["Claude", "mcp__video_walkthroughs__read_walkthrough_frame", [IMAGE_BLOCK, INSTRUCTION_BLOCK]],
     ["Codex", "syrus-chat-sidecar.read_walkthrough_frame", { content: [IMAGE_BLOCK, INSTRUCTION_BLOCK] }],

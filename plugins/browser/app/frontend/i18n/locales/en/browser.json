@@ -1,0 +1,51 @@
+{
+  "actions": {
+    "navigate": "Navigate",
+    "snapshot": "Snapshot",
+    "screenshot": "Screenshot",
+    "resize": "Resize",
+    "wait": "Wait",
+    "close": "Close browser",
+    "click": "Click",
+    "fill": "Fill",
+    "evaluate": "Evaluate",
+    "hover": "Hover",
+    "drag": "Drag",
+    "drop": "Drop",
+    "file_upload": "File upload"
+  },
+  "targets": { "target": "Target", "viewport": "Viewport", "condition": "Condition", "path": "Path", "files": "Files", "page": "page" },
+  "status": { "success": "success", "error": "error", "failed": "failed" },
+  "rows": { "title": "Title", "current_url": "Current URL", "viewport": "Viewport", "snapshot": "Snapshot", "text": "Text" },
+  "disclosures": { "browser_details": "Browser details" },
+  "preview": {
+    "too_large": "Image payload is too large to preview inline.",
+    "open": "Open",
+    "copy_link": "Copy link",
+    "label": "Label",
+    "type": "Type",
+    "size": "Size",
+    "source": "Source",
+    "fallback": "Captured screenshots are available from the Media tab when the browser returns a stored media link.",
+    "default_title": "Browser screenshot"
+  },
+  "result": {
+    "label": "Result",
+    "full_result": "Full result",
+    "array_count_one": "Array({{count}})",
+    "array_count_other": "Array({{count}})",
+    "object_key_count_one": "Object({{count}} key)",
+    "object_key_count_other": "Object({{count}} keys)"
+  },
+  "wait": { "for_text": "for \"{{text}}\"", "until_disappears": "until \"{{text}}\" disappears", "for_seconds": "for {{time}}s" },
+  "upload": { "cancel_chooser": "cancel chooser", "file_count_one": "{{count}} file", "file_count_other": "{{count}} files" },
+  "snapshot": {
+    "node_count_one": "{{count}} node",
+    "node_count_other": "{{count}} nodes",
+    "element_count_one": "{{count}} element",
+    "element_count_other": "{{count}} elements",
+    "accessibility_tree": "accessibility tree"
+  },
+  "errors": { "tool_failed": "Browser tool failed." },
+  "input": { "character_count_one": "{{count}} character", "character_count_other": "{{count}} characters" }
+}

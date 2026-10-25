@@ -42,13 +42,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
     [
       %r{app/frontend/routes/chat/},
       %r{app/frontend/routes/jobDetail/WorkflowGraph\.tsx$},
-      %r{desktop/src/App\.tsx$},
-      %r{plugins/admin_mysql/app/frontend/adminMysqlToolCard\.tsx$},
-      %r{plugins/agent_insights/app/frontend/agentInsightToolCard\.tsx$},
-      %r{plugins/browser/app/frontend/browserToolCard\.tsx$},
-      %r{plugins/github_source/app/frontend/routes/AdminGithubApiUsage\.tsx$},
-      %r{plugins/theming_tools/app/frontend/themeToolCard\.tsx$},
-      %r{plugins/video_walkthroughs/app/frontend/(?:tool_cards/.*|videoWalkthroughAnalysisToolCard)\.tsx$}
+      %r{desktop/src/App\.tsx$}
     ]
   end
 
@@ -87,6 +81,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       plugins/k8s_cluster/app/frontend/components/tabs/EventsTab.tsx|jsx_text|( )
       plugins/mockups/app/frontend/routes/MockupPreviewPanel.tsx|jsx_text|postJson
       plugins/mysql_db_browser/app/frontend/mysqlToolCard.tsx|jsx_text|T | null): MysqlSection
+      plugins/admin_mysql/app/frontend/adminMysqlToolCard.tsx|jsx_text|T | null): SectionSummary
       plugins/scheduled_tasks/app/frontend/routes/CronTemplates.tsx|jsx_text|0) return
       plugins/scheduled_tasks/app/frontend/routes/ScheduledTasks.tsx|jsx_text|0) return
       plugins/team_directory/app/frontend/routes/TeamDirectory.tsx|jsx_text|· ·

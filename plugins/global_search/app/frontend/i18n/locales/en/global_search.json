@@ -1,0 +1,44 @@
+{
+  "aria": {
+    "loading_results": "Loading search results",
+    "page": "Search",
+    "type_filters": "Search type filters"
+  },
+  "description": "Search Jobs, Epics, chats, and tests.",
+  "error": "Unable to load search results.",
+  "filter_types": {
+    "chats": "Chats",
+    "epics": "Epics",
+    "jobs": "Jobs",
+    "tests": "Tests"
+  },
+  "filters": {
+    "all": "All"
+  },
+  "heading": "Search",
+  "hide_more_matches_one": "Hide {{count}} more match",
+  "hide_more_matches_other": "Hide {{count}} more matches",
+  "metadata": {
+    "owner": "Owner {{owner}}",
+    "updated": "Updated"
+  },
+  "min_chars": "Enter at least 2 characters to search.",
+  "more_matches_in_chat_one": "{{count}} more match in this chat",
+  "more_matches_in_chat_other": "{{count}} more matches in this chat",
+  "no_results": "No results match this search.",
+  "result_types": {
+    "chat": "Chat",
+    "design_doc": "Design Doc",
+    "epic": "Epic",
+    "job": "Job",
+    "result": "Result",
+    "test_case": "Test"
+  },
+  "results_for": "Results for \"{{query}}\"",
+  "show_more_matches_one": "Show {{count}} more match",
+  "show_more_matches_other": "Show {{count}} more matches",
+  "top_matches_shown_one": "Only the top {{count}} additional match is shown.",
+  "top_matches_shown_other": "Only the top {{count}} additional matches are shown.",
+  "untitled": "Untitled",
+  "use_sidebar": "Use the sidebar search field to search across Syrus."
+}

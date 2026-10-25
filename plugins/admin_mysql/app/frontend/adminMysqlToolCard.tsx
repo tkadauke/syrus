@@ -1,17 +1,7 @@
 import type { ReactNode } from "react"
+import { useT } from "@app/hooks/useT"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
-import {
-  Badge,
-  CardShell,
-  Disclosure,
-  displayValue,
-  EmptyState,
-  numberValue,
-  Row,
-  SectionLabel,
-  StatePill,
-  truncateLines
-} from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill, truncateLines } from "@app/routes/chat/toolCardUi"
 
 type HealthState = "healthy" | "degraded" | "unavailable" | "error"
 type MysqlError = { className: string | null; message: string | null; hint: string | null }
@@ -54,9 +44,7 @@ type SlowLogRow = {
   sqlText: string | null
 }
 
-type SectionSummary<T> =
-  | { available: true; rows: T[]; error: null }
-  | { available: false; rows: T[]; error: MysqlError | null }
+type SectionSummary<T> = { available: true; rows: T[]; error: null } | { available: false; rows: T[]; error: MysqlError | null }
 
 type StatusPayload = {
   available: boolean
@@ -86,9 +74,10 @@ function parseMysqlError(value: unknown): MysqlError | null {
 }
 
 function MysqlErrorNotice({ error }: { error: MysqlError }) {
+  const { t } = useT("admin_mysql")
   return (
     <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-      <div className="font-mono">{error.message ?? error.className ?? "Unknown error"}</div>
+      <div className="font-mono">{error.message ?? error.className ?? t("tool_unknown_mysql_error")}</div>
       {error.hint ? <div className="mt-1 text-red-600 dark:text-red-400">{error.hint}</div> : null}
     </div>
   )
@@ -99,7 +88,8 @@ function TableShell({ children }: { children: ReactNode }) {
 }
 
 function TruncatedNotice({ label }: { label: string }) {
-  return <div className="text-2xs text-gray-500 dark:text-gray-400">{label} truncated -- use raw details for the complete payload.</div>
+  const { t } = useT("admin_mysql")
+  return <div className="text-2xs text-gray-500 dark:text-gray-400">{t("tool_truncated_notice", { label })}</div>
 }
 
 function seconds(value: number | null): string {
@@ -189,14 +179,14 @@ function parseSlowLogRow(value: unknown): SlowLogRow | null {
 
 function parseSection<T>(value: unknown, parseRow: (row: unknown) => T | null): SectionSummary<T> {
   if (!isPlainObject(value)) return { available: false, rows: [], error: null }
-  const rows = Array.isArray(value.rows) ? value.rows.flatMap((row) => {
-    const parsed = parseRow(row)
-    return parsed ? [parsed] : []
-  }) : []
+  const rows = Array.isArray(value.rows)
+    ? value.rows.flatMap((row) => {
+        const parsed = parseRow(row)
+        return parsed ? [parsed] : []
+      })
+    : []
 
-  return value.available === true
-    ? { available: true, rows, error: null }
-    : { available: false, rows, error: parseMysqlError(value.error) }
+  return value.available === true ? { available: true, rows, error: null } : { available: false, rows, error: parseMysqlError(value.error) }
 }
 
 function slowLogDeferred(section: SectionSummary<SlowLogRow>) {
@@ -225,10 +215,12 @@ export function parseStatusPayload(context: ToolCardContext): StatusPayload | nu
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || typeof parsed.available !== "boolean") return null
 
-  const processes = Array.isArray(parsed.process_list) ? parsed.process_list.flatMap((row) => {
-    const process = parseProcess(row)
-    return process ? [process] : []
-  }) : []
+  const processes = Array.isArray(parsed.process_list)
+    ? parsed.process_list.flatMap((row) => {
+        const process = parseProcess(row)
+        return process ? [process] : []
+      })
+    : []
   const status = isPlainObject(parsed.status) ? parsed.status : {}
   const payload = {
     available: parsed.available,
@@ -267,11 +259,12 @@ export function statusSummary(context: ToolCardContext): string | null {
 }
 
 function StatusErrorBody({ context }: { context: ToolCardContext }) {
+  const { t } = useT("admin_mysql")
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state="error" tone="failure" />
-        <span className="font-medium text-gray-900 dark:text-gray-100">MySQL status failed</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{t("tool_status_failed")}</span>
       </div>
       <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{context.resultBody}</div>
     </CardShell>
@@ -279,13 +272,14 @@ function StatusErrorBody({ context }: { context: ToolCardContext }) {
 }
 
 function QueryPreview({ text }: { text: string }) {
+  const { t } = useT("admin_mysql")
   const { preview, truncated } = shortText(text)
   const lines = truncateLines(text, 6)
   return (
     <div>
       <div className="whitespace-pre-wrap break-words font-mono">{preview}</div>
       {truncated || lines.truncated ? (
-        <Disclosure label={`Show full payload (${lines.totalLines} line${lines.totalLines === 1 ? "" : "s"})`}>
+        <Disclosure label={t("tool_show_full_payload", { count: lines.totalLines })}>
           <div className="whitespace-pre-wrap break-words font-mono">{text}</div>
         </Disclosure>
       ) : null}
@@ -294,18 +288,29 @@ function QueryPreview({ text }: { text: string }) {
 }
 
 function ProcessTable({ rows }: { rows: ProcessRow[] }) {
-  if (rows.length === 0) return <EmptyState>No active MySQL process rows returned.</EmptyState>
+  const { t } = useT("admin_mysql")
+  if (rows.length === 0) return <EmptyState>{t("tool_no_active_processes")}</EmptyState>
 
   return (
     <TableShell>
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Thread</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Command</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Time</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Query</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_thread")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("col_command")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("col_time")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("col_state")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_query")}
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -320,9 +325,7 @@ function ProcessTable({ rows }: { rows: ProcessRow[] }) {
                   <span>{row.state ?? "-"}</span>
                 </div>
               </td>
-              <td className="max-w-[22rem] px-2 py-1 text-gray-700 dark:text-gray-300">
-                {row.info ? <QueryPreview text={row.info} /> : "-"}
-              </td>
+              <td className="max-w-[22rem] px-2 py-1 text-gray-700 dark:text-gray-300">{row.info ? <QueryPreview text={row.info} /> : "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -332,30 +335,36 @@ function ProcessTable({ rows }: { rows: ProcessRow[] }) {
 }
 
 function DigestSummary({ section }: { section: SectionSummary<StatementDigestRow> }) {
+  const { t } = useT("admin_mysql")
   if (!section.available) {
-    return section.error ? <MysqlErrorNotice error={section.error} /> : <div className="text-gray-500 dark:text-gray-400">Statement digests unavailable.</div>
+    return section.error ? (
+      <MysqlErrorNotice error={section.error} />
+    ) : (
+      <div className="text-gray-500 dark:text-gray-400">{t("tool_statement_digests_unavailable")}</div>
+    )
   }
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">No statement digest rows returned.</div>
+  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_statement_digests")}</div>
 
   return (
     <div className="space-y-1">
       {section.rows.slice(0, 3).map((row, index) => (
         <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={`${row.text}-${index}`}>
           <div className="mb-1 flex flex-wrap gap-2 text-2xs text-gray-500 dark:text-gray-400">
-            <Badge>{row.count ?? 0} runs</Badge>
-            <Badge>{decimal(row.totalSeconds)} total</Badge>
-            <Badge>{decimal(row.maxSeconds)} max</Badge>
-            {row.rowsExamined != null ? <Badge>{row.rowsExamined} rows examined</Badge> : null}
+            <Badge>{t("tool_run_count", { count: row.count ?? 0 })}</Badge>
+            <Badge>{t("tool_total_value", { value: decimal(row.totalSeconds) })}</Badge>
+            <Badge>{t("tool_max_value", { value: decimal(row.maxSeconds) })}</Badge>
+            {row.rowsExamined != null ? <Badge>{t("tool_rows_examined", { count: row.rowsExamined })}</Badge> : null}
           </div>
           <QueryPreview text={row.text} />
         </div>
       ))}
-      {section.rows.length > 3 ? <TruncatedNotice label="Statement digest preview" /> : null}
+      {section.rows.length > 3 ? <TruncatedNotice label={t("tool_statement_digest_preview")} /> : null}
     </div>
   )
 }
 
 function SlowLogSummary({ section }: { section: SectionSummary<SlowLogRow> }) {
+  const { t } = useT("admin_mysql")
   if (!section.available) {
     if (slowLogDeferred(section)) {
       return (
@@ -365,34 +374,39 @@ function SlowLogSummary({ section }: { section: SectionSummary<SlowLogRow> }) {
         </div>
       )
     }
-    return section.error ? <MysqlErrorNotice error={section.error} /> : <div className="text-gray-500 dark:text-gray-400">Slow-log rows unavailable.</div>
+    return section.error ? <MysqlErrorNotice error={section.error} /> : <div className="text-gray-500 dark:text-gray-400">{t("tool_slow_log_unavailable")}</div>
   }
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">No slow-log rows returned.</div>
+  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_slow_log_rows")}</div>
 
   return (
     <div className="space-y-1">
       {section.rows.slice(0, 3).map((row, index) => (
         <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={`${row.startTime ?? "slow"}-${index}`}>
           <div className="mb-1 flex flex-wrap gap-2 text-2xs text-gray-500 dark:text-gray-400">
-            {row.queryTime ? <Badge>{row.queryTime} query</Badge> : null}
-            {row.lockTime ? <Badge>{row.lockTime} lock</Badge> : null}
-            {row.rowsExamined != null ? <Badge>{row.rowsExamined} rows examined</Badge> : null}
+            {row.queryTime ? <Badge>{t("tool_query_time_value", { value: row.queryTime })}</Badge> : null}
+            {row.lockTime ? <Badge>{t("tool_lock_time_value", { value: row.lockTime })}</Badge> : null}
+            {row.rowsExamined != null ? <Badge>{t("tool_rows_examined", { count: row.rowsExamined })}</Badge> : null}
             {row.startTime ? <Badge>{row.startTime}</Badge> : null}
           </div>
-          {row.sqlText ? <QueryPreview text={row.sqlText} /> : <div className="text-gray-500 dark:text-gray-400">No SQL text.</div>}
+          {row.sqlText ? <QueryPreview text={row.sqlText} /> : <div className="text-gray-500 dark:text-gray-400">{t("tool_no_sql_text")}</div>}
         </div>
       ))}
-      {section.rows.length > 3 ? <TruncatedNotice label="Slow-log preview" /> : null}
+      {section.rows.length > 3 ? <TruncatedNotice label={t("tool_slow_log_preview")} /> : null}
     </div>
   )
 }
 
 function VariableBadge({ label, value }: { label: string; value: unknown }) {
   const text = displayValue(value)
-  return text ? <Badge>{label}: {text}</Badge> : null
+  return text ? (
+    <Badge>
+      {label}: {text}
+    </Badge>
+  ) : null
 }
 
 export function StatusCard({ context }: { context: ToolCardContext }) {
+  const { t } = useT("admin_mysql")
   if (context.resultError && !isPlainObject(context.parsedResult)) return <StatusErrorBody context={context} />
 
   const payload = parseStatusPayload(context)
@@ -403,31 +417,31 @@ export function StatusCard({ context }: { context: ToolCardContext }) {
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={payload.health} tone={healthTone(payload.health)} />
         {payload.generatedAt ? <Badge>{payload.generatedAt}</Badge> : null}
-        <VariableBadge label="slow query log" value={payload.variables.slow_query_log} />
-        <VariableBadge label="long query time" value={payload.variables.long_query_time} />
+        <VariableBadge label={t("tool_slow_query_log")} value={payload.variables.slow_query_log} />
+        <VariableBadge label={t("tool_long_query_time")} value={payload.variables.long_query_time} />
       </div>
       {payload.error ? <MysqlErrorNotice error={payload.error} /> : null}
       <dl className="grid gap-1 sm:grid-cols-3">
-        <Row label="Active queries" value={String(payload.connection.activeQueries)} />
-        <Row label="Threads connected" value={payload.connection.threadsConnected?.toString() ?? "-"} />
-        <Row label="Threads running" value={payload.connection.threadsRunning?.toString() ?? "-"} />
-        <Row label="Sleeping" value={payload.connection.sleepingConnections?.toString() ?? "-"} />
-        <Row label="Max used connections" value={payload.connection.maxUsedConnections?.toString() ?? "-"} />
-        <Row label="Max connections" value={payload.connection.maxConnections?.toString() ?? "-"} />
-        <Row label="Wait timeout" value={seconds(payload.connection.waitTimeout)} />
-        <Row label="Interactive timeout" value={seconds(payload.connection.interactiveTimeout)} />
-        <Row label="Slow queries" value={displayValue(payload.status.Slow_queries) ?? "-"} />
+        <Row label={t("tool_active_queries")} value={String(payload.connection.activeQueries)} />
+        <Row label={t("tool_threads_connected")} value={payload.connection.threadsConnected?.toString() ?? "-"} />
+        <Row label={t("metric_threads_running")} value={payload.connection.threadsRunning?.toString() ?? "-"} />
+        <Row label={t("tool_sleeping")} value={payload.connection.sleepingConnections?.toString() ?? "-"} />
+        <Row label={t("tool_max_used_connections")} value={payload.connection.maxUsedConnections?.toString() ?? "-"} />
+        <Row label={t("tool_max_connections")} value={payload.connection.maxConnections?.toString() ?? "-"} />
+        <Row label={t("tool_wait_timeout")} value={seconds(payload.connection.waitTimeout)} />
+        <Row label={t("tool_interactive_timeout")} value={seconds(payload.connection.interactiveTimeout)} />
+        <Row label={t("tool_slow_queries")} value={displayValue(payload.status.Slow_queries) ?? "-"} />
       </dl>
       <div>
-        <SectionLabel>Process list</SectionLabel>
+        <SectionLabel>{t("process_list")}</SectionLabel>
         <ProcessTable rows={payload.processes.slice(0, 8)} />
       </div>
       <div>
-        <SectionLabel>Slow queries and log</SectionLabel>
+        <SectionLabel>{t("tool_slow_queries_and_log")}</SectionLabel>
         <SlowLogSummary section={payload.slowLog} />
       </div>
       <div>
-        <SectionLabel>Statement digests</SectionLabel>
+        <SectionLabel>{t("statement_digests")}</SectionLabel>
         <DigestSummary section={payload.statementDigests} />
       </div>
     </CardShell>
