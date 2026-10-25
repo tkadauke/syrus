@@ -59,6 +59,8 @@ func NewSearchCommand() *cobra.Command {
 
 var validSearchTypes = map[string]bool{"repository": true, "job": true, "epic": true, "chat": true}
 
+const validSearchTypesGuidance = "repository, job, epic, chat"
+
 func parseTypes(flag string) ([]string, error) {
 	trimmed := strings.TrimSpace(flag)
 	if trimmed == "" {
@@ -71,7 +73,7 @@ func parseTypes(flag string) ([]string, error) {
 			continue
 		}
 		if !validSearchTypes[t] {
-			return nil, fmt.Errorf("unknown --type %q; must be one of job, epic, chat", t)
+			return nil, fmt.Errorf("unknown --type %q; must be one of %s", t, validSearchTypesGuidance)
 		}
 		types = append(types, t)
 	}

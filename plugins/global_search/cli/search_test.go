@@ -93,8 +93,9 @@ func TestSearchRejectsUnknownType(t *testing.T) {
 	command.SetArgs([]string{"deploy", "--type", "bogus"})
 
 	err := command.Execute()
-	if err == nil || !strings.Contains(err.Error(), "unknown --type") {
-		t.Fatalf("expected unknown --type error, got %v", err)
+	want := `unknown --type "bogus"; must be one of repository, job, epic, chat`
+	if err == nil || err.Error() != want {
+		t.Fatalf("error = %v; want %q", err, want)
 	}
 }
 
