@@ -25,7 +25,7 @@ module MaintenanceTasks
       end
 
       def pending?
-        search_database_needs_prepare? || missing_chat_messages_count.positive? || jobs_need_rebuild? || epics_need_rebuild? || operational_logs_need_rebuild?
+        search_database_needs_prepare? || !chat_content_version_current? || missing_chat_messages_count.positive? || jobs_need_rebuild? || epics_need_rebuild? || operational_logs_need_rebuild?
       end
 
       def pending_reason
@@ -35,6 +35,14 @@ module MaintenanceTasks
       def perform_batch(task)
         unless task.checkpoint["schema_prepared"]
           return prepare_schema(task)
+        end
+
+        unless chat_content_version_current? || task.checkpoint["chat_content_version_prepared"]
+          prepare_chat_content_version!
+          task.checkpoint_will_change!
+          task.checkpoint["chat_content_version_prepared"] = true
+          task.checkpoint["last_chat_message_id"] = 0
+          task.checkpoint.delete("chats_done")
         end
 
         if missing_chat_messages_count.positive?
@@ -84,6 +92,7 @@ module MaintenanceTasks
         end
         task.checkpoint_will_change!
         task.checkpoint["chats_done"] = true if processed.zero? || task.checkpoint["last_chat_message_id"].to_i >= ChatMessage.maximum(:id).to_i
+        ChatMessageSearchIndex.finish_content_version! if task.checkpoint["chats_done"]
 
         Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} chat message(s).", level: "progress")
       end
@@ -130,6 +139,16 @@ module MaintenanceTasks
         SyrusSearchDatabaseTasks.required_table_sql.keys.any? { |table| !SyrusSearchDatabaseTasks.table_exists?(table) }
       rescue StandardError
         true
+      end
+
+      def chat_content_version_current?
+        ChatMessageSearchIndex.content_version_current?
+      rescue StandardError
+        false
+      end
+
+      def prepare_chat_content_version!
+        ChatMessageSearchIndex.prepare_content_version!
       end
 
       def missing_chat_messages_count

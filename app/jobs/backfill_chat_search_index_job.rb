@@ -7,6 +7,10 @@ class BackfillChatSearchIndexJob < ApplicationJob
   queue_as :indexing
 
   def perform
+    if with_sqlite_busy_retries { ChatMessageSearchIndex.prepare_content_version! }
+      with_sqlite_busy_retries { update_last_backfilled_id(0) }
+    end
+
     loop do
       message_ids = next_batch_ids
       break if message_ids.empty?
@@ -22,6 +26,8 @@ class BackfillChatSearchIndexJob < ApplicationJob
 
       with_sqlite_busy_retries { update_last_backfilled_id(message_ids.last) }
     end
+
+    with_sqlite_busy_retries { ChatMessageSearchIndex.finish_content_version! }
   end
 
   private

@@ -34,6 +34,25 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.first[:snippet]).to include("<mark>deploy</mark>")
   end
 
+  it "indexes only readable text from canonical assistant content" do
+    message = ChatMessage.create!(
+      chat_session: session,
+      role: "assistant",
+      content: [
+        { "type" => "thinking", "thinking" => "secret deployment reasoning" },
+        { "type" => "text", "text" => "First deployment line.\n" },
+        { "type" => "tool_use", "name" => "inspect_repo", "input" => {} },
+        { "type" => "text", "text" => "Second readable line." }
+      ]
+    )
+
+    described_class.insert(message)
+
+    snippet = described_class.search("deployment", chat_session_ids: [ session.id ]).sole.fetch(:snippet)
+    expect(snippet).to include("First <mark>deployment</mark> line.\nSecond readable line.")
+    expect(snippet).not_to include("[{", '"type"', "thinking", "secret", "\\n")
+  end
+
   it "skips inserting when the message's chat session no longer exists" do
     message = ChatMessage.create!(
       chat_session: session,

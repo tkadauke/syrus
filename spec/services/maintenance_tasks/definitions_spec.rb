@@ -530,6 +530,10 @@ RSpec.describe "maintenance task definitions" do
   describe MaintenanceTasks::Definitions::SearchDatabaseRebuild do
     let(:definition) { described_class.new }
 
+    before do
+      allow(definition).to receive(:chat_content_version_current?).and_return(true)
+    end
+
     it "prepares the search schema first" do
       task = maintenance_task_for(definition)
 
@@ -564,6 +568,23 @@ RSpec.describe "maintenance task definitions" do
 
       expect(result.processed).to eq(2)
       expect(provider.received_task).to eq(task)
+    end
+
+    it "prepares stale chat content for a targeted reindex" do
+      task = maintenance_task_for(definition)
+      task.checkpoint.merge!("schema_prepared" => true, "last_chat_message_id" => 99, "chats_done" => true)
+      allow(definition).to receive(:chat_content_version_current?).and_return(false)
+      allow(definition).to receive(:prepare_chat_content_version!).and_return(true)
+      allow(definition).to receive(:missing_chat_messages_count).and_return(0)
+      allow(definition).to receive(:jobs_need_rebuild?).and_return(false)
+      allow(definition).to receive(:epics_need_rebuild?).and_return(false)
+      allow(definition).to receive(:operational_logs_need_rebuild?).and_return(false)
+
+      definition.perform_batch(task)
+
+      expect(definition).to have_received(:prepare_chat_content_version!)
+      expect(task.checkpoint).to include("chat_content_version_prepared" => true, "last_chat_message_id" => 0)
+      expect(task.checkpoint).not_to have_key("chats_done")
     end
   end
 
