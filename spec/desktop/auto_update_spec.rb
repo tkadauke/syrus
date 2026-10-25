@@ -73,9 +73,9 @@ RSpec.describe "desktop auto-update and release pipeline" do
   end
 
   it "offers the restart from both the app menu and the tray, plus a manual check" do
-    expect(main_process).to include("Restart to update Syrus")
+    expect(main_process).to include('label: t("updates.restart", { version })')
     expect(main_process).to match(/trayContextMenu[\s\S]{0,80}updateMenuItems\(\)/)
-    expect(main_process).to include('"Check for Updates…"')
+    expect(main_process).to include('label: t("shell.check_updates")')
     expect(main_process).to include("appUpdates.initAutoUpdates")
   end
 
@@ -96,7 +96,7 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(main_process).to include("offerBackendUpdateIfPinned")
     expect(main_process).to match(/ensureRunning\(\)\.then\(\(\) => offerBackendUpdateIfPinned\(\)\)/)
     expect(main_process).to include("readBackendManifest")
-    expect(main_process).to include('"Update Backend"')
+    expect(main_process).to include('buttons: [t("dialog.update_backend_button"), t("dialog.not_now")]')
 
     # The update re-runs the bundled installer against the state dir — the
     # same audited pull/up/health path a fresh install takes.
