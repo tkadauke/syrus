@@ -5,6 +5,7 @@ RSpec.describe AlertmanagerInvestigations::Engine do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "alertmanager_investigations" }
 
     expect(manifest).to be_present
+    expect(manifest).to be_experimental
     expect(manifest.default_enabled?).to eq(false)
     expect(manifest.tick_interval).to eq(1.minute)
     expect(Array(manifest.provides[:callbacks])).to include(AlertmanagerInvestigations::Callbacks)
