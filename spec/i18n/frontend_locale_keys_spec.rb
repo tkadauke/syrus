@@ -2,6 +2,24 @@ require "rails_helper"
 require "json"
 
 RSpec.describe "Frontend locale keys", type: :unit do
+  REVIEWED_SETTINGS_SCOPES = %w[connected_platforms input_sources linear_source].freeze
+  INTENTIONAL_SETTINGS_ENGLISH_MATCHES = {
+    "de" => {
+      "connected_platforms.platforms.telegram" => "product name",
+      "connected_platforms.platforms.slack" => "product name",
+      "linear_source.section_heading" => "product name",
+      "linear_source.api_key_placeholder" => "literal credential prefix",
+      "linear_source.team_label" => "shared German UI term",
+      "linear_source.label_filter_placeholder" => "shared German UI term"
+    },
+    "la" => {
+      "connected_platforms.platforms.telegram" => "product name",
+      "connected_platforms.platforms.slack" => "product name",
+      "linear_source.section_heading" => "product name",
+      "linear_source.api_key_placeholder" => "literal credential prefix"
+    }
+  }.freeze
+
   REFERENCED_CORE_KEYS = {
     "admin" => %w[
       page_title_work_units
@@ -212,6 +230,54 @@ RSpec.describe "Frontend locale keys", type: :unit do
       expect(interpolation_names(dig_key(admin, "console.restart_confirm_with_runs_one"))).to be_empty
       expect(interpolation_names(dig_key(admin, "console.restart_confirm_with_runs_other"))).to eq([ "count" ])
     end
+  end
+
+  it "translates the reviewed settings scopes except for documented intentional matches" do
+    settings = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).transform_values { |locales| locales.fetch("settings") }
+    english = settings.fetch("en")
+
+    INTENTIONAL_SETTINGS_ENGLISH_MATCHES.each do |locale, documented_matches|
+      actual_matches = REVIEWED_SETTINGS_SCOPES.flat_map do |scope|
+        english_leaves = flatten_json(english.fetch(scope), [ scope ])
+        localized_leaves = flatten_json(settings.fetch(locale).fetch(scope), [ scope ])
+        english_leaves.filter_map { |key, value| key if localized_leaves.fetch(key) == value }
+      end
+
+      expect(actual_matches.sort).to eq(documented_matches.keys.sort)
+      expect(documented_matches.values).to all(be_present)
+    end
+  end
+
+  it "preserves placeholders, plural pairs, and approved terminology in the reviewed settings copy" do
+    settings = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).transform_values { |locales| locales.fetch("settings") }
+    english = settings.fetch("en")
+
+    %w[de la].each do |locale|
+      REVIEWED_SETTINGS_SCOPES.each do |scope|
+        english_leaves = flatten_json(english.fetch(scope), [ scope ])
+        localized_leaves = flatten_json(settings.fetch(locale).fetch(scope), [ scope ])
+
+        english_leaves.each do |key, value|
+          expect(interpolation_names(localized_leaves.fetch(key))).to eq(interpolation_names(value)), "#{locale}.settings.#{key} changed placeholders"
+        end
+      end
+    end
+
+    german = settings.fetch("de")
+    german_copy = REVIEWED_SETTINGS_SCOPES.flat_map { |scope| flatten_json(german.fetch(scope)).values }.join("\n")
+    expect(german_copy).not_to match(/\b(?:Sie|Ihnen|Ihr\p{L}*)\b/)
+    expect(dig_key(german, "linear_source.section_description")).to include("Syrus-Jobs")
+    expect(dig_key(german, "input_sources.issues_ingested_one")).to eq("{{count}} Issue aufgenommen")
+    expect(dig_key(german, "input_sources.issues_ingested_other")).to eq("{{count}} Issues aufgenommen")
+
+    latin = settings.fetch("la")
+    expect(dig_key(latin, "input_sources.section_description")).to include("Repository")
+    expect(dig_key(latin, "input_sources.polling_enabled_label")).to include("Polling")
+    expect(dig_key(latin, "input_sources.issues_ingested_one")).to include("Issue")
+    expect(dig_key(latin, "input_sources.issues_ingested_other")).to include("Issues")
+    expect(dig_key(latin, "linear_source.section_description")).to eq(
+      "Sonat gregem Linearem ad quaestiones apertas et officia Syri ex eis creat."
+    )
   end
 
   it "detects either missing half of a plural pair" do
