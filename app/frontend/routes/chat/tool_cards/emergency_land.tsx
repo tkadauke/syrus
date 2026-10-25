@@ -5,7 +5,7 @@ function DestructiveWarning() {
   return (
     <div className="rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface px-3 py-2 text-danger-text" role="alert">
       <div className="text-xs font-bold uppercase tracking-wide">Destructive emergency action</div>
-      <div className="mt-1 font-medium">This lands the change immediately and skips graders, adversarial review, and visual review.</div>
+      <div className="mt-1 font-medium">Confirming this action will land the change and skip graders, adversarial review, and visual review.</div>
     </div>
   )
 }
@@ -18,10 +18,11 @@ function collapsedSummary(context: ToolCardContext) {
 function renderExpanded(context: ToolCardContext) {
   const result = parsePendingActionResult(context, true)
   if (!result) return null
+  const warning = result.kind === "standard" && result.state === "pending" ? <DestructiveWarning /> : undefined
 
   return (
     <PendingActionResultCard
-      details={<DestructiveWarning />}
+      details={warning}
       input={context.input}
       inputFields={[
         { key: "job_id", label: "Job", format: "entity", entityKind: "job" },
