@@ -221,6 +221,59 @@ RSpec.describe "Frontend locale keys", type: :unit do
   }.freeze
   ADMIN_ENGLISH_MATCH_BASELINE = { "de" => 127, "la" => 75 }.freeze
 
+  INTENTIONAL_JOB_EPIC_ENGLISH_MATCHES = {
+    "de" => {
+      "approved German domain term" => %w[
+        jobs.title jobs.chat jobs.tab_workflows jobs.conversation_select_workflow jobs.timeline_select_workflow
+        jobs.timeline_workflow_summary jobs.detail_epic jobs.review_version_workflow jobs.subject_epics
+        jobs.subject_jobs jobs.subject_workflows jobs.column_epic jobs.column_repository jobs.column_agent
+        jobs.column_job jobs.column_workflow
+        jobs.form_repository_label jobs.form_agent_label jobs.transcript_kind_agent jobs.aria_job
+        jobs.skill_job_agent_label epics.title epics.detail_label epics.tab_jobs_one epics.tab_jobs_other
+        epics.jobs_section epics.deployment_stage_partial epics.repository epics.jobs_count_one
+        epics.jobs_count_other epics.form_repository
+      ],
+      "product or established UI term" => %w[
+        jobs.start_discussion_chat_prompt_label jobs.retry_provider_label jobs.tab_review
+        jobs.artifact_image_alt jobs.artifact_provenance_viewport jobs.detail_provider jobs.detail_branch
+        jobs.approval_status jobs.workflow_divergence_branch jobs.grader_status_label jobs.run_diff
+        jobs.prepare_failure_status_label jobs.source_diff jobs.review_version_label jobs.attachment_google_doc
+        jobs.coverage_project_col_status jobs.transcript_kind_system jobs.skill_job_section_pick
+        jobs.delivery.status_label
+      ],
+      "token, abbreviation, placeholder, or interpolated identifier" => %w[
+        jobs.navigation_jump_option jobs.conversation_iteration jobs.classification_duration
+        jobs.artifact_erd_primary_key jobs.pr_checks_head_sha jobs.prepare_failure_soft_syrus_yml
+        jobs.prepare_failure_soft_prepare jobs.review_version_prefix jobs.review_version_separator
+        jobs.attachment_google_doc_placeholder jobs.pr_syrus
+      ],
+      "shared German word" => %w[jobs.readiness_optional]
+    },
+    "la" => {
+      "Latin domain term pending competent review" => %w[
+        jobs.review_version_workflow jobs.review_version_run
+      ],
+      "valid Latin or established UI term" => %w[
+        jobs.detail_provider jobs.provider_setting_default jobs.approval_status jobs.grader_status_label
+        jobs.prepare_failure_status_label jobs.review_settings_off jobs.review_metric_gutter_off
+        jobs.review_resolve_comment jobs.coverage_project_col_status jobs.delivery.status_label
+      ],
+      "token, abbreviation, placeholder, or interpolated identifier" => %w[
+        jobs.navigation_jump_option jobs.classification_duration jobs.artifact_erd_primary_key
+        jobs.artifact_provenance_viewport jobs.prepare_failure_soft_syrus_yml
+        jobs.prepare_failure_soft_prepare jobs.review_version_prefix jobs.review_version_separator
+        jobs.attachment_google_doc_placeholder jobs.pr_syrus
+      ]
+    }
+  }.freeze
+  JOB_EPIC_ENGLISH_MATCH_BASELINE = {
+    "de" => { "jobs" => 63, "epics" => 19 },
+    "la" => { "jobs" => 35, "epics" => 15 }
+  }.freeze
+  REVIEWED_JOB_EPIC_PREFIXES = %w[
+    merge_train approval grader prepare_failure review_version delivery
+  ].freeze
+
   REFERENCED_CORE_KEYS = {
     "admin" => %w[
       page_title_work_units
@@ -497,6 +550,52 @@ RSpec.describe "Frontend locale keys", type: :unit do
       expect(installations.fetch("pat_repos_count_one")).to eq(one)
       expect(installations.fetch("pat_repos_count_other")).to eq(other)
     end
+  end
+
+  it "translates the Job and Epic catalogs except for documented intentional matches" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+
+    INTENTIONAL_JOB_EPIC_ENGLISH_MATCHES.each do |locale, matches_by_reason|
+      documented_matches = matches_by_reason.values.flatten
+      actual_matches = %w[jobs epics].flat_map do |namespace|
+        english = flatten_json(locales.dig("en", namespace))
+        localized = flatten_json(locales.dig(locale, namespace))
+        english.filter_map { |key, value| "#{namespace}.#{key}" if localized.fetch(key) == value }
+      end
+
+      expect(actual_matches.sort).to eq(documented_matches.sort)
+      expect(matches_by_reason.keys).to all(be_present)
+
+      %w[jobs epics].each do |namespace|
+        remaining = actual_matches.count { |key| key.start_with?("#{namespace}.") }
+        expect(remaining).to be < JOB_EPIC_ENGLISH_MATCH_BASELINE.dig(locale, namespace)
+      end
+    end
+  end
+
+  it "preserves Job and Epic placeholders, plurals, and approved German copy" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+
+    %w[de la].each do |locale|
+      %w[jobs epics].each do |namespace|
+        english = flatten_json(locales.dig("en", namespace))
+        localized = flatten_json(locales.dig(locale, namespace))
+        english.each do |key, value|
+          next unless REVIEWED_JOB_EPIC_PREFIXES.any? { |prefix| key == prefix || key.start_with?("#{prefix}.", "#{prefix}_") }
+
+          expect(interpolation_names(localized.fetch(key))).to eq(interpolation_names(value)),
+            "#{locale}.#{namespace}.#{key} changed placeholders"
+        end
+      end
+    end
+
+    german_copy = %w[jobs epics].flat_map { |namespace| flatten_json(locales.dig("de", namespace)).values }.join("\n")
+    expect(german_copy).not_to match(/\b(?:Ihnen|Ihr\p{L}*)\b/)
+    expect(german_copy).not_to match(/\b(?:Aufgab\p{L}*|Runs?|Arbeitsabl\p{L}*)\b/)
+    expect(locales.dig("de", "jobs", "run_count_one")).to eq("{{count}} Lauf")
+    expect(locales.dig("de", "jobs", "run_count_other")).to eq("{{count}} Läufe")
+    expect(locales.dig("de", "epics", "merge_train_members_one")).to eq("{{count}} Mitglied")
+    expect(locales.dig("de", "epics", "merge_train_members_other")).to eq("{{count}} Mitglieder")
   end
 
   it "preserves placeholders, plural pairs, and approved terminology in the reviewed settings copy" do
