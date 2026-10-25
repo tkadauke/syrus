@@ -180,6 +180,37 @@ describe("updateRecentChatCache", () => {
 })
 
 describe("updateChatUnread", () => {
+  it("removes a read chat from unread-only caches unless it is the active chat", () => {
+    const queryClient = new QueryClient()
+    const inactiveKey = [...recentChatsQueryKey({ unread_only: true }), 2]
+    const activeKey = [...recentChatsQueryKey({ unread_only: true }), 1]
+    const payload = {
+      repositories: [],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [
+            chatRecord({ id: 1, title: "Unread", lastMessageAt: "2026-06-25T11:00:00Z", unread: true }),
+            chatRecord({ id: 2, title: "Active", lastMessageAt: "2026-06-25T10:00:00Z", unread: true })
+          ],
+          has_more: false
+        }
+      ]
+    }
+    queryClient.setQueryData(inactiveKey, payload)
+    queryClient.setQueryData(activeKey, payload)
+
+    updateChatUnread(queryClient, 1, false)
+
+    expect(queryClient.getQueryData<ChatsIndexPayload>(inactiveKey)?.groups[0].chats.map((chat) => chat.id)).toEqual([2])
+    expect(queryClient.getQueryData<ChatsIndexPayload>(activeKey)?.groups[0].chats.map((chat) => [chat.id, chat.unread])).toEqual([
+      [1, false],
+      [2, true]
+    ])
+  })
+
   it("moves read chats out of the unread status group", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["chats", "recent", "active", "status", "last_activity", false, 10], {
