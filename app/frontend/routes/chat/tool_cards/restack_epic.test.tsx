@@ -59,6 +59,7 @@ describe("restack_epic tool card", () => {
     expect(screen.getAllByRole("link", { name: "PR #501" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/501")
     expect(screen.getAllByRole("link", { name: "syrus/a-very-long-stack-root-branch-name" })[0]).toHaveClass("break-all", "min-h-11")
     expect(screen.getByText("main → syrus/parent")).toBeInTheDocument()
+    expect(screen.getByText("Commits behind").closest("dl")).toHaveClass("grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]")
     expect(screen.getAllByText("behind_base").length).toBeGreaterThan(0)
     expect(screen.getByText("active_rebase_workflow")).toBeInTheDocument()
     expect(screen.getByText(/Repair/)).toBeInTheDocument()
