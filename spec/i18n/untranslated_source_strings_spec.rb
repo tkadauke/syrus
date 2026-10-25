@@ -41,7 +41,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/detach_repository.tsx
     app/frontend/routes/chat/tool_cards/dispatch_ref_movement_action.tsx
     app/frontend/routes/chat/tool_cards/emergency_land.tsx
-    app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
     app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx
     app/frontend/routes/chat/tool_cards/force_state_transition.tsx
     app/frontend/routes/chat/tool_cards/get_job_diff.tsx
@@ -133,6 +132,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx
     app/frontend/routes/chat/tool_cards/repair_provider_circuit_evidence.tsx
     app/frontend/routes/chat/tool_cards/resolve_delivery_policy.tsx
+    app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
   ].freeze
 
   # Run with:

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import explainStuckJobToolCard from "./explain_stuck_job"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -56,6 +57,19 @@ describe("explain_stuck_job tool card", () => {
     const parsedResult = { ...FULL_PAYLOAD, stuck: false }
     render(<>{explainStuckJobToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByText("not stuck")).toBeInTheDocument()
+  })
+
+  it("localizes headings, summaries, and count-driven plurals", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      expect(explainStuckJobToolCard.collapsedSummary?.(context({ parsedResult: FULL_PAYLOAD }))).toBe("JOB-5: hängt fest")
+      render(<>{explainStuckJobToolCard.renderExpanded(context({ parsedResult: FULL_PAYLOAD }))}</>)
+      expect(screen.getByText("Empfohlene Aktion")).toBeInTheDocument()
+      expect(screen.getByText("Läufe")).toBeInTheDocument()
+      expect(screen.getByText(/1 veralteter Heartbeat/)).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("omits optional sections when fields are missing", () => {
