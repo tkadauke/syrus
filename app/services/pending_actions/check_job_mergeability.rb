@@ -12,6 +12,8 @@ module PendingActions
       progress!("Queueing mergeability check for #{job.slug}...")
       PollRebaseJob.enqueue_manual_check(job.id)
       nil
+    rescue ActiveRecord::RecordNotFound
+      raise ArgumentError, "Job is not accessible."
     end
 
     def execution_label
