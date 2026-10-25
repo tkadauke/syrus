@@ -45,8 +45,8 @@ RSpec.describe MergeTrainDispatcher do
 
     expect(described_class.try_dispatch!(epic)).to be_nil
 
-    expect(LandingApprovalGate).to have_received(:satisfied?).with(valid, policy: instance_of(DeliveryPolicy))
-    expect(LandingApprovalGate).to have_received(:satisfied?).with(invalid, policy: instance_of(DeliveryPolicy))
+    expect(LandingApprovalGate).to have_received(:satisfied?).with(valid, policy: instance_of(DeliveryPolicy)).at_least(:once)
+    expect(LandingApprovalGate).to have_received(:satisfied?).with(invalid, policy: instance_of(DeliveryPolicy)).at_least(:once)
     expect(MergeTrain.count).to eq(0)
     expect(valid.reload).to be_approved
     expect(invalid.reload).to be_approved
@@ -240,6 +240,16 @@ RSpec.describe MergeTrainDispatcher do
 
     expect(described_class.try_dispatch!(epic)).to be_nil
     expect(MergeTrain.count).to eq(0)
+  end
+
+  it "does not dispatch while a member's PR checks are failing" do
+    first = approved_child(1)
+    approved_child(2)
+    first.update_columns(pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(first.reload).to be_approved
   end
 
   it "does nothing when the repository already has a landing in progress" do

@@ -14,6 +14,15 @@ class MergeTrainDispatcher
   RETRY_COOLDOWN = 30.minutes
 
   TRAIN_KIND = "merge_train".freeze
+  MEMBER_CI_BLOCKER_KEYS = %w[
+    ci_failure_in_progress
+    ci_repair_no_effective_change
+    pr_checks_failing
+    pr_checks_failing_base_stale
+    pr_checks_failing_base_unknown
+    pr_checks_failing_inherited
+    pr_checks_pending
+  ].freeze
 
   def self.try_dispatch!(epic, bypass_cooldown: false) = new(epic, bypass_cooldown: bypass_cooldown).try_dispatch!
   def self.blocker_reason(epic, bypass_cooldown: false) = new(epic, bypass_cooldown: bypass_cooldown).blocker_reason
@@ -38,6 +47,7 @@ class MergeTrainDispatcher
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all?(&:eligible_for_landing_dispatch?)
       raise ActiveRecord::Rollback unless members.all? { |job| LandingApprovalGate.satisfied?(job, policy: delivery_policy) }
+      raise ActiveRecord::Rollback if blocked_member_entry(members)
       base_branch = landing_branch_result_for(members).base_branch
       raise ActiveRecord::Rollback if base_branch.blank?
 
@@ -83,6 +93,9 @@ class MergeTrainDispatcher
 
     readiness = LandingBundleAssembler.for_epic(@epic)
     return readiness.reason unless readiness.ready?
+    if (entry = blocked_member_entry(readiness.members))
+      return "#{entry.job.slug} is blocked: #{entry.blocked_reason.fetch(:key)}"
+    end
     landing_branch_result = landing_branch_result_for(readiness.members)
     return landing_branch_result.reason unless landing_branch_result.ok?
 
@@ -104,6 +117,12 @@ class MergeTrainDispatcher
   end
 
   private
+
+  def blocked_member_entry(members)
+    LandingQueueProcessor
+      .entries(Job.where(id: members.map(&:id)))
+      .find { |entry| MEMBER_CI_BLOCKER_KEYS.include?(entry.blocked_reason&.dig(:key)) }
+  end
 
   # Same blind spot JobBundleDispatcher had: the launcher refuses a train whose
   # locks another WorkUnit holds, and blocker_reason -- the reason the landing

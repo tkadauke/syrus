@@ -718,7 +718,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     end
 
     expect(query_count).to eq(1)
-    expect(entries.map(&:blocked_reason)).to all(be_blank)
+    expect(entries.map(&:blocked_reason)).to all(eq({ key: "waiting_epic_merge_train" }))
   end
 
   it "does not let land()'s race-guard re-check use a stale Epic-siblings cache from an earlier entries() snapshot on the same instance" do
@@ -731,7 +731,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     # approved, so the Epic's sibling set memoizes as "all approved"),
     # then land() re-validates blockage_for on the same instance later.
     snapshot = processor.entries(Job.where(id: first.id))
-    expect(snapshot.first.blocked_reason).to be_blank
+    expect(snapshot.first.blocked_reason).to eq({ key: "waiting_epic_merge_train" })
 
     # A sibling regresses out of :approved between the snapshot and the
     # actual land attempt.
@@ -1378,8 +1378,8 @@ RSpec.describe LandingQueueProcessor, :ci_only do
 
       workflow = described_class.call
 
-      expect(workflow.job).to eq(ready)
-      expect(ready.reload).to be_landing
+      expect(workflow).to have_attributes(trigger_kind: "merge_train", job: sibling)
+      expect([ ready.reload, sibling.reload ]).to all(be_landing)
     end
 
     it "blocks an Epic member when a sibling's PR checks are failing" do
