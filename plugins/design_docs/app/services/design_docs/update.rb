@@ -1,5 +1,7 @@
 module DesignDocs
   class Update
+    class RevisionConflict < StandardError; end
+
     Result = Data.define(:design_doc, :version, :suggestion, :mode)
 
     def self.call(...)
@@ -76,6 +78,7 @@ module DesignDocs
     end
 
     def apply_canonical_update
+      verify_base_revision! if attributes.key?(:markdown)
       permitted = attributes.slice(:title, :visibility, :state)
       if attributes.key?(:markdown)
         next_markdown = canonical_markdown_value
@@ -100,6 +103,14 @@ module DesignDocs
       end
 
       Result.new(design_doc: design_doc.reload, version: version, suggestion: nil, mode: "canonical")
+    end
+
+    def verify_base_revision!
+      base_revision = attributes[:base_revision].presence
+      return unless base_revision
+      return if ActiveSupport::SecurityUtils.secure_compare(base_revision, design_doc.canonical_revision)
+
+      raise RevisionConflict, "The design doc changed since this draft was loaded. Reload the latest revision and retry your edit."
     end
 
     def sync_repositories!
