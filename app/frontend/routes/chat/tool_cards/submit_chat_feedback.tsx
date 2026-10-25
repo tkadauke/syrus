@@ -1,94 +1,143 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { JobRefLink } from "../adminToolCard"
-import { Badge, CardShell, displayValue, SectionLabel, StatePill } from "../toolCardUi"
+import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
+import { MediaPreviewShell } from "../mediaPreviewShell"
+import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard, type PendingActionInputField } from "../pendingActionToolCard"
+import { Badge, displayValue, SectionLabel } from "../toolCardUi"
 
-// Core-owned tool card for submit_chat_feedback. The tool result only
-// carries the pending-action confirmation shape (pending_action_id, state,
-// message, and -- for a job that's still running/queued -- a "queued"
-// status), so the job id and media refs are read back from the tool call's
-// own input arguments.
-type SubmitChatFeedbackResult = {
-  jobId: string | null
-  media: string[]
-  pendingActionId: string | null
-  state: string
-  queued: boolean
-  message: string | null
-}
-
-function isUnresolved(state: string) {
-  return state === "queued" || state === "pending" || state === "confirming"
-}
+const inputFields: PendingActionInputField[] = [{ key: "feedback", label: "Feedback", format: "markdown" }]
 
 function mediaRefs(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
-    const ref = displayValue(item)
-    return ref ? [ref] : []
+    const reference = displayValue(item)
+    return reference ? [reference] : []
   })
 }
 
-function parseResult(context: ToolCardContext): SubmitChatFeedbackResult | null {
-  const parsed = context.parsedResult
-  if (!isPlainObject(parsed)) return null
-  const state = displayValue(parsed.state)
-  if (!state) return null
+function pendingActionHref(context: ToolCardContext, pendingActionId: string) {
+  const chatId = context.presentation?.chatId ?? context.chatSessionId
+  return chatId ? `/chats/${encodeURIComponent(String(chatId))}#pending-action-${encodeURIComponent(pendingActionId)}` : null
+}
 
-  const input = isPlainObject(context.input) ? context.input : {}
-  const pendingActionId = displayValue(parsed.pending_action_id) ?? displayValue(parsed.pending_confirmation_id)
+function queuedResult(context: ToolCardContext) {
+  const parsed = normalizedToolCardParsedResult(context.parsedResult)
+  return isPlainObject(parsed) && displayValue(parsed.status) === "queued"
+}
 
-  // The tool result's own state is frozen at call time ("pending"/"queued")
-  // -- it never reflects a later operator confirm/reject. livePendingAction
-  // is re-read from the owning message on every payload fetch, so prefer it
-  // once it exists and still refers to this same pending action.
-  const live = context.livePendingAction
-  const liveState = live && pendingActionId && displayValue(live.id) === pendingActionId ? live.state : null
+function FeedbackMedia({ context, references }: { context: ToolCardContext; references: string[] }) {
+  if (references.length === 0) return null
 
-  return {
-    jobId: displayValue(input.job_id),
-    media: mediaRefs(input.media),
-    pendingActionId,
-    state: liveState ?? state,
-    queued: displayValue(parsed.status) === "queued",
-    message: displayValue(parsed.message)
+  return (
+    <div className="min-w-0">
+      <SectionLabel>Media</SectionLabel>
+      <div className="mt-1 grid min-w-0 grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
+        {references.map((reference) => (
+          <FeedbackMediaItem context={context} key={reference} reference={reference} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FeedbackMediaItem({ context, reference }: { context: ToolCardContext; reference: string }) {
+  const [kind, rawId] = reference.split(":", 2)
+  const id = Number(rawId)
+  if (!Number.isFinite(id)) return <Badge wrap>{reference}</Badge>
+
+  if (kind === "chat_image") {
+    const image = context.presentation?.chatMedia?.chat_images.find((candidate) => candidate.id === id)
+    const derivedSrc =
+      context.presentation?.chatId != null
+        ? `/api/v1/app/chats/${encodeURIComponent(String(context.presentation.chatId))}/media/chat_images/${encodeURIComponent(String(id))}/file`
+        : null
+    const src = image?.image_url || image?.file_path || derivedSrc
+    if (!src) return <Badge wrap>{reference}</Badge>
+    const title = image?.title || image?.filename || reference
+    return (
+      <MediaPreviewShell
+        item={{
+          title,
+          subtitle: image?.content_type || "Chat image",
+          src,
+          alt: title,
+          badge: "image",
+          fallbackLabel: "Image preview unavailable",
+          actions: [
+            { label: "Open image", href: src },
+            { label: "Download", href: src, download: true },
+            { label: "Copy ID", copyValue: reference }
+          ],
+          meta: [
+            { label: "ID", value: reference, copyValue: reference },
+            { label: "Content type", value: image?.content_type }
+          ]
+        }}
+        modalLabel={title}
+        thumbnailClassName="min-h-11 w-full"
+      />
+    )
   }
+
+  if (kind === "snapshot") {
+    const snapshot = context.presentation?.chatMedia?.snapshots.find((candidate) => candidate.id === id)
+    if (!snapshot) return <Badge wrap>{reference}</Badge>
+    const title = snapshot.name || reference
+    return (
+      <MediaPreviewShell
+        item={{
+          title,
+          subtitle: `${snapshot.element_count} whiteboard element${snapshot.element_count === 1 ? "" : "s"}`,
+          badge: "snapshot",
+          fallbackLabel: "Whiteboard snapshot",
+          actions: [{ label: "Copy ID", copyValue: reference }],
+          meta: [
+            { label: "ID", value: reference, copyValue: reference },
+            { label: "Created", value: snapshot.created_at }
+          ]
+        }}
+        modalLabel={title}
+        thumbnailClassName="min-h-11 w-full"
+      />
+    )
+  }
+
+  return <Badge wrap>{reference}</Badge>
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const result = parseResult(context)
-  if (!result) return null
-
-  return result.message || `Chat feedback ${result.queued ? "queued" : "pending confirmation"}${result.jobId ? ` for JOB-${result.jobId}` : ""}`
+  const result = parsePendingActionResult(context, true)
+  return result ? pendingActionCollapsedSummary(result) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const result = parseResult(context)
+  const result = parsePendingActionResult(context, true)
   if (!result) return null
 
+  const input = isPlainObject(context.input) ? context.input : {}
+  const media = mediaRefs(input.media)
+  const unresolvedResult = result.kind === "standard" || result.kind === "bulk" ? result : null
+  const queued = Boolean(unresolvedResult && (unresolvedResult.state === "queued" || queuedResult(context)))
+  const linkedResult =
+    result.kind === "standard" || result.kind === "bulk"
+      ? { ...result, resourceUrl: result.resourceUrl || pendingActionHref(context, result.pendingActionId) }
+      : result
+
   return (
-    <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={result.state} />
-        {result.jobId ? <JobRefLink jobId={result.jobId} /> : null}
-        {result.pendingActionId ? <Badge>#{result.pendingActionId}</Badge> : null}
-      </div>
-      {result.message ? <div className="text-gray-700 dark:text-gray-300">{result.message}</div> : null}
-      {isUnresolved(result.state) ? (
-        <div className="text-gray-500 dark:text-gray-400">
-          {result.queued
-            ? "Queued until the job becomes actionable; a chat_feedback workflow starts once it is confirmed."
-            : "Confirming this will start a new chat_feedback workflow."}
-        </div>
-      ) : null}
-      {result.media.length > 0 ? (
-        <div>
-          <SectionLabel>Media</SectionLabel>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {result.media.map((ref) => <Badge key={ref}>{ref}</Badge>)}
-          </div>
-        </div>
-      ) : null}
-    </CardShell>
+    <PendingActionResultCard
+      details={
+        <>
+          {queued ? (
+            <div className="break-words text-text-muted">Queued until the Job becomes actionable; a chat_feedback workflow starts once it is confirmed.</div>
+          ) : unresolvedResult && ["pending", "confirming"].includes(unresolvedResult.state) ? (
+            <div className="break-words text-text-muted">Confirming this will start a new chat_feedback workflow.</div>
+          ) : null}
+          <FeedbackMedia context={context} references={media} />
+        </>
+      }
+      input={input}
+      inputFields={inputFields}
+      result={linkedResult}
+    />
   )
 }
 
