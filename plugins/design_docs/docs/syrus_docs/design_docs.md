@@ -318,7 +318,9 @@ there are many collaborators.
 Chat agents can read docs with `list_design_docs` and `read_design_doc`, create
 new docs with `propose_design_doc`, add anchored discussion with
 `comment_on_design_doc`, suggest edits with `suggest_design_doc_change`, and
-archive docs with `delete_design_doc`.
+archive one doc with `delete_design_doc`, or archive several docs with one
+confirmation through `archive_design_docs`. Agents should prefer the bulk tool
+for multi-document requests.
 
 `read_design_doc` defaults to `detail: "full"`, preserving the complete payload
 with capped Markdown, rendered Markdown, permissions, threads, comments, and
@@ -344,6 +346,15 @@ suggestion inserts anchor markers and creates a new document version, so agents
 must re-read the Design Doc before creating another suggestion. Stale version
 submissions are rejected before exact selected-text matching or marker
 insertion.
+
+`archive_design_docs` accepts a non-empty list of up to 100 canonical
+`DOC-<id>` references and one shared audit reason. It normalizes and
+deduplicates references in first-seen order, checks visibility and archive
+authorization for every target before creating anything, and skips targets
+that are already archived. Eligible targets become `delete_design_doc` members
+of one pending-action group, so the operator sees one card and can confirm or
+reject the whole request. Confirmation rechecks state and authorization and
+shows per-document applied, skipped, or failed outcomes.
 
 `delete_design_doc` archives by setting `state: archived`; it is intentionally
 not physical deletion. Versions, comments, threads, suggestions, anchors, and
