@@ -149,7 +149,7 @@ describe("AgentConversationTab", () => {
               started_at: null,
               finished_at: null,
               agentic: true,
-              summary: "Clean.",
+              summary: "**Clean.** See [evidence](https://example.test/panel).",
               detail: { ...panel, verdict: "approved" }
             },
             {
@@ -184,6 +184,8 @@ describe("AgentConversationTab", () => {
     expect(screen.getByText(/2 approvals required/)).toBeInTheDocument()
     expect(screen.getByText("claude / sonnet")).toBeInTheDocument()
     expect(screen.getByText("codex / gpt-5")).toBeInTheDocument()
+    expect(screen.getByText("Clean.").tagName).toBe("STRONG")
+    expect(screen.getByRole("link", { name: "evidence" }).closest("button")).toBeNull()
     expect(document.querySelectorAll("details")).toHaveLength(1)
   })
 

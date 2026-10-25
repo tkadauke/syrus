@@ -255,26 +255,27 @@ function PanelRoundCard({
       </summary>
       <div className="divide-y divide-border border-t border-border">
         {nodes.map((node) => (
-          <button
-            className="flex w-full items-start justify-between gap-3 p-3 text-left hover:bg-surface-subtle"
-            key={node.id}
-            onClick={() => onOpenTranscript(node.id)}
-            type="button"
-          >
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-text-primary">
+          <div key={node.id}>
+            <button
+              className="flex w-full items-start justify-between gap-3 px-3 pt-3 text-left hover:bg-surface-subtle"
+              onClick={() => onOpenTranscript(node.id)}
+              type="button"
+            >
+              <span className="block min-w-0 text-sm font-medium text-text-primary">
                 {node.agent_provider || node.label}
                 {node.agent_model ? ` / ${node.agent_model}` : ""}
               </span>
-              <span className="mt-1 block break-words text-xs text-text-secondary">{node.summary || t("conversation_no_summary")}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-2">
-              {typeof node.detail.verdict === "string" ? (
-                <SmallPill>{t(`adversarial_review_verdict_${node.detail.verdict}`, { defaultValue: node.detail.verdict })}</SmallPill>
-              ) : null}
-              {node.id === transcriptNodeId ? <SmallPill>{t("conversation_transcript_open")}</SmallPill> : null}
-            </span>
-          </button>
+              <span className="flex shrink-0 items-center gap-2">
+                {typeof node.detail.verdict === "string" ? (
+                  <SmallPill>{t(`adversarial_review_verdict_${node.detail.verdict}`, { defaultValue: node.detail.verdict })}</SmallPill>
+                ) : null}
+                {node.id === transcriptNodeId ? <SmallPill>{t("conversation_transcript_open")}</SmallPill> : null}
+              </span>
+            </button>
+            <div className="break-words px-3 pb-3 pt-1 text-xs text-text-secondary">
+              {node.summary ? renderLightMarkdown(node.summary) : t("conversation_no_summary")}
+            </div>
+          </div>
         ))}
       </div>
     </details>
