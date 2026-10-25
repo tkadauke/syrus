@@ -1209,6 +1209,46 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(LandingBlockerOverride.overridable?("pr_checks_failing")).to be(false)
     end
 
+    it "does not overwrite default-branch health or trigger its repair for an inherited failure on another track" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      repository = job.repository
+      repository.update!(
+        ci_health: "healthy",
+        grader_health: "healthy",
+        last_health_checked_sha: "release-sha",
+        last_ci_evaluated_sha: "release-sha",
+        main_branch_repair_enabled: true
+      )
+      job.update_columns(
+        target_branch: "develop",
+        pr_checks_sha: "job-sha",
+        pr_checks_state: "failing",
+        pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec" ],
+        pr_checks_base_sha: "develop-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: repository,
+        branch: "develop",
+        sha: "develop-sha",
+        checked_at: Time.current,
+        source: "ci_poll",
+        ci_health: "broken",
+        grader_health: "healthy",
+        ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+      expect(MainHealthChangedService).not_to receive(:on_health_change!)
+      expect(MainHealthChangedService).not_to receive(:ensure_repair_job!)
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason[:key]).to eq("pr_checks_failing_inherited")
+      repository.reload
+      expect(repository.ci_health).to eq("healthy")
+      expect(repository.last_health_checked_sha).to eq("release-sha")
+      expect(repository.last_ci_evaluated_sha).to eq("release-sha")
+    end
+
     # trigger_main_repair_for_inherited_pr_checks used to call
     # MainHealthChangedService.on_health_change! unconditionally on every
     # invocation, even when ci_health was already known broken for the exact
