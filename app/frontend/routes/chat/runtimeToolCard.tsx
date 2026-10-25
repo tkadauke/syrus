@@ -35,6 +35,10 @@ type RuntimeSession = {
 
 type RuntimeLifecycleAction = "start" | "build/reload" | "launch" | "stop"
 
+function plural(count: number, singular: string, pluralLabel = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : pluralLabel}`
+}
+
 const RUNTIME_ACTION_KEYS: Record<string, string> = {
   runtime_status: "chat:runtime_action_status",
   runtime_list_sessions: "chat:runtime_action_list_sessions",
