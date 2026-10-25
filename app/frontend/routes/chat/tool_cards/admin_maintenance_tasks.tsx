@@ -325,12 +325,12 @@ const catalogTask = {
   recurrence: "one_off",
   category: "search",
   title: i18n.t("chat:ops_rebuild_the_repository_search_index_while_preserving_vis_6509ef"),
-  summary: "Rebuilds the **repository search index** in bounded batches.",
+  summary: i18n.t("chat:admin_maintenance_catalog_summary"),
   trigger_kind: "manual",
   trigger_key: "catalog_preview",
   required_role: "admin",
   current_step_key: "index_records",
-  current_step_title: "Index repository records",
+  current_step_title: i18n.t("chat:ops_index_repository_records_0bf341"),
   total_units: 1200,
   completed_units: 450,
   failed_units: 0,
@@ -360,7 +360,12 @@ export const examples: ToolCardExample[] = [
     label: i18n.t("chat:ops_pending_pause_36b0dc"),
     description: i18n.t("chat:ops_mutation_result_using_the_shared_pending_action_presenta_6aa208"),
     input: { action: "pause", task_id: 47 },
-    parsedResult: { pending_action_id: 801, pending_confirmation_id: 801, state: "pending", message: "Pause maintenance task #47?" }
+    parsedResult: {
+      pending_action_id: 801,
+      pending_confirmation_id: 801,
+      state: "pending",
+      message: i18n.t("chat:admin_pause_maintenance_task_confirmation", { count: 1, taskId: 47 })
+    }
   },
   {
     id: "populated_list",

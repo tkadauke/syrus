@@ -529,7 +529,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
   it "keeps reviewed admin cards free of the literal copy missed by the conservative scanner" do
     literals_by_path = {
-      "app/frontend/routes/chat/tool_cards/admin_maintenance_tasks.tsx" => [ "Task ID", "Definition", "Current step", "Requested by" ],
+      "app/frontend/routes/chat/tool_cards/admin_maintenance_tasks.tsx" => [ "Task ID", "Definition", "Current step", "Requested by", "Pause maintenance task #47?" ],
+      "app/frontend/routes/chat/tool_cards/admin_kill_process.tsx" => [ "Kill processes #41, #42, and #43?" ],
       "app/frontend/routes/chat/tool_cards/admin_mcp_tool_usage.tsx" => [ "Volume priorities", "Missing high-volume cards", "Unused advertised tools" ],
       "app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx" => [ "Attention", "Next action" ]
     }

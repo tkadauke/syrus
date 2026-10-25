@@ -2987,5 +2987,11 @@
   "admin_stuck_detail": "Detail",
   "admin_stuck_age": "Alter",
   "admin_stuck_next_action": "Nächste Aktion",
-  "admin_all_active_repositories": "Alle aktiven Repositories"
+  "admin_all_active_repositories": "Alle aktiven Repositories",
+  "admin_maintenance_catalog_summary": "Erstellt den **Repository-Suchindex** in begrenzten Stapeln neu.",
+  "admin_pause_maintenance_task_confirmation_one": "Wartungsaufgabe #{{taskId}} pausieren?",
+  "admin_pause_maintenance_task_confirmation_other": "{{count}} Wartungsaufgaben pausieren?",
+  "admin_kill_process_confirmation_one": "Prozess {{targets}} beenden?",
+  "admin_kill_process_confirmation_other": "Prozesse {{targets}} beenden?",
+  "admin_kill_process_catalog_targets": "#41, #42 und #43"
 }

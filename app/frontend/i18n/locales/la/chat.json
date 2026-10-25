@@ -2987,5 +2987,11 @@
   "admin_stuck_detail": "Singulum",
   "admin_stuck_age": "Aetas",
   "admin_stuck_next_action": "Actio proxima",
-  "admin_all_active_repositories": "Omnia repositories activa"
+  "admin_all_active_repositories": "Omnia repositories activa",
+  "admin_maintenance_catalog_summary": "Indicem quaesitionis **repository** fasciculis definitis reficit.",
+  "admin_pause_maintenance_task_confirmation_one": "Munus conservationis #{{taskId}} pausare?",
+  "admin_pause_maintenance_task_confirmation_other": "{{count}} munera conservationis pausare?",
+  "admin_kill_process_confirmation_one": "Processum {{targets}} finire?",
+  "admin_kill_process_confirmation_other": "Processus {{targets}} finire?",
+  "admin_kill_process_catalog_targets": "#41, #42 et #43"
 }
