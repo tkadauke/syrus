@@ -156,6 +156,71 @@ RSpec.describe "Frontend locale keys", type: :unit do
     }
   }.freeze
 
+  INTENTIONAL_ADMIN_ENGLISH_MATCHES = {
+    "de" => {
+      "approved German domain term" => %w[
+        work_units.col_jobs maintenance_tasks.col_landing stuck.link_workflow stuck.link_job
+        processes.detail_workflow mcp_tool_usage.surface_workflow mcp_tool_usage.link_job
+        mcp_tool_usage.link_workflow tool_cards.admin_overview.jobs tool_cards.admin_overview.job
+        tool_cards.admin_overview.workflow
+      ],
+      "product, proper name, or protocol token" => %w[
+        nav_github_app users.col_github users.info_github features.slugs.terminal.name
+        settings.telegram_heading settings.discord_heading tool_cards.admin_overview.active_storage
+        plugins.extension_points.agent_provider plugins.extension_points.mcp_tool_set
+        plugins.extension_points.input_source
+      ],
+      "placeholder-only or value-only diagnostic" => %w[
+        work_units.provider_availability_state browser_errors.revision_hint
+        backend_exceptions.revision_hint teams.email_placeholder installations.sync_duration
+        mcp_tool_usage.tool_placeholder mcp_tool_usage.server_placeholder
+      ],
+      "shared German word or established technical/diagnostic label" => %w[
+        maintenance_tasks.filter_definition maintenance_tasks.col_status maintenance_tasks.col_level
+        nav_teams nav_plugins browser_errors.id browser_errors.revision_scope browser_errors.stack
+        backend_exceptions.revision_scope backend_exceptions.backtrace users.col_admin users.col_agent
+        users.ok users.info_admin teams.heading teams.col_name teams.name_label operational_logs.revision_scope
+        operational_logs.col_refs plugins.heading plugins.homepage plugins.version plugins.back_to_plugins
+        plugins.col_tags installations.col_app_credential installations.col_pat_credential
+        stuck.filter_status stuck.col_status console.runs_title queue.col_pid queue.col_threads
+        queue.col_version queue.col_minute queue.metric_cpu queue.metric_disk queue.metric_io
+        queue.metric_load processes.col_chat_session processes.col_host_pid processes.detail_pid_pgid
+        mcp_tool_usage.surface_chat mcp_tool_usage.tool_label mcp_tool_usage.server_label
+        mcp_tool_usage.status_label mcp_tool_usage.server_breakdown_heading
+        mcp_tool_usage.startup_timing_col_phase mcp_tool_usage.startup_timing_col_p50
+        mcp_tool_usage.startup_timing_col_p95 mcp_tool_usage.col_tool mcp_tool_usage.col_status
+        mcp_tool_usage.col_links mcp_tool_usage.link_chat
+      ]
+    },
+    "la" => {
+      "Latin domain term pending competent review" => %w[
+        maintenance_tasks.col_landing mcp_tool_usage.surface_workflow mcp_tool_usage.link_job
+        mcp_tool_usage.link_workflow
+      ],
+      "product, proper name, or protocol token" => %w[
+        users.col_github users.info_github settings.telegram_heading settings.discord_heading
+        tool_cards.admin_overview.active_storage plugins.extension_points.agent_provider
+        plugins.extension_points.mcp_tool_set plugins.extension_points.input_source
+      ],
+      "placeholder-only or value-only diagnostic" => %w[
+        work_units.provider_availability_state browser_errors.revision_hint
+        backend_exceptions.revision_hint teams.email_placeholder installations.sync_duration
+        mcp_tool_usage.tool_placeholder mcp_tool_usage.server_placeholder
+      ],
+      "valid Latin word or established technical/diagnostic label" => %w[
+        maintenance_tasks.col_status maintenance_tasks.col_error browser_errors.id
+        browser_errors.col_error backend_exceptions.col_error backend_exceptions.backtrace
+        users.col_gh_api users.status_prefix plugins.col_tags installations.col_pat_credential
+        stuck.filter_status stuck.col_status console.col_operator console.runs_title queue.col_pid
+        queue.metric_cpu queue.metric_io processes.detail_pid_pgid mcp_tool_usage.server_label
+        mcp_tool_usage.status_label mcp_tool_usage.error_label mcp_tool_usage.server_breakdown_heading
+        mcp_tool_usage.startup_timing_col_p50 mcp_tool_usage.startup_timing_col_p95
+        mcp_tool_usage.col_status mcp_tool_usage.owner_core
+      ]
+    }
+  }.freeze
+  ADMIN_ENGLISH_MATCH_BASELINE = { "de" => 127, "la" => 75 }.freeze
+
   REFERENCED_CORE_KEYS = {
     "admin" => %w[
       page_title_work_units
@@ -382,6 +447,41 @@ RSpec.describe "Frontend locale keys", type: :unit do
       expect(actual_matches.sort).to eq(documented_matches.keys.sort)
       expect(documented_matches.values).to all(be_present)
     end
+  end
+
+  it "translates the admin catalog except for documented intentional matches" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+    english = flatten_json(locales.fetch("en").fetch("admin"))
+
+    INTENTIONAL_ADMIN_ENGLISH_MATCHES.each do |locale, matches_by_reason|
+      documented_matches = matches_by_reason.values.flatten
+      actual_matches = english.filter_map do |key, value|
+        key if dig_key(locales.fetch(locale).fetch("admin"), key) == value
+      end
+
+      expect(actual_matches.sort).to eq(documented_matches.sort)
+      expect(actual_matches.size).to be < ADMIN_ENGLISH_MATCH_BASELINE.fetch(locale)
+      expect(documented_matches).not_to include(nil)
+      expect(matches_by_reason.keys).to all(be_present)
+    end
+  end
+
+  it "preserves admin placeholders and the approved German register and terminology" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+    english = flatten_json(locales.fetch("en").fetch("admin"))
+
+    %w[de la].each do |locale|
+      localized = flatten_json(locales.fetch(locale).fetch("admin"))
+      english.each do |key, value|
+        expect(interpolation_names(localized.fetch(key))).to eq(interpolation_names(value)), "#{locale}.admin.#{key} changed placeholders"
+      end
+    end
+
+    german_copy = flatten_json(locales.fetch("de").fetch("admin")).values.join("\n")
+    expect(german_copy).not_to match(/\b(?:Sie|Ihnen|Ihr\p{L}*)\b/)
+    expect(german_copy).not_to match(/\b(?:Runs?|Repositories|Ausführung(?:en)?|Arbeitsabl(?:auf|äufe))\b/)
+    expect(dig_key(locales.dig("de", "admin"), "overview.active_runs")).to eq("Aktive Läufe")
+    expect(dig_key(locales.dig("de", "admin"), "github_app.step_1")).to start_with("Installiere")
   end
 
   it "preserves placeholders, plural pairs, and approved terminology in the reviewed settings copy" do
