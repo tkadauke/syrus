@@ -183,9 +183,10 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     end
 
     def reset_shared_repository!
-      shared_repository.update!(
+      shared_repository.reload.update!(
         risk_profile: "standard",
         main_branch_health_enabled: true,
+        main_branch_repair_blocks_work: false,
         ci_health: "healthy",
         grader_health: "healthy",
         landing_paused: false
