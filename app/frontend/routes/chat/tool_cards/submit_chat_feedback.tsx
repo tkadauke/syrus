@@ -1,4 +1,4 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { MediaPreviewShell } from "../mediaPreviewShell"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard, type PendingActionInputField } from "../pendingActionToolCard"
@@ -162,5 +162,63 @@ const submitChatFeedbackToolCard: ToolCardRenderer = {
   collapsedSummary,
   renderExpanded
 }
+
+const thumbnail =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 180'%3E%3Crect width='320' height='180' fill='%23f1f5f9'/%3E%3Crect x='32' y='28' width='256' height='30' rx='6' fill='%23b6492e'/%3E%3Crect x='32' y='76' width='180' height='12' rx='6' fill='%2394a3b8'/%3E%3Crect x='32' y='100' width='220' height='12' rx='6' fill='%23cbd5e1'/%3E%3C/svg%3E"
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "pending_with_feedback_and_media",
+    label: "Pending feedback with media",
+    description: "Long Markdown feedback and message, linked references, image thumbnail, snapshot preview, and unresolved-media fallback.",
+    input: {
+      job_id: 4048,
+      feedback:
+        "Please tighten the **mobile header** and keep the primary action visible.\n\n- Preserve keyboard focus\n- Check the narrow layout\n\n" +
+        "The attached image and whiteboard snapshot show the intended hierarchy. ".repeat(10),
+      media: ["chat_image:7", "snapshot:42", "artifact:unresolved-reference"]
+    },
+    parsedResult: {
+      pending_action_id: 501,
+      state: "pending",
+      message:
+        "Submit this **review feedback** after checking the linked Job and attachments. " +
+        "Confirming creates a dedicated follow-up workflow for the requested revision. ".repeat(10)
+    },
+    presentation: {
+      chatId: 12,
+      chatMedia: {
+        snapshots: [{ id: 42, name: "Header hierarchy", snapshot_kind: "manual", element_count: 6, created_at: "2026-10-20T12:00:00Z" }],
+        chat_images: [{ id: 7, title: "Mobile header", filename: "mobile-header.svg", content_type: "image/svg+xml", image_url: thumbnail }],
+        typed_artifacts: [],
+        whiteboard_has_unsaved_content: false
+      }
+    },
+    sourceType: "generic"
+  },
+  {
+    id: "queued_feedback",
+    label: "Queued feedback",
+    description: "Feedback waiting for the current Job work to become actionable.",
+    input: { job_id: 4048, feedback: "Recheck the **responsive spacing** before the next implementation pass." },
+    parsedResult: {
+      pending_action_id: 502,
+      state: "queued",
+      status: "queued",
+      message: "Feedback is queued until the Job finishes its current run."
+    },
+    presentation: { chatId: 12 },
+    sourceType: "codex"
+  },
+  {
+    id: "feedback_error",
+    label: "Feedback error",
+    description: "Failure state retaining the requested Job, Markdown feedback, and unresolved media reference.",
+    input: { job_id: 9999, feedback: "Apply the **header revision** shown in the attachment.", media: ["snapshot:404"] },
+    resultBody: "Error: Job not found",
+    resultError: true,
+    sourceType: "claude"
+  }
+]
 
 export default submitChatFeedbackToolCard
