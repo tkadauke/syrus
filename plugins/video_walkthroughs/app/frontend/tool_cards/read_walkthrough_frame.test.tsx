@@ -47,6 +47,17 @@ afterEach(async () => {
 })
 
 describe("read_walkthrough_frame tool card", () => {
+  it("updates catalog example metadata after a live locale change", async () => {
+    expect(examples[0].label).toBe("Captured frame")
+    expect(examples[0].description).toMatch(/real MCP image/)
+
+    await i18n.changeLanguage("de")
+
+    expect(examples[0].label).toBe("Erfasster Frame")
+    expect(examples[0].description).toMatch(/echte MCP-Inhaltsumschlag/)
+    expect(examples[1].label).toBe("Fehlendes Frame-Bild")
+  })
+
   it("localizes frame summaries, metadata, state, and empty copy", async () => {
     await i18n.changeLanguage("de")
     const cardContext = context({ parsedResult: {}, resultBody: "{}" })

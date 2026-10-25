@@ -46,6 +46,18 @@ afterEach(async () => {
 })
 
 describe("video walkthrough analysis tool cards", () => {
+  it("updates analysis catalog labels after a live locale change", async () => {
+    expect(fullAnalysisExamples[0].label).toBe("Full analysis with issues")
+    expect(segmentExamples[0].label).toBe("Segment analysis with findings")
+
+    await i18n.changeLanguage("de")
+
+    expect(fullAnalysisExamples[0].label).toBe("Vollständige Analyse mit Problemen")
+    expect(fullAnalysisExamples[2].label).toBe("Ausstehende Analyse")
+    expect(segmentExamples[0].label).toBe("Segmentanalyse mit Erkenntnissen")
+    expect(segmentExamples[4].label).toBe("Leere Segmentanalyse")
+  })
+
   it("localizes analysis and segment card copy through the plugin namespace", async () => {
     await i18n.changeLanguage("de")
 
