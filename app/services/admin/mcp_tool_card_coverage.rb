@@ -18,7 +18,6 @@ module Admin
     TOOL_CARD_BOUND_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s+\1\b/
     EXPLICIT_CARD_STATUSES = {
       "withdraw_pending_action" => "generic",
-      "retire_terminal_work_unit" => "generic",
       "assign_job_to_epic" => "generic",
       "force_fail_job" => "generic",
       "manual_agentic_run" => "generic",
