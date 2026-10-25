@@ -12,8 +12,8 @@ export function WhiteboardSnapshotPreview({
   item,
   scene
 }: {
-  chatId: string
-  snapshotId: string
+  chatId?: string
+  snapshotId?: string
   item: MediaPreviewItem
   scene?: ChatWhiteboardScene | null
 }) {
@@ -50,10 +50,11 @@ function translate(key: string) {
   return i18n.t(`whiteboard:${key}`)
 }
 
-async function renderSnapshotPreviewSource(chatId: string, snapshotId: string, embeddedScene?: ChatWhiteboardScene | null) {
-  const snapshotScene = embeddedScene ?? (await fetchWhiteboardSnapshot(chatId, snapshotId)).scene_json
+async function renderSnapshotPreviewSource(chatId: string | undefined, snapshotId: string | undefined, embeddedScene?: ChatWhiteboardScene | null) {
+  if (!embeddedScene && (!chatId || !snapshotId)) throw new Error("A snapshot reference or embedded scene is required")
+  const snapshotScene = embeddedScene ?? (await fetchWhiteboardSnapshot(chatId!, snapshotId!)).scene_json
   const scene = normalizeWhiteboardScene(snapshotScene)
-  const excalidraw = await import("@excalidraw/excalidraw")
+  const excalidraw = await import("./whiteboardSceneRenderer")
   const elements = embeddedScene
     ? excalidraw.convertToExcalidrawElements(scene.elements as Parameters<typeof excalidraw.convertToExcalidrawElements>[0])
     : asExcalidrawElements(scene.elements)
