@@ -186,6 +186,18 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "agy", user: user).at_least(:once)
   end
 
+  it "refreshes Codex when its auth mode switches to an already-saved credential" do
+    sign_in_as(user)
+    allow(AgentProviders::Codex).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
+
+    patch "/api/v1/app/credentials", params: { user: { codex_auth_mode: "chatgpt_login" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(AgentProviders::Codex).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "codex", user: user).at_least(:once)
+  end
+
   it "shows and updates per-provider availability pause thresholds" do
     sign_in_as(user)
 
@@ -607,6 +619,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "exchanges a pasted code, saves the token, and tests it" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
     post "/api/v1/app/credentials/claude_oauth_start"
     state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
 
@@ -620,6 +634,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("credential_test", "ok")).to be true
     expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-new")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "rejects an exchange that was never started" do
@@ -633,6 +649,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "saves a long-lived token directly when a sk-ant- value is pasted instead of an auth code" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
     post "/api/v1/app/credentials/claude_oauth_start"
 
     probe = CredentialProbe::Result.new(credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {})
@@ -643,10 +661,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("credential_test", "ok")).to be true
     expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-direct-token")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "saves a long-lived token directly even without a prior oauth start" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     probe = CredentialProbe::Result.new(credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {})
     expect(CredentialProbe).to receive(:call).with(user: user, credential: "claude_oauth_token").and_return(probe)
@@ -655,6 +677,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-no-flow-needed")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "starts the Codex OAuth flow using the CLI paste callback" do
@@ -675,6 +699,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "exchanges a pasted Codex code, saves auth.json, switches mode, and tests it" do
     sign_in_as(user)
+    allow(AgentProviders::Codex).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
     allow(CodexOauth).to receive(:start_callback_listener).and_return(true)
     post "/api/v1/app/credentials/codex_oauth_start"
     state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
@@ -700,6 +726,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     saved = JSON.parse(user.codex_auth_json)
     expect(saved["auth_mode"]).to eq("chatgpt")
     expect(saved.dig("tokens", "access_token")).to eq("access-token-new")
+    expect(AgentProviders::Codex).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "codex", user: user).at_least(:once)
   end
 
   it "rejects a Codex exchange that was never started" do

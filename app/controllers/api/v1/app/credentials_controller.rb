@@ -121,6 +121,7 @@ module Api
 
           if oauth.looks_like_token?(pasted)
             Current.user.update!(claude_oauth_token: pasted.strip)
+            refresh_affected_provider_availability(Current.user.saved_changes.keys)
             session.delete(:claude_oauth)
             probe = CredentialProbe.call(user: Current.user, credential: "claude_oauth_token")
             return render json: { credential_test: probe.as_json, message: probe.message }
@@ -139,6 +140,7 @@ module Api
             redirect_uri: stash["redirect_uri"]
           )
           Current.user.update!(claude_oauth_token: token)
+          refresh_affected_provider_availability(Current.user.saved_changes.keys)
           session.delete(:claude_oauth)
 
           probe = CredentialProbe.call(user: Current.user, credential: "claude_oauth_token")
@@ -176,6 +178,7 @@ module Api
             redirect_uri: stash["redirect_uri"]
           )
           Current.user.update!(codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json)
+          refresh_affected_provider_availability(Current.user.saved_changes.keys)
           session.delete(:codex_oauth)
 
           probe = CredentialProbe.call(user: Current.user, credential: "codex_auth_json")
