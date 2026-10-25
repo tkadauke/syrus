@@ -246,7 +246,7 @@ export function useDiffReviewFeedback({
     if (!selection) return
     const trimmed = body.trim()
     if (!trimmed) return
-    const message = discussionMessageForSelection({ body: trimmed, headRef, selection })
+    const message = discussionMessageForSelection({ body: trimmed, headRef, jobId, selection })
     discussComment.mutate(message, { onSuccess: () => cancelComposer() })
   }
 
@@ -815,16 +815,21 @@ function diffContextHighlightLine(comment: DiffReviewComment): string | null {
   return ` ${lineText}`
 }
 
-function discussionMessageForSelection({ body, headRef, selection }: { body: string; headRef?: string | null; selection: DiffLineSelection }) {
+function discussionMessageForSelection({ body, headRef, jobId, selection }: { body: string; headRef?: string | null; jobId: number | string; selection: DiffLineSelection }) {
   const line = selection.side === "old" ? selection.line.oldLine : selection.line.newLine
-  const location = [selection.file.path, line].filter((part) => part != null && part !== "").join(":")
+  const hunk = hunkForLine(selection.file.patch, selection.line)
 
   return [
-    "Discuss this code review comment.",
+    "The operator opened this chat discussion from an unposted diff draft. No review comment was created.",
+    `Job: JOB-${jobId}`,
     `Revision: ${headRef || "unknown"}`,
-    `Location: ${location}`,
+    `File: ${selection.file.path}`,
+    `Side: ${selection.side}`,
+    `Selected line: ${line ?? "unknown"}`,
+    `Selected source: ${selection.line.marker}${selection.line.code}`,
+    ...(hunk ? ["", "Surrounding diff hunk:", "```diff", hunk, "```"] : []),
     "",
-    "Comment:",
+    "Draft note:",
     body
   ].join("\n")
 }
