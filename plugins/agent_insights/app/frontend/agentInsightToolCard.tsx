@@ -282,7 +282,7 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
       </div>
     )
   }
-  if (insight.targetMemoryId || insight.staleMemoryText || insight.staleMemoryEvidence) {
+  if (insight.staleMemoryText || insight.staleMemoryEvidence) {
     sections.push(
       <div key="stale-memory">
         <SectionLabel>{t("tool_memory_retirement")}</SectionLabel>
