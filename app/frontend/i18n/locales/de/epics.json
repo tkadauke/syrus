@@ -1,6 +1,6 @@
 {
   "title": "Epics",
-  "legacy_epic_banner": "Dies ist ein älteres, mehrstufiges Feature, das vor dieser Umstellung angelegt wurde. Neue Anfragen erscheinen jetzt als einzelne Jobs im Haupt-Dashboard.",
+  "legacy_epic_banner": "Dies ist ein älteres, mehrstufiges Epic, das vor dieser Umstellung angelegt wurde. Neue Anfragen erscheinen jetzt als einzelne Jobs im Haupt-Dashboard.",
   "detail_label": "Epic",
   "job_progress_label": "Epic-Jobfortschritt",
   "deployment_stages_label": "Bereitstellungsstufen",
@@ -26,7 +26,7 @@
   "more_actions": "Weitere Aktionen",
   "description": "Beschreibung",
   "summary": "Zusammenfassung",
-  "summary_pending": "Syrus bereitet diese Feature-Zusammenfassung noch vor.",
+  "summary_pending": "Syrus bereitet diese Epic-Zusammenfassung noch vor.",
   "blocked": "Blockiert",
   "merge_train_phase": {
     "assembling": "Merge-Train wird zusammengestellt",
