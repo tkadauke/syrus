@@ -1010,7 +1010,26 @@
     "example_empty_description": "Exercises the generic empty-result fallback for a completed provider response."
   },
   "emergency_land": {
-    "example_pending": "Pending emergency land confirmation"
+    "job": "Job",
+    "branch": "Branch",
+    "warning_title": "Destructive emergency action",
+    "warning_message": "Confirming this action will land the change and skip graders, adversarial review, and visual review.",
+    "example_pending": "Pending emergency land confirmation",
+    "example_pending_message": "Emergency land requires **operator confirmation**.",
+    "example_feature_disabled": "Emergency land feature disabled"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Branch",
+    "active_checkout_branch": "Active checkout branch",
+    "example_pending": "Pending handoff with branch",
+    "example_pending_description": "Shows the linked Job, a long copyable branch, and a Markdown confirmation message across responsive layouts.",
+    "example_pending_message": "Review the **implementation handoff** before confirming.",
+    "example_rejected": "Rejected active-checkout handoff",
+    "example_rejected_description": "Shows the omitted-branch label and a settled rejection while retaining the requested Job.",
+    "example_rejected_message": "The **active checkout branch** was not handed off.",
+    "example_error": "Handoff validation error",
+    "example_error_description": "Shows a plain-text tool error with the submitted Job and active-checkout branch context."
   },
   "force_landing_recheck": {
     "not_provided": "Not provided",
