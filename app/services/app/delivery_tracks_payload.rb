@@ -10,12 +10,13 @@ module App
     RECENT_LIMIT = 10
     REF_MOVEMENT_TRIGGER_KINDS = %w[promotion hotfix_sync upstream_export].freeze
 
-    def self.for(repository:)
-      new(repository: repository).payload
+    def self.for(repository:, user:)
+      new(repository: repository, user: user).payload
     end
 
-    def initialize(repository:)
+    def initialize(repository:, user:)
       @repository = repository
+      @user = user
       @policy = DeliveryPolicy.for(repository: repository)
     end
 
@@ -32,7 +33,11 @@ module App
 
     private
 
-    attr_reader :repository, :policy
+    attr_reader :repository, :policy, :user
+
+    def visible_jobs
+      @visible_jobs ||= Job.visible_to(user, scope: repository.jobs)
+    end
 
     # Every repository resolves an implicit single "default" track even
     # without a `delivery:` block — only render the section once there is
@@ -68,7 +73,7 @@ module App
 
     def landing_queue_counts_by_branch
       @landing_queue_counts_by_branch ||= begin
-        counts_by_track = repository.jobs
+        counts_by_track = visible_jobs
           .landing_queue
           .group(:delivery_track)
           .count
@@ -106,6 +111,7 @@ module App
 
     def last_ref_movement_json(trigger_kind:)
       workflow = Workflow.joins(:job)
+        .merge(visible_jobs)
         .where(trigger_kind: trigger_kind, state: "succeeded", jobs: { repository_id: repository.id })
         .reorder(created_at: :desc, id: :desc)
         .first
@@ -121,6 +127,7 @@ module App
 
     def recent_ref_movement_workflows_json
       Workflow.joins(:job)
+        .merge(visible_jobs)
         .where(trigger_kind: REF_MOVEMENT_TRIGGER_KINDS, jobs: { repository_id: repository.id })
         .includes(:job)
         .reorder(created_at: :desc, id: :desc)
@@ -151,13 +158,13 @@ module App
     end
 
     def recent_pr_ingestions_json
-      imported_jobs = repository.jobs.where(kind: "external_pr")
+      imported_jobs = visible_jobs.where(kind: "external_pr")
         .includes(:pr_links)
         .reorder(created_at: :desc, id: :desc)
         .limit(RECENT_LIMIT)
         .to_a
 
-      attached_links = JobPrLink.where(role: JobPrLink::ROLE_EXTERNAL_INGEST, target_repository_id: repository.id)
+      attached_links = JobPrLink.where(job_id: visible_jobs.select(:id), role: JobPrLink::ROLE_EXTERNAL_INGEST, target_repository_id: repository.id)
         .where.not(job_id: imported_jobs.map(&:id))
         .includes(:job)
         .reorder(created_at: :desc, id: :desc)

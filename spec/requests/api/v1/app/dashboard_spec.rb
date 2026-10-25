@@ -1443,6 +1443,34 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
     end
 
+    it "excludes origin-restricted children from Epic aggregates" do
+      user.update!(global_role: "user")
+      epic = Factories.epic(user: user, repository: repo, title: "Private work", state: "in_progress")
+      visible = Factories.job_record(repository: repo, epic: epic, issue_number: 41, state: "implemented", commits_behind_base: 2)
+      Factories.job_record(
+        repository: repo,
+        epic: epic,
+        issue_number: 42,
+        state: "closed",
+        closure_reason: "pr_merged",
+        commits_behind_base: 9,
+        origin: "private_tasks",
+        origin_id: "7"
+      )
+
+      with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+        get "/api/v1/app/dashboard", params: { subject: "epic", view: "kanban" }
+
+        item = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("items") }.find { |row| row.fetch("id") == epic.id }
+        expect(item).to include(
+          "jobs_count" => 1,
+          "landed_jobs_count" => 0,
+          "job_state_counts" => { "implemented" => 1 },
+          "max_commits_behind_base" => visible.commits_behind_base
+        )
+      end
+    end
+
     it "serializes epic Kanban cards from preloaded child jobs" do
       3.times do |epic_index|
         epic = Factories.epic(user: user, repository: repo, title: "Epic #{epic_index}", state: "in_progress")

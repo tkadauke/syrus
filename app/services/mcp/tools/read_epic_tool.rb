@@ -32,19 +32,19 @@ module Mcp::Tools
             { jobs: [ :repository, :deployment_stage_statuses, { dependencies: { depends_on_job: :repository } } ] }
           ]
         )
-        child_jobs = epic.jobs.to_a.sort_by { |job| [ job.created_at, job.id ] }
+        child_jobs = visible_child_jobs(epic, current_user).to_a.sort_by { |job| [ job.created_at, job.id ] }
         deployment_stages_plan = RepoDeploymentStagesReader.for_repository(epic.repository) if child_jobs.any? { |job| job.landed_sha.present? }
 
         Mcp::Tools.success(
-          epic: epic_payload(epic),
+          epic: epic_payload(epic, child_jobs: child_jobs),
           child_jobs: child_jobs.map { |job| job_payload(job, deployment_stages_plan: deployment_stages_plan) }
         )
       end
 
       private
 
-      def epic_payload(epic)
-        furthest_job = epic.jobs.select(&:commits_behind_base).max_by(&:commits_behind_base)
+      def epic_payload(epic, child_jobs:)
+        furthest_job = child_jobs.select(&:commits_behind_base).max_by(&:commits_behind_base)
 
         {
           id: epic.id,
@@ -64,6 +64,10 @@ module Mcp::Tools
           created_at: epic.created_at&.iso8601,
           updated_at: epic.updated_at&.iso8601
         }
+      end
+
+      def visible_child_jobs(epic, user)
+        Job.visible_to(user, scope: epic.jobs)
       end
 
       def epic_reference(epic)

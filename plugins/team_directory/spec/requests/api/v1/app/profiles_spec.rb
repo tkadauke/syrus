@@ -180,6 +180,36 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(response.body).not_to include("syrus_profile_secret")
   end
 
+  it "omits origin-restricted Jobs from directory counts, profile work, and activity" do
+    viewer = Factories.user(admin: false)
+    teammate = Factories.user
+    repository = Factories.repository(user: teammate, owner: "acme", name: "private-work")
+    visible = Factories.job_record(user: teammate, repository: repository, issue_title: "Visible work")
+    hidden = Factories.job_record(
+      user: teammate,
+      repository: repository,
+      issue_number: 43,
+      issue_title: "Hidden work",
+      origin: "private_tasks",
+      origin_id: "7"
+    )
+    sign_in_as(viewer)
+    viewer.update!(global_role: "user")
+
+    with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+      get "/api/v1/app/profiles"
+      directory_row = parse_body.fetch("profiles").find { |profile| profile.fetch("id") == teammate.id }
+      expect(directory_row.dig("counts", "jobs")).to eq(1)
+
+      get "/api/v1/app/profiles/#{teammate.id}"
+      profile = parse_body.fetch("profile")
+      expect(profile.dig("counts", "jobs")).to eq(1)
+      expect(profile.fetch("jobs").map { |job| job.fetch("id") }).to eq([ visible.id ])
+      expect(profile.fetch("recent_activity").map { |activity| activity["title"] }).to include("Visible work")
+      expect(response.body).not_to include(hidden.issue_title)
+    end
+  end
+
   it "summarizes owned work without exposing private settings" do
     viewer = Factories.user
     teammate = Factories.user(name: "Grace Hopper", github_handle: "grace")
