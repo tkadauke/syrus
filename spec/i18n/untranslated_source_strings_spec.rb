@@ -6,8 +6,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
   CHAT_I18N_DEBT_FILES = %w[
     app/frontend/routes/chat/streamBuilders.ts
     app/frontend/routes/chat/streamChrome.tsx
-    app/frontend/routes/chat/tool_cards/add_epic_dependency.tsx
-    app/frontend/routes/chat/tool_cards/add_job_tag.tsx
     app/frontend/routes/chat/tool_cards/admin_cleanup_workspace.tsx
     app/frontend/routes/chat/tool_cards/admin_github_app_installation_diagnostic.tsx
     app/frontend/routes/chat/tool_cards/admin_kill_process.tsx
@@ -25,39 +23,41 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/admin_unpause_user_scheduling.tsx
     app/frontend/routes/chat/tool_cards/admin_version.tsx
     app/frontend/routes/chat/tool_cards/adopt_current_pr_head.tsx
-    app/frontend/routes/chat/tool_cards/cancel_coding_checkout.tsx
-    app/frontend/routes/chat/tool_cards/cancel_local_mode.tsx
     app/frontend/routes/chat/tool_cards/classify_pull_request.tsx
     app/frontend/routes/chat/tool_cards/clear_provider_circuit.tsx
-    app/frontend/routes/chat/tool_cards/create_coding_job.tsx
     app/frontend/routes/chat/tool_cards/create_tag.tsx
     app/frontend/routes/chat/tool_cards/daemon_ping.tsx
-    app/frontend/routes/chat/tool_cards/delegate_issue.tsx
     app/frontend/routes/chat/tool_cards/dispatch_ref_movement_action.tsx
     app/frontend/routes/chat/tool_cards/emergency_land.tsx
     app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx
-    app/frontend/routes/chat/tool_cards/force_state_transition.tsx
     app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx
     app/frontend/routes/chat/tool_cards/mark_ci_repair_noop.tsx
     app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
     app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
-    app/frontend/routes/chat/tool_cards/open_in_coding_mode.tsx
-    app/frontend/routes/chat/tool_cards/open_in_local_mode.tsx
     app/frontend/routes/chat/tool_cards/pause_landing_queue.tsx
-    app/frontend/routes/chat/tool_cards/remove_job_tag.tsx
-    app/frontend/routes/chat/tool_cards/remove_pinned_context.tsx
-    app/frontend/routes/chat/tool_cards/reopen_job.tsx
     app/frontend/routes/chat/tool_cards/run_command.tsx
-    app/frontend/routes/chat/tool_cards/select_job_delivery_track.tsx
     app/frontend/routes/chat/tool_cards/submit_artifact.tsx
-    app/frontend/routes/chat/tool_cards/submit_chat_feedback.tsx
-    app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx
-    app/frontend/routes/chat/tool_cards/update_pinned_context.tsx
     app/frontend/routes/chat/tool_cards/wake_provider_admission.tsx
     app/frontend/routes/chat/tool_cards/write_file.tsx
   ].freeze
 
   CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/routes/chat/tool_cards/add_epic_dependency.tsx
+    app/frontend/routes/chat/tool_cards/add_job_tag.tsx
+    app/frontend/routes/chat/tool_cards/remove_job_tag.tsx
+    app/frontend/routes/chat/tool_cards/force_state_transition.tsx
+    app/frontend/routes/chat/tool_cards/reopen_job.tsx
+    app/frontend/routes/chat/tool_cards/delegate_issue.tsx
+    app/frontend/routes/chat/tool_cards/select_job_delivery_track.tsx
+    app/frontend/routes/chat/tool_cards/create_coding_job.tsx
+    app/frontend/routes/chat/tool_cards/open_in_coding_mode.tsx
+    app/frontend/routes/chat/tool_cards/open_in_local_mode.tsx
+    app/frontend/routes/chat/tool_cards/cancel_coding_checkout.tsx
+    app/frontend/routes/chat/tool_cards/cancel_local_mode.tsx
+    app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx
+    app/frontend/routes/chat/tool_cards/submit_chat_feedback.tsx
+    app/frontend/routes/chat/tool_cards/update_pinned_context.tsx
+    app/frontend/routes/chat/tool_cards/remove_pinned_context.tsx
     app/frontend/routes/chat/tool_cards/propose_job.tsx
     app/frontend/routes/chat/tool_cards/propose_epic.tsx
     app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx
@@ -215,6 +215,23 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|jsx_expression|JOB-
       app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|Waiting on the operator to answer in chat.
       app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|result_error true -- renders through the shared ToolFailureSummaryCard instead of the waiting-state card.
+      app/frontend/routes/chat/tool_cards/cancel_coding_checkout.tsx|user_visible_property|JOB-4225 was detached from this Coding Mode chat. No code changes were preserved or applied by this operation.
+      app/frontend/routes/chat/tool_cards/cancel_coding_checkout.tsx|user_visible_property|Coding Mode checkout canceled for this chat. No code changes were preserved or applied by this operation.
+      app/frontend/routes/chat/tool_cards/cancel_local_mode.tsx|user_visible_property|JOB-42 returned to
+      app/frontend/routes/chat/tool_cards/cancel_local_mode.tsx|user_visible_property|JOB-43 was
+      app/frontend/routes/chat/tool_cards/create_coding_job.tsx|user_visible_property|Improve repository search
+      app/frontend/routes/chat/tool_cards/create_coding_job.tsx|user_visible_property|Created **JOB-7589** and queued it for implementation.
+      app/frontend/routes/chat/tool_cards/open_in_coding_mode.tsx|user_visible_property|JOB-4225 is now open in Coding Mode on checkout branch
+      app/frontend/routes/chat/tool_cards/open_in_local_mode.tsx|user_visible_property|JOB-4225 is now open for local implementation on branch
+      app/frontend/routes/chat/tool_cards/remove_pinned_context.tsx|user_visible_property|Pinned context removed.
+      app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx|user_visible_property|Add dark mode
+      app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx|user_visible_property|Adds **theme controls** and documents the [setting](/settings).
+      app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx|user_visible_property|Pending **operator confirmation**.
+      app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx|user_visible_property|Adds theme controls.
+      app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx|user_visible_property|Submit coding changes was auto-confirmed by the active goal policy.
+      app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx|user_visible_property|Invalid submission
+      app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx|user_visible_property|Branch must contain committed changes.
+      app/frontend/routes/chat/tool_cards/update_pinned_context.tsx|user_visible_property|Pinned context updated.
       app/frontend/routes/chat/tool_cards/create_repo_document.tsx|user_visible_property|API Guide
       app/frontend/routes/chat/tool_cards/create_repo_document.tsx|user_visible_property|Create **API Guide** in
       app/frontend/routes/chat/tool_cards/delete_repo_document.tsx|user_visible_property|Delete document

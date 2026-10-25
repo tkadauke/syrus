@@ -2,6 +2,7 @@ import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 import { displayValue, EntityReference, Row } from "../toolCardUi"
+import i18n from "@app/i18n"
 
 function repositorySlug(context: ToolCardContext, message: string | null) {
   const inputSlug = displayValue(context.input?.repository_slug)
@@ -31,22 +32,33 @@ function DelegateIssueDetails({ context, result }: { context: ToolCardContext; r
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       <Row
-        label="Repository"
+        label={i18n.t("chat:shared.repository")}
         value={
           repositoryId ? (
-            <EntityReference kind="repository" label={slug || `Repository #${repositoryId}`} repositoryId={repositoryId} repositorySlug={slug} />
+            <EntityReference
+              kind="repository"
+              label={slug || i18n.t("chat:shared.repository_with_id", { id: repositoryId })}
+              repositoryId={repositoryId}
+              repositorySlug={slug}
+            />
           ) : (
-            <span className="text-text-muted">Not provided</span>
+            <span className="text-text-muted">{i18n.t("chat:mutation_not_provided")}</span>
           )
         }
       />
       <Row
-        label="GitHub issue"
-        value={issueNumber ? <EntityReference id={issueNumber} issueUrl={issueUrl} kind="issue" /> : <span className="text-text-muted">Not provided</span>}
+        label={i18n.t("chat:mutation_github_issue")}
+        value={
+          issueNumber ? (
+            <EntityReference id={issueNumber} issueUrl={issueUrl} kind="issue" />
+          ) : (
+            <span className="text-text-muted">{i18n.t("chat:mutation_not_provided")}</span>
+          )
+        }
       />
       {resourceUrl ? (
         <Row
-          label="Resulting Job"
+          label={i18n.t("chat:mutation_resulting_job")}
           value={
             jobId ? (
               <span className="flex min-w-0 flex-wrap items-center gap-1">
@@ -54,7 +66,12 @@ function DelegateIssueDetails({ context, result }: { context: ToolCardContext; r
                 {resourceTitle ? <span className="break-words text-text-secondary">{resourceTitle}</span> : null}
               </span>
             ) : (
-              <EntityReference href={resourceUrl} id={resourceTitle || "View result"} kind="artifact" label={resourceTitle || "View result"} />
+              <EntityReference
+                href={resourceUrl}
+                id={resourceTitle || i18n.t("chat:mutation_view_result")}
+                kind="artifact"
+                label={resourceTitle || i18n.t("chat:mutation_view_result")}
+              />
             )
           }
         />

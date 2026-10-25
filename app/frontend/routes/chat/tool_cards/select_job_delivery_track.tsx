@@ -1,28 +1,29 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, EntityReference, Row } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import i18n from "@app/i18n"
 
 // Core-owned tool card for select_job_delivery_track (the tool-card work).
 type SelectTrackResult = { jobId: string; previousTrack: string | null; storedTrack: string | null; resolvedTrack: string | null }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Delivery track selection",
+  title: i18n.t("chat:mutation_delivery_track_selection"),
   attempted: (context) => {
     const jobId = stringFromInput(context, ["job_id"])
     const requestedTrack = displayValue(context.input?.track)
-    const action = requestedTrack ? `Set delivery track to ${requestedTrack}` : "Clear delivery track to default"
-    return jobId ? `${action} for JOB-${jobId}` : action
+    const action = requestedTrack ? i18n.t("chat:mutation_set_delivery_track", { track: requestedTrack }) : i18n.t("chat:mutation_clear_delivery_track_default")
+    return jobId ? i18n.t("chat:mutation_action_for_job", { action, id: jobId }) : action
   },
   retrySafety: "caution",
-  recovery: "Check that the Job is still open and has not been approved or started landing, then retry if appropriate."
+  recovery: i18n.t("chat:mutation_delivery_track_recovery")
 }
 
 function trackLabel(track: string | null) {
-  return track ?? "Default (not stored)"
+  return track ?? i18n.t("chat:mutation_default_not_stored")
 }
 
 function requestedTrackLabel(context: ToolCardContext) {
-  return displayValue(context.input?.track) ?? "Clear to default"
+  return displayValue(context.input?.track) ?? i18n.t("chat:mutation_clear_to_default")
 }
 
 function parseResult(context: ToolCardContext): SelectTrackResult | null {
@@ -57,10 +58,10 @@ function renderExpanded(context: ToolCardContext) {
         <EntityReference id={result.jobId} kind="job" />
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Requested track" value={requestedTrackLabel(context)} />
-        <Row label="Previously stored" value={trackLabel(result.previousTrack)} />
-        <Row label="Stored track" value={trackLabel(result.storedTrack)} />
-        <Row label="Resolved track" value={result.resolvedTrack ?? "Unavailable"} />
+        <Row label={i18n.t("chat:mutation_requested_track")} value={requestedTrackLabel(context)} />
+        <Row label={i18n.t("chat:mutation_previously_stored")} value={trackLabel(result.previousTrack)} />
+        <Row label={i18n.t("chat:mutation_stored_track")} value={trackLabel(result.storedTrack)} />
+        <Row label={i18n.t("chat:mutation_resolved_track")} value={result.resolvedTrack ?? i18n.t("chat:mutation_unavailable")} />
       </dl>
     </CardShell>
   )
@@ -75,25 +76,25 @@ const selectJobDeliveryTrackToolCard: ToolCardRenderer = {
 export const examples: ToolCardExample[] = [
   {
     id: "configured_track",
-    label: "Configured delivery track",
+    label: i18n.t("chat:mutation_example_configured_track"),
     input: { job_id: 4225, track: "staging" },
     parsedResult: { job_id: 4225, previous_delivery_track: null, delivery_track: "staging", resolved_delivery_track: "staging" }
   },
   {
     id: "cleared_to_default",
-    label: "Cleared to default",
+    label: i18n.t("chat:mutation_example_cleared_track"),
     input: { job_id: 4225, track: "" },
     parsedResult: { job_id: 4225, previous_delivery_track: "staging", delivery_track: null, resolved_delivery_track: "default" }
   },
   {
     id: "unconfigured_fallback",
-    label: "Unconfigured track falls back",
+    label: i18n.t("chat:mutation_example_fallback_track"),
     input: { job_id: 4225, track: "canary" },
     parsedResult: { job_id: 4225, previous_delivery_track: "staging", delivery_track: "canary", resolved_delivery_track: "default" }
   },
   {
     id: "closed_job_error",
-    label: "Closed Job error",
+    label: i18n.t("chat:mutation_example_closed_job_error"),
     input: { job_id: 4225, track: "staging" },
     resultBody: "Error: job is not open",
     resultError: true

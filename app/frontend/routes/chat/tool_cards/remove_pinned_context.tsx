@@ -2,22 +2,24 @@ import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pl
 import { ErrorCard, MalformedCard, successOrError } from "../chatHelperToolCard"
 import { parsePinnedContextResult, pinnedContextIdentifiers, PinnedContextCard } from "../pinnedContextToolCard"
 import { CardShell, StatePill } from "../toolCardUi"
+import i18n from "@app/i18n"
 
 function parseRemoval(context: ToolCardContext) {
-  return successOrError(context, "Pinned context removal failed.", () => parsePinnedContextResult(context))
+  return successOrError(context, i18n.t("chat:mutation_pinned_removal_failed_period"), () => parsePinnedContextResult(context))
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const parsed = parseRemoval(context)
-  if (parsed.kind === "error") return "Pinned context removal failed"
-  if (parsed.kind === "malformed") return context.resultBody === "" ? "Removing pinned context" : "Pinned context removal returned an unexpected response"
-  return parsed.data.message || "Pinned context removed"
+  if (parsed.kind === "error") return i18n.t("chat:mutation_pinned_removal_failed")
+  if (parsed.kind === "malformed")
+    return context.resultBody === "" ? i18n.t("chat:mutation_pinned_removing") : i18n.t("chat:mutation_pinned_removal_unexpected")
+  return parsed.data.message || i18n.t("chat:mutation_pinned_removed")
 }
 
 function renderExpanded(context: ToolCardContext) {
   const parsed = parseRemoval(context)
-  if (parsed.kind === "error") return <ErrorCard title="Pinned context" message={parsed.message} />
-  if (parsed.kind === "malformed") return <MalformedCard title="Pinned context" />
+  if (parsed.kind === "error") return <ErrorCard title={i18n.t("chat:mutation_pinned_context")} message={parsed.message} />
+  if (parsed.kind === "malformed") return <MalformedCard title={i18n.t("chat:mutation_pinned_context")} />
 
   const identifiers =
     typeof context.parsedResult === "object" && context.parsedResult ? pinnedContextIdentifiers(context.parsedResult as Record<string, unknown>) : {}
@@ -29,7 +31,7 @@ function renderPending() {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state="pending" tone="info" />
-        <span className="font-semibold text-text-primary">Removing pinned context</span>
+        <span className="font-semibold text-text-primary">{i18n.t("chat:mutation_pinned_removing")}</span>
       </div>
     </CardShell>
   )
@@ -47,7 +49,7 @@ export default removePinnedContextToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "removed_markdown",
-    label: "Removed markdown context",
+    label: i18n.t("chat:mutation_example_removed_markdown"),
     parsedResult: {
       chat_id: 7,
       pinned_context: null,
@@ -58,7 +60,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "nothing_pinned",
-    label: "Nothing pinned error",
+    label: i18n.t("chat:mutation_example_nothing_pinned"),
     resultBody: "No pinned context exists for this chat.",
     resultError: true,
     sourceType: "codex"
