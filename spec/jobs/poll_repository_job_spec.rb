@@ -7,6 +7,17 @@ RSpec.describe PollRepositoryJob, :ci_only do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)
   end
 
+  before do
+    # Most examples predate the repository-wide cache scan and express their
+    # fixtures through the old labeled-list seam. Keep those fixtures focused
+    # while exercising the new single all-issues scan.
+    allow_any_instance_of(GithubClient).to receive(:list_all_issues) do |client, slug, state: "open", since: nil|
+      options = { state: state == "all" ? "open" : state }
+      options[:since] = since if since
+      client.issues_with_label(slug, repository.trigger_label, **options)
+    end
+  end
+
   def issue(number: 42, labels: [ "syrus" ], body: "", state: "open", user_login: "reporter", updated_at: Time.current)
     OpenStruct.new(
       number: number,
@@ -160,9 +171,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job = Factories.job(user: user, repository: repository, issue_number: 720)
       run = job.runs.first
       closed_issue = issue(number: 720, state: "closed")
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open"|
-        state == "closed" ? [ closed_issue ] : []
-      end
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([ closed_issue ])
 
       described_class.perform_now(repository.id)
 
@@ -174,9 +183,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
     it "leaves PR-backed jobs to the PR poller when their source issue is closed" do
       job = Factories.job(user: user, repository: repository, issue_number: 720, pr_number: 9, branch_name: "syrus/issue-720-1")
       closed_issue = issue(number: 720, state: "closed")
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open"|
-        state == "closed" ? [ closed_issue ] : []
-      end
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([ closed_issue ])
 
       described_class.perform_now(repository.id)
 
@@ -541,8 +548,8 @@ RSpec.describe PollRepositoryJob, :ci_only do
     end
 
     it "quarantines a poison issue and continues ingesting the rest of the batch" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open"|
-        state == "closed" ? [] : [
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues) do |_client, _slug, **|
+        [
           issue(number: 42),
           issue(number: 43, body: "Depends-on: #42"),
           issue(number: 44)
@@ -841,7 +848,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         issue(number: 43, labels: [ IngestPolicy::SKIP_LABEL ])
       ]
       allow_any_instance_of(GithubClient).to receive(:list_all_issues)
-        .with(repository.slug, state: "open")
+        .with(repository.slug, state: "all", since: nil)
         .and_return(untagged_issues + labeled_or_skipped_issues)
 
       freeze_time do
@@ -853,28 +860,23 @@ RSpec.describe PollRepositoryJob, :ci_only do
       end
     end
 
-    it "does not fail the poll or block labeled-issue ingestion when the untagged-count call errors" do
-      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(labels: [ "syrus" ]) ])
+    it "marks the poll failed and retains cached data when the consolidated scan errors" do
+      cached = GithubIssue.where(repository: repository).create!(github_id: 42, number: 42, title: "Cached", state: "open", html_url: "https://github.com/acme/widgets/issues/42", labels: [], synced_at: 1.hour.ago)
       allow_any_instance_of(GithubClient).to receive(:list_all_issues)
-        .and_raise(Octokit::TooManyRequests.new)
+        .and_raise(RuntimeError, "GitHub unavailable")
 
       expect {
         described_class.perform_now(repository.id)
-      }.not_to raise_error
-
-      job = Job.find_by(repository: repository, issue_number: 42)
-      expect(job).to be_present
+      }.to raise_error(RuntimeError, "GitHub unavailable")
 
       repository.reload
-      expect(repository.last_poll_status).to eq("ok")
-      expect(repository.untagged_open_issue_count).to eq(0)
-      expect(repository.untagged_open_issues_checked_at).to be_nil
+      expect(repository.last_poll_status).to eq("failed")
+      expect(GithubIssue.where(repository: repository)).to contain_exactly(cached)
     end
 
     it "does not paginate all open issues again while the cached count is fresh" do
       repository.update_columns(untagged_open_issues_checked_at: 10.minutes.ago, untagged_open_issue_count: 12)
-      expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
+      expect_any_instance_of(GithubClient).to receive(:list_all_issues).once.and_return([])
 
       described_class.perform_now(repository.id)
 
@@ -883,16 +885,67 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
     it "skips the untagged-count call for an archived repository" do
       repository.archive!
-      expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
-
-      described_class.perform_now(repository.id, force: true)
+      described_class.perform_now(repository.id)
     end
 
     it "skips the untagged-count call when polling is disabled" do
       repository.update!(polling_enabled: false)
       expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
 
+      described_class.perform_now(repository.id)
+    end
+  end
+
+  describe "GitHub issue cache synchronization" do
+    before do
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues).and_return({})
+    end
+
+    it "populates, incrementally updates, and authoritatively reconciles cached issues idempotently" do
+      opened = issue(number: 101, labels: [ "bug" ], updated_at: 2.hours.ago)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([ opened ])
+
       described_class.perform_now(repository.id, force: true)
+      described_class.perform_now(repository.id, force: true)
+
+      expect(GithubIssue.where(repository: repository).count).to eq(1)
+      expect(repository.reload.github_issues_synced_at).to be_present
+      expect(repository.github_issues_full_synced_at).to be_present
+      cached = GithubIssue.where(repository: repository).find_by!(number: 101)
+      expect(cached).to have_attributes(state: "open", labels: [ { "name" => "bug", "color" => "6b7280" } ])
+
+      cursor = repository.reload.last_poll_started_at
+      closed = issue(number: 101, state: "closed", labels: [ "done" ], updated_at: Time.current)
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
+        .with(repository.slug, state: "all", since: cursor)
+        .and_return([ closed ])
+
+      described_class.perform_now(repository.id)
+      expect(cached.reload).to have_attributes(state: "closed", labels: [ { "name" => "done", "color" => "6b7280" } ])
+
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues).and_return([])
+      described_class.perform_now(repository.id, force: true)
+      expect(GithubIssue.where(repository: repository)).to be_empty
+    end
+
+    it "preloads existing cache rows instead of querying once per scanned issue" do
+      issues = (1..5).map { |number| issue(number: number, labels: [ "bug" ]) }
+      issues.each do |github_issue|
+        GithubIssue.create!(repository: repository, github_id: github_issue.number, number: github_issue.number,
+          title: github_issue.title, body: github_issue.body, state: "open",
+          html_url: "https://github.com/acme/widgets/issues/#{github_issue.number}", labels: [])
+      end
+      selects = []
+      subscriber = lambda do |*, payload|
+        selects << payload[:sql] if payload[:sql].match?(/SELECT .*github_issues/i)
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        described_class.new.send(:synchronize_issue_cache!, repository, issues,
+          linked_open_prs: {}, linked_lookup_numbers: {}, synced_at: Time.current, full_poll: false)
+      end
+
+      expect(selects.size).to eq(1)
     end
   end
 
@@ -1072,7 +1125,6 @@ RSpec.describe PollRepositoryJob, :ci_only do
         .with(repository.slug, (1..50).to_a)
         .once
         .and_return({})
-      expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
 
       described_class.perform_now(repository.id)
 
@@ -1158,7 +1210,6 @@ RSpec.describe PollRepositoryJob, :ci_only do
       described_class.perform_now(repository.id)
 
       expect(calls).to include([ repository.slug, repository.trigger_label, { state: "open", since: since } ])
-      expect(calls).to include([ repository.slug, repository.trigger_label, { state: "closed", since: since } ])
     end
 
     it "does a full reconciliation poll when force is true" do
@@ -1173,7 +1224,6 @@ RSpec.describe PollRepositoryJob, :ci_only do
       described_class.perform_now(repository.id, force: true)
 
       expect(calls).to include([ repository.slug, repository.trigger_label, { state: "open" } ])
-      expect(calls).to include([ repository.slug, repository.trigger_label, { state: "closed" } ])
       expect(calls.any? { |_slug, _label, kwargs| kwargs.key?(:since) }).to be(false)
       expect(repository.reload.last_full_poll_at).to be_within(1.second).of(Time.current)
     end
