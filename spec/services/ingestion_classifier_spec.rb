@@ -119,6 +119,26 @@ RSpec.describe IngestionClassifier do
     expect(job.runs).to be_empty
   end
 
+  it "does not assign an Epic to an investigation Job" do
+    epic = Factories.epic(user: user, repository: repository)
+    job = Job.create!(
+      user: user,
+      repository: repository,
+      issue_number: 15,
+      issue_title: "Investigate failures",
+      investigation: true
+    )
+
+    result = classify(job, {
+      "epic_id" => epic.id,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
+    })
+
+    expect(result).not_to be_success
+    expect(result.error).to include(Job::INVESTIGATION_EPIC_ERROR)
+    expect(job.reload.epic_id).to be_nil
+  end
+
   it "queues ordinary backend and JavaScript work on the Linux default" do
     job = Job.create!(
       user: user,

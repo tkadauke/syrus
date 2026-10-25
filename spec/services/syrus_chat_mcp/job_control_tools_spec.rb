@@ -471,6 +471,17 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.reload.epic_id).to be_nil
   end
 
+  it "rejects assigning an investigation Job to an Epic" do
+    job = Factories.job_record(repository: repository, kind: "direct", issue_number: nil, investigation: true)
+    epic = Factories.epic(user: user, repository: repository)
+
+    response = call_tool("assign_job_to_epic", job_id: job.id, epic_id: epic.id)
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include(Job::INVESTIGATION_EPIC_ERROR)
+    expect(job.reload.epic_id).to be_nil
+  end
+
   it "removes a job from its epic" do
     epic = Factories.epic(user: user, repository: repository, title: "Old epic")
     job = Factories.job_record(repository: repository, state: "queued", epic: epic)
