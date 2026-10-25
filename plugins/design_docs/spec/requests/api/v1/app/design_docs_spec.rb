@@ -1500,6 +1500,29 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).not_to include("# Edited plan")
   end
 
+  it "rejects an autosave derived before an intervening title update" do
+    doc = create_design_doc(title: "Original title", markdown: "# Plan\n\nOriginal body")
+    stale_revision = doc.canonical_revision
+    sign_in_as(owner)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: { title: "Current title" }
+    }
+    expect(response).to have_http_status(:ok)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        title: "Original title",
+        markdown: "# Plan\n\nStale autosave body",
+        base_revision: stale_revision
+      }
+    }
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.dig("error", "code")).to eq("revision_conflict")
+    expect(doc.reload).to have_attributes(title: "Current title", markdown: "# Plan\n\nOriginal body")
+  end
+
   it "accepts a suggestion whose range partially overlaps an existing comment anchor over the title, safely reprojecting the comment" do
     doc = create_design_doc(markdown: "# Checkout Flow\n\nDetails go here.")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)

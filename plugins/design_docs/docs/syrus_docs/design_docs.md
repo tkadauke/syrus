@@ -143,9 +143,12 @@ it is autosaved like any other edit, while `Save` creates a new auditable
 version/checkpoint from the current persisted working copy.
 
 Detail responses include `canonical_revision`, a SHA-256 fingerprint of the
-stored canonical Markdown (including private anchor markers). Owner Markdown
-updates send that value as `base_revision`. If a suggestion accept or another
-canonical write changed the document meanwhile, the API returns `409` with
+stored title, canonical Markdown (including private anchor markers), state,
+visibility, repositories, and collaborators. Owner title/Markdown updates send
+that value as `base_revision`; autosaves submit only those editable draft
+fields, not unchanged visibility, state, repository, or collaborator metadata.
+If a suggestion accept or another canonical write changed the document
+meanwhile, the API returns `409` with
 `error.code == "revision_conflict"` and leaves the newer canonical text
 untouched. The editor waits for an already-started autosave before reviewing
 suggestions and applies consecutive reviews in order. On conflict, reload the
