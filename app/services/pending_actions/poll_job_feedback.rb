@@ -31,7 +31,7 @@ module PendingActions
 
     def tool_card_outcome
       if payload["pr_number"].blank? || payload["pr_url"].blank?
-        scope = user.admin? ? Job.all : Job.accessible_to(user)
+        scope = user.admin? ? Job.visible_to(user, scope: Job.all) : Job.visible_to(user)
         job = scope.find_by(id: payload["job_id"])
       end
       pr_number = payload["pr_number"].presence || job&.pr_number

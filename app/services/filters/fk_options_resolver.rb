@@ -61,7 +61,7 @@ module Filters
     end
 
     def accessible_jobs
-      Job.where(user: user).or(Job.accessible_to(user))
+      Job.visible_to(user, scope: Job.where(user: user).or(Job.accessible_to(user)))
     end
 
     def apply_search(field, scope, query)

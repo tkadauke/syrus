@@ -270,7 +270,8 @@ module TestInsights
       private
 
       def self.run_scope(user)
-        user.admin? ? Run.joins(:job) : Run.joins(job: :repository).merge(Job.accessible_to(user))
+        visible_jobs = user.admin? ? Job.visible_to(user, scope: Job.all) : Job.visible_to(user)
+        Run.joins(job: :repository).merge(visible_jobs)
       end
 
       def self.normalize_numeric_ref(value, prefix:)
@@ -319,7 +320,7 @@ module TestInsights
       private
 
       def self.job_scope(user)
-        user.admin? ? Job.all : Job.accessible_to(user)
+        user.admin? ? Job.visible_to(user, scope: Job.all) : Job.visible_to(user)
       end
 
       def self.normalize_numeric_ref(value, prefix:)

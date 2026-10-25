@@ -73,7 +73,7 @@ module App
       end
 
       def dependency_target_options
-        rows = Job.accessible_to(@user)
+        rows = Job.visible_to(@user)
                     .joins(:repository)
                     .where.not(id: @job.id)
                     .order("jobs.created_at DESC", "jobs.id DESC")

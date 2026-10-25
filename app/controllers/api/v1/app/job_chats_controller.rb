@@ -55,7 +55,7 @@ module Api
         private
 
         def find_job
-          scope = Current.user&.admin? ? Job.all : policy_scope(Job)
+          scope = Current.user&.admin? ? Job.visible_to(Current.user, scope: Job.all) : policy_scope(Job)
           find_job_by_ref(scope.includes(:repository), params[:job_id])
         end
 

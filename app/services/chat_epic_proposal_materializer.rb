@@ -202,7 +202,7 @@ class ChatEpicProposalMaterializer
     job_proposals.each do |proposal|
       job = job_by_proposal_id.fetch(proposal.id)
       Array(proposal.depends_on_job_ids).each do |job_id|
-        depends_on_job = Job.accessible_to(user).find_by(id: job_id)
+        depends_on_job = Job.visible_to(user).find_by(id: job_id)
         next unless depends_on_job
 
         requirement = ProposalJobDependencyRequirements.for_job_id(proposal, job_id)
@@ -235,7 +235,7 @@ class ChatEpicProposalMaterializer
 
   def wire_epic_dependencies(proposal, epic)
     Array(proposal.depends_on_job_ids).each do |job_id|
-      dep_job = Job.accessible_to(user).find_by(id: job_id)
+      dep_job = Job.visible_to(user).find_by(id: job_id)
       next unless dep_job
 
       validate_dependency_target!(dep_job)

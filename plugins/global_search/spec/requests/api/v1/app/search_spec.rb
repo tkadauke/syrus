@@ -597,6 +597,26 @@ RSpec.describe "App API unified search", type: :request do
     expect(results.map { |row| row.fetch("id") }).to eq([ stronger_job.id, weaker_job.id ])
   end
 
+  it "omits indexed Jobs hidden by an origin visibility restriction" do
+    user.update!(global_role: "user")
+    visible = Factories.job_record(user: user, repository: repository, issue_title: "Deploy visible job")
+    hidden = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Deploy hidden job",
+      origin: "private_tasks",
+      origin_id: "7"
+    )
+    [ visible, hidden ].each { |job| GlobalSearch::JobIndex.upsert(job) }
+
+    with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+      get "/api/v1/app/search", params: { query: "deploy", types: [ "job" ] }
+
+      expect(response).to have_http_status(:ok)
+      expect(results).to contain_exactly(include("type" => "job", "id" => visible.id))
+    end
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS job_fts")
     SearchRecord.connection.execute("DROP TABLE IF EXISTS epic_fts")
