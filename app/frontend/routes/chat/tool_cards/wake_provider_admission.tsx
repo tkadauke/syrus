@@ -10,16 +10,16 @@ const wakeProviderAdmissionToolCard = pendingActionToolCard("wake_provider_admis
     { key: "provider", format: "badge" },
     {
       key: "user_id",
-      label: i18n.t("chat:wake_provider_admission.user_scope"),
+      label: () => i18n.t("chat:wake_provider_admission.user_scope"),
       format: "entity",
       hrefPrefix: "/admin/users",
-      emptyLabel: i18n.t("chat:wake_provider_admission.all_users")
+      emptyLabel: () => i18n.t("chat:wake_provider_admission.all_users")
     },
     { key: "reason", format: "markdown" }
   ],
   resultFields: [
-    { path: "observed_preview.workflow_count", label: i18n.t("chat:wake_provider_admission.queued_workflows"), format: "number" },
-    { path: "observed_preview.auto_retry_count", label: i18n.t("chat:wake_provider_admission.delayed_retries"), format: "number" }
+    { path: "observed_preview.workflow_count", label: () => i18n.t("chat:wake_provider_admission.queued_workflows"), format: "number" },
+    { path: "observed_preview.auto_retry_count", label: () => i18n.t("chat:wake_provider_admission.delayed_retries"), format: "number" }
   ]
 })
 

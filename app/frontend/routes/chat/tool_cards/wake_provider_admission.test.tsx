@@ -6,6 +6,7 @@ import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolName } from "../toolRendering"
 import card, { examples } from "./wake_provider_admission"
+import i18n from "../../../i18n"
 
 const result = {
   pending_confirmation_id: 501,
@@ -68,6 +69,19 @@ describe("wake_provider_admission tool card", () => {
     expect(screen.getByText("Queued workflows").nextElementSibling).toHaveTextContent("12")
     expect(screen.getByText("Delayed auto-retries").nextElementSibling).toHaveTextContent("3")
     expect(screen.getByText("pending")).toBeInTheDocument()
+  })
+
+  it("resolves field and empty-state labels after a live locale switch", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      render(<>{card.renderExpanded(context(result, { input: { provider: "codex", reason: "Recovered." } }))}</>)
+      expect(screen.getByText("Benutzerbereich")).toBeInTheDocument()
+      expect(screen.getByText("Alle Benutzer")).toBeInTheDocument()
+      expect(screen.getByText("Workflows in der Warteschlange").nextElementSibling).toHaveTextContent("12")
+      expect(screen.getByText("Verzögerte automatische Wiederholungen").nextElementSibling).toHaveTextContent("3")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("normalizes a content text JSON envelope and shows an unscoped wake", () => {

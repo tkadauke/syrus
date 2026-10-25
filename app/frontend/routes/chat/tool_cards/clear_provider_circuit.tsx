@@ -9,8 +9,8 @@ const pendingActionCard = pendingActionToolCard("clear_provider_circuit", {
   inputFields: [
     { key: "provider", format: "badge" },
     { key: "mode", format: "badge" },
-    { key: "user_id", label: i18n.t("chat:clear_provider_circuit.user"), format: "entity", hrefPrefix: "/admin/users" },
-    { key: "user_ids", label: i18n.t("chat:clear_provider_circuit.users"), format: "entity_list", hrefPrefix: "/admin/users" },
+    { key: "user_id", label: () => i18n.t("chat:clear_provider_circuit.user"), format: "entity", hrefPrefix: "/admin/users" },
+    { key: "user_ids", label: () => i18n.t("chat:clear_provider_circuit.users"), format: "entity_list", hrefPrefix: "/admin/users" },
     { key: "retry_after" },
     { key: "positive_evidence", format: "markdown" },
     { key: "reason", format: "markdown" }
