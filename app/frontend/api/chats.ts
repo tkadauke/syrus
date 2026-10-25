@@ -562,6 +562,7 @@ export type ChatPendingActionGroupState = "pending" | "confirming" | "confirmed"
 export type ChatPendingActionGroupMember = {
   id: number
   label: string
+  detail?: string | null
   state: ChatPendingActionState
   outcome?: "applied" | "skipped" | "failed" | null
   chat_message_id?: number | null

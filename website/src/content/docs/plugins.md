@@ -75,6 +75,12 @@ secret material.
 | Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
 | Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
 
+The Design Docs plugin gives chat agents a grouped archive tool for
+multi-document cleanup. A single request can preview up to 100 `DOC-N`
+targets, report documents that are already archived, and present one operator
+confirmation with per-document results; the existing single-document archive
+tool remains available for one-off requests.
+
 Whiteboard's high-level arrow tool creates connectors anchored to the visible
 edges of rectangles, stickies, ellipses, and diamonds. Optional arrow labels
 render as bound text and move with the connector, while raw scene updates
