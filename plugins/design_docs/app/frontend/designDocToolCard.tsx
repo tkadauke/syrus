@@ -1,4 +1,4 @@
-import { isPlainObject } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
 import type { ReactNode } from "react"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"

@@ -7,6 +7,7 @@ module DesignDocs
       ProposeDesignDocTool,
       CommentOnDesignDocTool,
       SuggestDesignDocChangeTool,
+      ArchiveDesignDocsTool,
       DeleteDesignDocTool
     ].freeze
 
