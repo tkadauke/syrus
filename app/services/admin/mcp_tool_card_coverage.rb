@@ -25,7 +25,6 @@ module Admin
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",
       "reset_workspace" => "hidden",
-      "restack_epic" => "generic",
       "override_job_planned_execution" => "generic"
     }.freeze
 
