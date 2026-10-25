@@ -437,6 +437,20 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(plural_pair_failures("chat" => { "items_other" => "many" })).to eq([ "chat.items missing one" ])
   end
 
+  it "keeps the failed repair cap count-driven in every locale" do
+    settings = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).transform_values { |locales| locales.fetch("settings") }
+
+    supported_locales.each do |locale|
+      repository = settings.fetch(locale).fetch("repository")
+      expect(repository).not_to have_key("health_repair_failed_cap")
+      expect(interpolation_names(repository.fetch("health_repair_failed_cap_one"))).to eq(%w[count max])
+      expect(interpolation_names(repository.fetch("health_repair_failed_cap_other"))).to eq(%w[count max])
+    end
+
+    expect(settings.dig("de", "repository", "health_repair_failed_cap_one")).to include("fehlgeschlagener Reparatur-Job")
+    expect(settings.dig("la", "repository", "health_repair_failed_cap_one")).to include("officium reparationis deficiens")
+  end
+
   it "keeps plugin frontend JSON locale key trees identical" do
     failures = Dir.glob(Rails.root.join("plugins/*/app/frontend/i18n/locales")).sort.flat_map do |root_path|
       root = Pathname(root_path)
