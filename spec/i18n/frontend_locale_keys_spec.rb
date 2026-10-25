@@ -420,6 +420,12 @@ RSpec.describe "Frontend locale keys", type: :unit do
     value.scan(/\{\{([^},]+)(?:,[^}]*)?\}\}/).flatten.sort
   end
 
+  def matching_german_keys(locales, pattern)
+    locales.fetch("de").sort.flat_map do |namespace, tree|
+      flatten_json(tree).filter_map { |key, value| "#{namespace}.#{key}" if value.match?(pattern) }
+    end
+  end
+
   it "keeps core frontend JSON locale key trees identical" do
     root = Rails.root.join("app/frontend/i18n/locales")
 
@@ -513,6 +519,41 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(locales.dig("la", "chat", "worker_count_other")).to eq("{{count}} operarii")
     expect(locales.dig("la", "chat", "tool_card_list_artifacts_summary_one")).to eq("{{count}} artificium")
     expect(locales.dig("la", "chat", "tool_card_list_artifacts_summary_other")).to eq("{{count}} artificia")
+  end
+
+  it "keeps the German catalog on the approved informal register and domain glossary" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+
+    # These are sentence-initial feminine pronouns referring to Arbeit, not formal address.
+    expect(matching_german_keys(locales, /\b(?:Sie|Ihnen|Ihr\p{L}*)\b/)).to eq(%w[
+      common.start_blocked_reason_tooltips.main_branch_health
+      jobs.start_blocked_generic
+    ])
+
+    expect(matching_german_keys(locales, /\b(?:Arbeitsabl\p{L}*|Runs?)\b/)).to be_empty
+    expect(locales.dig("de", "chat", "search", "empty_prompt")).to include("Job")
+    expect(locales.dig("de", "dashboard", "legacy_epics_banner")).to include("Epics")
+    expect(locales.dig("de", "dashboard", "new_feature")).to eq("Neues Epic")
+    expect(locales.dig("de", "dashboard", "column_label", "issue")).to eq("Issue")
+    expect(locales.dig("de", "epics", "summary_pending")).to include("Epic-Zusammenfassung")
+    expect(locales.dig("de", "nav", "smart_folder", "names", "admin_queue_runs")).to eq("Läufe")
+    expect(locales.dig("de", "nav", "filter_fields", "job_class")).to eq("Jobklasse")
+  end
+
+  it "uses count-driven keys for the remaining manually pluralized copy" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+
+    %w[en de la].each do |locale|
+      settings = locales.dig(locale, "settings")
+      %w[input_sources linear_source].each do |scope|
+        expect(settings.fetch(scope)).not_to have_key("issues_ingested")
+        expect(settings.fetch(scope)).to include("issues_ingested_one", "issues_ingested_other")
+      end
+
+      jobs = locales.dig(locale, "jobs")
+      expect(jobs).not_to have_key("workflow_divergence_files")
+      expect(jobs).to include("workflow_divergence_files_one", "workflow_divergence_files_other")
+    end
   end
 
   it "does not leave ordinary English prose among exact Latin chat matches" do

@@ -1069,8 +1069,7 @@
     "save_error": "Unable to save input source.",
     "last_polled_at": "Last polled: {{time}}",
     "issues_ingested_one": "{{count}} issue ingested",
-    "issues_ingested_other": "{{count}} issues ingested",
-    "issues_ingested": "{{count}} issues ingested"
+    "issues_ingested_other": "{{count}} issues ingested"
   },
   "linear_source": {
     "section_heading": "Linear",
@@ -1093,8 +1092,7 @@
     "save_error": "Unable to save Linear source.",
     "last_polled_at": "Last polled: {{time}}",
     "issues_ingested_one": "{{count}} issue ingested",
-    "issues_ingested_other": "{{count}} issues ingested",
-    "issues_ingested": "{{count}} issues ingested"
+    "issues_ingested_other": "{{count}} issues ingested"
   },
   "account_settings": {
     "loading_credentials": "Loading credentials...",
