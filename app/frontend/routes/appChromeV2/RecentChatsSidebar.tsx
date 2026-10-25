@@ -114,6 +114,7 @@ function normalizeSidebarSettings(settings: Partial<ChatSidebarSettings>, availa
     chat_types: chatTypes,
     sort_by: sortBy,
     show_empty_groups: groupBy === "date" ? false : settings.show_empty_groups === true,
+    unread_only: settings.unread_only === true,
     per_group: perGroup
   }
 }
@@ -152,14 +153,17 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   const activeChatId = activeChatIdFromPath(location.pathname)
-  const sidebarQueryKey = useMemo(() => recentChatsQueryKey(sidebarSettings), [sidebarSettings])
+  const sidebarQueryKey = useMemo(
+    () => sidebarSettings.unread_only ? [...recentChatsQueryKey(sidebarSettings), activeChatId] : recentChatsQueryKey(sidebarSettings),
+    [activeChatId, sidebarSettings]
+  )
   const chats = useQuery({
     queryKey: sidebarQueryKey,
-    queryFn: () => fetchChats(sidebarSettings),
+    queryFn: () => fetchChats(sidebarSettings, activeChatId),
     enabled: userPresent,
     staleTime: 30_000
   })
-  const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
+  const settingsKey = useMemo(() => JSON.stringify([sidebarSettings, sidebarSettings.unread_only ? activeChatId : null]), [activeChatId, sidebarSettings])
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
   const canLoadMoreGroups = Boolean(chats.data?.groups_has_more && chats.data.groups_next_offset != null)
   const availableChatTypes = useMemo(() => chats.data?.available_chat_types ?? [], [chats.data?.available_chat_types])
@@ -196,7 +200,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
     if (!force && failedGroupOffset === nextOffset) return
 
     setLoadingMoreGroups(true)
-    void fetchChatGroupsPage(sidebarSettings, nextOffset).then((payload) => {
+    void fetchChatGroupsPage(sidebarSettings, nextOffset, activeChatId).then((payload) => {
       setFailedGroupOffset(null)
       queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) => current ? {
         ...current,
@@ -209,7 +213,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
     }).finally(() => {
       setLoadingMoreGroups(false)
     })
-  }, [chats.data, failedGroupOffset, loadingMoreGroups, queryClient, sidebarQueryKey, sidebarSettings])
+  }, [activeChatId, chats.data, failedGroupOffset, loadingMoreGroups, queryClient, sidebarQueryKey, sidebarSettings])
 
   useEffect(() => {
     const root = sidebarRootRef.current
@@ -259,7 +263,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
     if (!beforeChat || loadingSections.has(section.key)) return
 
     setLoadingSections((current) => new Set(current).add(section.key))
-    void fetchMoreChatsForGroup(section, beforeChat.id, sidebarSettings).then((payload) => {
+    void fetchMoreChatsForGroup(section, beforeChat.id, sidebarSettings, activeChatId).then((payload) => {
       setLoadedSections((current) => {
         const existing = current[section.key]
         const existingIds = new Set([
@@ -686,6 +690,18 @@ function RecentChatsSettingsMenu({ agentFeatureVisible, availableAgents, availab
                   ) : null}
                   <SettingsParentRow current={groupByLabel} label="Group by" onClick={() => setSubmenu("group_by")} />
                   <SettingsParentRow current={sortByLabel} label="Sort by" onClick={() => setSubmenu("sort_by")} />
+                  <button
+                    className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
+                    onClick={() => apply({ unread_only: !settings.unread_only })}
+                    role="switch"
+                    aria-checked={settings.unread_only}
+                    type="button"
+                  >
+                    <span>{t("recent_chats_unread_only")}</span>
+                    <span className={`h-5 w-9 rounded-full p-0.5 ${settings.unread_only ? "bg-brand" : "bg-border"}`}>
+                      <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.unread_only ? "translate-x-4" : ""}`} />
+                    </span>
+                  </button>
                   {settings.group_by !== "date" ? (
                     <button
                       className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
