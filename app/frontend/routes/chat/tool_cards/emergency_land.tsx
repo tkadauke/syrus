@@ -5,8 +5,8 @@ import i18n from "@app/i18n"
 function DestructiveWarning() {
   return (
     <div className="rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface px-3 py-2 text-danger-text" role="alert">
-      <div className="text-xs font-bold uppercase tracking-wide">Destructive emergency action</div>
-      <div className="mt-1 font-medium">Confirming this action will land the change and skip graders, adversarial review, and visual review.</div>
+      <div className="text-xs font-bold uppercase tracking-wide">{i18n.t("chat:emergency_land.warning_title")}</div>
+      <div className="mt-1 font-medium">{i18n.t("chat:emergency_land.warning_message")}</div>
     </div>
   )
 }
@@ -26,8 +26,8 @@ function renderExpanded(context: ToolCardContext) {
       details={warning}
       input={context.input}
       inputFields={[
-        { key: "job_id", label: "Job", format: "entity", entityKind: "job" },
-        { key: "branch_name", label: "Branch", format: "copyable_badge" }
+        { key: "job_id", label: i18n.t("chat:emergency_land.job"), format: "entity", entityKind: "job" },
+        { key: "branch_name", label: i18n.t("chat:emergency_land.branch"), format: "copyable_badge" }
       ]}
       omitBranch
       omitJob
@@ -51,13 +51,13 @@ export const examples: ToolCardExample[] = [
       pending_confirmation_id: 7001,
       pending_action_id: 7001,
       state: "pending",
-      message: "Emergency land requires **operator confirmation**.",
+      message: i18n.t("chat:emergency_land.example_pending_message"),
       reason: "Urgent recovery for [the production incident](https://status.example.test/incidents/42)."
     }
   },
   {
     id: "feature_disabled",
-    label: "Emergency land feature disabled",
+    label: i18n.t("chat:emergency_land.example_feature_disabled"),
     input: { job_id: 4242, branch_name: "syrus/incident-fix" },
     resultBody: "Emergency land is not enabled on this instance. Enable it, or use complete_implement_step for the normal handoff path.",
     resultError: true
