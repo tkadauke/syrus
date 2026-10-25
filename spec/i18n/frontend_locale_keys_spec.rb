@@ -24,6 +24,8 @@ RSpec.describe "Frontend locale keys", type: :unit do
       backend_exceptions.refresh
       backend_exceptions.refreshing
       features.slugs.browser_error_auto_reports.name
+      mcp_tool_usage.clear_filters
+      mcp_tool_usage.search
     ],
     "common" => %w[
       status.skipped
@@ -45,6 +47,8 @@ RSpec.describe "Frontend locale keys", type: :unit do
     "settings" => %w[
       repository.needs_triage_showing_limited
       repository.col_issue
+      repository_form.insight_scheduling_badge_on
+      repository_form.insight_scheduling_badge_off
     ]
   }.freeze
 
@@ -138,6 +142,12 @@ RSpec.describe "Frontend locale keys", type: :unit do
     end
   end
 
+  def interpolation_names(value)
+    return [] unless value.is_a?(String)
+
+    value.scan(/\{\{([^},]+)(?:,[^}]*)?\}\}/).flatten.sort
+  end
+
   it "keeps core frontend JSON locale key trees identical" do
     root = Rails.root.join("app/frontend/i18n/locales")
 
@@ -184,6 +194,24 @@ RSpec.describe "Frontend locale keys", type: :unit do
     failures = plural_pair_failures(english)
 
     expect(failures).to be_empty, "Incomplete core plural key pairs:\n#{failures.join("\n")}"
+  end
+
+  it "preserves approved German copy for the confirmed locale defects" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+    german = locales.fetch("de")
+
+    expect(dig_key(german.fetch("nav"), "smart_folder_names.repositories_recent")).to eq("Kürzlich")
+    expect(dig_key(german.fetch("nav"), "smart_folder_names.admin_queue_runs")).to eq("Läufe")
+    expect(dig_key(german.fetch("nav"), "smart_folder_names.admin_queue_low_priority_maintenance")).to eq("Niedrige Priorität")
+    expect(dig_key(german.fetch("nav"), "smart_folder.names.admin_queue_low_priority_maintenance")).to eq("Niedrige Priorität")
+    expect(dig_key(german.fetch("admin"), "mcp_tool_usage.card_gap_ranking_heading")).to eq("Custom-Card-Lückenranking")
+    expect(dig_key(german.fetch("admin"), "mcp_tool_usage.card_gap_ranking_empty")).to include("Custom-Card-Lücken")
+
+    %w[en de la].each do |locale|
+      admin = locales.fetch(locale).fetch("admin")
+      expect(interpolation_names(dig_key(admin, "console.restart_confirm_with_runs_one"))).to be_empty
+      expect(interpolation_names(dig_key(admin, "console.restart_confirm_with_runs_other"))).to eq([ "count" ])
+    end
   end
 
   it "detects either missing half of a plural pair" do
