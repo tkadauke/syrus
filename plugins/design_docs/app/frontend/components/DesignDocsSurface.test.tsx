@@ -2476,12 +2476,20 @@ describe("DesignDocsSurface", () => {
       }
       if (url.pathname === "/api/v1/app/design_docs/4" && init?.method === "PATCH") {
         calls.push("autosave")
-        return new Promise<Response>((resolve) => { resolveAutosave = resolve })
+        return new Promise<Response>((resolve) => {
+          resolveAutosave = resolve
+        })
       }
       if (url.pathname.endsWith("/suggestions/31/accept")) {
         calls.push("accept-31")
         return jsonResponse({
-          design_doc: { ...openQuestionsDocDetail, markdown: firstAcceptedMarkdown, rendered_markdown: firstAcceptedMarkdown, canonical_revision: "open-questions-revision-2", suggestions: openQuestionsDocDetail.suggestions.slice(1) },
+          design_doc: {
+            ...openQuestionsDocDetail,
+            markdown: firstAcceptedMarkdown,
+            rendered_markdown: firstAcceptedMarkdown,
+            canonical_revision: "open-questions-revision-2",
+            suggestions: openQuestionsDocDetail.suggestions.slice(1)
+          },
           suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" },
           message: "Suggestion accepted."
         })
@@ -2489,7 +2497,13 @@ describe("DesignDocsSurface", () => {
       if (url.pathname.endsWith("/suggestions/32/accept")) {
         calls.push("accept-32")
         return jsonResponse({
-          design_doc: { ...openQuestionsDocDetail, markdown: secondAcceptedMarkdown, rendered_markdown: secondAcceptedMarkdown, canonical_revision: "open-questions-revision-3", suggestions: openQuestionsDocDetail.suggestions.slice(2) },
+          design_doc: {
+            ...openQuestionsDocDetail,
+            markdown: secondAcceptedMarkdown,
+            rendered_markdown: secondAcceptedMarkdown,
+            canonical_revision: "open-questions-revision-3",
+            suggestions: openQuestionsDocDetail.suggestions.slice(2)
+          },
           suggestion: { ...openQuestionsDocDetail.suggestions[1], state: "accepted" },
           message: "Suggestion accepted."
         })
@@ -2524,9 +2538,13 @@ describe("DesignDocsSurface", () => {
     expect(patchBody).not.toHaveProperty("repository_ids")
     expect(patchBody).not.toHaveProperty("collaborator_user_ids")
 
-    resolveAutosave?.(jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" }))
+    resolveAutosave?.(
+      jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" })
+    )
     await waitFor(() => expect(calls).toEqual(["autosave", "accept-31", "accept-32"]))
-    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Nested .syrus.yml discovery should be automatic once a target graph exists.")
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent(
+      "Nested .syrus.yml discovery should be automatic once a target graph exists."
+    )
     expect(screen.getByRole("textbox", { name: "Rich Text editor" })).not.toHaveTextContent("Use the target command.")
   })
 
