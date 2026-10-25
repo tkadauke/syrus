@@ -7,7 +7,6 @@ RSpec.describe CreateHandles do
   after do
     described_class.new.migrate(:up)
   end
-
   it "backfills missing user handles and can be rerun" do
     user = Factories.user(email_address: "fallback.person@example.com", github_handle: "Existing.User")
     Handle.find_by!(owner: user).destroy!

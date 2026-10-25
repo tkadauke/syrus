@@ -43,7 +43,6 @@ class HandleRegistry
     def claimed_handle(owner)
       Handle.find_by!(owner: owner).tap { owner.association(:handle_record).reset }
     end
-
     def source_for(owner)
       return owner.github_handle if owner.respond_to?(:github_handle) && owner.github_handle.present?
 

@@ -285,7 +285,6 @@ class User < ApplicationRecord
 
     chat.chat_participants.exists?(user_id: id)
   end
-
   def admin?
     unless has_attribute?(:global_role)
       return self.class.where(id: id).pick(:global_role) == "admin" if persisted?
