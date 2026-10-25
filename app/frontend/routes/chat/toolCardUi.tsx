@@ -5,6 +5,7 @@ import { CodeSurface, Input, Pill, Surface, Text, ToolCard } from "../../compone
 import type { SemanticTone } from "../../components/ui"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 import { workerCapabilityEntries, workerCapabilitiesText } from "../../lib/workerCapabilities"
@@ -59,13 +60,17 @@ export function stateTone(state: string | null | undefined): Tone {
   return "neutral"
 }
 
-export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
-  const { t } = useT("chat")
-  const resolvedTone = tone ?? stateTone(state)
+export function toolCardStateLabel(state: string): string {
   const normalized = state.toLowerCase().replace(/\s+/g, "_")
+  return i18n.t(`chat:tool_card_state_${normalized}`, { defaultValue: state.replace(/_/g, " ") })
+}
+
+export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
+  useT("chat")
+  const resolvedTone = tone ?? stateTone(state)
   return (
     <Pill className="text-2xs font-semibold uppercase" tone={TONE_TO_SEMANTIC_TONE[resolvedTone]}>
-      {t(`tool_card_state_${normalized}`, { defaultValue: state.replace(/_/g, " ") })}
+      {toolCardStateLabel(state)}
     </Pill>
   )
 }

@@ -1,6 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../../i18n"
-import { CardShell, EmptyState, EntityReference, InternalLink, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { CardShell, EmptyState, EntityReference, InternalLink, displayValue, numberValue, SectionLabel, StatePill, toolCardStateLabel } from "../toolCardUi"
 import { changedFilePaths, DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
@@ -86,7 +86,7 @@ function collapsedSummary(context: ToolCardContext) {
 
   const pr = parsePr(context)
   if (!pr) return null
-  return `PR #${pr.number} (${pr.state})`
+  return `PR #${pr.number} (${toolCardStateLabel(pr.state)})`
 }
 
 function renderExpanded(context: ToolCardContext) {

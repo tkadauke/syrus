@@ -13,7 +13,8 @@ import {
   numberValue,
   Row,
   SectionLabel,
-  StatePill
+  StatePill,
+  toolCardStateLabel
 } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
@@ -91,7 +92,7 @@ function parseTranscript(context: ToolCardContext): RunTranscriptCard | null {
 function collapsedSummary(context: ToolCardContext) {
   const run = parseTranscript(context)
   if (!run) return null
-  return `RUN-${run.runId} (${run.runState})`
+  return `RUN-${run.runId} (${toolCardStateLabel(run.runState)})`
 }
 
 function isFailureState(state: string) {

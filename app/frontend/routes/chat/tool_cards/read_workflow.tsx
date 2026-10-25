@@ -1,7 +1,19 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../../i18n"
 import { MarkdownPreview } from "../toolCardMarkdown"
-import { Badge, CardShell, decimalCost, displayValue, durationLabel, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
+import {
+  Badge,
+  CardShell,
+  decimalCost,
+  displayValue,
+  durationLabel,
+  EmptyState,
+  EntityReference,
+  Row,
+  SectionLabel,
+  StatePill,
+  toolCardStateLabel
+} from "../toolCardUi"
 
 // Core-owned tool card for read_workflow (the Tier 1 tool-card work). Renders the
 // Workflow header plus a Step/Run timeline: state, duration/timestamps,
@@ -125,7 +137,7 @@ function collapsedSummary(context: ToolCardContext) {
   if (context.resultError) return i18n.t("chat:tool_card_workflow_lookup_failed")
   const workflow = parseWorkflow(context)
   if (!workflow) return null
-  return `WF-${workflow.id} (${workflow.state})`
+  return `WF-${workflow.id} (${toolCardStateLabel(workflow.state)})`
 }
 
 function renderExpanded(context: ToolCardContext) {
