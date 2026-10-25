@@ -418,6 +418,7 @@ export function recoverJobResourceContinuity(queryClient: QueryClient, jobId: st
 export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: string | number) {
   const id = String(chatId)
   invalidateAppQuery(queryClient, { queryKey: [ "chats", id ] })
+  invalidateAppQuery(queryClient, { queryKey: chatBookmarksQueryPrefix(id) })
   invalidateAppQuery(queryClient, { queryKey: chatPinsQueryPrefix(id) })
 }
 
