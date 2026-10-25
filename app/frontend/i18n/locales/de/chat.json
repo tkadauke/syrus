@@ -2380,6 +2380,8 @@
   "tool_card_cross_chat_example_same": "Fehler: Ziel ist der aktuelle Chat",
   "tool_card_cross_chat_example_pending": "Nachricht ausstehend",
   "tool_card_spawn_chats": "Chats starten",
+  "tool_card_spawn_chats_confirmation_one": "{{count}} Chat starten?",
+  "tool_card_spawn_chats_confirmation_other": "{{count}} Chats starten?",
   "tool_card_chat_count_zero": "{{count}} Chats",
   "tool_card_chat_count_one": "{{count}} Chat",
   "tool_card_chat_count_other": "{{count}} Chats",

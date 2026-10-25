@@ -235,7 +235,7 @@ function compactCollapsedSummary(text: string) {
   return `${plainText.slice(0, COLLAPSED_SUMMARY_MAX_CHARS - 1).trimEnd()}…`
 }
 
-export function pendingActionCollapsedSummary(result: PendingActionResult): string {
+export function pendingActionCollapsedSummary(result: PendingActionResult, messageOverride?: string): string {
   if (result.kind === "error") return compactCollapsedSummary(result.code ? `${result.code}: ${result.message}` : result.message)
   if (result.kind === "dry_run_evidence") {
     const jobId = result.context.jobId || result.evidence?.jobId
@@ -244,7 +244,7 @@ export function pendingActionCollapsedSummary(result: PendingActionResult): stri
   const identifier = result.groupId
     ? i18n.t("chat:pending_action_group_number", { id: result.groupId })
     : i18n.t("chat:pending_action_number", { id: result.pendingActionId })
-  const base = result.message || `${identifier} (${result.state})`
+  const base = messageOverride || result.message || `${identifier} (${result.state})`
   const summary = result.memberCount == null ? base : `${base} · ${i18n.t("chat:action_count", { count: result.memberCount })}`
   return compactCollapsedSummary(summary)
 }
@@ -503,6 +503,7 @@ export function PendingActionResultCard({
   observedSummary = false,
   omitReason = false,
   omitResource = false,
+  messageOverride,
   result
 }: {
   detailTitle?: string
@@ -516,6 +517,7 @@ export function PendingActionResultCard({
   observedSummary?: boolean
   omitReason?: boolean
   omitResource?: boolean
+  messageOverride?: string
   result: PendingActionResult
 }) {
   if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
@@ -588,14 +590,14 @@ export function PendingActionResultCard({
       {result.executionStep ? (
         <Row label={i18n.t("chat:ops_execution_step_c1dd00")} value={<span className="break-all font-mono">{result.executionStep}</span>} />
       ) : null}
-      {result.message ? (
+      {messageOverride || result.message ? (
         <MarkdownPreview
           linkifySlugs
           linkifyUrls={linkifyMessageUrls}
           maxChars={600}
           maxLines={4}
           modalLabel={i18n.t("chat:ops_pending_action_message_73897a")}
-          text={linkedPendingProse(result.message)}
+          text={linkedPendingProse(messageOverride || result.message || "")}
         />
       ) : null}
       {!omitReason && result.reason && result.reason !== displayValue(input?.reason) ? (

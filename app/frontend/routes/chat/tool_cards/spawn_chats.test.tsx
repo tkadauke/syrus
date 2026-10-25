@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
 import type { ChatPendingActionInline } from "@app/api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
@@ -101,6 +102,23 @@ describe("spawn_chats tool card", () => {
     expect(normalizedToolName("mcp__syrus-chat__spawn_chats")).toBe("spawn_chats")
     expect(spawnChatsToolCard.collapsedSummary?.(context({ parsedResult: normalizedToolCardParsedResult(claudeEnvelope) }))).toContain("Spawn 2 chats?")
     expect(spawnChatsToolCard.collapsedSummary?.(context({ parsedResult: normalizedToolCardParsedResult(codexEnvelope) }))).toContain("Spawn 2 chats?")
+  })
+
+  it("localizes the confirmation while preserving operator-provided chat text", async () => {
+    const previousLanguage = i18n.language
+    try {
+      await i18n.changeLanguage("de")
+      const localizedContext = context({ input, parsedResult: pending() })
+
+      expect(spawnChatsToolCard.collapsedSummary?.(localizedContext)).toContain("2 Chats starten?")
+      render(<>{spawnChatsToolCard.renderExpanded(localizedContext)}</>)
+
+      expect(screen.getByText("2 Chats starten?")).toBeInTheDocument()
+      expect(screen.getByText("Bug hunt")).toBeInTheDocument()
+      expect(screen.getAllByText("Run these in", { exact: false }).length).toBeGreaterThan(0)
+    } finally {
+      await i18n.changeLanguage(previousLanguage)
+    }
   })
 
   it("falls back for malformed results", () => {

@@ -2380,6 +2380,8 @@
   "tool_card_cross_chat_example_same": "Error: finis est chat praesens",
   "tool_card_cross_chat_example_pending": "Nuntius pendens",
   "tool_card_spawn_chats": "Chat generare",
+  "tool_card_spawn_chats_confirmation_one": "{{count}} chat generare?",
+  "tool_card_spawn_chats_confirmation_other": "{{count}} chat generare?",
   "tool_card_chat_count_zero": "{{count}} chat",
   "tool_card_chat_count_one": "{{count}} chat",
   "tool_card_chat_count_other": "{{count}} chat",
