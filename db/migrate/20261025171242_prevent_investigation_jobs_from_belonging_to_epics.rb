@@ -6,7 +6,8 @@ class PreventInvestigationJobsFromBelongingToEpics < ActiveRecord::Migration[8.1
     # detaching invalid rows before the database begins enforcing the rule.
     execute <<~SQL.squish
       UPDATE jobs
-      SET epic_id = NULL
+      SET epic_id = NULL,
+          epic_title = NULL
       WHERE investigation = #{connection.quoted_true}
         AND epic_id IS NOT NULL
     SQL

@@ -58,6 +58,15 @@ RSpec.describe Job do
       expect(job.errors[:base]).to include(Job::INVESTIGATION_EPIC_ERROR)
     end
 
+    it "rejects an investigation Job associated with an unsaved Epic" do
+      epic = Epic.new(user: user, repository: repository, title: "Unsaved Epic")
+      job = Job.new(user: user, repository: repository, epic: epic, kind: "direct", investigation: true)
+
+      expect(job.epic_id).to be_nil
+      expect(job).not_to be_valid
+      expect(job.errors[:base]).to include(Job::INVESTIGATION_EPIC_ERROR)
+    end
+
     it "rejects converting an Epic child into an investigation Job" do
       epic = Factories.epic(user: user, repository: repository)
       job = Factories.job_record(user: user, repository: repository, epic: epic)
