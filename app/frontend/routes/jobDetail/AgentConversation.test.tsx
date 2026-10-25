@@ -10,7 +10,9 @@ function graph(overrides: Partial<AgentConversationGraph> = {}): AgentConversati
   return {
     job_id: 1,
     selected_workflow_id: 9,
-    workflows: [{ id: 9, slug: "WF-9", trigger_kind: "initial", trigger_label: "Initial", state: "succeeded", created_at: null, started_at: null, finished_at: null }],
+    workflows: [
+      { id: 9, slug: "WF-9", trigger_kind: "initial", trigger_label: "Initial", state: "succeeded", created_at: null, started_at: null, finished_at: null }
+    ],
     nodes: [],
     edges: [],
     ...overrides
@@ -47,44 +49,53 @@ describe("AgentConversationTab", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/1/agent_conversation") {
-        return Promise.resolve(jsonResponse(graph({
-          nodes: [
-            {
-              id: "agent_session-501",
-              kind: "agent_session",
-              workflow_id: 9,
-              trigger_kind: "initial",
-              step_id: 1,
-              step_kind: "implement",
-              run_id: 501,
-              role: "workflow:implement",
-              label: "Implement",
-              state: "succeeded",
-              started_at: null,
-              finished_at: null,
-              agentic: true,
-              summary: "Added the greeting helper",
-              detail: {}
-            }
-          ]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            graph({
+              nodes: [
+                {
+                  id: "agent_session-501",
+                  kind: "agent_session",
+                  workflow_id: 9,
+                  trigger_kind: "initial",
+                  step_id: 1,
+                  step_kind: "implement",
+                  run_id: 501,
+                  role: "workflow:implement",
+                  label: "Implement",
+                  state: "succeeded",
+                  started_at: null,
+                  finished_at: null,
+                  agentic: true,
+                  summary: "Added the greeting helper",
+                  detail: {}
+                }
+              ]
+            })
+          )
+        )
       }
       if (path.startsWith("/api/v1/app/jobs/1/runs/501/artifacts?artifact=transcript")) {
         const page = new URL(path, "http://example.test").searchParams.get("page")
-        return Promise.resolve(jsonResponse({
-          job_id: 1,
-          workflow_id: 9,
-          run_id: 501,
-          base_ref: null,
-          head_ref: null,
-          artifact: "transcript",
-          logs_count: 101,
-          logs_page: Number(page),
-          logs_per_page: 100,
-          logs_total_pages: 2,
-          logs_has_older: page === "1",
-          logs: page === "1" ? [{ id: 101, sequence: 101, kind: "assistant_text", chunk: "Wrote the greeting helper.", created_at: null }] : [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Started the implementation.", created_at: null }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            job_id: 1,
+            workflow_id: 9,
+            run_id: 501,
+            base_ref: null,
+            head_ref: null,
+            artifact: "transcript",
+            logs_count: 101,
+            logs_page: Number(page),
+            logs_per_page: 100,
+            logs_total_pages: 2,
+            logs_has_older: page === "1",
+            logs:
+              page === "1"
+                ? [{ id: 101, sequence: 101, kind: "assistant_text", chunk: "Wrote the greeting helper.", created_at: null }]
+                : [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Started the implementation.", created_at: null }]
+          })
+        )
       }
       return Promise.reject(new Error(`unexpected fetch ${path}`))
     })
@@ -112,23 +123,59 @@ describe("AgentConversationTab", () => {
   })
 
   it("renders panel members as one expandable consensus round", async () => {
-    const panel = { panel_id: "panel-1", panel_verdict: "approved", vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 2, min_members: 2 } }
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
-      nodes: [
-        {
-          id: "agent_session-601", kind: "agent_session", workflow_id: 9, trigger_kind: "initial", step_id: 61,
-          step_kind: "adversarial_review", run_id: 601, role: "workflow:adversarial_reviewer", agent_provider: "claude", agent_model: "sonnet",
-          iteration: 1, label: "Adversarial review", state: "succeeded", started_at: null, finished_at: null, agentic: true,
-          summary: "Clean.", detail: { ...panel, verdict: "approved" }
-        },
-        {
-          id: "agent_session-602", kind: "agent_session", workflow_id: 9, trigger_kind: "initial", step_id: 62,
-          step_kind: "adversarial_review", run_id: 602, role: "workflow:adversarial_reviewer", agent_provider: "codex", agent_model: "gpt-5",
-          iteration: 1, label: "Adversarial review", state: "succeeded", started_at: null, finished_at: null, agentic: true,
-          summary: "Minor concern.", detail: { ...panel, verdict: "needs_work" }
-        }
-      ]
-    })))
+    const panel = {
+      panel_id: "panel-1",
+      panel_verdict: "approved",
+      vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 2, min_members: 2 }
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        graph({
+          nodes: [
+            {
+              id: "agent_session-601",
+              kind: "agent_session",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 61,
+              step_kind: "adversarial_review",
+              run_id: 601,
+              role: "workflow:adversarial_reviewer",
+              agent_provider: "claude",
+              agent_model: "sonnet",
+              iteration: 1,
+              label: "Adversarial review",
+              state: "succeeded",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: "Clean.",
+              detail: { ...panel, verdict: "approved" }
+            },
+            {
+              id: "agent_session-602",
+              kind: "agent_session",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 62,
+              step_kind: "adversarial_review",
+              run_id: 602,
+              role: "workflow:adversarial_reviewer",
+              agent_provider: "codex",
+              agent_model: "gpt-5",
+              iteration: 1,
+              label: "Adversarial review",
+              state: "succeeded",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: "Minor concern.",
+              detail: { ...panel, verdict: "needs_work" }
+            }
+          ]
+        })
+      )
+    )
 
     renderTab()
 
@@ -141,25 +188,29 @@ describe("AgentConversationTab", () => {
   })
 
   it("renders a deterministic_check card and shows raw output only, no reasoning framing", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
-      nodes: [
-        {
-          id: "deterministic_check-77",
-          kind: "deterministic_check",
-          workflow_id: 9,
-          trigger_kind: "initial",
-          step_id: 77,
-          step_kind: "grader",
-          label: "rspec",
-          state: "failed",
-          started_at: null,
-          finished_at: null,
-          agentic: false,
-          summary: "rspec failed",
-          detail: { command: "bin/rspec", output: "1 example, 1 failure" }
-        }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        graph({
+          nodes: [
+            {
+              id: "deterministic_check-77",
+              kind: "deterministic_check",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 77,
+              step_kind: "grader",
+              label: "rspec",
+              state: "failed",
+              started_at: null,
+              finished_at: null,
+              agentic: false,
+              summary: "rspec failed",
+              detail: { command: "bin/rspec", output: "1 example, 1 failure" }
+            }
+          ]
+        })
+      )
+    )
 
     renderTab()
 
@@ -172,25 +223,29 @@ describe("AgentConversationTab", () => {
   })
 
   it("renders an external_trigger banner spanning the thread with a link to its source", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
-      nodes: [
-        {
-          id: "external_trigger-9",
-          kind: "external_trigger",
-          workflow_id: 9,
-          trigger_kind: "pr_comment",
-          step_id: null,
-          step_kind: null,
-          label: "PR feedback",
-          state: null,
-          started_at: null,
-          finished_at: null,
-          agentic: false,
-          summary: "PR comment from @alice",
-          detail: { comments: [{ body: "Please rename this method" }] }
-        }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        graph({
+          nodes: [
+            {
+              id: "external_trigger-9",
+              kind: "external_trigger",
+              workflow_id: 9,
+              trigger_kind: "pr_comment",
+              step_id: null,
+              step_kind: null,
+              label: "PR feedback",
+              state: null,
+              started_at: null,
+              finished_at: null,
+              agentic: false,
+              summary: "PR comment from @alice",
+              detail: { comments: [{ body: "Please rename this method" }] }
+            }
+          ]
+        })
+      )
+    )
 
     renderTab(1, "https://github.com/acme/widgets/pull/1")
 
@@ -200,43 +255,47 @@ describe("AgentConversationTab", () => {
   })
 
   it("renders a generated connector label between two nodes", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
-      nodes: [
-        {
-          id: "deterministic_check-1",
-          kind: "deterministic_check",
-          workflow_id: 9,
-          trigger_kind: "initial",
-          step_id: 1,
-          step_kind: "grader",
-          label: "rspec",
-          state: "failed",
-          started_at: null,
-          finished_at: null,
-          agentic: false,
-          summary: null,
-          detail: {}
-        },
-        {
-          id: "agent_session-2",
-          kind: "agent_session",
-          workflow_id: 9,
-          trigger_kind: "initial",
-          step_id: 2,
-          step_kind: "landing_fix",
-          run_id: 502,
-          role: "workflow:implement",
-          label: "Landing fix",
-          state: "running",
-          started_at: null,
-          finished_at: null,
-          agentic: true,
-          summary: null,
-          detail: {}
-        }
-      ],
-      edges: [{ from_id: "deterministic_check-1", to_id: "agent_session-2" }]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        graph({
+          nodes: [
+            {
+              id: "deterministic_check-1",
+              kind: "deterministic_check",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 1,
+              step_kind: "grader",
+              label: "rspec",
+              state: "failed",
+              started_at: null,
+              finished_at: null,
+              agentic: false,
+              summary: null,
+              detail: {}
+            },
+            {
+              id: "agent_session-2",
+              kind: "agent_session",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 2,
+              step_kind: "landing_fix",
+              run_id: 502,
+              role: "workflow:implement",
+              label: "Landing fix",
+              state: "running",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: null,
+              detail: {}
+            }
+          ],
+          edges: [{ from_id: "deterministic_check-1", to_id: "agent_session-2" }]
+        })
+      )
+    )
 
     renderTab()
 
@@ -244,28 +303,33 @@ describe("AgentConversationTab", () => {
   })
 
   it("contains long conversation content inside the thread and cards", async () => {
-    const longSummary = "Review found a long unbroken path tmp/workspaces/syrus/direct-746/design_docs/app/services/design_docs/normalize_anchor_markers.rb-with-a-very-long-token-that-should-not-widen-the-page"
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
-      nodes: [
-        {
-          id: "agent_session-501",
-          kind: "agent_session",
-          workflow_id: 9,
-          trigger_kind: "initial",
-          step_id: 1,
-          step_kind: "adversarial_review",
-          run_id: 501,
-          role: "workflow:adversarial_review",
-          label: "Adversarial review with a long label",
-          state: "succeeded",
-          started_at: null,
-          finished_at: null,
-          agentic: true,
-          summary: longSummary,
-          detail: {}
-        }
-      ]
-    })))
+    const longSummary =
+      "Review found a long unbroken path tmp/workspaces/syrus/direct-746/design_docs/app/services/design_docs/normalize_anchor_markers.rb-with-a-very-long-token-that-should-not-widen-the-page"
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        graph({
+          nodes: [
+            {
+              id: "agent_session-501",
+              kind: "agent_session",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 1,
+              step_kind: "adversarial_review",
+              run_id: 501,
+              role: "workflow:adversarial_review",
+              label: "Adversarial review with a long label",
+              state: "succeeded",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: longSummary,
+              detail: {}
+            }
+          ]
+        })
+      )
+    )
 
     const { container } = renderTab()
 
@@ -279,60 +343,104 @@ describe("AgentConversationTab", () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/1/agent_conversation") {
-        return Promise.resolve(jsonResponse(graph({
-          selected_workflow_id: 10,
-          workflows: [
-            { id: 10, slug: "WF-10", trigger_kind: "retry", trigger_label: "Retry", state: "running", created_at: null, started_at: null, finished_at: null },
-            { id: 9, slug: "WF-9", trigger_kind: "initial", trigger_label: "Initial", state: "succeeded", created_at: null, started_at: null, finished_at: null }
-          ],
-          nodes: [
-            {
-              id: "agent_session-1002",
-              kind: "agent_session",
-              workflow_id: 10,
-              trigger_kind: "retry",
-              step_id: 2,
-              step_kind: "implement",
-              run_id: 1002,
-              role: "workflow:implement",
-              label: "Retry implement",
-              state: "running",
-              started_at: null,
-              finished_at: null,
-              agentic: true,
-              summary: "Retry work",
-              detail: {}
-            }
-          ]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            graph({
+              selected_workflow_id: 10,
+              workflows: [
+                {
+                  id: 10,
+                  slug: "WF-10",
+                  trigger_kind: "retry",
+                  trigger_label: "Retry",
+                  state: "running",
+                  created_at: null,
+                  started_at: null,
+                  finished_at: null
+                },
+                {
+                  id: 9,
+                  slug: "WF-9",
+                  trigger_kind: "initial",
+                  trigger_label: "Initial",
+                  state: "succeeded",
+                  created_at: null,
+                  started_at: null,
+                  finished_at: null
+                }
+              ],
+              nodes: [
+                {
+                  id: "agent_session-1002",
+                  kind: "agent_session",
+                  workflow_id: 10,
+                  trigger_kind: "retry",
+                  step_id: 2,
+                  step_kind: "implement",
+                  run_id: 1002,
+                  role: "workflow:implement",
+                  label: "Retry implement",
+                  state: "running",
+                  started_at: null,
+                  finished_at: null,
+                  agentic: true,
+                  summary: "Retry work",
+                  detail: {}
+                }
+              ]
+            })
+          )
+        )
       }
       if (path === "/api/v1/app/jobs/1/agent_conversation?workflow_id=9") {
-        return Promise.resolve(jsonResponse(graph({
-          selected_workflow_id: 9,
-          workflows: [
-            { id: 10, slug: "WF-10", trigger_kind: "retry", trigger_label: "Retry", state: "running", created_at: null, started_at: null, finished_at: null },
-            { id: 9, slug: "WF-9", trigger_kind: "initial", trigger_label: "Initial", state: "succeeded", created_at: null, started_at: null, finished_at: null }
-          ],
-          nodes: [
-            {
-              id: "agent_session-901",
-              kind: "agent_session",
-              workflow_id: 9,
-              trigger_kind: "initial",
-              step_id: 1,
-              step_kind: "implement",
-              run_id: 901,
-              role: "workflow:implement",
-              label: "Initial implement",
-              state: "succeeded",
-              started_at: null,
-              finished_at: null,
-              agentic: true,
-              summary: "Initial work",
-              detail: {}
-            }
-          ]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            graph({
+              selected_workflow_id: 9,
+              workflows: [
+                {
+                  id: 10,
+                  slug: "WF-10",
+                  trigger_kind: "retry",
+                  trigger_label: "Retry",
+                  state: "running",
+                  created_at: null,
+                  started_at: null,
+                  finished_at: null
+                },
+                {
+                  id: 9,
+                  slug: "WF-9",
+                  trigger_kind: "initial",
+                  trigger_label: "Initial",
+                  state: "succeeded",
+                  created_at: null,
+                  started_at: null,
+                  finished_at: null
+                }
+              ],
+              nodes: [
+                {
+                  id: "agent_session-901",
+                  kind: "agent_session",
+                  workflow_id: 9,
+                  trigger_kind: "initial",
+                  step_id: 1,
+                  step_kind: "implement",
+                  run_id: 901,
+                  role: "workflow:implement",
+                  label: "Initial implement",
+                  state: "succeeded",
+                  started_at: null,
+                  finished_at: null,
+                  agentic: true,
+                  summary: "Initial work",
+                  detail: {}
+                }
+              ]
+            })
+          )
+        )
       }
       return Promise.reject(new Error(`unexpected fetch ${path}`))
     })
