@@ -30,6 +30,7 @@ export type ProposalOutcome = {
   state: string
   labels: string[]
   repository: string | null
+  repositoryId: string | null
   dependencies: string[]
   jobDependencyIds: string[]
   epicDependencyIds: string[]
@@ -187,6 +188,8 @@ export function parseProposalOutcome(
   const slug = displayValue(value.slug)
   const state = displayValue(value.state)
   if (!slug || !state) return null
+  const repository = isPlainObject(value.repository) ? displayValue(value.repository.slug) : displayValue(value.repository ?? value.repository_slug)
+  const targetEpic = isPlainObject(value.target_epic) ? value.target_epic : null
 
   return {
     slug,
@@ -195,13 +198,14 @@ export function parseProposalOutcome(
     kind: displayValue(value.kind) || "job",
     state,
     labels: stringList(value.labels),
-    repository: displayValue(value.repository),
-    dependencies: stringList(value.dependencies),
+    repository,
+    repositoryId: displayValue(value.repository_id) || (isPlainObject(value.repository) ? displayValue(value.repository.id) : null),
+    dependencies: stringList(value.dependencies ?? value.depends_on_proposal_slugs),
     jobDependencyIds: stringList(value.depends_on_job_ids ?? input.depends_on_job_ids),
     epicDependencyIds: stringList(value.depends_on_epic_ids ?? input.depends_on_epic_ids),
     dependencyRequirements: dependencyRequirements(value.dependency_requirements ?? input.dependency_requirements),
-    targetEpicId: isPlainObject(value.target_epic) ? displayValue(value.target_epic.id) : displayValue(input.epic_id),
-    targetEpicLabel: isPlainObject(value.target_epic) ? displayValue(value.target_epic.label) : null,
+    targetEpicId: targetEpic ? displayValue(targetEpic.id ?? targetEpic.epic_id) : displayValue(value.target_epic_id ?? input.epic_id),
+    targetEpicLabel: targetEpic ? displayValue(targetEpic.label ?? targetEpic.title ?? targetEpic.slug) : displayValue(value.target_epic_label),
     investigation: value.investigation === true,
     initialJobState: displayValue(value.initial_job_state) || (value.route_to_backlog === true ? "backlog" : null),
     providerSetting: displayValue(value.provider_setting) || displayValue(input.provider),
@@ -222,7 +226,7 @@ export function proposalOutcomeSummary(proposal: ProposalOutcome): string {
   return `${humanizeKind(proposal.kind)} proposal: ${label} (${proposal.state})`
 }
 
-function MaterializedOutcomeDetail({ materialized }: { materialized: MaterializedOutcome }) {
+export function MaterializedOutcomeDetail({ materialized }: { materialized: MaterializedOutcome }) {
   if (!materialized) return null
 
   if (materialized.kind === "job") {
@@ -276,7 +280,7 @@ function DetailValue({ label, children }: { label: string; children: ReactNode }
 // dependencies, materialized result), not the full interactive proposal
 // card (ProposalCards.tsx's ProposalCard), which already renders separately
 // for the same chat_proposal item and owns edit/confirm/reject controls.
-export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome }) {
+export function ProposalOutcomeCard({ proposal, onLinkClick }: { proposal: ProposalOutcome; onLinkClick?: ToolCardContext["onLinkClick"] }) {
   const hasDetails =
     proposal.repository ||
     proposal.targetEpicLabel ||
@@ -304,6 +308,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         linkifyUrls
         maxChars={960}
         modalLabel={i18n.t("chat:full_description", { kind: humanizeKind(proposal.kind) })}
+        onLinkClick={onLinkClick}
         text={proposal.body}
         title={i18n.t("chat:description")}
       />
@@ -318,7 +323,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         <dl className="grid gap-1 sm:grid-cols-2">
           {proposal.repository ? (
             <DetailValue label={i18n.t("chat:repository")}>
-              <EntityReference kind="repository" slug={proposal.repository} />
+              <EntityReference kind="repository" repositoryId={proposal.repositoryId} repositorySlug={proposal.repository} />
             </DetailValue>
           ) : null}
           {proposal.targetEpicLabel || proposal.targetEpicId ? (
