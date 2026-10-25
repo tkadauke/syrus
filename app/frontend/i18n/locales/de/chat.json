@@ -185,7 +185,7 @@
   "new_messages_button_other": "{{count}} neue Nachrichten",
   "search": {
     "heading": "Chat-Suche",
-    "empty_prompt": "Suche in deinen Chats oder filtere nach Repository, Epic oder Aufgabe.",
+    "empty_prompt": "Suche in deinen Chats oder filtere nach Repository, Epic oder Job.",
     "loading": "Chats werden durchsucht...",
     "error": "Chats konnten nicht durchsucht werden.",
     "no_results": "Keine Chats passen zu dieser Suche.",

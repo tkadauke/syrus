@@ -79,7 +79,7 @@
     "unable_to_update_landing": "Landing-Warteschlange konnte nicht aktualisiert werden.",
     "resume_landing": "Landing fortsetzen",
     "pause_landing": "Landing pausieren",
-    "pause_landing_confirm": "Landing-Warteschlange pausieren? Freigegebene Aufgaben werden nicht mehr landen, bis du sie fortsetzt.",
+    "pause_landing_confirm": "Landing-Warteschlange pausieren? Freigegebene Jobs werden nicht mehr landen, bis du sie fortsetzt.",
     "unable_to_rename": "Smart-Ordner konnte nicht umbenannt werden.",
     "unable_to_delete": "Smart-Ordner konnte nicht gelöscht werden.",
     "queued_blocked_count": "{{count}} blockiert",
@@ -129,7 +129,7 @@
       "recently_failed": "Kürzlich fehlgeschlagen",
       "failed_today": "Heute fehlgeschlagen",
       "failed_this_hour": "In dieser Stunde fehlgeschlagen",
-      "admin_queue_runs": "Ausführungen",
+      "admin_queue_runs": "Läufe",
       "admin_queue_chat": "Chat",
       "admin_queue_merges": "Merges",
       "admin_queue_videos": "Videos",
@@ -222,7 +222,7 @@
   },
   "filter_fields": {
     "queue_name": "Warteschlange",
-    "job_class": "Aufgabenklasse",
+    "job_class": "Jobklasse",
     "failed_since": "Fehlgeschlagen seit",
     "window": "Zeit"
   },

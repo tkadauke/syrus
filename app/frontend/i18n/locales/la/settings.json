@@ -1069,8 +1069,7 @@
     "save_error": "Fons initus servari non potuit.",
     "last_polled_at": "Postremum Polling: {{time}}",
     "issues_ingested_one": "{{count}} Issue receptum",
-    "issues_ingested_other": "{{count}} Issues recepta",
-    "issues_ingested": "{{count}} Issues recepta"
+    "issues_ingested_other": "{{count}} Issues recepta"
   },
   "linear_source": {
     "section_heading": "Linear",
@@ -1093,8 +1092,7 @@
     "save_error": "Fons Linearis servari non potuit.",
     "last_polled_at": "Ultima sonatio: {{time}}",
     "issues_ingested_one": "{{count}} quaestio capta",
-    "issues_ingested_other": "{{count}} quaestiones captae",
-    "issues_ingested": "{{count}} quaestiones captae"
+    "issues_ingested_other": "{{count}} quaestiones captae"
   },
   "account_settings": {
     "loading_credentials": "Testimonia onerantur...",
