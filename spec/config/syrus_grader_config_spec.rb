@@ -70,6 +70,15 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
+  it "gives the CI-mode RSpec suite enough time to finish its serial examples" do
+    grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "rspec-ci" }
+
+    expect(grader).to have_attributes(
+      phases: [ "ci" ],
+      timeout_minutes: 75
+    )
+  end
+
   it "enforces the Whisper gateway tests with ffmpeg available" do
     grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "whisper-gateway-tests" }
 
