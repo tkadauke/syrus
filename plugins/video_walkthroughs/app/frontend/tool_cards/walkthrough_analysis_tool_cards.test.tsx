@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
 import { pluginToolCardRendererFor, toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
 import analyzeWalkthroughSegmentToolCard, { examples as segmentExamples } from "./analyze_walkthrough_segment"
@@ -40,7 +41,30 @@ const analysisReport = [
   "- Should drafts autosave?"
 ].join("\n")
 
+afterEach(async () => {
+  await i18n.changeLanguage("en")
+})
+
 describe("video walkthrough analysis tool cards", () => {
+  it("localizes analysis and segment card copy through the plugin namespace", async () => {
+    await i18n.changeLanguage("de")
+
+    const emptyAnalysis = {
+      content: [{ type: "text", text: "## Issues found\n(none — no problems)" }]
+    }
+    const analysisContext = context({ parsedResult: emptyAnalysis })
+    expect(getWalkthroughAnalysisToolCard.collapsedSummary?.(analysisContext)).toBe("Walkthrough-Analyse: keine Probleme in 0 Segmente")
+    const { rerender } = render(<>{getWalkthroughAnalysisToolCard.renderExpanded(analysisContext)}</>)
+    expect(screen.getByText("Walkthrough-Analyse")).toBeInTheDocument()
+    expect(screen.getByText("In diesem Walkthrough wurden keine Probleme erkannt.")).toBeInTheDocument()
+
+    const segmentContext = context({ toolName: "analyze_walkthrough_segment", parsedResult: { walkthrough_id: 42, range: "70-90" } })
+    expect(analyzeWalkthroughSegmentToolCard.collapsedSummary?.(segmentContext)).toBe("Segment 1:10–1:30: keine Erkenntnisse")
+    rerender(<>{analyzeWalkthroughSegmentToolCard.renderExpanded(segmentContext)}</>)
+    expect(screen.getByText("Walkthrough-Segment")).toBeInTheDocument()
+    expect(screen.getByText("Es wurde keine Segmentanalyse zurückgegeben.")).toBeInTheDocument()
+  })
+
   it("registers plugin-owned cards for the analysis tools", () => {
     expect(pluginToolCardRendererFor("get_walkthrough_analysis")).not.toBeNull()
     expect(pluginToolCardRendererFor("analyze_walkthrough_segment")).not.toBeNull()
