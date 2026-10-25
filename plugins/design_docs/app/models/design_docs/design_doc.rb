@@ -1,5 +1,6 @@
 require "cgi"
 require "digest"
+require "json"
 
 module DesignDocs
   class DesignDoc < ApplicationRecord
@@ -78,7 +79,14 @@ module DesignDocs
     end
 
     def canonical_revision
-      Digest::SHA256.hexdigest(markdown.to_s)
+      Digest::SHA256.hexdigest(JSON.generate(
+        title: title,
+        markdown: markdown.to_s,
+        visibility: visibility,
+        state: state,
+        repository_ids: repositories.ids.sort,
+        collaborator_user_ids: collaborator_users.ids.sort
+      ))
     end
 
     def private?

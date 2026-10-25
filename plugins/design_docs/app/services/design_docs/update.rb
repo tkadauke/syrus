@@ -78,7 +78,7 @@ module DesignDocs
     end
 
     def apply_canonical_update
-      verify_base_revision! if attributes.key?(:markdown)
+      verify_base_revision! if attributes.key?(:base_revision)
       permitted = attributes.slice(:title, :visibility, :state)
       if attributes.key?(:markdown)
         next_markdown = canonical_markdown_value
