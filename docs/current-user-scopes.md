@@ -124,6 +124,7 @@ per-user/private:
   - app/controllers/api/v1/app/bootstrap_controller.rb
   - app/controllers/api/v1/app/bug_reports_controller.rb
   - app/controllers/api/v1/app/browser_errors_controller.rb
+  - app/controllers/api/v1/app/ui_engagement_samples_controller.rb
   - app/controllers/api/v1/app/event_actions_controller.rb
   - app/controllers/api/v1/app/report_issue_controller.rb
   - app/controllers/api/v1/app/chat_job_status_controller.rb
@@ -208,6 +209,7 @@ per-user/private:
   - plugins/agent_memory/app/controllers/api/v1/app/memories_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb
+  - plugins/attention_report/app/controllers/api/v1/app/insights/attention_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb
   - plugins/cognitive_review/app/controllers/api/v1/app/cognitive_review_notes_controller.rb
   - plugins/credential_store/app/controllers/api/v1/app/credential_store/credentials_controller.rb
@@ -354,6 +356,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Returns app-session identity for the current browser user. |
 | `app/controllers/api/v1/app/bug_reports_controller.rb` | per-user/private | Files bug reports with the current user as reporter/context. |
 | `app/controllers/api/v1/app/browser_errors_controller.rb` | per-user/private | Records browser error diagnostics under the signed-in user; admin-only endpoints expose the aggregate event stream. |
+| `app/controllers/api/v1/app/ui_engagement_samples_controller.rb` | per-user/private | Records allowlisted active-time samples only under the signed-in user when instance-wide collection is enabled. |
 | `app/controllers/api/v1/app/event_actions_controller.rb` | per-user/private | Files a Job from an observability event as the signed-in user; the filer authorizes the actor before creating anything. |
 | `app/controllers/api/v1/app/report_issue_controller.rb` | per-user/private | Files GitHub issues with the current user's connected GitHub token. |
 | `app/controllers/api/v1/app/chat_job_status_controller.rb` | per-user/private | Returns job and epic status for confirmed proposals in a chat session found through `Current.user.chat_sessions`. |
@@ -414,6 +417,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/runtime_sessions_controller.rb` | per-user/private | Runtime Session read/control endpoints first find the Coding Mode chat through `Current.user.accessible_chat_sessions`, then scope Runtime Session rows and captured frames through that chat. |
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb` | per-user/private | Agent insight suggestions are listed and acted on through `Current.user.repositories`, so only the repository owner sees or resolves a repository's backlog. |
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb` | per-user/private | The per-repository insight sweep schedule is read and written through `Current.user.repositories`, so only the repository owner can change how often sweeps run. |
+| `plugins/attention_report/app/controllers/api/v1/app/insights/attention_controller.rb` | per-user/private | Builds the attention report only for the signed-in user and never accepts another user identifier. |
 | `plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb` | per-user/private | The per-repository sccache `basedirs_safe` opt-in is read and written through `Current.user.repositories`, so only the repository owner can toggle path normalization for that repo's coverage builds. |
 | `plugins/worker_timeline/app/controllers/api/v1/app/admin/worker_timeline_controller.rb` | admin-only with current-user scope | Worker Timeline queries are admin-only; macro results and smart-folder counts are additionally constrained to Jobs accessible to `Current.user`, and smart-folder navigation uses that user as its ownership context. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |

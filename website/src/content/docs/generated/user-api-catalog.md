@@ -387,6 +387,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PATCH | `/api/v1/app/themes/reorder` | `api/v1/app/themes#reorder` |
 | core | POST | `/api/v1/app/tours/dismiss` | `api/v1/app/tours#dismiss` |
 | core | DELETE | `/api/v1/app/tours/reset` | `api/v1/app/tours#reset` |
+| core | POST | `/api/v1/app/ui_engagement_samples` | `api/v1/app/ui_engagement_samples#create` |
 | core | GET | `/api/v1/app/users/invitable` | `api/v1/app/users#invitable` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/coverage_hit_map` | `api/v1/app/workflows#coverage_hit_map` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/preview` | `api/v1/app/workflows#preview` |

@@ -570,10 +570,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setWorkflowAdmissionControlEnabled(event.target.checked)}
         />
         <div className="mt-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-policy">
+          <label className="block text-sm font-medium text-text-primary" htmlFor="admin-settings-workflow-admission-policy">
             {t("settings.workflow_admission_policy_label")}
           </label>
-          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_policy_help")}</span>
+          <span className="mt-1 block text-xs text-text-secondary">{t("settings.workflow_admission_policy_help")}</span>
           <Select
             className="mt-2"
             fullWidth={false}
