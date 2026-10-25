@@ -26,6 +26,7 @@ class ReapStaleBranchesJob < ApplicationJob
 
       result = BranchCleanup::Reconciler.new(
         repository: job.repository, user: job.user, branch_name: job.branch_name,
+        recorded_sha: job.head_sha, require_recorded_sha: true,
         owner_job: job, dry_run: dry_run
       ).call
       job.update_column(:branch_deleted_at, Time.current) if result.deleted? && !dry_run
