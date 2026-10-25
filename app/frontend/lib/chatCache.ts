@@ -102,13 +102,21 @@ export function refreshRecentChats(queryClient: QueryClient) {
 }
 
 export function updateChatUnread(queryClient: QueryClient, id: number, unread: boolean) {
-  queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
-    if (!current) return current
-    return {
-      ...current,
-      groups: updateUnreadGroups(current.groups, id, unread)
-    }
+  queryClient.getQueryCache().findAll({ queryKey: ["chats", "recent"] }).forEach((query) => {
+    queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
+      if (!current) return current
+      return {
+        ...current,
+        groups: chatBelongsAfterUnreadUpdate(query.queryKey, id, unread) ? updateUnreadGroups(current.groups, id, unread) : withoutChat(current.groups, id)
+      }
+    })
   })
+}
+
+function chatBelongsAfterUnreadUpdate(queryKey: QueryKey, id: number, unread: boolean) {
+  if (queryKey[7] !== true || unread) return true
+
+  return queryKey.length > 9 && queryKey[9] === id
 }
 
 function updateUnreadGroups(groups: ChatGroupRecord[], id: number, unread: boolean) {
