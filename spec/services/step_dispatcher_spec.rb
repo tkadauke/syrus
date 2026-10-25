@@ -47,7 +47,7 @@ RSpec.describe StepDispatcher, :ci_only do
   end
 
   describe ".run_provider_candidate_for" do
-    it "does not launch one ordinary candidate for a panel-routed review step" do
+    it "admits a panel-routed review step as the control candidate" do
       review_step = Step.create!(workflow: workflow, kind: "security_review", position: 3)
       ProviderRoutingRule.create!(
         scope_type: "repository",
@@ -63,10 +63,20 @@ RSpec.describe StepDispatcher, :ci_only do
       )
       allow(App::ProviderAvailability).to receive(:for_user)
 
-      expect {
-        described_class.run_provider_candidate_for(review_step, workflow)
-      }.to raise_error(ProviderRouting::Resolver::PanelResolutionRequired, /AvailabilitySelector\.panel/)
+      candidate = described_class.run_provider_candidate_for(review_step, workflow)
+
+      expect(candidate.provider).to eq(workflow.agent_provider)
       expect(App::ProviderAvailability).not_to have_received(:for_user)
+      expect(review_step.reload.details["panel_execution"]).to include(
+        "consensus" => "majority",
+        "min_members" => 1,
+        "disposition" => "drop",
+        "members" => [],
+        "dropped_members" => contain_exactly(
+          include("provider" => "claude", "available" => false),
+          include("provider" => "codex", "available" => false)
+        )
+      )
       expect(workflow.reload.artifact("agent_provider_routing_decision")).to be_nil
     end
   end
