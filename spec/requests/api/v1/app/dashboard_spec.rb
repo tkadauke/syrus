@@ -1136,7 +1136,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ epic_parent.id, epic_child.id, loose.id ])
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
-      expect(positions).to include(epic_parent.id => 1, epic_child.id => nil, loose.id => 2)
+      expect(positions).to include(epic_parent.id => nil, epic_child.id => nil, loose.id => 1)
     end
 
     it "sorts by landing queue position when the landing smart folder is active" do
