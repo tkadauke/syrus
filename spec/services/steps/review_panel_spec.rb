@@ -96,7 +96,7 @@ RSpec.describe "serial review panels" do
   end
 
   it "fails a panel whose unavailable-member policy is fail" do
-    failed = panel_decision(available: [ members.first ], unavailable: [ members.last ], disposition: "fail")
+    failed = panel_decision(available: [ members.first ], unavailable: [ members.last ], disposition: "fail", min_members: 1)
     allow(ProviderRouting::AvailabilitySelector).to receive(:panel).and_return(failed)
     review = Step.create!(workflow: workflow, kind: "adversarial_review", position: 100, iteration: 1, loop_id: "review-loop")
     StepDispatcher.run_provider_candidate_for(review, workflow)

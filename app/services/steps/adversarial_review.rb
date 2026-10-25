@@ -192,8 +192,8 @@ module Steps
 
       members = Array(decision["members"])
       undersized = members.size < decision["min_members"].to_i
-      return false if members.one? && !undersized
       raise StepFailed, "review panel has unavailable members and policy is fail" if decision["disposition"] == "fail"
+      return false if members.one? && !undersized
 
       panel_id = decision.fetch("panel_id")
       continuation = step.next_step
