@@ -6797,8 +6797,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   it "returns a validation error when confirming check_job_mergeability for an inaccessible job" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    restricted_user = Factories.user(admin: false)
+    restricted_user.update!(global_role: "user")
+    restricted_repository = Factories.repository(user: restricted_user, owner: "acme", name: "restricted")
+    sign_in_as(restricted_user)
+    chat = ChatSession.create!(user: restricted_user, repository: restricted_repository, last_message_at: Time.current)
     other_user = Factories.user
     other_repository = Factories.repository(user: other_user, owner: "acme", name: "other")
     other_job = Factories.job_record(user: other_user, repository: other_repository, pr_number: 42)

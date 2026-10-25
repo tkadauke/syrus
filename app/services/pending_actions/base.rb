@@ -185,7 +185,10 @@ module PendingActions
 
     def accessible_action_job
       scope = user.admin? ? Job.all : Job.accessible_to(user)
-      scope.find(payload.fetch("job_id"))
+      job = scope.find_by(id: payload.fetch("job_id"))
+      raise ArgumentError, "Job is not accessible." unless job
+
+      job
     end
 
     def action_user_repository
