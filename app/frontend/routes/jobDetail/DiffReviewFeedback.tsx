@@ -20,7 +20,8 @@ import {
   type DiffReviewComment,
   type DiffReviewCommentInput,
   type DiffReviewCommentAnchorKind,
-  type DiffReviewVersion
+  type DiffReviewVersion,
+  type JobDiscussionChatMessage
 } from "../../api/jobs"
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
 import { parseUnifiedDiff, splitLines } from "../../components/diff/diffRendering"
@@ -182,7 +183,7 @@ export function useDiffReviewFeedback({
     onError: (error) => setSubmitError(errorMessage(error, t("review_submit_error")))
   })
   const discussComment = useMutation({
-    mutationFn: (message: string) => startJobDiscussionChat(jobId, message),
+    mutationFn: (message: JobDiscussionChatMessage) => startJobDiscussionChat(jobId, message),
     onSuccess: (payload) => {
       window.location.assign(payload.redirect_to)
     }
@@ -819,19 +820,19 @@ function discussionMessageForSelection({ body, headRef, jobId, selection }: { bo
   const line = selection.side === "old" ? selection.line.oldLine : selection.line.newLine
   const hunk = hunkForLine(selection.file.patch, selection.line)
 
-  return [
-    "The operator opened this chat discussion from an unposted diff draft. No review comment was created.",
-    `Job: JOB-${jobId}`,
-    `Revision: ${headRef || "unknown"}`,
-    `File: ${selection.file.path}`,
-    `Side: ${selection.side}`,
-    `Selected line: ${line ?? "unknown"}`,
-    `Selected source: ${selection.line.marker}${selection.line.code}`,
-    ...(hunk ? ["", "Surrounding diff hunk:", "```diff", hunk, "```"] : []),
-    "",
-    "Draft note:",
-    body
-  ].join("\n")
+  return {
+    context: [
+      "The operator opened this chat discussion from an unposted diff draft. No review comment was created.",
+      `Job: JOB-${jobId}`,
+      `Revision: ${headRef || "unknown"}`,
+      `File: ${selection.file.path}`,
+      `Side: ${selection.side}`,
+      `Selected line: ${line ?? "unknown"}`,
+      `Selected source: ${selection.line.marker}${selection.line.code}`,
+      ...(hunk ? ["", "Surrounding diff hunk:", "```diff", hunk, "```"] : [])
+    ].join("\n"),
+    draftNote: body
+  }
 }
 
 export function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {

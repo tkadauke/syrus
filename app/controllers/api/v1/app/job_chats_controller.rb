@@ -7,6 +7,8 @@ module Api
       # ownership of the implement step; this link is a plain conversation
       # and never blocks or takes over the Job.
       class JobChatsController < BaseController
+        DISCUSSION_CONTEXT_LIMIT = 4_000
+
         include ChatLockErrors
         include ChatSessionLifecycle
 
@@ -66,10 +68,20 @@ module Api
         end
 
         def requested_message(job)
+          return requested_diff_draft_message(job) if params.key?(:draft_note)
+
           body = params[:message].to_s.strip
           return if body.blank?
 
           [ reference_message(job), body.truncate(8_000) ].join("\n\n")
+        end
+
+        def requested_diff_draft_message(job)
+          draft_note = params[:draft_note].to_s.strip
+          return if draft_note.blank?
+
+          context = params[:message_context].to_s.strip.truncate(DISCUSSION_CONTEXT_LIMIT)
+          [ reference_message(job), context.presence, "Draft note:\n#{draft_note}" ].compact.join("\n\n")
         end
 
         def reference_message(job)

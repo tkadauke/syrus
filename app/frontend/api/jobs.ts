@@ -1718,8 +1718,11 @@ export function submitDiffReviewComments(jobId: string | number, commentIds: num
   })
 }
 
-export function startJobDiscussionChat(jobId: string | number, message?: string) {
-  return postJson<JobDiscussionChatPayload>(`/api/v1/app/jobs/${jobId}/start_chat`, message ? { message } : undefined)
+export type JobDiscussionChatMessage = string | { context: string; draftNote: string }
+
+export function startJobDiscussionChat(jobId: string | number, message?: JobDiscussionChatMessage) {
+  const body = typeof message === "string" ? { message } : message ? { message_context: message.context, draft_note: message.draftNote } : undefined
+  return postJson<JobDiscussionChatPayload>(`/api/v1/app/jobs/${jobId}/start_chat`, body)
 }
 
 function diffReviewCommentPath(jobId: string | number, commentId: number, diffReviewVersionId?: number | null, action?: string) {
