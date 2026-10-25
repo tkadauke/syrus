@@ -3,7 +3,7 @@ class ProviderRoutingRule < ApplicationRecord
   DEFAULT_TASK_KEY = "default".freeze
   TRIGGER_TYPES = %w[ default step chat_role legacy_task ].freeze
   ACTION_TYPES = %w[ route hold ].freeze
-  ACTION_STRATEGIES = %w[ fallback_order weighted ].freeze
+  ACTION_STRATEGIES = %w[ fallback_order weighted panel ].freeze
   CONDITION_KEYS = %w[ workflow_trigger_kind usage budget day_time repository job_metadata ].freeze
 
   belongs_to :user
@@ -34,6 +34,7 @@ class ProviderRoutingRule < ApplicationRecord
   end
 
   def action_type = action_definition.type
+  def panel_action? = action_definition.panel?
   def hold_action? = action_definition.hold?
   def serialized_action = action_definition.serialize
 
@@ -134,6 +135,12 @@ class ProviderRoutingRule < ApplicationRecord
     kind = trigger["kind"].to_s
     errors.add(:trigger, :step_kind_required) if kind.blank?
     errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind)
+  end
+
+  def panel_capable_trigger?
+    trigger["type"] == "step" && Step::Kind.fetch(trigger["kind"]).panel_capable
+  rescue KeyError
+    false
   end
 
   def validate_chat_role_trigger

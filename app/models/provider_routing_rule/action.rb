@@ -17,6 +17,7 @@ class ProviderRoutingRule::Action
   def type = attributes["type"].presence || "route"
   def candidates = []
   def hold? = false
+  def panel? = false
 
   def serialize
     attributes.merge("type" => type)

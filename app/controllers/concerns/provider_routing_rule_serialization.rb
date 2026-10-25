@@ -91,7 +91,8 @@ module ProviderRoutingRuleSerialization
     {
       value: entry.kind,
       label: entry.label,
-      style: entry.respond_to?(:style) ? entry.style : nil
+      style: entry.respond_to?(:style) ? entry.style : nil,
+      panel_capable: entry.respond_to?(:panel_capable) ? entry.panel_capable : nil
     }.compact
   end
 

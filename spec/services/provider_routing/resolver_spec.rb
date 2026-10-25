@@ -91,6 +91,29 @@ RSpec.describe ProviderRouting::Resolver do
   end
 
   describe "ordered scoped rules" do
+    it "returns a distinct panel resolution while preserving ordered members" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      rule = ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "adversarial_review" },
+        action: {
+          strategy: "panel",
+          candidates: [ { provider: "codex", effort_level: "high" }, { provider: "claude" } ],
+          consensus: { at_least: 2 }, on_unavailable: "hold", min_members: 2
+        }
+      )
+
+      resolution = described_class.resolve(job: job, task_key: "adversarial_review")
+
+      expect(resolution).to be_panel
+      expect(resolution.members).to eq([ candidate(provider: "codex", effort_level: "high"), candidate(provider: "claude") ])
+      expect(resolution.consensus).to eq("at_least" => 2)
+      expect(resolution.explanation.fetch("final_action")).to include("strategy" => "panel", "on_unavailable" => "hold")
+      expect(resolution.matched_rule).to eq(rule)
+      expect(described_class.call(job: job, task_key: "adversarial_review")).to eq(resolution.members)
+    end
+
     it "skips disabled rules without changing their positions" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
       disabled = ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, position: 1, enabled: false, task_key: "ci_failure", candidates: [ { "provider" => "codex" } ])

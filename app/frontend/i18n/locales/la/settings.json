@@ -1285,12 +1285,25 @@
     "validation_name": "Nomen regulae insere.",
     "validation_trigger": "Signum elige.",
     "validation_candidates": "Saltem unum candidatum praebitoris adde.",
+    "validation_panel_trigger": "Concilia tantum recensionibus adversariis vel securitatis praesto sunt.",
+    "validation_panel_members": "Saltem duo membra distincta adde et numeros intra magnitudinem concilii serva.",
+    "panel_consensus": "Consensus",
+    "panel_unanimous": "Unanimis",
+    "panel_majority": "Maior pars stricta",
+    "panel_at_least": "Saltem",
+    "panel_required_approvals": "Approbationes necessariae",
+    "panel_unavailable": "Si membrum non praesto est",
+    "panel_drop": "Membrum omitte",
+    "panel_hold": "Admissionem retine",
+    "panel_fail": "Admissionem deficere",
+    "panel_min_members": "Membra minima",
     "validation_hold_reason": "Causam operis retinendi insere.",
     "validation_resume_time": "Elige quando opus resumatur.",
     "effort_candidate": "Conatus {{effort}}",
     "action_strategies": {
       "fallback_order": "Ordo subsidiarius",
-      "weighted": "Ponderatum"
+      "weighted": "Ponderatum",
+      "panel": "Concilium"
     },
     "effort_levels": {
       "none": "Nullus",

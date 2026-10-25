@@ -32,13 +32,17 @@ type DraftRule = {
   workflowTriggerKinds: string[]
   actionType: "route" | "hold"
   actionStrategy: string
+  panelConsensus: "unanimous" | "majority" | "at_least"
+  panelAtLeast: number
+  panelUnavailable: "drop" | "hold" | "fail"
+  panelMinMembers: number
   candidates: ProviderRoutingCandidate[]
   holdReason: string
   resumptionMode: string
   resumeAt: string
 }
 
-type DraftErrors = Partial<Record<"name" | "trigger" | "candidates" | "holdReason" | "resumeAt", string>>
+type DraftErrors = Partial<Record<"name" | "trigger" | "candidates" | "panel" | "holdReason" | "resumeAt", string>>
 
 export type RoutingRulesPanelProps = {
   description: string
@@ -193,7 +197,7 @@ export function RoutingRulesPanel({
   async function submitDraft() {
     if (!draft) return
 
-    const nextErrors = validateDraft(draft, t)
+    const nextErrors = validateDraft(draft, routingOptions, t)
     setDraftErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
@@ -578,6 +582,53 @@ function RuleEditorModal({
                 ))}
               </Form.Select>
             </Form.Field>
+            {currentDraft.actionStrategy === "panel" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Form.Field error={errors.panel}>
+                  <Form.Label required>{t("provider_routing.panel_consensus")}</Form.Label>
+                  <Form.Select
+                    onChange={(event) => onUpdate({ ...currentDraft, panelConsensus: event.target.value as DraftRule["panelConsensus"] })}
+                    value={currentDraft.panelConsensus}
+                  >
+                    <option value="unanimous">{t("provider_routing.panel_unanimous")}</option>
+                    <option value="majority">{t("provider_routing.panel_majority")}</option>
+                    <option value="at_least">{t("provider_routing.panel_at_least")}</option>
+                  </Form.Select>
+                  <Form.ErrorText />
+                </Form.Field>
+                {currentDraft.panelConsensus === "at_least" ? (
+                  <Form.Field>
+                    <Form.Label required>{t("provider_routing.panel_required_approvals")}</Form.Label>
+                    <Form.Input
+                      min={1}
+                      onChange={(event) => onUpdate({ ...currentDraft, panelAtLeast: Number(event.target.value) })}
+                      type="number"
+                      value={currentDraft.panelAtLeast}
+                    />
+                  </Form.Field>
+                ) : null}
+                <Form.Field>
+                  <Form.Label required>{t("provider_routing.panel_unavailable")}</Form.Label>
+                  <Form.Select
+                    onChange={(event) => onUpdate({ ...currentDraft, panelUnavailable: event.target.value as DraftRule["panelUnavailable"] })}
+                    value={currentDraft.panelUnavailable}
+                  >
+                    <option value="drop">{t("provider_routing.panel_drop")}</option>
+                    <option value="hold">{t("provider_routing.panel_hold")}</option>
+                    <option value="fail">{t("provider_routing.panel_fail")}</option>
+                  </Form.Select>
+                </Form.Field>
+                <Form.Field>
+                  <Form.Label required>{t("provider_routing.panel_min_members")}</Form.Label>
+                  <Form.Input
+                    min={1}
+                    onChange={(event) => onUpdate({ ...currentDraft, panelMinMembers: Number(event.target.value) })}
+                    type="number"
+                    value={currentDraft.panelMinMembers}
+                  />
+                </Form.Field>
+              </div>
+            ) : null}
             <div>
               <div className="text-sm font-medium text-text-primary">{t("provider_routing.provider_candidates")}</div>
               <p className="mt-1 text-xs text-text-secondary">{t("provider_routing.provider_candidates_help")}</p>
@@ -736,6 +787,10 @@ function emptyDraft(options: ProviderRoutingOptions): DraftRule {
     workflowTriggerKinds: [],
     actionType: "route",
     actionStrategy: actionStrategyOptions(options)[0]?.value || "fallback_order",
+    panelConsensus: "majority",
+    panelAtLeast: 2,
+    panelUnavailable: "drop",
+    panelMinMembers: 1,
     candidates: [emptyCandidate(options)],
     holdReason: "",
     resumptionMode: "manual",
@@ -751,6 +806,10 @@ function draftFromRule(rule: ProviderRoutingRule, options: ProviderRoutingOption
     workflowTriggerKinds: stringList(rule.conditions?.workflow_trigger_kind),
     actionType: rule.action?.type === "hold" ? "hold" : "route",
     actionStrategy: actionStrategy(rule),
+    panelConsensus: panelConsensusMode(rule.action),
+    panelAtLeast: panelAtLeast(rule.action),
+    panelUnavailable: rule.action?.on_unavailable === "hold" || rule.action?.on_unavailable === "fail" ? rule.action.on_unavailable : "drop",
+    panelMinMembers: typeof rule.action?.min_members === "number" ? rule.action.min_members : 1,
     candidates: ruleCandidates(rule).length > 0 ? ruleCandidates(rule) : [emptyCandidate(options)],
     holdReason: typeof rule.action?.reason === "string" ? rule.action.reason : "",
     resumptionMode:
@@ -761,11 +820,24 @@ function draftFromRule(rule: ProviderRoutingRule, options: ProviderRoutingOption
   }
 }
 
-function validateDraft(draft: DraftRule, t: (key: string, options?: Record<string, unknown>) => string): DraftErrors {
+function validateDraft(draft: DraftRule, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string): DraftErrors {
   const errors: DraftErrors = {}
   if (!draft.name.trim()) errors.name = t("provider_routing.validation_name")
   if (!draft.triggerKey) errors.trigger = t("provider_routing.validation_trigger")
   if (draft.actionType === "route" && !draft.candidates.some((candidate) => candidate.provider)) errors.candidates = t("provider_routing.validation_candidates")
+  if (draft.actionType === "route" && draft.actionStrategy === "panel") {
+    const distinct = new Set(draft.candidates.filter((candidate) => candidate.provider).map((candidate) => JSON.stringify(candidate))).size
+    const stepKind = draft.triggerKey.startsWith("step:") ? draft.triggerKey.slice("step:".length) : ""
+    const panelCapable = options.triggers?.step_kinds?.some((option) => option.value === stepKind && option.panel_capable)
+    if (!panelCapable) errors.panel = t("provider_routing.validation_panel_trigger")
+    else if (
+      distinct < 2 ||
+      draft.panelMinMembers < 1 ||
+      draft.panelMinMembers > distinct ||
+      (draft.panelConsensus === "at_least" && (draft.panelAtLeast < 1 || draft.panelAtLeast > distinct))
+    )
+      errors.panel = t("provider_routing.validation_panel_members")
+  }
   if (draft.actionType === "hold" && !draft.holdReason.trim()) errors.holdReason = t("provider_routing.validation_hold_reason")
   if (draft.actionType === "hold" && draft.resumptionMode === "until_time" && !draft.resumeAt) errors.resumeAt = t("provider_routing.validation_resume_time")
   return errors
@@ -784,7 +856,19 @@ function draftToInput(draft: DraftRule): ProviderRoutingRuleInput {
           reason: draft.holdReason.trim(),
           resumption: { mode: draft.resumptionMode, ...(draft.resumptionMode === "until_time" ? { at: new Date(draft.resumeAt).toISOString() } : {}) }
         }
-      : { type: "route", strategy: draft.actionStrategy, candidates, name: draft.name.trim() }
+      : {
+          type: "route",
+          strategy: draft.actionStrategy,
+          candidates,
+          name: draft.name.trim(),
+          ...(draft.actionStrategy === "panel"
+            ? {
+                consensus: draft.panelConsensus === "at_least" ? { at_least: draft.panelAtLeast } : draft.panelConsensus,
+                on_unavailable: draft.panelUnavailable,
+                min_members: draft.panelMinMembers
+              }
+            : {})
+        }
 
   return {
     task_key: taskKeyForTrigger(trigger),
@@ -875,6 +959,15 @@ function ruleCandidates(rule: ProviderRoutingRule) {
 
 function actionStrategy(rule: ProviderRoutingRule) {
   return rule.action?.strategy || "fallback_order"
+}
+
+function panelConsensusMode(action?: ProviderRoutingAction): DraftRule["panelConsensus"] {
+  if (action?.consensus === "unanimous" || action?.consensus === "majority") return action.consensus
+  return "at_least"
+}
+
+function panelAtLeast(action?: ProviderRoutingAction) {
+  return typeof action?.consensus === "object" && typeof action.consensus.at_least === "number" ? action.consensus.at_least : 2
 }
 
 function ruleName(rule: ProviderRoutingRule, t: (key: string, options?: Record<string, unknown>) => string) {
