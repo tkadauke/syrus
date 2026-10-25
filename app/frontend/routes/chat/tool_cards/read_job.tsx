@@ -2,7 +2,7 @@ import { workerCapabilitiesText } from "../../../lib/workerCapabilities"
 import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MarkdownPreview } from "../toolCardMarkdown"
-import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill, toolCardStateLabel } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 type Workflow = { id: string; state: string; triggerKind: string | null; summary: string | null }
@@ -167,7 +167,7 @@ function collapsedSummary(context: ToolCardContext) {
   const failure = toolFailureCollapsedSummary(context, failureConfig)
   if (failure) return failure
   const job = parseJob(context)
-  if (job) return `JOB-${job.id} (${job.state})`
+  if (job) return `JOB-${job.id} (${toolCardStateLabel(job.state)})`
   const requested = stringFromInput(context, ["job_id"])
   return context.parsedResult == null && !context.resultBody
     ? i18n.t("chat:tool_card_job_reading", { job: requested ? `JOB-${requested}` : i18n.t("chat:tool_card_job") })

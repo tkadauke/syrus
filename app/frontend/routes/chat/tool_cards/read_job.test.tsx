@@ -111,6 +111,7 @@ describe("read_job tool card", () => {
         },
         latest_workflow: { id: 900, state: "succeeded", trigger_kind: "initial" }
       }
+      expect(readJobToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4048 (geschlossen)")
       render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
       expect(screen.getByText("geschlossen")).toBeInTheDocument()
