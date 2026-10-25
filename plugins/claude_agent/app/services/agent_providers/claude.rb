@@ -11,6 +11,7 @@ module AgentProviders
     def self.available?   = true
 
     def self.provider = "claude"
+    def self.credential_attributes = %i[claude_oauth_token]
 
     def self.configured_for_user?(user)
       user.claude_oauth_token.present?

@@ -7,6 +7,7 @@ module AgentProviders
     def self.available?   = true
 
     def self.provider = "codex"
+    def self.credential_attributes = %i[codex_api_key codex_auth_json]
 
     def self.configured_for_user?(user)
       attr = {

@@ -8,6 +8,7 @@ module Syrus
     #   .provider_key   → String  – unique stable identifier (e.g. "claude")
     #   .display_name   → String  – shown in the settings UI
     #   .available?     → bool    – true when the provider is configured
+    #   .credential_attributes → Array<Symbol> – user credentials affecting availability
     #   #invoke(job:, step:, workspace:, &block) – streams agent output
     #
     module AgentProvider
@@ -81,6 +82,10 @@ module Syrus
 
         def configured_for_user?(_user)
           false
+        end
+
+        def credential_attributes
+          []
         end
 
         # Optional catalog of this provider's selectable models, for a

@@ -7,6 +7,7 @@ module AgentProviders
     def self.available?   = true
 
     def self.provider = "agy"
+    def self.credential_attributes = %i[gemini_api_key]
 
     def self.configured_for_user?(user)
       user.gemini_api_key.present?

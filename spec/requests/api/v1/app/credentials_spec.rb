@@ -120,6 +120,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "updates write-only credentials while preserving blank secrets and false booleans" do
     sign_in_as(user)
     user.update!(scheduling_paused: true)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     patch "/api/v1/app/credentials", params: {
       user: {
@@ -147,10 +149,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.recent_chats_group_size).to eq(20)
     expect(user.role).to eq("product_owner")
     expect(parse_body["message"]).to eq("Credentials updated.")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "saves Muse API keys without echoing the secret" do
     sign_in_as(user)
+    allow(AgentProviders::Muse).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     patch "/api/v1/app/credentials", params: {
       user: {
@@ -162,6 +168,22 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.reload.muse_api_key).to eq("muse-new-secret")
     expect(parse_body.dig("credential_status", "muse_api_key")).to be true
     expect(response.body).not_to include("muse-new-secret")
+    expect(AgentProviders::Muse).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "muse", user: user).at_least(:once)
+  end
+
+  it "refreshes each provider affected by a changed shared credential only once" do
+    sign_in_as(user)
+    allow(AgentProviders::Agy).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
+
+    2.times do
+      patch "/api/v1/app/credentials", params: { user: { gemini_api_key: "gemini-new-secret" } }
+      expect(response).to have_http_status(:ok)
+    end
+
+    expect(AgentProviders::Agy).to have_received(:refresh_usage!).with(user: user, force: true).once
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "agy", user: user).at_least(:once)
   end
 
   it "shows and updates per-provider availability pause thresholds" do
@@ -412,6 +434,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "clears known credentials" do
     sign_in_as(user)
+    allow(AgentProviders::Muse).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     post "/api/v1/app/credentials/clear_credential", params: { credential: "muse_api_key" }
 
@@ -419,10 +443,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.reload.muse_api_key).to be_nil
     expect(parse_body["message"]).to eq("Muse API key cleared.")
     expect(parse_body.dig("credential_status", "muse_api_key")).to be false
+    expect(AgentProviders::Muse).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "muse", user: user).at_least(:once)
   end
 
   it "localizes successful credential clearing in German and Latin" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(AgentProviders::Muse).to receive(:refresh_usage!).and_return(nil)
     user.update!(locale: "de", claude_oauth_token: "claude-secret")
 
     post "/api/v1/app/credentials/clear_credential", params: { credential: "claude_oauth_token" }

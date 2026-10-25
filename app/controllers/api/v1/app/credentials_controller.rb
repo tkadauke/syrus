@@ -19,6 +19,7 @@ module Api
           attrs = credentials_params.to_h.reject { |key, value| blank_write_only_value?(key, value) }
 
           if Current.user.update(attrs)
+            refresh_affected_provider_availability(Current.user.saved_changes.keys)
             render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.updated"))
           else
             render_error("validation_failed", Current.user.errors.full_messages.to_sentence,
@@ -34,6 +35,7 @@ module Api
           end
 
           Current.user.clear_credential!(credential)
+          refresh_affected_provider_availability([ credential ])
           render json: credentials_payload(Current.user.reload).merge(
             message: I18n.t("api.credentials.cleared", label: credential_label(credential))
           )
@@ -420,6 +422,18 @@ module Api
         rescue AgentProviders::ConfigurationError
           ::App::ProviderAvailability.broadcast_changed(user: Current.user, provider: provider)
           nil
+        end
+
+        def refresh_affected_provider_availability(changed_attributes)
+          changed = changed_attributes.map(&:to_sym)
+
+          Syrus::PluginRegistry.providers_for(:agent_provider).each do |provider_class|
+            next if (provider_class.credential_attributes & changed).empty?
+
+            provider = provider_class.provider_key
+            refresh_provider_availability(provider)
+            ProviderAvailabilityWakeup.call(provider: provider, user: Current.user)
+          end
         end
 
         def blank_write_only_value?(key, value)
