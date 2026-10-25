@@ -594,6 +594,9 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(german_copy).not_to match(/\b(?:Aufgab\p{L}*|Runs?|Arbeitsabl\p{L}*)\b/)
     expect(locales.dig("de", "jobs", "run_count_one")).to eq("{{count}} Lauf")
     expect(locales.dig("de", "jobs", "run_count_other")).to eq("{{count}} Läufe")
+    expect(locales.dig("de", "jobs")).not_to have_key("bulk_close_confirm")
+    expect(locales.dig("de", "jobs", "bulk_close_confirm_one")).to eq("{{count}} ausgewählten Job schließen?")
+    expect(locales.dig("de", "jobs", "bulk_close_confirm_other")).to eq("{{count}} ausgewählte Jobs schließen?")
     expect(locales.dig("de", "epics", "merge_train_members_one")).to eq("{{count}} Mitglied")
     expect(locales.dig("de", "epics", "merge_train_members_other")).to eq("{{count}} Mitglieder")
   end
