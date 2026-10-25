@@ -74,16 +74,16 @@ export type PendingActionResult =
 
 export type PendingActionInputField = {
   key: string
-  label?: string
+  label?: string | (() => string)
   format?: "plain" | "badge" | "list" | "markdown" | "entity" | "entity_list"
   entityKind?: ToolCardEntityKind
   hrefPrefix?: string
-  emptyLabel?: string
+  emptyLabel?: string | (() => string)
 }
 
 export type PendingActionResultField = {
   path: string
-  label: string
+  label: string | (() => string)
   format?: "plain" | "badge" | "number"
 }
 
@@ -402,8 +402,12 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
   )
 }
 
+function resolvedLabel(label: string | (() => string)) {
+  return typeof label === "function" ? label() : label
+}
+
 function inputLabel(field: PendingActionInputField) {
-  return field.label || field.key.replace(/_/g, " ").replace(/^./, (character) => character.toUpperCase())
+  return field.label ? resolvedLabel(field.label) : field.key.replace(/_/g, " ").replace(/^./, (character) => character.toUpperCase())
 }
 
 function linkedPendingProse(value: string) {
@@ -416,7 +420,7 @@ function linkedPendingProse(value: string) {
 
 function InputValue({ field, value }: { field: PendingActionInputField; value: unknown }) {
   const format = field.format || "plain"
-  if ((value == null || displayValue(value) === "") && field.emptyLabel) return <span className="text-text-primary">{field.emptyLabel}</span>
+  if ((value == null || displayValue(value) === "") && field.emptyLabel) return <span className="text-text-primary">{resolvedLabel(field.emptyLabel)}</span>
   if (format === "markdown")
     return (
       <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={3} modalLabel={`Full ${inputLabel(field).toLowerCase()}`} text={displayValue(value)} />
@@ -499,7 +503,7 @@ function ResultDetails({ fields, value }: { fields: PendingActionResultField[]; 
           if (!displayed) return null
           return (
             <div className="min-w-0" key={field.path}>
-              <dt className="text-2xs font-semibold uppercase text-text-muted">{field.label}</dt>
+              <dt className="text-2xs font-semibold uppercase text-text-muted">{resolvedLabel(field.label)}</dt>
               <dd className="mt-0.5 break-words text-text-primary [overflow-wrap:anywhere]">
                 {field.format === "badge" ? <Badge>{displayed}</Badge> : displayed}
               </dd>

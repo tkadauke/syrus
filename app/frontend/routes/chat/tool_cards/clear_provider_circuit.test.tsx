@@ -4,6 +4,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolName } from "../toolRendering"
 import clearProviderCircuitToolCard from "./clear_provider_circuit"
+import i18n from "../../../i18n"
 
 const INPUT = {
   provider: "codex",
@@ -62,6 +63,17 @@ describe("clear_provider_circuit tool card", () => {
     expect(screen.getByRole("link", { name: "provider status" })).toHaveAttribute("href", "https://status.openai.com/")
     expect(screen.getByText("Recovery is supported by", { exact: false })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "user #12" })).toHaveAttribute("href", "/admin/users/12")
+  })
+
+  it("resolves field labels after a live locale switch", async () => {
+    await i18n.changeLanguage("la")
+    try {
+      render(<>{clearProviderCircuitToolCard.renderExpanded(context(RESULT))}</>)
+      expect(screen.getByText("Utens")).toBeInTheDocument()
+      expect(screen.getByText("Utentes")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it.each([
