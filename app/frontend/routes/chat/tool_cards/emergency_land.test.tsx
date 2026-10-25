@@ -50,7 +50,8 @@ describe("emergency_land tool card", () => {
     expect(screen.getByText("operator confirmation").tagName).toBe("STRONG")
     expect(screen.getByText("incident recovery").tagName).toBe("STRONG")
     expect(screen.getByRole("alert")).toHaveTextContent("Destructive emergency action")
-    expect(screen.getByRole("alert")).toHaveTextContent("skips graders, adversarial review, and visual review")
+    expect(screen.getByRole("alert")).toHaveTextContent("Confirming this action will land the change")
+    expect(screen.getByRole("alert")).toHaveTextContent("skip graders, adversarial review, and visual review")
   })
 
   it.each([
@@ -65,7 +66,23 @@ describe("emergency_land tool card", () => {
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText(message)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-4242" })).toHaveAttribute("href", "/jobs/4242")
-    expect(screen.getByRole("alert")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("does not show an actionable warning after the request is settled", () => {
+    render(
+      <>
+        {emergencyLandToolCard.renderExpanded(
+          context({
+            input: { job_id: 4242 },
+            parsedResult: { pending_action_id: 701, state: "rejected", message: "Emergency land was rejected." }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("rejected")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
   it("accepts provider-normalized envelopes and an mcp-prefixed tool name", () => {
