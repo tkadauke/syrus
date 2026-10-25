@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { StatusCard } from "../chatHelperToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill } from "../toolCardUi"
@@ -164,9 +165,12 @@ function requestedEpicId(context: ToolCardContext) {
 
 function collapsedSummary(context: ToolCardContext) {
   const requestedId = requestedEpicId(context)
-  if (context.resultError) return requestedId ? `Failed to read EPIC-${requestedId}` : "Failed to read Epic"
+  if (context.resultError) return requestedId ? i18n.t("chat:tool_card_epic_failed_id", { id: requestedId }) : i18n.t("chat:tool_card_epic_failed")
   const epic = parseEpic(context)
-  if (!epic) return context.parsedResult == null && !context.resultBody ? `Reading ${requestedId ? `EPIC-${requestedId}` : "Epic"}…` : null
+  if (!epic)
+    return context.parsedResult == null && !context.resultBody
+      ? i18n.t("chat:tool_card_epic_reading", { epic: requestedId ? `EPIC-${requestedId}` : i18n.t("chat:tool_card_epic") })
+      : null
   return `${epic.displayNumber}: ${epic.title}`
 }
 
@@ -180,26 +184,26 @@ function TextTruncationNote({ value }: { value: TruncatedText }) {
     value.bytes == null
       ? ""
       : ` (${value.bytes.toLocaleString()} bytes total${value.omittedBytes == null ? "" : `, ${value.omittedBytes.toLocaleString()} omitted`})`
-  return <div className="mt-1 text-2xs text-warning-text">Source text was truncated{detail}.</div>
+  return <div className="mt-1 text-2xs text-warning-text">{i18n.t("chat:tool_card_source_truncated", { detail })}</div>
 }
 
 function renderExpanded(context: ToolCardContext) {
   const requestedId = requestedEpicId(context)
   if (context.resultError)
     return (
-      <StatusCard title="Read Epic" status="failed">
+      <StatusCard title={i18n.t("chat:tool_card_epic_attempt")} status="failed">
         {requestedId ? <EntityReference id={requestedId} kind="epic" /> : null}
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-          {displayValue(context.resultBody) || "The Epic could not be read."}
+          {displayValue(context.resultBody) || i18n.t("chat:tool_card_epic_error")}
         </div>
       </StatusCard>
     )
   const epic = parseEpic(context)
   if (!epic)
     return context.parsedResult != null || context.resultBody ? null : (
-      <StatusCard title="Read Epic" status="pending">
+      <StatusCard title={i18n.t("chat:tool_card_epic_attempt")} status="pending">
         {requestedId ? <EntityReference id={requestedId} kind="epic" /> : null}
-        <EmptyState>Waiting for the Epic result.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_epic_waiting")}</EmptyState>
       </StatusCard>
     )
   const doneCount = epic.childJobs.filter((job) => isDoneState(job.state)).length
@@ -211,46 +215,44 @@ function renderExpanded(context: ToolCardContext) {
         {epic.repository ? (
           <EntityReference href={githubRepositoryUrl(epic.repository)} kind="repository" label={epic.repository} repositorySlug={epic.repository} />
         ) : null}
-        {epic.githubIssueUrl ? <InternalLink href={epic.githubIssueUrl}>GitHub issue</InternalLink> : null}
+        {epic.githubIssueUrl ? <InternalLink href={epic.githubIssueUrl}>{i18n.t("chat:tool_card_github_issue")}</InternalLink> : null}
       </div>
       <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{epic.title}</div>
       {epic.description?.text.trim() ? (
         <div>
-          <MarkdownPreview text={epic.description.text} title="Description" />
+          <MarkdownPreview text={epic.description.text} title={i18n.t("chat:tool_card_description")} />
           <TextTruncationNote value={epic.description} />
         </div>
       ) : (
-        <EmptyState>No Epic description.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_no_epic_description")}</EmptyState>
       )}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {epic.autoApproveMode ? <Row label="Auto approve" value={epic.autoApproveMode} /> : null}
+        {epic.autoApproveMode ? <Row label={i18n.t("chat:tool_card_auto_approve")} value={epic.autoApproveMode} /> : null}
         {epic.goalChatId ? (
           <div>
-            <SectionLabel>Goal provenance</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_goal_provenance")}</SectionLabel>
             <EntityReference id={epic.goalChatId} kind="chat" />
           </div>
         ) : null}
         {epic.maxCommitsBehind ? (
           <div>
-            <SectionLabel>Furthest behind</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_furthest_behind")}</SectionLabel>
             <div className="flex flex-wrap items-center gap-1">
               {epic.furthestBehindJob ? <EntityReference id={epic.furthestBehindJob.id} kind="job" slug={epic.furthestBehindJob.slug} /> : null}
-              <span>{epic.maxCommitsBehind} commits</span>
+              <span>{i18n.t("chat:tool_card_commit_count", { count: Number(epic.maxCommitsBehind) })}</span>
             </div>
           </div>
         ) : null}
       </div>
-      {epic.goalPrompt ? <MarkdownPreview maxLines={3} text={epic.goalPrompt} title="Goal prompt" /> : null}
+      {epic.goalPrompt ? <MarkdownPreview maxLines={3} text={epic.goalPrompt} title={i18n.t("chat:tool_card_goal_prompt")} /> : null}
       {epic.dependsOnEpics.length || epic.dependentEpics.length ? (
         <div className="flex flex-wrap gap-3">
-          {epic.dependsOnEpics.length ? <DependencyGroup badges={epic.dependsOnEpics} label="Depends on" /> : null}
-          {epic.dependentEpics.length ? <DependencyGroup badges={epic.dependentEpics} label="Dependents" /> : null}
+          {epic.dependsOnEpics.length ? <DependencyGroup badges={epic.dependsOnEpics} label={i18n.t("chat:tool_card_depends_on")} /> : null}
+          {epic.dependentEpics.length ? <DependencyGroup badges={epic.dependentEpics} label={i18n.t("chat:tool_card_dependents")} /> : null}
         </div>
       ) : null}
       <div>
-        <SectionLabel>
-          Child Jobs ({doneCount}/{epic.childJobs.length})
-        </SectionLabel>
+        <SectionLabel>{i18n.t("chat:tool_card_child_jobs_progress", { done: doneCount, count: epic.childJobs.length })}</SectionLabel>
         {epic.childJobs.length ? (
           <ol className="mt-1 space-y-2">
             {epic.childJobs.map((job) => (
@@ -258,7 +260,7 @@ function renderExpanded(context: ToolCardContext) {
             ))}
           </ol>
         ) : (
-          <EmptyState>No child Jobs.</EmptyState>
+          <EmptyState>{i18n.t("chat:tool_card_no_child_jobs")}</EmptyState>
         )}
       </div>
     </CardShell>
@@ -278,28 +280,28 @@ function ChildJob({ job }: { job: ChildJobRow }) {
       <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {prUrl ? (
           <div>
-            <SectionLabel>Pull request</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_pull_request")}</SectionLabel>
             <EntityReference id={job.prNumber} kind="pull_request" prUrl={prUrl} />
           </div>
         ) : null}
-        {job.branch ? <Row label="Branch" value={job.branch} /> : null}
+        {job.branch ? <Row label={i18n.t("chat:tool_card_branch")} value={job.branch} /> : null}
         {job.provider ? (
-          <Row label="Provider" value={`${job.provider}${job.providerSetting ? ` (${job.providerSetting})` : ""}`} />
+          <Row label={i18n.t("chat:tool_card_provider")} value={`${job.provider}${job.providerSetting ? ` (${job.providerSetting})` : ""}`} />
         ) : job.providerSetting ? (
-          <Row label="Provider setting" value={job.providerSetting} />
+          <Row label={i18n.t("chat:tool_card_provider_setting")} value={job.providerSetting} />
         ) : null}
-        {job.closureReason ? <Row label="Closure reason" value={job.closureReason} /> : null}
-        {job.landedSha ? <Row label="Landed SHA" value={job.landedSha} /> : null}
+        {job.closureReason ? <Row label={i18n.t("chat:tool_card_closure_reason")} value={job.closureReason} /> : null}
+        {job.landedSha ? <Row label={i18n.t("chat:tool_card_landed_sha")} value={job.landedSha} /> : null}
       </div>
       {job.issueBody?.text.trim() ? (
         <div className="mt-2">
-          <MarkdownPreview maxLines={4} text={job.issueBody.text} title="Issue body" />
+          <MarkdownPreview maxLines={4} text={job.issueBody.text} title={i18n.t("chat:tool_card_issue_body")} />
           <TextTruncationNote value={job.issueBody} />
         </div>
       ) : null}
       {job.dependencies.length ? (
         <div className="mt-2">
-          <SectionLabel>Waits for</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_waits_for")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
             {job.dependencies.map((dependency) => (
               <span className={WAIT_PILL_CLASS} key={dependency.key}>
@@ -343,13 +345,13 @@ const readEpicToolCard: ToolCardRenderer = { toolName: "read_epic", collapsedSum
 export const examples: ToolCardExample[] = [
   {
     id: "epic_with_child_details",
-    label: "Epic with child details",
+    label: i18n.t("chat:tool_card_epic_example_details"),
     sourceType: "generic",
     parsedResult: {
       epic: {
         id: 42,
         display_number: "EPIC-42",
-        title: "Improve operator cards",
+        title: i18n.t("chat:tool_card_epic_example_title"),
         state: "running",
         repository: "acme/widgets",
         description: { text: "Ship **clear** Epic cards.", truncated: false, bytes: 27 },
@@ -373,11 +375,11 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "empty_epic",
-    label: "Epic with no children",
+    label: i18n.t("chat:tool_card_epic_example_empty"),
     sourceType: "generic",
     parsedResult: { epic: { id: 43, state: "queued", description: { text: "", truncated: false, bytes: 0 } }, child_jobs: [] }
   },
-  { id: "read_error", label: "Read error", sourceType: "generic", resultBody: "Epic was not found.", resultError: true }
+  { id: "read_error", label: i18n.t("chat:tool_card_epic_example_error"), sourceType: "generic", resultBody: "Epic was not found.", resultError: true }
 ]
 
 export default readEpicToolCard

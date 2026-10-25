@@ -23,13 +23,13 @@ type DiffCard = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Job diff read",
+  title: i18n.t("chat:tool_card_job_diff_read"),
   attempted: (context) => {
     const jobId = stringFromInput(context, ["job_id"])
-    return jobId ? `Read diff for JOB-${jobId}` : "Read Job diff"
+    return jobId ? i18n.t("chat:tool_card_job_diff_attempt", { jobId }) : i18n.t("chat:tool_card_job_diff_attempt_default")
   },
   retrySafety: "safe",
-  recovery: "Retry after the Job is available to this chat."
+  recovery: i18n.t("chat:tool_card_job_diff_recovery")
 }
 
 function parseDiffCard(context: ToolCardContext): DiffCard | null {
@@ -110,12 +110,12 @@ function renderExpanded(context: ToolCardContext) {
             wrap
           />
           {card.perBytes != null ? <Row label={i18n.t("chat:tool_card_diff_bytes_per_page")} value={String(card.perBytes)} /> : null}
-          {card.totalBytes != null ? <Row label="Total bytes" value={String(card.totalBytes)} /> : null}
+          {card.totalBytes != null ? <Row label={i18n.t("chat:tool_card_total_bytes")} value={String(card.totalBytes)} /> : null}
           {card.nextPage != null ? <Row label={i18n.t("chat:tool_card_diff_next_page")} value={String(card.nextPage)} /> : null}
         </dl>
       ) : null}
       <div>
-        <SectionLabel>Diff</SectionLabel>
+        <SectionLabel>{i18n.t("chat:tool_card_diff")}</SectionLabel>
         <div className="mt-1">
           <RawDiffPreview diff={card.diff} />
         </div>
@@ -135,7 +135,7 @@ export default getJobDiffToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "paginated_diff",
-    label: "Paginated diff",
+    label: i18n.t("chat:tool_card_example_paginated_diff"),
     input: { job_id: 4221, page: 1, per_bytes: 51200 },
     parsedResult: {
       job_id: 4221,
@@ -153,7 +153,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "missing_diff",
-    label: "No stored diff",
+    label: i18n.t("chat:tool_card_example_no_stored_diff"),
     input: { job_id: 4221 },
     parsedResult: {
       job_id: 4221,
@@ -164,12 +164,12 @@ export const examples: ToolCardExample[] = [
       total_bytes: 0,
       total_pages: 0,
       has_next_page: false,
-      message: "No stored diff is available for this Job yet."
+      message: i18n.t("chat:tool_card_diff_missing_default")
     }
   },
   {
     id: "page_out_of_range",
-    label: "Page out of range",
+    label: i18n.t("chat:tool_card_example_page_out_of_range"),
     input: { job_id: 4221, page: 14 },
     parsedResult: {
       job_id: 4221,
@@ -181,7 +181,7 @@ export const examples: ToolCardExample[] = [
       total_pages: 13,
       has_next_page: false,
       page_out_of_range: true,
-      message: "Page 14 is out of range for this 13-page diff."
+      message: i18n.t("chat:tool_card_example_page_out_of_range_message")
     }
   }
 ]

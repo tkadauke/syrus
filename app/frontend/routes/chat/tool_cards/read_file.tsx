@@ -185,12 +185,23 @@ const readFileToolCard: ToolCardRenderer = { toolName: "read_file", collapsedSum
 export default readFileToolCard
 
 export const examples: ToolCardExample[] = [
-  { id: "markdown", label: "Markdown file", input: { path: "README.md" }, parsedResult: { content: "# Syrus\n\nSee JOB-42 and https://example.test/docs." } },
+  {
+    id: "markdown",
+    label: i18n.t("chat:tool_card_read_file_example_markdown"),
+    input: { path: "README.md" },
+    parsedResult: { content: "# Syrus\n\nSee JOB-42 and https://example.test/docs." }
+  },
   {
     id: "paged_text",
-    label: "Paged source file",
+    label: i18n.t("chat:tool_card_read_file_example_paged"),
     input: { path: "app/models/job.rb", offset: 20, limit: 100 },
     parsedResult: { result: { content: "class Job\nend", total_lines: 642, total_bytes: 18_920 } }
   },
-  { id: "read_error", label: "Sandbox error", input: { path: "../secret" }, parsedResult: { error: "path escapes repository root" }, resultError: true }
+  {
+    id: "read_error",
+    label: i18n.t("chat:tool_card_read_file_example_error"),
+    input: { path: "../secret" },
+    parsedResult: { error: "path escapes repository root" },
+    resultError: true
+  }
 ]

@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { MediaPreviewShell, type MediaPreviewAction } from "../mediaPreviewShell"
 import { normalizedToolCardContentBlocks } from "../toolRendering"
 import { CardShell, displayValue, EmptyState, EntityReference, Row, StatePill } from "../toolCardUi"
@@ -34,31 +35,31 @@ function mimeTypeFromDataUrl(value: string) {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Artifact read",
+  title: i18n.t("chat:tool_card_artifact_read"),
   attempted: (context) => {
     const type = displayValue(context.input?.type)
-    return type ? `Read artifact ${type}` : "Read artifact"
+    return type ? i18n.t("chat:tool_card_artifact_attempt", { type }) : i18n.t("chat:tool_card_artifact_attempt_default")
   },
   retrySafety: "caution",
-  recovery: "Verify the Workflow and artifact type with list_artifacts, then retry the read."
+  recovery: i18n.t("chat:tool_card_artifact_recovery")
 }
 
 export function readArtifactSummary(context: ToolCardContext) {
   const type = displayValue(context.input?.type)
   const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
   if (failureSummary) return failureSummary
-  if (!imageContent(context)) return type ? `Artifact response: ${type}` : "Artifact response"
-  return type ? `Artifact: ${type}` : "Artifact image"
+  if (!imageContent(context)) return type ? i18n.t("chat:tool_card_artifact_response_type", { type }) : i18n.t("chat:tool_card_artifact_response")
+  return type ? i18n.t("chat:tool_card_artifact_type_summary", { type }) : i18n.t("chat:tool_card_artifact_image")
 }
 
 function ReadArtifactCard({ context, image }: { context: ToolCardContext; image: ArtifactImage }) {
-  const type = displayValue(context.input?.type) || "Artifact"
+  const type = displayValue(context.input?.type) || i18n.t("chat:tool_card_artifact")
   const workflowId = resultField(context, "workflow_id") || displayValue(context.input?.workflow_id)
   const jobId = resultField(context, "job_id") || displayValue(context.input?.job_id)
 
   const actions: MediaPreviewAction[] = [
-    { label: "Open", href: image.dataUrl },
-    { label: "Download", href: image.dataUrl, download: true }
+    { label: i18n.t("chat:tool_card_open"), href: image.dataUrl },
+    { label: i18n.t("chat:tool_card_download"), href: image.dataUrl, download: true }
   ]
 
   return (
@@ -72,15 +73,15 @@ function ReadArtifactCard({ context, image }: { context: ToolCardContext; image:
           badge: image.mimeType.split("/").pop()?.toUpperCase() ?? "IMAGE",
           actions,
           meta: [
-            { label: "Type", value: type },
-            { label: "Content type", value: image.mimeType }
+            { label: i18n.t("chat:tool_card_type"), value: type },
+            { label: i18n.t("chat:tool_card_content_type"), value: image.mimeType }
           ]
         }}
         modalLabel={type}
       />
       {workflowId ? (
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-          <span className="text-text-secondary">Workflow</span>
+          <span className="text-text-secondary">{i18n.t("chat:tool_card_workflow")}</span>
           <EntityReference id={workflowId} jobId={jobId} kind="workflow" />
         </div>
       ) : null}
@@ -123,19 +124,19 @@ function ReadArtifactInfoCard({ context }: { context: ToolCardContext }) {
   return (
     <CardShell>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <StatePill state={pending ? "pending" : "empty"} tone={pending ? "info" : "neutral"} />
-        <span className="break-words font-semibold text-gray-900 dark:text-gray-100">Read artifact</span>
+        <StatePill state={pending ? i18n.t("chat:tool_card_pending") : i18n.t("chat:tool_card_empty")} tone={pending ? "info" : "neutral"} />
+        <span className="break-words font-semibold text-gray-900 dark:text-gray-100">{i18n.t("chat:tool_card_artifact_attempt_default")}</span>
       </div>
       {message ? (
         <div className="break-words text-sm text-text-secondary">{message}</div>
       ) : (
-        <EmptyState>{pending ? "Waiting for the artifact result." : "The artifact result did not contain an image or message."}</EmptyState>
+        <EmptyState>{pending ? i18n.t("chat:tool_card_artifact_waiting") : i18n.t("chat:tool_card_artifact_empty")}</EmptyState>
       )}
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
-        {type ? <Row label="Type" value={type} /> : null}
+        {type ? <Row label={i18n.t("chat:tool_card_type")} value={type} /> : null}
         {workflowId ? (
           <div className="min-w-0">
-            <div className="text-2xs font-semibold uppercase text-text-secondary">Workflow</div>
+            <div className="text-2xs font-semibold uppercase text-text-secondary">{i18n.t("chat:tool_card_workflow")}</div>
             <EntityReference id={workflowId} jobId={jobId} kind="workflow" />
           </div>
         ) : null}
@@ -154,20 +155,20 @@ export function renderReadArtifact(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "image_artifact",
-    label: "Image artifact",
+    label: i18n.t("chat:tool_card_artifact_example_image"),
     input: { workflow_id: 28622, job_id: 7705, type: "visual_review_screenshot" },
     parsedResult: [{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }]
   },
   {
     id: "not_found",
-    label: "Artifact not found",
+    label: i18n.t("chat:tool_card_artifact_example_missing"),
     input: { workflow_id: 28622, type: "missing_screenshot" },
     resultBody: "Error: no image artifact found for type missing_screenshot",
     resultError: true
   },
   {
     id: "pending",
-    label: "Pending result",
+    label: i18n.t("chat:tool_card_artifact_example_pending"),
     input: { workflow_id: 28622, type: "visual_review_screenshot" },
     parsedResult: null
   }

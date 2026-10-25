@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, decimalCost, displayValue, durationLabel, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
 
@@ -121,7 +122,7 @@ function parseWorkflow(context: ToolCardContext): WorkflowCard | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "Workflow lookup failed"
+  if (context.resultError) return i18n.t("chat:tool_card_workflow_lookup_failed")
   const workflow = parseWorkflow(context)
   if (!workflow) return null
   return `WF-${workflow.id} (${workflow.state})`
@@ -132,7 +133,7 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         <div className="flex items-center gap-2">
-          <StatePill state="failed" /> Workflow lookup failed
+          <StatePill state="failed" /> {i18n.t("chat:tool_card_workflow_lookup_failed")}
         </div>
         {context.input?.workflow_id != null ? <EntityReference id={String(context.input.workflow_id)} kind="workflow" /> : null}
         {context.resultBody ? <div className="break-words text-xs text-red-700 dark:text-red-300 [overflow-wrap:anywhere]">{context.resultBody}</div> : null}
@@ -150,37 +151,53 @@ function renderExpanded(context: ToolCardContext) {
         {workflow.triggerKind ? <Badge>{workflow.triggerKind}</Badge> : null}
         {workflow.agentProvider ? <Badge>{workflow.agentProvider}</Badge> : null}
         {workflow.totalCost ? <Badge>{workflow.totalCost}</Badge> : null}
-        {workflow.stepCount ? <Badge>{workflow.stepCount} steps</Badge> : null}
-        {workflow.runCount ? <Badge>{workflow.runCount} runs</Badge> : null}
+        {workflow.stepCount ? <Badge>{i18n.t("chat:tool_card_step_count", { count: Number(workflow.stepCount) })}</Badge> : null}
+        {workflow.runCount ? <Badge>{i18n.t("chat:tool_card_run_count", { count: Number(workflow.runCount) })}</Badge> : null}
       </div>
       {workflow.jobId || workflow.duration || workflow.createdAt ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {workflow.jobId ? (
             <div className="min-w-0">
-              <SectionLabel>Job</SectionLabel>
+              <SectionLabel>{i18n.t("chat:tool_card_job")}</SectionLabel>
               <EntityReference id={workflow.jobId} kind="job" />
             </div>
           ) : null}
-          {workflow.duration ? <Row label="Duration" value={workflow.duration} /> : null}
-          {workflow.createdAt ? <Row label="Created" value={workflow.createdAt} /> : null}
+          {workflow.duration ? <Row label={i18n.t("chat:tool_card_duration")} value={workflow.duration} /> : null}
+          {workflow.createdAt ? <Row label={i18n.t("chat:tool_card_created")} value={workflow.createdAt} /> : null}
         </dl>
       ) : null}
-      {workflow.summary ? <MarkdownPreview maxLines={1} modalLabel="Workflow summary" text={workflow.summary} title="Summary" /> : null}
+      {workflow.summary ? (
+        <MarkdownPreview
+          maxLines={1}
+          modalLabel={i18n.t("chat:tool_card_workflow_summary_label")}
+          text={workflow.summary}
+          title={i18n.t("chat:tool_card_summary_label")}
+        />
+      ) : null}
       {workflow.steps.length > 0 ? (
         <div>
-          <SectionLabel>Steps</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_steps")}</SectionLabel>
           <ol className="mt-1 space-y-2 border-l border-gray-200 pl-3 dark:border-gray-700">
             {workflow.steps.map((step) => (
               <li key={step.key}>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{step.kind}</span>
                   <StatePill state={step.state} />
-                  {step.position ? <Badge>Position {step.position}</Badge> : null}
-                  {step.runCount ? <Badge>{step.runCount} runs</Badge> : null}
+                  {step.position ? <Badge>{i18n.t("chat:tool_card_position", { position: step.position })}</Badge> : null}
+                  {step.runCount ? <Badge>{i18n.t("chat:tool_card_run_count", { count: Number(step.runCount) })}</Badge> : null}
                   {step.duration ? <span className="text-2xs text-gray-500 dark:text-gray-400">{step.duration}</span> : null}
                 </div>
-                {step.details ? <MarkdownPreview maxLines={2} modalLabel={`${step.kind} step details`} text={step.details} title="Details" /> : null}
-                {step.createdAt ? <div className="text-2xs text-gray-500 dark:text-gray-400">Created {step.createdAt}</div> : null}
+                {step.details ? (
+                  <MarkdownPreview
+                    maxLines={2}
+                    modalLabel={i18n.t("chat:tool_card_step_details", { kind: step.kind })}
+                    text={step.details}
+                    title={i18n.t("chat:tool_card_details")}
+                  />
+                ) : null}
+                {step.createdAt ? (
+                  <div className="text-2xs text-gray-500 dark:text-gray-400">{i18n.t("chat:tool_card_created_value", { value: step.createdAt })}</div>
+                ) : null}
                 {step.runs.length > 0 ? (
                   <ul className="mt-1 space-y-1 pl-3">
                     {step.runs.map((run) => (
@@ -192,7 +209,9 @@ function renderExpanded(context: ToolCardContext) {
                           {run.cost ? <span>{run.cost}</span> : null}
                           {run.duration ? <span>{run.duration}</span> : null}
                         </div>
-                        {run.agentSummary ? <MarkdownPreview maxLines={2} modalLabel={`RUN-${run.id} summary`} text={run.agentSummary} /> : null}
+                        {run.agentSummary ? (
+                          <MarkdownPreview maxLines={2} modalLabel={i18n.t("chat:tool_card_run_summary", { id: run.id })} text={run.agentSummary} />
+                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -202,7 +221,7 @@ function renderExpanded(context: ToolCardContext) {
           </ol>
         </div>
       ) : (
-        <EmptyState>No steps have been created for this Workflow.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_no_steps")}</EmptyState>
       )}
     </CardShell>
   )
@@ -221,7 +240,7 @@ export default readWorkflowToolCard
 export const examples = [
   {
     id: "workflow_with_run_timeline",
-    label: "Workflow with Run timeline",
+    label: i18n.t("chat:tool_card_workflow_example_timeline"),
     input: { workflow_id: 25606 },
     parsedResult: {
       workflow: {
@@ -262,14 +281,14 @@ export const examples = [
   },
   {
     id: "queued_workflow_without_job",
-    label: "Queued Workflow without Job link",
-    description: "No job_id is present, so the workflow slug remains copyable without a derived route.",
+    label: i18n.t("chat:tool_card_workflow_example_queued"),
+    description: i18n.t("chat:tool_card_workflow_example_queued_description"),
     input: { workflow_id: 25607 },
     parsedResult: { workflow: { id: 25607, state: "queued", trigger_kind: "retry" } }
   },
   {
     id: "inaccessible_workflow",
-    label: "Inaccessible Workflow error",
+    label: i18n.t("chat:tool_card_workflow_example_error"),
     input: { workflow_id: 99999 },
     resultBody: "Workflow not found or inaccessible",
     resultError: true
