@@ -2519,6 +2519,10 @@ describe("DesignDocsSurface", () => {
     expect(patchBody.markdown).toContain("Use the `target` command.")
     expect(patchBody.markdown).not.toContain("automatic once a target graph")
     expect(patchBody.markdown).not.toContain("data-review")
+    expect(patchBody).not.toHaveProperty("visibility")
+    expect(patchBody).not.toHaveProperty("state")
+    expect(patchBody).not.toHaveProperty("repository_ids")
+    expect(patchBody).not.toHaveProperty("collaborator_user_ids")
 
     resolveAutosave?.(jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" }))
     await waitFor(() => expect(calls).toEqual(["autosave", "accept-31", "accept-32"]))

@@ -677,11 +677,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         markdown: draft,
         base_revision: canonicalRevisionRef.current,
         change_summary: summary,
-        checkpoint: true,
-        visibility: doc.visibility,
-        state: doc.state,
-        repository_ids: repoIds.map(Number),
-        collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
+        checkpoint: true
       })
       : createDesignDocSuggestion(doc.id, {
         start_offset: 0,
@@ -709,11 +705,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         ? updateDesignDoc(doc.id, {
         title,
         markdown: draft,
-        base_revision: canonicalRevisionRef.current,
-        visibility: doc.visibility,
-        state: doc.state,
-        repository_ids: repoIds.map(Number),
-        collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
+        base_revision: canonicalRevisionRef.current
       })
         : createDesignDocSuggestion(doc.id, {
         start_offset: 0,
