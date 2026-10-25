@@ -12,6 +12,7 @@ import markCiRepairNoopCard from "./tool_cards/mark_ci_repair_noop"
 import overrideLandingBlockerOnceCard from "./tool_cards/override_landing_blocker_once"
 import reconcileJobStateCard from "./tool_cards/reconcile_job_state"
 import reenqueueWorkCard from "./tool_cards/reenqueue_work"
+import i18n from "../../i18n"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -92,6 +93,15 @@ describe("pending action tool card: standard shape", () => {
 
   it("synthesizes a collapsed summary when the payload carries no message", () => {
     expect(summarize(standardPayload({ message: null }))).toBe("Pending action #501 (pending)")
+  })
+
+  it("localizes synthesized pending-action copy", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      expect(summarize(standardPayload({ message: null }))).toBe("Ausstehende Aktion #501 (pending)")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("falls back to pending_confirmation_id when pending_action_id is absent", () => {

@@ -1,3 +1,4 @@
+import i18n from "../../i18n"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
@@ -461,7 +462,9 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
       return {
         kind: "error",
         action: context.toolName,
-        message: firstDisplayValue(parsed.message, parsed.error_message, contentText(parsed.content), statusPayload.last_error) ?? "Runtime status failed",
+        message:
+          firstDisplayValue(parsed.message, parsed.error_message, contentText(parsed.content), statusPayload.last_error) ??
+          i18n.t("chat:ops_runtime_status_failed_c100ee"),
         sessionId
       }
     }
@@ -533,61 +536,87 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  if (card.kind === "error") return `Runtime ${actionLabel(card.action)} failed`
+  if (card.kind === "error") return i18n.t("chat:runtime_action_failed", { action: actionLabel(card.action) })
   if (card.kind === "sessions") {
-    if (card.sessions.length === 0) return "No Runtime sessions"
+    if (card.sessions.length === 0) return i18n.t("chat:ops_no_runtime_sessions_37f7e4")
     const primary = card.sessions.find((session) => session.primary) ?? card.sessions[0]
     const failing = card.sessions.filter((session) => session.state === "failed" || session.lastError).length
-    return `${plural(card.sessions.length, "Runtime session")}: #${primary.id} ${primary.state ?? "unknown"}, ${leaseLabel(primary.activeAgentInputLease)}${failing > 0 ? `, ${plural(failing, "error state")}` : ""}`
+    return i18n.t("chat:runtime_sessions_summary", {
+      count: card.sessions.length,
+      id: primary.id,
+      state: primary.state ?? i18n.t("chat:unknown"),
+      lease: leaseLabel(primary.activeAgentInputLease),
+      failures: failing > 0 ? i18n.t("chat:error_state_count", { count: failing }) : ""
+    })
   }
   if (card.kind === "status") {
     const session = card.session
-    return `Runtime #${session.id}: ${session.state ?? "unknown"}, ${leaseLabel(session.activeAgentInputLease)}${session.lastError ? ", error" : ""}`
+    return i18n.t("chat:runtime_status_summary", {
+      id: session.id,
+      state: session.state ?? i18n.t("chat:unknown"),
+      lease: leaseLabel(session.activeAgentInputLease),
+      error: session.lastError ? i18n.t("chat:error_suffix") : ""
+    })
   }
   if (card.kind === "lifecycle") {
     const noun = lifecycleNoun(card.action)
-    if (card.error) return `Runtime ${noun} failed`
-    const session = card.session ? ` #${card.session.id}` : ""
+    if (card.error) return i18n.t("chat:runtime_action_failed", { action: noun })
+    const session = card.session ? i18n.t("chat:number_suffix", { id: card.session.id }) : ""
     const status = card.status ?? (card.action === "stop" ? (card.session?.state ?? "stopped") : "succeeded")
     const destination = card.target ?? card.url
-    return `Runtime ${noun}${session}: ${status}${destination ? ` at ${destination}` : ""}`
+    return i18n.t("chat:runtime_lifecycle_summary", {
+      action: noun,
+      session,
+      status,
+      destination: destination ? i18n.t("chat:at_destination", { value: destination }) : ""
+    })
   }
   if (card.kind === "inspect") {
-    const pieces = [card.health, card.framework, card.ports ? `ports ${card.ports}` : null, card.processState].filter(Boolean)
-    const warningLabel = card.warnings.length > 0 ? `, ${plural(card.warnings.length, "warning")}` : ""
-    return pieces.length > 0 ? `Runtime inspect: ${pieces.join(", ")}${warningLabel}` : `Runtime inspect${warningLabel || ": no health fields"}`
+    const pieces = [card.health, card.framework, card.ports ? i18n.t("chat:ports_value", { value: card.ports }) : null, card.processState].filter(Boolean)
+    const warningLabel = card.warnings.length > 0 ? i18n.t("chat:warning_count_suffix", { count: card.warnings.length }) : ""
+    return pieces.length > 0
+      ? i18n.t("chat:runtime_inspect_summary", { details: pieces.join(", "), warnings: warningLabel })
+      : warningLabel
+        ? i18n.t("chat:runtime_inspect_empty", { warnings: warningLabel })
+        : i18n.t("chat:runtime_inspect_no_health_fields")
   }
   if (card.kind === "logs") {
     return card.entries.length === 0
-      ? "Runtime logs: no new lines"
-      : `Runtime logs: ${plural(card.entries.length, "line")}${card.nextCursor ? `, cursor ${card.nextCursor}` : ""}`
+      ? i18n.t("chat:ops_runtime_logs_no_new_lines_93527b")
+      : i18n.t("chat:runtime_log_summary", {
+          count: card.entries.length,
+          cursor: card.nextCursor ? i18n.t("chat:cursor_suffix", { value: card.nextCursor }) : ""
+        })
   }
   if (card.kind === "input") {
-    if (card.event.error) return `Runtime input failed: ${card.event.error}`
-    const target = card.event.target ? ` on ${card.event.target}` : ""
-    const outcome = card.event.delivered === true ? "delivered" : "sent"
-    return `Runtime input ${outcome}: ${card.event.type ?? "event"}${target}`
+    if (card.event.error) return i18n.t("chat:runtime_input_failed", { error: card.event.error })
+    const target = card.event.target ? i18n.t("chat:on_target", { value: card.event.target }) : ""
+    const outcome = card.event.delivered === true ? i18n.t("chat:delivered") : i18n.t("chat:sent")
+    return i18n.t("chat:runtime_input_summary", { outcome, event: card.event.type ?? i18n.t("chat:event"), target })
   }
   if (card.kind === "snapshot") {
-    if (card.snapshot.error) return "Runtime snapshot failed"
-    const target = card.snapshot.target ? ` of ${card.snapshot.target}` : ""
-    const viewport = card.snapshot.viewport ? `, ${card.snapshot.viewport}` : ""
-    return `Runtime snapshot captured${target}${viewport}`
+    if (card.snapshot.error) return i18n.t("chat:ops_runtime_snapshot_failed_421e14")
+    return i18n.t("chat:runtime_snapshot_captured", {
+      target: card.snapshot.target ? i18n.t("chat:of_target", { value: card.snapshot.target }) : "",
+      viewport: card.snapshot.viewport ? `, ${card.snapshot.viewport}` : ""
+    })
   }
   if (card.kind === "artifact") {
-    if (card.artifact.error) return "Runtime artifact capture failed"
-    if (card.artifact.missing) return "No Runtime artifact captured"
-    return `Runtime artifact captured: ${card.artifact.name ?? card.artifact.id ?? card.artifact.type ?? "artifact"}`
+    if (card.artifact.error) return i18n.t("chat:ops_runtime_artifact_capture_failed_8a5e95")
+    if (card.artifact.missing) return i18n.t("chat:ops_no_runtime_artifact_captured_f4e043")
+    return i18n.t("chat:runtime_artifact_captured", { artifact: card.artifact.name ?? card.artifact.id ?? card.artifact.type ?? i18n.t("chat:artifact") })
   }
   if (card.kind === "acquire") {
-    if (card.error || !card.lease) return "Runtime control not acquired"
+    if (card.error || !card.lease) return i18n.t("chat:ops_runtime_control_not_acquired_f3c058")
     return card.lease.owner === "agent" && card.lease.state === "active"
-      ? `Runtime control acquired: ${card.lease.mode ?? "lease"} #${card.lease.id}`
-      : `Runtime control stale: ${leaseLabel(card.lease)}`
+      ? i18n.t("chat:runtime_control_acquired", { mode: card.lease.mode ?? i18n.t("chat:lease"), id: card.lease.id })
+      : i18n.t("chat:runtime_control_stale", { lease: leaseLabel(card.lease) })
   }
   if (card.kind === "release") {
-    if (card.error) return "Runtime control release failed"
-    return card.released.length === 0 ? "No Runtime control leases released" : `Released ${plural(card.released.length, "Runtime control lease")}`
+    if (card.error) return i18n.t("chat:ops_runtime_control_release_failed_fc80a5")
+    return card.released.length === 0
+      ? i18n.t("chat:ops_no_runtime_control_leases_released_19d880")
+      : i18n.t("chat:released_runtime_control_count", { count: card.released.length })
   }
 
   return null
@@ -599,7 +628,7 @@ function MetadataRows({ values }: { values: Record<string, unknown> }) {
 
   return (
     <div>
-      <SectionLabel>Metadata</SectionLabel>
+      <SectionLabel>{i18n.t("chat:ops_metadata_251edc")}</SectionLabel>
       <div className="mt-1 grid gap-1 sm:grid-cols-2">
         {entries.map(([key, value]) => (
           <Row key={key} label={key} value={displayValue(value) ?? String(value)} wrap />
@@ -639,14 +668,14 @@ function SafeLinks({ session }: { session: RuntimeSession }) {
   const links: Array<readonly [string, string]> = []
   const streamUrl = session.streamUrl ? safeRuntimeUrl(session.streamUrl) : null
   const latestFrameUrl = session.latestFrameUrl ? safeRuntimeUrl(session.latestFrameUrl) : null
-  if (streamUrl) links.push(["Stream", streamUrl])
-  if (latestFrameUrl) links.push(["Latest frame", latestFrameUrl])
+  if (streamUrl) links.push([i18n.t("chat:ops_stream_df0638"), streamUrl])
+  if (latestFrameUrl) links.push([i18n.t("chat:ops_latest_frame_c19a56"), latestFrameUrl])
 
   if (links.length === 0) return null
 
   return (
     <div>
-      <SectionLabel>URLs</SectionLabel>
+      <SectionLabel>{i18n.t("chat:ops_urls_01f038")}</SectionLabel>
       <div className="mt-1 flex flex-wrap gap-2">
         {links.map(([label, url]) => (
           <a
@@ -664,7 +693,7 @@ function SafeLinks({ session }: { session: RuntimeSession }) {
   )
 }
 
-function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null; title?: string }) {
+function LeaseDetails({ lease, title = i18n.t("chat:ops_control_ea1d3d") }: { lease: RuntimeLease | null; title?: string }) {
   if (!lease) return <StatePill state="no lease" tone="neutral" />
 
   return (
@@ -678,18 +707,18 @@ function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null
         {lease.mode ? <Badge>{lease.mode}</Badge> : null}
       </div>
       <div className="mt-2 grid gap-1 sm:grid-cols-2">
-        {lease.ownerRef ? <Row label="Owner ref" value={lease.ownerRef} wrap /> : null}
-        {lease.reason ? <Row label="Reason" value={lease.reason} wrap /> : null}
-        {lease.acquiredAt ? <Row label="Acquired" value={lease.acquiredAt} /> : null}
-        {lease.expiresAt ? <Row label="Expires" value={lease.expiresAt} /> : null}
-        {lease.cancellable != null ? <Row label="Cancellable" value={lease.cancellable ? "yes" : "no"} /> : null}
+        {lease.ownerRef ? <Row label={i18n.t("chat:ops_owner_ref_2d62db")} value={lease.ownerRef} wrap /> : null}
+        {lease.reason ? <Row label={i18n.t("chat:ops_reason_f219cc")} value={lease.reason} wrap /> : null}
+        {lease.acquiredAt ? <Row label={i18n.t("chat:ops_acquired_038f09")} value={lease.acquiredAt} /> : null}
+        {lease.expiresAt ? <Row label={i18n.t("chat:ops_expires_a99be3")} value={lease.expiresAt} /> : null}
+        {lease.cancellable != null ? <Row label={i18n.t("chat:ops_cancellable_24d26c")} value={lease.cancellable ? "yes" : "no"} /> : null}
       </div>
     </div>
   )
 }
 
 function RuntimeId({ id, href }: { id: string; href?: string | null }) {
-  const label = `Runtime #${id}`
+  const label = i18n.t("chat:runtime_number", { id })
   return href ? (
     <a className="break-words font-mono text-brand hover:underline dark:text-brand-emphasis" href={href} rel="noreferrer" target="_blank">
       {label}
@@ -711,38 +740,38 @@ function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
         {session.displayName ? <span className="text-gray-600 dark:text-gray-300">{session.displayName}</span> : null}
       </div>
       <div className="mt-2 grid gap-1 sm:grid-cols-3">
-        {session.providerKey ? <Row label="Provider" value={session.providerKey} /> : null}
-        {session.workspaceRef ? <Row label="Workspace" value={session.workspaceRef} wrap /> : null}
-        {session.latestFrameAt ? <Row label="Latest frame at" value={session.latestFrameAt} /> : null}
+        {session.providerKey ? <Row label={i18n.t("chat:ops_provider_7ceee3")} value={session.providerKey} /> : null}
+        {session.workspaceRef ? <Row label={i18n.t("chat:ops_workspace_4ca0a7")} value={session.workspaceRef} wrap /> : null}
+        {session.latestFrameAt ? <Row label={i18n.t("chat:ops_latest_frame_at_3b2e7c")} value={session.latestFrameAt} /> : null}
       </div>
       <div className="mt-2 space-y-2">
         <SafeLinks session={session} />
         {frameSource ? (
           <MediaPreviewShell
             item={{
-              title: "Latest frame",
+              title: i18n.t("chat:ops_latest_frame_c19a56"),
               subtitle: session.latestFrameAt,
               src: frameSource,
               alt: `Latest frame for Runtime #${session.id}`,
-              actions: [{ label: "Open", href: frameSource }],
+              actions: [{ label: i18n.t("chat:ops_open_cf9b77"), href: frameSource }],
               meta: [
-                { label: "Runtime", value: session.id },
-                { label: "Captured", value: session.latestFrameAt }
+                { label: i18n.t("chat:ops_runtime_c4740e"), value: session.id },
+                { label: i18n.t("chat:ops_captured_e3d85d"), value: session.latestFrameAt }
               ]
             }}
-            modalLabel="Runtime latest frame preview"
+            modalLabel={i18n.t("chat:ops_runtime_latest_frame_preview_9a08c6")}
           />
         ) : null}
-        {session.lastError ? <LargeTextPreview label="Last error" text={session.lastError} /> : null}
+        {session.lastError ? <LargeTextPreview label={i18n.t("chat:ops_last_error_5e4df8")} text={session.lastError} /> : null}
         <div>
-          <SectionLabel>Control owner</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_control_owner_fce91c")}</SectionLabel>
           <div className="mt-1">
             <LeaseDetails lease={session.activeAgentInputLease} />
           </div>
         </div>
         <MetadataRows values={session.metadata} />
         {objectEntries(session.capabilities).length > 0 ? (
-          <Disclosure label="Capabilities">
+          <Disclosure label={i18n.t("chat:ops_capabilities_ca09c5")}>
             <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-2xs">{JSON.stringify(session.capabilities, null, 2)}</pre>
           </Disclosure>
         ) : null}
@@ -766,7 +795,7 @@ function FieldRows({ rows }: { rows: Array<[string, string | null]> }) {
 
 function RawRuntimeDetails({ value }: { value: unknown }) {
   return (
-    <Disclosure label="Runtime JSON">
+    <Disclosure label={i18n.t("chat:ops_runtime_json_f2ba29")}>
       <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-2xs">{JSON.stringify(value, null, 2)}</pre>
     </Disclosure>
   )
@@ -791,7 +820,7 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.error ? "failed" : (card.status ?? (card.action === "stop" ? "stopped" : "succeeded"))} tone={tone} />
-        <span className="font-semibold text-gray-900 dark:text-gray-100">Runtime {lifecycleNoun(card.action)}</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100">{i18n.t("chat:runtime_lifecycle", { action: lifecycleNoun(card.action) })}</span>
         {card.session ? <span className="font-mono text-gray-700 dark:text-gray-300">#{card.session.id}</span> : null}
       </div>
       {card.error ? (
@@ -801,12 +830,12 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
       ) : null}
       <FieldRows
         rows={[
-          ["State", card.session?.state ?? card.status],
-          ["Command", card.command],
+          [i18n.t("chat:ops_state_a72502"), card.session?.state ?? card.status],
+          [i18n.t("chat:ops_command_890189"), card.command],
           ["URL", card.url],
-          ["Launch target", card.target],
-          ["Provider", card.session?.providerKey ?? null],
-          ["Workspace", card.session?.workspaceRef ?? null]
+          [i18n.t("chat:ops_launch_target_fc25c1"), card.target],
+          [i18n.t("chat:ops_provider_7ceee3"), card.session?.providerKey ?? null],
+          [i18n.t("chat:ops_workspace_4ca0a7"), card.session?.workspaceRef ?? null]
         ]}
       />
       {card.session ? <RuntimeSessionBlock session={card.session} /> : null}
@@ -820,15 +849,15 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
     <CardShell>
       <FieldRows
         rows={[
-          ["Health", card.health],
-          ["Framework", card.framework],
-          ["Ports", card.ports],
-          ["Process", card.processState]
+          [i18n.t("chat:ops_health_3703cd"), card.health],
+          [i18n.t("chat:ops_framework_fb001b"), card.framework],
+          [i18n.t("chat:ops_ports_16c2eb"), card.ports],
+          [i18n.t("chat:ops_process_12f4c1"), card.processState]
         ]}
       />
       {card.warnings.length > 0 ? (
         <div>
-          <SectionLabel>Warnings</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_warnings_1430f9")}</SectionLabel>
           <ul className="mt-1 list-disc space-y-1 pl-4 text-amber-800 dark:text-amber-200">
             {card.warnings.map((warning, index) => (
               <li key={`${warning}-${index}`}>{warning}</li>
@@ -837,11 +866,11 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
         </div>
       ) : null}
       {card.details ? (
-        <Disclosure label="Inspection details">
+        <Disclosure label={i18n.t("chat:ops_inspection_details_f70991")}>
           <TextPreview text={card.details} truncate="headTail" />
         </Disclosure>
       ) : (
-        <EmptyState>No detailed inspection output was returned.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_detailed_inspection_output_was_returned_d52c57")}</EmptyState>
       )}
       <RawRuntimeDetails value={card.raw} />
     </CardShell>
@@ -853,16 +882,16 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
     <CardShell>
       <FieldRows
         rows={[
-          ["Lines", String(card.entries.length)],
-          ["Cursor", card.cursor],
-          ["Next cursor", card.nextCursor]
+          [i18n.t("chat:ops_lines_c6fd38"), String(card.entries.length)],
+          [i18n.t("chat:ops_cursor_223994"), card.cursor],
+          [i18n.t("chat:ops_next_cursor_0450c3"), card.nextCursor]
         ]}
       />
       {card.entries.length === 0 ? (
-        <EmptyState>No new Runtime log lines.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_new_runtime_log_lines_b62a93")}</EmptyState>
       ) : (
-        <Disclosure label="Log preview">
-          <FilterableList itemText={(entry) => entry} items={card.entries} placeholder="Filter log lines">
+        <Disclosure label={i18n.t("chat:ops_log_preview_9e03df")}>
+          <FilterableList itemText={(entry) => entry} items={card.entries} placeholder={i18n.t("chat:ops_filter_log_lines_9cf555")}>
             {(entries) => <TextPreview maxLines={40} text={entries.join("\n")} truncate="tail" />}
           </FilterableList>
         </Disclosure>
@@ -879,7 +908,7 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.event.error ? "failed" : card.event.delivered === true ? "delivered" : "sent"} tone={tone} />
-        <span className="font-semibold text-gray-900 dark:text-gray-100">{card.event.type ?? "Runtime input"}</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100">{card.event.type ?? i18n.t("chat:ops_runtime_input_5e0e20")}</span>
         {card.event.target ? <Badge>{card.event.target}</Badge> : null}
       </div>
       {card.event.error || card.event.message ? (
@@ -895,13 +924,13 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
       ) : null}
       <FieldRows
         rows={[
-          ["Type", card.event.type],
-          ["Target", card.event.target],
-          ["Value", card.event.valueSummary],
+          [i18n.t("chat:ops_type_3deb74"), card.event.type],
+          [i18n.t("chat:ops_target_61ad50"), card.event.target],
+          [i18n.t("chat:ops_value_8dce17"), card.event.valueSummary],
           ["Key", card.event.key]
         ]}
       />
-      <Disclosure label="Input event">
+      <Disclosure label={i18n.t("chat:ops_input_event_6ec959")}>
         <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(card.rawEvent, null, 2)}</pre>
       </Disclosure>
       <RawRuntimeDetails value={card.raw} />
@@ -928,43 +957,43 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
       {imageUrl ? (
         <MediaPreviewShell
           item={{
-            title: snapshot.title ?? "Runtime snapshot",
+            title: snapshot.title ?? i18n.t("chat:ops_runtime_snapshot_32fa99"),
             subtitle: snapshot.pageUrl ?? snapshot.target,
             src: imageUrl,
-            alt: "Runtime snapshot preview",
+            alt: i18n.t("chat:ops_runtime_snapshot_preview_738796"),
             badge: snapshot.mimeType?.split("/").pop()?.toUpperCase() ?? "image",
             actions: [
-              { label: "Open", href: imageUrl },
-              { label: "Copy link", copyValue: imageUrl },
-              snapshot.pageUrl ? { label: "Copy page", copyValue: snapshot.pageUrl } : null
+              { label: i18n.t("chat:ops_open_cf9b77"), href: imageUrl },
+              { label: i18n.t("chat:ops_copy_link_2f84ee"), copyValue: imageUrl },
+              snapshot.pageUrl ? { label: i18n.t("chat:ops_copy_page_092636"), copyValue: snapshot.pageUrl } : null
             ].filter(Boolean) as MediaPreviewAction[],
             meta: [
-              { label: "Page", value: snapshot.pageUrl, copyValue: snapshot.pageUrl },
-              { label: "Title", value: snapshot.title },
-              { label: "Viewport", value: snapshot.viewport },
-              { label: "Target", value: snapshot.target },
-              { label: "Kind", value: snapshot.kind },
-              { label: "Document", value: snapshot.documentId, copyValue: snapshot.documentId },
-              { label: "Type", value: snapshot.mimeType },
-              { label: "Captured", value: snapshot.createdAt },
-              { label: "Source", value: imageUrl, copyValue: imageUrl }
+              { label: i18n.t("chat:ops_page_fb0627"), value: snapshot.pageUrl, copyValue: snapshot.pageUrl },
+              { label: i18n.t("chat:ops_title_768e0c"), value: snapshot.title },
+              { label: i18n.t("chat:ops_viewport_09e594"), value: snapshot.viewport },
+              { label: i18n.t("chat:ops_target_61ad50"), value: snapshot.target },
+              { label: i18n.t("chat:ops_kind_e00ac2"), value: snapshot.kind },
+              { label: i18n.t("chat:ops_document_e214b8"), value: snapshot.documentId, copyValue: snapshot.documentId },
+              { label: i18n.t("chat:ops_type_3deb74"), value: snapshot.mimeType },
+              { label: i18n.t("chat:ops_captured_e3d85d"), value: snapshot.createdAt },
+              { label: i18n.t("chat:ops_source_6da13a"), value: imageUrl, copyValue: imageUrl }
             ]
           }}
-          modalLabel="Runtime snapshot preview"
+          modalLabel={i18n.t("chat:ops_runtime_snapshot_preview_738796")}
         />
       ) : (
-        <EmptyState>No snapshot preview was returned.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_snapshot_preview_was_returned_08caad")}</EmptyState>
       )}
       <FieldRows
         rows={[
-          ["Page", snapshot.pageUrl],
-          ["Title", snapshot.title],
-          ["Viewport", snapshot.viewport],
-          ["Target", snapshot.target],
-          ["Kind", snapshot.kind],
-          ["Document", snapshot.documentId],
-          ["Type", snapshot.mimeType],
-          ["Captured", snapshot.createdAt]
+          [i18n.t("chat:ops_page_fb0627"), snapshot.pageUrl],
+          [i18n.t("chat:ops_title_768e0c"), snapshot.title],
+          [i18n.t("chat:ops_viewport_09e594"), snapshot.viewport],
+          [i18n.t("chat:ops_target_61ad50"), snapshot.target],
+          [i18n.t("chat:ops_kind_e00ac2"), snapshot.kind],
+          [i18n.t("chat:ops_document_e214b8"), snapshot.documentId],
+          [i18n.t("chat:ops_type_3deb74"), snapshot.mimeType],
+          [i18n.t("chat:ops_captured_e3d85d"), snapshot.createdAt]
         ]}
       />
       <RawRuntimeDetails value={snapshot.raw} />
@@ -977,7 +1006,7 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
   const previewUrl = safeImageUrl(artifact.previewUrl)
   const downloadUrl = artifact.downloadUrl ? safeRuntimeUrl(artifact.downloadUrl) : null
   const link = artifact.link ? safeRuntimeUrl(artifact.link) : null
-  const artifactTitle = artifact.name ?? artifact.id ?? "Runtime artifact"
+  const artifactTitle = artifact.name ?? artifact.id ?? i18n.t("chat:ops_runtime_artifact_55692f")
 
   return (
     <CardShell>
@@ -986,11 +1015,11 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
           {artifact.error}
         </div>
       ) : artifact.missing ? (
-        <EmptyState>No Runtime artifact was returned.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_runtime_artifact_was_returned_cff771")}</EmptyState>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state="captured" tone="success" />
-          <span className="font-semibold text-gray-900 dark:text-gray-100">{artifact.name ?? artifact.id ?? "Runtime artifact"}</span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{artifact.name ?? artifact.id ?? i18n.t("chat:ops_runtime_artifact_55692f")}</span>
           {artifact.type ? <Badge>{artifact.type}</Badge> : null}
         </div>
       )}
@@ -1003,31 +1032,31 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
             alt: artifactTitle,
             badge: artifact.type?.split("/").pop()?.toUpperCase() ?? null,
             actions: [
-              link ? { label: "Open", href: link } : { label: "Open", href: previewUrl },
-              downloadUrl ? { label: "Download", href: downloadUrl, download: true } : null,
-              artifact.id ? { label: "Copy ID", copyValue: artifact.id } : null,
-              artifact.path ? { label: "Copy path", copyValue: artifact.path } : null
+              link ? { label: i18n.t("chat:ops_open_cf9b77"), href: link } : { label: i18n.t("chat:ops_open_cf9b77"), href: previewUrl },
+              downloadUrl ? { label: i18n.t("chat:ops_download_a479c9"), href: downloadUrl, download: true } : null,
+              artifact.id ? { label: i18n.t("chat:ops_copy_id_c44623"), copyValue: artifact.id } : null,
+              artifact.path ? { label: i18n.t("chat:ops_copy_path_980455"), copyValue: artifact.path } : null
             ].filter(Boolean) as MediaPreviewAction[],
             meta: [
               { label: "ID", value: artifact.id, copyValue: artifact.id },
-              { label: "Name", value: artifact.name },
-              { label: "Type", value: artifact.type },
-              { label: "Path", value: artifact.path, copyValue: artifact.path },
-              { label: "Link", value: link, copyValue: link },
-              { label: "Download", value: downloadUrl, copyValue: downloadUrl }
+              { label: i18n.t("chat:ops_name_709a23"), value: artifact.name },
+              { label: i18n.t("chat:ops_type_3deb74"), value: artifact.type },
+              { label: i18n.t("chat:ops_path_519e39"), value: artifact.path, copyValue: artifact.path },
+              { label: i18n.t("chat:ops_link_d05170"), value: link, copyValue: link },
+              { label: i18n.t("chat:ops_download_a479c9"), value: downloadUrl, copyValue: downloadUrl }
             ]
           }}
-          modalLabel="Runtime artifact preview"
+          modalLabel={i18n.t("chat:ops_runtime_artifact_preview_a3e2ac")}
         />
       ) : null}
       <FieldRows
         rows={[
           ["ID", artifact.id],
-          ["Name", artifact.name],
-          ["Type", artifact.type],
-          ["Path", artifact.path],
-          ["Link", link],
-          ["Download", downloadUrl]
+          [i18n.t("chat:ops_name_709a23"), artifact.name],
+          [i18n.t("chat:ops_type_3deb74"), artifact.type],
+          [i18n.t("chat:ops_path_519e39"), artifact.path],
+          [i18n.t("chat:ops_link_d05170"), link],
+          [i18n.t("chat:ops_download_a479c9"), downloadUrl]
         ]}
       />
       <div className="flex flex-wrap gap-2">
@@ -1057,7 +1086,7 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         {card.sessions.length === 0 ? (
-          <EmptyState>No Runtime sessions found.</EmptyState>
+          <EmptyState>{i18n.t("chat:ops_no_runtime_sessions_found_9af8cb")}</EmptyState>
         ) : (
           <div className="space-y-2">
             {card.sessions.map((session) => (
@@ -1093,7 +1122,9 @@ function renderExpanded(context: ToolCardContext) {
 
   if (card.kind === "acquire") {
     const confirmed = card.lease?.owner === "agent" && card.lease.state === "active"
-    const message = confirmed ? "Agent owns Runtime control." : (card.error ?? "Runtime control ownership was not confirmed.")
+    const message = confirmed
+      ? i18n.t("chat:ops_agent_owns_runtime_control_2ae73f")
+      : (card.error ?? i18n.t("chat:ops_runtime_control_ownership_was_not_confirmed_910d15"))
     return (
       <CardShell>
         <RuntimeNotice message={message} tone={confirmed ? "success" : "warning"} />
@@ -1109,11 +1140,11 @@ function renderExpanded(context: ToolCardContext) {
         {card.error ? (
           <RuntimeNotice message={card.error} tone="error" />
         ) : card.released.length === 0 ? (
-          <EmptyState>No active agent Runtime control leases were held.</EmptyState>
+          <EmptyState>{i18n.t("chat:ops_no_active_agent_runtime_control_leases_were_held_db0789")}</EmptyState>
         ) : (
           <div className="space-y-2">
             {card.released.map((lease) => (
-              <LeaseDetails key={lease.id} lease={lease} title="Released lease" />
+              <LeaseDetails key={lease.id} lease={lease} title={i18n.t("chat:ops_released_lease_9f1464")} />
             ))}
           </div>
         )}

@@ -121,10 +121,10 @@ function timestampLabel(value: string | null): string | null {
 }
 
 export function issueListSummary(context: ToolCardContext) {
-  if (context.resultError) return "Could not list issues"
+  if (context.resultError) return i18n.t("chat:ops_could_not_list_issues_dd0101")
   const rows = issueRows(context)
   if (!rows) return null
-  return rows.length === 0 ? "No issues" : `${rows.length} issue${rows.length === 1 ? "" : "s"}`
+  return rows.length === 0 ? i18n.t("chat:ops_no_issues_cf614d") : i18n.t("chat:issue_count", { count: rows.length })
 }
 
 function IssueQuerySummary({ context, count }: { context: ToolCardContext; count: number }) {
@@ -148,11 +148,19 @@ function IssueQuerySummary({ context, count }: { context: ToolCardContext; count
 }
 
 export function IssueListCard({ rows }: { rows: IssueRow[] }) {
-  if (rows.length === 0) return <EmptyState>No issues found.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:ops_no_issues_found_b280a1")}</EmptyState>
 
   return (
     <Table responsive>
-      <THead columns={["Issue", "Details", "State", "Labels", "Activity"]} />
+      <THead
+        columns={[
+          i18n.t("chat:ops_issue_73781a"),
+          i18n.t("chat:ops_details_dc3dec"),
+          i18n.t("chat:ops_state_a72502"),
+          i18n.t("chat:ops_labels_222898"),
+          i18n.t("chat:ops_activity_81c0d9")
+        ]}
+      />
       <TBody>
         {rows.map((issue) => (
           <DataTable.Row key={`${issue.repository || "issue"}-${issue.number}`}>
@@ -189,8 +197,8 @@ export function IssueListCard({ rows }: { rows: IssueRow[] }) {
               )}
             </Td>
             <Td wrap>
-              <div>Opened {timestampLabel(issue.createdAt) || "—"}</div>
-              <div>Updated {timestampLabel(issue.updatedAt) || "—"}</div>
+              <div>{i18n.t("chat:issue_opened_at", { value: timestampLabel(issue.createdAt) || "—" })}</div>
+              <div>{i18n.t("chat:issue_updated_at", { value: timestampLabel(issue.updatedAt) || "—" })}</div>
             </Td>
           </DataTable.Row>
         ))}
@@ -205,7 +213,7 @@ export function renderIssueList(context: ToolCardContext): ReactNode | null {
     return (
       <>
         <IssueQuerySummary context={context} count={0} />
-        <EmptyState>{message || context.resultBody.trim() || "Unable to list issues."}</EmptyState>
+        <EmptyState>{message || context.resultBody.trim() || i18n.t("chat:ops_unable_to_list_issues_cc30e5")}</EmptyState>
       </>
     )
   }
@@ -381,8 +389,14 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
 }
 
 export function tagActionSummary(result: TagAction) {
-  const verb = result.action === "create" ? "Created" : result.action === "add" ? "Added" : "Removed"
-  const command = result.action === "create" ? "Create" : result.action === "add" ? "Add" : "Remove"
+  const verb =
+    result.action === "create"
+      ? i18n.t("chat:ops_created_accf40")
+      : result.action === "add"
+        ? i18n.t("chat:ops_added_b68734")
+        : i18n.t("chat:ops_removed_b5e77c")
+  const command =
+    result.action === "create" ? i18n.t("chat:ops_create_6e157c") : result.action === "add" ? i18n.t("chat:ops_add_61cc55") : i18n.t("chat:ops_remove_e96390")
   const target = result.tag?.name || (result.tag?.id ? `tag #${result.tag.id}` : "tag")
   const job = result.jobId ? ` · JOB-${result.jobId}` : ""
   if (result.error) return `${verb} ${target} failed${job}`
@@ -392,7 +406,12 @@ export function tagActionSummary(result: TagAction) {
 }
 
 export function TagActionCard({ result }: { result: TagAction }) {
-  const title = result.action === "create" ? "Create tag" : result.action === "add" ? "Add Job tag" : "Remove Job tag"
+  const title =
+    result.action === "create"
+      ? i18n.t("chat:ops_create_tag_d1f343")
+      : result.action === "add"
+        ? i18n.t("chat:ops_add_job_tag_a269f3")
+        : i18n.t("chat:ops_remove_job_tag_c8f220")
   if (result.error) {
     return (
       <ErrorCard title={title} message={result.error}>
@@ -411,7 +430,7 @@ export function TagActionCard({ result }: { result: TagAction }) {
         {result.tag ? <TagChip tag={result.tag} /> : null}
       </div>
       <TagActionMetadata result={result} />
-      {!result.pending && !result.success ? <EmptyState>Unexpected tool response.</EmptyState> : null}
+      {!result.pending && !result.success ? <EmptyState>{i18n.t("chat:ops_unexpected_tool_response_ecfbb8")}</EmptyState> : null}
     </CardShell>
   )
 }
@@ -419,17 +438,17 @@ export function TagActionCard({ result }: { result: TagAction }) {
 function TagActionMetadata({ result }: { result: TagAction }) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
-      {result.action === "create" && result.inputTag?.name ? <Row label="Requested name" value={result.inputTag.name} /> : null}
-      {result.action === "create" && result.inputTag?.color ? <Row label="Requested color" value={result.inputTag.color} /> : null}
-      {result.action === "create" && result.resultTag?.name ? <Row label="Created name" value={result.resultTag.name} /> : null}
-      {result.action === "create" && result.resultTag?.color ? <Row label="Created color" value={result.resultTag.color} /> : null}
+      {result.action === "create" && result.inputTag?.name ? <Row label={i18n.t("chat:ops_requested_name_128b8b")} value={result.inputTag.name} /> : null}
+      {result.action === "create" && result.inputTag?.color ? <Row label={i18n.t("chat:ops_requested_color_1b65bc")} value={result.inputTag.color} /> : null}
+      {result.action === "create" && result.resultTag?.name ? <Row label={i18n.t("chat:ops_created_name_b470cd")} value={result.resultTag.name} /> : null}
+      {result.action === "create" && result.resultTag?.color ? <Row label={i18n.t("chat:ops_created_color_a5c49a")} value={result.resultTag.color} /> : null}
       {result.jobId ? (
         <div className="min-w-0">
-          <SectionLabel>Job</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_job_30c8cb")}</SectionLabel>
           <EntityReference id={result.jobId} kind="job" wrap="break" />
         </div>
       ) : null}
-      {result.tag?.id ? <Row label="Tag ID" value={result.tag.id} /> : null}
+      {result.tag?.id ? <Row label={i18n.t("chat:ops_tag_id_3c4430")} value={result.tag.id} /> : null}
     </dl>
   )
 }
@@ -468,7 +487,7 @@ export function parseArtifactResult(context: ToolCardContext): ArtifactResult | 
   const parsed = artifactEnvelope(context.parsedResult)
   const title = displayValue(parsed.title) || displayValue(context.input?.title)
   const type = displayValue(parsed.type) || displayValue(context.input?.type)
-  const message = displayValue(parsed.message) || (context.resultBody === "Saved." ? "Saved." : null)
+  const message = displayValue(parsed.message) || (context.resultBody === i18n.t("chat:ops_saved_9d4af6") ? i18n.t("chat:ops_saved_9d4af6") : null)
   const pending = context.resultSettled !== true && context.parsedResult == null && context.resultBody === "" && !!(title || type)
   if (!title && !type && !message && !context.resultError && !pending) return null
 
@@ -491,34 +510,40 @@ export function parseArtifactResult(context: ToolCardContext): ArtifactResult | 
 export function artifactSummary(context: ToolCardContext) {
   const artifact = parseArtifactResult(context)
   if (!artifact) return null
-  if (context.resultError) return artifact.title ? `Artifact ${artifact.title} failed` : "Artifact submission failed"
-  if (artifact.pending) return artifact.title ? `Saving artifact: ${artifact.title}` : "Saving artifact"
-  return artifact.title ? `Artifact saved: ${artifact.title}` : "Artifact saved"
+  if (context.resultError) return artifact.title ? `Artifact ${artifact.title} failed` : i18n.t("chat:ops_artifact_submission_failed_bad133")
+  if (artifact.pending) return artifact.title ? `Saving artifact: ${artifact.title}` : i18n.t("chat:ops_saving_artifact_53825f")
+  return artifact.title ? `Artifact saved: ${artifact.title}` : i18n.t("chat:ops_artifact_saved_6b2e66")
 }
 
 export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactResult; error?: boolean }) {
-  if (error) return <ErrorCard title="Artifact submission failed" message={artifact.message || "The artifact could not be saved."} />
+  if (error)
+    return (
+      <ErrorCard
+        title={i18n.t("chat:ops_artifact_submission_failed_bad133")}
+        message={artifact.message || i18n.t("chat:ops_the_artifact_could_not_be_saved_b4d566")}
+      />
+    )
   const image = artifactImage(artifact.payload)
   const preview = artifactPayloadText(artifact.payload)
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={artifact.pending ? "pending" : "saved"} tone={artifact.pending ? "info" : "success"} />
-        <span className="font-semibold text-gray-900 dark:text-gray-100">{artifact.title || "Artifact"}</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100">{artifact.title || i18n.t("chat:ops_artifact_aa778b")}</span>
         {artifact.type ? <Badge>{artifact.type}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        {artifact.id ? <Row label="Artifact" value={artifact.id} /> : null}
-        {artifact.path ? <Row label="Path" value={artifact.path} /> : null}
+        {artifact.id ? <Row label={i18n.t("chat:ops_artifact_aa778b")} value={artifact.id} /> : null}
+        {artifact.path ? <Row label={i18n.t("chat:ops_path_519e39")} value={artifact.path} /> : null}
         {artifact.workflowId ? (
           <div className="min-w-0">
-            <SectionLabel>Workflow</SectionLabel>
+            <SectionLabel>{i18n.t("chat:ops_workflow_d7a484")}</SectionLabel>
             <EntityReference id={artifact.workflowId} jobId={artifact.jobId} kind="workflow" />
           </div>
         ) : null}
         {artifact.runId ? (
           <div className="min-w-0">
-            <SectionLabel>Run</SectionLabel>
+            <SectionLabel>{i18n.t("chat:ops_run_b1b392")}</SectionLabel>
             <EntityReference id={artifact.runId} jobId={artifact.jobId} workflowId={artifact.workflowId} kind="run" />
           </div>
         ) : null}
@@ -527,35 +552,37 @@ export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactRe
         <div className="flex flex-wrap gap-2">
           {artifact.url ? <InternalLink href={artifact.url}>open</InternalLink> : null}
           {artifact.url ? <InternalLink href={artifact.url}>download</InternalLink> : null}
-          {artifact.chatSessionId ? <InternalLink href={`/chats/${artifact.chatSessionId}?workspace=media`}>Chat Media library</InternalLink> : null}
+          {artifact.chatSessionId ? (
+            <InternalLink href={`/chats/${artifact.chatSessionId}?workspace=media`}>{i18n.t("chat:ops_chat_media_library_6f48e9")}</InternalLink>
+          ) : null}
         </div>
       ) : null}
       {artifact.message ? <div className="break-words text-gray-700 dark:text-gray-300">{artifact.message}</div> : null}
       {artifact.pending ? (
-        <EmptyState>Waiting for the artifact result.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_waiting_for_the_artifact_result_1dec39")}</EmptyState>
       ) : image ? (
         <MediaPreviewShell
           item={{
-            title: artifact.title || artifact.type || "Artifact",
+            title: artifact.title || artifact.type || i18n.t("chat:ops_artifact_aa778b"),
             src: image,
-            alt: artifact.title || "Submitted artifact",
+            alt: artifact.title || i18n.t("chat:ops_submitted_artifact_45ae98"),
             badge: artifact.type || "image",
             actions: [
-              { label: "Open", href: image },
-              { label: "Download", href: image, download: true }
+              { label: i18n.t("chat:ops_open_cf9b77"), href: image },
+              { label: i18n.t("chat:ops_download_a479c9"), href: image, download: true }
             ]
           }}
           thumbnailClassName="w-full max-w-72"
         />
       ) : (
         <MarkdownPreview
-          emptyLabel="No artifact payload was submitted."
+          emptyLabel={i18n.t("chat:ops_no_artifact_payload_was_submitted_74634f")}
           linkifySlugs
           linkifyUrls
           maxChars={ARTIFACT_PREVIEW_CHARS}
-          modalLabel={`${artifact.title || "Artifact"} payload`}
+          modalLabel={`${artifact.title || i18n.t("chat:ops_artifact_aa778b")} payload`}
           text={preview}
-          title="Payload"
+          title={i18n.t("chat:ops_payload_c30415")}
         />
       )}
     </CardShell>

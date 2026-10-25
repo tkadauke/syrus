@@ -1,3 +1,4 @@
+import i18n from "../../i18n"
 import { isValidElement, type ReactNode } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "../../toolCardParsing"
@@ -15,24 +16,101 @@ type MaintenanceToolDefinition = {
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
-  approve_job: { toolName: "approve_job", subjectKind: "job", actionLabel: "Approve Job", verb: "Approved", pendingVerb: "Approval requested" },
-  cancel_job: { toolName: "cancel_job", subjectKind: "job", actionLabel: "Cancel Job", verb: "Cancel requested" },
-  close_job_successfully: { toolName: "close_job_successfully", subjectKind: "job", actionLabel: "Close Job Successfully", verb: "Close requested" },
-  set_job_priority: { toolName: "set_job_priority", subjectKind: "job", actionLabel: "Set Job Priority", verb: "Priority changed" },
-  update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated" },
-  rebase_job: { toolName: "rebase_job", subjectKind: "job", actionLabel: "Rebase Job", verb: "Rebase requested" },
-  reopen_job: { toolName: "reopen_job", subjectKind: "job", actionLabel: "Reopen Job", verb: "Reopen requested" },
-  poll_job_feedback: { toolName: "poll_job_feedback", subjectKind: "job", actionLabel: "Poll Job Feedback", verb: "Feedback poll requested" },
-  unapprove_job: { toolName: "unapprove_job", subjectKind: "job", actionLabel: "Unapprove Job", verb: "Unapproved", pendingVerb: "Unapproval requested" },
-  remove_job_from_epic: { toolName: "remove_job_from_epic", subjectKind: "job", actionLabel: "Remove Job From Epic", verb: "Removed from Epic" },
-  add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
-  remove_job_dependency: { toolName: "remove_job_dependency", subjectKind: "job", actionLabel: "Remove Job Dependency", verb: "Dependency removed" },
-  start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: "Start Epic", verb: "Started" },
-  move_epic_to_backlog: { toolName: "move_epic_to_backlog", subjectKind: "epic", actionLabel: "Move Epic To Backlog", verb: "Moved to backlog" },
-  archive_epic: { toolName: "archive_epic", subjectKind: "epic", actionLabel: "Archive Epic", verb: "Archive requested" },
-  update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated" },
-  add_epic_dependency: { toolName: "add_epic_dependency", subjectKind: "epic", actionLabel: "Add Epic Dependency", verb: "Dependency added" },
-  remove_epic_dependency: { toolName: "remove_epic_dependency", subjectKind: "epic", actionLabel: "Remove Epic Dependency", verb: "Dependency removed" }
+  approve_job: {
+    toolName: "approve_job",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_approve_job_632a56"),
+    verb: i18n.t("chat:ops_approved_41b81e"),
+    pendingVerb: i18n.t("chat:ops_approval_requested_91db06")
+  },
+  cancel_job: {
+    toolName: "cancel_job",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_cancel_job_110d45"),
+    verb: i18n.t("chat:ops_cancel_requested_90ce89")
+  },
+  close_job_successfully: {
+    toolName: "close_job_successfully",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_close_job_successfully_3edf52"),
+    verb: i18n.t("chat:ops_close_requested_c13147")
+  },
+  set_job_priority: {
+    toolName: "set_job_priority",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_set_job_priority_d10c11"),
+    verb: i18n.t("chat:ops_priority_changed_1f3dbd")
+  },
+  update_job: { toolName: "update_job", subjectKind: "job", actionLabel: i18n.t("chat:ops_update_job_b15457"), verb: i18n.t("chat:ops_updated_f2f857") },
+  rebase_job: {
+    toolName: "rebase_job",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_rebase_job_ed3be6"),
+    verb: i18n.t("chat:ops_rebase_requested_fcbabf")
+  },
+  reopen_job: {
+    toolName: "reopen_job",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_reopen_job_298406"),
+    verb: i18n.t("chat:ops_reopen_requested_316246")
+  },
+  poll_job_feedback: {
+    toolName: "poll_job_feedback",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_poll_job_feedback_524260"),
+    verb: i18n.t("chat:ops_feedback_poll_requested_54d89d")
+  },
+  unapprove_job: {
+    toolName: "unapprove_job",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_unapprove_job_8d9f77"),
+    verb: i18n.t("chat:ops_unapproved_f0ed16"),
+    pendingVerb: i18n.t("chat:ops_unapproval_requested_066bc2")
+  },
+  remove_job_from_epic: {
+    toolName: "remove_job_from_epic",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_remove_job_from_epic_7b2760"),
+    verb: i18n.t("chat:ops_removed_from_epic_d6b368")
+  },
+  add_job_dependency: {
+    toolName: "add_job_dependency",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_add_job_dependency_d9894e"),
+    verb: i18n.t("chat:ops_dependency_added_cfef73")
+  },
+  remove_job_dependency: {
+    toolName: "remove_job_dependency",
+    subjectKind: "job",
+    actionLabel: i18n.t("chat:ops_remove_job_dependency_d63eef"),
+    verb: i18n.t("chat:ops_dependency_removed_57fad1")
+  },
+  start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: i18n.t("chat:ops_start_epic_b78ddb"), verb: i18n.t("chat:ops_started_faa9e7") },
+  move_epic_to_backlog: {
+    toolName: "move_epic_to_backlog",
+    subjectKind: "epic",
+    actionLabel: i18n.t("chat:ops_move_epic_to_backlog_7797df"),
+    verb: i18n.t("chat:ops_moved_to_backlog_22dad5")
+  },
+  archive_epic: {
+    toolName: "archive_epic",
+    subjectKind: "epic",
+    actionLabel: i18n.t("chat:ops_archive_epic_0948ca"),
+    verb: i18n.t("chat:ops_archive_requested_6cd181")
+  },
+  update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: i18n.t("chat:ops_update_epic_760f63"), verb: i18n.t("chat:ops_updated_f2f857") },
+  add_epic_dependency: {
+    toolName: "add_epic_dependency",
+    subjectKind: "epic",
+    actionLabel: i18n.t("chat:ops_add_epic_dependency_c33b9d"),
+    verb: i18n.t("chat:ops_dependency_added_cfef73")
+  },
+  remove_epic_dependency: {
+    toolName: "remove_epic_dependency",
+    subjectKind: "epic",
+    actionLabel: i18n.t("chat:ops_remove_epic_dependency_445ad5"),
+    verb: i18n.t("chat:ops_dependency_removed_57fad1")
+  }
 }
 
 type DetailRow = { label: string; value: ReactNode }
@@ -150,18 +228,22 @@ function dependencyList(context: ToolCardContext, definition: MaintenanceToolDef
 
 function buildRows(context: ToolCardContext, result: Record<string, unknown>, transitionExecuted = true) {
   const rows: DetailRow[] = []
-  pushRow(rows, "Before", result.previous_state)
-  if (transitionExecuted) pushRow(rows, "After", result.new_state)
-  pushRow(rows, "Previous priority", result.previous_priority)
-  pushRow(rows, "New priority", result.new_priority)
-  pushRow(rows, "Title", result.title)
-  pushRow(rows, "Description", result.description)
-  pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
-  pushRow(rows, "Dependency", dependencyReference(context, result))
-  pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
-  pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
-  pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
-  pushRow(rows, "Reason", result.reason)
+  pushRow(rows, i18n.t("chat:ops_before_74f396"), result.previous_state)
+  if (transitionExecuted) pushRow(rows, i18n.t("chat:ops_after_79ba5e"), result.new_state)
+  pushRow(rows, i18n.t("chat:ops_previous_priority_439762"), result.previous_priority)
+  pushRow(rows, i18n.t("chat:ops_new_priority_43fd16"), result.new_priority)
+  pushRow(rows, i18n.t("chat:ops_title_768e0c"), result.title)
+  pushRow(rows, i18n.t("chat:ops_description_55f8eb"), result.description)
+  pushRow(rows, i18n.t("chat:ops_closure_reason_d72807"), result.closure_reason || objectValue(context.input, "closure_reason"))
+  pushRow(rows, i18n.t("chat:ops_dependency_ce311a"), dependencyReference(context, result))
+  pushRow(rows, i18n.t("chat:ops_satisfaction_6b04c5"), objectValue(context.input, "satisfaction_mode"))
+  pushRow(rows, i18n.t("chat:ops_required_stage_3fc3c8"), objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
+  pushRow(
+    rows,
+    i18n.t("chat:ops_removed_from_77b2d7"),
+    result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null)
+  )
+  pushRow(rows, i18n.t("chat:ops_reason_f219cc"), result.reason)
   return rows
 }
 
@@ -274,13 +356,9 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
         ) : target ? (
           <Badge>{target}</Badge>
         ) : null}
-        {awaitingConfirmation && card.pendingId ? <Badge>pending #{card.pendingId}</Badge> : null}
-        {awaitingConfirmation && card.pendingGroupId ? <Badge>group #{card.pendingGroupId}</Badge> : null}
-        {card.memberCount != null ? (
-          <Badge>
-            {card.memberCount} {card.memberCount === 1 ? "action" : "actions"}
-          </Badge>
-        ) : null}
+        {awaitingConfirmation && card.pendingId ? <Badge>{i18n.t("chat:pending_number", { id: card.pendingId })}</Badge> : null}
+        {awaitingConfirmation && card.pendingGroupId ? <Badge>{i18n.t("chat:group_number", { id: card.pendingGroupId })}</Badge> : null}
+        {card.memberCount != null ? <Badge>{i18n.t("chat:action_count", { count: card.memberCount })}</Badge> : null}
       </div>
       {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
       {card.rows.length > 0 ? (
@@ -292,7 +370,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
       ) : null}
       {card.dependencies.length > 0 ? (
         <div>
-          <SectionLabel>Current dependencies</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_current_dependencies_a4b8fa")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
             {card.dependencies.map((dependency) => (
               <Badge key={`${dependency.kind}-${dependency.id}`}>

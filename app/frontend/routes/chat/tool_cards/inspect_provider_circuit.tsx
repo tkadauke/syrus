@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { redactToolCardText, redactToolCardValue } from "@app/toolCardSecurity"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
@@ -74,14 +75,14 @@ function Classification({ value }: { value: unknown }) {
       <div className="flex flex-wrap items-center gap-1">
         <Ref id={id} kind="artifact" label={id ? `Classification ${id}` : undefined} slug={id ?? undefined} />
         {displayValue(value.classification) ? <StatePill state={displayValue(value.classification)!} /> : null}
-        {value.retryable === true ? <Badge>retryable</Badge> : value.retryable === false ? <Badge>not retryable</Badge> : null}
+        {value.retryable === true ? <Badge>retryable</Badge> : value.retryable === false ? <Badge>{i18n.t("chat:ops_not_retryable_45d0e0")}</Badge> : null}
         {numberValue(value.confidence) != null ? <Badge>{numberValue(value.confidence)} confidence</Badge> : null}
       </div>
-      <Preview markdown title="Reason" value={value.reason} />
-      <Preview markdown title="Diagnostic summary" value={value.diagnostic_summary} />
-      <Preview title="Classifier inputs" value={value.classifier_inputs} />
+      <Preview markdown title={i18n.t("chat:ops_reason_f219cc")} value={value.reason} />
+      <Preview markdown title={i18n.t("chat:ops_diagnostic_summary_52067a")} value={value.diagnostic_summary} />
+      <Preview title={i18n.t("chat:ops_classifier_inputs_f5b4df")} value={value.classifier_inputs} />
       <div className="font-mono text-text-muted">{displayValue(value.classified_at) ?? "—"}</div>
-      {value.repair != null ? <Preview title="Repair" value={value.repair} /> : null}
+      {value.repair != null ? <Preview title={i18n.t("chat:ops_repair_5f60b1")} value={value.repair} /> : null}
     </div>
   )
 }
@@ -107,29 +108,39 @@ function renderExpanded(context: ToolCardContext) {
         <span className="font-mono font-semibold text-text-primary">{card.provider}</span>
         <StatePill state={d.open === true ? "open" : "closed"} tone={d.open === true ? "failure" : "success"} />
         {displayValue(d.model) ? <Badge>{displayValue(d.model)}</Badge> : null}
-        {d.usage_limit === true ? <Badge>usage limit</Badge> : null}
+        {d.usage_limit === true ? <Badge>{i18n.t("chat:ops_usage_limit_2564f4")}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Input provider" value={inputProvider ?? "—"} />
-        <Row label="Input user ID" value={inputUserId ?? "—"} />
-        <Row label="Failure count" value={String(numberValue(d.failure_count) ?? "—")} />
-        <Row label="Job count" value={String(numberValue(d.job_count) ?? "—")} />
-        <Row label="Retry after" value={displayValue(d.retry_after) ?? "—"} />
+        <Row label={i18n.t("chat:ops_input_provider_f9980e")} value={inputProvider ?? "—"} />
+        <Row label={i18n.t("chat:ops_input_user_id_6318a2")} value={inputUserId ?? "—"} />
+        <Row label={i18n.t("chat:ops_failure_count_1ac156")} value={String(numberValue(d.failure_count) ?? "—")} />
+        <Row label={i18n.t("chat:ops_job_count_dc7bb1")} value={String(numberValue(d.job_count) ?? "—")} />
+        <Row label={i18n.t("chat:ops_retry_after_75342d")} value={displayValue(d.retry_after) ?? "—"} />
       </dl>
-      {d.reason ? <Preview markdown title="Decision reason" value={d.reason} /> : null}
+      {d.reason ? <Preview markdown title={i18n.t("chat:ops_decision_reason_6b9c2c")} value={d.reason} /> : null}
       <div className="grid gap-2 sm:grid-cols-2">
-        <Preview title="Signature" value={d.signature} />
-        <Preview title="Decision evidence" value={d.evidence} />
+        <Preview title={i18n.t("chat:ops_signature_2f32be")} value={d.signature} />
+        <Preview title={i18n.t("chat:ops_decision_evidence_120846")} value={d.evidence} />
       </div>
 
       <div>
-        <SectionLabel>Failed Runs ({card.runs.length})</SectionLabel>
+        <SectionLabel>{i18n.t("chat:failed_run_count", { count: card.runs.length })}</SectionLabel>
         {card.runs.length === 0 ? (
-          <EmptyState>No failed Runs in the evidence window.</EmptyState>
+          <EmptyState>{i18n.t("chat:ops_no_failed_runs_in_the_evidence_window_c909ea")}</EmptyState>
         ) : (
           <Table responsive>
             <THead
-              columns={["Run", "Job", "Workflow / step", "Provider / model", "Outcome / retry", "Diagnostic", "Classification", "Finished", "Candidates"]}
+              columns={[
+                "Run",
+                "Job",
+                "Workflow / step",
+                "Provider / model",
+                "Outcome / retry",
+                i18n.t("chat:ops_diagnostic_852a16"),
+                i18n.t("chat:ops_classification_94c2a3"),
+                i18n.t("chat:ops_finished_355bcc"),
+                i18n.t("chat:ops_candidates_b5bf80")
+              ]}
             />
             <TBody>
               {card.runs.map(({ key, value: r }) => {
@@ -168,7 +179,7 @@ function renderExpanded(context: ToolCardContext) {
                         slug={displayValue(diagnostic?.id) ?? undefined}
                       />
                       <div>{text(diagnostic?.error_class) ?? "—"}</div>
-                      <Preview title="Error message" value={diagnostic?.error_message} />
+                      <Preview title={i18n.t("chat:ops_error_message_34d6de")} value={diagnostic?.error_message} />
                     </Td>
                     <Td wrap>
                       <Classification value={r.classification} />
@@ -176,7 +187,7 @@ function renderExpanded(context: ToolCardContext) {
                     <Td mono>{displayValue(r.finished_at) ?? "—"}</Td>
                     <Td>
                       <div className="flex flex-col items-start gap-1">
-                        {r.circuit_usage_limit_candidate === true ? <Badge>usage limit</Badge> : null}
+                        {r.circuit_usage_limit_candidate === true ? <Badge>{i18n.t("chat:ops_usage_limit_2564f4")}</Badge> : null}
                         {r.circuit_retryable_candidate === true ? <Badge>retryable</Badge> : null}
                         {r.circuit_usage_limit_candidate !== true && r.circuit_retryable_candidate !== true ? "—" : null}
                       </div>
@@ -189,12 +200,23 @@ function renderExpanded(context: ToolCardContext) {
         )}
       </div>
 
-      <Disclosure label={`Availability evidence (${card.evidence.length})`}>
+      <Disclosure label={i18n.t("chat:availability_evidence_count", { count: card.evidence.length })}>
         {card.evidence.length === 0 ? (
-          <EmptyState>No availability evidence in the evidence window.</EmptyState>
+          <EmptyState>{i18n.t("chat:ops_no_availability_evidence_in_the_evidence_window_753eec")}</EmptyState>
         ) : (
           <Table responsive>
-            <THead columns={["Evidence", "Status / source", "Scope", "References", "Observed", "HTTP", "Details", "Repair"]} />
+            <THead
+              columns={[
+                i18n.t("chat:ops_evidence_7ea014"),
+                "Status / source",
+                i18n.t("chat:ops_scope_4651a3"),
+                i18n.t("chat:ops_references_5d20d0"),
+                i18n.t("chat:ops_observed_2e159b"),
+                "HTTP",
+                i18n.t("chat:ops_details_dc3dec"),
+                i18n.t("chat:ops_repair_5f60b1")
+              ]}
+            />
             <TBody>
               {card.evidence.map(({ key, value: e }) => {
                 const id = displayValue(e.id)
@@ -222,10 +244,10 @@ function renderExpanded(context: ToolCardContext) {
                     <Td mono>{displayValue(e.observed_at) ?? "—"}</Td>
                     <Td mono>{numberValue(e.http_status) ?? "—"}</Td>
                     <Td wrap>
-                      <Preview title="Details" value={e.details} />
+                      <Preview title={i18n.t("chat:ops_details_dc3dec")} value={e.details} />
                     </Td>
                     <Td wrap>
-                      <Preview title="Repair" value={e.repair} />
+                      <Preview title={i18n.t("chat:ops_repair_5f60b1")} value={e.repair} />
                     </Td>
                   </tr>
                 )
@@ -236,11 +258,20 @@ function renderExpanded(context: ToolCardContext) {
       </Disclosure>
 
       <div>
-        <SectionLabel>Blocked consumers</SectionLabel>
-        {card.workflows.length === 0 && card.retries.length === 0 ? <EmptyState>No blocked consumers.</EmptyState> : null}
+        <SectionLabel>{i18n.t("chat:ops_blocked_consumers_110415")}</SectionLabel>
+        {card.workflows.length === 0 && card.retries.length === 0 ? <EmptyState>{i18n.t("chat:ops_no_blocked_consumers_c6c798")}</EmptyState> : null}
         {card.workflows.length ? (
           <Table responsive>
-            <THead columns={["Workflow", "Job", "Trigger", "Blocked reason", "Details", "Next check"]} />
+            <THead
+              columns={[
+                i18n.t("chat:ops_workflow_d7a484"),
+                "Job",
+                i18n.t("chat:ops_trigger_d3f06a"),
+                i18n.t("chat:ops_blocked_reason_6a04fd"),
+                i18n.t("chat:ops_details_dc3dec"),
+                i18n.t("chat:ops_next_check_75d4a7")
+              ]}
+            />
             <TBody>
               {card.workflows.map(({ key, value: w }) => {
                 const jobId = displayValue(w.job_id)
@@ -256,7 +287,7 @@ function renderExpanded(context: ToolCardContext) {
                     <Td>{displayValue(w.trigger_kind) ?? "—"}</Td>
                     <Td>{displayValue(w.start_blocked_reason) ?? "—"}</Td>
                     <Td wrap>
-                      <Preview title="Start block details" value={w.start_blocked_details} />
+                      <Preview title={i18n.t("chat:ops_start_block_details_0fd535")} value={w.start_blocked_details} />
                     </Td>
                     <Td mono>{displayValue(w.next_check_at) ?? "—"}</Td>
                   </tr>
@@ -267,7 +298,17 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         {card.retries.length ? (
           <Table responsive>
-            <THead columns={["Retry", "Job", "Workflow", "Run", "Kind", "Scheduled", "Classification"]} />
+            <THead
+              columns={[
+                i18n.t("chat:ops_retry_9f5cd8"),
+                "Job",
+                i18n.t("chat:ops_workflow_d7a484"),
+                "Run",
+                i18n.t("chat:ops_kind_e00ac2"),
+                i18n.t("chat:ops_scheduled_1cd1bd"),
+                i18n.t("chat:ops_classification_94c2a3")
+              ]}
+            />
             <TBody>
               {card.retries.map(({ key, value: r }) => {
                 const jobId = displayValue(r.job_id)

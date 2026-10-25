@@ -1,3 +1,4 @@
+import i18n from "../../i18n"
 import type { ReactNode } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "../../pluginToolCards"
 import { isPlainObject, normalizedToolCardParsedResult } from "../../toolCardParsing"
@@ -162,7 +163,7 @@ export function parsePendingActionResult(context: ToolCardContext, includeError 
     return {
       kind: "error",
       code: null,
-      message: parsedErrorMessage(value) || context.resultBody || "The tool returned an error.",
+      message: parsedErrorMessage(value) || context.resultBody || i18n.t("chat:ops_the_tool_returned_an_error_be0216"),
       validBases: [],
       ...parseContext(context.input ?? {})
     }
@@ -240,9 +241,11 @@ export function pendingActionCollapsedSummary(result: PendingActionResult): stri
     const jobId = result.context.jobId || result.evidence?.jobId
     return `Dry run: ${result.action}${jobId ? ` for ${entityReferenceLabel({ kind: "job", id: jobId })}` : ""}`
   }
-  const identifier = result.groupId ? `Pending action group #${result.groupId}` : `Pending action #${result.pendingActionId}`
+  const identifier = result.groupId
+    ? i18n.t("chat:pending_action_group_number", { id: result.groupId })
+    : i18n.t("chat:pending_action_number", { id: result.pendingActionId })
   const base = result.message || `${identifier} (${result.state})`
-  const summary = result.memberCount == null ? base : `${base} · ${result.memberCount} ${result.memberCount === 1 ? "action" : "actions"}`
+  const summary = result.memberCount == null ? base : `${base} · ${i18n.t("chat:action_count", { count: result.memberCount })}`
   return compactCollapsedSummary(summary)
 }
 
@@ -271,13 +274,19 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
 function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBlocker?: boolean; omitJob?: boolean; value: TargetContext }) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
-      {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
-      {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
-      {value.runId ? <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} /> : null}
-      {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
+      {!omitJob && value.jobId ? <Row label={i18n.t("chat:ops_job_30c8cb")} value={<EntityReference id={value.jobId} kind="job" />} /> : null}
+      {value.workflowId ? (
+        <Row label={i18n.t("chat:ops_workflow_d7a484")} value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} />
+      ) : null}
+      {value.runId ? (
+        <Row label={i18n.t("chat:ops_run_b1b392")} value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} />
+      ) : null}
+      {value.prNumber ? (
+        <Row label={i18n.t("chat:ops_pull_request_881e74")} value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} />
+      ) : null}
       {value.branch ? (
         <Row
-          label="Branch"
+          label={i18n.t("chat:ops_branch_162751")}
           value={
             value.branchUrl ? (
               <a className="break-all font-mono font-medium text-brand hover:underline" href={value.branchUrl} rel="noreferrer" target="_blank">
@@ -289,7 +298,9 @@ function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBloc
           }
         />
       ) : null}
-      {!omitBlocker && value.blockerKey ? <Row label="Blocker key" value={<span className="break-all font-mono">{value.blockerKey}</span>} /> : null}
+      {!omitBlocker && value.blockerKey ? (
+        <Row label={i18n.t("chat:ops_blocker_key_da7f7b")} value={<span className="break-all font-mono">{value.blockerKey}</span>} />
+      ) : null}
     </dl>
   )
 }
@@ -300,7 +311,7 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Dry run</Badge>
+        <Badge>{i18n.t("chat:ops_dry_run_485a3d")}</Badge>
         <span className="break-words font-mono font-semibold text-text-primary">{humanizeAction(result.action)}</span>
         {target.jobId ? (
           <Badge>
@@ -310,19 +321,21 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
       </div>
       {result.destructiveConfirmation ? (
         <div className="rounded-[var(--radius-control)] bg-warning/10 px-2 py-1 text-warning-text">
-          <span className="text-2xs font-semibold uppercase">Destructive · confirmation phrase</span>
+          <span className="text-2xs font-semibold uppercase">{i18n.t("chat:ops_destructive_confirmation_phrase_21f483")}</span>
           <div className="break-all font-mono">{result.destructiveConfirmation}</div>
         </div>
       ) : null}
       <ContextRows value={target} />
       {details}
-      {evidence?.remoteSha ? <ShaRow label="Remote SHA" sha={evidence.remoteSha} /> : null}
-      {evidence?.workflowLocalSha ? <ShaRow label="Workflow local SHA" sha={evidence.workflowLocalSha} /> : null}
-      {evidence?.baseRef ? <Row label="Base ref" value={<span className="break-all font-mono">{evidence.baseRef}</span>} /> : null}
-      {evidence?.baseSha ? <ShaRow label="Base SHA" sha={evidence.baseSha} /> : null}
-      {evidence?.diffUnavailableReason ? <div className="text-text-muted">Diff unavailable: {evidence.diffUnavailableReason}</div> : null}
+      {evidence?.remoteSha ? <ShaRow label={i18n.t("chat:ops_remote_sha_0aaa56")} sha={evidence.remoteSha} /> : null}
+      {evidence?.workflowLocalSha ? <ShaRow label={i18n.t("chat:ops_workflow_local_sha_2c829e")} sha={evidence.workflowLocalSha} /> : null}
+      {evidence?.baseRef ? <Row label={i18n.t("chat:ops_base_ref_16e96d")} value={<span className="break-all font-mono">{evidence.baseRef}</span>} /> : null}
+      {evidence?.baseSha ? <ShaRow label={i18n.t("chat:ops_base_sha_d39360")} sha={evidence.baseSha} /> : null}
+      {evidence?.diffUnavailableReason ? (
+        <div className="text-text-muted">{i18n.t("chat:diff_unavailable_reason", { reason: evidence.diffUnavailableReason })}</div>
+      ) : null}
       {evidence?.files.length ? (
-        <DetailSection label={`${evidence.files.length} changed ${evidence.files.length === 1 ? "file" : "files"}`}>
+        <DetailSection label={i18n.t("chat:changed_file_count", { count: evidence.files.length })}>
           <ul className="space-y-0.5 font-mono">
             {evidence.files.map((file) => (
               <li className="break-all" key={file}>
@@ -333,17 +346,31 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
         </DetailSection>
       ) : null}
       {evidence?.diffStat ? (
-        <DetailSection label="Diff stat">
+        <DetailSection label={i18n.t("chat:ops_diff_stat_3faacd")}>
           <pre className="whitespace-pre-wrap break-words font-mono text-2xs [overflow-wrap:anywhere]">{evidence.diffStat}</pre>
         </DetailSection>
       ) : null}
       {result.plan && !evidence ? (
-        <DetailSection label="Plan / eligibility">
+        <DetailSection label={i18n.t("chat:ops_plan_eligibility_b4495d")}>
           <pre className="whitespace-pre-wrap break-words font-mono text-2xs [overflow-wrap:anywhere]">{JSON.stringify(result.plan, null, 2)}</pre>
         </DetailSection>
       ) : null}
-      {result.context.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.context.instructions} title="Instructions" /> : null}
-      {result.context.inputReason ? <MarkdownPreview maxLines={4} modalLabel="Reason" text={result.context.inputReason} title="Reason" /> : null}
+      {result.context.instructions ? (
+        <MarkdownPreview
+          maxLines={4}
+          modalLabel={i18n.t("chat:ops_instructions_ed58f2")}
+          text={result.context.instructions}
+          title={i18n.t("chat:ops_instructions_ed58f2")}
+        />
+      ) : null}
+      {result.context.inputReason ? (
+        <MarkdownPreview
+          maxLines={4}
+          modalLabel={i18n.t("chat:ops_reason_f219cc")}
+          text={result.context.inputReason}
+          title={i18n.t("chat:ops_reason_f219cc")}
+        />
+      ) : null}
     </CardShell>
   )
 }
@@ -365,7 +392,14 @@ function InputValue({ field, value }: { field: PendingActionInputField; value: u
   if ((value == null || displayValue(value) === "") && field.emptyLabel) return <span className="text-text-primary">{field.emptyLabel}</span>
   if (format === "markdown")
     return (
-      <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={3} modalLabel={`Full ${inputLabel(field).toLowerCase()}`} text={displayValue(value)} />
+      <MarkdownPreview
+        linkifySlugs
+        linkifyUrls
+        maxChars={600}
+        maxLines={3}
+        modalLabel={i18n.t("chat:full_named_field", { name: inputLabel(field).toLowerCase() })}
+        text={displayValue(value)}
+      />
     )
   if (format === "entity" || format === "entity_list") {
     const values = format === "entity_list" && Array.isArray(value) ? value : [value]
@@ -410,7 +444,7 @@ export function InputDetails({ fields, input }: { fields: PendingActionInputFiel
   if (populated.length === 0) return null
   return (
     <div>
-      <SectionLabel>Targets and parameters</SectionLabel>
+      <SectionLabel>{i18n.t("chat:ops_targets_and_parameters_1eb3f8")}</SectionLabel>
       <dl className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
         {populated.map((field) => (
           <div className={field.format === "markdown" ? "min-w-0 sm:col-span-2" : "min-w-0"} key={field.key}>
@@ -438,7 +472,7 @@ function ResultDetails({ fields, value }: { fields: PendingActionResultField[]; 
 
   return (
     <div>
-      <SectionLabel>Previewed impact</SectionLabel>
+      <SectionLabel>{i18n.t("chat:ops_previewed_impact_d8971a")}</SectionLabel>
       <dl className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
         {populated.map(({ field, value: fieldValue }) => {
           const displayed = field.format === "number" ? numberValue(fieldValue)?.toLocaleString() : displayValue(fieldValue)
@@ -458,7 +492,7 @@ function ResultDetails({ fields, value }: { fields: PendingActionResultField[]; 
 }
 
 export function PendingActionResultCard({
-  detailTitle = "Detail",
+  detailTitle = i18n.t("chat:ops_detail_7c9a7c"),
   details,
   input,
   inputFields = [],
@@ -490,19 +524,33 @@ export function PendingActionResultCard({
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state="failed" />
-          <span className="break-all font-mono font-semibold text-danger-text">{result.code || "Tool error"}</span>
+          <span className="break-all font-mono font-semibold text-danger-text">{result.code || i18n.t("chat:ops_tool_error_7e2d1e")}</span>
         </div>
         <InputDetails fields={inputFields} input={input} />
-        <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls={linkifyMessageUrls}
+          maxChars={600}
+          maxLines={4}
+          modalLabel={i18n.t("chat:ops_error_details_20be86")}
+          text={result.message}
+        />
         <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
         {details}
         {!details && !omitReason && result.inputReason ? (
           <div>
-            <SectionLabel>Reason</SectionLabel>
-            <MarkdownPreview linkifyUrls={linkifyReasonUrls} maxLines={4} modalLabel="Pending action reason" text={result.inputReason} />
+            <SectionLabel>{i18n.t("chat:ops_reason_f219cc")}</SectionLabel>
+            <MarkdownPreview
+              linkifyUrls={linkifyReasonUrls}
+              maxLines={4}
+              modalLabel={i18n.t("chat:ops_pending_action_reason_bbe05e")}
+              text={result.inputReason}
+            />
           </div>
         ) : null}
-        {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
+        {result.validBases.length ? (
+          <Row label={i18n.t("chat:ops_valid_bases_2a8cc0")} value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} />
+        ) : null}
       </CardShell>
     )
   return (
@@ -510,38 +558,76 @@ export function PendingActionResultCard({
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={result.state} />
         {result.groupId ? (
-          <EntityReference href={result.resourceUrl} id={result.groupId} kind="artifact" label={`Pending action group #${result.groupId}`} />
+          <EntityReference
+            href={result.resourceUrl}
+            id={result.groupId}
+            kind="artifact"
+            label={i18n.t("chat:pending_action_group_number", { id: result.groupId })}
+          />
         ) : (
-          <EntityReference href={result.resourceUrl} id={result.pendingActionId} kind="artifact" label={`Pending action #${result.pendingActionId}`} />
+          <EntityReference
+            href={result.resourceUrl}
+            id={result.pendingActionId}
+            kind="artifact"
+            label={i18n.t("chat:pending_action_number", { id: result.pendingActionId })}
+          />
         )}
-        {result.memberCount != null ? (
-          <Badge>
-            {result.memberCount} {result.memberCount === 1 ? "action" : "actions"}
-          </Badge>
-        ) : null}
+        {result.memberCount != null ? <Badge>{i18n.t("chat:action_count", { count: result.memberCount })}</Badge> : null}
       </div>
       <InputDetails fields={inputFields} input={input} />
       {observedSummary ? <ObservedSummary value={result.observed} /> : null}
       <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
       {details}
       {!omitResource && result.resourceTitle && result.resourceUrl ? (
-        <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
+        <Row
+          label={i18n.t("chat:ops_resource_021493")}
+          value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />}
+        />
       ) : null}
-      {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
-      {result.executionStep ? <Row label="Execution step" value={<span className="break-all font-mono">{result.executionStep}</span>} /> : null}
+      {result.executionStatus ? <Row label={i18n.t("chat:ops_execution_status_e8c68c")} value={<StatePill state={result.executionStatus} />} /> : null}
+      {result.executionStep ? (
+        <Row label={i18n.t("chat:ops_execution_step_c1dd00")} value={<span className="break-all font-mono">{result.executionStep}</span>} />
+      ) : null}
       {result.message ? (
-        <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls={linkifyMessageUrls}
+          maxChars={600}
+          maxLines={4}
+          modalLabel={i18n.t("chat:ops_pending_action_message_73897a")}
+          text={linkedPendingProse(result.message)}
+        />
       ) : null}
       {!omitReason && result.reason && result.reason !== displayValue(input?.reason) ? (
         <div>
-          <SectionLabel>Reason</SectionLabel>
-          <MarkdownPreview linkifySlugs linkifyUrls={linkifyReasonUrls} maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />
+          <SectionLabel>{i18n.t("chat:ops_reason_f219cc")}</SectionLabel>
+          <MarkdownPreview
+            linkifySlugs
+            linkifyUrls={linkifyReasonUrls}
+            maxChars={600}
+            maxLines={4}
+            modalLabel={i18n.t("chat:ops_pending_action_reason_bbe05e")}
+            text={linkedPendingProse(result.reason)}
+          />
         </div>
       ) : null}
-      {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}
+      {result.instructions ? (
+        <MarkdownPreview
+          maxLines={4}
+          modalLabel={i18n.t("chat:ops_instructions_ed58f2")}
+          text={result.instructions}
+          title={i18n.t("chat:ops_instructions_ed58f2")}
+        />
+      ) : null}
       {result.detail ? <MarkdownPreview maxLines={4} modalLabel={detailTitle} text={result.detail} title={detailTitle} /> : null}
       {result.executionError ? (
-        <MarkdownPreview className="text-danger-text" maxLines={4} modalLabel="Execution error" text={result.executionError} title="Execution error" />
+        <MarkdownPreview
+          className="text-danger-text"
+          maxLines={4}
+          modalLabel={i18n.t("chat:ops_execution_error_e4c585")}
+          text={result.executionError}
+          title={i18n.t("chat:ops_execution_error_e4c585")}
+        />
       ) : null}
     </CardShell>
   )
@@ -553,7 +639,7 @@ function ObservedSummary({ value }: { value: unknown }) {
 
   return (
     <div>
-      <SectionLabel>Observed evidence</SectionLabel>
+      <SectionLabel>{i18n.t("chat:ops_observed_evidence_0ca85e")}</SectionLabel>
       <div className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
         {snapshots.map((snapshot, index) => (
           <div

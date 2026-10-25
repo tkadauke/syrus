@@ -1,3 +1,4 @@
+import i18n from "../../i18n"
 import { isPlainObject } from "@app/pluginToolCards"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import { Badge, displayValue, EntityReference, Row, SectionLabel, StatePill } from "./toolCardUi"
@@ -54,7 +55,7 @@ export function parseRefMovementCore(value: unknown): RefMovementCore | null {
 }
 
 export function refMovementCollapsedSummary(core: RefMovementCore): string {
-  const action = core.actionName?.replace(/_/g, " ") || (core.actionId ? `Ref movement ${core.actionId}` : "Ref movement")
+  const action = core.actionName?.replace(/_/g, " ") || (core.actionId ? `Ref movement ${core.actionId}` : i18n.t("chat:ops_ref_movement_4da11a"))
   if (core.state === "blocked") return `${action} blocked${core.blockedReason ? `: ${core.blockedReason}` : ""}`
   return core.state ? `${action} (${core.state})` : action
 }
@@ -67,18 +68,20 @@ export function RefMovementCoreFields({ core }: { core: RefMovementCore }) {
         {core.state ? <StatePill state={core.state} /> : null}
         {core.mode ? <Badge>{core.mode}</Badge> : null}
       </div>
-      {core.actionId ? <Row label="Ref-movement action ID" value={core.actionId} /> : null}
+      {core.actionId ? <Row label={i18n.t("chat:ops_ref_movement_action_id_dd72a2")} value={core.actionId} /> : null}
       {core.blockedReason ? (
         <div className="rounded bg-amber-100 px-2 py-1 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          <MarkdownPreview modalLabel="Full blocked reason" text={core.blockedReason} />
+          <MarkdownPreview modalLabel={i18n.t("chat:ops_full_blocked_reason_b47a8f")} text={core.blockedReason} />
         </div>
       ) : null}
       {core.sourceRef || core.targetRef ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {core.sourceRef ? <Row label={core.sourceKind ? `Source (${core.sourceKind})` : "Source"} value={core.sourceRef} wrap /> : null}
+          {core.sourceRef ? (
+            <Row label={core.sourceKind ? `Source (${core.sourceKind})` : i18n.t("chat:ops_source_6da13a")} value={core.sourceRef} wrap />
+          ) : null}
           {core.targetRef ? (
             <Row
-              label={`${core.targetKind ? `Target (${core.targetKind})` : "Target"}${core.targetInferred ? " · inferred" : ""}`}
+              label={`${core.targetKind ? `Target (${core.targetKind})` : i18n.t("chat:ops_target_61ad50")}${core.targetInferred ? " · inferred" : ""}`}
               value={core.targetRef}
               wrap
             />
@@ -87,13 +90,13 @@ export function RefMovementCoreFields({ core }: { core: RefMovementCore }) {
       ) : null}
       {core.targetRepository ? (
         <div>
-          <SectionLabel>Target repository</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_target_repository_4b3f74")}</SectionLabel>
           <EntityReference href={`https://github.com/${core.targetRepository}`} kind="repository" repositorySlug={core.targetRepository} />
         </div>
       ) : null}
       {core.gradePhases.length > 0 ? (
         <div>
-          <SectionLabel>Grade phases</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_grade_phases_ddb50a")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
             {core.gradePhases.map((phase) => (
               <Badge key={phase}>{phase}</Badge>

@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CapabilityBadges, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel } from "../toolCardUi"
 import { formatBytesLarge, formatPercent, HealthPill, parseHealthLevel, Table, TBody, Td, THead } from "../adminToolCard"
@@ -24,11 +25,11 @@ function parse(context: ToolCardContext) {
 function summary(context: ToolCardContext) {
   const data = parse(context)
   if (!data) return null
-  if (!data.current.length) return "No live workers"
+  if (!data.current.length) return i18n.t("chat:ops_no_live_workers_479c0a")
   const unhealthy = data.current.filter((w) => parseHealthLevel(obj(w.health)?.level) !== "ok").length
   return unhealthy
-    ? `${unhealthy} of ${data.current.length} worker${data.current.length === 1 ? "" : "s"} need attention`
-    : `${data.current.length} worker${data.current.length === 1 ? "" : "s"} healthy`
+    ? i18n.t("chat:workers_need_attention", { count: data.current.length, unhealthy })
+    : i18n.t("chat:healthy_worker_count", { count: data.current.length })
 }
 
 function Host({ value }: { value: unknown }) {
@@ -39,10 +40,10 @@ function Host({ value }: { value: unknown }) {
       <span className="break-all font-mono font-semibold">{hostname}</span>
       {hostname !== "—" ? (
         <button
-          aria-label={`Copy ${hostname} to clipboard`}
+          aria-label={i18n.t("chat:copy_named_to_clipboard", { name: hostname })}
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-subtle hover:bg-surface-raised"
           onClick={() => copy(hostname)}
-          title={copied ? "Copied" : `Copy ${hostname}`}
+          title={copied ? i18n.t("chat:ops_copied_8e3df4") : `Copy ${hostname}`}
           type="button"
         >
           <CopyIcon className="h-3.5 w-3.5" />
@@ -60,7 +61,7 @@ function Window({ value }: { value: unknown }) {
   const w = obj(value),
     count = num(w?.sample_count)
   if (count == null) return <>—</>
-  if (!count) return <span className="text-text-subtle">no samples</span>
+  if (!count) return <span className="text-text-subtle">{i18n.t("chat:ops_no_samples_e960a1")}</span>
   const critical = num(w?.critical_count) ?? 0,
     warning = num(w?.warning_count) ?? 0
   return (
@@ -71,10 +72,20 @@ function Window({ value }: { value: unknown }) {
 }
 
 function Sample({ sample }: { sample: Obj | null }) {
-  if (!sample) return <EmptyState>No recent host health sample.</EmptyState>
+  if (!sample) return <EmptyState>{i18n.t("chat:ops_no_recent_host_health_sample_6d263f")}</EmptyState>
   return (
     <Table responsive>
-      <THead columns={["Observed", "Load 1/5/15m", "CPU", "Memory", "Disk", "CPU pressure", "IO pressure"]} />
+      <THead
+        columns={[
+          i18n.t("chat:ops_observed_2e159b"),
+          "Load 1/5/15m",
+          "CPU",
+          i18n.t("chat:ops_memory_89c8a2"),
+          i18n.t("chat:ops_disk_ef9952"),
+          i18n.t("chat:ops_cpu_pressure_dede08"),
+          i18n.t("chat:ops_io_pressure_dab860")
+        ]}
+      />
       <TBody>
         <tr>
           <Td mono wrap>
@@ -107,19 +118,19 @@ function WorkerDetails({ worker }: { worker: Obj }) {
     sample = obj(worker.sample),
     health = obj(worker.health)
   return (
-    <Disclosure label={`Worker details · ${host}`}>
+    <Disclosure label={i18n.t("chat:worker_details_named", { name: host })}>
       <div className="space-y-2">
         <div className="grid gap-2 sm:grid-cols-3">
           <Row label="ID" value={displayValue(worker.id) ?? "—"} />
-          <Row label="Storage key" value={displayValue(worker.worker_storage_key) ?? "—"} />
-          <Row label="Version" value={displayValue(worker.version) ?? "—"} />
-          <Row label="Started" value={displayValue(worker.started_at) ?? "—"} />
-          <Row label="Last heartbeat" value={displayValue(worker.last_heartbeat_at) ?? "—"} />
-          <Row label="Seconds since heartbeat" value={displayValue(worker.seconds_since_heartbeat) ?? "—"} />
+          <Row label={i18n.t("chat:ops_storage_key_5641d2")} value={displayValue(worker.worker_storage_key) ?? "—"} />
+          <Row label={i18n.t("chat:ops_version_2da600")} value={displayValue(worker.version) ?? "—"} />
+          <Row label={i18n.t("chat:ops_started_faa9e7")} value={displayValue(worker.started_at) ?? "—"} />
+          <Row label={i18n.t("chat:ops_last_heartbeat_aac4b5")} value={displayValue(worker.last_heartbeat_at) ?? "—"} />
+          <Row label={i18n.t("chat:ops_seconds_since_heartbeat_6805dd")} value={displayValue(worker.seconds_since_heartbeat) ?? "—"} />
         </div>
         {Array.isArray(health?.reasons) && health.reasons.length ? (
           <div>
-            <SectionLabel>Health reasons</SectionLabel>
+            <SectionLabel>{i18n.t("chat:ops_health_reasons_c1fb5d")}</SectionLabel>
             <ul className="list-disc pl-5 text-xs">
               {health.reasons.map((r, i) => (
                 <li className="break-words" key={i}>
@@ -132,14 +143,14 @@ function WorkerDetails({ worker }: { worker: Obj }) {
         <Sample sample={sample} />
         <div className="grid gap-2 sm:grid-cols-2">
           {[
-            ["Desired version", worker.desired_version],
+            [i18n.t("chat:ops_desired_version_db792c"), worker.desired_version],
             ["macOS updater", { state: worker.macos_updater_state, status: worker.macos_updater_status }],
             ["macOS worker drain", worker.macos_worker_drain],
-            ["Capability diagnostics", worker.capability_diagnostics],
-            ["Sample capabilities", sample?.capabilities],
-            ["Sample diagnostics", sample?.capability_diagnostics],
-            ["Worker trend", worker.trend],
-            ["Raw metrics", sample?.raw_metrics]
+            [i18n.t("chat:ops_capability_diagnostics_ee3f5a"), worker.capability_diagnostics],
+            [i18n.t("chat:ops_sample_capabilities_bbd92e"), sample?.capabilities],
+            [i18n.t("chat:ops_sample_diagnostics_2867eb"), sample?.capability_diagnostics],
+            [i18n.t("chat:ops_worker_trend_131182"), worker.trend],
+            [i18n.t("chat:ops_raw_metrics_a83db5"), sample?.raw_metrics]
           ].map(([label, value]) => (
             <div key={String(label)}>
               <SectionLabel>{String(label)}</SectionLabel>
@@ -162,16 +173,16 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="grid gap-2 sm:grid-cols-3">
         {[
-          ["Hostname input", displayValue(input.hostname) ?? "all"],
-          ["Since input", displayValue(input.since) ?? "default"],
-          ["Until input", displayValue(input.until) ?? "default"],
-          ["Sample limit per host", displayValue(input.sample_limit_per_host) ?? "default"],
-          ["Minute bucket window input", displayValue(input.minute_bucket_window_minutes) ?? "default"],
-          ["Generated at", displayValue(r.generated_at) ?? "—"],
-          ["Effective range", `${displayValue(data.range?.since) ?? "—"} → ${displayValue(data.range?.until) ?? "—"}`],
-          ["Current sample window", num(r.current_sample_window_seconds) == null ? "—" : `${num(r.current_sample_window_seconds)}s`],
+          [i18n.t("chat:ops_hostname_input_6f1e26"), displayValue(input.hostname) ?? "all"],
+          [i18n.t("chat:ops_since_input_e74232"), displayValue(input.since) ?? "default"],
+          [i18n.t("chat:ops_until_input_ff8c81"), displayValue(input.until) ?? "default"],
+          [i18n.t("chat:ops_sample_limit_per_host_7f981e"), displayValue(input.sample_limit_per_host) ?? "default"],
+          [i18n.t("chat:ops_minute_bucket_window_input_d54a21"), displayValue(input.minute_bucket_window_minutes) ?? "default"],
+          [i18n.t("chat:ops_generated_at_a2c46b"), displayValue(r.generated_at) ?? "—"],
+          [i18n.t("chat:ops_effective_range_701615"), `${displayValue(data.range?.since) ?? "—"} → ${displayValue(data.range?.until) ?? "—"}`],
+          [i18n.t("chat:ops_current_sample_window_875d3d"), num(r.current_sample_window_seconds) == null ? "—" : `${num(r.current_sample_window_seconds)}s`],
           [
-            "Minute bucket",
+            i18n.t("chat:ops_minute_bucket_98bbf1"),
             bucket
               ? `${displayValue(bucket.granularity_seconds) ?? "—"}s · ${displayValue(bucket.window_minutes) ?? "—"}/${displayValue(bucket.max_window_minutes) ?? "—"}m`
               : "—"
@@ -181,11 +192,20 @@ function renderExpanded(context: ToolCardContext) {
         ))}
       </div>
       {!data.current.length ? (
-        <EmptyState>No live workers found.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_live_workers_found_3745d9")}</EmptyState>
       ) : (
         <>
           <Table responsive>
-            <THead columns={["Host", "Role", "Health", "Version", "Capabilities", "Heartbeat"]} />
+            <THead
+              columns={[
+                i18n.t("chat:ops_host_3960ec"),
+                i18n.t("chat:ops_role_c3f104"),
+                i18n.t("chat:ops_health_3703cd"),
+                i18n.t("chat:ops_version_2da600"),
+                i18n.t("chat:ops_capabilities_ca09c5"),
+                i18n.t("chat:ops_heartbeat_eb4d41")
+              ]}
+            />
             <TBody>
               {data.current.map((w, i) => {
                 const health = obj(w.health),
@@ -200,7 +220,7 @@ function renderExpanded(context: ToolCardContext) {
                       <div className="space-y-1">
                         <span className="inline-flex gap-1">
                           <HealthPill level={parseHealthLevel(health?.level)} />
-                          {w.stale === true ? <span className="text-2xs text-text-muted">(stale)</span> : null}
+                          {w.stale === true ? <span className="text-2xs text-text-muted">{i18n.t("chat:ops_stale_5a5319")}</span> : null}
                         </span>
                         {reasons.length ? (
                           <ul className="list-disc pl-4 text-2xs">
@@ -234,10 +254,10 @@ function renderExpanded(context: ToolCardContext) {
         </>
       )}
       {data.hosts.length ? (
-        <Disclosure label="Host trend history">
+        <Disclosure label={i18n.t("chat:ops_host_trend_history_8e64f8")}>
           <div className="space-y-2">
             <Table responsive>
-              <THead columns={["Host", "Status", ...WINDOWS.map((w) => `Last ${w}`)]} />
+              <THead columns={[i18n.t("chat:ops_host_3960ec"), i18n.t("chat:ops_status_bae7d5"), ...WINDOWS.map((w) => `Last ${w}`)]} />
               <TBody>
                 {data.hosts.map((h, i) => {
                   const windows = obj(h.windows)
@@ -260,14 +280,14 @@ function renderExpanded(context: ToolCardContext) {
             {data.hosts.map((h, i) => (
               <Disclosure label={`History details · ${displayValue(h.hostname) ?? "unknown"}`} key={i}>
                 <div className="space-y-2">
-                  <Row label="Storage key" value={displayValue(h.worker_storage_key) ?? "—"} />
-                  <SectionLabel>Minute buckets</SectionLabel>
+                  <Row label={i18n.t("chat:ops_storage_key_5641d2")} value={displayValue(h.worker_storage_key) ?? "—"} />
+                  <SectionLabel>{i18n.t("chat:ops_minute_buckets_6f39ab")}</SectionLabel>
                   <Json value={h.minute_buckets} />
-                  <SectionLabel>Recent samples</SectionLabel>
+                  <SectionLabel>{i18n.t("chat:ops_recent_samples_75c95e")}</SectionLabel>
                   <Json value={h.recent_samples} />
-                  <SectionLabel>Current snapshot</SectionLabel>
+                  <SectionLabel>{i18n.t("chat:ops_current_snapshot_69b450")}</SectionLabel>
                   <Json value={h.current} />
-                  <SectionLabel>Complete window summaries</SectionLabel>
+                  <SectionLabel>{i18n.t("chat:ops_complete_window_summaries_fd7d35")}</SectionLabel>
                   <Json value={h.windows} />
                 </div>
               </Disclosure>
