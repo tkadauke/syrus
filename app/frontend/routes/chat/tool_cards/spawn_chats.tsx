@@ -85,6 +85,7 @@ function renderExpanded(context: ToolCardContext) {
   const chats = chatsFrom(context)
   const reason = typeof context.input?.reason === "string" ? context.input.reason : ""
   const chatIds = spawnedChatIds(context)
+  const confirmationMessage = chats.length ? i18n.t("chat:tool_card_spawn_chats_confirmation", { count: chats.length }) : undefined
 
   return (
     <div className="min-w-0 space-y-2">
@@ -112,7 +113,7 @@ function renderExpanded(context: ToolCardContext) {
           </div>
         ) : null}
       </CardShell>
-      <PendingActionResultCard result={pending} />
+      <PendingActionResultCard messageOverride={confirmationMessage} result={pending} />
     </div>
   )
 }
@@ -121,7 +122,9 @@ function collapsedSummary(context: ToolCardContext) {
   const failure = errorContext(context)
   if (failure) return toolFailureCollapsedSummary(failure, failureConfig)
   const pending = parsePendingActionResult(context)
-  return pending ? pendingActionCollapsedSummary(pending) : null
+  const count = chatsFrom(context).length
+  const confirmationMessage = count ? i18n.t("chat:tool_card_spawn_chats_confirmation", { count }) : undefined
+  return pending ? pendingActionCollapsedSummary(pending, confirmationMessage) : null
 }
 
 const spawnChatsToolCard: ToolCardRenderer = { toolName: "spawn_chats", collapsedSummary, renderExpanded }
@@ -137,7 +140,7 @@ export const examples: ToolCardExample[] = [
       pending_confirmation_id: 10,
       state: "pending",
       member_count: 1,
-      message: "Spawn 1 chat?"
+      message: i18n.t("chat:tool_card_spawn_chats_confirmation", { count: 1 })
     }
   }
 ]

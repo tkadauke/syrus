@@ -2479,6 +2479,8 @@
   "tool_card_cross_chat_example_same": "Error: target is the current chat",
   "tool_card_cross_chat_example_pending": "Pending message",
   "tool_card_spawn_chats": "Spawn chats",
+  "tool_card_spawn_chats_confirmation_one": "Spawn {{count}} chat?",
+  "tool_card_spawn_chats_confirmation_other": "Spawn {{count}} chats?",
   "tool_card_chat_count_zero": "{{count}} chats",
   "tool_card_chat_count_one": "{{count}} chat",
   "tool_card_chat_count_other": "{{count}} chats",
