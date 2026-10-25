@@ -36,7 +36,7 @@ RSpec.describe App::DeliveryTracksPayload do
   it "returns nil for a repository with no delivery config beyond the implicit default track" do
     write_bare_clone(repository)
 
-    expect(described_class.for(repository: repository)).to be_nil
+    expect(described_class.for(repository: repository, user: user)).to be_nil
   end
 
   it "returns tracks, ref-movement actions, recent workflows, and PR ingestions for a configured repository" do
@@ -91,7 +91,7 @@ RSpec.describe App::DeliveryTracksPayload do
       metadata: { "provenance" => "syrus_job_export" }
     )
 
-    payload = described_class.for(repository: repository)
+    payload = described_class.for(repository: repository, user: user)
     expect(payload).not_to be_nil
 
     track_names = payload[:tracks].map { |track| track[:name] }
@@ -140,7 +140,7 @@ RSpec.describe App::DeliveryTracksPayload do
       branch_name: "some-branch"
     )
 
-    payload = described_class.for(repository: repository)
+    payload = described_class.for(repository: repository, user: user)
     ingestion_entry = payload[:recent_pr_ingestions].find { |entry| entry[:job_id] == external_job.id }
 
     expect(ingestion_entry[:classification]).to eq("external_unknown")
