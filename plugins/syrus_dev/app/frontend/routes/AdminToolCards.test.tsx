@@ -104,6 +104,18 @@ describe("AdminToolCards", () => {
     expect(within(region).queryByText("JOB-101")).not.toBeInTheDocument()
   })
 
+  it("passes catalog presentation data through to chat feedback media and pending-action links", () => {
+    renderRoute("/admin/tool_cards?tool_name=submit_chat_feedback")
+
+    const region = screen.getByRole("region", { name: "Submit chat feedback" })
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("img", { name: "Mobile header" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/svg\+xml/))
+    expect(within(region).getByRole("button", { name: "Open Header hierarchy" })).toBeInTheDocument()
+    expect(within(region).getByRole("link", { name: "Pending action #501" })).toHaveAttribute("href", "/chats/12#pending-action-501")
+    expect(within(region).getByText("artifact:unresolved-reference")).toBeInTheDocument()
+  })
+
   it("preserves prior tool results used by a catalog example", () => {
     renderRoute("/admin/tool_cards?tool_name=add_job_tag")
 

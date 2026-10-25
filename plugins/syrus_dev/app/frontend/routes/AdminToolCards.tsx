@@ -317,7 +317,7 @@ function ToolCatalogEntry({
 
             {group ? (
               <CatalogViewportFrame ariaLabel={t("tool_cards.viewport_frame_aria", { width: previewWidth })} ref={previewFrameRef} width={previewWidth}>
-                <ToolGroup item={group} />
+                <ToolGroup item={group} presentation={selectedExample?.presentation} />
               </CatalogViewportFrame>
             ) : null}
           </>
