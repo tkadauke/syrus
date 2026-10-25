@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { formatRelativeDate } from "@app/lib/relativeTime"
+import i18n from "@app/i18n"
 import { pendingActionToolCard } from "../pendingActionToolCard"
 
 // Parsing and presentation stay in the shared pending-action card; this wrapper
@@ -8,8 +9,8 @@ const pendingActionCard = pendingActionToolCard("clear_provider_circuit", {
   inputFields: [
     { key: "provider", format: "badge" },
     { key: "mode", format: "badge" },
-    { key: "user_id", label: "User", format: "entity", hrefPrefix: "/admin/users" },
-    { key: "user_ids", label: "Users", format: "entity_list", hrefPrefix: "/admin/users" },
+    { key: "user_id", label: () => i18n.t("chat:clear_provider_circuit.user"), format: "entity", hrefPrefix: "/admin/users" },
+    { key: "user_ids", label: () => i18n.t("chat:clear_provider_circuit.users"), format: "entity_list", hrefPrefix: "/admin/users" },
     { key: "retry_after" },
     { key: "positive_evidence", format: "markdown" },
     { key: "reason", format: "markdown" }
@@ -47,8 +48,8 @@ const LONG_POSITIVE_EVIDENCE = [
 export const examples: ToolCardExample[] = [
   {
     id: "long_markdown_evidence",
-    label: "Long Markdown evidence",
-    description: "Shows linked targets, badges, wrapping, Markdown previews, and the shared Show more dialog.",
+    label: i18n.t("chat:clear_provider_circuit.example_evidence"),
+    description: i18n.t("chat:clear_provider_circuit.example_evidence_description"),
     input: {
       provider: "codex",
       mode: "shorten",

@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import type { ToolCardExample } from "@app/pluginToolCards"
 import { pendingActionToolCard } from "../pendingActionToolCard"
 
@@ -18,32 +19,32 @@ const repairProviderCircuitEvidenceToolCard = pendingActionToolCard("repair_prov
 export const examples: ToolCardExample[] = [
   {
     id: "single_pending",
-    label: "Single repair pending",
-    description: "Shows the evidence type and repair status badges, copyable id, Markdown reason, and observed evidence snapshot.",
+    label: i18n.t("chat:ops_single_repair_pending_ee45c8"),
+    description: i18n.t("chat:ops_shows_the_evidence_type_and_repair_status_badges_2c026a"),
     input: {
       evidence_type: "provider_availability_evidence",
       evidence_id: 71,
       repair_status: "false_positive",
-      reason: "The probe used **stale credentials** after the provider account was rotated."
+      reason: i18n.t("chat:ops_the_probe_used_stale_credentials_after_the_provider_acco_436cce")
     },
     parsedResult: {
       pending_action_id: 501,
       pending_confirmation_id: 501,
       state: "pending",
-      reason: "The probe used **stale credentials** after the provider account was rotated.",
+      reason: i18n.t("chat:ops_the_probe_used_stale_credentials_after_the_provider_acco_436cce"),
       message: "Mark provider_availability_evidence #71 as false_positive for provider-circuit decisions?",
       observed: { evidence_id: 71, status: "warning", source: "usage_probe", observed_at: "2026-10-22T12:00:00Z" }
     }
   },
   {
     id: "group_confirmed",
-    label: "Grouped repair confirmed",
-    description: "Exercises grouped ids, member count, confirmed state, responsive wrapping, and multiple observed snapshots.",
+    label: i18n.t("chat:ops_grouped_repair_confirmed_478273"),
+    description: i18n.t("chat:ops_exercises_grouped_ids_member_count_confirmed_sta_4017c6"),
     input: {
       evidence_type: "run_failure_classification",
       evidence_ids: [81, 82, 83],
       repair_status: "transient",
-      reason: "All classifications came from the same **short provider incident** and should be reviewed together."
+      reason: i18n.t("chat:ops_all_classifications_came_from_the_same_short_provider_in_1b9d34")
     },
     parsedResult: {
       pending_action_group_id: 91,
@@ -61,12 +62,12 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "rejected",
-    label: "Repair rejected",
+    label: i18n.t("chat:ops_repair_rejected_ed4784"),
     input: {
       evidence_type: "run_failure_classification",
       evidence_id: 84,
       repair_status: "inconclusive",
-      reason: "The available diagnostics do not establish a provider failure."
+      reason: i18n.t("chat:ops_the_available_diagnostics_do_not_establish_a_provider_fa_a15d7e")
     },
     parsedResult: {
       pending_action_id: 503,
@@ -78,13 +79,13 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "tool_error",
-    label: "Tool error",
-    description: "Keeps the requested repair parameters visible when the tool rejects the request.",
+    label: i18n.t("chat:ops_tool_error_7e2d1e"),
+    description: i18n.t("chat:ops_keeps_the_requested_repair_parameters_visible_wh_223337"),
     input: {
       evidence_type: "provider_availability_evidence",
       evidence_id: 999,
       repair_status: "false_positive",
-      reason: "The evidence was superseded by a later successful probe."
+      reason: i18n.t("chat:ops_the_evidence_was_superseded_by_a_later_successful_probe_52c471")
     },
     parsedResult: { error: "Evidence not found: provider_availability_evidence 999" },
     resultError: true

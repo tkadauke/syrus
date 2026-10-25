@@ -1,6 +1,7 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { displayValue, EntityReference, numberValue, Row, SectionLabel } from "./toolCardUi"
 import { ErrorCard, MalformedCard, StatusCard, successOrError } from "./chatHelperToolCard"
+import i18n from "../../i18n"
 
 type ChatPinResult = {
   sessionId: string
@@ -27,7 +28,7 @@ function requestedChatId(context: ToolCardContext) {
   return displayValue(context.input?.chat_session_id)
 }
 
-function ChatReference({ id, label = "Chat" }: { id: string; label?: string }) {
+function ChatReference({ id, label = i18n.t("chat:tool_card_chat") }: { id: string; label?: string }) {
   return (
     <div className="min-w-0">
       <SectionLabel>{label}</SectionLabel>
@@ -46,9 +47,9 @@ function errorMessage(context: ToolCardContext, fallback: string) {
 
 export function chatPinToolCard(toolName: "pin_chat" | "unpin_chat"): ToolCardRenderer {
   const expectedPinned = toolName === "pin_chat"
-  const title = expectedPinned ? "Chat pin" : "Chat unpin"
-  const errorSummary = expectedPinned ? "Chat pin failed" : "Chat unpin failed"
-  const malformedSummary = expectedPinned ? "Chat pin returned an unexpected response" : "Chat unpin returned an unexpected response"
+  const title = expectedPinned ? i18n.t("chat:chat_pin_title") : i18n.t("chat:chat_unpin_title")
+  const errorSummary = expectedPinned ? i18n.t("chat:chat_pin_failed") : i18n.t("chat:chat_unpin_failed")
+  const malformedSummary = expectedPinned ? i18n.t("chat:chat_pin_malformed") : i18n.t("chat:chat_unpin_malformed")
 
   return {
     toolName,
@@ -56,7 +57,7 @@ export function chatPinToolCard(toolName: "pin_chat" | "unpin_chat"): ToolCardRe
       const parsed = parseChatPin(context, `${errorSummary}.`, expectedPinned)
       if (parsed.kind === "error") return errorSummary
       if (parsed.kind === "malformed") return malformedSummary
-      if (parsed.kind === "pending") return expectedPinned ? "Pinning chat..." : "Unpinning chat..."
+      if (parsed.kind === "pending") return expectedPinned ? i18n.t("chat:chat_pinning") : i18n.t("chat:chat_unpinning")
       return parsed.data.message
     },
     renderExpanded(context) {
@@ -67,7 +68,11 @@ export function chatPinToolCard(toolName: "pin_chat" | "unpin_chat"): ToolCardRe
         const targetId = requestedChatId(context)
         return (
           <StatusCard title={title} status="pending">
-            {targetId ? <ChatReference id={targetId} label="Requested target" /> : <Row label="Requested target" value="Current chat" />}
+            {targetId ? (
+              <ChatReference id={targetId} label={i18n.t("chat:tool_card_requested_target")} />
+            ) : (
+              <Row label={i18n.t("chat:tool_card_requested_target")} value={i18n.t("chat:tool_card_current_chat")} />
+            )}
           </StatusCard>
         )
       }
@@ -75,15 +80,15 @@ export function chatPinToolCard(toolName: "pin_chat" | "unpin_chat"): ToolCardRe
       return (
         <StatusCard title={title} status={parsed.data.pinned ? "pinned" : "unpinned"}>
           <dl className="grid gap-1 sm:grid-cols-2">
-            {requestedChatId(context) ? <ChatReference id={requestedChatId(context)!} label="Requested target" /> : null}
+            {requestedChatId(context) ? <ChatReference id={requestedChatId(context)!} label={i18n.t("chat:tool_card_requested_target")} /> : null}
             <ChatReference id={parsed.data.sessionId} />
             <div className="min-w-0">
-              <SectionLabel>Title</SectionLabel>
+              <SectionLabel>{i18n.t("chat:title")}</SectionLabel>
               <EntityReference className="whitespace-normal break-words" id={parsed.data.sessionId} kind="chat" label={parsed.data.title} wrap="break" />
             </div>
-            <Row label="State" value={parsed.data.pinned ? "Pinned" : "Unpinned"} />
-            {parsed.data.position != null ? <Row label="Position" value={String(parsed.data.position)} /> : null}
-            <Row label="Result" value={parsed.data.message} />
+            <Row label={i18n.t("chat:tool_card_state")} value={parsed.data.pinned ? i18n.t("chat:chat_pinned") : i18n.t("chat:chat_unpinned")} />
+            {parsed.data.position != null ? <Row label={i18n.t("chat:tool_card_position")} value={String(parsed.data.position)} /> : null}
+            <Row label={i18n.t("chat:tool_card_result")} value={parsed.data.message} />
           </dl>
         </StatusCard>
       )
@@ -96,19 +101,19 @@ export function chatPinToolCardExamples(toolName: "pin_chat" | "unpin_chat"): To
   return [
     {
       id: "explicit_target",
-      label: pinned ? "Explicit chat pinned" : "Explicit chat unpinned",
+      label: pinned ? i18n.t("chat:chat_pin_example") : i18n.t("chat:chat_unpin_example"),
       input: { chat_session_id: 42 },
       parsedResult: {
         session_id: 42,
-        title: "A long release-planning title that wraps on narrow screens",
+        title: i18n.t("chat:chat_pin_example_title"),
         pinned,
-        message: pinned ? "Chat pinned." : "Chat unpinned."
+        message: pinned ? i18n.t("chat:chat_pinned_message") : i18n.t("chat:chat_unpinned_message")
       },
       sourceType: "generic"
     },
     {
       id: "pending",
-      label: pinned ? "Pin pending" : "Unpin pending",
+      label: pinned ? i18n.t("chat:chat_pin_pending") : i18n.t("chat:chat_unpin_pending"),
       input: { chat_session_id: 42 },
       parsedResult: null,
       resultSettled: false,
@@ -116,14 +121,14 @@ export function chatPinToolCardExamples(toolName: "pin_chat" | "unpin_chat"): To
     },
     {
       id: "empty_result",
-      label: pinned ? "Pin completed with an empty result" : "Unpin completed with an empty result",
+      label: pinned ? i18n.t("chat:chat_pin_empty") : i18n.t("chat:chat_unpin_empty"),
       input: { chat_session_id: 42 },
       parsedResult: null,
       sourceType: "generic"
     },
     {
       id: "not_authorized",
-      label: "Not authorized",
+      label: i18n.t("chat:not_authorized"),
       parsedResult: { error: "not_authorized" },
       resultError: true,
       sourceType: "generic"

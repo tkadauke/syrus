@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { CardShell, displayValue, EmptyState, EntityReference } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
@@ -15,13 +16,13 @@ type AttachRepositoryResult = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Repository attach",
+  title: i18n.t("chat:tool_card_repository_attach"),
   attempted: (context) => {
     const slug = stringFromInput(context, ["slug", "repository", "repository_slug"])
-    return slug ? `Attach ${slug}` : "Attach repository"
+    return slug ? i18n.t("chat:tool_card_repository_attach_named", { slug }) : i18n.t("chat:tool_card_repository_attach_action")
   },
   retrySafety: "safe",
-  recovery: "Retry after the repository or workspace issue is corrected."
+  recovery: i18n.t("chat:tool_card_repository_attach_recovery")
 }
 
 function parseResult(context: ToolCardContext): AttachRepositoryResult | null {
@@ -55,7 +56,7 @@ function collapsedSummary(context: ToolCardContext) {
 
   const result = parseResult(context)
   if (!result) return null
-  return `Attached ${result.slug}`
+  return i18n.t("chat:tool_card_repository_attached", { slug: result.slug })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -65,7 +66,11 @@ function renderExpanded(context: ToolCardContext) {
   if (!result) {
     if (context.parsedResult != null || context.resultBody.trim()) return null
     const requestedSlug = stringFromInput(context, ["slug", "repository", "repository_slug"])
-    return <EmptyState>{requestedSlug ? `Attaching ${requestedSlug}…` : "Waiting for repository attachment…"}</EmptyState>
+    return (
+      <EmptyState>
+        {requestedSlug ? i18n.t("chat:tool_card_repository_attaching", { slug: requestedSlug }) : i18n.t("chat:tool_card_repository_attach_waiting")}
+      </EmptyState>
+    )
   }
 
   return (
@@ -75,13 +80,13 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {result.id ? (
-          <DetailRow label="Repository ID">
+          <DetailRow label={i18n.t("chat:tool_card_repository_id")}>
             <EntityReference id={result.id} kind="repository" label={result.id} repositorySlug={result.slug} touchTarget />
           </DetailRow>
         ) : null}
-        {result.defaultBranch ? <DetailRow label="Default branch">{result.defaultBranch}</DetailRow> : null}
-        {result.workspacePath ? <DetailRow label="Workspace path">{result.workspacePath}</DetailRow> : null}
-        {result.repositoryPath ? <DetailRow label="Repository path">{result.repositoryPath}</DetailRow> : null}
+        {result.defaultBranch ? <DetailRow label={i18n.t("chat:tool_card_default_branch")}>{result.defaultBranch}</DetailRow> : null}
+        {result.workspacePath ? <DetailRow label={i18n.t("chat:tool_card_workspace_path")}>{result.workspacePath}</DetailRow> : null}
+        {result.repositoryPath ? <DetailRow label={i18n.t("chat:tool_card_repository_path")}>{result.repositoryPath}</DetailRow> : null}
       </dl>
     </CardShell>
   )
@@ -98,7 +103,7 @@ export default attachRepositoryToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "attached_repository",
-    label: "Attached repository",
+    label: i18n.t("chat:tool_card_repository_example_attached"),
     input: { slug: "tkadauke/syrus" },
     parsedResult: {
       repository: { id: 42, slug: "tkadauke/syrus", default_branch: "main" },
@@ -108,8 +113,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "codex_result_body_envelope",
-    label: "Codex result-body envelope",
-    description: "A resultBody-only fixture exercising the provider envelope normalizer.",
+    label: i18n.t("chat:tool_card_repository_example_envelope"),
+    description: i18n.t("chat:tool_card_repository_example_envelope_description"),
     input: { slug: "tkadauke/syrus" },
     resultBody: JSON.stringify({
       content: [
@@ -127,7 +132,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "pending",
-    label: "Attachment pending",
+    label: i18n.t("chat:tool_card_repository_example_pending"),
     input: { slug: "tkadauke/syrus" },
     resultBody: ""
   }

@@ -15414,7 +15414,7 @@ describe("App", () => {
 
     expect(await screen.findByText("Whiteboard Snapshots")).toBeInTheDocument()
     expect(screen.getByText("Saved")).toBeInTheDocument()
-    expect(screen.getByText("1 element")).toBeInTheDocument()
+    expect(screen.getByText("1 whiteboard element")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Load" }))
 
@@ -16523,7 +16523,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/JOB-44")
-    expect(screen.getByText("Waiting...")).toBeInTheDocument()
+    expect(screen.getByText("Waiting…")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
@@ -16560,7 +16560,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Working...")).toBeInTheDocument()
+    expect(await screen.findByText("Working…")).toBeInTheDocument()
     expect(screen.getAllByText("Cancelling workflow...")).toHaveLength(1)
     expect(screen.getAllByText("Failed").length).toBeGreaterThan(0)
     expect(screen.getByText("ArgumentError: Job is not accessible.")).toBeInTheDocument()

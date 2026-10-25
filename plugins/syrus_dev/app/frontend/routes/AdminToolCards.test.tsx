@@ -156,7 +156,7 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("Done")).toBeInTheDocument()
     expect(within(region).getByText(/Remove tag #10 returned an unexpected response/)).toBeInTheDocument()
 
-    fireEvent.click(within(region).getByRole("tab", { name: "Pending" }))
+    fireEvent.click(within(region).getByRole("tab", { name: "Pending result" }))
 
     expect(within(region).getByText("Running")).toBeInTheDocument()
     expect(within(region).getByText(/Removing tag #10 · JOB-7/)).toBeInTheDocument()

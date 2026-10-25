@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, EmptyState, EntityReference, InternalLink, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import i18n from "../../../i18n"
+import { CardShell, EmptyState, EntityReference, InternalLink, displayValue, numberValue, SectionLabel, StatePill, toolCardStateLabel } from "../toolCardUi"
 import { changedFilePaths, DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
@@ -20,13 +21,13 @@ type PrCard = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "PR read",
+  title: i18n.t("chat:tool_card_pr_read"),
   attempted: (context) => {
     const prNumber = stringFromInput(context, ["pr_number", "pull_request_number", "number"])
-    return prNumber ? `Read PR #${prNumber}` : "Read PR"
+    return prNumber ? i18n.t("chat:tool_card_pr_attempt", { number: prNumber }) : i18n.t("chat:tool_card_pr_attempt_default")
   },
   retrySafety: "safe",
-  recovery: "Retry after GitHub or repository access recovers."
+  recovery: i18n.t("chat:tool_card_pr_recovery")
 }
 
 function parseDiff(value: unknown): PrDiff | null {
@@ -85,7 +86,7 @@ function collapsedSummary(context: ToolCardContext) {
 
   const pr = parsePr(context)
   if (!pr) return null
-  return `PR #${pr.number} (${pr.state})`
+  return `PR #${pr.number} (${toolCardStateLabel(pr.state)})`
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -103,32 +104,37 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{pr.title}</div>
       <div>
-        <SectionLabel>Repository</SectionLabel>
+        <SectionLabel>{i18n.t("chat:tool_card_repository")}</SectionLabel>
         <div className="mt-1">
           {pr.repository ? (
             <EntityReference href={`https://github.com/${pr.repository}`} kind="repository" repositorySlug={pr.repository} />
           ) : (
-            <span className="text-xs text-text-muted">Unknown repository</span>
+            <span className="text-xs text-text-muted">{i18n.t("chat:tool_card_unknown_repository")}</span>
           )}
         </div>
       </div>
-      {pr.body ? <MarkdownPreview maxLines={6} modalLabel="PR body" text={pr.body} title="PR body" /> : <EmptyState>No PR description.</EmptyState>}
+      {pr.body ? (
+        <MarkdownPreview maxLines={6} modalLabel={i18n.t("chat:tool_card_pr_body")} text={pr.body} title={i18n.t("chat:tool_card_pr_body")} />
+      ) : (
+        <EmptyState>{i18n.t("chat:tool_card_no_pr_description")}</EmptyState>
+      )}
       {pr.diff ? (
         <div>
-          <SectionLabel>Diff</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_diff")}</SectionLabel>
           <div className="mt-1 space-y-1">
             <DiffStatBadges stats={diffStats(pr.diff.text)} />
             {pr.diff.truncated ? (
               <div className="text-2xs text-gray-500 dark:text-gray-400">
-                Truncated{pr.diff.omittedBytes != null ? ` — ${pr.diff.omittedBytes} bytes omitted` : ""}
+                {i18n.t("chat:tool_card_truncated")}
+                {pr.diff.omittedBytes != null ? ` — ${i18n.t("chat:tool_card_bytes_omitted", { count: pr.diff.omittedBytes })}` : ""}
               </div>
             ) : null}
-            {pr.diff.bytes != null ? <div className="text-2xs text-text-muted">{pr.diff.bytes} bytes returned</div> : null}
+            {pr.diff.bytes != null ? <div className="text-2xs text-text-muted">{i18n.t("chat:tool_card_bytes_returned", { count: pr.diff.bytes })}</div> : null}
             {pr.diff.text ? (
               <>
                 {paths.length > 0 ? (
                   <div className="min-w-0">
-                    <SectionLabel>Changed files</SectionLabel>
+                    <SectionLabel>{i18n.t("chat:tool_card_changed_files")}</SectionLabel>
                     <ul className="mt-1 space-y-1">
                       {paths.map((path) => (
                         <li className="min-w-0 break-all text-xs" key={path}>
@@ -145,12 +151,12 @@ function renderExpanded(context: ToolCardContext) {
                 <RawDiffPreview diff={pr.diff.text} />
               </>
             ) : (
-              <EmptyState>No changes in diff.</EmptyState>
+              <EmptyState>{i18n.t("chat:tool_card_no_diff_changes")}</EmptyState>
             )}
           </div>
         </div>
       ) : (
-        <EmptyState>No diff returned.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_no_diff")}</EmptyState>
       )}
     </CardShell>
   )
@@ -169,12 +175,12 @@ export default readPrToolCard
 export const examples = [
   {
     id: "open_pr_with_diff",
-    label: "Open PR with diff",
+    label: i18n.t("chat:tool_card_pr_example_open"),
     input: { pr_number: 407 },
     parsedResult: {
       pr: {
         number: 407,
-        title: "Add linked entity refs to tool cards",
+        title: i18n.t("chat:tool_card_pr_example_title"),
         body: "Updates representative cards and examples so entity references are linked and copyable.",
         state: "open",
         html_url: "https://github.com/tkadauke/syrus/pull/407",
@@ -188,10 +194,10 @@ export const examples = [
   },
   {
     id: "pr_without_html_url",
-    label: "PR without GitHub URL",
-    description: "The PR number remains copyable when no external URL is available.",
+    label: i18n.t("chat:tool_card_pr_example_no_url"),
+    description: i18n.t("chat:tool_card_pr_example_no_url_description"),
     input: { pr_number: 408 },
-    parsedResult: { pr: { number: 408, title: "Local PR metadata", state: "open" } }
+    parsedResult: { pr: { number: 408, title: i18n.t("chat:tool_card_pr_example_local_title"), state: "open" } }
   }
 ]
 

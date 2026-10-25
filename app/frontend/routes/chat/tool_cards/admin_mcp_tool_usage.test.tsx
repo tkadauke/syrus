@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
+import i18n from "../../../i18n"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
 import adminMcpToolUsageToolCard from "./admin_mcp_tool_usage"
@@ -32,12 +33,8 @@ const POPULATED_PAYLOAD = {
     { surface: "chat", calls: 30, errors: 2, error_rate: 0.0667 },
     { surface: "workflow", calls: 12, errors: 1, error_rate: 0.0833 }
   ],
-  provider_breakdown: [
-    { provider: "codex", calls: 42, errors: 3, error_rate: 0.0714 }
-  ],
-  server_breakdown: [
-    { server_name: "syrus-chat-sidecar", calls: 42, errors: 3, error_rate: 0.0714 }
-  ],
+  provider_breakdown: [{ provider: "codex", calls: 42, errors: 3, error_rate: 0.0714 }],
+  server_breakdown: [{ server_name: "syrus-chat-sidecar", calls: 42, errors: 3, error_rate: 0.0714 }],
   sidecar_mode_breakdown: [
     { sidecar_mode: "persistent", calls: 35, errors: 2, error_rate: 0.0571 },
     { sidecar_mode: "stdio", calls: 7, errors: 1, error_rate: 0.1429 }
@@ -173,6 +170,17 @@ function toolGroup(payload: unknown): ChatToolGroupItem {
 }
 
 describe("admin_mcp_tool_usage tool card", () => {
+  it("localizes operational section headings", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      render(<>{adminMcpToolUsageToolCard.renderExpanded(context({ parsedResult: POPULATED_PAYLOAD }))}</>)
+      expect(screen.getByText("Volumenprioritäten")).toBeInTheDocument()
+      expect(screen.getByText("Fehlende Karten mit hohem Volumen")).toBeInTheDocument()
+      expect(screen.queryByText("Volume priorities")).not.toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
   it("registers under the exact MCP tool name", () => {
     expect(adminMcpToolUsageToolCard.toolName).toBe("admin_mcp_tool_usage")
   })
@@ -278,7 +286,7 @@ describe("admin_mcp_tool_usage tool card", () => {
 
     expect(screen.getByText("Volume priorities")).toBeInTheDocument()
     const rawText = document.querySelector("pre")?.textContent || ""
-    expect(rawText).toContain("\"input\"")
+    expect(rawText).toContain('"input"')
     expect(rawText).toContain("admin_clear_github_cache")
   })
 })

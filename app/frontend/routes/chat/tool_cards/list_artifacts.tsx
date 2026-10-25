@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction } from "../mediaPreviewShell"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, StatePill } from "../toolCardUi"
@@ -82,11 +83,11 @@ function artifactKey(row: ArtifactRow, index: number) {
 }
 
 export function listArtifactsSummary(context: ToolCardContext) {
-  if (context.resultError) return "Failed to list artifacts"
-  if (context.parsedResult == null && !context.resultBody) return "Listing artifacts…"
+  if (context.resultError) return i18n.t("chat:tool_card_list_artifacts_failed")
+  if (context.parsedResult == null && !context.resultBody) return i18n.t("chat:tool_card_list_artifacts_listing")
   const list = artifactList(context)
   if (!list) return null
-  return list.rows.length === 0 ? "No artifacts" : `${list.rows.length} artifact${list.rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_list_artifacts_summary", { count: list.rows.length })
 }
 
 function ArtifactReferences({ row, workflowId, jobId }: { row: ArtifactRow; workflowId: string | null; jobId: string | null }) {
@@ -101,7 +102,7 @@ function ArtifactReferences({ row, workflowId, jobId }: { row: ArtifactRow; work
         <Badge>
           <EntityReference
             href={jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null}
-            id={`STEP-${row.stepId}`}
+            id={["STEP", row.stepId].join("-")}
             kind="artifact"
           />
         </Badge>
@@ -114,8 +115,8 @@ function ArtifactReferences({ row, workflowId, jobId }: { row: ArtifactRow; work
 function ArtifactPreview({ row }: { row: ArtifactRow }) {
   if (!row.imageUrl) return <span className="text-gray-400">—</span>
   const actions: MediaPreviewAction[] = [
-    { label: "Open", href: row.imageUrl },
-    { label: "Download", href: row.imageUrl, download: true }
+    { label: i18n.t("chat:open"), href: row.imageUrl },
+    { label: i18n.t("chat:download"), href: row.imageUrl, download: true }
   ]
   return (
     <MediaPreviewShell
@@ -127,11 +128,11 @@ function ArtifactPreview({ row }: { row: ArtifactRow }) {
         badge: "image",
         actions,
         meta: [
-          { label: "Type", value: row.type },
-          { label: "Source", value: row.source },
-          { label: "Captured", value: row.capturedAt },
-          { label: "Page", value: row.page },
-          { label: "Viewport", value: row.viewport }
+          { label: i18n.t("chat:type"), value: row.type },
+          { label: i18n.t("chat:source"), value: row.source },
+          { label: i18n.t("chat:captured"), value: row.capturedAt },
+          { label: i18n.t("chat:page"), value: row.page },
+          { label: i18n.t("chat:viewport"), value: row.viewport }
         ]
       }}
       modalLabel={row.title ?? row.type}
@@ -146,12 +147,12 @@ function Value({ children }: { children: string | null }) {
 
 function ArtifactDetails({ row }: { row: ArtifactRow }) {
   const details = [
-    ["Content type", row.contentType],
-    ["Size", formatBytes(row.byteSize)],
-    ["Iteration", row.iteration],
-    ["Source", row.source],
-    ["Captured", row.capturedAt],
-    ["Viewport", row.viewport]
+    [i18n.t("chat:content_type"), row.contentType],
+    [i18n.t("chat:size"), formatBytes(row.byteSize)],
+    [i18n.t("chat:iteration"), row.iteration],
+    [i18n.t("chat:source"), row.source],
+    [i18n.t("chat:captured"), row.capturedAt],
+    [i18n.t("chat:viewport"), row.viewport]
   ]
   return (
     <dl className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-1">
@@ -164,7 +165,7 @@ function ArtifactDetails({ row }: { row: ArtifactRow }) {
         </div>
       ))}
       <div className="min-w-0">
-        <dt className="text-2xs font-semibold uppercase text-gray-500">Page</dt>
+        <dt className="text-2xs font-semibold uppercase text-gray-500">{i18n.t("chat:page")}</dt>
         <dd>
           {row.pageUrl ? (
             <a className="break-all text-brand hover:underline" href={row.pageUrl} rel="noreferrer" target="_blank">
@@ -180,7 +181,7 @@ function ArtifactDetails({ row }: { row: ArtifactRow }) {
 }
 
 export function ArtifactListCard({ list }: { list: ArtifactList }) {
-  if (list.rows.length === 0) return <EmptyState>No artifacts recorded on this Workflow.</EmptyState>
+  if (list.rows.length === 0) return <EmptyState>{i18n.t("chat:tool_card_list_artifacts_empty")}</EmptyState>
   return (
     <div className="mt-1 rounded border border-gray-200 dark:border-gray-700">
       <div className="divide-y divide-gray-100 sm:hidden dark:divide-gray-800">
@@ -200,9 +201,9 @@ export function ArtifactListCard({ list }: { list: ArtifactList }) {
         <table className="w-full table-fixed text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              {["Artifact", "Preview", "Details", "Run / Step"].map((label) => (
-                <th className="px-2 py-1 font-semibold" key={label} scope="col">
-                  {label}
+              {["artifact", "preview", "details", "run_step"].map((key) => (
+                <th className="px-2 py-1 font-semibold" key={key} scope="col">
+                  {i18n.t(`chat:tool_card_list_artifacts_${key}`)}
                 </th>
               ))}
             </tr>
@@ -240,9 +241,9 @@ export function renderArtifactList(context: ToolCardContext) {
       <CardShell>
         <div className="flex items-center gap-2">
           <StatePill state="failed" />
-          <span className="font-semibold">List artifacts</span>
+          <span className="font-semibold">{i18n.t("chat:tool_card_list_artifacts_title")}</span>
         </div>
-        <div className="break-words text-red-700 dark:text-red-300">{context.resultBody || "The artifact list could not be loaded."}</div>
+        <div className="break-words text-red-700 dark:text-red-300">{context.resultBody || i18n.t("chat:tool_card_list_artifacts_error")}</div>
       </CardShell>
     )
   if (context.parsedResult == null && !context.resultBody)
@@ -250,7 +251,7 @@ export function renderArtifactList(context: ToolCardContext) {
       <CardShell>
         <div className="flex min-h-8 items-center gap-2">
           <StatePill state="pending" />
-          <span>Waiting for artifacts…</span>
+          <span>{i18n.t("chat:tool_card_list_artifacts_waiting")}</span>
         </div>
       </CardShell>
     )
@@ -262,13 +263,13 @@ export function renderArtifactList(context: ToolCardContext) {
         <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {list.jobId ? (
             <span className="inline-flex items-center gap-1">
-              <span className="text-gray-500">Job</span>
+              <span className="text-gray-500">{i18n.t("chat:job_label")}</span>
               <EntityReference id={list.jobId} kind="job" />
             </span>
           ) : null}
           {list.workflowId ? (
             <span className="inline-flex items-center gap-1">
-              <span className="text-gray-500">Workflow</span>
+              <span className="text-gray-500">{i18n.t("chat:workflow")}</span>
               <EntityReference id={list.workflowId} jobId={list.jobId} kind="workflow" />
             </span>
           ) : null}
@@ -285,7 +286,7 @@ export default listArtifactsToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "visual_and_structured_artifacts",
-    label: "Visual and structured artifacts",
+    label: i18n.t("chat:tool_card_list_artifacts_example_results"),
     input: { workflow_id: 28622 },
     parsedResult: {
       workflow_id: 28622,
@@ -293,7 +294,7 @@ export const examples: ToolCardExample[] = [
       artifacts: [
         {
           type: "visual_review_screenshot_1",
-          title: "Homepage after fix",
+          title: i18n.t("chat:tool_card_list_artifacts_example_title"),
           content_type: "image/png",
           byte_size: 204800,
           run_id: 144524,
@@ -302,13 +303,24 @@ export const examples: ToolCardExample[] = [
           image_url: "/api/v1/app/workflows/28622/visual_artifact?type=visual_review_screenshot_1",
           source: "playwright",
           captured_at: "2026-10-18T12:30:00Z",
-          page: { url: "https://example.test/dashboard", path: "/dashboard", title: "Dashboard" },
+          page: { url: "https://example.test/dashboard", path: "/dashboard", title: i18n.t("chat:tool_card_list_artifacts_example_page") },
           viewport: { width: 1280, height: 720, device_scale_factor: 2 }
         },
-        { type: "rails_schema_erd", title: "Schema ERD", content_type: "application/json" }
+        { type: "rails_schema_erd", title: i18n.t("chat:tool_card_list_artifacts_example_schema"), content_type: "application/json" }
       ]
     }
   },
-  { id: "empty", label: "No artifacts", input: { workflow_id: 28622 }, parsedResult: { workflow_id: 28622, artifacts: [] } },
-  { id: "failure", label: "Failed request", input: { workflow_id: 28622 }, resultBody: "Workflow was not found.", resultError: true }
+  {
+    id: "empty",
+    label: i18n.t("chat:tool_card_list_artifacts_example_empty"),
+    input: { workflow_id: 28622 },
+    parsedResult: { workflow_id: 28622, artifacts: [] }
+  },
+  {
+    id: "failure",
+    label: i18n.t("chat:tool_card_list_artifacts_example_failure"),
+    input: { workflow_id: 28622 },
+    resultBody: i18n.t("chat:tool_card_list_artifacts_example_not_found"),
+    resultError: true
+  }
 ]

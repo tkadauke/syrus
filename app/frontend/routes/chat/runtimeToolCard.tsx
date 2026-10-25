@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../i18n"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
 import { Badge, CardShell, Disclosure, FilterableList, displayValue, EmptyState, LargeTextPreview, Row, SectionLabel, StatePill } from "./toolCardUi"
@@ -33,6 +34,33 @@ type RuntimeSession = {
 }
 
 type RuntimeLifecycleAction = "start" | "build/reload" | "launch" | "stop"
+
+function plural(count: number, singular: string, pluralLabel = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : pluralLabel}`
+}
+
+const RUNTIME_ACTION_KEYS: Record<string, string> = {
+  runtime_status: "chat:runtime_action_status",
+  runtime_list_sessions: "chat:runtime_action_list_sessions",
+  runtime_start: "chat:runtime_action_start",
+  runtime_launch: "chat:runtime_action_launch",
+  runtime_build_or_reload: "chat:runtime_action_build_reload",
+  runtime_stop: "chat:runtime_action_stop",
+  runtime_inspect: "chat:runtime_action_inspect",
+  runtime_logs: "chat:runtime_action_logs",
+  runtime_input: "chat:runtime_action_input",
+  runtime_snapshot: "chat:runtime_action_snapshot",
+  runtime_capture_artifact: "chat:runtime_action_capture_artifact",
+  runtime_acquire_control: "chat:runtime_action_acquire_control",
+  runtime_release_control: "chat:runtime_action_release_control"
+}
+
+const RUNTIME_LIFECYCLE_KEYS: Record<RuntimeLifecycleAction, string> = {
+  start: "chat:runtime_lifecycle_start",
+  launch: "chat:runtime_lifecycle_launch",
+  "build/reload": "chat:runtime_lifecycle_build_reload",
+  stop: "chat:runtime_lifecycle_stop"
+}
 
 type RuntimeInputEvent = {
   type: string | null
@@ -512,16 +540,12 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
   return null
 }
 
-function plural(count: number, singular: string, pluralLabel = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : pluralLabel}`
-}
-
 function leaseLabel(lease: RuntimeLease | null): string {
-  if (!lease) return "no active agent lease"
-  const owner = lease.owner ?? "unknown owner"
+  if (!lease) return i18n.t("chat:runtime_no_active_agent_lease")
+  const owner = lease.owner ?? i18n.t("chat:runtime_unknown_owner")
   const mode = lease.mode ? `${lease.mode} ` : ""
-  const state = lease.state ?? "unknown"
-  return `${owner} ${mode}lease ${state}`.trim()
+  const state = lease.state ?? i18n.t("chat:unknown")
+  return i18n.t("chat:runtime_lease_summary", { owner, mode, state })
 }
 
 function stateToneForLease(lease: RuntimeLease | null): "success" | "failure" | "warning" | "info" | "neutral" {
@@ -534,12 +558,12 @@ function stateToneForLease(lease: RuntimeLease | null): "success" | "failure" | 
 }
 
 function actionLabel(toolName: string) {
-  return toolName.replace(/^runtime_/, "").replace(/_/g, " ")
+  const key = RUNTIME_ACTION_KEYS[toolName]
+  return key ? i18n.t(key) : toolName.replace(/^runtime_/, "").replace(/_/g, " ")
 }
 
 function lifecycleNoun(action: RuntimeLifecycleAction) {
-  if (action === "build/reload") return "build/reload"
-  return action
+  return i18n.t(RUNTIME_LIFECYCLE_KEYS[action])
 }
 
 function collapsedSummary(context: ToolCardContext) {

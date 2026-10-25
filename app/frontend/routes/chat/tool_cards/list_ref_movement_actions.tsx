@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
@@ -39,7 +40,7 @@ function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
   const availableCount = result.rows.filter((row) => row.available).length
-  return `${availableCount}/${result.rows.length} ref movement action${result.rows.length === 1 ? "" : "s"} available`
+  return i18n.t("chat:tool_card_list_ref_actions_summary", { available: availableCount, count: result.rows.length })
 }
 
 function Scope({ result }: { result: ActionsResult }) {
@@ -47,9 +48,12 @@ function Scope({ result }: { result: ActionsResult }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
       <span className="inline-flex min-w-0 items-center gap-1">
-        Repository: <EntityReference href={repositoryHref} kind="repository" repositorySlug={result.repository} />
+        {i18n.t("chat:tool_card_list_ref_actions_repository")}: <EntityReference href={repositoryHref} kind="repository" repositorySlug={result.repository} />
       </span>
-      <span className="inline-flex items-center gap-1">Job: {result.jobId ? <EntityReference id={result.jobId} kind="job" /> : <span>all jobs</span>}</span>
+      <span className="inline-flex items-center gap-1">
+        {i18n.t("chat:tool_card_list_ref_actions_job")}:{" "}
+        {result.jobId ? <EntityReference id={result.jobId} kind="job" /> : <span>{i18n.t("chat:tool_card_list_ref_actions_all_jobs")}</span>}
+      </span>
     </div>
   )
 }
@@ -61,10 +65,14 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <Scope result={result} />
       {result.rows.length === 0 ? (
-        <EmptyState>No ref movement actions configured.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_list_ref_actions_empty")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["Action", "Enabled", "Mode", "Grade phases", "Availability", "Blocked reason"]} />
+          <THead
+            columns={["action", "enabled", "mode", "grade_phases", "availability", "blocked_reason"].map((key) =>
+              i18n.t(`chat:tool_card_list_ref_actions_${key}`)
+            )}
+          />
           <TBody>
             {result.rows.map((row) => (
               <tr key={row.name}>
@@ -72,7 +80,10 @@ function renderExpanded(context: ToolCardContext) {
                   {row.name}
                 </Td>
                 <Td>
-                  <StatePill state={row.enabled ? "enabled" : "disabled"} tone={row.enabled ? "success" : "neutral"} />
+                  <StatePill
+                    state={row.enabled ? i18n.t("chat:tool_card_enabled") : i18n.t("chat:tool_card_disabled")}
+                    tone={row.enabled ? "success" : "neutral"}
+                  />
                 </Td>
                 <Td>{row.mode || "—"}</Td>
                 <Td wrap>
@@ -87,9 +98,18 @@ function renderExpanded(context: ToolCardContext) {
                   )}
                 </Td>
                 <Td>
-                  <StatePill state={row.available ? "available" : "blocked"} tone={row.available ? "success" : "warning"} />
+                  <StatePill
+                    state={row.available ? i18n.t("chat:tool_card_available") : i18n.t("chat:tool_card_blocked")}
+                    tone={row.available ? "success" : "warning"}
+                  />
                 </Td>
-                <Td wrap>{row.blockedReason ? <MarkdownPreview maxLines={3} text={row.blockedReason} title="Blocked reason" /> : "—"}</Td>
+                <Td wrap>
+                  {row.blockedReason ? (
+                    <MarkdownPreview maxLines={3} text={row.blockedReason} title={i18n.t("chat:tool_card_list_ref_actions_blocked_reason")} />
+                  ) : (
+                    "—"
+                  )}
+                </Td>
               </tr>
             ))}
           </TBody>
@@ -102,7 +122,7 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "job_scoped_actions",
-    label: "Job-scoped actions",
+    label: i18n.t("chat:tool_card_list_ref_actions_example_job"),
     input: { job_id: 4225 },
     parsedResult: {
       repository: "example/widgets",
@@ -120,7 +140,11 @@ export const examples: ToolCardExample[] = [
       ]
     }
   },
-  { id: "no_actions", label: "No configured actions", parsedResult: { repository: "example/widgets", job_id: null, ref_movement_actions: [] } }
+  {
+    id: "no_actions",
+    label: i18n.t("chat:tool_card_list_ref_actions_example_empty"),
+    parsedResult: { repository: "example/widgets", job_id: null, ref_movement_actions: [] }
+  }
 ]
 
 const listRefMovementActionsToolCard: ToolCardRenderer = { toolName: "list_ref_movement_actions", collapsedSummary, renderExpanded }

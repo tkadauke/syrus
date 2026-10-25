@@ -344,7 +344,7 @@ describe("chat helper tool cards", () => {
   it("renders rename_chat input and result fields with a linked chat and wrapping titles", () => {
     const parsedResult = { session_id: 42, previous_title: "Old title", title: "Release planning" }
 
-    expect(renameChatToolCard.collapsedSummary?.(context("rename_chat", { parsedResult }))).toBe('Renamed "Old title" -> "Release planning"')
+    expect(renameChatToolCard.collapsedSummary?.(context("rename_chat", { parsedResult }))).toBe("Renamed “Old title” → “Release planning”")
     render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { input: { name: "Release planning" }, parsedResult }))}</>)
 
     expect(screen.getAllByText("Old title").length).toBeGreaterThan(0)
@@ -448,7 +448,7 @@ describe("chat helper tool cards", () => {
 
   it("renders pending, empty, and authorization outcomes for unpin", () => {
     const pending = context("unpin_chat", { input: { chat_session_id: 87 }, resultSettled: false })
-    expect(unpinChatToolCard.collapsedSummary?.(pending)).toBe("Unpinning chat...")
+    expect(unpinChatToolCard.collapsedSummary?.(pending)).toBe("Unpinning chat…")
     const { rerender } = render(<>{unpinChatToolCard.renderExpanded(pending)}</>)
     expect(screen.getByRole("link", { name: "CHAT-87" })).toHaveAttribute("href", "/chats/87")
 
@@ -471,7 +471,7 @@ describe("chat helper tool cards", () => {
 
   it("renders an unsettled pin call as pending with its requested target", () => {
     const pending = context("pin_chat", { input: { chat_session_id: 87 }, resultSettled: false })
-    expect(pinChatToolCard.collapsedSummary?.(pending)).toBe("Pinning chat...")
+    expect(pinChatToolCard.collapsedSummary?.(pending)).toBe("Pinning chat…")
     render(<>{pinChatToolCard.renderExpanded(pending)}</>)
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("CHAT-87")).toBeInTheDocument()

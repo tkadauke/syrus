@@ -4,6 +4,7 @@ import { workerCapabilityEntries } from "../../lib/workerCapabilities"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import { MediaPreviewShell } from "./mediaPreviewShell"
 import { Badge, CardShell, displayValue, EntityReference, SectionLabel, StatePill } from "./toolCardUi"
+import i18n from "../../i18n"
 
 // Shared parsing/rendering for the core proposal tools (propose_job,
 // propose_epic, list_proposals, delete_proposal) — the pending-action tool-card work.
@@ -138,7 +139,7 @@ function proposalMedia(references: string[], presentation?: ToolCardContext["pre
       return {
         reference,
         title: image?.title || image?.filename || reference,
-        detail: image?.content_type || "Chat image",
+        detail: image?.content_type || i18n.t("chat:chat_image"),
         kind: "image",
         src: image?.image_url || image?.file_path || derivedSrc,
         previewKind: image?.image_url || image?.file_path || derivedSrc ? "image" : "metadata"
@@ -150,7 +151,7 @@ function proposalMedia(references: string[], presentation?: ToolCardContext["pre
       return {
         reference,
         title: snapshot?.name || reference,
-        detail: snapshot ? `${snapshot.element_count} whiteboard element${snapshot.element_count === 1 ? "" : "s"}` : "Whiteboard snapshot",
+        detail: snapshot ? i18n.t("chat:whiteboard_element_count", { count: snapshot.element_count }) : i18n.t("chat:whiteboard_snapshot"),
         kind: "snapshot",
         src: null,
         previewKind: "metadata"
@@ -165,14 +166,14 @@ function proposalMedia(references: string[], presentation?: ToolCardContext["pre
       return {
         reference,
         title: match?.panel.title || reference,
-        detail: match ? `Preview · ${match.version.entry_path}` : "Preview mockup",
+        detail: match ? i18n.t("chat:preview_path", { path: match.version.entry_path }) : i18n.t("chat:preview_mockup"),
         kind: "preview",
         src,
         previewKind: match?.version.entry_viewer_kind === "image" ? "image" : src ? "frame" : "metadata"
       }
     }
 
-    return { reference, title: reference, detail: "Media attachment", kind: "image", src: null, previewKind: "metadata" }
+    return { reference, title: reference, detail: i18n.t("chat:media_attachment"), kind: "image", src: null, previewKind: "metadata" }
   })
 }
 
@@ -213,7 +214,7 @@ export function parseProposalOutcome(
 }
 
 function humanizeKind(kind: string): string {
-  return kind.includes("epic") ? "Epic" : "Job"
+  return kind.includes("epic") ? i18n.t("chat:epic") : i18n.t("chat:job")
 }
 
 export function proposalOutcomeSummary(proposal: ProposalOutcome): string {
@@ -244,7 +245,7 @@ function MaterializedOutcomeDetail({ materialized }: { materialized: Materialize
         </div>
         {materialized.childJobs.length > 0 ? (
           <div className="mt-2">
-            <SectionLabel>Child Jobs ({materialized.childJobs.length})</SectionLabel>
+            <SectionLabel>{i18n.t("chat:child_job_count", { count: materialized.childJobs.length })}</SectionLabel>
             <ul className="mt-1 space-y-1">
               {materialized.childJobs.map((child) => (
                 <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1" key={child.jobId}>
@@ -259,7 +260,7 @@ function MaterializedOutcomeDetail({ materialized }: { materialized: Materialize
     )
   }
 
-  return <div className="text-gray-700 dark:text-gray-300">Rejected: {materialized.reason.replace(/_/g, " ")}</div>
+  return <div className="text-gray-700 dark:text-gray-300">{i18n.t("chat:rejected_with_reason", { reason: materialized.reason.replace(/_/g, " ") })}</div>
 }
 
 function DetailValue({ label, children }: { label: string; children: ReactNode }) {
@@ -298,13 +299,13 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
       </div>
       {proposal.title ? <div className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">{proposal.title}</div> : null}
       <MarkdownPreview
-        emptyState={<div className="text-xs italic text-text-muted">No description provided.</div>}
+        emptyState={<div className="text-xs italic text-text-muted">{i18n.t("chat:no_description")}</div>}
         linkifySlugs
         linkifyUrls
         maxChars={960}
-        modalLabel={`Full ${humanizeKind(proposal.kind)} description`}
+        modalLabel={i18n.t("chat:full_description", { kind: humanizeKind(proposal.kind) })}
         text={proposal.body}
-        title="Description"
+        title={i18n.t("chat:description")}
       />
       {proposal.labels.length > 0 ? (
         <div className="flex flex-wrap gap-1">
@@ -316,12 +317,12 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
       {hasDetails ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {proposal.repository ? (
-            <DetailValue label="Repository">
+            <DetailValue label={i18n.t("chat:repository")}>
               <EntityReference kind="repository" slug={proposal.repository} />
             </DetailValue>
           ) : null}
           {proposal.targetEpicLabel || proposal.targetEpicId ? (
-            <DetailValue label="Target epic">
+            <DetailValue label={i18n.t("chat:target_epic")}>
               {proposal.targetEpicId ? (
                 <EntityReference id={proposal.targetEpicId} kind="epic" label={proposal.targetEpicLabel} slug={proposal.targetEpicLabel} />
               ) : (
@@ -330,7 +331,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
             </DetailValue>
           ) : null}
           {proposal.dependencies.length > 0 ? (
-            <DetailValue label="Proposal dependencies">
+            <DetailValue label={i18n.t("chat:proposal_dependencies")}>
               <span className="flex flex-wrap gap-2">
                 {proposal.dependencies.map((slug) => (
                   <EntityReference key={slug} kind="proposal" slug={slug} />
@@ -339,7 +340,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
             </DetailValue>
           ) : null}
           {proposal.jobDependencyIds.length > 0 ? (
-            <DetailValue label="Job dependencies">
+            <DetailValue label={i18n.t("chat:job_dependencies")}>
               <span className="flex flex-wrap gap-2">
                 {proposal.jobDependencyIds.map((id) => (
                   <EntityReference id={id} key={id} kind="job" />
@@ -348,7 +349,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
             </DetailValue>
           ) : null}
           {proposal.epicDependencyIds.length > 0 ? (
-            <DetailValue label="Epic dependencies">
+            <DetailValue label={i18n.t("chat:epic_dependencies")}>
               <span className="flex flex-wrap gap-2">
                 {proposal.epicDependencyIds.map((id) => (
                   <EntityReference id={id} key={id} kind="epic" />
@@ -357,7 +358,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
             </DetailValue>
           ) : null}
           {proposal.dependencyRequirements.length > 0 ? (
-            <DetailValue label="Dependency requirements">
+            <DetailValue label={i18n.t("chat:dependency_requirements")}>
               {proposal.dependencyRequirements.map((requirement) => (
                 <div key={`${requirement.target}-${requirement.mode}`}>
                   {requirement.target.startsWith("JOB-") ? (
@@ -371,17 +372,17 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
               ))}
             </DetailValue>
           ) : null}
-          {proposal.investigation ? <DetailValue label="Work type">Investigation</DetailValue> : null}
-          {proposal.initialJobState ? <DetailValue label="Initial state">{proposal.initialJobState}</DetailValue> : null}
-          {proposal.providerSetting ? <DetailValue label="Provider">{proposal.providerSetting}</DetailValue> : null}
-          {proposal.plannedExecutionText ? <DetailValue label="Planned execution">{proposal.plannedExecutionText}</DetailValue> : null}
-          {proposal.capabilitiesText ? <DetailValue label="Capabilities">{proposal.capabilitiesText}</DetailValue> : null}
-          {proposal.goalProvenanceText ? <DetailValue label="Goal provenance">{proposal.goalProvenanceText}</DetailValue> : null}
+          {proposal.investigation ? <DetailValue label={i18n.t("chat:work_type")}>{i18n.t("chat:investigation")}</DetailValue> : null}
+          {proposal.initialJobState ? <DetailValue label={i18n.t("chat:initial_state")}>{proposal.initialJobState}</DetailValue> : null}
+          {proposal.providerSetting ? <DetailValue label={i18n.t("chat:provider")}>{proposal.providerSetting}</DetailValue> : null}
+          {proposal.plannedExecutionText ? <DetailValue label={i18n.t("chat:planned_execution")}>{proposal.plannedExecutionText}</DetailValue> : null}
+          {proposal.capabilitiesText ? <DetailValue label={i18n.t("chat:capabilities")}>{proposal.capabilitiesText}</DetailValue> : null}
+          {proposal.goalProvenanceText ? <DetailValue label={i18n.t("chat:goal_provenance_label")}>{proposal.goalProvenanceText}</DetailValue> : null}
         </dl>
       ) : null}
       {proposal.media.length > 0 ? (
         <div>
-          <SectionLabel>Media</SectionLabel>
+          <SectionLabel>{i18n.t("chat:media")}</SectionLabel>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {proposal.media.map((media) => (
               <MediaPreviewShell
@@ -409,7 +410,10 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
                     ) : media.previewKind === "frame" && media.src ? (
                       <iframe className="h-[60dvh] w-full bg-white" src={media.src} title={media.title} />
                     ) : undefined,
-                  actions: [...(media.src ? [{ label: "Open", href: media.src }] : []), { label: "Copy reference", copyValue: media.reference }]
+                  actions: [
+                    ...(media.src ? [{ label: i18n.t("chat:open"), href: media.src }] : []),
+                    { label: i18n.t("chat:copy_reference"), copyValue: media.reference }
+                  ]
                 }}
                 key={media.reference}
                 thumbnailClassName="w-full"

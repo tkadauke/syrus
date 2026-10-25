@@ -349,7 +349,7 @@
   "admission_breakdown_category_hard_host_pressure": "A worker host is at a hard resource limit.",
   "admission_breakdown_category_soft_host_pressure": "Ambient worker host pressure is high.",
   "admission_breakdown_category_step_profile_pressure": "This workflow's predicted resource cost exceeds the worker budget.",
-  "admission_breakdown_category_other": "Blocked by workflow admission control.",
+  "admission_breakdown_category_fallback": "Blocked by workflow admission control.",
   "admission_breakdown_telemetry_absent": "No worker telemetry has been recorded — this decision is treating host pressure conservatively rather than measuring it.",
   "admission_breakdown_telemetry_stale": "Worker telemetry is stale (no recent samples) — this decision is treating host pressure conservatively rather than measuring it.",
   "admission_breakdown_dimension": "{{label}}: {{current}}% (threshold {{threshold}}%)",

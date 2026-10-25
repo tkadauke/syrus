@@ -1,9 +1,10 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { LocalModeJobOutcomeToolCard, localModeJobOutcomeModel, localModeJobOutcomeSummary } from "../localModeJobOutcomeCard"
+import i18n from "@app/i18n"
 
 function collapsedSummary(context: ToolCardContext) {
   const model = localModeJobOutcomeModel(context)
-  if (model.error) return "Failed to open Coding Mode"
+  if (model.error) return i18n.t("chat:mutation_open_coding_mode_failed")
   return model.result ? localModeJobOutcomeSummary(model.result) : null
 }
 
@@ -15,7 +16,9 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "opened",
-    label: "Opened in Coding Mode",
+    get label() {
+      return i18n.t("chat:mutation_example_opened_coding_mode")
+    },
     input: { job_id: 4225 },
     parsedResult: {
       job_id: 4225,
@@ -28,7 +31,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error",
-    label: "Open failed",
+    get label() {
+      return i18n.t("chat:mutation_example_open_failed")
+    },
     input: { job_id: 4225 },
     resultBody: "The job cannot be opened in Coding Mode.",
     resultError: true

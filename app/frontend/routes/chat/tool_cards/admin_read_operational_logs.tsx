@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, EntityReference, FilterableList, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
 import { TextPreview } from "../toolCardMarkdown"
@@ -71,13 +72,13 @@ function parseLogsCard(context: ToolCardContext): LogsCard | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "Operational log search failed"
+  if (context.resultError) return i18n.t("chat:admin_operational_log_search_failed")
   const card = parseLogsCard(context)
   if (!card) return null
-  if (!card.enabled) return "Operational log indexing disabled"
+  if (!card.enabled) return i18n.t("chat:admin_operational_log_indexing_disabled")
 
   const count = card.count ?? card.logs.length
-  return `${count} log line${count === 1 ? "" : "s"}`
+  return i18n.t("chat:admin_log_line_count", { count })
 }
 
 function levelTone(level: string | null) {
@@ -119,7 +120,7 @@ function renderExpanded(context: ToolCardContext) {
       <CardShell>
         <div className="flex items-center gap-2">
           <StatePill state="failed" tone="failure" />
-          <span className="font-semibold text-text-primary">Operational log search failed</span>
+          <span className="font-semibold text-text-primary">{i18n.t("chat:ops_operational_log_search_failed_f4e50b")}</span>
         </div>
         <div className="font-mono text-xs text-danger-text">{context.resultBody || "The operational log search failed."}</div>
       </CardShell>
@@ -144,13 +145,13 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <AppliedFilters input={context.input} />
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Rows returned" value={String(card.count ?? card.logs.length)} />
-        {card.retentionSeconds != null ? <Row label="Retention" value={`${Math.round(card.retentionSeconds / 3600)}h`} /> : null}
+        <Row label={i18n.t("chat:ops_rows_returned_21ac8b")} value={String(card.count ?? card.logs.length)} />
+        {card.retentionSeconds != null ? <Row label={i18n.t("chat:ops_retention_c7199d")} value={`${Math.round(card.retentionSeconds / 3600)}h`} /> : null}
       </dl>
       {card.logs.length === 0 ? (
-        <EmptyState>No matching log lines.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_matching_log_lines_a14ad5")}</EmptyState>
       ) : (
-        <Disclosure label={`Log preview (${card.logs.length})`}>
+        <Disclosure label={i18n.t("chat:admin_log_preview_count", { count: card.logs.length })}>
           <FilterableList
             itemText={(log) =>
               [
@@ -172,7 +173,7 @@ function renderExpanded(context: ToolCardContext) {
                 .join(" ")
             }
             items={card.logs}
-            placeholder="Filter log rows"
+            placeholder={i18n.t("chat:ops_filter_log_rows_840891")}
           >
             {(logs) => {
               const visibleLogs = logs.slice(0, LOG_PREVIEW_ROW_LIMIT)
@@ -181,7 +182,11 @@ function renderExpanded(context: ToolCardContext) {
               return (
                 <>
                   <Table responsive>
-                    <THead columns={["Time", "Level", "Role", "Host", "Revision", "PID", "Source", "Request", "Message", "Attribution"]} />
+                    <THead
+                      columns={["time", "level", "role", "host", "revision", "pid", "source", "request", "message", "attribution"].map((key) =>
+                        i18n.t(`chat:admin_column_${key}`)
+                      )}
+                    />
                     <TBody>
                       {visibleLogs.map((log) => (
                         <tr key={log.key}>
@@ -198,8 +203,8 @@ function renderExpanded(context: ToolCardContext) {
                               <TextPreview
                                 maxChars={MESSAGE_PREVIEW_CHARS}
                                 maxLines={2}
-                                modalLabel="Log message and context"
-                                modalText={`${log.message}\n\nContext\n${JSON.stringify(log.context, null, 2)}`}
+                                modalLabel={i18n.t("chat:admin_log_message_and_context")}
+                                modalText={`${log.message}\n\n${i18n.t("chat:admin_log_context")}\n${JSON.stringify(log.context, null, 2)}`}
                                 text={log.message}
                                 truncate="headTail"
                               />
@@ -224,7 +229,7 @@ function renderExpanded(context: ToolCardContext) {
                   </Table>
                   {omitted > 0 ? (
                     <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">
-                      Showing first {LOG_PREVIEW_ROW_LIMIT} of {logs.length} rows.
+                      {i18n.t("chat:admin_log_rows_shown", { count: LOG_PREVIEW_ROW_LIMIT, total: logs.length })}
                     </div>
                   ) : null}
                 </>

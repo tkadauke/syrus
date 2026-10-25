@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { LocalModeJobOutcomeToolCard, localModeJobOutcomeModel, localModeJobOutcomeSummary } from "../localModeJobOutcomeCard"
+import i18n from "@app/i18n"
 
 // Local Mode tool card for open_in_local_mode (the tool-card work). All
 // parsing/presentation lives in ../localModeJobOutcomeCard so the family
@@ -7,7 +8,7 @@ import { LocalModeJobOutcomeToolCard, localModeJobOutcomeModel, localModeJobOutc
 // consistent; this file only binds it to one MCP tool name.
 function collapsedSummary(context: ToolCardContext) {
   const model = localModeJobOutcomeModel(context)
-  if (model.error) return "Failed to open Local Mode"
+  if (model.error) return i18n.t("chat:mutation_open_local_mode_failed")
   return model.result ? localModeJobOutcomeSummary(model.result) : null
 }
 
@@ -19,7 +20,9 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "opened",
-    label: "Opened in Local Mode",
+    get label() {
+      return i18n.t("chat:mutation_example_opened_local_mode")
+    },
     input: { job_id: 4225 },
     parsedResult: {
       job_id: 4225,
@@ -31,7 +34,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error",
-    label: "Open failed",
+    get label() {
+      return i18n.t("chat:mutation_example_open_failed")
+    },
     input: { job_id: 4225 },
     resultBody: "Local Mode daemon is unavailable.",
     resultError: true

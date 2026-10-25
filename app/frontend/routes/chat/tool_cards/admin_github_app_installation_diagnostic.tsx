@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import type { ReactNode } from "react"
 import { redactToolCardText } from "../../../toolCardSecurity"
@@ -68,12 +69,12 @@ type Card = {
 }
 
 const ACTION_HELP: Record<string, string> = {
-  refresh_installations: "Refresh GitHub App installations to update the stored installation and repository links.",
-  relink_repository_to_existing_active_installation: "Link the repository to the active installation already available for its owner.",
-  reinstall_app_for_owner_or_repo: "Reinstall the GitHub App for the repository owner or grant it access to this repository.",
-  reselect_repository_to_capture_github_ids: "Select the repository again so Syrus can store the GitHub owner and repository IDs.",
-  fallback_to_pat: "No usable App credential was found; keep using the configured PAT until App access is repaired.",
-  none: "No operator action is currently recommended."
+  refresh_installations: "admin_github_action_refresh_installations",
+  relink_repository_to_existing_active_installation: "admin_github_action_relink_repository",
+  reinstall_app_for_owner_or_repo: "admin_github_action_reinstall_app",
+  reselect_repository_to_capture_github_ids: "admin_github_action_reselect_repository",
+  fallback_to_pat: "admin_github_action_fallback_to_pat",
+  none: "admin_github_action_none"
 }
 
 function installation(value: unknown, fallback: string): Installation | null {
@@ -194,7 +195,7 @@ function Action({ value }: { value: string | null }) {
   return (
     <div className="min-w-0 space-y-1">
       <div className="break-words font-medium text-text-primary">{humanize(value)}</div>
-      <div className="break-words text-2xs text-text-muted">{ACTION_HELP[value] ?? "Review this diagnostic and update the GitHub App configuration."}</div>
+      <div className="break-words text-2xs text-text-muted">{i18n.t(`chat:${ACTION_HELP[value] ?? "admin_github_action_review_diagnostic"}`)}</div>
     </div>
   )
 }
@@ -203,7 +204,11 @@ function Installations({ rows, empty }: { rows: Installation[]; empty: string })
   if (rows.length === 0) return <EmptyState>{empty}</EmptyState>
   return (
     <Table responsive>
-      <THead columns={["Record id", "Account", "Account id", "Account type", "GitHub installation id", "Installed", "Removed", "State"]} />
+      <THead
+        columns={["record_id", "account", "account_id", "account_type", "github_installation_id", "installed", "removed", "state"].map((key) =>
+          i18n.t(`chat:admin_column_${key}`)
+        )}
+      />
       <TBody>
         {rows.map((row) => (
           <tr key={row.key}>
@@ -229,21 +234,21 @@ function Installations({ rows, empty }: { rows: Installation[]; empty: string })
 }
 
 function Memberships({ rows }: { rows: Membership[] }) {
-  if (rows.length === 0) return <EmptyState>No repository memberships found.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:ops_no_repository_memberships_found_9b444e")}</EmptyState>
   return (
     <div className="space-y-2">
       {rows.map((row) => (
         <section className="min-w-0 space-y-2 rounded-[var(--radius-panel)] border border-border bg-surface-raised p-2" key={row.key}>
           <dl className="grid gap-1 sm:grid-cols-2">
-            <Row label="User id" value={row.userId || "—"} />
-            <Row label="Email" value={row.email || "—"} />
-            <Row label="Role" value={row.role || "—"} />
-            <Row label="Installation id" value={row.installationId || "—"} />
-            <Row label="Effective client installation id" value={row.effectiveId || "—"} />
+            <Row label={i18n.t("chat:ops_user_id_a69608")} value={row.userId || "—"} />
+            <Row label={i18n.t("chat:ops_email_84add5")} value={row.email || "—"} />
+            <Row label={i18n.t("chat:ops_role_c3f104")} value={row.role || "—"} />
+            <Row label={i18n.t("chat:ops_installation_id_dd1fd4")} value={row.installationId || "—"} />
+            <Row label={i18n.t("chat:ops_effective_client_installation_id_c7c9a1")} value={row.effectiveId || "—"} />
           </dl>
           <div>
-            <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">Membership installation</div>
-            <Installations empty="No membership installation is linked." rows={row.installation ? [row.installation] : []} />
+            <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:ops_membership_installation_408e65")}</div>
+            <Installations empty={i18n.t("chat:admin_no_membership_installation")} rows={row.installation ? [row.installation] : []} />
           </div>
         </section>
       ))}
@@ -252,19 +257,23 @@ function Memberships({ rows }: { rows: Membership[] }) {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "GitHub App installation diagnostic failed"
+  if (context.resultError) return i18n.t("chat:admin_github_app_diagnostic_failed")
   const card = parse(context)
   if (!card) return null
-  if (!card.global.registered) return "GitHub App not registered"
-  if (card.action && card.action !== "none") return `Action needed: ${humanize(card.action)}`
-  return `${card.repositories.length} repositor${card.repositories.length === 1 ? "y" : "ies"} checked`
+  if (!card.global.registered) return i18n.t("chat:admin_github_app_not_registered")
+  if (card.action && card.action !== "none") return i18n.t("chat:admin_action_needed", { action: humanize(card.action) })
+  return i18n.t("chat:admin_repository_checked_count", { count: card.repositories.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
   if (context.resultError)
     return (
       <CardShell>
-        <TextPreview maxLines={4} text={redactToolCardText(context.resultBody) || "The diagnostic failed without an error message."} title="Diagnostic error" />
+        <TextPreview
+          maxLines={4}
+          text={redactToolCardText(context.resultBody) || "The diagnostic failed without an error message."}
+          title={i18n.t("chat:ops_diagnostic_error_2b6e0a")}
+        />
       </CardShell>
     )
   const card = parse(context)
@@ -273,16 +282,22 @@ function renderExpanded(context: ToolCardContext) {
   const syncError = [card.sync.errorClass, card.sync.error].filter(Boolean).join(": ")
   return (
     <CardShell>
-      <Row label="Requested repository" value={displayValue(context.input?.repository) ?? "All active repositories"} />
+      <Row
+        label={i18n.t("chat:ops_requested_repository_82c600")}
+        value={displayValue(context.input?.repository) ?? i18n.t("chat:admin_all_active_repositories")}
+      />
       <div>
-        <SectionLabel>GitHub App registration</SectionLabel>
+        <SectionLabel>{i18n.t("chat:ops_github_app_registration_96dbd7")}</SectionLabel>
         <dl className="grid gap-1 sm:grid-cols-2">
-          <Detail label="App id">{presence(card.global.appId)}</Detail>
-          <Detail label="App slug">{presence(card.global.slug)}</Detail>
-          <Detail label="Private key">{presence(card.global.privateKey)}</Detail>
-          <Row label="Registered at" value={card.global.registeredAt ?? "—"} />
-          <Detail label="Registration">
-            <StatePill state={card.global.registered ? "registered" : "not registered"} tone={card.global.registered ? "success" : "failure"} />
+          <Detail label={i18n.t("chat:ops_app_id_a33c8f")}>{presence(card.global.appId)}</Detail>
+          <Detail label={i18n.t("chat:ops_app_slug_72e00c")}>{presence(card.global.slug)}</Detail>
+          <Detail label={i18n.t("chat:ops_private_key_7b1acb")}>{presence(card.global.privateKey)}</Detail>
+          <Row label={i18n.t("chat:ops_registered_at_c17300")} value={card.global.registeredAt ?? "—"} />
+          <Detail label={i18n.t("chat:ops_registration_b233e7")}>
+            <StatePill
+              state={card.global.registered ? "registered" : i18n.t("chat:ops_not_registered_b2115c")}
+              tone={card.global.registered ? "success" : "failure"}
+            />
           </Detail>
           <Detail label="JWT">
             <StatePill state={card.global.jwtUsable ? "usable" : "unusable"} tone={card.global.jwtUsable ? "success" : "failure"} />
@@ -290,53 +305,56 @@ function renderExpanded(context: ToolCardContext) {
         </dl>
         {jwtError ? (
           <div className="mt-2">
-            <TextPreview maxLines={3} text={redactToolCardText(jwtError)} title="JWT error" />
+            <TextPreview maxLines={3} text={redactToolCardText(jwtError)} title={i18n.t("chat:ops_jwt_error_5788d3")} />
           </div>
         ) : null}
       </div>
       <div>
-        <SectionLabel>Latest installation sync</SectionLabel>
+        <SectionLabel>{i18n.t("chat:ops_latest_installation_sync_5a1693")}</SectionLabel>
         <dl className="grid gap-1 sm:grid-cols-2">
-          <Row label="Last attempted" value={card.sync.attemptedAt ?? "—"} />
-          <Row label="Last successful" value={card.sync.successfulAt ?? "—"} />
-          <Row label="Duration (ms)" value={card.sync.durationMs ?? "—"} />
-          <Row label="Records seen" value={card.sync.recordsSeen ?? "—"} />
+          <Row label={i18n.t("chat:ops_last_attempted_f7be21")} value={card.sync.attemptedAt ?? "—"} />
+          <Row label={i18n.t("chat:ops_last_successful_241c13")} value={card.sync.successfulAt ?? "—"} />
+          <Row label={i18n.t("chat:ops_duration_ms_d92acc")} value={card.sync.durationMs ?? "—"} />
+          <Row label={i18n.t("chat:ops_records_seen_1be0b6")} value={card.sync.recordsSeen ?? "—"} />
         </dl>
         {syncError ? (
           <div className="mt-2">
-            <TextPreview maxLines={3} text={redactToolCardText(syncError)} title="Sync error" />
+            <TextPreview maxLines={3} text={redactToolCardText(syncError)} title={i18n.t("chat:ops_sync_error_86778b")} />
           </div>
         ) : null}
       </div>
       <div>
-        <SectionLabel>Recommended next action</SectionLabel>
+        <SectionLabel>{i18n.t("chat:ops_recommended_next_action_ec237d")}</SectionLabel>
         <Action value={card.action} />
       </div>
       <div>
-        <SectionLabel>Installations ({card.installations.length})</SectionLabel>
-        <Installations empty="No installations found." rows={card.installations} />
+        <SectionLabel>{i18n.t("chat:admin_installation_count", { count: card.installations.length })}</SectionLabel>
+        <Installations empty={i18n.t("chat:admin_no_installations_found")} rows={card.installations} />
       </div>
       <div className="space-y-2">
-        <SectionLabel>Repositories ({card.repositories.length})</SectionLabel>
+        <SectionLabel>{i18n.t("chat:admin_repository_count", { count: card.repositories.length })}</SectionLabel>
         {card.repositories.length === 0 ? (
-          <EmptyState>No repositories in scope.</EmptyState>
+          <EmptyState>{i18n.t("chat:ops_no_repositories_in_scope_cadb91")}</EmptyState>
         ) : (
           card.repositories.map((repo) => (
             <section className="min-w-0 space-y-2 rounded-[var(--radius-panel)] border border-border bg-surface p-2" key={repo.key}>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <EntityReference kind="repository" repositoryId={repo.id} repositorySlug={repo.slug} />
-                <StatePill state={repo.active ? "app credential active" : "app credential inactive"} tone={repo.active ? "success" : "warning"} />
+                <StatePill
+                  state={repo.active ? i18n.t("chat:ops_app_credential_active_03abf8") : i18n.t("chat:ops_app_credential_inactive_0098d4")}
+                  tone={repo.active ? "success" : "warning"}
+                />
                 {repo.credentialMode ? <Badge>{repo.credentialMode}</Badge> : null}
               </div>
               <dl className="grid gap-1 sm:grid-cols-2">
-                <Row label="Record id" value={repo.id ?? "—"} />
-                <Row label="Owner" value={repo.owner ?? "—"} />
-                <Row label="Name" value={repo.name ?? "—"} />
-                <Row label="GitHub owner id" value={repo.githubOwnerId ?? "—"} />
-                <Row label="GitHub repository id" value={repo.githubRepositoryId ?? "—"} />
-                <Row label="Installation id" value={repo.installationId ?? "—"} />
-                <Detail label="Inactive reason">{humanize(repo.inactiveReason)}</Detail>
-                <Detail label="Install URL unavailable reason">{humanize(repo.installUrlMissingReason)}</Detail>
+                <Row label={i18n.t("chat:admin_column_record_id")} value={repo.id ?? "—"} />
+                <Row label={i18n.t("chat:ops_owner_89ff31")} value={repo.owner ?? "—"} />
+                <Row label={i18n.t("chat:ops_name_709a23")} value={repo.name ?? "—"} />
+                <Row label={i18n.t("chat:ops_github_owner_id_574517")} value={repo.githubOwnerId ?? "—"} />
+                <Row label={i18n.t("chat:ops_github_repository_id_75d867")} value={repo.githubRepositoryId ?? "—"} />
+                <Row label={i18n.t("chat:ops_installation_id_dd1fd4")} value={repo.installationId ?? "—"} />
+                <Detail label={i18n.t("chat:ops_inactive_reason_1cea3e")}>{humanize(repo.inactiveReason)}</Detail>
+                <Detail label={i18n.t("chat:ops_install_url_unavailable_reason_f5faee")}>{humanize(repo.installUrlMissingReason)}</Detail>
               </dl>
               {repo.installUrl ? (
                 <a
@@ -349,15 +367,17 @@ function renderExpanded(context: ToolCardContext) {
                 </a>
               ) : null}
               <div>
-                <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">Repository installation</div>
-                <Installations empty="No repository installation is linked." rows={repo.installation ? [repo.installation] : []} />
+                <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:ops_repository_installation_1eb5fd")}</div>
+                <Installations empty={i18n.t("chat:admin_no_repository_installation")} rows={repo.installation ? [repo.installation] : []} />
               </div>
               <div>
-                <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">Membership installations ({repo.memberships.length})</div>
+                <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">
+                  {i18n.t("chat:admin_membership_installation_count", { count: repo.memberships.length })}
+                </div>
                 <Memberships rows={repo.memberships} />
               </div>
               <div>
-                <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">Repository next action</div>
+                <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:ops_repository_next_action_cb6ef5")}</div>
                 <Action value={repo.action} />
               </div>
             </section>

@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { Badge, EmptyState } from "../toolCardUi"
 
 type StatusRow = {
@@ -11,19 +12,13 @@ type StatusRow = {
   untracked: boolean
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  M: "modified",
-  T: "type changed",
-  A: "added",
-  D: "deleted",
-  R: "renamed",
-  C: "copied"
-}
+const STATUS_LABEL_KEYS: Record<string, string> = { M: "modified", T: "type_changed", A: "added", D: "deleted", R: "renamed", C: "copied" }
 
 const CONFLICT_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"])
 
 function statusLabel(code: string): string | null {
-  return STATUS_LABELS[code] ?? (code === " " ? null : "unknown")
+  const key = STATUS_LABEL_KEYS[code]
+  return key ? i18n.t(`chat:tool_card_git_status_${key}`) : code === " " ? null : i18n.t("chat:unknown")
 }
 
 function splitRenamePath(path: string): { path: string; oldPath: string | null } {
@@ -71,41 +66,41 @@ function errorText(context: ToolCardContext): string | null {
       if (typeof value === "string" && value.trim()) return value.trim()
     }
   }
-  return context.resultBody.trim() || "The local Git service did not return an error message."
+  return context.resultBody.trim() || i18n.t("chat:tool_card_git_status_error_detail")
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const error = errorText(context)
-  if (error) return `Git status unavailable: ${error}`
+  if (error) return i18n.t("chat:tool_card_git_status_error", { error })
   const status = parseStatus(context)
-  if (status == null) return context.parsedResult == null && !context.resultBody.trim() ? "No git status returned" : null
+  if (status == null) return context.parsedResult == null && !context.resultBody.trim() ? i18n.t("chat:tool_card_git_status_missing_summary") : null
   const rows = statusRows(status)
-  return rows.length === 0 ? "Working tree clean" : `${rows.length} changed file${rows.length === 1 ? "" : "s"}`
+  return rows.length === 0 ? i18n.t("chat:tool_card_git_status_clean_summary") : i18n.t("chat:tool_card_git_status_changed_count", { count: rows.length })
 }
 
 function StatusBadges({ row }: { row: StatusRow }) {
-  if (row.untracked) return <Badge>untracked</Badge>
-  if (row.conflict) return <Badge>conflict {row.code}</Badge>
+  if (row.untracked) return <Badge>{i18n.t("chat:tool_card_git_status_untracked")}</Badge>
+  if (row.conflict) return <Badge>{i18n.t("chat:tool_card_git_status_conflict", { code: row.code })}</Badge>
 
   return (
     <>
-      {row.staged ? <Badge>staged: {row.staged}</Badge> : null}
-      {row.unstaged ? <Badge>unstaged: {row.unstaged}</Badge> : null}
+      {row.staged ? <Badge>{i18n.t("chat:tool_card_git_status_staged", { state: row.staged })}</Badge> : null}
+      {row.unstaged ? <Badge>{i18n.t("chat:tool_card_git_status_unstaged", { state: row.unstaged })}</Badge> : null}
     </>
   )
 }
 
 function renderExpanded(context: ToolCardContext) {
   const error = errorText(context)
-  if (error) return <EmptyState>Git status unavailable: {error}</EmptyState>
+  if (error) return <EmptyState>{i18n.t("chat:tool_card_git_status_error", { error })}</EmptyState>
 
   const status = parseStatus(context)
   if (status == null) {
-    return context.parsedResult == null && !context.resultBody.trim() ? <EmptyState>No git status was returned.</EmptyState> : null
+    return context.parsedResult == null && !context.resultBody.trim() ? <EmptyState>{i18n.t("chat:tool_card_git_status_missing")}</EmptyState> : null
   }
 
   const rows = statusRows(status)
-  if (rows.length === 0) return <EmptyState>Working tree clean.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:tool_card_git_status_clean")}</EmptyState>
 
   return (
     <div className="mt-1 max-h-72 min-w-0 space-y-1 overflow-y-auto overflow-x-hidden rounded border border-gray-200 bg-white px-2 py-1 font-mono text-xs dark:border-gray-800 dark:bg-gray-950">
@@ -118,7 +113,7 @@ function renderExpanded(context: ToolCardContext) {
             {row.oldPath ? (
               <>
                 <span>{row.oldPath}</span>
-                <span aria-label="renamed to" className="px-1 text-text-subtle">
+                <span aria-label={i18n.t("chat:tool_card_git_status_renamed_to")} className="px-1 text-text-subtle">
                   →
                 </span>
               </>
@@ -142,32 +137,32 @@ export default gitStatusToolCard
 export const examples = [
   {
     id: "staged_unstaged_and_untracked",
-    label: "Staged, unstaged, and untracked changes",
+    label: i18n.t("chat:tool_card_git_status_example_changes"),
     parsedResult: {
       status: " M app/frontend/pluginToolCards.tsx\nA  app/frontend/toolPresentationRegistry.ts\n?? app/frontend/newFile.ts\nD  app/frontend/oldFile.ts"
     }
   },
   {
     id: "rename_and_conflict",
-    label: "Rename and merge conflict",
+    label: i18n.t("chat:tool_card_git_status_example_conflict"),
     parsedResult: { status: "R  app/old_name.ts -> app/new_name.ts\nUU app/frontend/conflicted.tsx" }
   },
   {
     id: "clean_tree",
-    label: "Working tree clean",
-    description: "An empty status string means Git found no working-tree changes.",
+    label: i18n.t("chat:tool_card_git_status_clean_summary"),
+    description: i18n.t("chat:tool_card_git_status_example_clean_description"),
     parsedResult: { status: "" }
   },
   {
     id: "daemon_error",
-    label: "Local Git unavailable",
+    label: i18n.t("chat:tool_card_git_status_example_error"),
     resultBody: "Local Mode daemon is not connected",
     resultError: true
   },
   {
     id: "empty_result",
-    label: "Empty result",
-    description: "The call completed without a status payload.",
+    label: i18n.t("chat:tool_card_git_status_example_empty"),
+    description: i18n.t("chat:tool_card_git_status_example_empty_description"),
     resultBody: ""
   }
 ]

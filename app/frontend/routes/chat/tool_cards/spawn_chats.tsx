@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { isPlainObject } from "@app/toolCardParsing"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
@@ -7,10 +8,10 @@ import { Badge, CardShell, displayValue, EmptyState, EntityReference, SectionLab
 
 const PREVIEW_CHARS = 720
 const failureConfig: ToolFailureConfig = {
-  title: "Spawn chats",
-  attempted: (context) => `${Array.isArray(context.input?.chats) ? context.input.chats.length : 0} chats`,
+  title: i18n.t("chat:tool_card_spawn_chats"),
+  attempted: (context) => i18n.t("chat:tool_card_chat_count", { count: Array.isArray(context.input?.chats) ? context.input.chats.length : 0 }),
   retrySafety: "safe",
-  recovery: "Correct the chat prompts, providers, or repositories, then retry."
+  recovery: i18n.t("chat:tool_card_spawn_chats_recovery")
 }
 
 type ChatInput = { prompt: string; provider: string | null; title: string | null; repository: string | null }
@@ -45,14 +46,16 @@ function spawnedChatIds(context: ToolCardContext): string[] {
 }
 
 function ChatList({ chats }: { chats: ChatInput[] }) {
-  if (chats.length === 0) return <EmptyState>No chats supplied.</EmptyState>
+  if (chats.length === 0) return <EmptyState>{i18n.t("chat:tool_card_spawn_chats_none")}</EmptyState>
   return (
     <ol className="min-w-0 space-y-2">
       {chats.map((chat, index) => (
         <li className="min-w-0 rounded-[var(--radius-panel)] border border-border bg-surface p-2" key={index}>
           <div className="mb-1 flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="min-w-0 break-words font-semibold text-text-primary">{chat.title || `Chat ${index + 1}`}</span>
-            <Badge>{chat.provider || "Default provider"}</Badge>
+            <span className="min-w-0 break-words font-semibold text-text-primary">
+              {chat.title || i18n.t("chat:tool_card_chat_number", { count: index + 1 })}
+            </span>
+            <Badge>{chat.provider || i18n.t("chat:tool_card_default_provider")}</Badge>
             {chat.repository ? (
               <Badge>
                 <EntityReference href={`https://github.com/${chat.repository}`} kind="repository" repositorySlug={chat.repository} />
@@ -60,13 +63,13 @@ function ChatList({ chats }: { chats: ChatInput[] }) {
             ) : null}
           </div>
           <MarkdownPreview
-            emptyLabel="No prompt supplied."
+            emptyLabel={i18n.t("chat:tool_card_no_prompt")}
             linkifySlugs
             linkifyUrls
             maxChars={PREVIEW_CHARS}
-            modalLabel={`Chat ${index + 1} prompt`}
+            modalLabel={i18n.t("chat:tool_card_chat_prompt", { count: index + 1 })}
             text={chat.prompt}
-            title="Prompt"
+            title={i18n.t("chat:tool_card_prompt")}
           />
         </li>
       ))}
@@ -82,18 +85,26 @@ function renderExpanded(context: ToolCardContext) {
   const chats = chatsFrom(context)
   const reason = typeof context.input?.reason === "string" ? context.input.reason : ""
   const chatIds = spawnedChatIds(context)
+  const confirmationMessage = chats.length ? i18n.t("chat:tool_card_spawn_chats_confirmation", { count: chats.length }) : undefined
 
   return (
     <div className="min-w-0 space-y-2">
       <CardShell>
         <ChatList chats={chats} />
         <div>
-          <SectionLabel>Reason</SectionLabel>
-          <MarkdownPreview emptyLabel="No reason supplied." linkifySlugs linkifyUrls maxChars={PREVIEW_CHARS} modalLabel="Spawn chats reason" text={reason} />
+          <SectionLabel>{i18n.t("chat:tool_card_reason")}</SectionLabel>
+          <MarkdownPreview
+            emptyLabel={i18n.t("chat:tool_card_no_reason")}
+            linkifySlugs
+            linkifyUrls
+            maxChars={PREVIEW_CHARS}
+            modalLabel={i18n.t("chat:tool_card_spawn_chats_reason")}
+            text={reason}
+          />
         </div>
         {chatIds.length > 0 ? (
           <div>
-            <SectionLabel>Spawned chats</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_spawned_chats")}</SectionLabel>
             <div className="mt-1 flex min-w-0 flex-wrap gap-2">
               {chatIds.map((id) => (
                 <EntityReference id={id} key={id} kind="chat" />
@@ -102,7 +113,7 @@ function renderExpanded(context: ToolCardContext) {
           </div>
         ) : null}
       </CardShell>
-      <PendingActionResultCard result={pending} />
+      <PendingActionResultCard messageOverride={confirmationMessage} result={pending} />
     </div>
   )
 }
@@ -111,7 +122,9 @@ function collapsedSummary(context: ToolCardContext) {
   const failure = errorContext(context)
   if (failure) return toolFailureCollapsedSummary(failure, failureConfig)
   const pending = parsePendingActionResult(context)
-  return pending ? pendingActionCollapsedSummary(pending) : null
+  const count = chatsFrom(context).length
+  const confirmationMessage = count ? i18n.t("chat:tool_card_spawn_chats_confirmation", { count }) : undefined
+  return pending ? pendingActionCollapsedSummary(pending, confirmationMessage) : null
 }
 
 const spawnChatsToolCard: ToolCardRenderer = { toolName: "spawn_chats", collapsedSummary, renderExpanded }
@@ -119,7 +132,7 @@ const spawnChatsToolCard: ToolCardRenderer = { toolName: "spawn_chats", collapse
 export const examples: ToolCardExample[] = [
   {
     id: "pending_parallel_review",
-    label: "Pending spawned chats",
+    label: i18n.t("chat:tool_card_spawn_chats_example_pending"),
     input: { chats: [{ title: "Review", prompt: "Review JOB-42", provider: "codex", repository: "acme/widgets" }], reason: "Parallel review" },
     parsedResult: {
       pending_action_group_id: 9,
@@ -127,7 +140,7 @@ export const examples: ToolCardExample[] = [
       pending_confirmation_id: 10,
       state: "pending",
       member_count: 1,
-      message: "Spawn 1 chat?"
+      message: i18n.t("chat:tool_card_spawn_chats_confirmation", { count: 1 })
     }
   }
 ]

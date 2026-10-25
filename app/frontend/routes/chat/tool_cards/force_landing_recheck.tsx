@@ -2,6 +2,7 @@ import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pl
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { displayValue, EmptyState, EntityReference, Row } from "../toolCardUi"
+import i18n from "@app/i18n"
 
 function requestedJobIds(context: ToolCardContext) {
   const ids = Array.isArray(context.input?.job_ids) ? context.input.job_ids : context.input?.job_id == null ? [] : [context.input.job_id]
@@ -16,7 +17,7 @@ function ForceLandingRecheckDetails({ context, showReason }: { context: ToolCard
   return (
     <>
       <Row
-        label={jobIds.length === 1 ? "Job" : "Jobs"}
+        label={i18n.t("chat:force_landing_recheck.jobs", { count: jobIds.length })}
         value={
           jobIds.length ? (
             <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
@@ -25,12 +26,17 @@ function ForceLandingRecheckDetails({ context, showReason }: { context: ToolCard
               ))}
             </div>
           ) : (
-            <EmptyState>Not provided</EmptyState>
+            <EmptyState>{i18n.t("chat:force_landing_recheck.not_provided")}</EmptyState>
           )
         }
       />
       {showReason && displayValue(context.input?.reason) ? (
-        <MarkdownPreview maxLines={4} modalLabel="Pending action reason" text={displayValue(context.input?.reason)} title="Reason" />
+        <MarkdownPreview
+          maxLines={4}
+          modalLabel={i18n.t("chat:force_landing_recheck.pending_reason")}
+          text={displayValue(context.input?.reason)}
+          title={i18n.t("chat:force_landing_recheck.reason")}
+        />
       ) : null}
     </>
   )
@@ -48,7 +54,7 @@ function renderExpanded(context: ToolCardContext) {
   const result = parsePendingActionResult(context)
   return result ? (
     <PendingActionResultCard
-      detailTitle="Landing recheck outcome"
+      detailTitle={i18n.t("chat:force_landing_recheck.outcome")}
       details={<ForceLandingRecheckDetails context={context} showReason={result.kind === "error"} />}
       omitJob
       result={result}
@@ -69,8 +75,8 @@ const bulkJobIds = [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52]
 export const examples: ToolCardExample[] = [
   {
     id: "bulk_pending",
-    label: "Bulk pending with observed blockers",
-    description: "Long linked Job lists wrap while the live pending action shows each target's observed landing state.",
+    label: i18n.t("chat:force_landing_recheck.example_bulk_pending"),
+    description: i18n.t("chat:force_landing_recheck.example_bulk_pending_description"),
     input: { job_ids: bulkJobIds, reason: "**Recheck** landing metadata after the dependency graph changed." },
     parsedResult: {
       pending_action_group_id: 88,
@@ -93,7 +99,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "bulk_confirmed",
-    label: "Bulk confirmed with refreshed outcome",
+    label: i18n.t("chat:force_landing_recheck.example_bulk_confirmed"),
     input: { job_ids: [41, 42, 43], reason: "Refresh stale landing metadata." },
     parsedResult: {
       pending_action_group_id: 88,
@@ -118,13 +124,13 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error_with_reason",
-    label: "Error retains Markdown reason",
+    label: i18n.t("chat:force_landing_recheck.example_error"),
     input: { job_ids: [41, 404], reason: "**Retry** after validating the missing Job." },
     parsedResult: { error: "invalid_request", message: "One or more Jobs could not be rechecked." }
   },
   {
     id: "missing_input",
-    label: "Missing Job input",
+    label: i18n.t("chat:force_landing_recheck.example_missing_input"),
     parsedResult: { pending_action_id: 501, state: "pending", message: "Force landing recheck for JOB-4222?" }
   }
 ]

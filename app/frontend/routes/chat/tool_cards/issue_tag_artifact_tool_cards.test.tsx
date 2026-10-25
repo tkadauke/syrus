@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { setSlugReferenceRegistryForTests } from "../../../lib/slugReferenceRegistry"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
@@ -107,6 +108,34 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("Missing optional metadata")).toBeInTheDocument()
     expect(container.querySelector("table")?.className).toContain("sm:table")
     expect(container.querySelector('[data-label="Details"]')).toBeInTheDocument()
+  })
+
+  it("localizes issue filters, authors, and accessibility text in German", async () => {
+    const previousLanguage = i18n.language
+    await i18n.changeLanguage("de")
+    try {
+      const parsedResult = {
+        issues: [
+          {
+            number: 12,
+            title: "Klebriger Button",
+            state: "open",
+            author: "octocat",
+            body_excerpt: "Ein Bericht.\n\n![Bild](https://example.test/screenshot.png)"
+          }
+        ]
+      }
+
+      render(<>{listOpenIssuesToolCard.renderExpanded(context("list_open_issues", { input: { state: "open", limit: 1 }, parsedResult }))}</>)
+
+      expect(screen.getByText("Status:").parentElement).toHaveTextContent("Status: offen")
+      expect(screen.getByText("Label:").parentElement).toHaveTextContent("Label: alle")
+      expect(screen.getByText("Limit erreicht; möglicherweise sind weitere Issues verfügbar.")).toBeInTheDocument()
+      expect(screen.getByText("von octocat")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Bild 1 zu Klebriger Button öffnen" })).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage(previousLanguage)
+    }
   })
 
   it("handles issue envelopes, errors, malformed payloads, and rejects array roots", () => {
@@ -468,7 +497,7 @@ describe("issue, tag, and artifact tool cards", () => {
 
     expect(screen.getByRole("img", { name: "Mobile view" })).toHaveAttribute("src", "/media/mobile.png")
     fireEvent.click(screen.getByRole("button", { name: "Open Mobile view" }))
-    expect(screen.getByRole("dialog", { name: "media preview" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: /media preview/i })).toBeInTheDocument()
   })
 
   it("renders pending, empty, and error artifact states", () => {

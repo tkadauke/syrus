@@ -1,11 +1,12 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { CreateCodingJobOutcomeCard, createCodingJobRequest, localModeJobOutcomeModel, localModeJobOutcomeSummary } from "../localModeJobOutcomeCard"
+import i18n from "@app/i18n"
 
 // Local Mode tool card for create_coding_job (the tool-card work). See
 // open_in_local_mode.tsx for the shared family this belongs to.
 function collapsedSummary(context: ToolCardContext) {
   const model = localModeJobOutcomeModel(context)
-  if (model.error) return "Coding job creation failed"
+  if (model.error) return i18n.t("chat:mutation_coding_job_creation_failed")
   return model.result ? localModeJobOutcomeSummary(model.result) : createCodingJobRequest(context).title
 }
 
@@ -16,7 +17,9 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "created",
-    label: "Coding job created",
+    get label() {
+      return i18n.t("chat:mutation_example_coding_job_created")
+    },
     input: {
       title: "Improve repository search",
       body: `Add **ranked results** and preserve the selected filters.\n\n${"Include keyboard and mobile coverage. ".repeat(30)}`,
@@ -31,7 +34,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "error",
-    label: "Coding job creation failed",
+    get label() {
+      return i18n.t("chat:mutation_coding_job_creation_failed")
+    },
     input: { title: "Improve repository search", body: "Add **ranked results**.", repository_id: 12 },
     resultBody: "Repository is not available for coding jobs.",
     resultError: true

@@ -4,6 +4,7 @@ import { useCopyToClipboard } from "../../../hooks/useCopyToClipboard"
 import { redactToolCardText } from "../../../toolCardSecurity"
 import { CardShell, Disclosure, displayValue, Row } from "../toolCardUi"
 import { TextPreview } from "../toolCardMarkdown"
+import i18n from "@app/i18n"
 
 // Local Mode tool card for run_command (the tool-card work). A non-zero
 // exit code or `killed` is a normal successful tool call (the command ran,
@@ -25,24 +26,34 @@ function parseResult(context: ToolCardContext): RunCommandResult | null {
 function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
-  if (result.kind === "error") return `Command error: ${redactToolCardText(result.error)}`
-  if (result.killed) return "Command killed"
-  return result.exitCode === 0 ? "Command succeeded (exit 0)" : `Command failed (exit ${result.exitCode})`
+  if (result.kind === "error") return i18n.t("chat:run_command.summary_error", { error: redactToolCardText(result.error) })
+  if (result.killed) return i18n.t("chat:run_command.summary_killed")
+  return result.exitCode === 0 ? i18n.t("chat:run_command.summary_succeeded") : i18n.t("chat:run_command.summary_failed", { exitCode: result.exitCode })
 }
 
 function ExitCodeBadge({ result }: { result: RunCommandResult }) {
   if (result.kind === "error") {
-    return <span className="rounded-full bg-red-100 px-2 py-0.5 text-2xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-200">error</span>
+    return (
+      <span className="rounded-full bg-red-100 px-2 py-0.5 text-2xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-200">
+        {i18n.t("chat:run_command.status_error")}
+      </span>
+    )
   }
   if (result.killed) {
-    return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">killed</span>
+    return (
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        {i18n.t("chat:run_command.status_killed")}
+      </span>
+    )
   }
 
   const tone =
     result.exitCode === 0
       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
       : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200"
-  return <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${tone}`}>exit {result.exitCode}</span>
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${tone}`}>{i18n.t("chat:run_command.status_exit", { exitCode: result.exitCode })}</span>
+  )
 }
 
 function OutputSection({ defaultOpen = false, label, output }: { defaultOpen?: boolean; label: string; output: string }) {
@@ -60,14 +71,14 @@ function CommandBlock({ command }: { command: string }) {
 
   return (
     <div className="min-w-0">
-      <div className="text-2xs font-semibold uppercase text-text-muted">Command</div>
+      <div className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:run_command.command")}</div>
       <div className="flex min-w-0 items-start gap-1">
         <pre className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]">{safeCommand}</pre>
         <button
-          aria-label="Copy command"
+          aria-label={i18n.t("chat:run_command.copy_command")}
           className="shrink-0 rounded p-1 text-text-subtle hover:bg-surface-raised hover:text-text-primary"
           onClick={() => copy(safeCommand)}
-          title={copied ? "Copied" : "Copy command"}
+          title={copied ? i18n.t("chat:run_command.copied") : i18n.t("chat:run_command.copy_command")}
           type="button"
         >
           <CopyIcon className="h-3.5 w-3.5" />
@@ -93,8 +104,8 @@ function renderExpanded(context: ToolCardContext) {
       {command ? <CommandBlock command={command} /> : null}
       {cwd || timeout ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {cwd ? <Row label="Working directory" value={redactToolCardText(cwd)} /> : null}
-          {timeout ? <Row label="Timeout (ms)" value={timeout} /> : null}
+          {cwd ? <Row label={i18n.t("chat:run_command.working_directory")} value={redactToolCardText(cwd)} /> : null}
+          {timeout ? <Row label={i18n.t("chat:run_command.timeout_ms")} value={timeout} /> : null}
         </dl>
       ) : null}
       {result.kind === "error" ? (
@@ -105,7 +116,7 @@ function renderExpanded(context: ToolCardContext) {
         <>
           <OutputSection label="stdout" output={result.stdout} />
           <OutputSection defaultOpen={result.exitCode !== 0 && Boolean(result.stderr)} label="stderr" output={result.stderr} />
-          {!result.stdout && !result.stderr ? <div className="text-text-muted">No output.</div> : null}
+          {!result.stdout && !result.stderr ? <div className="text-text-muted">{i18n.t("chat:run_command.no_output")}</div> : null}
         </>
       )}
     </CardShell>

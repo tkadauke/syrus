@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, decimalCost, displayValue, EmptyState, EntityReference, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
@@ -45,10 +46,10 @@ function runRows(context: ToolCardContext): RunRow[] | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "Run listing failed"
+  if (context.resultError) return i18n.t("chat:admin_run_listing_failed")
   const rows = runRows(context)
   if (!rows) return null
-  return `${rows.length} Run${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:admin_run_count", { count: rows.length })
 }
 
 function AppliedFilters({ input }: { input?: Record<string, unknown> }) {
@@ -81,7 +82,7 @@ function renderExpanded(context: ToolCardContext) {
       <CardShell>
         <AppliedFilters input={context.input} />
         <div className="rounded border border-danger-border bg-danger-surface px-2 py-1 text-danger-text" role="alert">
-          {displayValue(context.resultBody) ?? "Unable to list Runs."}
+          {displayValue(context.resultBody) ?? i18n.t("chat:admin_unable_to_list_runs")}
         </div>
       </CardShell>
     )
@@ -94,10 +95,10 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <AppliedFilters input={context.input} />
       {rows.length === 0 ? (
-        <EmptyState>No Runs found.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_runs_found_62fb5f")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["Run", "Job", "Workflow", "State", "Trigger", "Started", "Finished", "Cost"]} />
+          <THead columns={["run", "job", "workflow", "state", "trigger", "started", "finished", "cost"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
           <TBody>
             {rows.map((row) => (
               <tr key={row.key}>

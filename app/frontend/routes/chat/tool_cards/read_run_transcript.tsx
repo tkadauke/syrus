@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { redactToolCardText } from "@app/toolCardSecurity"
 import { MarkdownPreview, TextPreview } from "../toolCardMarkdown"
 import {
@@ -12,7 +13,8 @@ import {
   numberValue,
   Row,
   SectionLabel,
-  StatePill
+  StatePill,
+  toolCardStateLabel
 } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
@@ -90,7 +92,7 @@ function parseTranscript(context: ToolCardContext): RunTranscriptCard | null {
 function collapsedSummary(context: ToolCardContext) {
   const run = parseTranscript(context)
   if (!run) return null
-  return `RUN-${run.runId} (${run.runState})`
+  return `RUN-${run.runId} (${toolCardStateLabel(run.runState)})`
 }
 
 function isFailureState(state: string) {
@@ -118,28 +120,28 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       {isFailureState(run.runState) ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          This Run did not finish successfully.
+          {i18n.t("chat:tool_card_run_unsuccessful")}
         </div>
       ) : null}
       {run.error ? (
         <div className="break-words rounded border border-danger-border bg-danger-surface px-2 py-1 text-danger-text [overflow-wrap:anywhere]">{run.error}</div>
       ) : null}
-      {run.agentSummary ? <MarkdownPreview maxChars={2_000} text={run.agentSummary} title="Agent summary" /> : null}
+      {run.agentSummary ? <MarkdownPreview maxChars={2_000} text={run.agentSummary} title={i18n.t("chat:tool_card_agent_summary")} /> : null}
       {run.totalChunks != null || run.page != null || run.per != null ? (
         <dl className="grid gap-1 sm:grid-cols-3">
-          {run.totalChunks != null ? <Row label="Chunks" value={String(run.totalChunks)} /> : null}
-          {run.page != null ? <Row label="Page" value={pageLabel(run.page, run.totalPages)} /> : null}
-          {run.per != null ? <Row label="Per page" value={String(run.per)} /> : null}
+          {run.totalChunks != null ? <Row label={i18n.t("chat:tool_card_chunks")} value={String(run.totalChunks)} /> : null}
+          {run.page != null ? <Row label={i18n.t("chat:tool_card_page")} value={pageLabel(run.page, run.totalPages)} /> : null}
+          {run.per != null ? <Row label={i18n.t("chat:tool_card_per_page")} value={String(run.per)} /> : null}
         </dl>
       ) : null}
       {run.chunks.length > 0 ? (
-        <Disclosure label={`Transcript preview (${run.chunks.length})`}>
-          <SectionLabel>Transcript preview</SectionLabel>
+        <Disclosure label={i18n.t("chat:tool_card_transcript_preview_count", { count: run.chunks.length })}>
+          <SectionLabel>{i18n.t("chat:tool_card_transcript_preview")}</SectionLabel>
           <div className="mt-1">
             <FilterableList
               itemText={(chunk) => [chunk.sequence, chunk.kind, chunk.text].filter(Boolean).join(" ")}
               items={run.chunks}
-              placeholder="Filter transcript chunks"
+              placeholder={i18n.t("chat:tool_card_filter_transcript")}
             >
               {(chunks) => (
                 <ul className="max-h-72 space-y-1 overflow-auto rounded border border-gray-200 bg-white p-2 font-mono text-2xs dark:border-gray-800 dark:bg-gray-950">
@@ -149,7 +151,11 @@ function renderExpanded(context: ToolCardContext) {
                         {chunk.sequence != null ? <span>#{chunk.sequence}</span> : null}
                         {chunk.kind ? <Badge>{chunk.kind}</Badge> : null}
                       </div>
-                      <TextPreview maxChars={CHUNK_PREVIEW_CHARS} modalLabel={`Transcript chunk ${chunk.sequence ?? chunk.key}`} text={chunk.text} />
+                      <TextPreview
+                        maxChars={CHUNK_PREVIEW_CHARS}
+                        modalLabel={i18n.t("chat:tool_card_transcript_chunk", { sequence: chunk.sequence ?? chunk.key })}
+                        text={chunk.text}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -158,25 +164,25 @@ function renderExpanded(context: ToolCardContext) {
           </div>
         </Disclosure>
       ) : (
-        <EmptyState>{run.totalChunks === 0 ? "This Run has no transcript chunks." : "No transcript chunks were returned for this page."}</EmptyState>
+        <EmptyState>{run.totalChunks === 0 ? i18n.t("chat:tool_card_no_transcript_chunks") : i18n.t("chat:tool_card_no_transcript_page")}</EmptyState>
       )}
       {run.page != null && (hasPreviousPage || hasNextPage) ? (
-        <nav aria-label="Transcript pages" className="flex flex-wrap gap-2">
+        <nav aria-label={i18n.t("chat:tool_card_transcript_pages")} className="flex flex-wrap gap-2">
           {hasPreviousPage ? (
             <a className={PAGE_LINK_CLASS} href={`/admin/runs/${run.runId}/transcript?page=${run.page - 1}${run.per != null ? `&per=${run.per}` : ""}`}>
-              Previous page
+              {i18n.t("chat:tool_card_previous_page")}
             </a>
           ) : null}
           {hasNextPage ? (
             <a className={PAGE_LINK_CLASS} href={`/admin/runs/${run.runId}/transcript?page=${run.page + 1}${run.per != null ? `&per=${run.per}` : ""}`}>
-              Next page
+              {i18n.t("chat:tool_card_next_page")}
             </a>
           ) : null}
         </nav>
       ) : null}
       {run.agentDiff ? (
         <div>
-          <SectionLabel>Diff</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_diff")}</SectionLabel>
           <div className="mt-1 space-y-1">
             {stats ? <DiffStatBadges stats={stats} /> : null}
             <RawDiffPreview diff={run.agentDiff} />
@@ -198,7 +204,7 @@ export default readRunTranscriptToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "completed_with_markdown_and_diff",
-    label: "Completed Run with transcript",
+    label: i18n.t("chat:tool_card_transcript_example_completed"),
     input: { run_id: 42, page: 1, per: 2 },
     parsedResult: {
       run_id: 42,
@@ -215,13 +221,13 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "empty_page",
-    label: "Empty transcript page",
+    label: i18n.t("chat:tool_card_transcript_example_empty"),
     input: { run_id: 43, page: 2, per: 50 },
     parsedResult: { run_id: 43, run_state: "running", total_chunks: 1, page: 2, per: 50, total_pages: 1, chunks: [] }
   },
   {
     id: "failed_run",
-    label: "Failed Run",
+    label: i18n.t("chat:tool_card_transcript_example_failed"),
     parsedResult: {
       run_id: 44,
       run_state: "failed",
@@ -235,7 +241,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "long_chunk",
-    label: "Long transcript chunk",
+    label: i18n.t("chat:tool_card_transcript_example_long"),
     input: { run_id: 45, page: 1, per: 50 },
     parsedResult: {
       run_id: 45,

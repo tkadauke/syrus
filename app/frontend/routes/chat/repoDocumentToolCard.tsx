@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../i18n"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { parsePendingActionResult, pendingActionCollapsedSummary, type PendingActionResult } from "./pendingActionToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
@@ -330,14 +331,16 @@ function actionNoun(action: "create" | "delete") {
 }
 
 export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
-  const documentLabel = result.title || (result.documentId ? `Document #${result.documentId}` : null)
+  const documentLabel = result.title || (result.documentId ? i18n.t("chat:document_number", { id: result.documentId }) : null)
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={result.pending.kind === "dry_run_evidence" ? "dry_run" : result.pending.state} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{actionNoun(result.action)}</span>
-        {result.pending.kind === "standard" || result.pending.kind === "bulk" ? <Badge>pending action #{result.pending.pendingActionId}</Badge> : null}
+        {result.pending.kind === "standard" || result.pending.kind === "bulk" ? (
+          <Badge>{i18n.t("chat:pending_action_number", { id: result.pending.pendingActionId })}</Badge>
+        ) : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {result.title ? <Row label="Title" value={result.title} /> : null}
@@ -354,7 +357,7 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
             <SectionLabel>Repository</SectionLabel>
             <EntityReference
               kind="repository"
-              label={result.repositorySlug || `Repository #${result.repositoryId}`}
+              label={result.repositorySlug || i18n.t("chat:repository_number", { id: result.repositoryId })}
               repositoryId={result.repositoryId}
               repositorySlug={result.repositorySlug}
               slug={result.repositorySlug}

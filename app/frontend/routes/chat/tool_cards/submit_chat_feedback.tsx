@@ -1,6 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { JobRefLink } from "../adminToolCard"
 import { Badge, CardShell, displayValue, SectionLabel, StatePill } from "../toolCardUi"
+import i18n from "@app/i18n"
 
 // Core-owned tool card for submit_chat_feedback. The tool result only
 // carries the pending-action confirmation shape (pending_action_id, state,
@@ -58,7 +59,19 @@ function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
 
-  return result.message || `Chat feedback ${result.queued ? "queued" : "pending confirmation"}${result.jobId ? ` for JOB-${result.jobId}` : ""}`
+  return (
+    result.message ||
+    i18n.t(
+      result.queued
+        ? result.jobId
+          ? "chat:mutation_chat_feedback_queued_job"
+          : "chat:mutation_chat_feedback_queued"
+        : result.jobId
+          ? "chat:mutation_chat_feedback_pending_job"
+          : "chat:mutation_chat_feedback_pending",
+      { job: result.jobId ? `JOB-${result.jobId}` : "" }
+    )
+  )
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -75,16 +88,16 @@ function renderExpanded(context: ToolCardContext) {
       {result.message ? <div className="text-gray-700 dark:text-gray-300">{result.message}</div> : null}
       {isUnresolved(result.state) ? (
         <div className="text-gray-500 dark:text-gray-400">
-          {result.queued
-            ? "Queued until the job becomes actionable; a chat_feedback workflow starts once it is confirmed."
-            : "Confirming this will start a new chat_feedback workflow."}
+          {result.queued ? i18n.t("chat:mutation_feedback_queued_explanation") : i18n.t("chat:mutation_feedback_confirmation_explanation")}
         </div>
       ) : null}
       {result.media.length > 0 ? (
         <div>
-          <SectionLabel>Media</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_media")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {result.media.map((ref) => <Badge key={ref}>{ref}</Badge>)}
+            {result.media.map((ref) => (
+              <Badge key={ref}>{ref}</Badge>
+            ))}
           </div>
         </div>
       ) : null}

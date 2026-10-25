@@ -30,7 +30,7 @@ describe("propose_epic tool card", () => {
     render(<>{proposeEpicToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("link", { name: "EPIC-292" })).toHaveAttribute("href", "/epics/292")
-    expect(screen.getByText("Child Jobs (1)")).toBeInTheDocument()
+    expect(screen.getByText("1 Child Job")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
     expect(screen.getByText("Add core cards")).toBeInTheDocument()
   })

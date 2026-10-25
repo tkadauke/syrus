@@ -8,6 +8,7 @@
 import type { ChatCrossChatBridge, ChatMcpHealth, ChatMessageItem, ChatStructuredTool, ChatSystemMessage } from "../../api/chats"
 import { batchedNoticeContents, contentRecord, formatCurrency, humanize, stringArray, stringValue } from "./utils"
 import { fullResultBodyUnbounded, toolPresentation, toolResultPresentation } from "./toolRendering"
+import i18n from "../../i18n"
 
 export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
   const content = contentRecord(message.content)
@@ -66,22 +67,22 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   if (toolsInit) return systemMcpToolsInitMessage(toolsInit[1])
 
   const codexError = text.match(/^\[codex error\]\s+(.+)$/)
-  if (codexError) return { tone: "error", label: "Error", body: codexError[1] }
+  if (codexError) return { tone: "error", label: i18n.t("chat:system.error"), body: codexError[1] }
 
   if (text.startsWith("Claude API error:")) {
-    return { tone: "error", label: "Claude API", body: text }
+    return { tone: "error", label: i18n.t("chat:system.claude_api"), body: text }
   }
 
   if (text.startsWith("Claude authentication failed.")) {
     return {
       tone: "error",
-      label: "Claude auth",
+      label: i18n.t("chat:system.claude_auth"),
       body: text,
-      cta: { label: "Open Credentials", path: "/credentials" }
+      cta: { label: i18n.t("chat:system.open_credentials"), path: "/credentials" }
     }
   }
 
-  return { tone: "neutral", label: "System", body: text }
+  return { tone: "neutral", label: i18n.t("chat:system.system"), body: text }
 }
 
 // The outbound (sender-side) and hop-limit closure-notice system messages
@@ -92,12 +93,12 @@ export function crossChatBridgeSystemMessage(message: ChatMessageItem, text: str
   if (!bridge || bridge.direction === "inbound") return null
 
   if (bridge.direction === "closed") {
-    return { tone: "warning", label: "Cross-chat", body: text, body_format: "markdown" }
+    return { tone: "warning", label: i18n.t("chat:system.cross_chat"), body: text, body_format: "markdown" }
   }
 
   return {
     tone: "neutral",
-    label: "Cross-chat",
+    label: i18n.t("chat:system.cross_chat"),
     body: text,
     body_format: "markdown",
     cta: { label: crossChatBridgeLinkLabel(bridge), path: `/chats/${bridge.counterpart_chat_session_id}` }
@@ -108,14 +109,14 @@ export function wakeupAutomationFromContent(content: unknown, text: string): Cha
   const record = contentRecord(content)
   if (record?.requested_by !== "wakeup") return null
 
-  return { tone: "neutral", label: "Automation", body: text || stringValue(record.text) || "Scheduled wakeup fired." }
+  return { tone: "neutral", label: i18n.t("chat:system.automation"), body: text || stringValue(record.text) || i18n.t("chat:system.wakeup_fired") }
 }
 
 export function chatTurnRetryFromContent(content: unknown, text: string): ChatSystemMessage | null {
   const record = contentRecord(content)
   if (record?.source !== "chat_turn_retry") return null
 
-  return { tone: "neutral", label: "Retry", body: text || stringValue(record.text) || "Retrying the previous assistant turn now." }
+  return { tone: "neutral", label: i18n.t("chat:system.retry"), body: text || stringValue(record.text) || i18n.t("chat:system.retrying_turn") }
 }
 
 // Mirrors the inbound badge's i18n `cross_chat_bridge_link` fallback
@@ -123,7 +124,7 @@ export function chatTurnRetryFromContent(content: unknown, text: string): ChatSy
 // untitled counterpart chat renders the same "New chat" label on both sides
 // of the bridge instead of silently dropping the title segment here.
 export function crossChatBridgeLinkLabel(bridge: ChatCrossChatBridge) {
-  return `via Chat #${bridge.counterpart_chat_session_id}: ${bridge.counterpart_chat_title || "New chat"}`
+  return i18n.t("chat:system.via_chat", { id: bridge.counterpart_chat_session_id, title: bridge.counterpart_chat_title || i18n.t("chat:new_title") })
 }
 
 export function goalContinuationFromContent(content: unknown, text: string): ChatSystemMessage | null {
@@ -136,7 +137,7 @@ export function goalContinuationFromContent(content: unknown, text: string): Cha
     .filter(Boolean)
     .join("\n\n")
 
-  return { tone: "neutral", label: "Goal", body: body || text || "Goal continuation started." }
+  return { tone: "neutral", label: i18n.t("chat:system.goal"), body: body || text || i18n.t("chat:system.goal_continuation_started") }
 }
 
 function goalContinuationContent(content: Record<string, unknown> | null) {
@@ -158,16 +159,16 @@ export function providerErrorFromContent(content: unknown): ChatSystemMessage | 
   if (kind === "provider_usage_limit") {
     return {
       tone: "warning",
-      label: "Usage limit",
-      body: `Syrus halted work for ${scope}: usage limit or quota exhausted. ${detail}`,
+      label: i18n.t("chat:system.usage_limit"),
+      body: i18n.t("chat:system.usage_limit_body", { scope, detail }),
       prominent: true
     }
   }
 
   return {
     tone: "error",
-    label: halted ? "Provider halted" : "Agent error",
-    body: detail || "Agent turn failed.",
+    label: halted ? i18n.t("chat:system.provider_halted") : i18n.t("chat:system.agent_error"),
+    body: detail || i18n.t("chat:system.agent_turn_failed"),
     prominent: true
   }
 }
@@ -176,7 +177,7 @@ export function skillInvocationFromContent(content: unknown, text: string): Chat
   const record = contentRecord(contentRecord(content)?.skill_invocation)
   if (!record) return null
 
-  return { tone: "warning", label: "Skill", body: text }
+  return { tone: "warning", label: i18n.t("chat:system.skill"), body: text }
 }
 
 export function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessage | null {
@@ -185,8 +186,8 @@ export function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessag
   if (unavailable.length > 0) {
     return {
       tone: "warning",
-      label: "MCP unavailable",
-      body: `MCP unavailable: ${serverStatusList(unavailable)}. Tools unavailable: ${toolSummary(unavailable, "unavailable_tools")}. Retry the turn or check the chat sidecar logs before asking the agent to persist proposals, schedules, bookmarks, or whiteboard edits.`
+      label: i18n.t("chat:system.mcp_unavailable"),
+      body: i18n.t("chat:system.mcp_unavailable_body", { servers: serverStatusList(unavailable), tools: toolSummary(unavailable, "unavailable_tools") })
     }
   }
 
@@ -199,76 +200,102 @@ export function serverStatusList(servers: ChatMcpHealth[]) {
 
 export function toolSummary(servers: ChatMcpHealth[], key: "available_tools" | "pending_tools" | "unavailable_tools") {
   const names = Array.from(new Set(servers.flatMap((server) => server[key] || [])))
-  if (names.length === 0) return "none reported"
+  if (names.length === 0) return i18n.t("chat:system.none_reported")
   if (names.length <= 4) return names.join(", ")
 
-  return `${names.slice(0, 4).join(", ")} +${names.length - 4} more`
+  return i18n.t("chat:system.more_tools", { names: names.slice(0, 4).join(", "), count: names.length - 4 })
 }
 
 export function mcpHealthFromContent(content: unknown): ChatMcpHealth[] {
   const raw = contentRecord(content)?.mcp_health
   if (!Array.isArray(raw)) return []
 
-  return raw.map((item) => {
-    const record = contentRecord(item)
-    if (!record) return null
+  return raw
+    .map((item) => {
+      const record = contentRecord(item)
+      if (!record) return null
 
-    return {
-      name: stringValue(record.name),
-      status: stringValue(record.status) || "unknown",
-      available_tools: stringArray(record.available_tools),
-      pending_tools: stringArray(record.pending_tools),
-      unavailable_tools: stringArray(record.unavailable_tools)
-    }
-  }).filter((item): item is ChatMcpHealth => item != null && item.name.length > 0)
+      return {
+        name: stringValue(record.name),
+        status: stringValue(record.status) || "unknown",
+        available_tools: stringArray(record.available_tools),
+        pending_tools: stringArray(record.pending_tools),
+        unavailable_tools: stringArray(record.unavailable_tools)
+      }
+    })
+    .filter((item): item is ChatMcpHealth => item != null && item.name.length > 0)
 }
 
 export function systemResultMessage(fields: Record<string, string>): ChatSystemMessage {
   const error = fields.is_error === "true"
   const subtype = fields.subtype || ""
   const body = [systemResultTitle(error, subtype)]
-  if (fields.turns) body.push(`${Number.parseInt(fields.turns, 10)} ${Number.parseInt(fields.turns, 10) === 1 ? "turn" : "turns"}`)
+  if (fields.turns) body.push(i18n.t("chat:system.turn_count", { count: Number.parseInt(fields.turns, 10) }))
   if (fields.duration_ms) body.push(systemDurationLabel(fields.duration_ms))
   if (fields.total_cost_usd) body.push(formatCurrency(Number.parseFloat(fields.total_cost_usd)))
 
-  return { tone: error ? "error" : "success", label: error ? "Failed" : "Done", body: body.join(" · ") }
+  return { tone: error ? "error" : "success", label: error ? i18n.t("chat:system.failed") : i18n.t("chat:system.done"), body: body.join(" · ") }
 }
 
 export function systemResultTitle(error: boolean, subtype: string) {
-  if (error) return `Agent run failed${subtype && subtype !== "success" ? `: ${humanize(subtype)}` : ""}`
-  if (subtype === "success") return "Agent run succeeded"
+  if (error)
+    return subtype && subtype !== "success"
+      ? i18n.t("chat:system.agent_run_failed_detail", { detail: humanize(subtype) })
+      : i18n.t("chat:system.agent_run_failed")
+  if (subtype === "success") return i18n.t("chat:system.agent_run_succeeded")
 
-  return subtype ? `Agent run finished: ${humanize(subtype)}` : "Agent run finished"
+  return subtype ? i18n.t("chat:system.agent_run_finished_detail", { detail: humanize(subtype) }) : i18n.t("chat:system.agent_run_finished")
 }
 
 export function systemMcpMessage(payload: string): ChatSystemMessage {
-  const servers = payload.split(/\s*,\s*/).map((entry) => {
-    const [name, status] = entry.split("=", 2)
-    return name ? [name, status || "unknown"] : null
-  }).filter((entry): entry is [string, string] => entry != null)
+  const servers = payload
+    .split(/\s*,\s*/)
+    .map((entry) => {
+      const [name, status] = entry.split("=", 2)
+      return name ? [name, status || "unknown"] : null
+    })
+    .filter((entry): entry is [string, string] => entry != null)
   const ready = new Set(["connected", "running", "ready"])
   const transient = new Set(["pending"])
   const pending = servers.filter(([, status]) => transient.has(status))
   const failing = servers.filter(([, status]) => !ready.has(status) && !transient.has(status))
 
-  if (servers.length === 0) return { tone: "neutral", label: "MCP", body: "MCP server status unavailable" }
-  if (failing.length > 0) return { tone: "warning", label: "MCP", body: `MCP issue: ${failing.map(([name, status]) => `${name} ${status}`).join(", ")}` }
-  if (pending.length > 0) return { tone: "neutral", label: "MCP", body: `MCP starting: ${pending.map(([name]) => name).join(", ")}` }
+  if (servers.length === 0) return { tone: "neutral", label: "MCP", body: i18n.t("chat:system.mcp_status_unavailable") }
+  if (failing.length > 0)
+    return {
+      tone: "warning",
+      label: "MCP",
+      body: i18n.t("chat:system.mcp_issue", { servers: failing.map(([name, status]) => `${name} ${status}`).join(", ") })
+    }
+  if (pending.length > 0)
+    return { tone: "neutral", label: "MCP", body: i18n.t("chat:system.mcp_starting", { servers: pending.map(([name]) => name).join(", ") }) }
 
-  return { tone: "success", label: "Connected", body: `MCP connected: ${servers.map(([name]) => name).join(", ")}` }
+  return {
+    tone: "success",
+    label: i18n.t("chat:system.connected"),
+    body: i18n.t("chat:system.mcp_connected", { servers: servers.map(([name]) => name).join(", ") })
+  }
 }
 
 export function systemMcpToolsInitMessage(payload: string): ChatSystemMessage {
   const fields = parseSystemFields(payload)
   const count = Number.parseInt(fields.count || "", 10)
-  const required = payload.match(/(?:^|\s)required=([^\s]*)/)?.[1].split(",").filter(Boolean) || []
-  const pieces = [
-    Number.isFinite(count) ? `${count} MCP tool${count === 1 ? "" : "s"} available` : "MCP tools available"
-  ]
+  const required =
+    payload
+      .match(/(?:^|\s)required=([^\s]*)/)?.[1]
+      .split(",")
+      .filter(Boolean) || []
+  const pieces = [Number.isFinite(count) ? i18n.t("chat:system.mcp_tool_count", { count }) : i18n.t("chat:system.mcp_tools_available")]
 
-  if (required.length > 0) pieces.push(`required: ${required.slice(0, 4).join(", ")}${required.length > 4 ? ` +${required.length - 4} more` : ""}`)
+  if (required.length > 0)
+    pieces.push(
+      i18n.t("chat:system.required_tools", {
+        names: required.slice(0, 4).join(", "),
+        extra: required.length > 4 ? i18n.t("chat:system.more_count", { count: required.length - 4 }) : ""
+      })
+    )
 
-  return { tone: "success", label: "MCP tools", body: pieces.join(" · ") }
+  return { tone: "success", label: i18n.t("chat:system.mcp_tools"), body: pieces.join(" · ") }
 }
 
 export function parseSystemFields(payload: string) {

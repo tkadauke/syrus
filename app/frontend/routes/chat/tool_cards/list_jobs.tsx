@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { EmptyState } from "../toolCardUi"
 import { JobsTable, jobResult, parseJobRow, resultErrorMessage, type JobRow } from "../jobsTableCard"
@@ -17,7 +18,7 @@ function jobRows(context: ToolCardContext): JobRow[] | null {
 function collapsedSummary(context: ToolCardContext) {
   const rows = jobRows(context)
   if (!rows) return null
-  return `${rows.length} Job${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_list_jobs_summary", { count: rows.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -31,10 +32,10 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <div>
       <div className="mb-1 text-xs text-text-muted">
-        Showing {rows.length}, limit {limit} · State: {state}
-        {label ? ` · Label: ${label}` : ""}
+        {i18n.t("chat:tool_card_list_jobs_filters", { count: rows.length, limit, state })}
+        {label ? i18n.t("chat:tool_card_list_jobs_label_filter", { label }) : ""}
       </div>
-      <JobsTable emptyMessage="No Jobs found." rows={rows} />
+      <JobsTable emptyMessage={i18n.t("chat:tool_card_list_jobs_empty")} rows={rows} />
     </div>
   )
 }
@@ -52,7 +53,7 @@ export default listJobsToolCard
 export const examples = [
   {
     id: "two_open_jobs",
-    label: "Two open Jobs",
+    label: i18n.t("chat:tool_card_list_jobs_example_open"),
     input: { state: "open" },
     parsedResult: {
       jobs: [
@@ -75,22 +76,22 @@ export const examples = [
   },
   {
     id: "tool_error",
-    label: "Tool error",
+    label: i18n.t("chat:tool_card_example_error"),
     input: { state: "open" },
     resultBody: "Error: repository access unavailable",
     resultError: true
   },
   {
     id: "no_matching_jobs",
-    label: "No matching Jobs",
-    description: "Empty result set -- the card renders its own empty-state row instead of a bare table header.",
+    label: i18n.t("chat:tool_card_list_jobs_example_empty"),
+    description: i18n.t("chat:tool_card_list_jobs_example_empty_description"),
     input: { state: "open", user: "nobody" },
     parsedResult: { jobs: [] }
   },
   {
     id: "malformed_missing_jobs_key",
-    label: "Malformed: missing jobs key",
-    description: "Unexpected payload shape (no `jobs` array) -- renderExpanded/collapsedSummary both return null so the generic fallback body renders instead.",
+    label: i18n.t("chat:tool_card_list_jobs_example_malformed"),
+    description: i18n.t("chat:tool_card_list_jobs_example_malformed_description"),
     input: { state: "open" },
     parsedResult: { error: "unexpected upstream response" }
   }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { CopyIcon } from "@app/components/CopyableSlug"
 import { useCopyToClipboard } from "@app/hooks/useCopyToClipboard"
+import { useT } from "@app/hooks/useT"
 
 export type MediaPreviewAction = {
   label: string
@@ -54,19 +55,20 @@ function PreviewImage({ alt, className, fallbackLabel, src }: { alt: string; cla
 export function MediaPreviewShell({
   item,
   thumbnailClassName = "w-56",
-  modalLabel = "media preview"
+  modalLabel
 }: {
   item: MediaPreviewItem
   thumbnailClassName?: string
   modalLabel?: string
 }) {
+  const { t } = useT("chat")
   const [open, setOpen] = useState(false)
   const visibleMeta = useMemo(() => (item.meta ?? []).filter((row) => row.value), [item.meta])
 
   return (
     <>
       <button
-        aria-label={`Open ${item.title}`}
+        aria-label={t("shared.open_preview", { title: item.title })}
         className={`group/media block max-w-full overflow-hidden rounded border border-gray-200 bg-white p-0 text-left shadow-sm transition hover:border-brand/40 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-800 dark:bg-gray-950 ${thumbnailClassName}`}
         onClick={() => setOpen(true)}
         type="button"
@@ -78,12 +80,12 @@ export function MediaPreviewShell({
             <PreviewImage
               alt={item.alt ?? item.title}
               className="h-full w-full object-contain transition group-hover/media:scale-[1.02]"
-              fallbackLabel={item.fallbackLabel ?? "Preview unavailable"}
+              fallbackLabel={item.fallbackLabel ?? t("shared.preview_unavailable")}
               src={item.src}
             />
           ) : (
             <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">
-              {item.fallbackLabel ?? "Preview"}
+              {item.fallbackLabel ?? t("shared.preview")}
             </span>
           )}
         </span>
@@ -101,7 +103,9 @@ export function MediaPreviewShell({
           </span>
         ) : null}
       </button>
-      {open ? <MediaPreviewModal item={item} modalLabel={modalLabel} onClose={() => setOpen(false)} visibleMeta={visibleMeta} /> : null}
+      {open ? (
+        <MediaPreviewModal item={item} modalLabel={modalLabel ?? t("shared.media_preview")} onClose={() => setOpen(false)} visibleMeta={visibleMeta} />
+      ) : null}
     </>
   )
 }
@@ -117,6 +121,7 @@ function MediaPreviewModal({
   onClose: () => void
   visibleMeta: MediaPreviewMeta[]
 }) {
+  const { t } = useT("chat")
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") onClose()
@@ -141,7 +146,7 @@ function MediaPreviewModal({
             {item.subtitle ? <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{item.subtitle}</p> : null}
           </div>
           <button
-            aria-label="Close media preview"
+            aria-label={t("shared.close_media_preview")}
             className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
             onClick={onClose}
             type="button"
@@ -157,11 +162,11 @@ function MediaPreviewModal({
               <PreviewImage
                 alt={item.alt ?? item.title}
                 className="max-h-[calc(100dvh-16rem)] max-w-full object-contain"
-                fallbackLabel={item.fallbackLabel ?? "No preview is available."}
+                fallbackLabel={item.fallbackLabel ?? t("shared.no_preview")}
                 src={item.src}
               />
             ) : (
-              <div className="px-4 py-8 text-center text-xs text-gray-500 dark:text-gray-400">{item.fallbackLabel ?? "No preview is available."}</div>
+              <div className="px-4 py-8 text-center text-xs text-gray-500 dark:text-gray-400">{item.fallbackLabel ?? t("shared.no_preview")}</div>
             )}
           </div>
           {visibleMeta.length > 0 ? (
@@ -185,6 +190,7 @@ function MediaPreviewModal({
 }
 
 function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
+  const { t } = useT("chat")
   const { copied, copy } = useCopyToClipboard()
   const copyValue = row.copyValue ?? row.value ?? null
 
@@ -195,10 +201,10 @@ function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
         <span className="min-w-0 break-words font-mono text-gray-800 dark:text-gray-200">{row.value}</span>
         {copyValue ? (
           <button
-            aria-label={`Copy ${row.label}`}
+            aria-label={t("shared.copy_value", { label: row.label })}
             className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:hover:bg-gray-800 dark:hover:text-gray-200"
             onClick={() => copy(copyValue)}
-            title={copied ? "Copied" : `Copy ${row.label}`}
+            title={copied ? t("shared.copied") : t("shared.copy_value", { label: row.label })}
             type="button"
           >
             <CopyIcon className={`h-3.5 w-3.5 ${copied ? "text-green-600 dark:text-green-300" : ""}`} />
@@ -210,16 +216,17 @@ function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
 }
 
 function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
+  const { t } = useT("chat")
   const { copied, copy } = useCopyToClipboard()
   if (action.copyValue) {
     return (
       <button
         className={`${MODAL_ACTION_CLASS} ${MODAL_ACTION_TONE_CLASS}`}
         onClick={() => copy(action.copyValue ?? "")}
-        title={copied ? "Copied" : action.label}
+        title={copied ? t("shared.copied") : action.label}
         type="button"
       >
-        {copied ? "Copied" : action.label}
+        {copied ? t("shared.copied") : action.label}
       </button>
     )
   }

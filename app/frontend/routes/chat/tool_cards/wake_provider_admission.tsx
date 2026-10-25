@@ -1,5 +1,24 @@
-import type { ToolCardExample } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardExample } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { pendingActionToolCard } from "../pendingActionToolCard"
+import i18n from "@app/i18n"
+import { displayValue, numberValue } from "../toolCardUi"
+
+function localizedActionQuestion(context: ToolCardContext) {
+  const parsed = normalizedToolCardParsedResult(context.parsedResult)
+  if (!isPlainObject(parsed)) return null
+  const preview = isPlainObject(parsed.observed_preview) ? parsed.observed_preview : null
+  const provider = preview ? displayValue(preview.provider) : null
+  const workflowCount = preview ? numberValue(preview.workflow_count) : null
+  const retryCount = preview ? numberValue(preview.auto_retry_count) : null
+  if (!provider || workflowCount == null || retryCount == null) return null
+
+  return i18n.t("chat:wake_provider_admission.question", {
+    count: workflowCount,
+    provider,
+    retryPhrase: i18n.t("chat:wake_provider_admission.retry_count", { count: retryCount })
+  })
+}
 
 // Pending-action tool card (the pending-action tool-card work). All of the parsing and
 // presentation lives in ../pendingActionToolCard so the whole family stays
@@ -7,12 +26,19 @@ import { pendingActionToolCard } from "../pendingActionToolCard"
 const wakeProviderAdmissionToolCard = pendingActionToolCard("wake_provider_admission", {
   inputFields: [
     { key: "provider", format: "badge" },
-    { key: "user_id", label: "User scope", format: "entity", hrefPrefix: "/admin/users", emptyLabel: "All users" },
-    { key: "reason", format: "markdown" }
+    {
+      key: "user_id",
+      label: () => i18n.t("chat:wake_provider_admission.user_scope"),
+      format: "entity",
+      hrefPrefix: "/admin/users",
+      emptyLabel: () => i18n.t("chat:wake_provider_admission.all_users")
+    },
+    { key: "reason", label: () => i18n.t("chat:wake_provider_admission.reason"), format: "markdown" }
   ],
+  messageOverride: localizedActionQuestion,
   resultFields: [
-    { path: "observed_preview.workflow_count", label: "Queued workflows", format: "number" },
-    { path: "observed_preview.auto_retry_count", label: "Delayed auto-retries", format: "number" }
+    { path: "observed_preview.workflow_count", label: () => i18n.t("chat:wake_provider_admission.queued_workflows"), format: "number" },
+    { path: "observed_preview.auto_retry_count", label: () => i18n.t("chat:wake_provider_admission.delayed_retries"), format: "number" }
   ]
 })
 
@@ -45,22 +71,22 @@ function actionResult(state: "pending" | "confirmed" | "rejected") {
 export const examples: ToolCardExample[] = [
   {
     id: "pending_scoped_wake",
-    label: "Pending scoped wake",
-    description: "Shows the provider badge, linked user scope, Markdown reason, and previewed impact before confirmation.",
+    label: i18n.t("chat:wake_provider_admission.example_pending"),
+    description: i18n.t("chat:wake_provider_admission.example_pending_description"),
     input: SCOPED_INPUT,
     parsedResult: actionResult("pending")
   },
   {
     id: "confirmed_scoped_wake",
-    label: "Confirmed scoped wake",
-    description: "Shows the same preview after the pending action has been confirmed.",
+    label: i18n.t("chat:wake_provider_admission.example_confirmed"),
+    description: i18n.t("chat:wake_provider_admission.example_confirmed_description"),
     input: SCOPED_INPUT,
     parsedResult: actionResult("confirmed")
   },
   {
     id: "rejected_all_users_wake",
-    label: "Rejected all-users wake",
-    description: "Shows a rejected request with an explicit all-users scope and zero delayed retries.",
+    label: i18n.t("chat:wake_provider_admission.example_rejected"),
+    description: i18n.t("chat:wake_provider_admission.example_rejected_description"),
     input: {
       provider: "claude",
       reason: "The broader wake was rejected while provider recovery evidence was still being reviewed."
@@ -80,8 +106,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "preview_error",
-    label: "Preview error",
-    description: "Shows the requested inputs alongside a provider-admission preview failure.",
+    label: i18n.t("chat:wake_provider_admission.example_error"),
+    description: i18n.t("chat:wake_provider_admission.example_error_description"),
     input: SCOPED_INPUT,
     resultBody: JSON.stringify({ content: [{ type: "text", text: "Provider admission preview failed" }] }),
     resultError: true

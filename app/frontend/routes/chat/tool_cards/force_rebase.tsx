@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
@@ -40,17 +41,16 @@ type ForceRebaseCard = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Force rebase",
+  title: i18n.t("chat:ops_force_rebase_f6005a"),
   attempted: (context) => {
     const jobId = stringFromInput(context, ["job_id"])
     const jobIds = Array.isArray(context.input?.job_ids) ? context.input.job_ids.map(displayValue).filter(Boolean) : []
     if (jobId) return `Force rebase JOB-${jobId}`
     if (jobIds.length > 0) return `Force rebase ${jobIds.map((id) => `JOB-${id}`).join(", ")}`
-    return "Force rebase"
+    return i18n.t("chat:ops_force_rebase_f6005a")
   },
   retrySafety: "caution",
-  recovery:
-    "Check whether a rebase or merge-train workflow is already active. Retry only after the blocking workflow, permission issue, or branch conflict is resolved."
+  recovery: i18n.t("chat:ops_check_whether_a_rebase_or_merge_train_workflow_is_alread_24b865")
 }
 
 function stringList(value: unknown): string[] {
@@ -170,7 +170,7 @@ function collapsedSummary(context: ToolCardContext) {
   if (!card) return null
 
   const primary = card.plans[0]
-  const target = primary ? collapsedTargetLabel(primary) : card.memberCount ? `${card.memberCount} Jobs` : "Job"
+  const target = primary ? collapsedTargetLabel(primary) : card.memberCount ? `${card.memberCount} Jobs` : i18n.t("chat:ops_job_30c8cb")
   const noOp = primary ? noOpLabel(primary) : null
   return [`Force rebase ${stateVerb(card)}`, target, noOp].filter(Boolean).join(" · ")
 }
@@ -189,26 +189,28 @@ function PlanSummary({ plan }: { plan: RebasePlan }) {
         {noOpLabel(plan) ? <Badge>{noOpLabel(plan)}</Badge> : null}
       </div>
       <dl className="mt-2 grid gap-1 sm:grid-cols-2">
-        {plan.branchName ? <WrappedValue href={branchUrl} label="Branch" value={plan.branchName} /> : null}
-        {plan.currentBase ? <WrappedValue label="Current base" value={plan.currentBase} /> : null}
-        {plan.targetBase ? <WrappedValue label="Target base" value={plan.targetBase} /> : null}
-        {plan.commitsBehind ? <Row label="Commits behind" value={plan.commitsBehind} /> : null}
-        {plan.checksState ? <Row label="Checks" value={plan.checksState} /> : null}
-        {plan.mergeableState ? <Row label="Mergeability" value={plan.mergeableState} /> : null}
+        {plan.branchName ? <WrappedValue href={branchUrl} label={i18n.t("chat:ops_branch_162751")} value={plan.branchName} /> : null}
+        {plan.currentBase ? <WrappedValue label={i18n.t("chat:ops_current_base_21b77b")} value={plan.currentBase} /> : null}
+        {plan.targetBase ? <WrappedValue label={i18n.t("chat:ops_target_base_c08c84")} value={plan.targetBase} /> : null}
+        {plan.commitsBehind ? <Row label={i18n.t("chat:ops_commits_behind_4ff551")} value={plan.commitsBehind} /> : null}
+        {plan.checksState ? <Row label={i18n.t("chat:ops_checks_5098dd")} value={plan.checksState} /> : null}
+        {plan.mergeableState ? <Row label={i18n.t("chat:ops_mergeability_a627b4")} value={plan.mergeableState} /> : null}
         {plan.landingQueueEntryPosition || plan.landingQueuePosition ? (
-          <Row label="Landing queue" value={plan.landingQueueEntryPosition || plan.landingQueuePosition || ""} />
+          <Row label={i18n.t("chat:ops_landing_queue_e7bc8f")} value={plan.landingQueueEntryPosition || plan.landingQueuePosition || ""} />
         ) : null}
-        {plan.bypassFrontOfQueue != null ? <Row label="Bypass front of queue" value={plan.bypassFrontOfQueue ? "yes" : "no"} /> : null}
+        {plan.bypassFrontOfQueue != null ? (
+          <Row label={i18n.t("chat:ops_bypass_front_of_queue_a2fdff")} value={plan.bypassFrontOfQueue ? "yes" : "no"} />
+        ) : null}
       </dl>
       {plan.expectedLandingImpact ? (
         <div className="mt-2">
-          <SectionLabel>Expected downstream workflow</SectionLabel>
-          <MarkdownPreview maxLines={3} modalLabel="Expected downstream workflow" text={plan.expectedLandingImpact} />
+          <SectionLabel>{i18n.t("chat:ops_expected_downstream_workflow_25966f")}</SectionLabel>
+          <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:ops_expected_downstream_workflow_25966f")} text={plan.expectedLandingImpact} />
         </div>
       ) : null}
       {plan.warnings.length > 0 ? (
         <div className="mt-2">
-          <SectionLabel>Audit warnings</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_audit_warnings_7da810")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
             {plan.warnings.map((warning) => (
               <Badge key={warning}>{warning}</Badge>
@@ -258,14 +260,12 @@ function outcomeLabel(card: ForceRebaseCard) {
 }
 
 function RetryGuidance({ card }: { card: ForceRebaseCard }) {
-  if (card.state === "rejected")
-    return <div className="text-text-secondary">Rejected by the operator. Re-request only with a clearer audit reason or after the target changes.</div>
+  if (card.state === "rejected") return <div className="text-text-secondary">{i18n.t("chat:ops_rejected_by_the_operator_re_request_only_with_a__126f8a")}</div>
   if (["failed", "failure", "error"].includes(card.state))
-    return <div className="text-text-secondary">Resolve the reported branch, permission, or active-workflow blocker, then request the force rebase again.</div>
-  if (card.state === "pending")
-    return <div className="text-text-secondary">Waiting for operator confirmation. This will enqueue a repair rebase workflow when approved.</div>
+    return <div className="text-text-secondary">{i18n.t("chat:ops_resolve_the_reported_branch_permission_or_active_de651b")}</div>
+  if (card.state === "pending") return <div className="text-text-secondary">{i18n.t("chat:ops_waiting_for_operator_confirmation_this_will_enqu_a4d18b")}</div>
   if (["confirmed", "completed", "succeeded", "success"].includes(card.state))
-    return <div className="text-text-secondary">Confirmed. Watch the created rebase or stack-rebase workflow and retry only if that workflow fails.</div>
+    return <div className="text-text-secondary">{i18n.t("chat:ops_confirmed_watch_the_created_rebase_or_stack_reba_34ef86")}</div>
   return <div className="text-text-secondary">Review the plan before confirming; this is a side-effecting control action that can move the PR branch.</div>
 }
 
@@ -279,29 +279,25 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.state} />
-        <span className="font-mono font-semibold text-text-primary">Force rebase</span>
+        <span className="font-mono font-semibold text-text-primary">{i18n.t("chat:ops_force_rebase_f6005a")}</span>
         <Badge>outcome: {outcomeLabel(card)}</Badge>
-        {card.pendingGroupId ? <PendingReference href={card.pendingGroupHref} label={`group #${card.pendingGroupId}`} /> : null}
-        {card.pendingActionId ? <PendingReference href={card.pendingActionHref} label={`pending #${card.pendingActionId}`} /> : null}
-        {card.memberCount != null ? (
-          <Badge>
-            {card.memberCount} {card.memberCount === 1 ? "action" : "actions"}
-          </Badge>
-        ) : null}
+        {card.pendingGroupId ? <PendingReference href={card.pendingGroupHref} label={i18n.t("chat:group_number", { id: card.pendingGroupId })} /> : null}
+        {card.pendingActionId ? <PendingReference href={card.pendingActionHref} label={i18n.t("chat:pending_number", { id: card.pendingActionId })} /> : null}
+        {card.memberCount != null ? <Badge>{i18n.t("chat:action_count", { count: card.memberCount })}</Badge> : null}
       </div>
 
-      {card.message ? <MarkdownPreview maxLines={3} modalLabel="Force rebase message" text={card.message} /> : null}
+      {card.message ? <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:ops_force_rebase_message_d2feb7")} text={card.message} /> : null}
 
       {card.reason ? (
         <div>
-          <SectionLabel>Audit reason</SectionLabel>
-          <MarkdownPreview maxLines={3} modalLabel="Full audit reason" text={card.reason} />
+          <SectionLabel>{i18n.t("chat:ops_audit_reason_7bbb5b")}</SectionLabel>
+          <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:ops_full_audit_reason_10e8dc")} text={card.reason} />
         </div>
       ) : null}
 
       {card.executionStatus || card.executionError ? (
         <div>
-          <SectionLabel>Execution outcome</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_execution_outcome_a76245")}</SectionLabel>
           {card.executionStatus ? <StatePill state={card.executionStatus} /> : null}
           {card.executionError ? <div className="mt-1 break-words text-danger-text [overflow-wrap:anywhere]">{card.executionError}</div> : null}
         </div>
@@ -309,17 +305,17 @@ function renderExpanded(context: ToolCardContext) {
 
       {card.plans.length > 0 ? (
         <div className="space-y-2">
-          <SectionLabel>Targets</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_targets_d35260")}</SectionLabel>
           {card.plans.map((plan) => (
             <PlanSummary key={plan.jobId || targetLabel(plan)} plan={plan} />
           ))}
         </div>
       ) : (
-        <EmptyState>No rebase plan was returned. Use Raw details to inspect the pending action id and message.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_rebase_plan_was_returned_use_raw_details_to_i_d404b3")}</EmptyState>
       )}
 
       <div>
-        <SectionLabel>Failure and retry guidance</SectionLabel>
+        <SectionLabel>{i18n.t("chat:ops_failure_and_retry_guidance_22f174")}</SectionLabel>
         <RetryGuidance card={card} />
       </div>
     </CardShell>
@@ -356,26 +352,26 @@ const requestedPlan = {
 export const examples: ToolCardExample[] = [
   {
     id: "requested",
-    label: "Requested and pending confirmation",
-    input: { job_id: 4222, reason: "Bypass queue position." },
+    label: i18n.t("chat:ops_requested_and_pending_confirmation_5ff590"),
+    input: { job_id: 4222, reason: i18n.t("chat:ops_bypass_queue_position_0d2707") },
     parsedResult: {
       pending_confirmation_id: 77,
       pending_action_id: 77,
       state: "pending",
-      reason: "Bypass queue position.",
-      message: "Force rebase for repair-ci? Target base: main.",
+      reason: i18n.t("chat:ops_bypass_queue_position_0d2707"),
+      message: i18n.t("chat:ops_force_rebase_for_repair_ci_target_base_main_c3c669"),
       plan: requestedPlan
     }
   },
   {
     id: "executed_live_action",
-    label: "Executed pending-action snapshot",
-    input: { job_id: 4222, reason: "Bypass queue position." },
+    label: i18n.t("chat:ops_executed_pending_action_snapshot_d081ae"),
+    input: { job_id: 4222, reason: i18n.t("chat:ops_bypass_queue_position_0d2707") },
     parsedResult: { pending_action_id: 77, state: "confirmed", plan: requestedPlan }
   },
   {
     id: "already_current_noop",
-    label: "Already current / no-op plan",
+    label: i18n.t("chat:ops_already_current_no_op_plan_001347"),
     input: { job_id: 4223, dry_run: true },
     parsedResult: {
       plan: {
@@ -395,23 +391,23 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "conflict_failure",
-    label: "Conflict or active workflow failure",
-    input: { job_id: 4224, reason: "Repair branch drift." },
+    label: i18n.t("chat:ops_conflict_or_active_workflow_failure_07e1cb"),
+    input: { job_id: 4224, reason: i18n.t("chat:ops_repair_branch_drift_7270fe") },
     resultBody: "A rebase is already in progress - wait for it to finish.",
     resultError: true
   },
   {
     id: "permission_pending_action",
-    label: "Permission / pending operator action",
-    input: { job_ids: [4225, 4226], reason: "Both branches drifted behind the same base rewrite." },
+    label: i18n.t("chat:ops_permission_pending_operator_action_629bdc"),
+    input: { job_ids: [4225, 4226], reason: i18n.t("chat:ops_both_branches_drifted_behind_the_same_base_rewrite_11cc85") },
     parsedResult: {
       pending_action_group_id: 15,
       pending_action_id: 81,
       pending_confirmation_id: 81,
       state: "pending",
       member_count: 2,
-      message: "Force rebase for 2 Jobs?",
-      reason: "Both branches drifted behind the same base rewrite.",
+      message: i18n.t("chat:ops_force_rebase_for_2_jobs_15cb1e"),
+      reason: i18n.t("chat:ops_both_branches_drifted_behind_the_same_base_rewrite_11cc85"),
       plans: [
         { ...requestedPlan, job_id: 4225, slug: "first-branch", branch_name: "syrus/direct-4225", pr_number: 316 },
         { ...requestedPlan, job_id: 4226, slug: "second-branch", branch_name: "syrus/direct-4226", pr_number: 317, warnings: ["not_front_of_queue"] }

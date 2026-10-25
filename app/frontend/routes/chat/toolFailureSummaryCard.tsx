@@ -1,6 +1,8 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 
 type RetrySafety = "safe" | "caution" | "unknown"
 
@@ -38,10 +40,11 @@ const NON_RETRYABLE_ERROR_PATTERNS = [
 
 export function toolFailureCollapsedSummary(context: ToolCardContext, config: ToolFailureConfig) {
   if (!toolFailureDetected(context)) return null
-  return `${config.title} failed: ${failureMessage(context)}`
+  return i18n.t("chat:shared.action_failed_with_message", { action: config.title, message: failureMessage(context) })
 }
 
 export function ToolFailureSummaryCard({ children, context, config }: { children?: ReactNode; context: ToolCardContext; config: ToolFailureConfig }) {
+  const { t } = useT("chat")
   if (!toolFailureDetected(context)) return null
 
   const message = failureMessage(context)
@@ -53,23 +56,23 @@ export function ToolFailureSummaryCard({ children, context, config }: { children
     <CardShell>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-red-700 dark:text-red-200">{config.title} failed</div>
+          <div className="text-sm font-semibold text-red-700 dark:text-red-200">{t("shared.action_failed", { action: config.title })}</div>
           <div className="mt-1 break-words text-gray-700 dark:text-gray-300">{message}</div>
         </div>
         <StatePill state={safety.label} tone={safety.tone} />
       </div>
 
       <dl className="grid gap-2 sm:grid-cols-2">
-        <Row label="Attempted" value={config.attempted(context)} />
-        <WrappingDetail label="Recovery" value={config.recovery} />
-        {errorClass ? <Row label="Error class" value={errorClass} /> : null}
+        <Row label={t("shared.attempted")} value={config.attempted(context)} />
+        <WrappingDetail label={t("shared.recovery")} value={config.recovery} />
+        {errorClass ? <Row label={t("shared.error_class")} value={errorClass} /> : null}
       </dl>
 
       {children}
 
       {ids.length > 0 ? (
         <div>
-          <SectionLabel>Relevant IDs</SectionLabel>
+          <SectionLabel>{t("shared.relevant_ids")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
             {ids.map((id) => (
               <Badge key={id}>{id}</Badge>
@@ -78,7 +81,7 @@ export function ToolFailureSummaryCard({ children, context, config }: { children
         </div>
       ) : null}
 
-      <Disclosure label="Failure details">
+      <Disclosure label={t("shared.failure_details")}>
         <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
           {JSON.stringify(
             {
@@ -130,9 +133,9 @@ function retrySafety(context: ToolCardContext, config: ToolFailureConfig) {
   const safety =
     explicit === false ? "caution" : inferred === true ? "safe" : inferred === false && config.retrySafety !== "safe" ? "caution" : config.retrySafety
 
-  if (safety === "safe") return { label: "Safe to retry", tone: "success" as const }
-  if (safety === "caution") return { label: "Check before retrying", tone: "warning" as const }
-  return { label: "Retryability unknown", tone: "neutral" as const }
+  if (safety === "safe") return { label: i18n.t("chat:shared.safe_to_retry"), tone: "success" as const }
+  if (safety === "caution") return { label: i18n.t("chat:shared.check_before_retrying"), tone: "warning" as const }
+  return { label: i18n.t("chat:shared.retry_unknown"), tone: "neutral" as const }
 }
 
 function failureMessage(context: ToolCardContext) {
@@ -141,7 +144,7 @@ function failureMessage(context: ToolCardContext) {
 
   const record = firstObject(context.parsedResult)
   const message = record ? stringFromRecord(record, ["error_message", "message", "error", "detail", "details", "reason"]) : null
-  return message || displayValue(context.resultBody) || "Tool call failed."
+  return message || displayValue(context.resultBody) || i18n.t("chat:shared.tool_call_failed")
 }
 
 function failureClass(context: ToolCardContext) {

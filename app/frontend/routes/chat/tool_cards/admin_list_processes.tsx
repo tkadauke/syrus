@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, EmptyState, numberValue, StatePill } from "../toolCardUi"
 import { formatBytesLarge, formatPercent, Table, TBody, Td, THead } from "../adminToolCard"
@@ -45,13 +46,16 @@ function processRows(context: ToolCardContext): ProcessRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.processes)) return null
 
-  return parsed.processes.flatMap((process, index) => { const row = parseRow(process, index); return row ? [row] : [] })
+  return parsed.processes.flatMap((process, index) => {
+    const row = parseRow(process, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const rows = processRows(context)
   if (!rows) return null
-  return `${rows.length} process${rows.length === 1 ? "" : "es"}`
+  return i18n.t("chat:admin_process_count", { count: rows.length })
 }
 
 function StateBadge({ state }: { state: string | null }) {
@@ -63,19 +67,25 @@ function renderExpanded(context: ToolCardContext) {
   const rows = processRows(context)
   if (!rows) return null
 
-  if (rows.length === 0) return <EmptyState>No processes found.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:ops_no_processes_found_59c7bd")}</EmptyState>
 
   return (
     <CardShell>
       <Table>
-        <THead columns={["Kind", "Host", "Pid", "State", "CPU", "RSS", "Started", "Heartbeat", "Run/Workflow", "Outcome"]} />
+        <THead
+          columns={["kind", "host", "pid", "state", "cpu", "rss", "started", "heartbeat", "run_workflow", "outcome"].map((key) =>
+            i18n.t(`chat:admin_column_${key}`)
+          )}
+        />
         <TBody>
           {rows.map((row) => (
             <tr key={row.key}>
               <Td>{row.kind || "—"}</Td>
               <Td mono>{row.hostname}</Td>
               <Td mono>{row.pid || "—"}</Td>
-              <Td><StateBadge state={row.state} /></Td>
+              <Td>
+                <StateBadge state={row.state} />
+              </Td>
               <Td mono>{formatPercent(row.cpu)}</Td>
               <Td mono>{formatBytesLarge(row.rss)}</Td>
               <Td mono>{row.startedAt || "—"}</Td>

@@ -5,6 +5,7 @@ import { CodeSurface, Input, Pill, Surface, Text, ToolCard } from "../../compone
 import type { SemanticTone } from "../../components/ui"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 import { workerCapabilityEntries, workerCapabilitiesText } from "../../lib/workerCapabilities"
@@ -59,11 +60,17 @@ export function stateTone(state: string | null | undefined): Tone {
   return "neutral"
 }
 
+export function toolCardStateLabel(state: string): string {
+  const normalized = state.toLowerCase().replace(/\s+/g, "_")
+  return i18n.t(`chat:tool_card_state_${normalized}`, { defaultValue: state.replace(/_/g, " ") })
+}
+
 export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
+  useT("chat")
   const resolvedTone = tone ?? stateTone(state)
   return (
     <Pill className="text-2xs font-semibold uppercase" tone={TONE_TO_SEMANTIC_TONE[resolvedTone]}>
-      {state.replace(/_/g, " ")}
+      {toolCardStateLabel(state)}
     </Pill>
   )
 }
@@ -451,26 +458,18 @@ export function truncateLines(text: string, maxLines: number): LinePreview {
   return { preview: lines.slice(0, maxLines).join("\n"), truncated: true, totalLines: lines.length }
 }
 
-export function LargeTextPreview({
-  emptyLabel = "No text returned.",
-  label,
-  maxLines = 40,
-  text
-}: {
-  emptyLabel?: string
-  label: string
-  maxLines?: number
-  text: string | null
-}) {
+export function LargeTextPreview({ emptyLabel, label, maxLines = 40, text }: { emptyLabel?: string; label: string; maxLines?: number; text: string | null }) {
+  const { t } = useT("chat")
   return (
     <Disclosure label={label}>
-      <PreviewTextBlock emptyLabel={emptyLabel} maxLines={maxLines} text={text} />
+      <PreviewTextBlock emptyLabel={emptyLabel ?? t("shared.no_text_returned")} maxLines={maxLines} text={text} />
     </Disclosure>
   )
 }
 
-export function PreviewTextBlock({ emptyLabel = "No text returned.", maxLines = 40, text }: { emptyLabel?: string; maxLines?: number; text: string | null }) {
-  if (!text?.trim()) return <EmptyState>{emptyLabel}</EmptyState>
+export function PreviewTextBlock({ emptyLabel, maxLines = 40, text }: { emptyLabel?: string; maxLines?: number; text: string | null }) {
+  const { t } = useT("chat")
+  if (!text?.trim()) return <EmptyState>{emptyLabel ?? t("shared.no_text_returned")}</EmptyState>
 
   const { preview, truncated, totalLines } = truncateLines(text, maxLines)
 
@@ -479,7 +478,7 @@ export function PreviewTextBlock({ emptyLabel = "No text returned.", maxLines = 
       <CodeSurface code={preview} maxHeightClassName="max-h-72" />
       {truncated ? (
         <Text as="div" className="mt-1" variant="caption" tone="muted">
-          Showing first {maxLines} of {totalLines} lines.
+          {t("shared.showing_first_lines", { count: totalLines, shown: maxLines })}
         </Text>
       ) : null}
     </>
@@ -488,10 +487,10 @@ export function PreviewTextBlock({ emptyLabel = "No text returned.", maxLines = 
 
 export function FilterableList<T>({
   children,
-  emptyLabel = "No matching rows.",
+  emptyLabel,
   itemText,
   items,
-  placeholder = "Filter results"
+  placeholder
 }: {
   children: (items: T[]) => ReactNode
   emptyLabel?: string
@@ -499,6 +498,9 @@ export function FilterableList<T>({
   items: T[]
   placeholder?: string
 }) {
+  const { t } = useT("chat")
+  const resolvedEmptyLabel = emptyLabel ?? t("shared.no_matching_rows")
+  const resolvedPlaceholder = placeholder ?? t("shared.filter_results")
   const [query, setQuery] = useState("")
   const normalizedQuery = query.trim().toLowerCase()
   const visibleItems = useMemo(() => {
@@ -510,19 +512,19 @@ export function FilterableList<T>({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          aria-label={placeholder}
+          aria-label={resolvedPlaceholder}
           className="min-w-0 flex-1 px-2 py-1 text-xs"
           fullWidth={false}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           type="search"
           value={query}
         />
         <Text as="span" variant="caption" tone="muted">
-          {visibleItems.length} of {items.length}
+          {t("shared.filtered_count", { count: visibleItems.length, total: items.length })}
         </Text>
       </div>
-      {visibleItems.length > 0 ? children(visibleItems) : <EmptyState>{emptyLabel}</EmptyState>}
+      {visibleItems.length > 0 ? children(visibleItems) : <EmptyState>{resolvedEmptyLabel}</EmptyState>}
     </div>
   )
 }

@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import addEpicDependencyToolCard, { examples as addEpicDependencyExamples } from "./add_epic_dependency"
 import selectJobDeliveryTrackToolCard, { examples } from "./select_job_delivery_track"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -24,6 +26,10 @@ function renderCard(cardContext: ToolCardContext) {
 }
 
 describe("select_job_delivery_track tool card", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en")
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(selectJobDeliveryTrackToolCard.toolName).toBe("select_job_delivery_track")
   })
@@ -86,6 +92,41 @@ describe("select_job_delivery_track tool card", () => {
     expect(screen.getByText("Delivery track selection failed")).toBeInTheDocument()
     expect(screen.getByText("Error: job is not open")).toBeInTheDocument()
     expect(screen.getByText("Set delivery track to staging for JOB-4225")).toBeInTheDocument()
+  })
+
+  it("resolves localized delivery-track copy while retaining maintenance-card debt", async () => {
+    const cardContext = context({ input: { job_id: 4225, track: "staging" }, resultBody: "Error: job is not open", resultError: true })
+
+    expect(examples[0].label).toBe("Configured delivery track")
+    await i18n.changeLanguage("de")
+
+    expect(selectJobDeliveryTrackToolCard.collapsedSummary?.(cardContext)).toBe("Auswahl des Auslieferungspfads fehlgeschlagen: Error: job is not open")
+    expect(examples[0].label).toBe("Konfigurierter Auslieferungspfad")
+    expect(addEpicDependencyExamples[0].label).toBe("Abhängigkeit hinzugefügt")
+    expect(
+      addEpicDependencyToolCard.collapsedSummary?.({
+        toolName: "add_epic_dependency",
+        input: { epic_id: 42, depends_on_epic_id: 41 },
+        parsedResult: { epic_id: 42, depends_on: [41] },
+        resultBody: "",
+        resultError: false
+      })
+    ).toBe("Dependency added · EPIC-42")
+    render(
+      <MemoryRouter>
+        {addEpicDependencyToolCard.renderExpanded({
+          toolName: "add_epic_dependency",
+          input: { epic_id: 42, depends_on_epic_id: 41 },
+          parsedResult: { epic_id: 42, depends_on: [41] },
+          resultBody: "",
+          resultError: false
+        })}
+      </MemoryRouter>
+    )
+    expect(screen.getByText("Dependency")).toBeInTheDocument()
+    renderCard(cardContext)
+    expect(screen.getByText("Auswahl des Auslieferungspfads fehlgeschlagen")).toBeInTheDocument()
+    expect(screen.getByText(/Prüfe, ob der Job noch offen ist/)).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload", () => {

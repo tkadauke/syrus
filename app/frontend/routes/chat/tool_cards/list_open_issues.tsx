@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { issueListSummary, renderIssueList } from "../issueTagArtifactToolCard"
 
@@ -12,13 +13,13 @@ export default listOpenIssuesToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "issues_with_details",
-    label: "Issues with details",
+    label: i18n.t("chat:tool_card_list_issues_example_results"),
     input: { state: "open", label: "bug", limit: 2 },
     parsedResult: {
       issues: [
         {
           number: 42,
-          title: "Responsive navigation overlaps content on smaller screens",
+          title: i18n.t("chat:tool_card_list_issues_example_title"),
           labels: ["bug", "frontend"],
           state: "open",
           author: "octocat",
@@ -30,6 +31,12 @@ export const examples: ToolCardExample[] = [
       ]
     }
   },
-  { id: "empty", label: "No matching issues", input: { state: "closed", limit: 20 }, parsedResult: { issues: [] } },
-  { id: "error", label: "Provider error", input: { state: "open", limit: 20 }, resultError: true, resultBody: "GitHub is unavailable." }
+  { id: "empty", label: i18n.t("chat:tool_card_list_issues_example_empty"), input: { state: "closed", limit: 20 }, parsedResult: { issues: [] } },
+  {
+    id: "error",
+    label: i18n.t("chat:tool_card_provider_error"),
+    input: { state: "open", limit: 20 },
+    resultError: true,
+    resultBody: i18n.t("chat:tool_card_github_unavailable")
+  }
 ]

@@ -2,6 +2,8 @@ import type { ChatToolGroupItem } from "../../api/chats"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 import { Badge, CardShell, Disclosure, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { isPlainObject, normalizedToolName } from "./toolRendering"
+import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 
 type ToolCall = ChatToolGroupItem["calls"][number]
 
@@ -19,18 +21,7 @@ export type ToolErrorCardModel = {
   rawDetails: unknown
 }
 
-const READ_ONLY_TOOL_PATTERNS = [
-  /^list_/,
-  /^read_/,
-  /^search_/,
-  /^get_/,
-  /^inspect_/,
-  /^explain_/,
-  /^resolve_/,
-  /^check_/,
-  /^git_status$/,
-  /^git_diff$/
-]
+const READ_ONLY_TOOL_PATTERNS = [/^list_/, /^read_/, /^search_/, /^get_/, /^inspect_/, /^explain_/, /^resolve_/, /^check_/, /^git_status$/, /^git_diff$/]
 
 const HIGH_RISK_TOOL_PATTERNS = [
   /^delete_/,
@@ -156,17 +147,18 @@ export function buildToolErrorCardModel(call: ToolCall): ToolErrorCardModel {
 }
 
 export function ToolErrorCard({ call }: { call: ToolCall }) {
+  const { t } = useT("chat")
   const model = buildToolErrorCardModel(call)
-  const retryLabel = model.retryable == null ? "Unknown retryability" : model.retryable ? "Retryable" : "Do not retry blindly"
+  const retryLabel = model.retryable == null ? t("shared.retry_unknown") : model.retryable ? t("shared.retryable") : t("shared.do_not_retry_blindly")
   const retryTone = model.retryable == null ? "neutral" : model.retryable ? "warning" : "failure"
-  const sideEffectLabel = `${model.sideEffectRisk} side-effect risk`
+  const sideEffectLabel = t("shared.side_effect_risk", { risk: model.sideEffectRisk })
   const sideEffectTone = model.sideEffectRisk === "low" ? "success" : model.sideEffectRisk === "medium" ? "warning" : "failure"
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-red-700 dark:text-red-200">{model.toolLabel} failed</div>
+          <div className="text-sm font-semibold text-red-700 dark:text-red-200">{t("shared.action_failed", { action: model.toolLabel })}</div>
           <div className="mt-1 break-words font-mono text-xs text-gray-700 dark:text-gray-300">{model.errorMessage}</div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-1">
@@ -176,27 +168,29 @@ export function ToolErrorCard({ call }: { call: ToolCall }) {
       </div>
 
       <dl className="grid gap-2 sm:grid-cols-2">
-        {model.errorClass ? <Row label="Error class" value={model.errorClass} /> : null}
-        <Row label="MCP tool" value={model.mcpToolId} />
-        {model.mcpServerId ? <Row label="MCP server" value={model.mcpServerId} /> : null}
-        <Row label="Raw name" value={model.rawName} />
+        {model.errorClass ? <Row label={t("shared.error_class")} value={model.errorClass} /> : null}
+        <Row label={t("shared.mcp_tool")} value={model.mcpToolId} />
+        {model.mcpServerId ? <Row label={t("shared.mcp_server")} value={model.mcpServerId} /> : null}
+        <Row label={t("shared.raw_name")} value={model.rawName} />
       </dl>
 
       <div>
-        <SectionLabel>Recovery</SectionLabel>
+        <SectionLabel>{t("shared.recovery")}</SectionLabel>
         <p className="mt-1 whitespace-normal break-words text-gray-700 dark:text-gray-300">{model.recovery}</p>
       </div>
 
       {model.affectedEntityIds.length > 0 ? (
         <div>
-          <SectionLabel>Affected entities</SectionLabel>
+          <SectionLabel>{t("shared.affected_entities")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {model.affectedEntityIds.map((id) => <Badge key={id}>{id}</Badge>)}
+            {model.affectedEntityIds.map((id) => (
+              <Badge key={id}>{id}</Badge>
+            ))}
           </div>
         </div>
       ) : null}
 
-      <Disclosure label="Error details">
+      <Disclosure label={t("shared.error_details")}>
         <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{JSON.stringify(model.rawDetails, null, 2)}</pre>
       </Disclosure>
     </CardShell>
@@ -225,7 +219,7 @@ function errorClassFrom(value: unknown): string | null {
 function errorMessageFrom(value: unknown, fallback: string): string {
   const record = firstObject(value)
   const message = record ? stringField(record, ["error_message", "message", "error", "detail", "details", "reason"]) : null
-  return message || fallback || "Tool call failed."
+  return message || fallback || i18n.t("chat:shared.tool_call_failed")
 }
 
 function retryableFrom(value: unknown, message: string): boolean | null {
@@ -245,12 +239,12 @@ function sideEffectRiskFor(toolName: string): ToolErrorCardModel["sideEffectRisk
 }
 
 function recoveryAdvice({ retryable, sideEffectRisk }: { retryable: boolean | null; sideEffectRisk: ToolErrorCardModel["sideEffectRisk"] }) {
-  if (sideEffectRisk === "high") return "Inspect target state and raw details before retrying; this tool may have partially changed data."
-  if (retryable === false) return "Correct the input, permissions, or missing resource before trying again."
-  if (retryable === true && sideEffectRisk === "low") return "Safe to retry after the transient dependency recovers."
-  if (retryable === true) return "Check whether the action partially completed before retrying."
-  if (sideEffectRisk === "low") return "Review the error details, then retry if the dependency or access issue has cleared."
-  return "Review raw details and target state before retrying."
+  if (sideEffectRisk === "high") return i18n.t("chat:shared.recovery_high_risk")
+  if (retryable === false) return i18n.t("chat:shared.recovery_not_retryable")
+  if (retryable === true && sideEffectRisk === "low") return i18n.t("chat:shared.recovery_safe_retry")
+  if (retryable === true) return i18n.t("chat:shared.recovery_check_partial")
+  if (sideEffectRisk === "low") return i18n.t("chat:shared.recovery_low_risk")
+  return i18n.t("chat:shared.recovery_default")
 }
 
 function affectedEntityIds(input: unknown, result: unknown): string[] {
@@ -289,7 +283,10 @@ function addEntityId(seen: Set<string>, label: string, value: unknown) {
 function entityLabelFor(path: string[]): string | null {
   const key = path.at(-1)?.toLowerCase() || ""
   const parent = path.at(-2)?.toLowerCase() || ""
-  const normalizedKey = key.replace(/^target_/, "").replace(/_ids?$/, "").replace(/_number$/, "")
+  const normalizedKey = key
+    .replace(/^target_/, "")
+    .replace(/_ids?$/, "")
+    .replace(/_number$/, "")
   const normalizedParent = parent.replace(/s$/, "")
 
   if (ENTITY_KEY_HINTS.has(key)) return normalizedKey || key

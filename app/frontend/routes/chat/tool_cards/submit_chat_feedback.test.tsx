@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import type { ChatPendingActionInline } from "../../../api/chats"
 import submitChatFeedbackToolCard from "./submit_chat_feedback"
 
@@ -28,6 +29,10 @@ function liveAction(overrides: Partial<ChatPendingActionInline> = {}): ChatPendi
 }
 
 describe("submit_chat_feedback tool card", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en")
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(submitChatFeedbackToolCard.toolName).toBe("submit_chat_feedback")
   })
@@ -40,9 +45,19 @@ describe("submit_chat_feedback tool card", () => {
     expect(submitChatFeedbackToolCard.collapsedSummary?.(context_)).toBe("Chat feedback requires operator confirmation.")
   })
 
+  it("localizes generated summaries while preserving the canonical Job id", async () => {
+    await i18n.changeLanguage("de")
+    const context_ = context({
+      input: { job_id: 4048, feedback: "Please fix the header." },
+      parsedResult: { pending_confirmation_id: 501, pending_action_id: 501, state: "queued", status: "queued" }
+    })
+
+    expect(submitChatFeedbackToolCard.collapsedSummary?.(context_)).toBe("Chat-Feedback für JOB-4048 eingereiht")
+  })
+
   it("renders target job, pending state, media refs, and a pending-confirmation note", () => {
     const context_ = context({
-      input: { job_id: 4048, feedback: "Please fix the header.", media: [ "snapshot:42", "chat_image:7" ] },
+      input: { job_id: 4048, feedback: "Please fix the header.", media: ["snapshot:42", "chat_image:7"] },
       parsedResult: { pending_confirmation_id: 501, pending_action_id: 501, state: "pending", message: "Chat feedback requires operator confirmation." }
     })
     render(<>{submitChatFeedbackToolCard.renderExpanded(context_)}</>)
@@ -59,7 +74,13 @@ describe("submit_chat_feedback tool card", () => {
   it("renders the queued state distinctly from the pending-confirmation state", () => {
     const context_ = context({
       input: { job_id: 4048, feedback: "Please fix the header." },
-      parsedResult: { pending_confirmation_id: 501, pending_action_id: 501, state: "queued", status: "queued", message: "Feedback queued - will appear for your confirmation once JOB-4048 finishes its current run." }
+      parsedResult: {
+        pending_confirmation_id: 501,
+        pending_action_id: 501,
+        state: "queued",
+        status: "queued",
+        message: "Feedback queued - will appear for your confirmation once JOB-4048 finishes its current run."
+      }
     })
     render(<>{submitChatFeedbackToolCard.renderExpanded(context_)}</>)
 

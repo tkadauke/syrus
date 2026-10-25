@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import i18n from "@app/i18n"
 
 // Pending-action tool card (the pending-action tool-card work). All of the parsing and
 // presentation lives in ../pendingActionToolCard so the whole family stays
@@ -25,8 +26,8 @@ export default adoptCurrentPrHeadToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "dry_run_evidence",
-    label: "Dry run with branch evidence",
-    description: "Shows target identity inherited from the result when the retained call input is unavailable.",
+    label: i18n.t("chat:adopt_current_pr_head.example_dry_run"),
+    description: i18n.t("chat:adopt_current_pr_head.example_dry_run_description"),
     parsedResult: {
       action: "adopt_current_pr_head",
       job_id: 4222,
@@ -48,8 +49,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "pending_input_fallback",
-    label: "Pending confirmation with input context",
-    description: "Shows linked input-only targets and bounded Markdown while confirmation is pending.",
+    label: i18n.t("chat:adopt_current_pr_head.example_pending"),
+    description: i18n.t("chat:adopt_current_pr_head.example_pending_description"),
     input: {
       job_id: 4222,
       workflow_id: 26123,
@@ -65,7 +66,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "structured_error",
-    label: "Structured validation error",
+    label: i18n.t("chat:adopt_current_pr_head.example_error"),
     input: { job_id: 4222, workflow_id: 26123, reason: "Adopt the current PR head.", dry_run: false },
     parsedResult: {
       error: "invalid_base",
@@ -76,8 +77,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "empty_result",
-    label: "Empty completed result",
-    description: "Exercises the generic empty-result fallback for a completed provider response.",
+    label: i18n.t("chat:adopt_current_pr_head.example_empty"),
+    description: i18n.t("chat:adopt_current_pr_head.example_empty_description"),
     input: { job_id: 4222, workflow_id: 26123, reason: "Adopt the current PR head.", dry_run: false },
     resultBody: "",
     resultSettled: true
