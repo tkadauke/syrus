@@ -3786,6 +3786,7 @@ describe("StepAdversarialReviewPanel", () => {
     expect(screen.getByText(/2 panel members/)).toBeInTheDocument()
     expect(screen.getByText(/Consensus: majority/)).toBeInTheDocument()
     expect(screen.getByText(/1 approved, 1 needs work, 0 skipped/)).toBeInTheDocument()
+    expect(screen.getByText(/1 approval required/)).toBeInTheDocument()
     expect(screen.getByText("claude / sonnet")).toBeInTheDocument()
     expect(screen.getByText(/gemini was unavailable/)).toBeInTheDocument()
     expect(screen.getByText("Non-blocking notes")).toBeInTheDocument()

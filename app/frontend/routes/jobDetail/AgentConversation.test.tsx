@@ -112,7 +112,7 @@ describe("AgentConversationTab", () => {
   })
 
   it("renders panel members as one expandable consensus round", async () => {
-    const panel = { panel_id: "panel-1", panel_verdict: "approved", vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 1, min_members: 2 } }
+    const panel = { panel_id: "panel-1", panel_verdict: "approved", vote_breakdown: { approved: 1, needs_work: 1, skipped: 0, counted: 2, total: 2, required_approvals: 2, min_members: 2 } }
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
       nodes: [
         {
@@ -134,6 +134,7 @@ describe("AgentConversationTab", () => {
 
     expect(await screen.findByText("Adversarial review · Round 1")).toBeInTheDocument()
     expect(screen.getByText(/1 approved, 1 needs work, 0 skipped/)).toBeInTheDocument()
+    expect(screen.getByText(/2 approvals required/)).toBeInTheDocument()
     expect(screen.getByText("claude / sonnet")).toBeInTheDocument()
     expect(screen.getByText("codex / gpt-5")).toBeInTheDocument()
     expect(document.querySelectorAll("details")).toHaveLength(1)
