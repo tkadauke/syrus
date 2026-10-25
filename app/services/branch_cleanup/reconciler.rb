@@ -4,11 +4,12 @@ module BranchCleanup
       def deleted? = status == :deleted
     end
 
-    def initialize(repository:, user:, branch_name:, recorded_sha: nil, owner_job: nil, dry_run: false)
+    def initialize(repository:, user:, branch_name:, recorded_sha: nil, require_recorded_sha: false, owner_job: nil, dry_run: false)
       @repository = repository
       @user = user
       @branch_name = branch_name.to_s
       @recorded_sha = recorded_sha.presence
+      @require_recorded_sha = require_recorded_sha
       @owner_job = owner_job
       @dry_run = dry_run
     end
@@ -19,6 +20,9 @@ module BranchCleanup
 
       remote_sha = client.branch_head_sha(repository.slug, branch_name)
       return result(:deleted, "remote ref is already missing") if remote_sha.blank?
+      if require_recorded_sha && recorded_sha.blank?
+        return result(:protected, "recorded Syrus SHA is unavailable")
+      end
       if recorded_sha && remote_sha != recorded_sha
         return result(:protected, "remote SHA no longer matches the recorded Syrus SHA")
       end
@@ -33,7 +37,7 @@ module BranchCleanup
 
     private
 
-    attr_reader :repository, :user, :branch_name, :recorded_sha, :owner_job, :dry_run
+    attr_reader :repository, :user, :branch_name, :recorded_sha, :require_recorded_sha, :owner_job, :dry_run
 
     def unsafe_reason
       return "branch is not in the Syrus namespace" unless branch_name.start_with?("syrus/")
