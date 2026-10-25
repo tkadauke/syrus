@@ -119,6 +119,41 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(captured[:silent_timeout]).to eq(10.minutes)
   end
 
+  # A grader killed on time and a grader that failed its assertions are
+  # different problems with different owners, and both used to raise
+  # "failed (exit <code>)" -- a timeout's code being 124 or blank depending on
+  # how it was killed. The CI-repair gate keys off "is the branch red", so the
+  # two have to be tellable apart.
+  it "says a grader timed out rather than reporting it as a failure" do
+    fake_result = instance_double(
+      ProcessRunner::Result,
+      success?: false, exit_status: 124, timed_out?: true, timed_out: true,
+      stopped?: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 60.0, spawned_process_id: nil
+    )
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /timed out/)
+  end
+
+  it "still reports a genuine grader failure as a failure" do
+    fake_result = instance_double(
+      ProcessRunner::Result,
+      success?: false, exit_status: 1, timed_out?: false, timed_out: false,
+      stopped?: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 3.0, spawned_process_id: nil
+    )
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /failed \(exit 1\)/)
+  end
+
   it "does not rerun or adjudicate a successful grader command" do
     expect(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")).once.and_call_original
     expect(BaseRevisionRetry).not_to receive(:call)
@@ -237,7 +272,7 @@ RSpec.describe Steps::Grader, :ci_only do
       instance_double(ProcessRunner, run: fake_result)
     end
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader tests failed/)
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader tests timed out/)
 
     details = step.reload.details
     expect(details["timed_out"]).to be true
@@ -360,7 +395,7 @@ RSpec.describe Steps::Grader, :ci_only do
       instance_double(ProcessRunner, run: fake_result)
     end
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader usort failed/)
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader usort timed out/)
 
     warning = WorkflowWarning.find_by!(kind: "formatter_like_grader_failure")
     expect(warning.workflow).to eq(workflow)

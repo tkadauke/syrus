@@ -227,6 +227,17 @@ module Steps
           )
         end
 
+        # A grader that ran out of time and a grader that failed its assertions
+        # are different problems with different owners, and they were
+        # indistinguishable: both read "failed (exit <code>)", with a timeout
+        # showing up as exit 124 or a blank code depending on how it was killed.
+        # Over a production day roughly a quarter of grader failures were
+        # timeouts, which made "the default branch is red" an unreliable
+        # statement -- and the CI-repair gate keys off exactly that. Genuine
+        # failures keep their wording byte-for-byte so existing classification
+        # and diagnostics are untouched.
+        raise StepFailed, "grader #{name} timed out (exit #{exit_code.presence || 'none'})" if timed_out
+
         raise StepFailed, "grader #{name} failed (exit #{exit_code})"
       end
     end

@@ -205,6 +205,10 @@ class RunFailureClassifier
       return true if run.agent_outcome.to_s.match?(/timeout|timed_out/)
       return true if diagnostic&.error_class.to_s.match?(/Timeout/)
       return true if spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
+      # Steps::Grader now says so outright when it killed the grader on time.
+      # The inferential signals below stay as the fallback for runs recorded
+      # before that, and for kills it cannot see.
+      return true if text_match?(/grader \S+ timed out/i)
 
       return GraderFailureSignal.timeout_like_step?(run.step)
     end

@@ -27,6 +27,22 @@ RSpec.describe RebaseAttemptGuard do
     workflow
   end
 
+  # A rebase workflow whose agent step SUCCEEDED but which then failed
+  # terminally further down the chain -- the shape that escaped the cap.
+  def failed_late_step!(step_kind: "force_push", retryable: false, classification: "application_error")
+    workflow = Workflows::Rebase.instantiate(job: job)
+    step = workflow.steps.find_by(kind: step_kind) ||
+      Step.create!(workflow: workflow, kind: step_kind, position: 99)
+    step.update!(state: "failed")
+    run = Run.create!(job: job, step: step, trigger_kind: "rebase", state: "failed")
+    RunFailureClassification.create!(
+      run: run, classification: classification, retryable: retryable, confidence: 0.9,
+      reason: "pinned by spec", classified_at: Time.current
+    )
+    workflow.update!(state: "failed", finished_at: Time.current)
+    workflow
+  end
+
   def failed_agent_rebase!(finished_at:, pre_sha: "head", base_sha: "base")
     workflow = Workflows::Rebase.instantiate(
       job: job,
@@ -161,5 +177,32 @@ RSpec.describe RebaseAttemptGuard do
     Workflows::Rebase.instantiate(job: job).update!(state: "succeeded")
 
     expect(described_class.cooling_down?(job, pr: pr)).to eq(false)
+  end
+
+  describe "failures outside the agent step" do
+    # One Job retried an identical non-retryable force_push refusal 16 times in
+    # 24 hours. The scan stopped at the first workflow that had not failed in
+    # the agent step, so the cap counted none of them.
+    it "counts a non-retryable failure in a later step toward the cap" do
+      3.times { failed_late_step! }
+
+      expect(described_class.consecutive_failures(job)).to eq(3)
+      expect(described_class.cap_reached?(job)).to be(true)
+    end
+
+    it "blocks permanently rather than waiting out a cooldown that cannot help" do
+      failed_late_step!
+
+      expect(described_class.cooling_down?(job)).to be(true)
+    end
+
+    # A dead worker in a late step genuinely may succeed next time, so it must
+    # not accumulate toward a permanent block.
+    it "does not count a retryable failure in a later step" do
+      3.times { failed_late_step!(retryable: true, classification: "worker_died") }
+
+      expect(described_class.consecutive_failures(job)).to eq(0)
+      expect(described_class.cap_reached?(job)).to be(false)
+    end
   end
 end

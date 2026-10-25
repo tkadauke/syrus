@@ -566,6 +566,27 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).to eq("rate_limited")
   end
 
+  # A grader killed on time and a grader that failed its assertions are
+  # different problems with different owners. Both used to read
+  # "failed (exit <code>)" -- with the timeout's code being 124 or blank -- so
+  # roughly a quarter of "grader failures" over a production day were actually
+  # timeouts, and "the default branch is red" could not be trusted.
+  it "classifies an explicit grader timeout as a timeout, not a grader failure" do
+    run.update!(state: "failed")
+    run.step.update!(kind: "grader")
+    diagnostic("Steps::Base::StepFailed", "grader rspec-ci timed out (exit none)")
+
+    expect(classification.classification).to eq("timeout")
+  end
+
+  it "still classifies a genuine grader failure as a grader failure" do
+    run.update!(state: "failed")
+    run.step.update!(kind: "grader")
+    diagnostic("Steps::Base::StepFailed", "grader rspec-ci failed (exit 1)")
+
+    expect(classification.classification).not_to eq("timeout")
+  end
+
   it "does not classify internal snake_case rate-limit action text as provider rate-limit evidence" do
     run.update!(state: "failed", agent_provider: "codex")
     diagnostic("Steps::Base::StepFailed", "grader rspec failed (exit 1)")

@@ -26,6 +26,14 @@ class WorkerCapabilities
   TOOL_PROBES = [
     ToolProbe.new(dimension: "toolchain", token: "xcode", diagnostic_key: "xcode", command: [ "xcodebuild", "-version" ], available_value: true),
     ToolProbe.new(dimension: "runtime", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true),
+    # The Linux worker image installs the Android SDK (cmdline-tools, platform,
+    # build-tools) and puts sdkmanager on PATH, but nothing advertised it, so
+    # `toolchain=android` -- which Android::GradleGraderType requires -- was
+    # satisfiable by no worker at all. Every Android grader resolved to
+    # `no_capable_worker`, including the ones in main-branch-repair preflight,
+    # so the job that exists to fix a broken default branch could not get past
+    # its own preflight.
+    ToolProbe.new(dimension: "toolchain", token: "android", diagnostic_key: "android", command: [ "sdkmanager", "--version" ], available_value: true),
     ToolProbe.new(dimension: "feature", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true)
   ].freeze
   VERSION_PROBES = {

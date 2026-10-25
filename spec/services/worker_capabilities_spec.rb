@@ -124,6 +124,28 @@ RSpec.describe WorkerCapabilities do
       end
     end
 
+    # Android::GradleGraderType requires toolchain=android. The Linux worker
+    # image has the SDK and sdkmanager on PATH, but nothing advertised it, so
+    # every Android grader -- including main-branch-repair's preflight -- came
+    # back no_capable_worker.
+    it "advertises the android toolchain when the SDK is installed" do
+      allow(described_class).to receive(:command_result) do |command|
+        probe_result(success: command.first == "sdkmanager")
+      end
+
+      with_capability_env(nil) do
+        expect(described_class.current.fetch(:capabilities)["toolchain"]).to include("android")
+      end
+    end
+
+    it "does not advertise the android toolchain when the SDK is absent" do
+      allow(described_class).to receive(:command_result) { probe_result(success: false) }
+
+      with_capability_env(nil) do
+        expect(Array(described_class.current.fetch(:capabilities)["toolchain"])).not_to include("android")
+      end
+    end
+
     it "does not advertise the iOS simulator runtime when simctl has no available iOS runtimes" do
       allow(described_class).to receive(:command_result) do |command|
         if command == [ "xcrun", "simctl", "list", "runtimes", "-j" ]

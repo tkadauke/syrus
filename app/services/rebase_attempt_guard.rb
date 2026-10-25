@@ -43,7 +43,8 @@ class RebaseAttemptGuard
     latest = consecutive_workflows.first
     return false unless latest
 
-    latest_failed_agent_rebase_run(latest)&.run_failure_classification&.retryable == false
+    run = latest_failed_agent_rebase_run(latest) || latest_failed_run(latest)
+    run&.run_failure_classification&.retryable == false
   end
   private_class_method :permanently_blocked_by?
 
@@ -92,7 +93,7 @@ class RebaseAttemptGuard
       next unless workflow.failed?
 
       break if pr && !matches_pr?(workflow, job, pr)
-      break unless failed_in_agent_rebase?(workflow)
+      break unless countable_failure?(workflow)
 
       workflows << workflow
     end
@@ -113,7 +114,7 @@ class RebaseAttemptGuard
        .where("COALESCE(finished_at, updated_at) >= ?", since)
        .reorder(id: :desc)
        .detect do |workflow|
-         failed_in_agent_rebase?(workflow) && matches_pr?(workflow, job, pr)
+         countable_failure?(workflow) && matches_pr?(workflow, job, pr)
        end
   end
   private_class_method :recent_failed_agent_workflow
@@ -122,6 +123,38 @@ class RebaseAttemptGuard
     workflow.steps.where(kind: AGENT_REBASE_STEPS, state: "failed").exists?
   end
   private_class_method :failed_in_agent_rebase?
+
+  # The scan used to stop at the first workflow that did not fail in the agent
+  # step, which let a deterministic failure LATER in the same chain escape the
+  # cap entirely: a `force_push` that refuses to publish a branch missing its
+  # latest handoff fix is non-retryable and identical every time, and one Job
+  # retried it 16 times in 24 hours without the cap ever counting one of them.
+  #
+  # A non-retryable failure anywhere in a rebase workflow is the same situation
+  # `permanently_blocked_by?` already describes -- nothing about the inputs
+  # changes between attempts -- so it counts. A transient failure in a
+  # non-agent step still does not, because a dead worker genuinely may succeed
+  # next time.
+  def self.countable_failure?(workflow)
+    failed_in_agent_rebase?(workflow) || failed_non_retryably?(workflow)
+  end
+  private_class_method :countable_failure?
+
+  def self.failed_non_retryably?(workflow)
+    latest_failed_run(workflow)&.run_failure_classification&.retryable == false
+  end
+  private_class_method :failed_non_retryably?
+
+  def self.latest_failed_run(workflow)
+    workflow.steps
+      .where(state: "failed")
+      .order(position: :desc, id: :desc)
+      .first
+      &.runs
+      &.order(id: :desc)
+      &.first
+  end
+  private_class_method :latest_failed_run
 
   def self.matches_pr?(workflow, job, pr)
     result = result_for(workflow, job)
