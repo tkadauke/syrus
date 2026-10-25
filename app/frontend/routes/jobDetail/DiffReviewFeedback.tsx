@@ -1026,18 +1026,21 @@ function groupReviewSidebarItems({
   }
 
   for (const entry of chatFeedback) {
-    const version = versions?.find((candidate) => candidate.workflow_id === entry.workflow_id)
-    if (!version) continue
+    const matchingVersion = versions?.find((candidate) => candidate.workflow_id === entry.workflow_id)
+    const fallbackVersionId = currentVersionId ?? latestVersion(versions)?.id
+    const versionId = matchingVersion?.id ?? fallbackVersionId
+    if (versionId == null) continue
 
-    const group = groups.get(version.id) ?? { version, versionId: version.id, items: [] }
+    const version = matchingVersion ?? versionForGroup(versionId, null, versions)
+    const group = groups.get(versionId) ?? { version, versionId, items: [] }
     group.items.push({
       kind: "chat_feedback",
-      key: `chat-feedback:${entry.workflow_id ?? entry.created_at ?? version.id}`,
+      key: `chat-feedback:${entry.workflow_id ?? entry.created_at ?? versionId}`,
       entry,
       path: null,
       line: null
     })
-    groups.set(version.id, group)
+    groups.set(versionId, group)
   }
 
   return [...groups.values()]
@@ -1046,6 +1049,13 @@ function groupReviewSidebarItems({
       items: [...group.items].sort((a, b) => compareReviewSidebarItems(a, b, fileOrder))
     }))
     .sort((a, b) => a.version.version_index - b.version.version_index || a.versionId - b.versionId)
+}
+
+function latestVersion(versions?: DiffReviewVersion[]) {
+  return versions?.reduce<DiffReviewVersion | null>((latest, candidate) => {
+    if (!latest || candidate.version_index > latest.version_index) return candidate
+    return latest
+  }, null)
 }
 
 function annotationPanelSidebarItem(panel: DiffReviewAnnotationPanel): ReviewSidebarItem {

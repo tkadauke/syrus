@@ -3139,6 +3139,37 @@ describe("ReviewWorkspace", () => {
     expect(feedback.compareDocumentPosition(within(conversation).getByText("Chat feedback #1"))).toBe(Node.DOCUMENT_POSITION_PRECEDING)
   })
 
+  it("shows chat feedback without a matching diff version in the currently viewed version", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 100, label: "Initial implementation", workflow_id: 10 }),
+        versions: [version({ id: 100, label: "Initial implementation", workflow_id: 10 })]
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    const payload = jobPayload()
+    payload.feedback_history = [
+      {
+        kind: "chat_feedback",
+        body: "Please handle the no-change outcome.",
+        created_at: "2026-10-25T10:00:00Z",
+        state: "running",
+        feedback_source: null,
+        workflow_id: 88,
+        workflow_slug: "WF-88",
+        workflow_path: "/jobs/42?tab=workflows#workflow-88"
+      }
+    ]
+
+    renderWorkspace(payload)
+
+    const feedback = await screen.findByTestId("review-chat-feedback")
+    expect(feedback).toHaveTextContent("Please handle the no-change outcome.")
+    expect(screen.queryByText("No review notes or comments.")).not.toBeInTheDocument()
+    expect(within(feedback.closest("section") as HTMLElement).getByText("Initial implementation")).toBeInTheDocument()
+  })
+
   it("sends historical comment mutations with the comment's own version id", async () => {
     const oldComment = comment({
       id: 12,
