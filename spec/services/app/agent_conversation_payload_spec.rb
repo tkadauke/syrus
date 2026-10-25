@@ -62,6 +62,32 @@ RSpec.describe App::AgentConversationPayload do
     expect(review_node[:detail]).to include("verdict" => "needs_work")
   end
 
+  it "matches panel verdicts to the member run that submitted them" do
+    workflow = create_workflow
+    claude_step = create_step(
+      workflow: workflow, kind: "adversarial_review", position: 1,
+      details: { "panel_member" => true, "panel_id" => "panel-1" }
+    )
+    codex_step = create_step(
+      workflow: workflow, kind: "adversarial_review", position: 2,
+      details: { "panel_member" => true, "panel_id" => "panel-1" }
+    )
+    claude_run = create_run(step: claude_step, agent_provider: "claude")
+    codex_run = create_run(step: codex_step, agent_provider: "codex")
+    workflow.set_artifact!("adversarial_review_iterations", [
+      { "iteration" => 1, "panel_id" => "panel-1", "run_id" => claude_run.id, "provider" => "claude", "verdict" => "approved", "critique" => "Clean" },
+      { "iteration" => 1, "panel_id" => "panel-1", "run_id" => codex_run.id, "provider" => "codex", "verdict" => "needs_work", "critique" => "Concern" },
+      { "iteration" => 1, "panel_id" => "panel-1", "aggregate" => true, "verdict" => "approved" }
+    ])
+
+    payload = described_class.build(job: job)
+
+    expect(node(payload, "agent_session-#{claude_run.id}")).to include(summary: "Clean")
+    expect(node(payload, "agent_session-#{claude_run.id}")[:detail]).to include("verdict" => "approved", "panel_verdict" => "approved")
+    expect(node(payload, "agent_session-#{codex_run.id}")).to include(summary: "Concern")
+    expect(node(payload, "agent_session-#{codex_run.id}")[:detail]).to include("verdict" => "needs_work", "panel_verdict" => "approved")
+  end
+
   describe "a plain initial workflow with adversarial/visual review loops and a grader fanout" do
     it "builds agent_session and deterministic_check nodes wired through the loop and fan-out/fan-in" do
       workflow = create_workflow(trigger_kind: "initial")

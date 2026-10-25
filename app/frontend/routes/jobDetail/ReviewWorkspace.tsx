@@ -1032,10 +1032,10 @@ function reviewArtifactSummaries(workflows: JobWorkflow[]) {
       const testPlan = stepArtifactTestPlan(artifacts.test_plan)
       if (testPlan?.notes) summaries.push(testPlan.notes)
       for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
-        summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+        summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict}${iteration.critique ? ` - ${iteration.critique}` : ""}`)
       }
       for (const iteration of stepArtifactSecurityReview(artifacts.security_review_iterations) || []) {
-        summaries.push(`Security review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+        summaries.push(`Security review ${iteration.iteration}: ${iteration.verdict}${iteration.critique ? ` - ${iteration.critique}` : ""}`)
       }
       for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
         summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
