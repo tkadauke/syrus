@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { parseProposalOutcome, proposalOutcomeSummary, ProposalOutcomeCard } from "../proposalToolCard"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
@@ -6,13 +7,13 @@ import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, t
 // propose_job parser/renderer since both tools return the same
 // Mcp::Tools.proposal_payload shape.
 const failureConfig: ToolFailureConfig = {
-  title: "Epic proposal",
+  title: i18n.t("chat:tool_card_epic_proposal"),
   attempted: (context) => {
     const title = stringFromInput(context, ["title", "name"])
-    return title ? `Propose Epic: ${title}` : "Propose an Epic"
+    return title ? i18n.t("chat:tool_card_propose_epic_named", { title }) : i18n.t("chat:tool_card_propose_epic")
   },
   retrySafety: "caution",
-  recovery: "Use propose_epic_with_jobs to propose the Epic together with at least one child Job."
+  recovery: i18n.t("chat:tool_card_propose_epic_recovery")
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -35,15 +36,15 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "deprecated_tool_failure",
-    label: "Deprecated Epic proposal",
-    description: "The deprecated tool directs the caller to propose the Epic with child Jobs.",
+    label: i18n.t("chat:tool_card_propose_epic_example_deprecated"),
+    description: i18n.t("chat:tool_card_propose_epic_example_deprecated_description"),
     input: { title: "Improve proposal cards", description: "Render **rich proposal details**." },
     resultBody: "Error: propose_epic no longer accepts zero-child Epic proposals. Call propose_epic_with_jobs instead.",
     resultError: true
   },
   {
     id: "materialized_epic",
-    label: "Materialized Epic with child Jobs",
+    label: i18n.t("chat:tool_card_propose_epic_example_materialized"),
     parsedResult: {
       slug: "improve-proposal-cards",
       title: "Improve proposal cards",

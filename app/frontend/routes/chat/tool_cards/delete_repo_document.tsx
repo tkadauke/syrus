@@ -1,15 +1,16 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { parseRepoDocumentAction, RepoDocumentActionCard, repoDocumentActionSummary } from "../repoDocumentToolCard"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 const failureConfig: ToolFailureConfig = {
-  title: "Delete repository document",
+  title: i18n.t("chat:tool_card_document_delete"),
   attempted: (context) => {
     const documentId = stringFromInput(context, ["document_id", "id"])
-    return documentId ? `Delete document ${documentId}` : "Delete repository document"
+    return documentId ? i18n.t("chat:tool_card_document_delete_named", { id: documentId }) : i18n.t("chat:tool_card_document_delete")
   },
   retrySafety: "caution",
-  recovery: "Check that the document still exists and that its ID is correct before retrying."
+  recovery: i18n.t("chat:tool_card_document_delete_recovery")
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -36,7 +37,7 @@ export default deleteRepoDocumentToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "pending_document",
-    label: "Pending document deletion",
+    label: i18n.t("chat:tool_card_document_example_delete_pending"),
     sourceType: "claude",
     input: { document_id: 99 },
     parsedResult: {
@@ -48,7 +49,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "document_not_found",
-    label: "Document not found",
+    label: i18n.t("chat:tool_card_document_example_not_found"),
     sourceType: "codex",
     input: { document_id: 99 },
     parsedResult: { error: "Document not found" },
