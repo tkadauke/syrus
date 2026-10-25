@@ -294,7 +294,7 @@ module Steps
     end
 
     def fast_grader_plan(plan)
-      LandingGraderPlan.landing(plan)
+      LandingGraderPlan.landing(plan, repository: repository, job: job)
     end
   end
 end

@@ -118,6 +118,12 @@ RSpec.describe LandingGraderPlan do
       expect(effective.graders.map(&:name)).to eq([ "minimal-landing-check" ])
     end
 
+    it "uses the Job track's custom landing phase through the landing-plan helper" do
+      effective = described_class.landing(plan, repository: repository, job: job)
+
+      expect(effective.graders.map(&:name)).to eq([ "minimal-landing-check" ])
+    end
+
     it "does not consult delivery policy for promotion or hotfix sync" do
       %w[promotion hotfix_sync].each do |trigger_kind|
         effective = described_class.effective(
