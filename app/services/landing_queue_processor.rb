@@ -768,11 +768,6 @@ class LandingQueueProcessor
     end
     check_blocker.call({ key: "waiting_epic_release" }) if job.blocked_by_epic_before_execution?
     return blocked({ key: "approval_not_satisfied" }) unless landing_approval_satisfied?(job)
-    # With merge-trains on, Epic children never land via the per-Job
-    # path — they land atomically as part of their Epic's train. Keep
-    # them in :approved with a clear reason; MergeTrainDispatcher picks
-    # the Epic up once every child is approved.
-    check_blocker.call({ key: "waiting_epic_merge_train" }) if merge_train_for_epic_child?(job)
     # Same idea, epicless: once a same-tier bundle is forming, keep the
     # Job in :approved with a clear reason instead of letting it try to
     # land solo — JobBundleDispatcher picks the group up atomically.
@@ -881,6 +876,11 @@ class LandingQueueProcessor
         check_blocker.call(dependency_wait_reason(dependency, waiting), waiting)
       end
     end
+
+    # Epic children never land via the per-Job path. Keep this generic
+    # reason last so actionable member and sibling blockers remain visible,
+    # and so MergeTrainDispatcher can reject a train containing them.
+    check_blocker.call({ key: "waiting_epic_merge_train" }) if merge_train_for_epic_child?(job)
 
     { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] }
     end
