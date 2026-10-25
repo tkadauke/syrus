@@ -112,6 +112,18 @@ describe("select_job_delivery_track tool card", () => {
         resultError: false
       })
     ).toBe("Abhängigkeit hinzugefügt · EPIC-42")
+    render(
+      <MemoryRouter>
+        {addEpicDependencyToolCard.renderExpanded({
+          toolName: "add_epic_dependency",
+          input: { epic_id: 42, depends_on_epic_id: 41 },
+          parsedResult: { epic_id: 42, depends_on: [41] },
+          resultBody: "",
+          resultError: false
+        })}
+      </MemoryRouter>
+    )
+    expect(screen.getByText("Abhängigkeit")).toBeInTheDocument()
     renderCard(cardContext)
     expect(screen.getByText("Auswahl des Auslieferungspfads fehlgeschlagen")).toBeInTheDocument()
     expect(screen.getByText(/Prüfe, ob der Job noch offen ist/)).toBeInTheDocument()
