@@ -24,7 +24,11 @@ RSpec.describe "Mcp::Tools provider routing tools" do
     expect(payload(response)).to include(
       revision: a_string_matching(/\A[0-9a-f]{64}\z/),
       rules: [ a_hash_including(id: rule.id, enabled: false) ],
-      registry_options: a_hash_including(agent_providers: include(a_hash_including(value: "claude")))
+      registry_options: a_hash_including(
+        agent_providers: include(a_hash_including(value: "claude")),
+        action_strategies: include("panel"),
+        panel_capable_step_kinds: contain_exactly("adversarial_review", "security_review")
+      )
     )
   end
 
@@ -57,6 +61,48 @@ RSpec.describe "Mcp::Tools provider routing tools" do
 
     expect(body.fetch(:explicit_pin)).to include(overrides_rules: true, provider: "claude")
     expect(body.fetch(:scope_precedence).flat_map { |scope| scope.fetch(:rules) }.pluck(:outcome)).to eq([ "overridden_by_explicit_pin" ])
+  end
+
+  it "explains panel members and their availability" do
+    job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+    ProviderRoutingRule.create!(
+      scope_type: "repository", scope_id: repository.id, user: user, repository: repository,
+      trigger: { type: "step", kind: "security_review" },
+      action: {
+        strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ],
+        consensus: "majority", on_unavailable: "drop", min_members: 1
+      }
+    )
+    allow(AgentProviders.for("claude")).to receive(:configured_for_user?).and_return(true)
+    allow(AgentProviders.for("codex")).to receive(:configured_for_user?).and_return(true)
+    allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available")
+
+    body = payload(Mcp::Tools::ExplainProviderRoutingTool.call(job_id: job.id, task_key: "security_review", server_context: context))
+
+    expect(body.dig(:winning_decision, :decision, :status)).to eq("panel")
+    expect(body.dig(:panel_availability, :members).pluck(:provider)).to eq(%w[claude codex])
+    expect(body.dig(:panel_availability, :disposition)).to eq("proceed")
+  end
+
+  it "validates and previews panel rule mutations" do
+    revision = payload(Mcp::Tools::ReadProviderRoutingRulesTool.call(scope_type: "user", server_context: context)).fetch(:revision)
+    response = Mcp::Tools::MutateProviderRoutingRulesTool.call(
+      scope_type: "user", expected_revision: revision, server_context: context,
+      operations: [ {
+        type: "create",
+        rule: {
+          trigger: { type: "step", kind: "adversarial_review" },
+          action: {
+            strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ],
+            consensus: { at_least: 2 }, on_unavailable: "hold", min_members: 2
+          }
+        }
+      } ]
+    )
+
+    expect(response).not_to be_error
+    pending = ChatPendingAction.find(payload(response).fetch(:pending_action_id))
+    expect(pending.payload.dig("after", "rules", 0, "action")).to include("strategy" => "panel", "on_unavailable" => "hold")
   end
 
   it "creates a before/after pending action and applies only after confirmation" do

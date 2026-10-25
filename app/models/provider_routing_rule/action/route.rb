@@ -8,8 +8,15 @@ class ProviderRoutingRule::Action::Route < ProviderRoutingRule::Action
   end
 
   def validate(record)
-    strategy = attributes["strategy"].to_s
-    record.errors.add(:action, :unknown_strategy, value: strategy.inspect) unless ProviderRoutingRule::ACTION_STRATEGIES.include?(strategy)
     record.errors.add(:action, :candidates_must_be_array) unless attributes["candidates"].is_a?(Array)
+    strategy_definition.validate(record)
+  end
+
+  def panel? = strategy_definition.panel?
+
+  private
+
+  def strategy_definition
+    Strategy.for(attributes["strategy"], attributes)
   end
 end

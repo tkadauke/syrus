@@ -1285,12 +1285,25 @@
     "validation_name": "Geben Sie einen Regelnamen ein.",
     "validation_trigger": "Wählen Sie einen Trigger.",
     "validation_candidates": "Fügen Sie mindestens einen Anbieter-Kandidaten hinzu.",
+    "validation_panel_trigger": "Panels sind nur für Adversarial- oder Sicherheitsprüfungen verfügbar.",
+    "validation_panel_members": "Füge mindestens zwei unterschiedliche Mitglieder hinzu und halte Freigabe- und Mindestanzahl innerhalb der Panelgröße.",
+    "panel_consensus": "Konsens",
+    "panel_unanimous": "Einstimmig",
+    "panel_majority": "Strikte Mehrheit",
+    "panel_at_least": "Mindestens",
+    "panel_required_approvals": "Erforderliche Freigaben",
+    "panel_unavailable": "Wenn ein Mitglied nicht verfügbar ist",
+    "panel_drop": "Mitglied entfernen",
+    "panel_hold": "Aufnahme anhalten",
+    "panel_fail": "Aufnahme fehlschlagen lassen",
+    "panel_min_members": "Mindestanzahl Mitglieder",
     "validation_hold_reason": "Geben Sie einen Grund für das Anhalten ein.",
     "validation_resume_time": "Wählen Sie, wann die Arbeit fortgesetzt werden soll.",
     "effort_candidate": "{{effort}} Aufwand",
     "action_strategies": {
       "fallback_order": "Fallback-Reihenfolge",
-      "weighted": "Gewichtet"
+      "weighted": "Gewichtet",
+      "panel": "Panel"
     },
     "effort_levels": {
       "none": "Keiner",

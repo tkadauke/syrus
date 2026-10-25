@@ -1,5 +1,25 @@
 module ProviderRouting
   class AvailabilitySelector
+    PanelDecision = Data.define(:members, :available_members, :unavailable_members, :consensus, :on_unavailable, :min_members, :disposition, :routing_resolution) do
+      def held? = disposition == "hold"
+      def failed? = disposition == "fail"
+      def dropped? = disposition == "drop"
+
+      def artifact
+        {
+          "strategy" => "panel",
+          "members" => members,
+          "available_members" => available_members,
+          "unavailable_members" => unavailable_members,
+          "consensus" => consensus,
+          "on_unavailable" => on_unavailable,
+          "min_members" => min_members,
+          "disposition" => disposition,
+          "routing_resolution" => routing_resolution.explanation
+        }
+      end
+    end
+
     Decision = Data.define(:candidate, :original_candidate, :reason, :availability, :candidate_availability, :decided_at, :exhausted, :routing_resolution) do
       def selected_provider = candidate&.provider
       def failover? = selected_provider.present? && original_candidate&.provider.present? && selected_provider != original_candidate.provider
@@ -94,6 +114,10 @@ module ProviderRouting
       ProviderRouting::Resolver::Candidate.new(provider: provider, model: model, effort_level: effort_level)
     end
 
+    def self.panel(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, now: Time.current)
+      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind, now: now).panel
+    end
+
     def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current, released_hold_rule_ids: [])
       @job = job
       @task_key = task_key
@@ -134,6 +158,40 @@ module ProviderRouting
         first_unavailable_candidate || candidates.first,
         candidate_availability: first_unavailable_availability,
         exhausted: true
+      )
+    end
+
+    def panel
+      resolution = routing_resolution
+      return nil unless resolution.panel?
+
+      members = resolution.members.map do |candidate|
+        unavailable = credential_unavailability(candidate.provider)
+        unless unavailable
+          refresh_stale_usage(candidate.provider)
+          availability = App::ProviderAvailability.for_user(user, candidate.provider, now: now)
+          unavailable = availability unless available_enough?(candidate.provider, availability)
+        end
+        candidate.to_h.stringify_keys.merge("available" => unavailable.nil?, "availability" => unavailable).compact
+      end
+      unavailable = members.reject { |member| member["available"] }
+      available = members.select { |member| member["available"] }
+      disposition = if unavailable.empty?
+        "proceed"
+      elsif resolution.on_unavailable == "drop"
+        "drop"
+      else
+        resolution.on_unavailable
+      end
+      PanelDecision.new(
+        members: members,
+        available_members: available,
+        unavailable_members: unavailable,
+        consensus: resolution.consensus,
+        on_unavailable: resolution.on_unavailable,
+        min_members: resolution.min_members,
+        disposition: disposition,
+        routing_resolution: resolution
       )
     end
 
