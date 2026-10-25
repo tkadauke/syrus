@@ -135,9 +135,7 @@ function MediaGallery({ items, contextRows }: { items: Media[]; contextRows: Con
   return (
     <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
       <div className="mb-2 text-gray-600 dark:text-gray-300">
-        <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
-          {i18n.t("chat:tool_card_list_media_summary", { count: items.length })}
-        </span>
+        <span className="text-xs font-medium text-gray-900 dark:text-gray-100">{i18n.t("chat:tool_card_list_media_summary", { count: items.length })}</span>
         <ContextRows rows={contextRows} />
       </div>
       <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
@@ -154,7 +152,11 @@ function MediaTile({ item }: { item: Media }) {
   const imageSource = item.kind === "chat_image" ? item.file_path || item.image_url : ""
   const href = item.kind === "snapshot" ? safeMediaUrl(item.whiteboard_url) : thumbnailSrc
   const actions: MediaPreviewAction[] = [{ label: i18n.t("chat:tool_card_list_media_copy_id"), copyValue: item.id }]
-  if (href) actions.unshift({ label: item.kind === "snapshot" ? i18n.t("chat:tool_card_list_media_open_whiteboard") : i18n.t("chat:tool_card_list_media_open_image"), href })
+  if (href)
+    actions.unshift({
+      label: item.kind === "snapshot" ? i18n.t("chat:tool_card_list_media_open_whiteboard") : i18n.t("chat:tool_card_list_media_open_image"),
+      href
+    })
   if (thumbnailSrc && item.kind === "chat_image") actions.splice(1, 0, { label: i18n.t("chat:download"), href: thumbnailSrc, download: true })
   if (item.kind === "chat_image" && item.file_path) actions.push({ label: i18n.t("chat:tool_card_list_media_copy_path"), copyValue: item.file_path })
   const meta: MediaPreviewMeta[] = [
@@ -215,8 +217,19 @@ export const examples: ToolCardExample[] = [
       whiteboard_has_unsaved_content: true
     }
   },
-  { id: "empty", label: i18n.t("chat:tool_card_list_media_example_empty"), parsedResult: { snapshots: [], chat_images: [], whiteboard_element_count: 0 }, sourceType: "generic" },
-  { id: "error", label: i18n.t("chat:tool_card_example_error"), parsedResult: { error: i18n.t("chat:tool_card_list_media_example_error") }, resultError: true, sourceType: "codex" }
+  {
+    id: "empty",
+    label: i18n.t("chat:tool_card_list_media_example_empty"),
+    parsedResult: { snapshots: [], chat_images: [], whiteboard_element_count: 0 },
+    sourceType: "generic"
+  },
+  {
+    id: "error",
+    label: i18n.t("chat:tool_card_example_error"),
+    parsedResult: { error: i18n.t("chat:tool_card_list_media_example_error") },
+    resultError: true,
+    sourceType: "codex"
+  }
 ]
 
 const listChatMediaToolCard: ToolCardRenderer = { toolName: "list_chat_media", collapsedSummary, renderExpanded }

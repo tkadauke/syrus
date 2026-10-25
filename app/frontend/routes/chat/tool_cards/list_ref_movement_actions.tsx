@@ -50,7 +50,10 @@ function Scope({ result }: { result: ActionsResult }) {
       <span className="inline-flex min-w-0 items-center gap-1">
         {i18n.t("chat:tool_card_list_ref_actions_repository")}: <EntityReference href={repositoryHref} kind="repository" repositorySlug={result.repository} />
       </span>
-      <span className="inline-flex items-center gap-1">{i18n.t("chat:tool_card_list_ref_actions_job")}: {result.jobId ? <EntityReference id={result.jobId} kind="job" /> : <span>{i18n.t("chat:tool_card_list_ref_actions_all_jobs")}</span>}</span>
+      <span className="inline-flex items-center gap-1">
+        {i18n.t("chat:tool_card_list_ref_actions_job")}:{" "}
+        {result.jobId ? <EntityReference id={result.jobId} kind="job" /> : <span>{i18n.t("chat:tool_card_list_ref_actions_all_jobs")}</span>}
+      </span>
     </div>
   )
 }
@@ -65,7 +68,11 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>{i18n.t("chat:tool_card_list_ref_actions_empty")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["action", "enabled", "mode", "grade_phases", "availability", "blocked_reason"].map((key) => i18n.t(`chat:tool_card_list_ref_actions_${key}`))} />
+          <THead
+            columns={["action", "enabled", "mode", "grade_phases", "availability", "blocked_reason"].map((key) =>
+              i18n.t(`chat:tool_card_list_ref_actions_${key}`)
+            )}
+          />
           <TBody>
             {result.rows.map((row) => (
               <tr key={row.name}>
@@ -73,7 +80,10 @@ function renderExpanded(context: ToolCardContext) {
                   {row.name}
                 </Td>
                 <Td>
-                  <StatePill state={row.enabled ? i18n.t("chat:tool_card_enabled") : i18n.t("chat:tool_card_disabled")} tone={row.enabled ? "success" : "neutral"} />
+                  <StatePill
+                    state={row.enabled ? i18n.t("chat:tool_card_enabled") : i18n.t("chat:tool_card_disabled")}
+                    tone={row.enabled ? "success" : "neutral"}
+                  />
                 </Td>
                 <Td>{row.mode || "—"}</Td>
                 <Td wrap>
@@ -88,9 +98,18 @@ function renderExpanded(context: ToolCardContext) {
                   )}
                 </Td>
                 <Td>
-                  <StatePill state={row.available ? i18n.t("chat:tool_card_available") : i18n.t("chat:tool_card_blocked")} tone={row.available ? "success" : "warning"} />
+                  <StatePill
+                    state={row.available ? i18n.t("chat:tool_card_available") : i18n.t("chat:tool_card_blocked")}
+                    tone={row.available ? "success" : "warning"}
+                  />
                 </Td>
-                <Td wrap>{row.blockedReason ? <MarkdownPreview maxLines={3} text={row.blockedReason} title={i18n.t("chat:tool_card_list_ref_actions_blocked_reason")} /> : "—"}</Td>
+                <Td wrap>
+                  {row.blockedReason ? (
+                    <MarkdownPreview maxLines={3} text={row.blockedReason} title={i18n.t("chat:tool_card_list_ref_actions_blocked_reason")} />
+                  ) : (
+                    "—"
+                  )}
+                </Td>
               </tr>
             ))}
           </TBody>
@@ -121,7 +140,11 @@ export const examples: ToolCardExample[] = [
       ]
     }
   },
-  { id: "no_actions", label: i18n.t("chat:tool_card_list_ref_actions_example_empty"), parsedResult: { repository: "example/widgets", job_id: null, ref_movement_actions: [] } }
+  {
+    id: "no_actions",
+    label: i18n.t("chat:tool_card_list_ref_actions_example_empty"),
+    parsedResult: { repository: "example/widgets", job_id: null, ref_movement_actions: [] }
+  }
 ]
 
 const listRefMovementActionsToolCard: ToolCardRenderer = { toolName: "list_ref_movement_actions", collapsedSummary, renderExpanded }

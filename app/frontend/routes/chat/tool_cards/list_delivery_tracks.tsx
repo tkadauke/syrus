@@ -88,7 +88,11 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div>{repositoryReference}</div>
       <Table responsive>
-        <THead columns={["track", "branch", "review", "landing", "ci_failure", "branch_health", "sync_after_landing"].map((key) => i18n.t(`chat:tool_card_list_delivery_tracks_${key}`))} />
+        <THead
+          columns={["track", "branch", "review", "landing", "ci_failure", "branch_health", "sync_after_landing"].map((key) =>
+            i18n.t(`chat:tool_card_list_delivery_tracks_${key}`)
+          )}
+        />
         <TBody>
           {result.tracks.map((row) => (
             <tr key={row.name}>
@@ -141,5 +145,10 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "empty", label: i18n.t("chat:tool_card_list_delivery_tracks_example_empty"), parsedResult: { repository: "acme/widgets", tracks: [] } },
-  { id: "error", label: i18n.t("chat:tool_card_list_delivery_tracks_example_error"), resultBody: i18n.t("chat:tool_card_list_delivery_tracks_example_error_message"), resultError: true }
+  {
+    id: "error",
+    label: i18n.t("chat:tool_card_list_delivery_tracks_example_error"),
+    resultBody: i18n.t("chat:tool_card_list_delivery_tracks_example_error_message"),
+    resultError: true
+  }
 ]

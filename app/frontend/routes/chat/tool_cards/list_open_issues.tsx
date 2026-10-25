@@ -32,5 +32,11 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "empty", label: i18n.t("chat:tool_card_list_issues_example_empty"), input: { state: "closed", limit: 20 }, parsedResult: { issues: [] } },
-  { id: "error", label: i18n.t("chat:tool_card_provider_error"), input: { state: "open", limit: 20 }, resultError: true, resultBody: i18n.t("chat:tool_card_github_unavailable") }
+  {
+    id: "error",
+    label: i18n.t("chat:tool_card_provider_error"),
+    input: { state: "open", limit: 20 },
+    resultError: true,
+    resultBody: i18n.t("chat:tool_card_github_unavailable")
+  }
 ]

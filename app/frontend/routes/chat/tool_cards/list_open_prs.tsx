@@ -195,5 +195,10 @@ export const examples = [
     }
   },
   { id: "no_merged_prs", label: i18n.t("chat:tool_card_list_prs_example_empty"), input: { state: "merged", limit: 10 }, parsedResult: { pull_requests: [] } },
-  { id: "provider_error", label: i18n.t("chat:tool_card_provider_error"), resultError: true, parsedResult: { error: i18n.t("chat:tool_card_github_temporarily_unavailable") } }
+  {
+    id: "provider_error",
+    label: i18n.t("chat:tool_card_provider_error"),
+    resultError: true,
+    parsedResult: { error: i18n.t("chat:tool_card_github_temporarily_unavailable") }
+  }
 ]

@@ -32,7 +32,16 @@ export const examples: ToolCardExample[] = [
           message_count: 9,
           updated_at: "2026-09-01T12:00:00Z",
           attached_jobs_count: 1,
-          attached_jobs: [{ id: 101, slug: "repair-queue", title: i18n.t("chat:tool_card_list_chats_example_job"), state: "running", repository_id: 7, repository: "acme/widgets" }]
+          attached_jobs: [
+            {
+              id: 101,
+              slug: "repair-queue",
+              title: i18n.t("chat:tool_card_list_chats_example_job"),
+              state: "running",
+              repository_id: 7,
+              repository: "acme/widgets"
+            }
+          ]
         }
       ],
       pagination: { page: 1, per_page: 20, total_count: 1, total_pages: 1, has_next_page: false }
