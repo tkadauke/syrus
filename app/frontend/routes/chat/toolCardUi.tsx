@@ -60,10 +60,12 @@ export function stateTone(state: string | null | undefined): Tone {
 }
 
 export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
+  const { t } = useT("chat")
   const resolvedTone = tone ?? stateTone(state)
+  const normalized = state.toLowerCase().replace(/\s+/g, "_")
   return (
     <Pill className="text-2xs font-semibold uppercase" tone={TONE_TO_SEMANTIC_TONE[resolvedTone]}>
-      {state.replace(/_/g, " ")}
+      {t(`tool_card_state_${normalized}`, { defaultValue: state.replace(/_/g, " ") })}
     </Pill>
   )
 }

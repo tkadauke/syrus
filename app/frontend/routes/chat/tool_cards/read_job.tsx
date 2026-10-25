@@ -181,7 +181,7 @@ function WorkflowSummary({ jobId, item, title }: { jobId: string; item: Workflow
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <EntityReference id={item.id} jobId={jobId} kind="workflow" />
         <StatePill state={item.state} />
-        {item.triggerKind ? <Badge>{item.triggerKind}</Badge> : null}
+        {item.triggerKind ? <Badge>{i18n.t(`chat:tool_card_trigger_${item.triggerKind}`, { defaultValue: item.triggerKind })}</Badge> : null}
       </div>
       {item.summary ? <MarkdownPreview maxLines={4} modalLabel={i18n.t("chat:tool_card_workflow_summary", { id: item.id })} text={item.summary} /> : null}
     </div>
@@ -200,7 +200,9 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference id={job.id} kind="job" />
         <StatePill state={job.state} />
-        {job.priority ? <Badge>{i18n.t("chat:tool_card_priority", { priority: job.priority })}</Badge> : null}
+        {job.priority ? (
+          <Badge>{i18n.t("chat:tool_card_priority", { priority: i18n.t(`chat:tool_card_priority_${job.priority}`, { defaultValue: job.priority }) })}</Badge>
+        ) : null}
         {job.provider ? <Badge>{job.provider}</Badge> : null}
       </div>
       <div className="break-words text-sm font-medium text-text-primary">{job.title}</div>

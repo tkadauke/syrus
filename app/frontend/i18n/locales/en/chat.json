@@ -2109,5 +2109,21 @@
   "tool_card_list_workflow_summary": "Workflow {{id}} summary",
   "tool_card_workflow_summary_label": "Workflow summary",
   "tool_card_protocol_workflow_id": "WORKFLOW-{{id}}",
-  "tool_card_chunks_shown_truncated": "{{shown}} of {{total}} chunks shown · truncated"
+  "tool_card_chunks_shown_truncated": "{{shown}} of {{total}} chunks shown · truncated",
+  "tool_card_state_closed": "closed",
+  "tool_card_state_succeeded": "succeeded",
+  "tool_card_state_failed": "failed",
+  "tool_card_state_running": "running",
+  "tool_card_state_queued": "queued",
+  "tool_card_state_pending": "pending",
+  "tool_card_state_empty": "empty",
+  "tool_card_state_stuck": "stuck",
+  "tool_card_state_not_stuck": "not stuck",
+  "tool_card_priority_low": "low",
+  "tool_card_priority_medium": "medium",
+  "tool_card_priority_high": "high",
+  "tool_card_priority_urgent": "urgent",
+  "tool_card_trigger_initial": "initial",
+  "tool_card_trigger_retry": "retry",
+  "tool_card_trigger_pr_comment": "PR comment"
 }
