@@ -138,21 +138,39 @@ describe("AdminInstallations repositories configurable columns", () => {
   })
 
   it("shows the queued message and polls for completed sync data", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, options) => Promise.resolve(options?.method === "POST"
-      ? jsonResponse({ ...installationsPayload(), message: "Installation sync queued." })
-      : jsonResponse(installationsPayload())))
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockImplementation((_input, options) =>
+        Promise.resolve(
+          options?.method === "POST" ? jsonResponse({ ...installationsPayload(), message: "Installation sync queued." }) : jsonResponse(installationsPayload())
+        )
+      )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={client}><MemoryRouter><AdminInstallations /></MemoryRouter></QueryClientProvider>)
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <AdminInstallations />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
     const refreshButton = await screen.findByRole("button", { name: "Refresh installation list" })
     vi.useFakeTimers()
     fireEvent.click(refreshButton)
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
 
     expect(screen.getByText("Installation sync queued.")).toBeInTheDocument()
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     const callsAfterInvalidation = fetchSpy.mock.calls.length
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(2_000) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
     expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsAfterInvalidation)
   })
 })
