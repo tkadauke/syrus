@@ -340,7 +340,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(dig_key(latin, "linear_source.section_description")).to eq(
       "Sonat gregem Linearem ad quaestiones apertas et officia Syri ex eis creat."
     )
-    expect(dig_key(latin, "account_settings.provider_availability_desc")).to include("Job huius praebitoris")
+    expect(dig_key(latin, "account_settings.provider_availability_desc")).to include("Jobs huius praebitoris")
     expect(dig_key(latin, "scheduled_tasks.schedule_placeholder")).to eq("Omni die Lunae hora 09:00")
     expect(dig_key(latin, "credential_cards.muse_description")).to include("cursibus operum")
   end

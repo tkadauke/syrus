@@ -1163,7 +1163,7 @@
     "profile_saved_notice": "Profilum renovatum.",
     "agent_settings_saved_notice": "Commissa agentis renovata.",
     "provider_availability_heading": "Intermissiones propter praebitoris copiam",
-    "provider_availability_desc": "Job huius praebitoris inter gradus intermitte cum usus infra limen cadit. Pone 0% ut intermissiones automaticas propter copiam huius praebitoris prohibeas.",
+    "provider_availability_desc": "Jobs huius praebitoris inter gradus intermitte cum usus infra limen cadit. Pone 0% ut intermissiones automaticas propter copiam huius praebitoris prohibeas.",
     "provider_availability_threshold": "Limen intermissionis {{provider}} (%)",
     "provider_availability_remaining": "{{percent}}% superest.",
     "provider_availability_window_remaining": "{{label}}: {{percent}}% superest.",
