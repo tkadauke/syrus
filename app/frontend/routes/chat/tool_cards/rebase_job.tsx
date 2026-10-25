@@ -3,12 +3,11 @@ import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
 
 const rebaseJobCard = maintenanceToolCard("rebase_job")
 
-export default {
-  ...rebaseJobCard,
-  // The structured card owns the reason as Markdown. Repeating the generic
-  // input summary here exposes raw Markdown and crowds narrow layouts.
-  argumentSummary: (_input?: Record<string, unknown>) => ""
-}
+// The structured card owns the reason as Markdown. Repeating the generic
+// input summary here exposes raw Markdown and crowds narrow layouts.
+rebaseJobCard.argumentSummary = (_input?: Record<string, unknown>) => ""
+
+export default rebaseJobCard
 
 export const examples: ToolCardExample[] = [
   {
