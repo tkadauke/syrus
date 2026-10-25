@@ -649,7 +649,9 @@ function shouldRenderCompleteReport(report: string) {
 export const fullAnalysisExamples: ToolCardExample[] = [
   {
     id: "full_analysis",
-    label: i18n.t("video_walkthroughs:examples.full_analysis"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.full_analysis")
+    },
     input: { walkthrough_id: 42 },
     parsedResult: {
       content: [
@@ -685,7 +687,9 @@ export const fullAnalysisExamples: ToolCardExample[] = [
   },
   {
     id: "empty_analysis",
-    label: i18n.t("video_walkthroughs:examples.no_issues_analysis"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.no_issues_analysis")
+    },
     input: { walkthrough_id: 43 },
     parsedResult: {
       content: [
@@ -707,13 +711,17 @@ export const fullAnalysisExamples: ToolCardExample[] = [
   },
   {
     id: "pending_analysis",
-    label: i18n.t("video_walkthroughs:examples.pending_analysis"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.pending_analysis")
+    },
     input: { walkthrough_id: 44 },
     parsedResult: {}
   },
   {
     id: "failed_analysis",
-    label: i18n.t("video_walkthroughs:examples.analysis_failure"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.analysis_failure")
+    },
     input: { walkthrough_id: 45 },
     resultError: true,
     parsedResult: {
@@ -725,7 +733,9 @@ export const fullAnalysisExamples: ToolCardExample[] = [
 export const segmentExamples: ToolCardExample[] = [
   {
     id: "segment_analysis",
-    label: i18n.t("video_walkthroughs:examples.segment_analysis"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_analysis")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     parsedResult: {
       structured_content: {
@@ -745,7 +755,9 @@ export const segmentExamples: ToolCardExample[] = [
   },
   {
     id: "segment_quota_failure",
-    label: i18n.t("video_walkthroughs:examples.segment_quota_failure"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_quota_failure")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "08:30", focus: "everything" },
     resultError: true,
     resultBody: JSON.stringify({
@@ -755,21 +767,27 @@ export const segmentExamples: ToolCardExample[] = [
   },
   {
     id: "segment_key_failure",
-    label: i18n.t("video_walkthroughs:examples.segment_key_failure"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_key_failure")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     resultError: true,
     parsedResult: { content: [{ type: "text", text: "Gemini rejected the API key: invalid key" }], isError: true }
   },
   {
     id: "segment_pruned_failure",
-    label: i18n.t("video_walkthroughs:examples.segment_pruned_failure"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.segment_pruned_failure")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     resultError: true,
     parsedResult: { content: [{ type: "text", text: "Could not read the stored video — it may have been pruned." }], isError: true }
   },
   {
     id: "segment_empty",
-    label: i18n.t("video_walkthroughs:examples.empty_segment"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.empty_segment")
+    },
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     parsedResult: { walkthrough_id: 42, range: "1:10–1:30", focus: "the exact error text", analysis: {} }
   }

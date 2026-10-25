@@ -378,9 +378,13 @@ const readWalkthroughFrameToolCard: ToolCardRenderer = {
 export const examples: ToolCardExample[] = [
   {
     id: "normal_frame",
-    label: i18n.t("video_walkthroughs:examples.captured_frame"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.captured_frame")
+    },
     input: { walkthrough_id: 42, timestamp: "01:12" },
-    description: i18n.t("video_walkthroughs:examples.frame_description"),
+    get description() {
+      return i18n.t("video_walkthroughs:examples.frame_description")
+    },
     parsedResult: [
       { type: "image", data: EXAMPLE_FRAME_IMAGE, mimeType: "image/svg+xml" },
       {
@@ -392,7 +396,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "missing_frame",
-    label: i18n.t("video_walkthroughs:examples.missing_frame"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.missing_frame")
+    },
     input: { walkthrough_id: 42, timestamp: "05:00" },
     parsedResult: {
       walkthrough_id: 42,
@@ -404,7 +410,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "capture_error",
-    label: i18n.t("video_walkthroughs:examples.error_payload"),
+    get label() {
+      return i18n.t("video_walkthroughs:examples.error_payload")
+    },
     input: { walkthrough_id: 42, timestamp: "banana" },
     resultError: true,
     parsedResult: {
