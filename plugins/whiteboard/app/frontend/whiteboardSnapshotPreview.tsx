@@ -68,7 +68,7 @@ export function WhiteboardScenePreview({ scene, item }: { scene: Partial<ChatWhi
   const fallbackLabel = preview.status === "loading" ? translate("tool_scene_loading") : translate("tool_scene_preview_error")
 
   return (
-    <MediaPreviewShell item={{ ...item, src: preview.src, fallbackLabel }} modalLabel={translate("tool_scene_preview")} thumbnailClassName="w-full sm:w-72" />
+    <MediaPreviewShell item={{ ...item, src: preview.src, fallbackLabel }} modalLabel={translate("tool_scene_modal_label")} thumbnailClassName="w-full sm:w-72" />
   )
 }
 

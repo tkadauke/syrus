@@ -488,7 +488,7 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
           chatId={result.chatId}
           item={{
             title: t("tool_auto_saved_snapshot_title", { id: result.autoSavedSnapshotId }),
-            badge: t("tool_auto_saved_snapshot"),
+            badge: t("tool_pre_load_backup"),
             actions: [
               { label: t("tool_open_whiteboard"), href: whiteboardHref },
               { label: t("tool_view_in_media"), href: mediaHref },
