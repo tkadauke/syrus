@@ -115,7 +115,9 @@ function EpicsTable({ rows }: { rows: EpicRow[] }) {
             </Td>
             <Td maxWidth wrap>
               <div className="break-words font-medium text-text-primary">{row.title}</div>
-              {row.description ? <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:tool_card_list_epics_description", { title: row.title })} text={row.description} /> : null}
+              {row.description ? (
+                <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:tool_card_list_epics_description", { title: row.title })} text={row.description} />
+              ) : null}
             </Td>
             <Td>
               <StatePill state={row.state} />
@@ -182,5 +184,11 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "no_open_epics", label: i18n.t("chat:tool_card_list_epics_example_empty"), input: { state: "open" }, parsedResult: { epics: [] } },
-  { id: "error", label: i18n.t("chat:tool_card_list_epics_example_error"), input: { state: "open", limit: 10 }, parsedResult: { error: i18n.t("chat:tool_card_list_epics_example_error_message") }, resultError: true }
+  {
+    id: "error",
+    label: i18n.t("chat:tool_card_list_epics_example_error"),
+    input: { state: "open", limit: 10 },
+    parsedResult: { error: i18n.t("chat:tool_card_list_epics_example_error_message") },
+    resultError: true
+  }
 ]

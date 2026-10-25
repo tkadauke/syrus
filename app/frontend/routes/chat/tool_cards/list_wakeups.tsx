@@ -1,3 +1,4 @@
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { intlLocale, formatRelativeDate } from "../../../lib/relativeTime"
 import { MarkdownPreview } from "../toolCardMarkdown"
@@ -32,9 +33,9 @@ function wakeupRows(context: ToolCardContext): WakeupRow[] | null {
 function errorMessage(context: ToolCardContext) {
   if (!context.resultError) return null
   if (isPlainObject(context.parsedResult)) {
-    return displayValue(context.parsedResult.error) ?? displayValue(context.parsedResult.message) ?? "Unable to load wakeups."
+    return displayValue(context.parsedResult.error) ?? displayValue(context.parsedResult.message) ?? i18n.t("chat:tool_card_list_wakeups_load_failed")
   }
-  return displayValue(context.resultBody) ?? "Unable to load wakeups."
+  return displayValue(context.resultBody) ?? i18n.t("chat:tool_card_list_wakeups_load_failed")
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -42,7 +43,7 @@ function collapsedSummary(context: ToolCardContext) {
   if (error) return error
   const rows = wakeupRows(context)
   if (!rows) return null
-  return `${rows.length} wakeup${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_list_wakeups_summary", { count: rows.length })
 }
 
 function WakeupTime({ value }: { value: string }) {
@@ -62,7 +63,7 @@ function renderExpanded(context: ToolCardContext) {
   if (error) return <EmptyState>{error}</EmptyState>
   const rows = wakeupRows(context)
   if (!rows) return null
-  if (rows.length === 0) return <EmptyState>No pending wakeups in this chat.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:tool_card_list_wakeups_empty")}</EmptyState>
 
   return (
     <div className="mt-1 min-w-0 max-w-full overflow-hidden rounded border border-border">
@@ -70,16 +71,16 @@ function renderExpanded(context: ToolCardContext) {
         <thead className="hidden bg-surface-raised text-2xs uppercase text-text-muted md:table-header-group">
           <tr>
             <th className="w-28 px-2 py-1 font-semibold" scope="col">
-              Wakeup
+              {i18n.t("chat:tool_card_list_wakeups_wakeup")}
             </th>
             <th className="w-44 px-2 py-1 font-semibold" scope="col">
-              Fires at
+              {i18n.t("chat:tool_card_list_wakeups_fires_at")}
             </th>
             <th className="w-24 px-2 py-1 font-semibold" scope="col">
-              Remaining
+              {i18n.t("chat:tool_card_list_wakeups_remaining")}
             </th>
             <th className="px-2 py-1 font-semibold" scope="col">
-              Prompt
+              {i18n.t("chat:tool_card_list_wakeups_prompt")}
             </th>
           </tr>
         </thead>
@@ -97,7 +98,11 @@ function renderExpanded(context: ToolCardContext) {
                 <WakeupTime value={row.fireAt} />
               </td>
               <td className="min-w-0 text-text-muted md:px-2 md:py-2">
-                {row.delayRemainingMinutes != null ? <Badge>{row.delayRemainingMinutes} min</Badge> : "—"}
+                {row.delayRemainingMinutes != null ? (
+                  <Badge>{i18n.t("chat:tool_card_list_wakeups_minutes", { count: row.delayRemainingMinutes })}</Badge>
+                ) : (
+                  "—"
+                )}
               </td>
               <td className="min-w-0 max-w-full text-text-muted md:px-2 md:py-2">
                 <MarkdownPreview
@@ -106,7 +111,7 @@ function renderExpanded(context: ToolCardContext) {
                   linkifyUrls
                   maxChars={320}
                   maxLines={3}
-                  modalLabel={`Wakeup ${row.id} prompt`}
+                  modalLabel={i18n.t("chat:tool_card_list_wakeups_prompt_modal", { id: row.id })}
                   text={row.prompt}
                 />
               </td>

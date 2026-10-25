@@ -77,9 +77,12 @@ function parseCard(context: ToolCardContext): SyrusDocsCard {
 
 function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
-  if (card.kind === "pending") return card.query ? i18n.t("chat:tool_card_search_docs_searching_query", { query: card.query }) : i18n.t("chat:tool_card_search_docs_searching")
-  if (card.kind === "error") return card.query ? i18n.t("chat:tool_card_search_docs_query_failed", { query: card.query }) : i18n.t("chat:tool_card_search_docs_failed")
-  if (card.kind === "malformed") return card.query ? i18n.t("chat:tool_card_search_docs_query_unexpected", { query: card.query }) : i18n.t("chat:tool_card_search_docs_unexpected")
+  if (card.kind === "pending")
+    return card.query ? i18n.t("chat:tool_card_search_docs_searching_query", { query: card.query }) : i18n.t("chat:tool_card_search_docs_searching")
+  if (card.kind === "error")
+    return card.query ? i18n.t("chat:tool_card_search_docs_query_failed", { query: card.query }) : i18n.t("chat:tool_card_search_docs_failed")
+  if (card.kind === "malformed")
+    return card.query ? i18n.t("chat:tool_card_search_docs_query_unexpected", { query: card.query }) : i18n.t("chat:tool_card_search_docs_unexpected")
 
   const query = card.query || "Syrus Docs"
   return i18n.t("chat:tool_card_search_docs_summary", { query, count: card.count })
