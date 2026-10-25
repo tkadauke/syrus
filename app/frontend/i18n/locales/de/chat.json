@@ -750,7 +750,38 @@
     "example_empty_description": "Prüft den allgemeinen Ersatz für ein leeres Ergebnis einer abgeschlossenen Provider-Antwort."
   },
   "emergency_land": {
-    "example_pending": "Ausstehende Bestätigung der Notfall-Landung"
+    "example_pending": "Ausstehende Bestätigung der Notfall-Landung",
+    "example_pending_message": "Die Notfall-Landung erfordert eine **Bestätigung durch den Operator**.",
+    "example_disabled": "Notfall-Landung deaktiviert",
+    "warning_title": "Destruktive Notfallaktion",
+    "warning_body": "Durch die Bestätigung wird die Änderung gelandet und Grader, adversariale Prüfung und visuelle Prüfung werden übersprungen.",
+    "job": "Job",
+    "branch": "Branch"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Branch",
+    "active_checkout_branch": "Aktiver Checkout-Branch",
+    "example_pending": "Ausstehende Übergabe mit Branch",
+    "example_pending_description": "Zeigt den verknüpften Job, einen langen kopierbaren Branch und eine Markdown-Bestätigungsnachricht in responsiven Layouts.",
+    "example_pending_message": "Prüfe die **Implementierungsübergabe** vor der Bestätigung.",
+    "example_rejected": "Abgelehnte Übergabe des aktiven Checkouts",
+    "example_rejected_description": "Zeigt die Bezeichnung für den ausgelassenen Branch und eine abgeschlossene Ablehnung unter Beibehaltung des angeforderten Jobs.",
+    "example_rejected_message": "Der **aktive Checkout-Branch** wurde nicht übergeben.",
+    "example_error": "Validierungsfehler bei der Übergabe",
+    "example_error_description": "Zeigt einen Klartext-Toolfehler mit dem übermittelten Job und dem Kontext des aktiven Checkout-Branches."
+  },
+  "force_state_transition": {
+    "reason": "Grund",
+    "transition": "Übergang",
+    "example_pending": "Ausstehender Übergang mit Markdown",
+    "example_pending_description": "Zeigt den verknüpften Job, das angeforderte Ereignis sowie den ausklappbaren Operatorgrund und die Bestätigungsnachricht.",
+    "example_confirmed": "Bestätigte Übergangsmomentaufnahme",
+    "example_confirmed_description": "Zeigt den geprüften Jobzustand vor und nach der Ausführung der ausstehenden Aktion.",
+    "example_confirmed_message": "**Erzwungenes Fehlschlagen** auf JOB-4048 anwenden?",
+    "example_live_label": "force_fail für JOB-4048 erzwingen",
+    "example_error": "Toolfehler behält Anfragekontext bei",
+    "example_error_description": "Hält den verknüpften Job, das angeforderte Ereignis, den Markdown-Grund und die Fehlerdetails sichtbar, wenn die Anfrage fehlschlägt."
   },
   "force_landing_recheck": {
     "not_provided": "Nicht angegeben",

@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import i18n from "@app/i18n"
 
 // Core-owned tool card for complete_implement_step. Reuses the shared
 // pending-action parsing/rendering, which preserves target context from the
@@ -17,8 +18,13 @@ function renderExpanded(context: ToolCardContext) {
     <PendingActionResultCard
       input={context.input}
       inputFields={[
-        { key: "job_id", label: "Job", format: "entity", entityKind: "job" },
-        { key: "branch_name", label: "Branch", format: "copyable_badge", emptyLabel: "Active checkout branch" }
+        { key: "job_id", label: () => i18n.t("chat:complete_implement_step.job"), format: "entity", entityKind: "job" },
+        {
+          key: "branch_name",
+          label: () => i18n.t("chat:complete_implement_step.branch"),
+          format: "copyable_badge",
+          emptyLabel: i18n.t("chat:complete_implement_step.active_checkout_branch")
+        }
       ]}
       omitBranch
       omitJob
@@ -38,32 +44,32 @@ export default completeImplementStepToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "pending_with_branch",
-    label: "Pending handoff with branch",
-    description: "Shows the linked Job, a long copyable branch, and a Markdown confirmation message across responsive layouts.",
+    label: i18n.t("chat:complete_implement_step.example_pending"),
+    description: i18n.t("chat:complete_implement_step.example_pending_description"),
     input: { job_id: 4048, branch_name: "syrus/complete-implement-step-responsive-card-review" },
     parsedResult: {
       pending_confirmation_id: 501,
       pending_action_id: 501,
       state: "pending",
-      message: "Review the **implementation handoff** before confirming."
+      message: i18n.t("chat:complete_implement_step.example_pending_message")
     }
   },
   {
     id: "rejected_active_checkout",
-    label: "Rejected active-checkout handoff",
-    description: "Shows the omitted-branch label and a settled rejection while retaining the requested Job.",
+    label: i18n.t("chat:complete_implement_step.example_rejected"),
+    description: i18n.t("chat:complete_implement_step.example_rejected_description"),
     input: { job_id: 4048 },
     parsedResult: {
       pending_confirmation_id: 502,
       pending_action_id: 502,
       state: "rejected",
-      message: "The **active checkout branch** was not handed off."
+      message: i18n.t("chat:complete_implement_step.example_rejected_message")
     }
   },
   {
     id: "tool_error",
-    label: "Handoff validation error",
-    description: "Shows a plain-text tool error with the submitted Job and active-checkout branch context.",
+    label: i18n.t("chat:complete_implement_step.example_error"),
+    description: i18n.t("chat:complete_implement_step.example_error_description"),
     input: { job_id: 4048 },
     resultBody: "Error: branch_name is required for Jobs without an existing pull request.",
     resultError: true

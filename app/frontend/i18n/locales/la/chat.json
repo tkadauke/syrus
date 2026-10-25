@@ -750,7 +750,38 @@
     "example_empty_description": "Subsidium commune exitus vacui responsi provisoris perfecti exercet."
   },
   "emergency_land": {
-    "example_pending": "Confirmatio landing subiti pendet"
+    "example_pending": "Confirmatio landing subiti pendet",
+    "example_pending_message": "Landing subitum **confirmationem operatoris** requirit.",
+    "example_disabled": "Landing subitum inhibitum",
+    "warning_title": "Actio subita destructiva",
+    "warning_body": "Haec confirmatio mutationem applicabit atque examinatores, recensionem adversariam, et recensionem visualem praeteribit.",
+    "job": "Job",
+    "branch": "Ramus"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Ramus",
+    "active_checkout_branch": "Ramus checkout agens",
+    "example_pending": "Traditio pendens cum ramo",
+    "example_pending_description": "Job conexum, ramum longum exscribibilem, et nuntium confirmationis Markdown in aspectibus responsivis ostendit.",
+    "example_pending_message": "**Traditionem exsecutionis** ante confirmationem recognosce.",
+    "example_rejected": "Traditio checkout agentis repudiata",
+    "example_rejected_description": "Titulum rami omissi et repudiationem perfectam servato Job petito ostendit.",
+    "example_rejected_message": "**Ramus checkout agens** traditus non est.",
+    "example_error": "Error validationis traditionis",
+    "example_error_description": "Errorem instrumenti simplicem cum contextu Job dati et rami checkout agentis ostendit."
+  },
+  "force_state_transition": {
+    "reason": "Causa",
+    "transition": "Transitus",
+    "example_pending": "Transitus pendens cum Markdown",
+    "example_pending_description": "Job conexum, eventum petitum, causam operatoris expandibilem, et nuntium confirmationis ostendit.",
+    "example_confirmed": "Imago transitus confirmati",
+    "example_confirmed_description": "Statum Job inspectum ab initio ad exitum post actionem pendentem exsecutam ostendit.",
+    "example_confirmed_message": "**Defectum coactum** ad JOB-4048 applicare?",
+    "example_live_label": "force_fail in JOB-4048 coge",
+    "example_error": "Error instrumenti contextum petitionis servat",
+    "example_error_description": "Job conexum, eventum petitum, causam Markdown, et singula defectus visibilia servat cum petitio deficit."
   },
   "force_landing_recheck": {
     "not_provided": "Non datum",
