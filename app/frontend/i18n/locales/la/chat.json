@@ -750,7 +750,26 @@
     "example_empty_description": "Subsidium commune exitus vacui responsi provisoris perfecti exercet."
   },
   "emergency_land": {
-    "example_pending": "Confirmatio landing subiti pendet"
+    "job": "Job",
+    "branch": "Ramus",
+    "warning_title": "Actio subita destructiva",
+    "warning_message": "Haec actio mutationem coniunget atque examinatores, recensionem adversariam, et recensionem visualem praeteribit.",
+    "example_pending": "Confirmatio landing subiti pendet",
+    "example_pending_message": "Landing subitum **confirmationem operatoris** requirit.",
+    "example_feature_disabled": "Landing subitum prohibitum"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Ramus",
+    "active_checkout_branch": "Ramus checkout activus",
+    "example_pending": "Traditio cum ramo pendet",
+    "example_pending_description": "Job conexum, ramum longum exscribibilem, et nuntium confirmationis Markdown in aspectibus variis ostendit.",
+    "example_pending_message": "**Traditionem exsecutionis** ante confirmationem inspice.",
+    "example_rejected": "Traditio rami checkout activi reiecta",
+    "example_rejected_description": "Titulum rami omissi et reiectionem perfectam cum Job petito ostendit.",
+    "example_rejected_message": "**Ramus checkout activus** traditus non est.",
+    "example_error": "Error validationis traditionis",
+    "example_error_description": "Errorem simplicem cum Job dato et contextu rami checkout activi ostendit."
   },
   "force_landing_recheck": {
     "not_provided": "Non datum",
