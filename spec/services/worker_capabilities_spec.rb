@@ -219,7 +219,7 @@ RSpec.describe WorkerCapabilities do
     end
 
     it "treats timed out probes as unavailable" do
-      allow(Open3).to receive(:capture2e).and_raise(Timeout::Error)
+      allow(described_class).to receive(:capability_probe).and_raise(Timeout::Error)
 
       with_capability_env(nil) do
         expect(described_class.current.fetch(:diagnostics)).to include(
