@@ -16,7 +16,7 @@ module Admin
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
     TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)/
     TOOL_CARD_BOUND_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s+\1\b/
-    TOOL_CARD_SPREAD_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s*\{[\s\S]*?\.\.\.\1\b/
+    TOOL_CARD_SPREAD_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)(?:\s*:\s*[^=]+)?\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s*\{[\s\S]*?\.\.\.\1\b/
     EXPLICIT_CARD_STATUSES = {
       "withdraw_pending_action" => "generic",
       "assign_job_to_epic" => "generic",
