@@ -42,18 +42,31 @@ class PollRepositoryJob < ApplicationJob
     incremental_since = full_poll ? nil : previous_poll_started_at
 
     client = GithubClient.for(repository: repository, user: repository.user)
-    listed_issues = list_labeled_issues(client, repository, since: incremental_since)
+    scanned_issues = client.list_all_issues(repository.slug, state: "all", since: incremental_since)
+    listed_issues = scanned_issues.select { |issue| label_names(issue).include?(repository.trigger_label) }
     retried_issues = retry_quarantined_issues(client, repository, listed_issues: listed_issues, at: poll_started_at)
     issues = open_issues_for_ingestion(listed_issues + retried_issues)
     closed_issues = unique_issues_by_number(
-      list_labeled_issues(client, repository, state: "closed", since: incremental_since) + closed_issues_for_resolution(retried_issues)
+      listed_issues.select { |issue| issue.state.to_s == "closed" } + closed_issues_for_resolution(retried_issues)
     )
     prior_jobs_by_issue_number = latest_jobs_by_issue_number(repository, issues)
-    linked_lookup_candidates = linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number)
+    linked_lookup_candidates = (
+      linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number) +
+      cached_issue_link_lookup_numbers(repository, scanned_issues)
+    ).uniq
     linked_lookup_issue_numbers = linked_lookup_candidates.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
     linked_lookup_overflow_numbers = linked_lookup_candidates.drop(LINKED_OPEN_PR_LOOKUP_LIMIT).index_with(true)
     linked_open_prs = linked_lookup_issue_numbers.any? ? client.linked_open_prs_for_issues(repository.slug, linked_lookup_issue_numbers) : {}
     linked_lookup_numbers = linked_lookup_issue_numbers.index_with(true)
+
+    synchronize_issue_cache!(
+      repository,
+      scanned_issues,
+      linked_open_prs: linked_open_prs,
+      linked_lookup_numbers: linked_lookup_numbers,
+      synced_at: poll_started_at,
+      full_poll: full_poll
+    )
 
     stats = Hash.new(0)
     issues.each do |issue|
@@ -71,7 +84,7 @@ class PollRepositoryJob < ApplicationJob
     closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
     clear_closed_poll_issue_errors!(repository, closed_issues)
     InputSources::PendingWorkWakeup.call(repository)
-    update_untagged_open_issue_count!(repository, client)
+    update_untagged_open_issue_count_from_cache!(repository)
 
     log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
     if linked_lookup_overflow_numbers.any?
@@ -182,12 +195,11 @@ class PollRepositoryJob < ApplicationJob
   # Best-effort, cheap dashboard signal — never part of the ingestion
   # contract. A failure here (rate limit, transient GitHub error) must
   # not fail the poll or block labeled-issue ingestion.
-  def update_untagged_open_issue_count!(repository, client)
+  def update_untagged_open_issue_count_from_cache!(repository)
     return if repository.archived? || !repository.polling_enabled?
     return unless untagged_open_issue_count_stale?(repository)
 
-    open_issues = client.list_all_issues(repository.slug, state: "open")
-    untagged_count = open_issues.count { |issue| untagged?(issue, repository) }
+    untagged_count = GithubIssue.where(repository: repository).open.count { |issue| untagged?(issue, repository) }
     repository.update_columns(
       untagged_open_issue_count: untagged_count,
       untagged_open_issues_checked_at: Time.current
@@ -209,7 +221,7 @@ class PollRepositoryJob < ApplicationJob
   end
 
   def untagged?(issue, repository)
-    names = label_names(issue)
+    names = issue.is_a?(GithubIssue) ? issue.labels.map { |label| label["name"] } : label_names(issue)
     !names.include?(repository.trigger_label) && !names.include?(IngestPolicy::SKIP_LABEL)
   end
 
@@ -218,6 +230,54 @@ class PollRepositoryJob < ApplicationJob
       client.issues_with_label(repository.slug, repository.trigger_label, state: state, since: since)
     else
       client.issues_with_label(repository.slug, repository.trigger_label, state: state)
+    end
+  end
+
+  def cached_issue_link_lookup_numbers(repository, issues)
+    open_issues = Array(issues).select { |issue| issue.state.to_s == "open" }
+    cached = GithubIssue.where(repository: repository).where(number: open_issues.map(&:number)).index_by(&:number)
+    ingested_numbers = repository.jobs.where(issue_number: open_issues.map(&:number)).where.not(issue_number: nil).pluck(:issue_number).index_with(true)
+    open_issues.filter_map do |issue|
+      next if ingested_numbers[issue.number]
+
+      record = cached[issue.number]
+      issue.number if record.nil? || record.linked_open_pr_checked_at.nil? || record.github_updated_at != issue.updated_at
+    end
+  end
+
+  def synchronize_issue_cache!(repository, issues, linked_open_prs:, linked_lookup_numbers:, synced_at:, full_poll:)
+    rows = Array(issues).map do |issue|
+      existing = GithubIssue.where(repository: repository).find_by(number: issue.number)
+      looked_up = linked_lookup_numbers.key?(issue.number)
+      {
+        id: existing&.id,
+        repository_id: repository.id,
+        github_id: issue.respond_to?(:id) && issue.id.present? ? issue.id : issue.number,
+        number: issue.number,
+        title: issue.respond_to?(:title) ? issue.title.to_s : "Issue #{issue.number}",
+        body: issue.respond_to?(:body) ? issue.body.to_s : "",
+        state: issue.state.to_s,
+        html_url: issue.respond_to?(:html_url) && issue.html_url.present? ? issue.html_url.to_s : issue_url(repository, issue.number),
+        author_login: issue.respond_to?(:user) ? issue.user&.login.to_s.presence : nil,
+        labels: label_metadata(issue),
+        github_created_at: issue.respond_to?(:created_at) ? issue.created_at : nil,
+        github_updated_at: issue.respond_to?(:updated_at) ? issue.updated_at : nil,
+        synced_at: synced_at,
+        linked_open_pr: issue.state.to_s == "closed" ? nil : (looked_up ? linked_open_prs[issue.number] : existing&.linked_open_pr),
+        linked_open_pr_checked_at: looked_up ? synced_at : existing&.linked_open_pr_checked_at,
+        created_at: existing&.created_at || synced_at,
+        updated_at: synced_at
+      }
+    end
+    GithubIssue.upsert_all(rows) if rows.any?
+    GithubIssue.where(repository: repository).where.not(number: rows.map { |row| row[:number] }).delete_all if full_poll
+  end
+
+  def label_metadata(issue)
+    Array(issue.labels).map do |label|
+      name = label.respond_to?(:name) ? label.name : label.to_h[:name] || label.to_h["name"]
+      color = label.respond_to?(:color) ? label.color : label.to_h[:color] || label.to_h["color"]
+      { "name" => name.to_s, "color" => color.to_s.presence || "6b7280" }
     end
   end
 

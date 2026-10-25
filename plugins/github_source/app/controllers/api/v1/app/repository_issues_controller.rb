@@ -10,11 +10,7 @@ module Api
         include RepositoryTabsSerialization
         include RepositorySummarySerialization
 
-        # Smart folders over the open/closed issue sets GitHub already gives
-        # us -- "inbox" and "delegated" partition the open set by whether it
-        # carries the repository's trigger label, so no extra GitHub calls
-        # are needed beyond the open/closed fetches every folder already
-        # requires for accurate counts (see #repository_issues_payload).
+        # Smart folders over the poll-synchronized local issue cache.
         FOLDERS = %w[inbox delegated open closed].freeze
         ISSUES_PER_PAGE = 50
         SORT_COLUMNS = %w[number title state author created_at delegated].freeze
@@ -31,6 +27,7 @@ module Api
 
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).close_issue(repository.slug, issue_number)
+          GithubIssue.where(repository: repository).where(number: issue_number).update_all(state: "closed", synced_at: Time.current)
 
           render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort, message: I18n.t("api.repositories.issue_closed", number: issue_number))
         rescue Octokit::Error => e
@@ -44,6 +41,7 @@ module Api
 
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
+          mark_cached_issues_delegated!(repository, [ issue_number ])
 
           render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort, message: I18n.t("api.repositories.issue_delegated", number: issue_number))
         rescue Octokit::Error => e
@@ -72,25 +70,11 @@ module Api
         end
 
 
-        # Fetches both open and closed issues on every call so every smart
-        # folder's count is accurate (not just the currently selected one) --
-        # GithubClient#list_all_issues already auto-paginates through the
-        # full set per state, so this adds no truncation risk, only a second
-        # (cheap, conditionally-cached) GitHub request.
+        # Reads both states locally so all smart-folder counts stay accurate.
         def repository_issues_payload(repository, folder:, filter:, sort: issue_sort, message: nil)
-          open_issues = []
-          closed_issues = []
-          error_message = nil
-          client = nil
-          begin
-            client = GithubClient.for(repository: repository, user: Current.user)
-            open_issues = client.list_all_issues(repository.slug, state: "open")
-            closed_issues = client.list_all_issues(repository.slug, state: "closed")
-          rescue ArgumentError
-            error_message = I18n.t("api.repositories.no_github_token")
-          rescue Octokit::Error => e
-            error_message = I18n.t("api.repositories.github_error", error: e.message)
-          end
+          open_issues = GithubIssue.where(repository: repository).open.to_a
+          closed_issues = GithubIssue.where(repository: repository).closed.to_a
+          error_message = repository.last_poll_status == "failed" ? repository.last_poll_error : nil
 
           delegated_issues, inbox_issues = open_issues.partition { |issue| issue_delegated?(repository, issue) }
           folder_issues = {
@@ -101,11 +85,16 @@ module Api
           }
           matching_issues = sort_issues(repository, filter_issues(repository, folder_issues.fetch(folder), filter), sort)
           visible_issues = matching_issues.first(ISSUES_PER_PAGE)
-          linked_pull_requests = linked_pull_requests_for(repository, client, visible_issues)
 
           {
             message: message,
             error_message: error_message,
+            freshness: {
+              synchronized: repository.last_poll_status == "ok",
+              synced_at: repository.last_poll_started_at&.iso8601,
+              stale: repository.last_poll_status == "failed",
+              error: repository.last_poll_error
+            },
             repository: repository_detail_json(repository),
             tabs: repository_tabs_json(repository),
             folder: folder,
@@ -114,7 +103,7 @@ module Api
             filter_schema: GithubSource::IssuesFilter.schema,
             sort: sort,
             issue_count: matching_issues.size,
-            issues: visible_issues.map { |issue| issue_json(repository, issue, linked_pull_requests.fetch(issue.number, nil)) },
+            issues: visible_issues.map { |issue| issue_json(repository, issue) },
             folder_counts: folder_issues.transform_values(&:size),
             folder_paths: FOLDERS.index_with { |value| "/repositories/#{repository.id}/plugin/issues?folder=#{value}" },
             paths: {
@@ -127,48 +116,24 @@ module Api
         end
 
 
-        def issue_json(repository, issue, linked_pull_request = nil)
-          labels = Array(issue.labels)
+        def issue_json(repository, issue)
           {
             number: issue.number,
             title: issue.title.to_s,
             state: issue.state.to_s,
             html_url: issue.html_url.to_s,
-            body_excerpt: issue.body.to_s.gsub(/\r?\n/, " ").truncate(180),
-            user_login: issue.user&.login,
-            created_at: issue.created_at&.iso8601,
-            labels: labels.map { |label| issue_label_json(label) },
+            body_excerpt: issue.body_excerpt,
+            user_login: issue.author_login,
+            created_at: issue.github_created_at&.iso8601,
+            labels: issue.labels,
             delegated: issue_delegated?(repository, issue),
-            linked_pull_request: linked_pull_request
+            linked_pull_request: issue.linked_open_pr
           }
-        end
-
-
-        def linked_pull_requests_for(repository, client, issues)
-          return {} unless client
-
-          issue_numbers = issues
-            .select { |issue| issue.state.to_s == "open" }
-            .map(&:number)
-          return {} if issue_numbers.empty?
-
-          client.linked_open_prs_for_issues(repository.slug, issue_numbers)
-        rescue Octokit::Error => e
-          Rails.logger.warn("[RepositoryIssuesController] linked PR lookup failed for #{repository.slug}: #{e.class}: #{e.message}")
-          {}
         end
 
 
         def issue_delegated?(repository, issue)
-          Array(issue.labels).any? { |label| label.name == repository.trigger_label }
-        end
-
-
-        def issue_label_json(label)
-          {
-            name: label.name.to_s,
-            color: label.color.to_s.presence || "6b7280"
-          }
+          issue.delegated?(repository.trigger_label)
         end
 
 
@@ -189,7 +154,7 @@ module Api
           issues.select do |issue|
             issue.title.to_s.downcase.include?(needle) ||
               issue.body.to_s.downcase.include?(needle) ||
-              issue.user&.login.to_s.downcase.include?(needle)
+              issue.author_login.to_s.downcase.include?(needle)
           end
         end
 
@@ -198,7 +163,7 @@ module Api
           return issues if author.blank?
 
           needle = author.downcase
-          issues.select { |issue| issue.user&.login.to_s.downcase.include?(needle) }
+          issues.select { |issue| issue.author_login.to_s.downcase.include?(needle) }
         end
 
 
@@ -207,7 +172,7 @@ module Api
 
           needle = label.downcase
           issues.select do |issue|
-            Array(issue.labels).any? { |issue_label| issue_label.name.to_s.downcase.include?(needle) }
+            issue.labels.any? { |issue_label| issue_label["name"].to_s.downcase.include?(needle) }
           end
         end
 
@@ -237,8 +202,8 @@ module Api
             "number" => [ issue.number.to_i ],
             "title" => [ issue.title.to_s.downcase, issue.number.to_i ],
             "state" => [ issue.state.to_s, issue.number.to_i ],
-            "author" => [ issue.user&.login.to_s.downcase, issue.number.to_i ],
-            "created_at" => [ issue.created_at || Time.zone.at(0), issue.number.to_i ],
+            "author" => [ issue.author_login.to_s.downcase, issue.number.to_i ],
+            "created_at" => [ issue.github_created_at || Time.zone.at(0), issue.number.to_i ],
             "delegated" => [ issue_delegated?(repository, issue) ? 1 : 0, issue.number.to_i ]
           }
           values.fetch(column)
@@ -279,6 +244,7 @@ module Api
           issue_numbers.each do |issue_number|
             client.add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
           end
+          mark_cached_issues_delegated!(repository, issue_numbers)
 
           render json: repository_issues_payload(
             repository,
@@ -297,6 +263,7 @@ module Api
           issue_numbers.each do |issue_number|
             client.close_issue(repository.slug, issue_number)
           end
+          GithubIssue.where(repository: repository).where(number: issue_numbers).update_all(state: "closed", synced_at: Time.current)
 
           render json: repository_issues_payload(
             repository,
@@ -311,6 +278,14 @@ module Api
 
 
         private
+
+        def mark_cached_issues_delegated!(repository, issue_numbers)
+          GithubIssue.where(repository: repository).where(number: issue_numbers).find_each do |issue|
+            next if issue.delegated?(repository.trigger_label)
+
+            issue.update!(labels: issue.labels + [ { "name" => repository.trigger_label, "color" => "6b7280" } ], synced_at: Time.current)
+          end
+        end
 
         def find_repository
           find_readable_repository(params[:repository_id] || params[:id])
