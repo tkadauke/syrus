@@ -51,6 +51,32 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.last_ci_evaluated_sha).to eq(sha)
   end
 
+  it "polls and records every configured delivery-track branch independently" do
+    tracks = {
+      "development" => Data.define(:branch).new("develop"),
+      "release" => Data.define(:branch).new("main")
+    }
+    policy = instance_double(DeliveryPolicy, tracks: tracks)
+    allow(DeliveryPolicy).to receive(:for).with(repository: repository).and_return(policy)
+    allow_any_instance_of(GithubClient).to receive(:branch_head_sha) do |_client, _slug, branch|
+      { "develop" => "develop-sha", "main" => "release-sha" }.fetch(branch)
+    end
+    allow_any_instance_of(GithubClient).to receive(:main_branch_check_runs_summary_for) do |_client, _slug, branch_sha|
+      {
+        any?: true, pending?: false,
+        any_failed?: branch_sha == "develop-sha",
+        all_passed?: branch_sha == "release-sha",
+        any_cancelled?: false,
+        failed_checks: branch_sha == "develop-sha" ? [ { "name" => "fast-tests" } ] : []
+      }
+    end
+
+    described_class.perform_now(repository.id)
+
+    expect(MainBranchHealthCheck.find_by!(repository: repository, branch: "develop", sha: "develop-sha").ci_health).to eq("broken")
+    expect(MainBranchHealthCheck.find_by!(repository: repository, branch: "main", sha: "release-sha").ci_health).to eq("healthy")
+  end
+
   it "keeps using an intentionally configured branch when it exists" do
     repository.update!(default_branch: "develop")
     expect_any_instance_of(GithubClient).to receive(:branch_head_sha).with(repository.slug, "develop").and_return(sha)

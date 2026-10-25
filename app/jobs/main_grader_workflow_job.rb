@@ -14,7 +14,8 @@ class MainGraderWorkflowJob < ApplicationJob
     repository = Repository.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
-    return if MainBranchHealthCheck.conclusive_grader_result_exists?(repository: repository, sha: sha)
+    health_branch = base_branch.presence || repository.default_branch
+    return if MainBranchHealthCheck.conclusive_grader_result_exists?(repository: repository, branch: health_branch, sha: sha)
     return if active_grading_workflow?(repository) || active_main_branch_repair_workflow?(repository, sha)
 
     user = repository.user
@@ -29,7 +30,7 @@ class MainGraderWorkflowJob < ApplicationJob
         issue_number: nil
       )
 
-      artifacts = { "main_sha" => sha }
+      artifacts = { "main_sha" => sha, "health_branch" => health_branch }
       artifacts["previous_main_sha"] = previous_main_sha if previous_main_sha.present?
       artifacts = RebaseTarget.artifacts(artifacts: artifacts, base_branch: base_branch)
 
