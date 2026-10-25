@@ -52,7 +52,7 @@
   },
   "onboarding": {
     "configure_credentials_title": "Zugangsdaten zuerst verbinden",
-    "configure_credentials_description": "Syrus benötigt sowohl GitHub-Zugang als auch einen Agenten-Anbieter, bevor es Repositories abfragen oder Aufgaben ausführen kann.",
+    "configure_credentials_description": "Syrus benötigt sowohl GitHub-Zugang als auch einen Agenten-Anbieter, bevor es Repositorys abfragen oder Jobs ausführen kann.",
     "configure_credentials_action": "Zugangsdaten öffnen",
     "add_repository_title": "Erstes Repository hinzufügen",
     "add_repository_description": "Zugangsdaten sind bereit. Füge ein Repository hinzu, damit Syrus weiß, wo Issues beobachtet und direkte Jobs ausgeführt werden sollen.",
@@ -86,11 +86,11 @@
     "queued_blocked_filter_aria": "{{count}} blockierte wartende Jobs anzeigen",
     "landing_paused_broken_main": "Arbeit pausiert — Haupt-Branch ist kaputt.",
     "landing_paused_main_health": "Arbeit pausiert — Repository-Gesundheit muss geprüft werden.",
-    "all_items_job": "Alle Aufgaben",
+    "all_items_job": "Alle Jobs",
     "all_items_epic": "Alle Epics",
     "all_items_workflow": "Alle Workflows",
     "names": {
-      "all_jobs": "Alle Aufgaben",
+      "all_jobs": "Alle Jobs",
       "backlogged_jobs": "Backlog",
       "pinned": "Angeheftet",
       "in_progress": "In Bearbeitung",
