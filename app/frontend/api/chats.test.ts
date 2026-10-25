@@ -67,13 +67,11 @@ describe("chat API", () => {
       chat_types: ["agent", "external"],
       sort_by: "last_activity",
       show_empty_groups: false,
+      unread_only: false,
       per_group: 10
     })
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/app/chats?chat_types=agent%2Cexternal",
-      expect.anything()
-    )
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats?chat_types=agent%2Cexternal", expect.anything())
   })
 
   it("adds agent grouping to the recent chats query string", async () => {
@@ -85,13 +83,19 @@ describe("chat API", () => {
       chat_types: [],
       sort_by: "last_activity",
       show_empty_groups: false,
+      unread_only: false,
       per_group: 10
     })
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/app/chats?group_by=agent",
-      expect.anything()
-    )
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats?group_by=agent", expect.anything())
+  })
+
+  it("adds the unread filter and active chat exception to the recent chats query string", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ groups: [], repositories: [] }))
+
+    await fetchChats({ unread_only: true }, 42)
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats?unread_only=1&active_chat_id=42", expect.anything())
   })
 
   it("includes active work in job dependency searches", async () => {
@@ -99,10 +103,7 @@ describe("chat API", () => {
 
     await searchChatJobs("running job")
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/app/jobs?q=running+job&include_active_work=true&limit=10",
-      expect.anything()
-    )
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs?q=running+job&include_active_work=true&limit=10", expect.anything())
   })
 })
 

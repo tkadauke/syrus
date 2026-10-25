@@ -56,6 +56,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
     normalized.chat_types.join(",") === DEFAULT_CHAT_SIDEBAR_SETTINGS.chat_types.join(",") &&
     normalized.sort_by === DEFAULT_CHAT_SIDEBAR_SETTINGS.sort_by &&
     normalized.show_empty_groups === DEFAULT_CHAT_SIDEBAR_SETTINGS.show_empty_groups &&
+    normalized.unread_only === DEFAULT_CHAT_SIDEBAR_SETTINGS.unread_only &&
     normalized.per_group === DEFAULT_CHAT_SIDEBAR_SETTINGS.per_group
   ) {
     return ["chats", "recent"]
@@ -69,6 +70,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
     normalized.chat_types.join(","),
     normalized.sort_by,
     normalized.show_empty_groups,
+    normalized.unread_only,
     normalized.per_group
   ]
 }
