@@ -155,7 +155,7 @@ function BranchNode({ index, node, repositorySlug }: { index: number; node: Plan
         <div className="min-w-0 flex-1">
           <NodeHeader node={node} repositorySlug={repositorySlug} />
           {node.branchName ? <BranchValue repositorySlug={repositorySlug} value={node.branchName} /> : null}
-          <dl className="mt-1 grid min-w-0 gap-1 sm:grid-cols-2">
+          <dl className="mt-1 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-1">
             {node.currentBase || node.targetBase ? <Row label="Base change" value={`${node.currentBase || "—"} → ${node.targetBase || "—"}`} /> : null}
             {node.targetParentJobId ? <Row label="Target parent" value={`JOB-${node.targetParentJobId}`} /> : null}
             {node.commitsBehind ? <Row label="Commits behind" value={node.commitsBehind} /> : null}
