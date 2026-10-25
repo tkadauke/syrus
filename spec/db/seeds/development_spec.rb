@@ -23,6 +23,7 @@ RSpec.describe "development seeds" do
     )
     expect(AppSetting.current).to be_beta_mode_enabled
     expect(PluginRecord.find_by!(name: "syrus_dev")).to be_enabled
+    expect(Handle.find_by!(handle: "syrus")).to be_reserved
     expect(Syrus::PluginRegistry.providers_for(:admin_page)).to include(SyrusDev::AdminPages)
     expect(SyrusDev::AdminPages.admin_pages).to include(hash_including(path: "/admin/tool_cards"))
   end

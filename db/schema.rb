@@ -1493,6 +1493,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.index ["workflow_id"], name: "index_grader_conclusions_on_workflow_id"
   end
 
+  create_table "handles", force: :cascade do |t|
+    t.string "handle", null: false, collation: "NOCASE"
+    t.string "owner_type"
+    t.bigint "owner_id"
+    t.datetime "created_at", null: false
+    t.index ["handle"], name: "index_handles_on_handle", unique: true
+    t.index ["owner_type", "owner_id"], name: "index_handles_on_owner_type_and_owner_id", unique: true
+  end
+
   create_table "input_sources", force: :cascade do |t|
     t.json "config", null: false
     t.datetime "created_at", null: false
