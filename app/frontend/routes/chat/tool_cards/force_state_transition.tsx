@@ -1,4 +1,4 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard, type PendingActionInputField } from "../pendingActionToolCard"
 import { displayValue, Row, StatePill } from "../toolCardUi"
 
@@ -64,3 +64,69 @@ const forceStateTransitionToolCard: ToolCardRenderer = {
 }
 
 export default forceStateTransitionToolCard
+
+const longReason = [
+  "**Repair state drift** after verifying the workflow has stopped and no active WorkUnit still owns the Job.",
+  "",
+  "- The latest workflow is terminal.",
+  "- No queued Run can advance the Job.",
+  "- The operator reviewed the audit snapshot before confirming."
+].join("\n")
+
+const longMessage = [
+  "Apply **force fail** to JOB-4048?",
+  "",
+  "This changes only the existing Job state.",
+  "",
+  "It does not create a Workflow, WorkUnit, or queued Run. Confirm after checking the audit reason, the latest workflow state, and current ownership."
+].join("\n")
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "pending_confirmation",
+    label: "Pending transition with Markdown",
+    description: "Shows the linked Job, requested event, and expandable operator reason and confirmation message.",
+    input: { job_id: 4048, event: "force_fail", reason: longReason },
+    parsedResult: {
+      pending_confirmation_id: 501,
+      pending_action_id: 501,
+      state: "pending",
+      reason: longReason,
+      message: longMessage
+    }
+  },
+  {
+    id: "confirmed_transition",
+    label: "Confirmed transition snapshot",
+    description: "Shows the audited current-to-resulting Job state after the pending action executes.",
+    input: { job_id: 4048, event: "force_fail", reason: "Repair the stale Job state after the workflow stopped." },
+    parsedResult: {
+      pending_confirmation_id: 501,
+      pending_action_id: 501,
+      state: "pending",
+      message: "Apply **force fail** to JOB-4048?"
+    },
+    livePendingAction: {
+      id: 501,
+      action: "force_state_transition",
+      state: "confirmed",
+      label: "Force force_fail on JOB-4048",
+      detail: "Event: `force_fail`",
+      reason: "Repair the stale Job state after the workflow stopped.",
+      execution_status: "applied",
+      execution_step: "Applied.",
+      before_snapshot: { jobs: [{ id: 4048, state: "implemented" }] },
+      after_snapshot: { jobs: [{ id: 4048, state: "failed" }] },
+      app_confirm_path: "/api/v1/app/chats/7/pending_actions/501/confirm",
+      app_reject_path: "/api/v1/app/chats/7/pending_actions/501/reject"
+    }
+  },
+  {
+    id: "tool_error",
+    label: "Tool error retains request context",
+    description: "Keeps the linked Job, requested event, Markdown reason, and failure detail visible when the request fails.",
+    input: { job_id: 9999, event: "force_fail", reason: "Retry after **verifying** the Job identifier." },
+    resultBody: "Error: job not found: 9999",
+    resultError: true
+  }
+]
