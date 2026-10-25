@@ -1,3 +1,4 @@
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, InternalLink, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
@@ -112,10 +113,12 @@ function parseCardGapRow(value: unknown, index: number): CardGapRow | null {
     errorRate: numberValue(value.error_rate),
     resultBytes: numberValue(value.result_bytes),
     lastUsedAt: displayValue(value.last_used_at),
-    serverNames: Array.isArray(value.server_names) ? value.server_names.flatMap((name) => {
-      const serverName = displayValue(name)
-      return serverName ? [serverName] : []
-    }) : [],
+    serverNames: Array.isArray(value.server_names)
+      ? value.server_names.flatMap((name) => {
+          const serverName = displayValue(name)
+          return serverName ? [serverName] : []
+        })
+      : [],
     ownerType,
     ownerName,
     recommendationTarget,
@@ -125,10 +128,12 @@ function parseCardGapRow(value: unknown, index: number): CardGapRow | null {
 }
 
 function parseCardGapRows(value: unknown): CardGapRow[] {
-  return Array.isArray(value) ? value.flatMap((row, index) => {
-    const parsedRow = parseCardGapRow(row, index)
-    return parsedRow ? [parsedRow] : []
-  }) : []
+  return Array.isArray(value)
+    ? value.flatMap((row, index) => {
+        const parsedRow = parseCardGapRow(row, index)
+        return parsedRow ? [parsedRow] : []
+      })
+    : []
 }
 
 function linkFor(row: Record<string, unknown>, key: "job" | "workflow" | "run" | "chat_session") {
@@ -136,7 +141,7 @@ function linkFor(row: Record<string, unknown>, key: "job" | "workflow" | "run" |
   if (!href) return null
 
   const id = displayValue(row[`${key}_id`])
-  const label = key === "job" && id ? `JOB-${id}` : key === "workflow" && id ? `WF-${id}` : key === "run" && id ? `RUN-${id}` : "Chat"
+  const label = key === "job" && id ? `JOB-${id}` : key === "workflow" && id ? `WF-${id}` : key === "run" && id ? `RUN-${id}` : i18n.t("chat:ops_chat_2ced57")
   return { key, label, href }
 }
 
@@ -204,16 +209,61 @@ function parseUsage(context: ToolCardContext): UsageCard | null {
     surface: displayValue(parsed.surface),
     filters: parseFilters(parsed.filters),
     totals: { calls: calls ?? 0, errors: errors ?? 0 },
-    topTools: Array.isArray(parsed.top_tools) ? parsed.top_tools.flatMap((row, index) => { const parsedRow = parseToolRow(row, index); return parsedRow ? [parsedRow] : [] }) : [],
-    errorRates: Array.isArray(parsed.error_rates) ? parsed.error_rates.flatMap((row, index) => { const parsedRow = parseToolRow(row, index); return parsedRow && parsedRow.errors > 0 ? [parsedRow] : [] }) : [],
-    surfaceBreakdown: Array.isArray(parsed.surface_breakdown) ? parsed.surface_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "surface", index); return parsedRow ? [parsedRow] : [] }) : [],
-    providerBreakdown: Array.isArray(parsed.provider_breakdown) ? parsed.provider_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "provider", index); return parsedRow ? [parsedRow] : [] }) : [],
-    serverBreakdown: Array.isArray(parsed.server_breakdown) ? parsed.server_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "server_name", index); return parsedRow ? [parsedRow] : [] }) : [],
-    sidecarModeBreakdown: Array.isArray(parsed.sidecar_mode_breakdown) ? parsed.sidecar_mode_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "sidecar_mode", index); return parsedRow ? [parsedRow] : [] }) : [],
-    authorityBreakdown: Array.isArray(parsed.authority_breakdown) ? parsed.authority_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "authority", index); return parsedRow ? [parsedRow] : [] }) : [],
-    unusedAdvertisedTools: Array.isArray(parsed.unused_advertised_tools) ? parsed.unused_advertised_tools.flatMap((tool) => { const name = displayValue(tool); return name ? [name] : [] }) : [],
+    topTools: Array.isArray(parsed.top_tools)
+      ? parsed.top_tools.flatMap((row, index) => {
+          const parsedRow = parseToolRow(row, index)
+          return parsedRow ? [parsedRow] : []
+        })
+      : [],
+    errorRates: Array.isArray(parsed.error_rates)
+      ? parsed.error_rates.flatMap((row, index) => {
+          const parsedRow = parseToolRow(row, index)
+          return parsedRow && parsedRow.errors > 0 ? [parsedRow] : []
+        })
+      : [],
+    surfaceBreakdown: Array.isArray(parsed.surface_breakdown)
+      ? parsed.surface_breakdown.flatMap((row, index) => {
+          const parsedRow = parseBreakdownRow(row, "surface", index)
+          return parsedRow ? [parsedRow] : []
+        })
+      : [],
+    providerBreakdown: Array.isArray(parsed.provider_breakdown)
+      ? parsed.provider_breakdown.flatMap((row, index) => {
+          const parsedRow = parseBreakdownRow(row, "provider", index)
+          return parsedRow ? [parsedRow] : []
+        })
+      : [],
+    serverBreakdown: Array.isArray(parsed.server_breakdown)
+      ? parsed.server_breakdown.flatMap((row, index) => {
+          const parsedRow = parseBreakdownRow(row, "server_name", index)
+          return parsedRow ? [parsedRow] : []
+        })
+      : [],
+    sidecarModeBreakdown: Array.isArray(parsed.sidecar_mode_breakdown)
+      ? parsed.sidecar_mode_breakdown.flatMap((row, index) => {
+          const parsedRow = parseBreakdownRow(row, "sidecar_mode", index)
+          return parsedRow ? [parsedRow] : []
+        })
+      : [],
+    authorityBreakdown: Array.isArray(parsed.authority_breakdown)
+      ? parsed.authority_breakdown.flatMap((row, index) => {
+          const parsedRow = parseBreakdownRow(row, "authority", index)
+          return parsedRow ? [parsedRow] : []
+        })
+      : [],
+    unusedAdvertisedTools: Array.isArray(parsed.unused_advertised_tools)
+      ? parsed.unused_advertised_tools.flatMap((tool) => {
+          const name = displayValue(tool)
+          return name ? [name] : []
+        })
+      : [],
     customCardGaps: parseCustomCardGaps(parsed.custom_card_gaps),
-    recentCalls: Array.isArray(parsed.recent_calls) ? parsed.recent_calls.flatMap((row, index) => { const parsedRow = parseRecentCall(row, index); return parsedRow ? [parsedRow] : [] }) : []
+    recentCalls: Array.isArray(parsed.recent_calls)
+      ? parsed.recent_calls.flatMap((row, index) => {
+          const parsedRow = parseRecentCall(row, index)
+          return parsedRow ? [parsedRow] : []
+        })
+      : []
   }
 }
 
@@ -223,16 +273,17 @@ function collapsedSummary(context: ToolCardContext) {
   if (card.unavailableMessage) return card.unavailableMessage
 
   const rate = card.totals.calls > 0 ? card.totals.errors / card.totals.calls : 0
-  const window = card.window.start && card.window.end ? `${card.window.start} to ${card.window.end}` : "selected window"
+  const window = card.window.start && card.window.end ? `${card.window.start} to ${card.window.end}` : i18n.t("chat:ops_selected_window_027202")
   return `${window}, ${card.surface || "all"} surface, ${card.totals.calls} calls, ${card.totals.errors} errors, ${percent(rate)} error rate`
 }
 
 function StatTile({ label, value, tone = "neutral" }: { label: string; value: string | number; tone?: "neutral" | "volume" | "error" }) {
-  const toneClass = tone === "error"
-    ? "border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/30"
-    : tone === "volume"
-      ? "border-info/20 bg-info/5"
-      : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+  const toneClass =
+    tone === "error"
+      ? "border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/30"
+      : tone === "volume"
+        ? "border-info/20 bg-info/5"
+        : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
   return (
     <div className={`rounded border px-2 py-1 ${toneClass}`}>
       <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</div>
@@ -248,10 +299,12 @@ function ToolRows({ heading, intent, rows }: { heading: string; intent: "volume"
         <SectionLabel>{heading}</SectionLabel>
       </div>
       {rows.length === 0 ? (
-        <EmptyState>{intent === "error" ? "No high-error tools in this window." : "No tool volume in this window."}</EmptyState>
+        <EmptyState>
+          {intent === "error" ? i18n.t("chat:ops_no_high_error_tools_in_this_window_48b31a") : i18n.t("chat:ops_no_tool_volume_in_this_window_91e593")}
+        </EmptyState>
       ) : (
         <Table>
-          <THead columns={["Tool", "Calls", "Errors", "Rate"]} />
+          <THead columns={["tool", "calls", "errors", "rate"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
           <TBody>
             {rows.map((row) => (
               <tr key={row.key}>
@@ -277,11 +330,13 @@ function BreakdownRows({ label, rows }: { label: string; rows: BreakdownRow[] })
     <div>
       <SectionLabel>{label}</SectionLabel>
       <Table>
-        <THead columns={[label, "Calls", "Errors", "Rate"]} />
+        <THead columns={[label, ...["calls", "errors", "rate"].map((key) => i18n.t(`chat:admin_column_${key}`))]} />
         <TBody>
           {rows.map((row) => (
             <tr key={row.key}>
-              <Td maxWidth title={row.label}>{row.label}</Td>
+              <Td maxWidth title={row.label}>
+                {row.label}
+              </Td>
               <Td mono>{row.calls}</Td>
               <Td mono>{row.errors}</Td>
               <Td mono>{percent(row.errorRate)}</Td>
@@ -300,7 +355,7 @@ function CardGapRows({ heading, rows, showVolume = true }: { heading: string; ro
         <SectionLabel>{heading}</SectionLabel>
       </div>
       {rows.length === 0 ? (
-        <EmptyState>No card coverage gaps in this bucket.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_card_coverage_gaps_in_this_bucket_811292")}</EmptyState>
       ) : (
         <div className="divide-y divide-amber-100 dark:divide-amber-950/60">
           {rows.map((row) => (
@@ -312,7 +367,11 @@ function CardGapRows({ heading, rows, showVolume = true }: { heading: string; ro
               <div className="flex min-w-0 flex-wrap items-center gap-1">
                 <StatePill state={row.cardStatus} tone={row.cardStatus === "registered" ? "success" : "warning"} />
                 {showVolume && row.calls != null ? <Badge>{row.calls} calls</Badge> : null}
-                {showVolume && row.errors != null && row.errorRate != null ? <Badge>{row.errors} errors, {percent(row.errorRate)}</Badge> : null}
+                {showVolume && row.errors != null && row.errorRate != null ? (
+                  <Badge>
+                    {row.errors} errors, {percent(row.errorRate)}
+                  </Badge>
+                ) : null}
               </div>
               <div className="min-w-0 break-words font-mono text-2xs text-gray-600 dark:text-gray-300">{row.recommendationTarget}</div>
             </div>
@@ -327,13 +386,13 @@ function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
   return (
     <div className="min-w-0 rounded border border-info/20">
       <div className="border-l-4 border-info px-2 py-1">
-        <SectionLabel>Custom card gap ranking</SectionLabel>
+        <SectionLabel>{i18n.t("chat:ops_custom_card_gap_ranking_422d67")}</SectionLabel>
       </div>
       {rows.length === 0 ? (
-        <EmptyState>No missing or weak card gaps in this window.</EmptyState>
+        <EmptyState>{i18n.t("chat:ops_no_missing_or_weak_card_gaps_in_this_window_51b2cb")}</EmptyState>
       ) : (
         <Table>
-          <THead columns={["Tool", "Usage", "Owner", "Last used"]} />
+          <THead columns={["tool", "usage", "owner", "last_used"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
           <TBody>
             {rows.map((row) => (
               <tr key={row.key}>
@@ -351,7 +410,9 @@ function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
                 </Td>
                 <Td maxWidth title={row.recommendationTarget}>
                   <div className="break-words text-2xs text-gray-700 dark:text-gray-200">{row.ownerType === "plugin" ? row.ownerName : "core"}</div>
-                  <div className="break-words font-mono text-2xs text-gray-500 dark:text-gray-400">{row.serverNames.length > 0 ? row.serverNames.join(", ") : row.recommendationTarget}</div>
+                  <div className="break-words font-mono text-2xs text-gray-500 dark:text-gray-400">
+                    {row.serverNames.length > 0 ? row.serverNames.join(", ") : row.recommendationTarget}
+                  </div>
                 </Td>
                 <Td mono>{row.lastUsedAt || "unused"}</Td>
               </tr>
@@ -364,27 +425,35 @@ function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
 }
 
 function RecentCalls({ calls }: { calls: RecentCall[] }) {
-  if (calls.length === 0) return <EmptyState>No recent calls found.</EmptyState>
+  if (calls.length === 0) return <EmptyState>{i18n.t("chat:ops_no_recent_calls_found_e21be6")}</EmptyState>
 
   return (
     <Table>
-      <THead columns={["When", "Call", "Status", "Links"]} />
+      <THead columns={["when", "call", "status", "links"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
       <TBody>
         {calls.map((call) => (
           <tr key={call.key}>
             <Td mono>{call.occurredAt || "-"}</Td>
             <Td maxWidth title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
               <div className="font-medium text-gray-900 dark:text-gray-100">{call.toolName}</div>
-              <div className="text-2xs text-gray-500 dark:text-gray-400">{[call.serverName || "-", call.surface, call.provider, call.sidecarMode, call.daemonWorkerId, call.authority].filter(Boolean).join(" / ")}</div>
+              <div className="text-2xs text-gray-500 dark:text-gray-400">
+                {[call.serverName || "-", call.surface, call.provider, call.sidecarMode, call.daemonWorkerId, call.authority].filter(Boolean).join(" / ")}
+              </div>
             </Td>
             <Td maxWidth title={call.errorSummary || undefined}>
               <StatePill state={call.status} tone={call.error ? "failure" : "success"} />
               {call.errorSummary ? <div className="mt-1 truncate text-2xs text-gray-500 dark:text-gray-400">{call.errorSummary}</div> : null}
             </Td>
             <Td>
-              {call.links.length === 0 ? "—" : (
+              {call.links.length === 0 ? (
+                "—"
+              ) : (
                 <div className="flex flex-wrap gap-1">
-                  {call.links.map((link) => <InternalLink href={link.href} key={link.key}>{link.label}</InternalLink>)}
+                  {call.links.map((link) => (
+                    <InternalLink href={link.href} key={link.key}>
+                      {link.label}
+                    </InternalLink>
+                  ))}
                 </div>
               )}
             </Td>
@@ -402,21 +471,30 @@ function renderExpanded(context: ToolCardContext) {
   if (card.unavailableMessage) return <EmptyState>{card.unavailableMessage}</EmptyState>
 
   const rate = card.totals.calls > 0 ? card.totals.errors / card.totals.calls : 0
-  const filters = [card.filters.toolName ? `tool: ${card.filters.toolName}` : null, card.filters.serverName ? `server: ${card.filters.serverName}` : null].filter(Boolean)
+  const filters = [
+    card.filters.toolName ? `tool: ${card.filters.toolName}` : null,
+    card.filters.serverName ? `server: ${card.filters.serverName}` : null
+  ].filter(Boolean)
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{card.surface || "all"} surface</Badge>
-        {card.window.start && card.window.end ? <Badge>{card.window.start} to {card.window.end}</Badge> : null}
-        {filters.map((filter) => <Badge key={filter}>{filter}</Badge>)}
+        {card.window.start && card.window.end ? (
+          <Badge>
+            {card.window.start} to {card.window.end}
+          </Badge>
+        ) : null}
+        {filters.map((filter) => (
+          <Badge key={filter}>{filter}</Badge>
+        ))}
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <StatTile label="Calls" value={card.totals.calls} tone="volume" />
-        <StatTile label="Errors" value={card.totals.errors} tone={card.totals.errors > 0 ? "error" : "neutral"} />
-        <StatTile label="Error rate" value={percent(rate)} tone={card.totals.errors > 0 ? "error" : "neutral"} />
+        <StatTile label={i18n.t("chat:ops_calls_0a19b7")} value={card.totals.calls} tone="volume" />
+        <StatTile label={i18n.t("chat:ops_errors_805e86")} value={card.totals.errors} tone={card.totals.errors > 0 ? "error" : "neutral"} />
+        <StatTile label={i18n.t("chat:ops_error_rate_5329d9")} value={percent(rate)} tone={card.totals.errors > 0 ? "error" : "neutral"} />
       </div>
-      {card.totals.calls === 0 ? <EmptyState>No MCP tool calls found for this window.</EmptyState> : null}
+      {card.totals.calls === 0 ? <EmptyState>{i18n.t("chat:ops_no_mcp_tool_calls_found_for_this_window_d0d947")}</EmptyState> : null}
       <div className="grid gap-2 lg:grid-cols-2">
         <ToolRows heading="Volume priorities" intent="volume" rows={card.topTools} />
         <ToolRows heading="Error priorities" intent="error" rows={card.errorRates} />
@@ -429,22 +507,24 @@ function renderExpanded(context: ToolCardContext) {
         <CardGapRows heading="Unclassified advertised tools" rows={card.customCardGaps.unclassifiedAdvertisedTools} showVolume={false} />
       </div>
       <div className="grid gap-2 lg:grid-cols-2">
-        <BreakdownRows label="Surface" rows={card.surfaceBreakdown} />
-        <BreakdownRows label="Provider" rows={card.providerBreakdown} />
-        <BreakdownRows label="Server" rows={card.serverBreakdown} />
-        <BreakdownRows label="Sidecar mode" rows={card.sidecarModeBreakdown} />
-        <BreakdownRows label="Authority" rows={card.authorityBreakdown} />
+        <BreakdownRows label={i18n.t("chat:ops_surface_cda05c")} rows={card.surfaceBreakdown} />
+        <BreakdownRows label={i18n.t("chat:ops_provider_7ceee3")} rows={card.providerBreakdown} />
+        <BreakdownRows label={i18n.t("chat:ops_server_cb0cb1")} rows={card.serverBreakdown} />
+        <BreakdownRows label={i18n.t("chat:ops_sidecar_mode_016ab1")} rows={card.sidecarModeBreakdown} />
+        <BreakdownRows label={i18n.t("chat:ops_authority_97a986")} rows={card.authorityBreakdown} />
       </div>
       {card.unusedAdvertisedTools.length > 0 ? (
         <div>
-          <SectionLabel>Unused advertised tools</SectionLabel>
+          <SectionLabel>{i18n.t("chat:ops_unused_advertised_tools_3d0e89")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {card.unusedAdvertisedTools.map((tool) => <Badge key={tool}>{tool}</Badge>)}
+            {card.unusedAdvertisedTools.map((tool) => (
+              <Badge key={tool}>{tool}</Badge>
+            ))}
           </div>
         </div>
       ) : null}
       <div>
-        <SectionLabel>Recent calls</SectionLabel>
+        <SectionLabel>{i18n.t("chat:ops_recent_calls_f584cb")}</SectionLabel>
         <RecentCalls calls={card.recentCalls} />
       </div>
     </CardShell>

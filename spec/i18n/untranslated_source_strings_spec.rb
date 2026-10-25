@@ -6,6 +6,15 @@ RSpec.describe "Untranslated source strings", type: :unit do
   CHAT_I18N_DEBT_FILES = %w[
     app/frontend/routes/chat/streamBuilders.ts
     app/frontend/routes/chat/streamChrome.tsx
+    app/frontend/routes/chat/tool_cards/create_tag.tsx
+    app/frontend/routes/chat/tool_cards/daemon_ping.tsx
+    app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
+    app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
+    app/frontend/routes/chat/tool_cards/submit_artifact.tsx
+    app/frontend/routes/chat/tool_cards/write_file.tsx
+  ].freeze
+
+  CHAT_I18N_REVIEWED_FILES = %w[
     app/frontend/routes/chat/tool_cards/admin_cleanup_workspace.tsx
     app/frontend/routes/chat/tool_cards/admin_github_app_installation_diagnostic.tsx
     app/frontend/routes/chat/tool_cards/admin_kill_process.tsx
@@ -22,15 +31,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx
     app/frontend/routes/chat/tool_cards/admin_unpause_user_scheduling.tsx
     app/frontend/routes/chat/tool_cards/admin_version.tsx
-    app/frontend/routes/chat/tool_cards/create_tag.tsx
-    app/frontend/routes/chat/tool_cards/daemon_ping.tsx
-    app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
-    app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
-    app/frontend/routes/chat/tool_cards/submit_artifact.tsx
-    app/frontend/routes/chat/tool_cards/write_file.tsx
-  ].freeze
-
-  CHAT_I18N_REVIEWED_FILES = %w[
     app/frontend/routes/chat/tool_cards/adopt_current_pr_head.tsx
     app/frontend/routes/chat/tool_cards/classify_pull_request.tsx
     app/frontend/routes/chat/tool_cards/clear_provider_circuit.tsx
@@ -220,6 +220,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx|ternary|JOB-
       app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx|ternary|PR #
       app/frontend/routes/chat/tool_cards/mark_ci_repair_noop.tsx|user_visible_property|Workflow is not a CI failure repair. See https://ci.example.test/help/repair-workflows.
+      app/frontend/routes/chat/tool_cards/admin_maintenance_tasks.tsx|jsx_text|Event #
+      app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx|ternary|JOB- —
+      app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx|ternary|JOB-
       app/frontend/routes/chat/tool_cards/pause_landing_queue.tsx|user_visible_property|Pause landing queue
       app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|Waiting on the operator to answer in chat.
       app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|result_error true -- renders through the shared ToolFailureSummaryCard instead of the waiting-state card.

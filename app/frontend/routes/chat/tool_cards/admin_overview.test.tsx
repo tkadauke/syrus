@@ -33,7 +33,7 @@ describe("admin_overview tool card", () => {
   })
 
   it("summarizes the collapsed row with headline counts", () => {
-    expect(adminOverviewToolCard.collapsedSummary?.(context({ parsedResult: HEALTHY_PAYLOAD }))).toBe("5 open Jobs, 2 running, 0 failed (24h)")
+    expect(adminOverviewToolCard.collapsedSummary?.(context({ parsedResult: HEALTHY_PAYLOAD }))).toBe("5 open Jobs, 2 running Workflows, 0 failed (24h)")
   })
 
   it("renders stat tiles and queue summary for a healthy instance", () => {
