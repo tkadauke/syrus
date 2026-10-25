@@ -275,26 +275,42 @@ describe("run_visual_review pending action card", () => {
     expect(screen.getByText("Not provided")).toBeInTheDocument()
   })
 
-  it("renders deduplicated after-snapshot and other live media as responsive previews", () => {
+  it("renders production-shaped live workflow media as responsive previews", () => {
     const livePendingAction = liveAction({
       action: "run_visual_review",
       execution_status: "applied",
-      after_snapshot: {
-        artifacts: [
-          { title: "Desktop result", type: "visual_review_screenshot", image_url: "/visual/desktop.png" },
-          { title: "Duplicate", image_url: "/visual/desktop.png" }
+      outcome: {
+        workflow_id: 61270,
+        job_id: 4222,
+        media: [
+          {
+            type: "visual_review_screenshot_run_1_1",
+            title: "Desktop result",
+            image_url: "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_1",
+            content_type: "image/png"
+          },
+          {
+            type: "visual_review_screenshot_run_1_2",
+            title: "Mobile result",
+            image_url: "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_2",
+            content_type: "image/png"
+          }
         ]
-      },
-      outcome: { mobile: { name: "Mobile result", thumbnail_url: "https://media.example/mobile.png" } }
+      }
     })
 
     render(<>{runVisualReviewCard.renderExpanded(visualReviewContext({ livePendingAction }))}</>)
 
     expect(screen.getByText("Review media")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Open Desktop result" })).toHaveClass("w-full")
-    expect(screen.getByRole("img", { name: "Desktop result" })).toHaveAttribute("src", "/visual/desktop.png")
-    expect(screen.getByRole("img", { name: "Mobile result" })).toHaveAttribute("src", "https://media.example/mobile.png")
-    expect(screen.queryByRole("button", { name: "Open Duplicate" })).not.toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Desktop result" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_1"
+    )
+    expect(screen.getByRole("img", { name: "Mobile result" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_2"
+    )
     expect(screen.getByText("applied")).toBeInTheDocument()
   })
 
