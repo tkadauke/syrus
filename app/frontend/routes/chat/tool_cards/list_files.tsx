@@ -75,7 +75,9 @@ function InputDetails({ context, path }: { context: ToolCardContext; path: strin
           <CopyableSlug className="-ml-1" slug={path} />
         </dd>
       </div>
-      {typeof recursive === "boolean" ? <Row label={i18n.t("chat:tool_card_list_files_recursive")} value={recursive ? i18n.t("chat:tool_card_yes") : i18n.t("chat:tool_card_no")} /> : null}
+      {typeof recursive === "boolean" ? (
+        <Row label={i18n.t("chat:tool_card_list_files_recursive")} value={recursive ? i18n.t("chat:tool_card_yes") : i18n.t("chat:tool_card_no")} />
+      ) : null}
       {depth != null ? <Row label={i18n.t("chat:tool_card_list_files_depth")} value={String(depth)} /> : null}
     </dl>
   )
@@ -133,7 +135,12 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "empty", label: i18n.t("chat:tool_card_list_files_example_empty"), input: { path: "tmp/empty" }, parsedResult: { files: [] } },
-  { id: "pending", label: i18n.t("chat:tool_card_list_files_example_pending"), input: { path: "." }, parsedResult: { state: "pending", message: i18n.t("chat:tool_card_list_files_example_waiting") } },
+  {
+    id: "pending",
+    label: i18n.t("chat:tool_card_list_files_example_pending"),
+    input: { path: "." },
+    parsedResult: { state: "pending", message: i18n.t("chat:tool_card_list_files_example_waiting") }
+  },
   {
     id: "error",
     label: i18n.t("chat:tool_card_list_files_example_disconnected"),

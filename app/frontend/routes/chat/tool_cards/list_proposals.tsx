@@ -31,17 +31,25 @@ function renderExpanded(context: ToolCardContext) {
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
             {["slug", "kind", "state", "title"].map((column) => (
-              <th className="px-2 py-1 font-semibold" key={column} scope="col">{i18n.t(`chat:tool_card_list_proposals_${column}`)}</th>
+              <th className="px-2 py-1 font-semibold" key={column} scope="col">
+                {i18n.t(`chat:tool_card_list_proposals_${column}`)}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((proposal) => (
             <tr key={proposal.slug}>
-              <td className="whitespace-nowrap px-2 py-1"><EntityReference kind="proposal" slug={proposal.slug} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <EntityReference kind="proposal" slug={proposal.slug} />
+              </td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{proposal.kind}</td>
-              <td className="whitespace-nowrap px-2 py-1"><StatePill state={proposal.state} /></td>
-              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={proposal.title ?? undefined}>{proposal.title || "—"}</td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <StatePill state={proposal.state} />
+              </td>
+              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={proposal.title ?? undefined}>
+                {proposal.title || "—"}
+              </td>
             </tr>
           ))}
         </tbody>

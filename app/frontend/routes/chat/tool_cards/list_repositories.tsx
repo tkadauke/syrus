@@ -28,7 +28,10 @@ const failureConfig: ToolFailureConfig = {
   attempted: (context) => {
     const page = stringFromInput(context, ["page"])
     const perPage = stringFromInput(context, ["per_page"])
-    return [page ? i18n.t("chat:page_number", { page }) : null, perPage ? i18n.t("chat:per_page", { count: perPage }) : null].filter(Boolean).join(", ") || i18n.t("chat:tool_card_list_repositories_action")
+    return (
+      [page ? i18n.t("chat:page_number", { page }) : null, perPage ? i18n.t("chat:per_page", { count: perPage }) : null].filter(Boolean).join(", ") ||
+      i18n.t("chat:tool_card_list_repositories_action")
+    )
   },
   retrySafety: "safe",
   recovery: i18n.t("chat:tool_card_list_repositories_recovery")
@@ -125,7 +128,8 @@ function InputSummary({ context }: { context: ToolCardContext }) {
   if (!page && !perPage) return null
   return (
     <div className="break-words text-2xs text-gray-500 dark:text-gray-400">
-      {i18n.t("chat:requested")}: {[page ? i18n.t("chat:page_number", { page }) : null, perPage ? i18n.t("chat:per_page", { count: perPage }) : null].filter(Boolean).join(" · ")}
+      {i18n.t("chat:requested")}:{" "}
+      {[page ? i18n.t("chat:page_number", { page }) : null, perPage ? i18n.t("chat:per_page", { count: perPage }) : null].filter(Boolean).join(" · ")}
     </div>
   )
 }

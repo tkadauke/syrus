@@ -46,7 +46,9 @@ function renderExpanded(context: ToolCardContext) {
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
             {["wakeup", "fires_at", "remaining", "prompt"].map((column) => (
-              <th className="px-2 py-1 font-semibold" key={column} scope="col">{i18n.t(`chat:tool_card_list_wakeups_${column}`)}</th>
+              <th className="px-2 py-1 font-semibold" key={column} scope="col">
+                {i18n.t(`chat:tool_card_list_wakeups_${column}`)}
+              </th>
             ))}
           </tr>
         </thead>
@@ -58,7 +60,9 @@ function renderExpanded(context: ToolCardContext) {
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">
                 {row.delayRemainingMinutes != null ? <Badge>{row.delayRemainingMinutes} min</Badge> : "—"}
               </td>
-              <td className="max-w-[24rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={row.promptPreview ?? undefined}>{row.promptPreview || "—"}</td>
+              <td className="max-w-[24rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={row.promptPreview ?? undefined}>
+                {row.promptPreview || "—"}
+              </td>
             </tr>
           ))}
         </tbody>

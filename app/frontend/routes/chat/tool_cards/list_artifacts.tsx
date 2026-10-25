@@ -310,6 +310,17 @@ export const examples: ToolCardExample[] = [
       ]
     }
   },
-  { id: "empty", label: i18n.t("chat:tool_card_list_artifacts_example_empty"), input: { workflow_id: 28622 }, parsedResult: { workflow_id: 28622, artifacts: [] } },
-  { id: "failure", label: i18n.t("chat:tool_card_list_artifacts_example_failure"), input: { workflow_id: 28622 }, resultBody: i18n.t("chat:tool_card_list_artifacts_example_not_found"), resultError: true }
+  {
+    id: "empty",
+    label: i18n.t("chat:tool_card_list_artifacts_example_empty"),
+    input: { workflow_id: 28622 },
+    parsedResult: { workflow_id: 28622, artifacts: [] }
+  },
+  {
+    id: "failure",
+    label: i18n.t("chat:tool_card_list_artifacts_example_failure"),
+    input: { workflow_id: 28622 },
+    resultBody: i18n.t("chat:tool_card_list_artifacts_example_not_found"),
+    resultError: true
+  }
 ]
