@@ -342,6 +342,9 @@ RSpec.describe ChatPendingAction, :ci_only do
 
     workflow = job.workflows.where(trigger_kind: "retry").last
     expect(workflow.first_step.runs.count).to eq(1)
+    expect(PendingActions::RetryJob.new(action.reload).tool_card_outcome).to eq(
+      workflows: [ { workflow_id: workflow.id, job_id: job.id } ]
+    )
   end
 
   it "validates explicit retry modes and the refresh_base audit reason" do

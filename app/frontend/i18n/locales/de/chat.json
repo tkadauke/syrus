@@ -711,6 +711,21 @@
       "failed": "Fehlgeschlagen"
     }
   },
+  "resume_landing_queue": {
+    "target": "Ziel",
+    "landing_queue": "Landing-Warteschlange",
+    "outcome": "Ergebnis",
+    "summary": "Landing-Warteschlange fortsetzen",
+    "summary_with_outcome": "Landing-Warteschlange fortsetzen · {{outcome}}",
+    "states": {
+      "pending": "Ausstehend",
+      "resuming": "Wird fortgesetzt",
+      "resumed": "Fortgesetzt",
+      "rejected": "Abgelehnt",
+      "cancelled": "Abgebrochen",
+      "failed": "Fehlgeschlagen"
+    }
+  },
   "daemon_invocation_context": {
     "summary": "Aufrufkontext: {{surface}}{{identity}}",
     "summary_denied": "Aufrufkontext verweigert: {{error}}",
@@ -821,5 +836,6 @@
     "execution_target": "Ausführungsziel",
     "execution_status": "Ausführungsstatus",
     "execution_message": "Ausführungsmeldung"
-  }
+  },
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" }
 }

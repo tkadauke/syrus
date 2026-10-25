@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "../toolRendering"
-import retryJobCard from "./retry_job"
+import retryJobCard, { examples as retryJobExamples } from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
 import delegateIssueCard from "./delegate_issue"
@@ -19,7 +19,7 @@ import adminPauseUserSchedulingCard from "./admin_pause_user_scheduling"
 import adminUnpauseUserSchedulingCard from "./admin_unpause_user_scheduling"
 import adminReapStaleRunsCard from "./admin_reap_stale_runs"
 import adminRefreshInstallationsCard from "./admin_refresh_installations"
-import rerunCiRepairCard from "./rerun_ci_repair"
+import rerunCiRepairCard, { examples as rerunCiRepairExamples } from "./rerun_ci_repair"
 import markCiRepairNoopCard from "./mark_ci_repair_noop"
 import overrideLandingBlockerOnceCard, { examples as overrideLandingBlockerOnceExamples } from "./override_landing_blocker_once"
 import forceLandingRecheckCard from "./force_landing_recheck"
@@ -34,7 +34,7 @@ import adminKillProcessCard, { examples as adminKillProcessExamples } from "./ad
 import adminRetryStepCard from "./admin_retry_step"
 import adoptCurrentPrHeadCard, { examples as adoptCurrentPrHeadExamples } from "./adopt_current_pr_head"
 import replacePrBranchWithWorkflowOutputCard, { examples as replacePrBranchExamples } from "./replace_pr_branch_with_workflow_output"
-import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
+import retryFromCurrentPrBranchCard, { examples as retryFromCurrentPrBranchExamples } from "./retry_from_current_pr_branch"
 import reconcileJobStateCard from "./reconcile_job_state"
 
 // Parity guard for the pending-action tool card family (the pending-action tool-card work /
@@ -116,8 +116,16 @@ describe("pending action tool card family", () => {
     ])
   })
 
+  it("registers every retry Job state for visual review", () => {
+    expect(retryJobExamples.map((example) => example.id)).toEqual(["single_pending", "bulk_pending", "retry_started", "ineligible", "missing_input"])
+  })
+
   it("registers every visual-review state for the queue affinity repair card", () => {
     expect(repairQueueAffinityExamples.map((example) => example.id)).toEqual(["pending_repair", "validation_error", "missing_input"])
+  })
+
+  it("registers reviewable retry-from-current-PR-branch states", () => {
+    expect(retryFromCurrentPrBranchExamples.map((example) => example.id)).toEqual(["pending_retry", "dry_run_evidence", "missing_input"])
   })
 
   it.each([
@@ -162,6 +170,55 @@ describe("pending action tool card family", () => {
     expect(screen.getByText("Job")).toBeInTheDocument()
     expect(screen.getByText("Run")).toBeInTheDocument()
     expect(screen.getByText("Reason")).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      "text content",
+      { content: [{ type: "text", text: JSON.stringify({ pending_action_id: 601, state: "pending", message: "Failing: https://ci.example.test/run/1" }) }] }
+    ],
+    ["structured content", { content: [], structured_content: { pending_action_id: 601, state: "pending", message: "Failing: https://ci.example.test/run/1" } }]
+  ])("renders complete CI repair input from a normalized %s envelope", (_label, envelope) => {
+    render(
+      <>
+        {rerunCiRepairCard.renderExpanded({
+          ...context("rerun_ci_repair", normalizedToolCardParsedResult(envelope)),
+          input: rerunCiRepairExamples[0].input
+        })}
+      </>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-4201" })).toHaveAttribute("href", "/jobs/4201")
+    expect(screen.getByText("codex")).toBeInTheDocument()
+    expect(screen.getByText("Enabled")).toBeInTheDocument()
+    expect(screen.getByText("Disabled")).toBeInTheDocument()
+    expect(screen.getByText("first repair", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://ci.example.test/run/1" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("renders effective defaults for required-only CI repair input", () => {
+    const example = rerunCiRepairExamples[1]
+    render(<>{rerunCiRepairCard.renderExpanded(toolCardContextForExample(rerunCiRepairCard.toolName, example))}</>)
+
+    expect(screen.getByText("Enabled")).toBeInTheDocument()
+    expect(screen.getByText("Disabled")).toBeInTheDocument()
+    expect(screen.getAllByText("Not provided")).toHaveLength(2)
+  })
+
+  it("preserves CI repair details in errors and labels wholly missing input", () => {
+    render(<>{rerunCiRepairCard.renderExpanded(toolCardContextForExample(rerunCiRepairCard.toolName, rerunCiRepairExamples[2]))}</>)
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4201" })).toHaveAttribute("href", "/jobs/4201")
+    expect(screen.getByText("manual review", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://ci.example.test/help/repairs" })).toBeInTheDocument()
+
+    render(<>{rerunCiRepairCard.renderExpanded(toolCardContextForExample(rerunCiRepairCard.toolName, rerunCiRepairExamples[3]))}</>)
+    expect(screen.getAllByText("Not provided")).toHaveLength(6)
+  })
+
+  it("registers every CI repair rerun catalog state", () => {
+    expect(rerunCiRepairExamples.map((example) => example.id)).toEqual(["pending_repair", "required_only", "validation_error", "missing_input"])
   })
 
   it("wires a standard-shape tool through to the shared card", () => {

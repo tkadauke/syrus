@@ -66,6 +66,33 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.dig(:pending_action, :outcome)).to eq(chat_ids: [ 101, 102 ])
   end
 
+  it "serializes bulk retry Workflow outcomes with one Workflow query" do
+    jobs = [
+      Factories.job(user: user, repository: repository, issue_number: 41),
+      Factories.job(user: user, repository: repository, issue_number: 42)
+    ]
+    workflows = jobs.map(&:latest_workflow)
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: jobs.map { |job| { action: "retry_job", payload: { "job_id" => job.id } } }
+    )
+    members = group.chat_pending_actions.order(:id).to_a
+    members.zip(workflows).each { |member, workflow| member.update!(result: workflow, state: "confirmed") }
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "retry_job", tool_use_id: "retry-1", pending_action: members.first,
+      content: { "type" => "tool_use", "id" => "retry-1", "name" => "retry_job", "input" => {} }
+    )
+
+    queries = capture_sql do
+      payload = described_class.messages([ message ], repository: repository).sole
+      expect(payload.dig(:pending_action, :outcome, :workflows)).to eq(
+        workflows.map { |workflow| { workflow_id: workflow.id, job_id: workflow.job_id } }
+      )
+    end
+
+    expect(queries.grep(/FROM ["`]?workflows["`]?/i).size).to eq(1)
+  end
+
   it "serializes every force landing recheck group member's observed and refreshed state" do
     group = PendingActionGroup.create_with_members!(
       chat_session: chat,

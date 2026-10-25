@@ -65,7 +65,7 @@ describe("admin_cleanup_workspace tool card", () => {
   ])("renders every input and result field from the shared normalized %s envelope", (_label, envelope, pendingId) => {
     render(<>{adminCleanupWorkspaceToolCard.renderExpanded(redactedContext(envelope))}</>)
 
-    expect(screen.getByRole("link", { name: "WF-71" })).toHaveAttribute("href", "/admin/workflows/71")
+    for (const link of screen.getAllByRole("link", { name: "WF-71" })) expect(link).toHaveAttribute("href", "/admin/workflows/71")
     expect(screen.getByText("completed")).toBeInTheDocument()
     expect(screen.getByText(`Pending action #${pendingId}`)).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
@@ -109,7 +109,7 @@ describe("admin_cleanup_workspace tool card", () => {
     )
 
     expect(screen.getByText("failed")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "WF-71" })).toHaveAttribute("href", "/admin/workflows/71")
+    for (const link of screen.getAllByRole("link", { name: "WF-71" })) expect(link).toHaveAttribute("href", "/admin/workflows/71")
     expect(screen.getAllByText(/\[redacted\]/).length).toBeGreaterThan(0)
     expect(screen.queryByText(/super-secret-token-value/)).not.toBeInTheDocument()
   })
