@@ -6,24 +6,31 @@ import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
 import { examples as cancelJobExamples } from "./cancel_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
+import { examples as closeJobSuccessfullyExamples } from "./close_job_successfully"
 import setJobPriorityCard from "./set_job_priority"
 import updateJobCard from "./update_job"
 import rebaseJobCard from "./rebase_job"
+import { examples as rebaseJobExamples } from "./rebase_job"
 import reopenJobCard from "./reopen_job"
 import pollJobFeedbackCard from "./poll_job_feedback"
+import { examples as pollJobFeedbackExamples } from "./poll_job_feedback"
 import startEpicCard from "./start_epic"
 import moveEpicToBacklogCard from "./move_epic_to_backlog"
+import { examples as moveEpicToBacklogExamples } from "./move_epic_to_backlog"
 import archiveEpicCard from "./archive_epic"
 import { examples as archiveEpicExamples } from "./archive_epic"
 import updateEpicCard from "./update_epic"
 import addEpicDependencyCard from "./add_epic_dependency"
 import { examples as addEpicDependencyExamples } from "./add_epic_dependency"
 import removeEpicDependencyCard from "./remove_epic_dependency"
+import { examples as removeEpicDependencyExamples } from "./remove_epic_dependency"
 import addJobDependencyCard from "./add_job_dependency"
 import { examples as addJobDependencyExamples } from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
+import { examples as removeJobDependencyExamples } from "./remove_job_dependency"
 import unapproveJobCard from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -36,7 +43,7 @@ function context(toolName: string, overrides: Partial<ToolCardContext> = {}): To
   }
 }
 
-function livePendingAction(id: number, state: ChatPendingActionState): ChatPendingActionInline {
+function livePendingAction(id: number, state: ChatPendingActionState, overrides: Partial<ChatPendingActionInline> = {}): ChatPendingActionInline {
   return {
     id,
     state,
@@ -44,7 +51,8 @@ function livePendingAction(id: number, state: ChatPendingActionState): ChatPendi
     label: "Approve Job",
     detail: null,
     app_confirm_path: `/pending_actions/${id}/confirm`,
-    app_reject_path: `/pending_actions/${id}/reject`
+    app_reject_path: `/pending_actions/${id}/reject`,
+    ...overrides
   }
 }
 
@@ -77,6 +85,10 @@ describe("Job and Epic maintenance tool cards", () => {
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
     expect(card.toolName).toBe(name)
+  })
+
+  it("lets the structured rebase card own the input reason", () => {
+    expect(rebaseJobCard.argumentSummary?.({ job_id: 48, reason: "Refresh after **main** changed." })).toBe("")
   })
 
   it("renders a Job success acknowledgement with before and after state", () => {
@@ -193,6 +205,128 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.queryByText("pending #9")).not.toBeInTheDocument()
   })
 
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(pollJobFeedbackExamples[0].parsedResult) }] }, 46],
+    ["structured content", { structured_content: pollJobFeedbackExamples[1].parsedResult }, 47]
+  ] as const)("renders a linked pending feedback poll from normalized %s without relying on input", (_label, envelope, jobId) => {
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__poll_job_feedback"), {
+      ...pollJobFeedbackExamples[1],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(pollJobFeedbackCard.collapsedSummary?.(ctx)).toBe(`Feedback poll requested · JOB-${jobId} · pending #${jobId === 46 ? 29 : 30}`)
+    render(<>{pollJobFeedbackCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getAllByRole("link", { name: `JOB-${jobId}` }).every((link) => link.getAttribute("href") === `/jobs/${jobId}`)).toBe(true)
+  })
+
+  it("renders the live feedback-poll outcome, linked resource, PR, and execution failure", () => {
+    const pending = toolCardContextForExample("poll_job_feedback", pollJobFeedbackExamples[0])
+    const confirmed = toolCardContextForExample("poll_job_feedback", pollJobFeedbackExamples[2])
+
+    expect(pollJobFeedbackCard.collapsedSummary?.(confirmed)).toBe("Feedback poll queued · JOB-46")
+    const { unmount } = render(<>{pollJobFeedbackCard.renderExpanded(confirmed)}</>)
+    expect(screen.getAllByRole("link", { name: "JOB-46" }).some((link) => link.getAttribute("href") === "/jobs/46")).toBe(true)
+    expect(screen.getByRole("link", { name: "PR #321" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/321")
+    expect(screen.getByText("succeeded")).toBeInTheDocument()
+    expect(screen.getByText("Queueing PR feedback poll...")).toBeInTheDocument()
+    unmount()
+
+    const failed = {
+      ...pending,
+      livePendingAction: livePendingAction(29, "failed", {
+        action: "poll_job_feedback",
+        label: "Poll PR feedback",
+        execution_status: "failed",
+        execution_error: "GitHub is temporarily unavailable."
+      })
+    }
+    expect(pollJobFeedbackCard.collapsedSummary?.(failed)).toBe("Poll Job Feedback failed · JOB-46")
+    render(<>{pollJobFeedbackCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("GitHub is temporarily unavailable.")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(rebaseJobExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: rebaseJobExamples[0].parsedResult }]
+  ] as const)("renders a pending rebase and Markdown reason from normalized %s", (_label, envelope) => {
+    const example = rebaseJobExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__rebase_job"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase requested · JOB-48 · pending #32")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-48" })).toHaveAttribute("href", "/jobs/48")
+    expect(screen.getByText("Reason")).toBeInTheDocument()
+    expect(screen.getByText("main").tagName).toBe("STRONG")
+  })
+
+  it("falls back to the input reason when a rebase call errors", () => {
+    const ctx = toolCardContextForExample("rebase_job", rebaseJobExamples[1])
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase Job failed · JOB-49")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("A rebase is already in progress.")).toBeInTheDocument()
+    expect(screen.getByText("Retry after the dependency landed.")).toBeInTheDocument()
+  })
+
+  it("expands a long rebase reason instead of truncating it as a detail row", () => {
+    const ctx = toolCardContextForExample("rebase_job", rebaseJobExamples[2])
+
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("main").tagName).toBe("STRONG")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("shows the live rebase execution outcome and links its resulting workflow", () => {
+    const pending = toolCardContextForExample("rebase_job", rebaseJobExamples[0])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(32, "confirmed", {
+        action: "rebase_job",
+        label: "Rebase JOB-48",
+        reason: "Refresh the branch after **main** changed.",
+        execution_status: "applied",
+        execution_step: "Applied.",
+        resource_title: "Refresh the feature branch",
+        resource_url: "/jobs/48",
+        after_snapshot: { jobs: [{ id: 48, workflow: { id: 801, trigger_kind: "rebase", state: "running" } }] }
+      })
+    }
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase requested · JOB-48")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("applied")).toBeInTheDocument()
+    expect(screen.getByText("Applied.")).toBeInTheDocument()
+    expect(screen.getByText("Job rebase requires operator confirmation.")).toBeInTheDocument()
+    expect(screen.getAllByText(/Refresh the branch after/)).toHaveLength(1)
+    expect(screen.getByRole("link", { name: "WF-801" })).toHaveAttribute("href", "/jobs/48?tab=workflows#workflow-801")
+  })
+
+  it("shows a live rebase execution failure without hiding the requested reason", () => {
+    const pending = toolCardContextForExample("rebase_job", rebaseJobExamples[0])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(32, "failed", {
+        action: "rebase_job",
+        execution_status: "failed",
+        execution_error: "ArgumentError: No PR on this Job to rebase."
+      })
+    }
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase Job failed · JOB-48")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("ArgumentError: No PR on this Job to rebase.")).toBeInTheDocument()
+    expect(screen.getByText(/Refresh the branch after/)).toBeInTheDocument()
+  })
+
   it("renders dependency add and remove details for Job and Epic targets", () => {
     const addJob = context("add_job_dependency", {
       input: { job_id: 50, depends_on_job_id: 49, satisfaction_mode: "deployment_stage", required_deployment_stage_name: "production" },
@@ -246,6 +380,52 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getAllByRole("link", { name: "JOB-50" }).every((link) => link.getAttribute("href") === "/jobs/50")).toBe(true)
   })
 
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(removeJobDependencyExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: removeJobDependencyExamples[0].parsedResult }]
+  ] as const)("renders the removed Job and remaining dependencies from normalized %s", (_label, envelope) => {
+    const example = removeJobDependencyExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__remove_job_dependency"), {
+      ...example,
+      input: { ...example.input, satisfaction_mode: "deployment_stage" },
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(removeJobDependencyCard.collapsedSummary?.(ctx)).toBe("Dependency removed · JOB-50")
+    render(<>{removeJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-49" })).toHaveAttribute("href", "/jobs/49")
+    expect(screen.getByText("Current dependencies")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-48" })).toHaveAttribute("href", "/jobs/48")
+    expect(screen.getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+    expect(screen.queryByText("Satisfaction")).not.toBeInTheDocument()
+    expect(screen.queryByText("deployment_stage")).not.toBeInTheDocument()
+  })
+
+  it("renders the removed Epic and an explicit empty remaining dependency state", () => {
+    const ctx = toolCardContextForExample("remove_job_dependency", removeJobDependencyExamples[1])
+
+    render(<>{removeJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+    expect(screen.getByText("No dependencies")).toBeInTheDocument()
+    expect(screen.queryByText("No current dependencies")).not.toBeInTheDocument()
+  })
+
+  it("renders remove Job dependency errors with linked input context", () => {
+    const ctx = toolCardContextForExample("remove_job_dependency", removeJobDependencyExamples[2])
+
+    expect(removeJobDependencyCard.collapsedSummary?.(ctx)).toBe("Remove Job Dependency failed · JOB-50")
+    render(<>{removeJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: Job dependency does not exist")).toBeInTheDocument()
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-49" })).toHaveAttribute("href", "/jobs/49")
+  })
+
   it("renders an explicit empty state from a normalized add Job dependency example", () => {
     const ctx = toolCardContextForExample("add_job_dependency", addJobDependencyExamples[2])
 
@@ -277,6 +457,48 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("Error: Epic cannot depend on itself")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "EPIC-42" }).every((link) => link.getAttribute("href") === "/epics/42")).toBe(true)
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(removeEpicDependencyExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: removeEpicDependencyExamples[0].parsedResult }]
+  ] as const)("renders the removed Epic and remaining dependencies from normalized %s", (_label, envelope) => {
+    const example = removeEpicDependencyExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__remove_epic_dependency"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(removeEpicDependencyCard.collapsedSummary?.(ctx)).toBe("Dependency removed · EPIC-42")
+    render(<>{removeEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
+    expect(screen.getByText("Current dependencies")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-40" })).toHaveAttribute("href", "/epics/40")
+  })
+
+  it("renders an explicit empty remaining dependency state", () => {
+    const ctx = toolCardContextForExample("remove_epic_dependency", removeEpicDependencyExamples[1])
+
+    render(<>{removeEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
+    expect(screen.getByText("No dependencies")).toBeInTheDocument()
+    expect(screen.queryByText("No current dependencies")).not.toBeInTheDocument()
+  })
+
+  it("renders remove Epic dependency errors with linked input context", () => {
+    const ctx = toolCardContextForExample("remove_epic_dependency", removeEpicDependencyExamples[2])
+
+    expect(removeEpicDependencyCard.collapsedSummary?.(ctx)).toBe("Remove Epic Dependency failed · EPIC-42")
+    render(<>{removeEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: Epic dependency does not exist")).toBeInTheDocument()
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
   })
 
   it("renders priority changes", () => {
@@ -385,6 +607,39 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Open child Jobs will be cancelled and closed when confirmed.")
   })
 
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify({ epic_id: 61, previous_state: "ready", new_state: "backlog" }) }] }],
+    ["structured content", { structured_content: { epic_id: 61, previous_state: "ready", new_state: "backlog" } }]
+  ])("renders move-to-backlog details from a normalized %s envelope", (_label, envelope) => {
+    const example = moveEpicToBacklogExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__move_epic_to_backlog"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(ctx.toolName).toBe("move_epic_to_backlog")
+    expect(moveEpicToBacklogCard.collapsedSummary?.(ctx)).toBe("Moved to backlog · EPIC-61")
+    render(<>{moveEpicToBacklogCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "EPIC-61" })).toHaveAttribute("href", "/epics/61")
+    expect(screen.getByText("Improve maintenance cards")).toBeInTheDocument()
+    expect(screen.getByText("ready").parentElement).toHaveClass("uppercase")
+    expect(screen.getAllByText("backlog").some((node) => node.parentElement?.classList.contains("uppercase"))).toBe(true)
+  })
+
+  it("renders a clear plain-text error for an Epic that cannot move", () => {
+    const ctx = toolCardContextForExample("move_epic_to_backlog", moveEpicToBacklogExamples[1])
+
+    expect(moveEpicToBacklogCard.collapsedSummary?.(ctx)).toBe("Move Epic To Backlog failed · EPIC-62")
+    render(<>{moveEpicToBacklogCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByTestId("markdown-preview-content")).not.toHaveStyle({ overflow: "hidden" })
+    expect(screen.getByText("Error: Epic cannot be moved to backlog from completed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-62" })).toHaveAttribute("href", "/epics/62")
+    expect(screen.getByText("Already completed Epic")).toBeInTheDocument()
+  })
+
   it("renders archive Epic pending and error envelopes through the normalizer", () => {
     const pending = toolCardContextForExample("archive_epic", archiveEpicExamples[0])
     const failure = toolCardContextForExample("archive_epic", archiveEpicExamples[1])
@@ -446,11 +701,8 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("Old Epic")).toBeInTheDocument()
   })
 
-  it("renders close-success details and grouped pending confirmations", () => {
-    const close = context("close_job_successfully", {
-      input: { job_id: 80, closure_reason: "no_changes" },
-      parsedResult: { job_id: 80, pending_action_id: 15, state: "pending", closure_reason: "no_changes" }
-    })
+  it("renders normalized close-success details and expandable Markdown comments", () => {
+    const close = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[0])
     const bulk = context("approve_job", {
       input: { job_ids: [81, 82] },
       parsedResult: { pending_action_group_id: 3, pending_action_id: 16, state: "pending", member_count: 2, message: "Approve 2 Jobs?" }
@@ -464,9 +716,51 @@ describe("Job and Epic maintenance tool cards", () => {
     )
 
     expect(screen.getByText("no_changes")).toBeInTheDocument()
+    expect(screen.getByText("PR comment")).toBeInTheDocument()
+    expect(screen.getByText("Closing note")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
     expect(screen.getByText("2 JOBs")).toBeInTheDocument()
     expect(screen.getByText("group #3")).toBeInTheDocument()
     expect(screen.getByText("2 actions")).toBeInTheDocument()
+  })
+
+  it("links every Job in a normalized bulk close request", () => {
+    const ctx = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[1])
+
+    expect(closeJobSuccessfullyCard.collapsedSummary?.(ctx)).toBe("Close requested · 3 JOBs · pending group #9")
+    render(<>{closeJobSuccessfullyCard.renderExpanded(ctx)}</>)
+
+    for (const id of [81, 82, 83]) {
+      expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    }
+    expect(screen.getByText("duplicate")).toBeInTheDocument()
+    expect(screen.getByText("JOB-40").tagName).toBe("STRONG")
+  })
+
+  it.each([
+    ["confirmed", "Closed successfully · JOB-80", "closed"],
+    ["rejected", "Close Job Successfully rejected · JOB-80", null]
+  ] as const)("renders the live %s close outcome", (state, summary, subjectState) => {
+    const pending = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[0])
+    const ctx = { ...pending, livePendingAction: livePendingAction(15, state) }
+
+    expect(closeJobSuccessfullyCard.collapsedSummary?.(ctx)).toBe(summary)
+    render(<>{closeJobSuccessfullyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText(state)).toBeInTheDocument()
+    if (subjectState) expect(screen.getByText(subjectState)).toBeInTheDocument()
+    else expect(screen.queryByText("Job state")).not.toBeInTheDocument()
+  })
+
+  it("renders a normalized close-success error with its linked target", () => {
+    const ctx = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[2])
+
+    expect(closeJobSuccessfullyCard.collapsedSummary?.(ctx)).toBe("Close Job Successfully failed · JOB-84")
+    render(<>{closeJobSuccessfullyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(document.body).toHaveTextContent("Error: JOB-84 cannot be closed from running.")
+    expect(screen.getAllByRole("link", { name: "JOB-84" }).every((link) => link.getAttribute("href") === "/jobs/84")).toBe(true)
   })
 
   it("falls back to the generic renderer for malformed payloads without target context", () => {

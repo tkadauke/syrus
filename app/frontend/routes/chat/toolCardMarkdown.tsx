@@ -26,6 +26,7 @@ const CLOSE_BUTTON_CLASS = [
 export type MarkdownPreviewProps = {
   text: string | null | undefined
   className?: string
+  clamp?: boolean
   copyLabel?: string
   emptyLabel?: string
   highlightTerms?: string[]
@@ -70,6 +71,7 @@ type TruncatedMarkdown = { preview: string; truncated: boolean }
 // complete Markdown renderer available in a dialog only when content is cut.
 export function MarkdownPreview({
   className,
+  clamp = true,
   copyLabel,
   emptyLabel,
   emptyState,
@@ -94,7 +96,10 @@ export function MarkdownPreview({
   const previewRef = useRef<HTMLDivElement>(null)
   const completeText = text ?? ""
   const normalized = completeText.trim()
-  const truncated = useMemo(() => truncateMarkdown(normalized, maxLines, maxChars), [normalized, maxChars, maxLines])
+  const truncated = useMemo(
+    () => (clamp ? truncateMarkdown(normalized, maxLines, maxChars) : { preview: normalized, truncated: false }),
+    [clamp, normalized, maxChars, maxLines]
+  )
 
   useLayoutEffect(() => {
     const preview = previewRef.current

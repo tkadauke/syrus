@@ -15,6 +15,16 @@ type MaintenanceToolDefinition = {
   pendingVerb?: string
   confirmedSubjectState?: string
   warningMessage?: boolean
+  showsComment?: boolean
+  showsTargetTitle?: boolean
+  transitionStatePills?: boolean
+  showsFullErrorMessage?: boolean
+  showsLiveExecution?: boolean
+  showsReasonMarkdown?: boolean
+  recoversTargetFromMessage?: boolean
+  removedDependencyLabel?: boolean
+  emptyDependenciesLabel?: string
+  hidesSatisfaction?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -27,18 +37,59 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     pendingVerb: "Cancel requested",
     confirmedSubjectState: "cancelled"
   },
-  close_job_successfully: { toolName: "close_job_successfully", subjectKind: "job", actionLabel: "Close Job Successfully", verb: "Close requested" },
+  close_job_successfully: {
+    toolName: "close_job_successfully",
+    subjectKind: "job",
+    actionLabel: "Close Job Successfully",
+    verb: "Closed successfully",
+    pendingVerb: "Close requested",
+    confirmedSubjectState: "closed",
+    showsComment: true
+  },
   set_job_priority: { toolName: "set_job_priority", subjectKind: "job", actionLabel: "Set Job Priority", verb: "Priority changed" },
   update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated" },
-  rebase_job: { toolName: "rebase_job", subjectKind: "job", actionLabel: "Rebase Job", verb: "Rebase requested" },
+  rebase_job: {
+    toolName: "rebase_job",
+    subjectKind: "job",
+    actionLabel: "Rebase Job",
+    verb: "Rebase requested",
+    showsFullErrorMessage: true,
+    showsLiveExecution: true,
+    showsReasonMarkdown: true
+  },
   reopen_job: { toolName: "reopen_job", subjectKind: "job", actionLabel: "Reopen Job", verb: "Reopen requested" },
-  poll_job_feedback: { toolName: "poll_job_feedback", subjectKind: "job", actionLabel: "Poll Job Feedback", verb: "Feedback poll requested" },
+  poll_job_feedback: {
+    toolName: "poll_job_feedback",
+    subjectKind: "job",
+    actionLabel: "Poll Job Feedback",
+    verb: "Feedback poll queued",
+    pendingVerb: "Feedback poll requested",
+    showsLiveExecution: true,
+    showsFullErrorMessage: true,
+    recoversTargetFromMessage: true
+  },
   unapprove_job: { toolName: "unapprove_job", subjectKind: "job", actionLabel: "Unapprove Job", verb: "Unapproved", pendingVerb: "Unapproval requested" },
   remove_job_from_epic: { toolName: "remove_job_from_epic", subjectKind: "job", actionLabel: "Remove Job From Epic", verb: "Removed from Epic" },
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
-  remove_job_dependency: { toolName: "remove_job_dependency", subjectKind: "job", actionLabel: "Remove Job Dependency", verb: "Dependency removed" },
+  remove_job_dependency: {
+    toolName: "remove_job_dependency",
+    subjectKind: "job",
+    actionLabel: "Remove Job Dependency",
+    verb: "Dependency removed",
+    removedDependencyLabel: true,
+    emptyDependenciesLabel: "No dependencies",
+    hidesSatisfaction: true
+  },
   start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: "Start Epic", verb: "Started" },
-  move_epic_to_backlog: { toolName: "move_epic_to_backlog", subjectKind: "epic", actionLabel: "Move Epic To Backlog", verb: "Moved to backlog" },
+  move_epic_to_backlog: {
+    toolName: "move_epic_to_backlog",
+    subjectKind: "epic",
+    actionLabel: "Move Epic To Backlog",
+    verb: "Moved to backlog",
+    showsTargetTitle: true,
+    transitionStatePills: true,
+    showsFullErrorMessage: true
+  },
   archive_epic: {
     toolName: "archive_epic",
     subjectKind: "epic",
@@ -50,7 +101,14 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   },
   update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated" },
   add_epic_dependency: { toolName: "add_epic_dependency", subjectKind: "epic", actionLabel: "Add Epic Dependency", verb: "Dependency added" },
-  remove_epic_dependency: { toolName: "remove_epic_dependency", subjectKind: "epic", actionLabel: "Remove Epic Dependency", verb: "Dependency removed" }
+  remove_epic_dependency: {
+    toolName: "remove_epic_dependency",
+    subjectKind: "epic",
+    actionLabel: "Remove Epic Dependency",
+    verb: "Dependency removed",
+    removedDependencyLabel: true,
+    emptyDependenciesLabel: "No dependencies"
+  }
 }
 
 type DetailRow = { label: string; value: ReactNode }
@@ -76,6 +134,12 @@ type MaintenanceCard = {
   hasNewState: boolean
   failed: boolean
   message: string | null
+  reason: string | null
+  comment: string | null
+  targetHref: string | null
+  workflowId: string | null
+  prNumber: string | null
+  prUrl: string | null
   rows: DetailRow[]
   dependencies: Dependency[]
   showsDependencies: boolean
@@ -117,7 +181,7 @@ function targetIdFor(context: ToolCardContext, definition: MaintenanceToolDefini
   const result = isPlainObject(context.parsedResult) ? context.parsedResult : {}
   const key = definition.subjectKind === "epic" ? "epic_id" : "job_id"
   const explicitTarget = firstValue(result[key], objectValue(context.input, key))
-  if (explicitTarget || definition.toolName !== "cancel_job") return explicitTarget
+  if (explicitTarget || (definition.toolName !== "cancel_job" && !definition.recoversTargetFromMessage)) return explicitTarget
 
   return displayValue(result.message)?.match(/\bJOB-(\d+)\b/i)?.[1] || null
 }
@@ -202,21 +266,38 @@ function dependencyList(context: ToolCardContext, definition: MaintenanceToolDef
   })
 }
 
-function buildRows(context: ToolCardContext, result: Record<string, unknown>, transitionExecuted = true) {
+function buildRows(context: ToolCardContext, definition: MaintenanceToolDefinition, result: Record<string, unknown>, transitionExecuted = true) {
   const rows: DetailRow[] = []
-  pushRow(rows, "Before", result.previous_state)
-  if (transitionExecuted) pushRow(rows, "After", result.new_state)
+  const previousState = firstValue(result.previous_state)
+  const newState = firstValue(result.new_state)
+  pushRow(rows, "Before", definition.transitionStatePills && previousState ? <StatePill state={previousState} /> : previousState)
+  if (transitionExecuted) pushRow(rows, "After", definition.transitionStatePills && newState ? <StatePill state={newState} /> : newState)
   pushRow(rows, "Previous priority", result.previous_priority)
   pushRow(rows, "New priority", result.new_priority)
-  pushRow(rows, "Title", result.title)
+  pushRow(
+    rows,
+    "Title",
+    definition.showsTargetTitle
+      ? firstValue(result.title, result.epic_title, objectValue(context.input, "title"), objectValue(context.input, "epic_title"))
+      : result.title
+  )
   pushRow(rows, "Description", result.description)
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
-  pushRow(rows, "Dependency", dependencyReference(context, result))
-  pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
+  pushRow(rows, definition.removedDependencyLabel ? "Removed" : "Dependency", dependencyReference(context, result))
+  if (!definition.hidesSatisfaction) pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
   pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
-  pushRow(rows, "Reason", result.reason)
+  if (!definition.showsReasonMarkdown) pushRow(rows, "Reason", result.reason)
   return rows
+}
+
+function snapshotWorkflowId(snapshot: Record<string, unknown>) {
+  const jobs = Array.isArray(snapshot.jobs) ? snapshot.jobs : []
+  for (const job of jobs) {
+    const workflowId = firstValue(objectValue(objectValue(job, "workflow"), "id"))
+    if (workflowId) return workflowId
+  }
+  return null
 }
 
 export function parseJobEpicMaintenanceResult(context: ToolCardContext): MaintenanceCard | null {
@@ -237,6 +318,14 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
   const message = errorMessage(context) || displayValue(result.message)
   const transitionExecuted = (!pendingId && !pendingGroupId) || state === "confirmed"
   const liveOutcome = isPlainObject(liveMatch?.outcome) ? liveMatch.outcome : {}
+  const beforeSnapshot = isPlainObject(liveMatch?.before_snapshot) ? liveMatch.before_snapshot : {}
+  const afterSnapshot = isPlainObject(liveMatch?.after_snapshot) ? liveMatch.after_snapshot : {}
+  const liveExecutionError = definition.showsLiveExecution ? firstValue(liveMatch?.execution_error) : null
+  const prUrl = definition.showsLiveExecution ? firstValue(result.pr_url, liveOutcome.pr_url, afterSnapshot.pr_url, beforeSnapshot.pr_url) : null
+  const prNumber = definition.showsLiveExecution
+    ? firstValue(result.pr_number, liveOutcome.pr_number, afterSnapshot.pr_number, beforeSnapshot.pr_number, prUrl?.match(/\/pull\/(\d+)/)?.[1])
+    : null
+  const workflowId = definition.showsLiveExecution ? firstValue(result.workflow_id, liveOutcome.workflow_id, snapshotWorkflowId(afterSnapshot)) : null
   const subjectState = definition.confirmedSubjectState
     ? firstValue(
         liveOutcome.state,
@@ -258,6 +347,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     "previous_priority",
     "new_priority",
     "title",
+    "epic_title",
     "description",
     "closure_reason",
     "reason",
@@ -283,8 +373,21 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     subjectState,
     hasNewState: transitionExecuted && displayValue(result.new_state) != null,
     failed,
-    message,
-    rows: buildRows(context, result, transitionExecuted),
+    message: liveExecutionError || message,
+    reason: definition.showsReasonMarkdown ? firstValue(result.reason, objectValue(context.input, "reason"), liveMatch?.reason) : null,
+    comment: definition.showsComment ? firstValue(objectValue(context.input, "comment")) : null,
+    targetHref: definition.showsLiveExecution ? firstValue(liveMatch?.resource_url) : null,
+    workflowId,
+    prNumber,
+    prUrl,
+    rows: [
+      ...buildRows(context, definition, result, transitionExecuted),
+      ...(definition.showsLiveExecution && liveMatch?.execution_status
+        ? [{ label: "Execution", value: <StatePill state={liveMatch.execution_status} /> }]
+        : []),
+      ...(definition.showsLiveExecution && liveMatch?.execution_step ? [{ label: "Step", value: liveMatch.execution_step }] : []),
+      ...(definition.showsLiveExecution && liveMatch?.resource_title ? [{ label: "Job", value: liveMatch.resource_title }] : [])
+    ],
     dependencies: dependencyList(context, definition, result),
     showsDependencies: [result.depends_on, result.depends_on_job_ids, result.depends_on_epic_ids, result.dependencies].some(Array.isArray)
   }
@@ -342,7 +445,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{card.definition.actionLabel}</span>
         {card.targetId ? (
           <Badge>
-            <EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} />
+            <EntityReference href={card.targetHref || undefined} id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} />
           </Badge>
         ) : target ? (
           <Badge>{target}</Badge>
@@ -361,6 +464,12 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
           <StatePill state={card.subjectState} tone={card.subjectState === "archived" ? "success" : undefined} />
         </div>
       ) : null}
+      {card.prNumber ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-muted">
+          <span>Pull request</span>
+          <EntityReference href={card.prUrl || undefined} id={card.prNumber} kind="pull_request" />
+        </div>
+      ) : null}
       {card.message ? (
         <div
           className={card.definition.warningMessage && awaitingConfirmation ? "rounded border border-warning-border bg-warning-surface p-2" : undefined}
@@ -368,12 +477,41 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
         >
           <MarkdownPreview
             className={card.definition.warningMessage && awaitingConfirmation ? "font-medium text-warning-text" : undefined}
+            clamp={!(card.failed && card.definition.showsFullErrorMessage)}
             linkifySlugs
             maxChars={360}
             maxLines={3}
             modalLabel={`${card.definition.actionLabel} message`}
             text={messageWithLinkedTarget(card)}
           />
+        </div>
+      ) : null}
+      {card.comment ? (
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={360}
+          maxLines={3}
+          modalLabel={`${card.definition.actionLabel} comment`}
+          text={card.comment}
+          title="PR comment"
+        />
+      ) : null}
+      {card.reason ? (
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={360}
+          maxLines={3}
+          modalLabel={`${card.definition.actionLabel} reason`}
+          text={card.reason}
+          title="Reason"
+        />
+      ) : null}
+      {card.workflowId && card.targetId ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-muted">
+          <span>Workflow</span>
+          <EntityReference id={card.workflowId} jobId={card.targetId} kind="workflow" />
         </div>
       ) : null}
       {card.rows.length > 0 ? (
@@ -414,7 +552,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
               ))}
             </div>
           ) : (
-            <div className="mt-1 text-xs text-text-secondary">No current dependencies</div>
+            <div className="mt-1 text-xs text-text-secondary">{card.definition.emptyDependenciesLabel || "No current dependencies"}</div>
           )}
         </div>
       ) : null}

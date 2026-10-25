@@ -195,6 +195,70 @@ RSpec.describe MaintenanceTasks::Runner do
     )
   end
 
+  it "clears stale failed units when a terminal landed-commit backfill has no retryable unresolved repositories" do
+    definition = MaintenanceTasks::Definitions::LandedCommitsBackfill.new
+    task = MaintenanceTask.create!(
+      definition_key: definition.key,
+      task_key: "spec:landed-commits-backfill-complete-after-irrecoverable-skips",
+      state: "running",
+      recurrence: definition.recurrence,
+      category: definition.category,
+      title: definition.title,
+      summary: definition.summary,
+      trigger_kind: "spec",
+      trigger_key: definition.key,
+      required_role: definition.required_role,
+      total_units: 28,
+      completed_units: 26,
+      failed_units: 1_452,
+      batch_size: definition.batch_size,
+      max_parallelism: definition.max_parallelism,
+      checkpoint: {
+        "processed_repository_ids" => [ 1, 2 ],
+        "unresolved_repositories" => [],
+        "irrecoverable_repositories" => [
+          {
+            "id" => 2,
+            "slug" => "example/project",
+            "errors" => 2,
+            "failure_details" => [
+              {
+                "landable_type" => "MergeTrain",
+                "landable_id" => 12,
+                "exception_class" => "Jobs::LandedCommitsBackfill::IrrecoverableHistoryError",
+                "message" => "could not match historical merge-train commits"
+              }
+            ],
+            "failure_details_omitted" => 0
+          }
+        ]
+      }
+    )
+
+    allow(MaintenanceTasks::Registry).to receive(:fetch).with(definition.key).and_return(definition)
+
+    described_class.new(task).call
+
+    expect(task.reload).to have_attributes(
+      state: "succeeded",
+      completed_units: 28,
+      total_units: 28,
+      failed_units: 0,
+      eta_seconds: 0,
+      last_error: nil
+    )
+    expect(task.progress_percent).to eq(100)
+    expect(task.finished_at).to be_present
+    expect(task.checkpoint["unresolved_repositories"]).to be_empty
+    expect(task.checkpoint["irrecoverable_repositories"]).to contain_exactly(
+      hash_including("slug" => "example/project")
+    )
+    expect(task.events.last).to have_attributes(
+      level: "info",
+      message: "Landed commit backfill is complete."
+    )
+  end
+
   class SpecCheckpointProgressMaintenanceDefinition < MaintenanceTasks::Definitions::Base
     key "spec_checkpoint_progress"
     title "Spec checkpoint progress"

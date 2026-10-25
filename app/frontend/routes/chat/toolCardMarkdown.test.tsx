@@ -221,6 +221,17 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
   })
 
+  it("shows the complete text when clamping is disabled", () => {
+    const text = "A deliberately long error message that must remain visible in full."
+    render(<MarkdownPreview clamp={false} maxChars={12} maxLines={1} text={text} />)
+
+    const preview = screen.getByTestId("markdown-preview-content")
+    expect(preview).toHaveTextContent(text)
+    expect(preview).not.toHaveTextContent("…")
+    expect(preview.style.getPropertyValue("-webkit-line-clamp")).toBe("")
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
   it("can show an explicit empty state", () => {
     render(<MarkdownPreview emptyLabel="No prompt was provided." text="  " />)
     expect(screen.getByText("No prompt was provided.")).toBeInTheDocument()

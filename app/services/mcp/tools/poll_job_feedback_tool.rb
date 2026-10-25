@@ -34,7 +34,11 @@ module Mcp::Tools
           server_context,
           chat_session,
           action: "poll_job_feedback",
-          payload: { "job_id" => job.id },
+          payload: {
+            "job_id" => job.id,
+            "pr_number" => job.pr_number,
+            "pr_url" => App::Presentation.job_pr_url(job)
+          },
           message: "Poll PR feedback for #{job.slug}?"
           )
         end
