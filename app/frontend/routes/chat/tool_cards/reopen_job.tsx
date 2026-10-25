@@ -49,7 +49,7 @@ export default reopenJobToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "pending_without_input",
-    label: i18n.t("chat:tool_card_examples.pending_reopen_without_input"),
+    label: i18n.t("chat:mutation_example_reopen_pending_without_input"),
     parsedResult: {
       pending_confirmation_id: 35,
       pending_action_id: 35,
@@ -59,7 +59,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "bulk_pending",
-    label: i18n.t("chat:tool_card_examples.bulk_reopen_confirmation"),
+    label: i18n.t("chat:mutation_example_bulk_reopen_confirmation"),
     input: { job_ids: [71, 72, 73] },
     parsedResult: {
       pending_action_group_id: 12,
@@ -71,7 +71,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "validation_error",
-    label: i18n.t("chat:tool_card_examples.job_cannot_be_reopened"),
+    label: i18n.t("chat:mutation_example_job_cannot_be_reopened"),
     input: { job_id: 74 },
     resultBody: "Error: JOB-74 is not closed.",
     resultError: true
