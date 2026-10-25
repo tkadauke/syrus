@@ -42,7 +42,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
     [
       %r{app/frontend/routes/chat/},
       %r{app/frontend/routes/jobDetail/WorkflowGraph\.tsx$},
-      %r{desktop/src/App\.tsx$},
+      %r{desktop/src/App\.tsx$}
     ]
   end
 
