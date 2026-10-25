@@ -2,7 +2,16 @@ require "rails_helper"
 require "json"
 
 RSpec.describe "Frontend locale keys", type: :unit do
-  REVIEWED_SETTINGS_SCOPES = %w[connected_platforms input_sources linear_source].freeze
+  REVIEWED_SETTINGS_SCOPES = %w[
+    connected_platforms
+    input_sources
+    linear_source
+    account_settings
+    scheduled_tasks
+    cron_templates
+    credential_cards
+    configure_agent
+  ].freeze
   INTENTIONAL_SETTINGS_ENGLISH_MATCHES = {
     "de" => {
       "connected_platforms.platforms.telegram" => "product name",
@@ -10,13 +19,61 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "linear_source.section_heading" => "product name",
       "linear_source.api_key_placeholder" => "literal credential prefix",
       "linear_source.team_label" => "shared German UI term",
-      "linear_source.label_filter_placeholder" => "shared German UI term"
+      "linear_source.label_filter_placeholder" => "shared German UI term",
+      "account_settings.agent_provider_see_also_suffix" => "punctuation-only fragment",
+      "account_settings.codex_chatgpt_login" => "product names and code filename",
+      "account_settings.lang_deutsch" => "language endonym",
+      "account_settings.passkeys_heading" => "established technical term",
+      "scheduled_tasks.name" => "shared German UI term",
+      "scheduled_tasks.col_repository" => "approved domain noun",
+      "scheduled_tasks.task_source_skill" => "product terminology",
+      "scheduled_tasks.skill_heading" => "product terminology",
+      "scheduled_tasks.prompt_heading" => "product terminology",
+      "scheduled_tasks.col_job" => "approved domain noun",
+      "scheduled_tasks.col_pr" => "abbreviation",
+      "scheduled_tasks.field_repository" => "approved domain noun",
+      "cron_templates.col_name" => "shared German UI term",
+      "cron_templates.applied_tasks_col_repo" => "approved domain noun",
+      "cron_templates.section_prompt" => "product terminology",
+      "cron_templates.section_skill" => "product terminology",
+      "cron_templates.field_name" => "shared German UI term",
+      "cron_templates.field_prompt" => "product terminology",
+      "cron_templates.task_source_prompt" => "product terminology",
+      "cron_templates.task_source_skill" => "product terminology",
+      "credential_cards.github_title" => "product name",
+      "credential_cards.claude_title" => "product name",
+      "credential_cards.codex_title" => "product name",
+      "credential_cards.muse_title" => "product name",
+      "credential_cards.gemini_title" => "product name",
+      "credential_cards.agy_title" => "product name",
+      "credential_cards.chat_provider_see_also_suffix" => "punctuation-only fragment",
+      "credential_cards.codex_auth_json_label" => "product names and code filename",
+      "configure_agent.tab_claude" => "product name",
+      "configure_agent.tab_codex" => "product name",
+      "configure_agent.tab_agy" => "product name",
+      "configure_agent.tab_muse" => "product name"
     },
     "la" => {
       "connected_platforms.platforms.telegram" => "product name",
       "connected_platforms.platforms.slack" => "product name",
       "linear_source.section_heading" => "product name",
-      "linear_source.api_key_placeholder" => "literal credential prefix"
+      "linear_source.api_key_placeholder" => "literal credential prefix",
+      "account_settings.agent_provider_see_also_suffix" => "punctuation-only fragment",
+      "account_settings.codex_chatgpt_login" => "product names and code filename",
+      "scheduled_tasks.col_pr" => "abbreviation",
+      "cron_templates.col_status" => "shared Latin UI term",
+      "credential_cards.github_title" => "product name",
+      "credential_cards.claude_title" => "product name",
+      "credential_cards.codex_title" => "product name",
+      "credential_cards.muse_title" => "product name",
+      "credential_cards.gemini_title" => "product name",
+      "credential_cards.agy_title" => "product name",
+      "credential_cards.chat_provider_see_also_suffix" => "punctuation-only fragment",
+      "credential_cards.codex_auth_json_label" => "product names and code filename",
+      "configure_agent.tab_claude" => "product name",
+      "configure_agent.tab_codex" => "product name",
+      "configure_agent.tab_agy" => "product name",
+      "configure_agent.tab_muse" => "product name"
     }
   }.freeze
 
@@ -269,6 +326,11 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(dig_key(german, "linear_source.section_description")).to include("Syrus-Jobs")
     expect(dig_key(german, "input_sources.issues_ingested_one")).to eq("{{count}} Issue aufgenommen")
     expect(dig_key(german, "input_sources.issues_ingested_other")).to eq("{{count}} Issues aufgenommen")
+    expect(dig_key(german, "account_settings.provider_availability_desc")).to include("Jobs dieses Providers")
+    expect(dig_key(german, "scheduled_tasks.schedule_placeholder")).to eq("Jeden Montag um 09:00 Uhr")
+    expect(dig_key(german, "configure_agent.exchange_error")).to eq(
+      "Das von Claude zurückgegebene Token hat nicht funktioniert. Versuche es erneut."
+    )
 
     latin = settings.fetch("la")
     expect(dig_key(latin, "input_sources.section_description")).to include("Repository")
@@ -278,6 +340,9 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(dig_key(latin, "linear_source.section_description")).to eq(
       "Sonat gregem Linearem ad quaestiones apertas et officia Syri ex eis creat."
     )
+    expect(dig_key(latin, "account_settings.provider_availability_desc")).to include("Job huius praebitoris")
+    expect(dig_key(latin, "scheduled_tasks.schedule_placeholder")).to eq("Omni die Lunae hora 09:00")
+    expect(dig_key(latin, "credential_cards.muse_description")).to include("cursibus operum")
   end
 
   it "detects either missing half of a plural pair" do
