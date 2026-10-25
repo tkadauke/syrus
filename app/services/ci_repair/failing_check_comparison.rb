@@ -25,7 +25,11 @@ module CiRepair
     attr_reader :job, :base_sha, :stacked_parent_fallback
 
     def base_failing_check_names
-      checks = MainBranchHealthCheck.where(repository_id: job.repository_id, sha: base_sha).to_a
+      checks = MainBranchHealthCheck.where(
+        repository_id: job.repository_id,
+        branch: job.effective_base_branch,
+        sha: base_sha
+      ).to_a
       return normalize(checks.flat_map { |check| check_names(check) }) if checks.any?
 
       # A stacked base is its parent PR branch, which main-health polling never
@@ -37,7 +41,10 @@ module CiRepair
         return normalize(job.parent_job.pr_checks_failing_names)
       end
 
-      latest = MainBranchHealthCheck.where(repository_id: job.repository_id).order(id: :desc).first
+      latest = MainBranchHealthCheck.where(
+        repository_id: job.repository_id,
+        branch: job.effective_base_branch
+      ).order(id: :desc).first
       latest && normalize(check_names(latest))
     end
 
