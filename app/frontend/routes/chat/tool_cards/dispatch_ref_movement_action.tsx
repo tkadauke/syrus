@@ -2,6 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCar
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { CardShell, displayValue, EntityReference, Row, StatePill } from "../toolCardUi"
 import { parseRefMovementCore, refMovementCollapsedSummary, RefMovementCoreFields } from "../refMovementToolCard"
+import i18n from "@app/i18n"
 
 // Core-owned tool card for dispatch_ref_movement_action (the tool-card work /
 // Always renders, even when state is "blocked" -- the dispatch
@@ -41,8 +42,11 @@ function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (result) return refMovementCollapsedSummary(result.core)
   const input = inputDetails(context)
-  if (context.resultError) return `${input.action?.replace(/_/g, " ") || "Ref movement"} failed`
-  return input.action ? `${input.action.replace(/_/g, " ")} (pending)` : null
+  if (context.resultError)
+    return i18n.t("chat:dispatch_ref_movement_action.failed", {
+      action: input.action?.replace(/_/g, " ") || i18n.t("chat:dispatch_ref_movement_action.ref_movement")
+    })
+  return input.action ? i18n.t("chat:dispatch_ref_movement_action.pending", { action: input.action.replace(/_/g, " ") }) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -63,12 +67,14 @@ function renderExpanded(context: ToolCardContext) {
           <StatePill state={context.resultError ? "failed" : "pending"} />
         </div>
       )}
-      {context.resultError && context.resultBody ? <MarkdownPreview modalLabel="Full error" text={context.resultBody} /> : null}
+      {context.resultError && context.resultBody ? (
+        <MarkdownPreview modalLabel={i18n.t("chat:dispatch_ref_movement_action.full_error")} text={context.resultBody} />
+      ) : null}
       {jobId || workflowId ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {jobId ? (
             <div>
-              <dt className="text-2xs font-semibold uppercase text-text-muted">Job</dt>
+              <dt className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:dispatch_ref_movement_action.job")}</dt>
               <dd>
                 <EntityReference id={jobId} kind="job" />
               </dd>
@@ -76,7 +82,7 @@ function renderExpanded(context: ToolCardContext) {
           ) : null}
           {workflowId ? (
             <div>
-              <dt className="text-2xs font-semibold uppercase text-text-muted">Workflow</dt>
+              <dt className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:dispatch_ref_movement_action.workflow")}</dt>
               <dd>
                 <EntityReference id={workflowId} jobId={jobId} kind="workflow" />
               </dd>
@@ -84,8 +90,12 @@ function renderExpanded(context: ToolCardContext) {
           ) : null}
         </dl>
       ) : null}
-      {!result?.core.sourceRef && input.sourceBranch ? <Row label="Source branch" value={input.sourceBranch} wrap /> : null}
-      {!result?.core.targetRef && input.targetBranch ? <Row label="Target branch" value={input.targetBranch} wrap /> : null}
+      {!result?.core.sourceRef && input.sourceBranch ? (
+        <Row label={i18n.t("chat:dispatch_ref_movement_action.source_branch")} value={input.sourceBranch} wrap />
+      ) : null}
+      {!result?.core.targetRef && input.targetBranch ? (
+        <Row label={i18n.t("chat:dispatch_ref_movement_action.target_branch")} value={input.targetBranch} wrap />
+      ) : null}
     </CardShell>
   )
 }
@@ -93,7 +103,7 @@ function renderExpanded(context: ToolCardContext) {
 export const examples: ToolCardExample[] = [
   {
     id: "dispatched",
-    label: "Dispatched ref movement",
+    label: i18n.t("chat:dispatch_ref_movement_action.example_dispatched"),
     input: { action: "send_job_upstream", job_id: 4225 },
     parsedResult: {
       ref_movement_action_id: 7,
@@ -106,7 +116,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "blocked",
-    label: "Blocked with operator guidance",
+    label: i18n.t("chat:dispatch_ref_movement_action.example_blocked"),
     input: { action: "submit_branch_upstream", source_branch: "release/very-long-source-branch", target_branch: "main" },
     parsedResult: {
       ref_movement_action_id: 8,
@@ -117,7 +127,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "provider_error",
-    label: "Provider error with original input",
+    label: i18n.t("chat:dispatch_ref_movement_action.example_error"),
     input: { action: "send_job_upstream", job_id: 4225 },
     resultBody: "The ref-movement dispatcher is unavailable.",
     resultError: true

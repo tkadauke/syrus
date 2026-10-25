@@ -690,7 +690,104 @@
       "rejected": "Abgelehnt",
       "cancelled": "Abgebrochen",
       "failed": "Fehlgeschlagen"
-    }
+    },
+    "example_pending": "Ausstehende Pausierung der Landing-Warteschlange",
+    "example_pending_description": "Zeigt das Ziel und den ausstehenden Bestätigungsstatus, bevor du entscheidest.",
+    "example_paused": "Landing-Warteschlange pausiert",
+    "example_paused_description": "Zeigt das angewendete Ergebnis, nachdem du die Pausierung bestätigt hast.",
+    "example_rejected": "Pausierung der Warteschlange abgelehnt",
+    "example_rejected_description": "Zeigt das abgelehnte Ergebnis und behält die ursprüngliche Anfrage bei."
+  },
+  "classify_pull_request": {
+    "summary_failed_with_number": "Klassifizierung von PR #{{prNumber}} fehlgeschlagen",
+    "summary_failed": "Klassifizierung des Pull Requests fehlgeschlagen",
+    "summary": "PR #{{prNumber}}: {{classification}}",
+    "example_classified": "Klassifizierter Pull Request mit Herkunftsmarkierung",
+    "example_disabled": "Klassifizierung deaktiviert",
+    "example_not_found": "Pull Request nicht gefunden"
+  },
+  "clear_provider_circuit": {
+    "user": "Benutzer",
+    "users": "Benutzer",
+    "example_evidence": "Langer Markdown-Nachweis",
+    "example_evidence_description": "Zeigt verknüpfte Ziele, Badges, Umbrüche, Markdown-Vorschauen und den gemeinsamen Mehr-anzeigen-Dialog."
+  },
+  "dispatch_ref_movement_action": {
+    "failed": "{{action}} fehlgeschlagen",
+    "pending": "{{action}} (ausstehend)",
+    "ref_movement": "Ref-Verschiebung",
+    "full_error": "Vollständiger Fehler",
+    "job": "Job",
+    "workflow": "Workflow",
+    "source_branch": "Quell-Branch",
+    "target_branch": "Ziel-Branch",
+    "example_dispatched": "Ref-Verschiebung ausgelöst",
+    "example_blocked": "Blockiert mit Hinweisen für dich",
+    "example_error": "Provider-Fehler mit ursprünglicher Eingabe"
+  },
+  "run_command": {
+    "summary_error": "Befehlsfehler: {{error}}",
+    "summary_killed": "Befehl beendet",
+    "summary_succeeded": "Befehl erfolgreich (Exit 0)",
+    "summary_failed": "Befehl fehlgeschlagen (Exit {{exitCode}})",
+    "status_error": "Fehler",
+    "status_killed": "beendet",
+    "status_exit": "Exit {{exitCode}}",
+    "command": "Befehl",
+    "copy_command": "Befehl kopieren",
+    "copied": "Kopiert",
+    "working_directory": "Arbeitsverzeichnis",
+    "timeout_ms": "Zeitlimit (ms)",
+    "no_output": "Keine Ausgabe."
+  },
+  "adopt_current_pr_head": {
+    "example_dry_run": "Probelauf mit Branch-Nachweis",
+    "example_dry_run_description": "Zeigt die aus dem Ergebnis übernommene Zielidentität, wenn die gespeicherte Aufrufeingabe nicht verfügbar ist.",
+    "example_pending": "Ausstehende Bestätigung mit Eingabekontext",
+    "example_pending_description": "Zeigt verknüpfte Eingabeziele und begrenztes Markdown, solange die Bestätigung aussteht.",
+    "example_error": "Strukturierter Validierungsfehler",
+    "example_empty": "Leeres abgeschlossenes Ergebnis",
+    "example_empty_description": "Prüft den allgemeinen Ersatz für ein leeres Ergebnis einer abgeschlossenen Provider-Antwort."
+  },
+  "emergency_land": { "example_pending": "Ausstehende Bestätigung der Notfall-Landung" },
+  "force_landing_recheck": {
+    "not_provided": "Nicht angegeben",
+    "jobs_one": "Job",
+    "jobs_other": "Jobs",
+    "pending_reason": "Grund der ausstehenden Aktion",
+    "reason": "Grund",
+    "outcome": "Ergebnis der Landing-Neuprüfung",
+    "example_bulk_pending": "Mehrere ausstehend mit beobachteten Blockern",
+    "example_bulk_pending_description": "Lange verknüpfte Job-Listen brechen um, während die Aktion den beobachteten Landing-Status jedes Ziels zeigt.",
+    "example_bulk_confirmed": "Mehrere bestätigt mit aktualisiertem Ergebnis",
+    "example_error": "Fehler behält Markdown-Grund bei",
+    "example_missing_input": "Fehlende Job-Eingabe"
+  },
+  "mark_ci_repair_noop": {
+    "workflows_one": "Workflow",
+    "workflows_other": "Workflows",
+    "pending_reason": "Grund der ausstehenden Aktion",
+    "reason": "Grund",
+    "example_single": "Einzelne ausstehende CI-Reparatur ohne Änderung",
+    "example_single_description": "Zeigt verknüpfte Job- und Workflow-Ziele sowie verlinkte URLs für fehlgeschlagene Checks und Prüfgründe.",
+    "example_bulk": "Mehrere ausstehende CI-Reparaturen ohne Änderung",
+    "example_bulk_description": "Eine lange verknüpfte Workflow-Liste prüft Umbrüche in schmalen und breiten Ansichten.",
+    "example_error": "Validierungsfehler mit angeforderten Zielen",
+    "example_error_description": "Hält Job, Workflow, Grund und Hilfe-URL sichtbar, wenn die Validierung fehlschlägt."
+  },
+  "wake_provider_admission": {
+    "user_scope": "Benutzerbereich",
+    "all_users": "Alle Benutzer",
+    "queued_workflows": "Workflows in der Warteschlange",
+    "delayed_retries": "Verzögerte automatische Wiederholungen",
+    "example_pending": "Ausstehendes begrenztes Aufwecken",
+    "example_pending_description": "Zeigt Provider, verknüpften Benutzerbereich, Markdown-Grund und erwartete Auswirkung vor der Bestätigung.",
+    "example_confirmed": "Bestätigtes begrenztes Aufwecken",
+    "example_confirmed_description": "Zeigt dieselbe Vorschau, nachdem du die ausstehende Aktion bestätigt hast.",
+    "example_rejected": "Aufwecken aller Benutzer abgelehnt",
+    "example_rejected_description": "Zeigt eine abgelehnte Anfrage mit dem Bereich aller Benutzer und ohne verzögerte Wiederholungen.",
+    "example_error": "Vorschaufehler",
+    "example_error_description": "Zeigt die angeforderten Eingaben zusammen mit einem Fehler der Provider-Zulassungsvorschau."
   },
   "resume_landing_queue": {
     "target": "Ziel",

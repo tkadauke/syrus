@@ -2,6 +2,7 @@ import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pl
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { displayValue, EntityReference, Row } from "../toolCardUi"
+import i18n from "@app/i18n"
 
 function requestedBulkWorkflowIds(context: ToolCardContext) {
   if (!Array.isArray(context.input?.workflow_ids)) return []
@@ -19,7 +20,7 @@ function RequestDetails({ context, showReason }: { context: ToolCardContext; sho
     <>
       {workflowIds.length ? (
         <Row
-          label="Workflows"
+          label={i18n.t("chat:mark_ci_repair_noop.workflows", { count: workflowIds.length })}
           value={
             <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
               {workflowIds.map((workflowId) => (
@@ -29,7 +30,15 @@ function RequestDetails({ context, showReason }: { context: ToolCardContext; sho
           }
         />
       ) : null}
-      {showReason && reason ? <MarkdownPreview linkifyUrls maxLines={4} modalLabel="Pending action reason" text={reason} title="Reason" /> : null}
+      {showReason && reason ? (
+        <MarkdownPreview
+          linkifyUrls
+          maxLines={4}
+          modalLabel={i18n.t("chat:mark_ci_repair_noop.pending_reason")}
+          text={reason}
+          title={i18n.t("chat:mark_ci_repair_noop.reason")}
+        />
+      ) : null}
     </>
   )
 }
@@ -67,8 +76,8 @@ const bulkWorkflowIds = [8101, 8102, 8103, 8104, 8105, 8106, 8107, 8108, 8109, 8
 export const examples: ToolCardExample[] = [
   {
     id: "single_pending",
-    label: "Single pending repair no-op",
-    description: "Shows linked Job and Workflow targets plus linkified failing-check and audit-reason URLs.",
+    label: i18n.t("chat:mark_ci_repair_noop.example_single"),
+    description: i18n.t("chat:mark_ci_repair_noop.example_single_description"),
     input: {
       job_id: 4201,
       workflow_id: 8101,
@@ -83,8 +92,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "bulk_pending",
-    label: "Bulk pending repair no-ops",
-    description: "A long linked Workflow list exercises wrapping on narrow and wide layouts.",
+    label: i18n.t("chat:mark_ci_repair_noop.example_bulk"),
+    description: i18n.t("chat:mark_ci_repair_noop.example_bulk_description"),
     input: {
       workflow_ids: bulkWorkflowIds,
       reason: "These repairs made no branch or check progress. See https://ci.example.test/incidents/42 for the shared diagnosis."
@@ -99,8 +108,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "validation_error",
-    label: "Validation error with requested targets",
-    description: "Keeps the requested Job, Workflow, reason, and help URL visible when validation fails.",
+    label: i18n.t("chat:mark_ci_repair_noop.example_error"),
+    description: i18n.t("chat:mark_ci_repair_noop.example_error_description"),
     input: {
       job_id: 4201,
       workflow_id: 8999,

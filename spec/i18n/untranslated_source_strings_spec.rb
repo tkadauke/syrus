@@ -22,26 +22,26 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx
     app/frontend/routes/chat/tool_cards/admin_unpause_user_scheduling.tsx
     app/frontend/routes/chat/tool_cards/admin_version.tsx
+    app/frontend/routes/chat/tool_cards/create_tag.tsx
+    app/frontend/routes/chat/tool_cards/daemon_ping.tsx
+    app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
+    app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
+    app/frontend/routes/chat/tool_cards/submit_artifact.tsx
+    app/frontend/routes/chat/tool_cards/write_file.tsx
+  ].freeze
+
+  CHAT_I18N_REVIEWED_FILES = %w[
     app/frontend/routes/chat/tool_cards/adopt_current_pr_head.tsx
     app/frontend/routes/chat/tool_cards/classify_pull_request.tsx
     app/frontend/routes/chat/tool_cards/clear_provider_circuit.tsx
-    app/frontend/routes/chat/tool_cards/create_tag.tsx
-    app/frontend/routes/chat/tool_cards/daemon_ping.tsx
     app/frontend/routes/chat/tool_cards/dispatch_ref_movement_action.tsx
     app/frontend/routes/chat/tool_cards/emergency_land.tsx
     app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx
     app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx
     app/frontend/routes/chat/tool_cards/mark_ci_repair_noop.tsx
-    app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
-    app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
     app/frontend/routes/chat/tool_cards/pause_landing_queue.tsx
     app/frontend/routes/chat/tool_cards/run_command.tsx
-    app/frontend/routes/chat/tool_cards/submit_artifact.tsx
     app/frontend/routes/chat/tool_cards/wake_provider_admission.tsx
-    app/frontend/routes/chat/tool_cards/write_file.tsx
-  ].freeze
-
-  CHAT_I18N_REVIEWED_FILES = %w[
     app/frontend/routes/chat/tool_cards/add_epic_dependency.tsx
     app/frontend/routes/chat/tool_cards/add_job_tag.tsx
     app/frontend/routes/chat/tool_cards/remove_job_tag.tsx
@@ -226,6 +226,14 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|ternary|JOB- ()
       app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|ternary|JOB-
       app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx|jsx_expression|JOB-
+      app/frontend/routes/chat/tool_cards/adopt_current_pr_head.tsx|user_visible_property|The requested workflow does not use an eligible base.
+      app/frontend/routes/chat/tool_cards/emergency_land.tsx|user_visible_property|Emergency land requires operator confirmation.
+      app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx|user_visible_property|Force landing recheck
+      app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx|user_visible_property|One or more Jobs could not be rechecked.
+      app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx|ternary|JOB-
+      app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx|ternary|PR #
+      app/frontend/routes/chat/tool_cards/mark_ci_repair_noop.tsx|user_visible_property|Workflow is not a CI failure repair. See https://ci.example.test/help/repair-workflows.
+      app/frontend/routes/chat/tool_cards/pause_landing_queue.tsx|user_visible_property|Pause landing queue
       app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|Waiting on the operator to answer in chat.
       app/frontend/routes/chat/tool_cards/ask_user_question.tsx|user_visible_property|result_error true -- renders through the shared ToolFailureSummaryCard instead of the waiting-state card.
       app/frontend/routes/chat/tool_cards/cancel_coding_checkout.tsx|user_visible_property|JOB-4225 was detached from this Coding Mode chat. No code changes were preserved or applied by this operation.

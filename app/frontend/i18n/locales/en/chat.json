@@ -950,7 +950,104 @@
       "rejected": "Rejected",
       "cancelled": "Cancelled",
       "failed": "Failed"
-    }
+    },
+    "example_pending": "Pending queue pause",
+    "example_pending_description": "Shows the landing queue target and pending confirmation state before the operator decides.",
+    "example_paused": "Landing queue paused",
+    "example_paused_description": "Shows the live applied outcome after the operator confirms the pause.",
+    "example_rejected": "Queue pause rejected",
+    "example_rejected_description": "Shows the live rejected outcome while retaining the original pause request."
+  },
+  "classify_pull_request": {
+    "summary_failed_with_number": "PR #{{prNumber}} classification failed",
+    "summary_failed": "Pull request classification failed",
+    "summary": "PR #{{prNumber}}: {{classification}}",
+    "example_classified": "Classified pull request with provenance marker",
+    "example_disabled": "Classification disabled",
+    "example_not_found": "Pull request not found"
+  },
+  "clear_provider_circuit": {
+    "user": "User",
+    "users": "Users",
+    "example_evidence": "Long Markdown evidence",
+    "example_evidence_description": "Shows linked targets, badges, wrapping, Markdown previews, and the shared Show more dialog."
+  },
+  "dispatch_ref_movement_action": {
+    "failed": "{{action}} failed",
+    "pending": "{{action}} (pending)",
+    "ref_movement": "Ref movement",
+    "full_error": "Full error",
+    "job": "Job",
+    "workflow": "Workflow",
+    "source_branch": "Source branch",
+    "target_branch": "Target branch",
+    "example_dispatched": "Dispatched ref movement",
+    "example_blocked": "Blocked with operator guidance",
+    "example_error": "Provider error with original input"
+  },
+  "run_command": {
+    "summary_error": "Command error: {{error}}",
+    "summary_killed": "Command killed",
+    "summary_succeeded": "Command succeeded (exit 0)",
+    "summary_failed": "Command failed (exit {{exitCode}})",
+    "status_error": "error",
+    "status_killed": "killed",
+    "status_exit": "exit {{exitCode}}",
+    "command": "Command",
+    "copy_command": "Copy command",
+    "copied": "Copied",
+    "working_directory": "Working directory",
+    "timeout_ms": "Timeout (ms)",
+    "no_output": "No output."
+  },
+  "adopt_current_pr_head": {
+    "example_dry_run": "Dry run with branch evidence",
+    "example_dry_run_description": "Shows target identity inherited from the result when the retained call input is unavailable.",
+    "example_pending": "Pending confirmation with input context",
+    "example_pending_description": "Shows linked input-only targets and bounded Markdown while confirmation is pending.",
+    "example_error": "Structured validation error",
+    "example_empty": "Empty completed result",
+    "example_empty_description": "Exercises the generic empty-result fallback for a completed provider response."
+  },
+  "emergency_land": { "example_pending": "Pending emergency land confirmation" },
+  "force_landing_recheck": {
+    "not_provided": "Not provided",
+    "jobs_one": "Job",
+    "jobs_other": "Jobs",
+    "pending_reason": "Pending action reason",
+    "reason": "Reason",
+    "outcome": "Landing recheck outcome",
+    "example_bulk_pending": "Bulk pending with observed blockers",
+    "example_bulk_pending_description": "Long linked Job lists wrap while the live pending action shows each target's observed landing state.",
+    "example_bulk_confirmed": "Bulk confirmed with refreshed outcome",
+    "example_error": "Error retains Markdown reason",
+    "example_missing_input": "Missing Job input"
+  },
+  "mark_ci_repair_noop": {
+    "workflows_one": "Workflow",
+    "workflows_other": "Workflows",
+    "pending_reason": "Pending action reason",
+    "reason": "Reason",
+    "example_single": "Single pending repair no-op",
+    "example_single_description": "Shows linked Job and Workflow targets plus linkified failing-check and audit-reason URLs.",
+    "example_bulk": "Bulk pending repair no-ops",
+    "example_bulk_description": "A long linked Workflow list exercises wrapping on narrow and wide layouts.",
+    "example_error": "Validation error with requested targets",
+    "example_error_description": "Keeps the requested Job, Workflow, reason, and help URL visible when validation fails."
+  },
+  "wake_provider_admission": {
+    "user_scope": "User scope",
+    "all_users": "All users",
+    "queued_workflows": "Queued workflows",
+    "delayed_retries": "Delayed auto-retries",
+    "example_pending": "Pending scoped wake",
+    "example_pending_description": "Shows the provider badge, linked user scope, Markdown reason, and previewed impact before confirmation.",
+    "example_confirmed": "Confirmed scoped wake",
+    "example_confirmed_description": "Shows the same preview after the pending action has been confirmed.",
+    "example_rejected": "Rejected all-users wake",
+    "example_rejected_description": "Shows a rejected request with an explicit all-users scope and zero delayed retries.",
+    "example_error": "Preview error",
+    "example_error_description": "Shows the requested inputs alongside a provider-admission preview failure."
   },
   "resume_landing_queue": {
     "target": "Target",
