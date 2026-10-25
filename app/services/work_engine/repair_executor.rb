@@ -770,7 +770,7 @@ module WorkEngine
           return skipped("Step is #{step.state}, not succeeded") unless step.succeeded?
           return skipped("Step has no loop id") unless step.loop_id.present?
 
-          gate = Step::Kind.review_gate_for(step.kind)
+          gate = Step::Kind.review_gate_for(step.details.to_h["panel_review_kind"].presence || step.kind)
           return skipped("Step is not a review loop Step") unless gate
 
           workflow = step.workflow

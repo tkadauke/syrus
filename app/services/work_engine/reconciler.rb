@@ -3357,15 +3357,16 @@ module WorkEngine
     end
 
     def review_gate_for_step(step)
-      Step::Kind.review_gate_for(step.kind)
+      Step::Kind.review_gate_for(step.details.to_h["panel_review_kind"].presence || step.kind)
     rescue ArgumentError
       nil
     end
 
     def review_loop_node_for(step)
+      review_kind = step.details.to_h["panel_review_kind"].presence || step.kind
       Array(step.workflow.chain_template).find do |node|
         node["type"] == "loop" &&
-          Array(node["steps"]).map(&:to_s).last == step.kind
+          Array(node["steps"]).map(&:to_s).last == review_kind
       end
     end
 

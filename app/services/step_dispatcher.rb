@@ -673,7 +673,36 @@ class StepDispatcher
       model: workflow.model,
       effort_level: workflow.effort_level
     )
+    if step.details.to_h["panel_member"]
+      return ProviderRouting::AvailabilitySelector.candidate(
+        provider: step.details["provider"],
+        model: step.details["model"],
+        effort_level: step.details["effort_level"]
+      )
+    end
     return current_candidate unless step_specific_provider_task_key?(step, workflow)
+
+    panel = ProviderRouting::AvailabilitySelector.panel(
+      job: workflow.job,
+      task_key: step.kind,
+      trigger: provider_invocation_for(step),
+      workflow_trigger_kind: workflow.trigger_kind
+    )
+    if panel
+      if panel.held?
+        ProviderRouting::HoldAdmission.apply!(workflow: workflow, decision: panel, step: step)
+        return nil
+      end
+      member = panel.available_members.first
+      if panel.available_members.size > 1 || panel.failed? || member.blank?
+        step.update!(details: step.details.to_h.merge("panel_control_pending" => true))
+        return current_candidate
+      end
+
+      return ProviderRouting::AvailabilitySelector.candidate(
+        provider: member["provider"], model: member["model"], effort_level: member["effort_level"]
+      )
+    end
 
     selection = ProviderRouting::AvailabilitySelector.call(
       job: workflow.job,
@@ -732,6 +761,7 @@ class StepDispatcher
 
   def self.provider_availability_deferred?(step, workflow, candidate: nil)
     return false if step.runs.any?
+    return false if step.details.to_h["panel_control_pending"]
 
     provider_pause = ProviderAvailabilityPause.call(
       workflow: workflow,
@@ -1230,12 +1260,14 @@ class StepDispatcher
   def handle_successful_review_loop_iteration
     return false unless @from_step&.loop_id.present?
 
-    gate = Step::Kind.review_gate_for(@from_step.kind)
+    effective_review_kind = @from_step.details.to_h["panel_review_kind"].presence || @from_step.kind
+    gate = Step::Kind.review_gate_for(effective_review_kind)
     return false unless gate
 
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
-    return false unless loop_step_kinds(loop_node).last == @from_step.kind
+    return false unless loop_step_kinds(loop_node).last == effective_review_kind
+    return false if @from_step.details.to_h["panel_fanout"] || @from_step.details.to_h["panel_member"]
 
     if review_loop_exit?(gate.fetch(:artifact_key), gate.fetch(:exit_verdicts))
       exit_review_loop!(loop_node, cancellation_reason: gate.fetch(:cancellation_reason))
@@ -1363,12 +1395,14 @@ class StepDispatcher
     #
     # Which kinds those are is declared on the step kind, so a second
     # fan-out step kind is a registry entry rather than another name here.
-    actual_kinds = @workflow.steps
+    iteration_steps = @workflow.steps
                             .where(loop_id: step.loop_id, iteration: step.iteration)
                             .order(:position)
-                            .pluck(:kind)
+    actual_kinds = iteration_steps.pluck(:kind)
     inserted = Step::Kind.runtime_inserted_kinds
-    comparable_kinds = actual_kinds.reject { |kind| inserted.include?(kind) }
+    comparable_kinds = iteration_steps.reject { |candidate| candidate.details.to_h["panel_member"] }
+                                      .map(&:kind)
+                                      .reject { |kind| inserted.include?(kind) }
     candidates = loop_node_candidates
     node = candidates.find { |candidate| loop_node_matches?(candidate, comparable_kinds) }
 

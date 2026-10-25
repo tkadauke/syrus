@@ -44,6 +44,17 @@ If the agent does not call the required `submit_adversarial_review` tool, the st
 
 Findings accumulate in `workflow.artifacts["adversarial_review_iterations"]` as an array and appear in the workflow detail UI. Two separate consumers read that array:
 
+Provider-routing rules may select a serial review panel. At execution time the
+review step expands into one provider-pinned member step per available member
+and a collect step. The collector applies the configured unanimous, majority,
+or `at_least` consensus and appends the aggregate verdict last, so the normal
+review gate continues to read the final entry. Member entries include
+`provider`, `model`, and `panel_id`; minority findings from an approving panel
+are retained as non-blocking notes rather than required repair feedback.
+Unavailable members follow the rule's `drop`, `hold`, or `fail` policy and its
+minimum-member requirement. Rules that resolve to zero or one effective member
+retain the ordinary single-review behavior.
+
 - The **reviewer** itself gets every prior iteration's findings (regardless of verdict) via `prior_findings` in `Prompts::AdversarialReview`, so a later review round has context on what earlier rounds already flagged.
 - The **repair `implement` agent** gets only the `needs_work` iterations, rendered by `Prompts::ReviewFeedback` and appended to its prompt (`Steps::Base#append_review_feedback`). This is what actually tells the implementing agent what to fix — without it, a repair iteration would just re-receive the original task prompt with no idea what the reviewer objected to.
 

@@ -179,6 +179,10 @@ class Step
                   exit_verdicts: %w[approved skipped],
                   cancellation_reason: "security_review_approved"
                 }),
+      Entry.new(kind: "review_panel_collect", handler: "ReviewPanelCollect", label: "Aggregate review panel", style: "bg-rose-100 text-rose-700", agentic: false,
+                repair_semantics: :deterministic_idempotent,
+                runtime_inserted: true,
+                placement_policy: Step::PlacementPolicy::CONTROL_PLANE),
       # Three verdicts rather than two: "skipped" (not visually testable, or
       # filtered out by when_files_changed) exits the loop the same way
       # "approved" does, since there is nothing for another iteration to

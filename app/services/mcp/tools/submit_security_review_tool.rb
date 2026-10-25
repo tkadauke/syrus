@@ -27,10 +27,14 @@ module Mcp::Tools
 
         workflow = run.workflow
         iterations = Array(workflow.artifact("security_review_iterations"))
-        iterations << {
+        entry = {
           "iteration" => run.step.iteration, "step_id" => run.step_id, "run_id" => run.id,
           "critique" => normalized_critique, "verdict" => normalized_verdict
         }
+        if run.step.details.to_h["panel_id"].present?
+          entry.merge!("provider" => run.agent_provider, "model" => run.model, "panel_id" => run.step.details["panel_id"])
+        end
+        iterations << entry.compact
         workflow.set_artifact!("security_review_iterations", iterations)
         ReviewFindingEvents.record(
           workflow: workflow, step: run.step, run: run, review_kind: "security",
