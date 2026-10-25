@@ -333,6 +333,15 @@ current browser context, so artifacts keep the captured URL, path, title,
 viewport, and source. An unexpected sign-in redirect is treated as a blocker
 unless the sign-in screen is the intended surface under review.
 
+## Review Conversation
+
+The Job review tab keeps the discussion beside the diff. Operator comments,
+agent-generated review notes, and chat feedback use visually distinct cards so
+reviewers can tell who introduced each part of the conversation. Chat feedback
+appears with the diff version produced while addressing it; feedback that has
+not produced a version, including an in-progress or no-change attempt, remains
+visible with the version the operator is currently reviewing.
+
 ## Review Notes
 
 The bundled `cognitive_review` plugin is disabled by default. When enabled,
