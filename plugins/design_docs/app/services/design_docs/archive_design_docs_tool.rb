@@ -80,7 +80,14 @@ module DesignDocs
       end
 
       def resolve_all!(refs, context)
-        docs = refs.map { |ref| find_design_doc!(ref, context) }
+        ids = refs.map { |ref| parse_doc_ref(ref) }
+        docs_by_id = visible_scope(context)
+          .where(id: ids)
+          .preload(:current_version, :repositories, :suggestions, threads: :comments)
+          .index_by(&:id)
+        raise ActiveRecord::RecordNotFound unless docs_by_id.size == ids.size
+
+        docs = ids.map { |id| docs_by_id.fetch(id) }
         raise Pundit::NotAuthorizedError unless docs.all? { |doc| DesignDocPolicy.new(context.user, doc).archive? }
 
         docs
