@@ -753,10 +753,10 @@
     "job": "Job",
     "branch": "Ramus",
     "warning_title": "Actio subita destructiva",
-    "warning_message": "Haec actio mutationem coniunget atque examinatores, recensionem adversariam, et recensionem visualem praeteribit.",
+    "warning_body": "Haec actio mutationem coniunget atque examinatores, recensionem adversariam, et recensionem visualem praeteribit.",
     "example_pending": "Confirmatio landing subiti pendet",
     "example_pending_message": "Landing subitum **confirmationem operatoris** requirit.",
-    "example_feature_disabled": "Landing subitum prohibitum"
+    "example_disabled": "Landing subitum prohibitum"
   },
   "complete_implement_step": {
     "job": "Job",
@@ -770,6 +770,18 @@
     "example_rejected_message": "**Ramus checkout activus** traditus non est.",
     "example_error": "Error validationis traditionis",
     "example_error_description": "Errorem simplicem cum Job dato et contextu rami checkout activi ostendit."
+  },
+  "force_state_transition": {
+    "reason": "Causa",
+    "transition": "Transitus",
+    "example_pending": "Transitus pendens cum Markdown",
+    "example_pending_description": "Job conexum, eventum petitum, causam operatoris expandibilem, et nuntium confirmationis ostendit.",
+    "example_confirmed": "Imago transitus confirmati",
+    "example_confirmed_description": "Statum Job inspectum ab initio ad exitum post actionem pendentem exsecutam ostendit.",
+    "example_confirmed_message": "**Defectum coactum** ad JOB-4048 applicare?",
+    "example_live_label": "force_fail in JOB-4048 coge",
+    "example_error": "Error instrumenti contextum petitionis servat",
+    "example_error_description": "Job conexum, eventum petitum, causam Markdown, et singula defectus visibilia servat cum petitio deficit."
   },
   "force_landing_recheck": {
     "not_provided": "Non datum",
