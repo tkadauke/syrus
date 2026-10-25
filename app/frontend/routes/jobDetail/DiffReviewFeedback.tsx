@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import type { TFunction } from "i18next"
 import { Button } from "../../components/Button"
 import { errorMessage } from "../../lib/errorMessage"
+import { Markdown } from "../../lib/Markdown"
 import { useConfirm } from "../../hooks/useConfirm"
 import { useT } from "../../hooks/useT"
 import {
@@ -21,17 +22,20 @@ import {
   type DiffReviewCommentInput,
   type DiffReviewCommentAnchorKind,
   type DiffReviewVersion,
-  type JobDiscussionChatMessage
+  type JobDiscussionChatMessage,
+  type JobFeedbackHistoryEntry
 } from "../../api/jobs"
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
 import { parseUnifiedDiff, splitLines } from "../../components/diff/diffRendering"
 import { Pill, surfaceClasses } from "../../components/ui"
 import { collapsedLabel, duplicateRunIds, metadataSummary } from "./DiffReviewVersionSelector"
 import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
+import { ChatBubbleIcon } from "./JobHeader"
 
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
   buildContext?: (selection: DiffLineSelection) => Record<string, unknown>
+  chatFeedback?: JobFeedbackHistoryEntry[]
   diffReviewVersionId?: number | null
   enabled: boolean
   headRef?: string | null
@@ -61,6 +65,9 @@ type DiffReviewFeedbackOptions = {
   workflowId?: number | null
 }
 
+const CHAT_FEEDBACK_BODY_CLASS =
+  "break-words text-text-primary [&_code]:rounded [&_code]:bg-surface-raised [&_code]:px-0.5 [&_code]:font-mono [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-surface-raised [&_pre]:p-1.5 [&_pre]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:px-0"
+
 export function diffReviewFeedbackAllowed(jobState: string) {
   return jobState === "implemented" || jobState === "approved" || jobState === "failed"
 }
@@ -68,6 +75,7 @@ export function diffReviewFeedbackAllowed(jobState: string) {
 export function useDiffReviewFeedback({
   baseRef,
   buildContext,
+  chatFeedback = [],
   diffReviewVersionId,
   enabled,
   headRef,
@@ -327,6 +335,7 @@ export function useDiffReviewFeedback({
       <DiffReviewFeedbackPanel
         actionableComments={actionableComments}
         body={body}
+        chatFeedback={chatFeedback}
         comments={commentList}
         currentVersionId={diffReviewVersionId ?? null}
         createError={createReviewComment.error}
@@ -420,6 +429,7 @@ export function useDiffReviewFeedback({
 function DiffReviewFeedbackPanel({
   actionableComments,
   body,
+  chatFeedback,
   comments,
   createError,
   currentVersionId,
@@ -465,6 +475,7 @@ function DiffReviewFeedbackPanel({
 }: {
   actionableComments: DiffReviewComment[]
   body: string
+  chatFeedback: JobFeedbackHistoryEntry[]
   comments: DiffReviewComment[]
   createError: Error | null
   currentVersionId: number | null
@@ -514,12 +525,13 @@ function DiffReviewFeedbackPanel({
     () =>
       groupReviewSidebarItems({
         comments,
+        chatFeedback,
         currentVersionId,
         reviewAnnotationPanels,
         reviewFilePaths,
         versions
       }),
-    [comments, currentVersionId, reviewAnnotationPanels, reviewFilePaths, versions]
+    [chatFeedback, comments, currentVersionId, reviewAnnotationPanels, reviewFilePaths, versions]
   )
   const hasReviewItems = reviewItems.length > 0
 
@@ -565,6 +577,8 @@ function DiffReviewFeedbackPanel({
                   {group.items.map((item) =>
                     item.kind === "annotation" ? (
                       <ReviewAnnotationCard item={item.panel} key={item.key} />
+                    ) : item.kind === "chat_feedback" ? (
+                      <ChatFeedbackCard entry={item.entry} key={item.key} t={t} />
                     ) : (
                       <CommentCard
                         comment={item.comment}
@@ -643,6 +657,20 @@ function DiffReviewFeedbackPanel({
         {submitError ? <p className="mt-2 text-xs text-danger-text">{submitError}</p> : null}
       </div>
     </section>
+  )
+}
+
+function ChatFeedbackCard({ entry, t }: { entry: JobFeedbackHistoryEntry; t: TFunction<"jobs"> }) {
+  return (
+    <div className="min-w-0 rounded border border-info-border bg-info-bg p-3 text-sm text-info-text" data-testid="review-chat-feedback">
+      <div className="mb-2 flex items-center gap-2">
+        <ChatBubbleIcon />
+        <span className="text-xs font-semibold uppercase tracking-wide">{t("feedback_trigger_chat")}</span>
+      </div>
+      <div className={CHAT_FEEDBACK_BODY_CLASS}>
+        <Markdown text={entry.body} />
+      </div>
+    </div>
   )
 }
 
@@ -956,6 +984,13 @@ type ReviewSidebarItem =
       line: number | null
     }
   | {
+      kind: "chat_feedback"
+      key: string
+      entry: JobFeedbackHistoryEntry
+      path: null
+      line: null
+    }
+  | {
       kind: "comment"
       key: string
       comment: DiffReviewComment
@@ -970,12 +1005,14 @@ type ReviewSidebarGroup = {
 }
 
 function groupReviewSidebarItems({
+  chatFeedback,
   comments,
   currentVersionId,
   reviewAnnotationPanels,
   reviewFilePaths,
   versions
 }: {
+  chatFeedback: JobFeedbackHistoryEntry[]
   comments: DiffReviewComment[]
   currentVersionId: number | null
   reviewAnnotationPanels: DiffReviewAnnotationPanel[]
@@ -1011,6 +1048,21 @@ function groupReviewSidebarItems({
     groups.set(versionId, group)
   }
 
+  for (const entry of chatFeedback) {
+    const version = versions?.find((candidate) => candidate.workflow_id === entry.workflow_id)
+    if (!version) continue
+
+    const group = groups.get(version.id) ?? { version, versionId: version.id, items: [] }
+    group.items.push({
+      kind: "chat_feedback",
+      key: `chat-feedback:${entry.workflow_id ?? entry.created_at ?? version.id}`,
+      entry,
+      path: null,
+      line: null
+    })
+    groups.set(version.id, group)
+  }
+
   return [...groups.values()]
     .map((group) => ({
       ...group,
@@ -1044,6 +1096,9 @@ function annotationPanelVersionId(panel: DiffReviewAnnotationPanel) {
 }
 
 function compareReviewSidebarItems(a: ReviewSidebarItem, b: ReviewSidebarItem, fileOrder: Map<string, number>) {
+  if (a.kind === "chat_feedback" && b.kind !== "chat_feedback") return -1
+  if (b.kind === "chat_feedback" && a.kind !== "chat_feedback") return 1
+
   const aPathOrder = a.path ? (fileOrder.get(a.path) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
   const bPathOrder = b.path ? (fileOrder.get(b.path) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
   if (aPathOrder !== bPathOrder) return aPathOrder - bPathOrder
