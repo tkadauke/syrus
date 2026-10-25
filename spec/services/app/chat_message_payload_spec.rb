@@ -93,6 +93,35 @@ RSpec.describe App::ChatMessagePayload do
     expect(queries.grep(/FROM ["`]?workflows["`]?/i).size).to eq(1)
   end
 
+  it "serializes live visual review screenshots from the resulting Workflow" do
+    job = Factories.job(user: user, repository: repository, issue_number: 43)
+    workflow = job.latest_workflow
+    image_url = "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=visual_review_screenshot_run_1_1"
+    workflow.set_artifact!("typed_artifacts", [
+      {
+        "type" => "visual_review_screenshot_run_1_1",
+        "title" => "Desktop result",
+        "renderer_type" => "image_diff",
+        "payload" => { "image_url" => image_url, "content_type" => "image/png" }
+      }
+    ])
+    action = chat.pending_actions.create!(
+      action: "run_visual_review", payload: { "job_id" => job.id }, state: "confirmed", result: workflow
+    )
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "run_visual_review", tool_use_id: "visual-review-1", pending_action: action,
+      content: { "type" => "tool_use", "id" => "visual-review-1", "name" => "run_visual_review", "input" => { "job_id" => job.id } }
+    )
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.dig(:pending_action, :outcome)).to eq(
+      workflow_id: workflow.id,
+      job_id: job.id,
+      media: [ { type: "visual_review_screenshot_run_1_1", title: "Desktop result", image_url: image_url, content_type: "image/png" } ]
+    )
+  end
+
   it "serializes every force landing recheck group member's observed and refreshed state" do
     group = PendingActionGroup.create_with_members!(
       chat_session: chat,
