@@ -716,6 +716,21 @@
       "failed": "Fehlgeschlagen"
     }
   },
+  "wake_landing_queue": {
+    "target": "Ziel",
+    "landing_queue": "Landing-Queue",
+    "outcome": "Ergebnis",
+    "summary": "Landing-Queue aufwecken",
+    "summary_with_outcome": "Landing-Queue aufwecken · {{outcome}}",
+    "states": {
+      "pending": "Ausstehend",
+      "waking": "Wird aufgeweckt",
+      "queued": "Eingereiht",
+      "rejected": "Abgelehnt",
+      "cancelled": "Abgebrochen",
+      "failed": "Fehlgeschlagen"
+    }
+  },
   "daemon_invocation_context": {
     "summary": "Aufrufkontext: {{surface}}{{identity}}",
     "summary_denied": "Aufrufkontext verweigert: {{error}}",
