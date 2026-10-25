@@ -1,18 +1,26 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { jobEpicMaintenanceCollapsedSummary, jobEpicMaintenanceExpandedBody } from "../jobEpicMaintenanceToolCard"
-import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import {
+  countFromInputArray,
+  stringFromInput,
+  ToolFailureSummaryCard,
+  toolFailureCollapsedSummary,
+  toolFailureDetected,
+  type ToolFailureConfig
+} from "../toolFailureSummaryCard"
+import i18n from "@app/i18n"
 
 const failureConfig: ToolFailureConfig = {
-  title: "Job reopen",
+  title: i18n.t("chat:mutation_job_reopen"),
   attempted: (context) => {
     const jobId = stringFromInput(context, ["job_id"])
     const count = countFromInputArray(context, "job_ids")
-    if (jobId) return `Reopen JOB-${jobId}`
-    if (count != null) return `Reopen ${count} Job${count === 1 ? "" : "s"}`
-    return "Reopen Job"
+    if (jobId) return i18n.t("chat:mutation_reopen_job_id", { id: jobId })
+    if (count != null) return i18n.t("chat:mutation_reopen_jobs", { count })
+    return i18n.t("chat:mutation_reopen_job")
   },
   retrySafety: "caution",
-  recovery: "Check whether a reopen confirmation is already pending before retrying."
+  recovery: i18n.t("chat:mutation_reopen_recovery")
 }
 
 function collapsedSummary(context: ToolCardContext) {

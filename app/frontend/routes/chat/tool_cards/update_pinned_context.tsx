@@ -2,23 +2,24 @@ import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pl
 import { displayValue } from "../toolCardUi"
 import { ErrorCard, MalformedCard, successOrError } from "../chatHelperToolCard"
 import { parsePinnedContextResult, PendingPinnedContextCard, pinnedContextIdentifiers, PinnedContextCard } from "../pinnedContextToolCard"
+import i18n from "@app/i18n"
 
 function parseUpdate(context: ToolCardContext) {
-  return successOrError(context, "Pinned context update failed.", () => parsePinnedContextResult(context))
+  return successOrError(context, i18n.t("chat:mutation_pinned_update_failed_period"), () => parsePinnedContextResult(context))
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const parsed = parseUpdate(context)
-  if (parsed.kind === "error") return "Pinned context update failed"
-  if (parsed.kind === "malformed") return context.resultBody === "" ? "Updating pinned context" : "Pinned context update returned an unexpected response"
-  return parsed.data.message || "Pinned context updated"
+  if (parsed.kind === "error") return i18n.t("chat:mutation_pinned_update_failed")
+  if (parsed.kind === "malformed") return context.resultBody === "" ? i18n.t("chat:mutation_pinned_updating") : i18n.t("chat:mutation_pinned_update_unexpected")
+  return parsed.data.message || i18n.t("chat:mutation_pinned_updated")
 }
 
 function renderExpanded(context: ToolCardContext) {
   const parsed = parseUpdate(context)
-  if (parsed.kind === "error") return <ErrorCard title="Pinned context" message={parsed.message} />
+  if (parsed.kind === "error") return <ErrorCard title={i18n.t("chat:mutation_pinned_context")} message={parsed.message} />
   if (parsed.kind === "malformed") {
-    return <MalformedCard title="Pinned context" />
+    return <MalformedCard title={i18n.t("chat:mutation_pinned_context")} />
   }
 
   const identifiers =
@@ -42,14 +43,14 @@ export default updatePinnedContextToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "updated_markdown",
-    label: "Updated markdown context",
+    label: i18n.t("chat:mutation_example_updated_markdown"),
     input: { content: "Remember **JOB-42** and https://example.test/runbook" },
     parsedResult: { pinned_context: "Remember **JOB-42** and https://example.test/runbook", message: "Pinned context updated.", chat_id: 7 },
     sourceType: "generic"
   },
   {
     id: "validation_error",
-    label: "Validation error",
+    label: i18n.t("chat:tool_card_example_validation_error"),
     input: { content: " " },
     resultBody: "content is required",
     resultError: true,

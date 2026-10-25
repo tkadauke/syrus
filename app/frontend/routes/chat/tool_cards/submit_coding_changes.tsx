@@ -3,6 +3,7 @@ import { parsePendingActionResult } from "../pendingActionToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, displayValue, InternalLink, SectionLabel, StatePill } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import i18n from "@app/i18n"
 
 // Core-owned tool card for submit_coding_changes. The result only carries
 // the pending-action confirmation shape; branch/title context (there is no
@@ -22,10 +23,10 @@ type SubmitCodingChangesResult = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Submit coding changes",
-  attempted: (context) => stringFromInput(context, ["title"]) || "Submit coding changes",
+  title: i18n.t("chat:mutation_submit_coding_changes"),
+  attempted: (context) => stringFromInput(context, ["title"]) || i18n.t("chat:mutation_submit_coding_changes"),
   retrySafety: "caution",
-  recovery: "Correct the submission details or repository state, then retry."
+  recovery: i18n.t("chat:mutation_submit_coding_recovery")
 }
 
 function parseResult(context: ToolCardContext): SubmitCodingChangesResult | null {
@@ -56,7 +57,12 @@ function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
 
-  return result.message ? markdownSummary(result.message) : `Submit coding changes${result.branch ? ` for ${result.branch}` : ""} (${result.state})`
+  return result.message
+    ? markdownSummary(result.message)
+    : i18n.t(result.branch ? "chat:mutation_submit_coding_summary_branch" : "chat:mutation_submit_coding_summary", {
+        branch: result.branch,
+        state: result.state
+      })
 }
 
 function markdownSummary(text: string) {
@@ -94,29 +100,29 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={result.state} />
-        {result.autoConfirmed ? <Badge>Auto-confirmed</Badge> : null}
+        {result.autoConfirmed ? <Badge>{i18n.t("chat:mutation_auto_confirmed")}</Badge> : null}
         <Badge>#{result.pendingActionId}</Badge>
       </div>
       <dl className="grid gap-2 sm:grid-cols-2">
-        {result.title ? <WrappingValue label="Title" value={result.title} /> : null}
-        {result.branch ? <WrappingValue label="Branch" mono value={result.branch} /> : null}
+        {result.title ? <WrappingValue label={i18n.t("chat:shared.title")} value={result.title} /> : null}
+        {result.branch ? <WrappingValue label={i18n.t("chat:shared.branch")} mono value={result.branch} /> : null}
         {result.repositoryId ? (
           <div className="min-w-0">
-            <SectionLabel>Repository</SectionLabel>
+            <SectionLabel>{i18n.t("chat:shared.repository")}</SectionLabel>
             <InternalLink href={repositoryUrl!}>
-              {resourceIsRepository && result.resourceTitle ? result.resourceTitle : `Repository #${result.repositoryId}`}
+              {resourceIsRepository && result.resourceTitle ? result.resourceTitle : i18n.t("chat:mutation_repository_number", { id: result.repositoryId })}
             </InternalLink>
           </div>
         ) : null}
         {result.resourceUrl && !resourceIsRepository ? (
           <div className="min-w-0">
-            <SectionLabel>Created Job</SectionLabel>
-            <InternalLink href={result.resourceUrl}>{result.resourceTitle || "View Job"}</InternalLink>
+            <SectionLabel>{i18n.t("chat:mutation_created_job")}</SectionLabel>
+            <InternalLink href={result.resourceUrl}>{result.resourceTitle || i18n.t("chat:mutation_view_job")}</InternalLink>
           </div>
         ) : null}
       </dl>
-      {result.description ? <MarkdownPreview maxLines={6} text={result.description} title="Description" /> : null}
-      {result.message ? <MarkdownPreview maxLines={4} text={result.message} title="Status message" /> : null}
+      {result.description ? <MarkdownPreview maxLines={6} text={result.description} title={i18n.t("chat:shared.description")} /> : null}
+      {result.message ? <MarkdownPreview maxLines={4} text={result.message} title={i18n.t("chat:mutation_status_message")} /> : null}
     </CardShell>
   )
 }
@@ -132,7 +138,7 @@ export default submitCodingChangesToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "pending_markdown_submission",
-    label: "Pending submission with Markdown",
+    label: i18n.t("chat:mutation_example_pending_submission"),
     input: {
       repository_id: 12,
       branch: "syrus/chat-42-handoff-7",
@@ -143,13 +149,13 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "auto_confirmed_submission",
-    label: "Auto-confirmed submission",
+    label: i18n.t("chat:mutation_example_auto_confirmed_submission"),
     input: { repository_id: 12, branch: "syrus/chat-42-handoff-7", title: "Add dark mode", description: "Adds theme controls." },
     parsedResult: { pending_action_id: 89, state: "confirming", message: "Submit coding changes was auto-confirmed by the active goal policy." }
   },
   {
     id: "submission_error",
-    label: "Submission error",
+    label: i18n.t("chat:mutation_example_submission_error"),
     input: { repository_id: 12, branch: "main", title: "Invalid submission" },
     parsedResult: { error: { message: "Branch must contain committed changes." } },
     resultError: true
