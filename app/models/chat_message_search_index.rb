@@ -5,6 +5,7 @@ class ChatMessageSearchIndex < SearchRecord
   CONTENT_VERSION_KEY = "chat_message_content_version".freeze
   CONTENT_VERSION = "2".freeze
   CONTENT_VERSION_REINDEXING = "#{CONTENT_VERSION}:reindexing".freeze
+  BACKFILL_CURSOR_KEY = "last_backfilled_id".freeze
 
   class << self
     def insert(message)
@@ -254,22 +255,25 @@ class ChatMessageSearchIndex < SearchRecord
     # serializer. The in-progress value makes interruption safe: a retry
     # resumes the backfill instead of deleting rows it already repaired.
     def prepare_content_version!
-      return false if metadata_value(CONTENT_VERSION_KEY).in?([ CONTENT_VERSION, CONTENT_VERSION_REINDEXING ])
+      return false if metadata_value(CONTENT_VERSION_KEY) == CONTENT_VERSION
 
       connection.transaction do
-        message_ids = connection.select_values("SELECT chat_message_id FROM chat_message_fts WHERE role = 'assistant'")
-        connection.exec_delete(
-          "DELETE FROM chat_message_fts WHERE role = 'assistant'",
-          "ChatMessageSearchIndex Invalidate Assistant Rows"
-        )
-        message_ids.each do |message_id|
+        unless metadata_value(CONTENT_VERSION_KEY) == CONTENT_VERSION_REINDEXING
+          message_ids = connection.select_values("SELECT chat_message_id FROM chat_message_fts WHERE role = 'assistant'")
           connection.exec_delete(
-            "DELETE FROM chat_search_metadata WHERE key = ?",
-            "ChatMessageSearchIndex Invalidate Assistant Marker",
-            [ bind(indexed_message_key(message_id)) ]
+            "DELETE FROM chat_message_fts WHERE role = 'assistant'",
+            "ChatMessageSearchIndex Invalidate Assistant Rows"
           )
+          message_ids.each do |message_id|
+            connection.exec_delete(
+              "DELETE FROM chat_search_metadata WHERE key = ?",
+              "ChatMessageSearchIndex Invalidate Assistant Marker",
+              [ bind(indexed_message_key(message_id)) ]
+            )
+          end
+          write_metadata(CONTENT_VERSION_KEY, CONTENT_VERSION_REINDEXING)
         end
-        write_metadata(CONTENT_VERSION_KEY, CONTENT_VERSION_REINDEXING)
+        write_metadata(BACKFILL_CURSOR_KEY, "0")
       end
 
       true

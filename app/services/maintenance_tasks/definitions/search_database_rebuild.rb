@@ -49,6 +49,10 @@ module MaintenanceTasks
           return index_chat_messages(task)
         end
 
+        if task.checkpoint["chat_content_version_prepared"] && !chat_content_version_current?
+          finish_chat_content_version!
+        end
+
         if jobs_need_rebuild?
           return index_jobs(task)
         end
@@ -149,6 +153,10 @@ module MaintenanceTasks
 
       def prepare_chat_content_version!
         ChatMessageSearchIndex.prepare_content_version!
+      end
+
+      def finish_chat_content_version!
+        ChatMessageSearchIndex.finish_content_version!
       end
 
       def missing_chat_messages_count
