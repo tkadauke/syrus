@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { CardShell, displayValue, EmptyState, EntityReference, StatePill } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
@@ -16,13 +17,13 @@ type DetachRepositoryResult = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Repository detach",
+  title: i18n.t("chat:tool_card_repository_detach"),
   attempted: (context) => {
     const slug = stringFromInput(context, ["slug", "repository", "repository_slug"])
-    return slug ? `Detach ${slug}` : "Detach repository"
+    return slug ? i18n.t("chat:tool_card_repository_detach_named", { slug }) : i18n.t("chat:tool_card_repository_detach_action")
   },
   retrySafety: "safe",
-  recovery: "Retry after confirming the repository is attached to this chat."
+  recovery: i18n.t("chat:tool_card_repository_detach_recovery")
 }
 
 function parseResult(context: ToolCardContext): DetachRepositoryResult | null {
@@ -58,7 +59,7 @@ function collapsedSummary(context: ToolCardContext) {
 
   const result = parseResult(context)
   if (!result) return null
-  return `Detached ${result.slug}`
+  return i18n.t("chat:tool_card_repository_detached", { slug: result.slug })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -74,11 +75,11 @@ function renderExpanded(context: ToolCardContext) {
         <StatePill state={result.detached ? "detached" : "pending"} tone={result.detached ? "success" : "warning"} />
       </div>
       <div>
-        <div className="text-2xs font-semibold uppercase text-text-muted">Repository ID</div>
+        <div className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:tool_card_repository_id")}</div>
         <div className="break-all font-mono text-xs text-text-primary">{result.id}</div>
       </div>
       <div>
-        <div className="text-2xs font-semibold uppercase text-text-muted">Remaining repositories</div>
+        <div className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:tool_card_repository_remaining")}</div>
         {result.remainingRepositories.length ? (
           <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-2">
             {result.remainingRepositories.map((repository) => (
@@ -86,7 +87,7 @@ function renderExpanded(context: ToolCardContext) {
             ))}
           </div>
         ) : (
-          <EmptyState>No repositories remain attached.</EmptyState>
+          <EmptyState>{i18n.t("chat:tool_card_repository_none_remaining")}</EmptyState>
         )}
       </div>
       {result.note ? (
@@ -115,7 +116,7 @@ export default detachRepositoryToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "detached_with_remaining_repository",
-    label: "Detached with another repository remaining",
+    label: i18n.t("chat:tool_card_repository_example_detached_remaining"),
     input: { slug: "tkadauke/syrus" },
     parsedResult: {
       repository: { id: 1, slug: "tkadauke/syrus" },
@@ -126,7 +127,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "no_repositories_remaining",
-    label: "No repositories remaining",
+    label: i18n.t("chat:tool_card_repository_example_none_remaining"),
     input: { slug: "tkadauke/syrus" },
     parsedResult: {
       repository: { id: 1, slug: "tkadauke/syrus" },

@@ -1,16 +1,17 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { parseProposalOutcome, proposalOutcomeSummary, ProposalOutcomeCard } from "../proposalToolCard"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for propose_job (the pending-action tool-card work).
 const failureConfig: ToolFailureConfig = {
-  title: "Job proposal",
+  title: i18n.t("chat:tool_card_job_proposal"),
   attempted: (context) => {
     const title = stringFromInput(context, ["title", "prompt"])
-    return title ? `Propose Job: ${title}` : "Propose a Job"
+    return title ? i18n.t("chat:tool_card_propose_job_named", { title }) : i18n.t("chat:tool_card_propose_job")
   },
   retrySafety: "caution",
-  recovery: "Check whether a proposal card was created before retrying."
+  recovery: i18n.t("chat:tool_card_proposal_recovery")
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -39,8 +40,8 @@ const proposeJobToolCard: ToolCardRenderer = {
 export const examples: ToolCardExample[] = [
   {
     id: "detailed_job_proposal",
-    label: "Detailed Job proposal",
-    description: "Markdown, linked dependencies, placement, media, and investigation metadata.",
+    label: i18n.t("chat:tool_card_propose_job_example"),
+    description: i18n.t("chat:tool_card_propose_job_example_description"),
     input: {
       epic_id: 42,
       media: ["chat_image:17", "snapshot:23"],

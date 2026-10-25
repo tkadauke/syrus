@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { displayValue, EmptyState, Row } from "../toolCardUi"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { MalformedCard, QuestionList, StatusCard, questionsFromInput, successOrError } from "../chatHelperToolCard"
@@ -13,17 +14,17 @@ import {
 type AskUserQuestionResult = { questionId: string; message: string | null }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Operator question",
+  title: i18n.t("chat:tool_card_operator_question"),
   attempted: (context) => {
     const count = countFromInputArray(context, "questions")
-    return count == null ? "Ask operator question" : `Ask ${count} operator question${count === 1 ? "" : "s"}`
+    return count == null ? i18n.t("chat:tool_card_ask_operator_question") : i18n.t("chat:tool_card_ask_operator_questions", { count })
   },
   retrySafety: "caution",
-  recovery: "Check whether the question card already appeared before retrying."
+  recovery: i18n.t("chat:tool_card_question_recovery")
 }
 
 function parseAskUserQuestion(context: ToolCardContext) {
-  return successOrError<AskUserQuestionResult>(context, "Question request failed.", (parsed) => {
+  return successOrError<AskUserQuestionResult>(context, i18n.t("chat:tool_card_question_failed_period"), (parsed) => {
     const questionId = displayValue(parsed.question_id)
     if (!questionId) return null
     return { questionId, message: displayValue(parsed.message) }
@@ -39,9 +40,9 @@ function collapsedSummary(context: ToolCardContext) {
   if (failureSummary) return failureSummary
 
   const parsed = parseAskUserQuestion(context)
-  if (parsed.kind === "error") return "Question request failed"
-  if (parsed.kind === "malformed") return requestIsPending(context) ? "Question request pending" : "Question request returned an unexpected response"
-  return `Question request #${parsed.data.questionId} recorded`
+  if (parsed.kind === "error") return i18n.t("chat:tool_card_question_failed")
+  if (parsed.kind === "malformed") return requestIsPending(context) ? i18n.t("chat:tool_card_question_pending") : i18n.t("chat:tool_card_question_unexpected")
+  return i18n.t("chat:tool_card_question_recorded", { id: parsed.data.questionId })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -52,27 +53,27 @@ function renderExpanded(context: ToolCardContext) {
   if (parsed.kind === "malformed") {
     if (requestIsPending(context)) {
       return (
-        <StatusCard title="Question request" status="pending">
+        <StatusCard title={i18n.t("chat:tool_card_question_request")} status="pending">
           <QuestionList questions={questionsFromInput(context.input)} />
-          <EmptyState>Waiting for the question request to finish.</EmptyState>
+          <EmptyState>{i18n.t("chat:tool_card_question_waiting")}</EmptyState>
         </StatusCard>
       )
     }
-    return <MalformedCard title="Question request" />
+    return <MalformedCard title={i18n.t("chat:tool_card_question_request")} />
   }
 
   return (
-    <StatusCard title="Question request" status="waiting">
-      <Row label="Question set" value={`#${parsed.data.questionId}`} />
+    <StatusCard title={i18n.t("chat:tool_card_question_request")} status="waiting">
+      <Row label={i18n.t("chat:tool_card_question_set")} value={`#${parsed.data.questionId}`} />
       <QuestionList questions={questionsFromInput(context.input)} />
       <MarkdownPreview
-        emptyState={<EmptyState>No result message was included.</EmptyState>}
+        emptyState={<EmptyState>{i18n.t("chat:tool_card_no_result_message")}</EmptyState>}
         linkifySlugs
         linkifyUrls
         maxChars={500}
         maxLines={4}
         text={parsed.data.message || ""}
-        title="Result"
+        title={i18n.t("chat:tool_card_result")}
       />
     </StatusCard>
   )
@@ -91,13 +92,13 @@ export default askUserQuestionToolCard
 export const examples = [
   {
     id: "question_recorded",
-    label: "Question recorded",
+    label: i18n.t("chat:tool_card_question_example_recorded"),
     input: { questions: [{ question: "Which environment should this target?", options: ["staging", "production"] }] },
     parsedResult: { question_id: "q_8f2c", message: "Waiting on the operator to answer in chat." }
   },
   {
     id: "question_request_failed",
-    label: "Error: question request failed",
+    label: i18n.t("chat:tool_card_question_example_failed"),
     description: "result_error true -- renders through the shared ToolFailureSummaryCard instead of the waiting-state card.",
     input: { questions: [{ question: "Which environment should this target?" }] },
     resultError: true,
@@ -105,8 +106,8 @@ export const examples = [
   },
   {
     id: "malformed_missing_question_id",
-    label: "Malformed: missing question_id",
-    description: "A plain object with no `question_id` key -- falls back to the shared MalformedCard instead of throwing.",
+    label: i18n.t("chat:tool_card_question_example_malformed"),
+    description: i18n.t("chat:tool_card_question_example_malformed_description"),
     input: { questions: [{ question: "Which environment should this target?" }] },
     parsedResult: { ok: true }
   }

@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row } from "../toolCardUi"
+import i18n from "@app/i18n"
 
 // Core-owned tool card for schedule_wakeup (the pending-action tool-card work).
 type ScheduleWakeupResult = { wakeupId: string; fireAt: string }
@@ -16,7 +17,7 @@ function parseScheduleWakeup(context: ToolCardContext): ScheduleWakeupResult | n
 function collapsedSummary(context: ToolCardContext) {
   const result = parseScheduleWakeup(context)
   if (!result) return null
-  return `Wakeup scheduled for ${result.fireAt}`
+  return i18n.t("chat:tool_card_wakeup_scheduled", { fireAt: result.fireAt })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -26,8 +27,8 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Wakeup" value={`#${result.wakeupId}`} />
-        <Row label="Fires at" value={result.fireAt} />
+        <Row label={i18n.t("chat:tool_card_wakeup")} value={`#${result.wakeupId}`} />
+        <Row label={i18n.t("chat:tool_card_fires_at")} value={result.fireAt} />
       </dl>
     </CardShell>
   )
