@@ -938,6 +938,23 @@
     "execution_message": "Ausführungsmeldung"
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" },
+  "manual_agentic_run": {
+    "job": "Job",
+    "base": "Basis",
+    "push": "Push",
+    "true": "ja",
+    "false": "nein",
+    "failed_workflow": "Fehlgeschlagener Workflow",
+    "instructions": "Anweisungen",
+    "full_instructions": "Vollständige Anweisungen",
+    "reason": "Grund",
+    "full_reason": "Vollständiger Grund",
+    "no_push_hint": "Der temporäre Workspace wird nach erfolgreichem Abschluss gelöscht. Lies den resultierenden Diff mit get_job_diff.",
+    "failed_summary": "Manueller Agentenlauf fehlgeschlagen: {{message}}",
+    "error_details": "Fehlerdetails",
+    "valid_bases": "Gültige Basen",
+    "example_pending": "Ausstehender manueller Lauf"
+  },
   "retire_terminal_work_unit": {
     "reason": "Grund",
     "none": "Keine",

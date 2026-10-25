@@ -938,6 +938,23 @@
     "execution_message": "Nuntius executionis"
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
+  "manual_agentic_run": {
+    "job": "Job",
+    "base": "Basis",
+    "push": "Propulsio",
+    "true": "ita",
+    "false": "non",
+    "failed_workflow": "Workflow deficiens",
+    "instructions": "Praecepta",
+    "full_instructions": "Praecepta plena",
+    "reason": "Causa",
+    "full_reason": "Causa plena",
+    "no_push_hint": "Area laboris temporaria post successum deletur. Differentiam effectam per get_job_diff lege.",
+    "failed_summary": "Cursus agenticus manualis defecit: {{message}}",
+    "error_details": "Particularia erroris",
+    "valid_bases": "Bases validae",
+    "example_pending": "Cursus manualis pendens"
+  },
   "retire_terminal_work_unit": {
     "reason": "Causa",
     "none": "Nulla",
