@@ -96,7 +96,10 @@ export function MarkdownPreview({
   const previewRef = useRef<HTMLDivElement>(null)
   const completeText = text ?? ""
   const normalized = completeText.trim()
-  const truncated = useMemo(() => truncateMarkdown(normalized, maxLines, maxChars), [normalized, maxChars, maxLines])
+  const truncated = useMemo(
+    () => (clamp ? truncateMarkdown(normalized, maxLines, maxChars) : { preview: normalized, truncated: false }),
+    [clamp, normalized, maxChars, maxLines]
+  )
 
   useLayoutEffect(() => {
     const preview = previewRef.current
