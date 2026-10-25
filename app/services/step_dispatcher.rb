@@ -680,6 +680,17 @@ class StepDispatcher
         effort_level: step.details["effort_level"]
       )
     end
+    if (panel_execution = step.details.to_h["panel_execution"])
+      members = Array(panel_execution["members"])
+      if members.one? && members.size >= panel_execution["min_members"].to_i
+        member = members.first
+        return ProviderRouting::AvailabilitySelector.candidate(
+          provider: member["provider"], model: member["model"], effort_level: member["effort_level"]
+        )
+      end
+
+      return current_candidate
+    end
     return current_candidate unless step_specific_provider_task_key?(step, workflow)
 
     panel = ProviderRouting::AvailabilitySelector.panel(
@@ -693,9 +704,9 @@ class StepDispatcher
         ProviderRouting::HoldAdmission.apply!(workflow: workflow, decision: panel, step: step)
         return nil
       end
+      step.update!(details: step.details.to_h.merge("panel_execution" => panel_execution_payload(panel)))
       member = panel.available_members.first
       if panel.available_members.size > 1 || panel.failed? || member.blank?
-        step.update!(details: step.details.to_h.merge("panel_control_pending" => true))
         return current_candidate
       end
 
@@ -761,7 +772,7 @@ class StepDispatcher
 
   def self.provider_availability_deferred?(step, workflow, candidate: nil)
     return false if step.runs.any?
-    return false if step.details.to_h["panel_control_pending"]
+    return false if step.details.to_h["panel_execution"]
 
     provider_pause = ProviderAvailabilityPause.call(
       workflow: workflow,
@@ -791,6 +802,17 @@ class StepDispatcher
     append_provider_availability_deferral_log!(workflow, step, provider_pause)
     WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait_until: provider_pause.retry_at, priority: workflow.solid_queue_priority)
     true
+  end
+
+  def self.panel_execution_payload(panel)
+    {
+      "panel_id" => "routing-rule-#{panel.routing_resolution.matched_rule.id}",
+      "members" => panel.available_members,
+      "dropped_members" => panel.unavailable_members,
+      "consensus" => panel.consensus,
+      "min_members" => panel.min_members,
+      "disposition" => panel.disposition
+    }
   end
 
   def self.capability_worker_deferred?(step, workflow, backoff:)

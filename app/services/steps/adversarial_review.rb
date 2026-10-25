@@ -187,17 +187,16 @@ module Steps
       return false if step.details.to_h["panel_member"]
       return true if step.details.to_h["panel_fanout"]
 
-      decision = ProviderRouting::AvailabilitySelector.panel(
-        job: job, task_key: review_step_kind,
-        trigger: StepDispatcher.provider_invocation_for(step),
-        workflow_trigger_kind: workflow.trigger_kind
-      )
-      return false unless (decision && decision.available_members.size > 1) || decision&.failed? || (decision&.dropped? && decision.available_members.size < decision.min_members)
-      raise StepFailed, "review panel has unavailable members and policy is fail" if decision.failed?
+      decision = step.details.to_h["panel_execution"]
+      return false unless decision
 
-      panel_id = "routing-rule-#{decision.routing_resolution.matched_rule.id}"
+      members = Array(decision["members"])
+      undersized = members.size < decision["min_members"].to_i
+      return false if members.one? && !undersized
+      raise StepFailed, "review panel has unavailable members and policy is fail" if decision["disposition"] == "fail"
+
+      panel_id = decision.fetch("panel_id")
       continuation = step.next_step
-      members = decision.available_members
       Step.transaction do
         workflow.steps.where("position >= ?", step.position + 1).update_all([ "position = position + ?", members.size + 1 ])
         member_steps = members.each_with_index.map do |member, index|
@@ -216,8 +215,8 @@ module Steps
           placement_policy: Step::Kind.fetch("review_panel_collect").placement_policy_for(repository),
           details: {
             "panel_review_kind" => review_step_kind, "panel_id" => panel_id,
-            "consensus" => decision.consensus, "min_members" => decision.min_members,
-            "dropped_members" => decision.unavailable_members,
+            "consensus" => decision.fetch("consensus"), "min_members" => decision.fetch("min_members"),
+            "dropped_members" => decision.fetch("dropped_members"),
             "required" => review_config&.required == true
           }
         )
