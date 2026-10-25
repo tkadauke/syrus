@@ -147,7 +147,7 @@ class Job < ApplicationRecord
   validate  :skill_name_requires_direct_or_cron_kind, if: -> { skill_name.present? }
   validate  :investigation_requires_investigable_kind, if: :investigation?
   validate  :investigation_excludes_skill_name, if: -> { investigation? && skill_name.present? }
-  validate  :investigation_excludes_epic, if: -> { investigation? && epic_id.present? }
+  validate  :investigation_excludes_epic, if: -> { investigation? && (epic_id.present? || epic.present?) }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
