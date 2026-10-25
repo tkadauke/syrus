@@ -70,6 +70,14 @@ RSpec.describe App::DeliveryTracksPayload do
     queued_on_hotfix = Factories.job_record(repository: repository, issue_number: 2, state: "approved", delivery_track: "hotfix")
     queued_on_default = Factories.job_record(repository: repository, issue_number: 3, state: "approved")
     queued_on_unknown = Factories.job_record(repository: repository, issue_number: 4, state: "approved", delivery_track: "missing")
+    MainBranchHealthCheck.create!(
+      repository: repository, branch: "develop", sha: "dev-sha", checked_at: Time.current,
+      source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
+    )
+    MainBranchHealthCheck.create!(
+      repository: repository, branch: "release", sha: "release-sha", checked_at: Time.current,
+      source: "ci_poll", ci_health: "broken", grader_health: "healthy"
+    )
 
     external_job = Job.create!(
       user: repository.user,
@@ -100,11 +108,13 @@ RSpec.describe App::DeliveryTracksPayload do
     expect(default_track[:branch]).to eq("develop")
     expect(default_track[:is_default]).to be(true)
     expect(default_track[:queue_length]).to eq(2)
+    expect(default_track[:health]).to eq("healthy")
     expect(default_track[:last_promotion]).to include(source_ref: "develop", target_ref: "main")
 
     hotfix_track = payload[:tracks].find { |track| track[:name] == "hotfix" }
     expect(hotfix_track[:branch]).to eq("release")
     expect(hotfix_track[:queue_length]).to eq(1)
+    expect(hotfix_track[:health]).to eq("broken")
     expect(hotfix_track[:last_promotion]).to be_nil
 
     expect(payload[:ref_movement_actions]).to contain_exactly(

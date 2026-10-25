@@ -144,6 +144,24 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     expect(result.details).to include("kind" => "base_not_known_healthy", "base_sha" => base_sha)
   end
 
+  it "consults the Job's development branch rather than healthy release-branch evidence" do
+    repository.update!(main_branch_health_enabled: true)
+    job.update!(target_branch: "develop")
+    MainBranchHealthCheck.create!(
+      repository: repository, branch: "main", sha: base_sha, checked_at: Time.current, source: "ci_poll",
+      ci_health: "healthy", grader_health: "healthy"
+    )
+    MainBranchHealthCheck.create!(
+      repository: repository, branch: "develop", sha: base_sha, checked_at: Time.current, source: "ci_poll",
+      ci_health: "broken", grader_health: "broken"
+    )
+
+    result = described_class.call(ci_unit_for(job))
+
+    expect(result).to be_blocked
+    expect(result.details).to include("kind" => "base_not_known_healthy")
+  end
+
   it "passes when an unknown-health base does not have one of the Job's failing checks" do
     repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
     job.update!(pr_checks_failing_names: [ "rspec", "react" ])

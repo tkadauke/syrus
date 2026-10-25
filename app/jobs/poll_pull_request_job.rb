@@ -734,10 +734,12 @@ class PollPullRequestJob < ApplicationJob
 
   def clean_base_health_known?(base_sha)
     repository = @job.repository
-    return true if repository.last_health_checked_sha == base_sha && repository.main_health == "healthy"
+    branch = @job.effective_base_branch
+    return true if branch == repository.default_branch &&
+      repository.last_health_checked_sha == base_sha && repository.main_health == "healthy"
 
     MainBranchHealthCheck
-      .where(repository: repository, sha: base_sha)
+      .where(repository: repository, branch: branch, sha: base_sha)
       .where(ci_health: %w[healthy not_configured], grader_health: "healthy")
       .exists?
   end

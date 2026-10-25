@@ -54,12 +54,20 @@ module App
           review_grade_phase: track.review_grade_phase,
           landing_grade_phase: track.landing_grade_phase,
           branch_health_grade_phase: track.branch_health_grade_phase,
-          health: track.branch == repository.default_branch ? repository.main_health : nil,
+          health: health_for(track.branch),
           queue_length: queue_length_for(track),
           last_promotion: track.branch == promotion_source_branch ? last_promotion : nil,
           last_hotfix_sync: track.branch == hotfix_sync_target_branch ? last_hotfix_sync : nil
         }
       end
+    end
+
+    def health_for(branch)
+      check = MainBranchHealthCheck.where(repository: repository, branch: branch).recent.first
+      return check.health if check
+      return repository.main_health if branch == repository.default_branch
+
+      "unknown"
     end
 
     def queue_length_for(track)
