@@ -75,7 +75,7 @@ This is exactly today's behavior expressed as delivery config, so a repository w
 
 ### Grade phase names are free-form here
 
-Grade phase names are free-form in both `grade.steps[].phases` and `delivery:`. Per-track `review` and `landing` values must each be declared by at least one grader; parsing fails rather than allowing an unknown custom phase to select an empty grader set. The `ci_failure`/`branch_health` phases and ref-movement action phase lists are reserved for their respective integrations.
+Grade phase names are free-form in both `grade.steps[].phases` and `delivery:`. Every explicitly configured per-track `review` or `landing` value must be declared by at least one grader; parsing fails rather than allowing any selected phase, including a built-in name such as `promotion`, to select an empty grader set. The `ci_failure`/`branch_health` phases and ref-movement action phase lists are reserved for their respective integrations.
 
 `promotion` is the phase `Workflows::Promotion`'s grader loop selects (see "Promotion workflow" below). A grader with no explicit `phases:` does **not** default into `promotion` (`SyrusYml::DEFAULT_GRADE_PHASES` stays `review`/`landing`/`ci`), so promotion remains an explicit opt-in. `Workflows::HotfixSync` reuses this same phase.
 

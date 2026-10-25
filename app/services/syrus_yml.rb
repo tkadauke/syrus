@@ -23,7 +23,6 @@ class SyrusYml
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
   GRADE_FAILURE_POLICIES = %w[strict allow_inherited].freeze
   DEFAULT_GRADE_FAILURE_POLICY = "strict".freeze
-  BUILT_IN_GRADE_PHASES = %w[review landing ci promotion].freeze
   # A grader with no explicit `phases:` opts into review/landing/ci by
   # default (unchanged, backward-compatible behavior) but never into
   # promotion — that phase only runs graders that explicitly ask for it
@@ -292,7 +291,7 @@ class SyrusYml
 
     grade = parse_grade(raw["grade"])
     raw_delivery = parse_delivery(raw["delivery"])
-    validate_delivery_grade_phases!(raw_delivery, grade)
+    validate_delivery_grade_phases!(raw["delivery"], raw_delivery, grade)
 
     Config.new(
       prepare: raw["prepare"],
@@ -992,13 +991,16 @@ class SyrusYml
     phases
   end
 
-  def validate_delivery_grade_phases!(delivery, grade)
-    return if delivery.nil?
+  def validate_delivery_grade_phases!(raw_delivery, delivery, grade)
+    return if raw_delivery.nil? || delivery.tracks.nil?
 
     declared_phases = Array(grade&.steps).flat_map(&:phases).to_set
-    delivery.tracks&.each_value do |track|
+    raw_delivery.fetch("tracks", {}).each do |track_name, raw_track|
+      raw_grade_phases = raw_track.fetch("grade_phases", {})
+      track = delivery.tracks.fetch(track_name.to_s)
       { "review" => track.review_grade_phase, "landing" => track.landing_grade_phase }.each do |kind, phase|
-        next if phase.in?(BUILT_IN_GRADE_PHASES) || declared_phases.include?(phase)
+        next unless raw_grade_phases.key?(kind)
+        next if declared_phases.include?(phase)
 
         raise ParseError,
               "delivery.tracks.#{track.name}.grade_phases.#{kind}: #{phase.inspect} is not declared by any grade.steps[].phases"
