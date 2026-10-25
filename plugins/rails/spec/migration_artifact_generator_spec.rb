@@ -33,7 +33,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
 
   def stub_git(migrations)
     allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(migrations.join("\n"))
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", *described_class::MIGRATION_PATHS, chdir: @workspace.to_s).and_return(migrations.join("\n"))
     allow(git).to receive(:run).with("show", "base-sha:db/schema.rb", chdir: @workspace.to_s).and_return(base_schema)
   end
 
@@ -60,6 +60,29 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
 
     result = generator(runner: runner).generate(paths.last)
     expect(result[:migration_name] || result["migration_name"]).to eq("20261022000002_add_account")
+  end
+
+  it "discovers root and nested migrations through a real Git pathspec" do
+    run_git = lambda do |*args|
+      _stdout, stderr, status = Open3.capture3("git", *args, chdir: @workspace.to_s)
+      raise stderr unless status.success?
+    end
+    run_git.call("init", "--quiet")
+    run_git.call("config", "user.email", "spec@example.com")
+    run_git.call("config", "user.name", "Spec")
+    run_git.call("add", ".")
+    run_git.call("commit", "--quiet", "-m", "base")
+    base = Open3.capture3("git", "rev-parse", "HEAD", chdir: @workspace.to_s).first.strip
+    root_path = "db/migrate/20261022000001_create_roots.rb"
+    nested_path = "plugins/agent_memory/db/migrate/20261022000002_create_memories.rb"
+    @workspace.join(root_path).write("class CreateRoots; end")
+    @workspace.join(nested_path).dirname.mkpath
+    @workspace.join(nested_path).write("class CreateMemories; end")
+    run_git.call("add", root_path, nested_path)
+    real_generator = described_class.new(workspace: @workspace, workflow: workflow, git: GitRunner.new)
+    root_application = real_generator.send(:applications).find { |application| application.root.empty? }
+
+    expect(real_generator.send(:added_migrations, base, root_application)).to eq([ root_path, nested_path ])
   end
 
   it "uses unique disposable SQLite database names for parallel generators" do
@@ -149,7 +172,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     @workspace.join("db/structure.sql").write("-- head\nCREATE TABLE widgets (id bigint);\n")
     @workspace.join("config/database.yml").write("default:\n  adapter: postgresql\n")
     allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", *described_class::MIGRATION_PATHS, chdir: @workspace.to_s).and_return(path)
     allow(git).to receive(:run).with("show", "base-sha:db/schema.rb", chdir: @workspace.to_s).and_raise(GitRunner::GitError.new([ "show" ], 128, "missing"))
     allow(git).to receive(:run).with("show", "base-sha:db/structure.sql", chdir: @workspace.to_s).and_return("-- base\nCREATE TABLE accounts (id bigint);\n")
 
@@ -165,7 +188,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     path = "db/migrate/20261022000001_create_widgets.rb"
     @workspace.join(path).write("class CreateWidgets; end")
     allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", *described_class::MIGRATION_PATHS, chdir: @workspace.to_s).and_return(path)
     allow(git).to receive(:run).with("show", "base-sha:db/schema.rb", chdir: @workspace.to_s).and_raise(GitRunner::GitError.new([ "show" ], 128, "missing"))
     allow(git).to receive(:run).with("show", "base-sha:db/structure.sql", chdir: @workspace.to_s).and_return("CREATE TABLE accounts (id integer);\n")
     output = { path => { migration_name: "CreateWidgets", status: "success", before: { tables: [] }, after: { tables: [] } } }
@@ -299,7 +322,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     path = "apps/shop/db/migrate/20261022000004_create_orders.rb"
     @workspace.join(path).write("class CreateOrders; end")
     allow(git).to receive(:run).with("merge-base", "HEAD", base_ref, chdir: @workspace.to_s).and_return("base-sha\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return(path)
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", *described_class::MIGRATION_PATHS, chdir: @workspace.to_s).and_return(path)
     expect(git).to receive(:run).with("show", "base-sha:apps/shop/db/schema.rb", chdir: @workspace.to_s).and_return(base_schema)
     output = { path => { migration_name: "CreateOrders", status: "success" } }
     executed = double(result: double(success?: true), stdout: "#{described_class::RESULT_PREFIX}#{JSON.generate(output)}\n", stderr: "")
@@ -324,7 +347,7 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     basename = "20261022000005_create_events.rb"
     first = "apps/first/db/migrate/#{basename}"
     second = "apps/second/db/migrate/#{basename}"
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", "**/db/migrate/*.rb", chdir: @workspace.to_s).and_return([ first, second ].join("\n"))
+    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=A", "base-sha", "--", *described_class::MIGRATION_PATHS, chdir: @workspace.to_s).and_return([ first, second ].join("\n"))
     app = generator.send(:resolve_application, first)
 
     expect(generator.send(:added_migrations, "base-sha", app)).to eq([ first ])

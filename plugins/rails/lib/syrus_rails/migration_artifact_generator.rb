@@ -11,6 +11,7 @@ module SyrusRails
     TIMEOUT = 120
     RESULT_PREFIX = "SYRUS_MIGRATION_ARTIFACT="
     LOCAL_HOSTS = %w[localhost 127.0.0.1 ::1].freeze
+    MIGRATION_PATHS = [ "db/migrate/*.rb", "**/db/migrate/*.rb" ].freeze
 
     class GenerationError < StandardError
       attr_reader :stage
@@ -52,7 +53,7 @@ module SyrusRails
     private
 
     def added_migrations(base, application)
-      paths = @git.run("diff", "--name-only", "--diff-filter=A", base, "--", "**/db/migrate/*.rb", chdir: @workspace.to_s)
+      paths = @git.run("diff", "--name-only", "--diff-filter=A", base, "--", *MIGRATION_PATHS, chdir: @workspace.to_s)
         .lines.map(&:strip).reject(&:empty?)
       nested_roots = applications.reject { |candidate| candidate == application }.map(&:root).reject(&:empty?)
       paths.select do |path|
