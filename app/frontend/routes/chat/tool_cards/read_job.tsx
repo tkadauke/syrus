@@ -1,4 +1,5 @@
 import { workerCapabilitiesText } from "../../../lib/workerCapabilities"
+import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
@@ -35,13 +36,13 @@ type JobCard = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Job read",
+  title: i18n.t("chat:tool_card_job_read"),
   attempted: (context) => {
     const id = stringFromInput(context, ["job_id"])
-    return id ? `Read JOB-${id}` : "Read Job"
+    return id ? i18n.t("chat:tool_card_job_attempt", { id }) : i18n.t("chat:tool_card_job_attempt_default")
   },
   retrySafety: "unknown",
-  recovery: "Check that the Job exists and is accessible, then retry."
+  recovery: i18n.t("chat:tool_card_job_recovery")
 }
 
 function detail(value: unknown) {
@@ -168,7 +169,9 @@ function collapsedSummary(context: ToolCardContext) {
   const job = parseJob(context)
   if (job) return `JOB-${job.id} (${job.state})`
   const requested = stringFromInput(context, ["job_id"])
-  return context.parsedResult == null && !context.resultBody ? `Reading ${requested ? `JOB-${requested}` : "Job"}…` : null
+  return context.parsedResult == null && !context.resultBody
+    ? i18n.t("chat:tool_card_job_reading", { job: requested ? `JOB-${requested}` : i18n.t("chat:tool_card_job") })
+    : null
 }
 
 function WorkflowSummary({ jobId, item, title }: { jobId: string; item: Workflow; title: string }) {
@@ -180,7 +183,7 @@ function WorkflowSummary({ jobId, item, title }: { jobId: string; item: Workflow
         <StatePill state={item.state} />
         {item.triggerKind ? <Badge>{item.triggerKind}</Badge> : null}
       </div>
-      {item.summary ? <MarkdownPreview maxLines={4} modalLabel={`WF-${item.id} summary`} text={item.summary} /> : null}
+      {item.summary ? <MarkdownPreview maxLines={4} modalLabel={i18n.t("chat:tool_card_workflow_summary", { id: item.id })} text={item.summary} /> : null}
     </div>
   )
 }
@@ -188,7 +191,7 @@ function WorkflowSummary({ jobId, item, title }: { jobId: string; item: Workflow
 function renderExpanded(context: ToolCardContext) {
   if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
   const job = parseJob(context)
-  if (!job) return context.parsedResult == null && !context.resultBody ? <EmptyState>Waiting for Job details.</EmptyState> : null
+  if (!job) return context.parsedResult == null && !context.resultBody ? <EmptyState>{i18n.t("chat:tool_card_job_waiting")}</EmptyState> : null
   const repoUrl = job.repository ? `https://github.com/${job.repository.split("/").map(encodeURIComponent).join("/")}` : null
   const prUrl = job.prNumber && repoUrl ? `${repoUrl}/pull/${encodeURIComponent(job.prNumber)}` : null
   const transcriptText = job.transcript ? [job.transcript.head, job.transcript.tail].filter(Boolean).join(job.transcript.truncated ? "\n\n…\n\n" : "") : ""
@@ -197,14 +200,14 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference id={job.id} kind="job" />
         <StatePill state={job.state} />
-        {job.priority ? <Badge>{job.priority} priority</Badge> : null}
+        {job.priority ? <Badge>{i18n.t("chat:tool_card_priority", { priority: job.priority })}</Badge> : null}
         {job.provider ? <Badge>{job.provider}</Badge> : null}
       </div>
       <div className="break-words text-sm font-medium text-text-primary">{job.title}</div>
       <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {job.repository ? (
           <div>
-            <SectionLabel>Repository</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_repository")}</SectionLabel>
             <EntityReference href={repoUrl} kind="repository" repositorySlug={job.repository} />
           </div>
         ) : null}
@@ -214,44 +217,55 @@ function renderExpanded(context: ToolCardContext) {
             <EntityReference id={job.prNumber} kind="pull_request" prUrl={prUrl} />
           </div>
         ) : null}
-        {job.branch ? <Row label="Branch" value={job.branch} wrap /> : null}
-        {job.closureReason ? <Row label="Closure reason" value={job.closureReason} /> : null}
-        {job.landedSha ? <Row label="Landed SHA" value={job.landedSha} wrap /> : null}
-        {job.commitsBehind ? <Row label="Commits behind base" value={job.commitsBehind} /> : null}
-        {job.execution ? <Row label="Planned execution" value={job.execution} /> : null}
+        {job.branch ? <Row label={i18n.t("chat:tool_card_branch")} value={job.branch} wrap /> : null}
+        {job.closureReason ? <Row label={i18n.t("chat:tool_card_closure_reason")} value={job.closureReason} /> : null}
+        {job.landedSha ? <Row label={i18n.t("chat:tool_card_landed_sha")} value={job.landedSha} wrap /> : null}
+        {job.commitsBehind ? <Row label={i18n.t("chat:tool_card_commits_behind")} value={job.commitsBehind} /> : null}
+        {job.execution ? <Row label={i18n.t("chat:tool_card_planned_execution")} value={job.execution} /> : null}
         {job.goalChatId ? (
           <div>
-            <SectionLabel>Goal provenance</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_goal_provenance")}</SectionLabel>
             <EntityReference id={job.goalChatId} kind="chat" />
           </div>
         ) : null}
       </dl>
-      {job.goalPrompt ? <MarkdownPreview maxLines={3} text={job.goalPrompt} title="Goal prompt" /> : null}
-      {job.latestWorkflow ? <WorkflowSummary jobId={job.id} item={job.latestWorkflow} title="Latest workflow" /> : <EmptyState>No Workflows found.</EmptyState>}
+      {job.goalPrompt ? <MarkdownPreview maxLines={3} text={job.goalPrompt} title={i18n.t("chat:tool_card_goal_prompt")} /> : null}
+      {job.latestWorkflow ? (
+        <WorkflowSummary jobId={job.id} item={job.latestWorkflow} title={i18n.t("chat:tool_card_latest_workflow")} />
+      ) : (
+        <EmptyState>{i18n.t("chat:tool_card_no_workflows")}</EmptyState>
+      )}
       {job.workflows.length ? (
         <div>
-          <SectionLabel>Workflow history ({job.workflowCount || job.workflows.length})</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_workflow_history_count", { count: Number(job.workflowCount || job.workflows.length) })}</SectionLabel>
           <div className="mt-1 space-y-2">
             {job.workflows.map((item) => (
-              <WorkflowSummary jobId={job.id} item={item} key={item.id} title={`WF-${item.id}`} />
+              <WorkflowSummary jobId={job.id} item={item} key={item.id} title={i18n.t("chat:tool_card_workflow_id", { id: item.id })} />
             ))}
           </div>
         </div>
       ) : null}
       {job.transcript ? (
         <div>
-          <MarkdownPreview maxLines={6} modalLabel="Workflow transcript" text={transcriptText} title="Transcript" />
+          <MarkdownPreview
+            maxLines={6}
+            modalLabel={i18n.t("chat:tool_card_workflow_transcript")}
+            text={transcriptText}
+            title={i18n.t("chat:tool_card_transcript")}
+          />
           {job.transcript.totalChunks ? (
             <div className="mt-1 text-2xs text-text-muted">
-              {job.transcript.sampledChunks || job.transcript.totalChunks} of {job.transcript.totalChunks} chunks shown
-              {job.transcript.truncated ? " · truncated" : ""}
+              {i18n.t(job.transcript.truncated ? "chat:tool_card_chunks_shown_truncated" : "chat:tool_card_chunks_shown", {
+                shown: job.transcript.sampledChunks || job.transcript.totalChunks,
+                total: job.transcript.totalChunks
+              })}
             </div>
           ) : null}
         </div>
       ) : null}
       {job.dependencies.length ? (
         <div>
-          <SectionLabel>Dependencies</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_dependencies")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
             {job.dependencies.map((dependency) => (
               <span
@@ -272,7 +286,7 @@ function renderExpanded(context: ToolCardContext) {
       ) : null}
       {job.stages.length ? (
         <div>
-          <SectionLabel>Deployment stage</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_deployment_stage")}</SectionLabel>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {job.stages.map((stage, index) => (
               <span className="flex items-center gap-1" key={stage.name}>
@@ -287,9 +301,9 @@ function renderExpanded(context: ToolCardContext) {
           </div>
         </div>
       ) : null}
-      {job.approvalEvidence ? <Row label="Approval evidence" value={job.approvalEvidence} /> : null}
-      {job.invalidationEvidence ? <Row label="Invalidation evidence" value={job.invalidationEvidence} /> : null}
-      {job.landingOverride ? <Row label="Landing override requested" value={job.landingOverride} /> : null}
+      {job.approvalEvidence ? <Row label={i18n.t("chat:tool_card_approval_evidence")} value={job.approvalEvidence} /> : null}
+      {job.invalidationEvidence ? <Row label={i18n.t("chat:tool_card_invalidation_evidence")} value={job.invalidationEvidence} /> : null}
+      {job.landingOverride ? <Row label={i18n.t("chat:tool_card_landing_override")} value={job.landingOverride} /> : null}
     </CardShell>
   )
 }
@@ -300,7 +314,7 @@ export default readJobToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "complete_job",
-    label: "Job with workflow, transcript, and audit details",
+    label: i18n.t("chat:tool_card_job_example_details"),
     input: { job_id: 71 },
     parsedResult: {
       job: {
@@ -347,14 +361,14 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "not_found",
-    label: "Job not found",
+    label: i18n.t("chat:tool_card_job_example_not_found"),
     input: { job_id: 999999 },
     resultError: true,
     parsedResult: { error: "Job not found" }
   },
   {
     id: "missing_input",
-    label: "Missing input while loading",
+    label: i18n.t("chat:tool_card_job_example_loading"),
     input: {},
     resultBody: "",
     parsedResult: null

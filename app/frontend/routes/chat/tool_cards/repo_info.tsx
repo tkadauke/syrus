@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { isPlainObject } from "@app/toolCardParsing"
 import { Badge, CardShell, Disclosure, EmptyState, EntityReference, displayValue, Row } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
@@ -22,13 +23,13 @@ type RepoInfoResult = {
 }
 
 const failureConfig: ToolFailureConfig = {
-  title: "Repository info",
+  title: i18n.t("chat:tool_card_repository_info"),
   attempted: (context) => {
     const slug = repositorySlug(context) ?? stringFromInput(context, ["slug", "repository", "repository_slug"])
-    return slug ? `Read repository info for ${slug}` : "Read repository info"
+    return slug ? i18n.t("chat:tool_card_repository_info_attempt", { slug }) : i18n.t("chat:tool_card_repository_info_attempt_default")
   },
   retrySafety: "safe",
-  recovery: "Retry after repository access or GitHub availability recovers."
+  recovery: i18n.t("chat:tool_card_repository_info_recovery")
 }
 
 function repositorySlug(context: ToolCardContext): string | null {
@@ -107,7 +108,7 @@ function collapsedSummary(context: ToolCardContext) {
 
   const result = parseResult(context)
   if (!result) return null
-  return result.defaultBranch ? `${result.slug} (default: ${result.defaultBranch})` : result.slug
+  return result.defaultBranch ? i18n.t("chat:tool_card_repository_info_summary", { slug: result.slug, branch: result.defaultBranch }) : result.slug
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -120,14 +121,14 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference kind="repository" repositoryId={result.id} repositorySlug={result.slug} />
-        {result.triggerLabel ? <Badge>label: {result.triggerLabel}</Badge> : null}
+        {result.triggerLabel ? <Badge>{i18n.t("chat:tool_card_label", { label: result.triggerLabel })}</Badge> : null}
         {result.agentProvider ? <Badge>{result.agentProvider}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        {result.id ? <Row label="Repository ID" value={result.id} /> : null}
+        {result.id ? <Row label={i18n.t("chat:tool_card_repository_id")} value={result.id} /> : null}
         {result.defaultBranch ? (
           <div className="min-w-0">
-            <div className="text-2xs font-semibold uppercase text-text-muted">Default branch</div>
+            <div className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:tool_card_default_branch")}</div>
             <EntityReference
               href={githubPath(result, "tree", result.defaultBranch)}
               id={result.defaultBranch}
@@ -143,7 +144,7 @@ function renderExpanded(context: ToolCardContext) {
         </div>
       </dl>
       {result.commits.length > 0 ? (
-        <Disclosure label={`${result.commits.length} recent ${result.commits.length === 1 ? "commit" : "commits"}`}>
+        <Disclosure label={i18n.t("chat:tool_card_recent_commit_count", { count: result.commits.length })}>
           <ul className="space-y-1">
             {result.commits.map((commit) => (
               <li className="flex min-w-0 flex-wrap items-baseline gap-x-2" key={commit.sha}>
@@ -161,10 +162,10 @@ function renderExpanded(context: ToolCardContext) {
           </ul>
         </Disclosure>
       ) : (
-        <EmptyState>No recent commits found.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_no_recent_commits")}</EmptyState>
       )}
       {result.branches.length > 0 ? (
-        <Disclosure label={`${result.branches.length} ${result.branches.length === 1 ? "branch" : "branches"}`}>
+        <Disclosure label={i18n.t("chat:tool_card_branch_count", { count: result.branches.length })}>
           <ul className="space-y-1">
             {result.branches.map((branch) => (
               <li className="flex min-w-0 flex-wrap items-center gap-x-2" key={branch.name}>
@@ -184,7 +185,7 @@ function renderExpanded(context: ToolCardContext) {
           </ul>
         </Disclosure>
       ) : (
-        <EmptyState>No branches found.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_no_branches")}</EmptyState>
       )}
     </CardShell>
   )
@@ -201,7 +202,7 @@ export default repoInfoToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "repository_activity",
-    label: "Repository activity",
+    label: i18n.t("chat:tool_card_repository_activity"),
     parsedResult: {
       repository: {
         id: 1,
@@ -217,12 +218,12 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "empty_activity",
-    label: "Repository with no activity",
+    label: i18n.t("chat:tool_card_repository_no_activity"),
     parsedResult: { repository: { id: 1, slug: "acme/empty", default_branch: "main", recent_commits: [], branches: [] } }
   },
   {
     id: "repository_error",
-    label: "Repository error",
+    label: i18n.t("chat:tool_card_repository_error"),
     resultError: true,
     parsedResult: { repository: { slug: "acme/private" }, error: "GitHub access is unavailable" }
   }

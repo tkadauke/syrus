@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CapabilityBadges, CardShell, displayValue, durationLabel, EmptyState, EntityReference, StatePill } from "../toolCardUi"
@@ -57,7 +58,7 @@ function parseCard(context: ToolCardContext): WorkflowCard {
   const jobId = resultJobId ?? displayValue(context.input?.job_id)
 
   if (context.resultError) {
-    return { kind: "error", jobId, message: displayValue(context.resultBody) ?? "Could not list Job workflows." }
+    return { kind: "error", jobId, message: displayValue(context.resultBody) ?? i18n.t("chat:tool_card_job_workflows_error") }
   }
   if (!isPlainObject(parsed) || !Array.isArray(parsed.workflows)) return { kind: "malformed", jobId }
 
@@ -72,14 +73,14 @@ function parseCard(context: ToolCardContext): WorkflowCard {
 }
 
 function jobLabel(jobId: string | null) {
-  return jobId ? `JOB-${jobId}` : "Job"
+  return jobId ? `JOB-${jobId}` : i18n.t("chat:tool_card_job")
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
-  if (card.kind === "error") return `${jobLabel(card.jobId)} workflows failed`
+  if (card.kind === "error") return i18n.t("chat:tool_card_job_workflows_failed", { job: jobLabel(card.jobId) })
   if (card.kind === "malformed") return null
-  return `${jobLabel(card.jobId)} · ${card.rows.length} Workflow${card.rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_job_workflows_summary", { job: jobLabel(card.jobId), count: card.rows.length })
 }
 
 function Timestamp({ value }: { value: string | null }) {
@@ -114,8 +115,8 @@ function PlannedExecution({ value }: { value: Record<string, unknown> | null }) 
 function JobHeader({ jobId }: { jobId: string | null }) {
   return (
     <div className="flex min-h-6 items-center gap-2 font-medium text-text-primary">
-      <span>Workflows for</span>
-      {jobId ? <EntityReference id={jobId} kind="job" /> : <span>Job</span>}
+      <span>{i18n.t("chat:tool_card_workflows_for")}</span>
+      {jobId ? <EntityReference id={jobId} kind="job" /> : <span>{i18n.t("chat:tool_card_job")}</span>}
     </div>
   )
 }
@@ -139,10 +140,22 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <JobHeader jobId={card.jobId} />
       {card.rows.length === 0 ? (
-        <EmptyState>No Workflows found.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_no_workflows")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["Workflow", "Trigger", "State", "Planned execution", "Summary", "Steps / runs", "Created", "Started", "Finished / duration"]} />
+          <THead
+            columns={[
+              i18n.t("chat:tool_card_workflow"),
+              i18n.t("chat:tool_card_trigger"),
+              i18n.t("chat:tool_card_state"),
+              i18n.t("chat:tool_card_planned_execution"),
+              i18n.t("chat:tool_card_summary_label"),
+              i18n.t("chat:tool_card_steps_runs"),
+              i18n.t("chat:tool_card_created"),
+              i18n.t("chat:tool_card_started"),
+              i18n.t("chat:tool_card_finished_duration")
+            ]}
+          />
           <TBody>
             {card.rows.map((row) => (
               <tr key={row.key}>
@@ -157,7 +170,11 @@ function renderExpanded(context: ToolCardContext) {
                   <PlannedExecution value={row.plannedExecution} />
                 </Td>
                 <Td maxWidth wrap>
-                  {row.summary ? <MarkdownPreview maxLines={3} modalLabel={`Workflow ${row.id} summary`} text={row.summary} /> : "—"}
+                  {row.summary ? (
+                    <MarkdownPreview maxLines={3} modalLabel={i18n.t("chat:tool_card_list_workflow_summary", { id: row.id })} text={row.summary} />
+                  ) : (
+                    "—"
+                  )}
                 </Td>
                 <Td>
                   {row.stepCount ?? "—"} / {row.runCount ?? "—"}
@@ -192,7 +209,7 @@ export default listJobWorkflowsToolCard
 export const examples = [
   {
     id: "workflow_history",
-    label: "Workflow history",
+    label: i18n.t("chat:tool_card_workflow_history"),
     input: { job_id: 42 },
     parsedResult: {
       job_id: 42,
@@ -212,6 +229,6 @@ export const examples = [
       ]
     }
   },
-  { id: "no_workflows", label: "No workflows", input: { job_id: 42 }, parsedResult: { job_id: 42, workflows: [] } },
-  { id: "error", label: "Error", input: { job_id: 42 }, resultBody: "Job not found", resultError: true }
+  { id: "no_workflows", label: i18n.t("chat:tool_card_no_workflows_example"), input: { job_id: 42 }, parsedResult: { job_id: 42, workflows: [] } },
+  { id: "error", label: i18n.t("chat:tool_card_error"), input: { job_id: 42 }, resultBody: "Job not found", resultError: true }
 ]

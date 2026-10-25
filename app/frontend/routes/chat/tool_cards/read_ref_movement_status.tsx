@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { Badge, CardShell, displayValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { parseRefMovementCore, refMovementCollapsedSummary, RefMovementCoreFields } from "../refMovementToolCard"
 
@@ -60,7 +61,7 @@ function renderExpanded(context: ToolCardContext) {
       <RefMovementCoreFields core={result.core} />
       {result.job ? (
         <div>
-          <SectionLabel>Job</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_job")}</SectionLabel>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <span className="font-mono">{result.job.slug}</span>
             <StatePill state={result.job.state} />
@@ -69,9 +70,9 @@ function renderExpanded(context: ToolCardContext) {
       ) : null}
       {result.workflow ? (
         <div>
-          <SectionLabel>Workflow</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_workflow")}</SectionLabel>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
-            <span className="font-mono">WORKFLOW-{result.workflow.id}</span>
+            <span className="font-mono">{i18n.t("chat:tool_card_protocol_workflow_id", { id: result.workflow.id })}</span>
             <StatePill state={result.workflow.state} />
             {result.workflow.triggerKind ? <Badge>{result.workflow.triggerKind}</Badge> : null}
           </div>
@@ -79,9 +80,9 @@ function renderExpanded(context: ToolCardContext) {
       ) : null}
       {result.prLink ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          <Row label="PR" value={`#${result.prLink.prNumber}`} />
-          {result.prLink.targetRepository ? <Row label="Target repository" value={result.prLink.targetRepository} /> : null}
-          {result.prLink.targetRef ? <Row label="Target ref" value={result.prLink.targetRef} /> : null}
+          <Row label={i18n.t("chat:tool_card_pr")} value={`#${result.prLink.prNumber}`} />
+          {result.prLink.targetRepository ? <Row label={i18n.t("chat:tool_card_target_repository")} value={result.prLink.targetRepository} /> : null}
+          {result.prLink.targetRef ? <Row label={i18n.t("chat:tool_card_target_ref")} value={result.prLink.targetRef} /> : null}
         </dl>
       ) : null}
     </CardShell>
