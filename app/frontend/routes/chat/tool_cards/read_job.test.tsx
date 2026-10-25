@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import readJobToolCard from "./read_job"
 import { normalizedToolCardParsedResult } from "../toolRendering"
 
@@ -91,6 +92,40 @@ describe("read_job tool card", () => {
     expect(screen.getByText("2026-08-10T09:00:00Z · Admin")).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole("button", { name: "Show more" })[0])
     expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
+
+  it("renders German catalog copy, headings, priority, states, and trigger labels", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const parsedResult = {
+        job: {
+          id: 4048,
+          issue_title: "Raw Job title",
+          state: "closed",
+          priority: "medium",
+          closure_reason: "implemented",
+          landed_sha: "abc123",
+          commits_behind_base: 3,
+          planned_execution: { project: "repo", target_label: "//:test" },
+          goal_provenance: { chat_goal_id: 55, prompt_snapshot: { prompt: "Raw goal prompt" } }
+        },
+        latest_workflow: { id: 900, state: "succeeded", trigger_kind: "initial" }
+      }
+      render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+      expect(screen.getByText("geschlossen")).toBeInTheDocument()
+      expect(screen.getByText("Priorität: mittel")).toBeInTheDocument()
+      expect(screen.getByText("Schließungsgrund")).toBeInTheDocument()
+      expect(screen.getByText("Gelandete SHA")).toBeInTheDocument()
+      expect(screen.getByText("Commits hinter der Basis")).toBeInTheDocument()
+      expect(screen.getByText("Geplante Ausführung")).toBeInTheDocument()
+      expect(screen.getByText("Zielherkunft")).toBeInTheDocument()
+      expect(screen.getByText("Ziel-Prompt")).toBeInTheDocument()
+      expect(screen.getByText("Neuester Workflow")).toBeInTheDocument()
+      expect(screen.getByText("erfolgreich")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("renders dependency badges, distinguishing pending dependencies", () => {
