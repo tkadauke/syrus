@@ -481,7 +481,22 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(german_copy).not_to match(/\b(?:Sie|Ihnen|Ihr\p{L}*)\b/)
     expect(german_copy).not_to match(/\b(?:Runs?|Repositories|Ausführung(?:en)?|Arbeitsabl(?:auf|äufe))\b/)
     expect(dig_key(locales.dig("de", "admin"), "overview.active_runs")).to eq("Aktive Läufe")
+    expect(dig_key(locales.dig("de", "admin"), "overview.resource_samples")).to eq("{{count}} Stichproben")
+    expect(dig_key(locales.dig("de", "admin"), "users.smart_folders")).to eq("Intelligente Ordner")
+    expect(dig_key(locales.dig("de", "admin"), "users.matching")).to eq("{{count}} Treffer")
     expect(dig_key(locales.dig("de", "admin"), "github_app.step_1")).to start_with("Installiere")
+
+    expected_repository_counts = {
+      "en" => [ "{{count}} PAT-only repository", "{{count}} PAT-only repositories" ],
+      "de" => [ "{{count}} reines PAT-Repository", "{{count}} reine PAT-Repositorys" ],
+      "la" => [ "{{count}} receptaculum PAT-tantum", "{{count}} receptacula PAT-tantum" ]
+    }
+    expected_repository_counts.each do |locale, (one, other)|
+      installations = locales.dig(locale, "admin", "installations")
+      expect(installations).not_to have_key("pat_repos_count")
+      expect(installations.fetch("pat_repos_count_one")).to eq(one)
+      expect(installations.fetch("pat_repos_count_other")).to eq(other)
+    end
   end
 
   it "preserves placeholders, plural pairs, and approved terminology in the reviewed settings copy" do
