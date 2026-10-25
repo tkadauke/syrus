@@ -10,7 +10,7 @@ module Mcp::Tools
       normalized_id = Integer(job_id, exception: false)
       return [ nil, Mcp::Tools.invalid("job_id must be an integer") ] unless normalized_id
 
-      scope = context.user.admin? ? Job.all : Job.accessible_to(context.user)
+      scope = context.user.admin? ? Job.visible_to(context.user, scope: Job.all) : Job.visible_to(context.user)
       job = scope.find_by(id: normalized_id)
       return [ nil, Mcp::Tools.invalid("job not found: #{normalized_id}") ] unless job
 

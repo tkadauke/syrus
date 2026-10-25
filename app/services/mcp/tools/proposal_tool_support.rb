@@ -81,7 +81,7 @@ module Mcp::Tools
     end
 
     def accessible_jobs_for(chat_session)
-      Job.accessible_to(chat_session.user)
+      Job.visible_to(chat_session.user)
     end
 
     def accessible_epics_for(chat_session)

@@ -6,7 +6,7 @@ class JobChannel < ApplicationCable::Channel
   end
 
   def subscribed
-    job = find_job_by_ref(Job.accessible_to(current_user), params[:job_id])
+    job = find_job_by_ref(Job.visible_to(current_user), params[:job_id])
 
     stream_from self.class.stream_name(job.id)
   rescue ActiveRecord::RecordNotFound

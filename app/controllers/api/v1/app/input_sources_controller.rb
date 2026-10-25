@@ -82,7 +82,7 @@ module Api
             polling_enabled: source.polling_enabled?,
             values: values,
             last_poll_started_at: source.repository.last_poll_started_at&.iso8601,
-            issues_ingested_count: source.respond_to?(:issues_ingested_count) ? source.issues_ingested_count : Job.where(input_source_id: source.id).count
+            issues_ingested_count: source.respond_to?(:issues_ingested_count) ? source.issues_ingested_count : Job.visible_to(Current.user).where(input_source_id: source.id).count
           }
         end
 

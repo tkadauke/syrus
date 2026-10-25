@@ -22,13 +22,14 @@ module TestInsights
       end
 
       def job_for(context, job_id:)
-        scope = context.user.admin? ? Job.all : Job.accessible_to(context.user)
+        scope = context.user.admin? ? Job.visible_to(context.user, scope: Job.all) : Job.visible_to(context.user)
         scope = scope.where(repository_id: context.repository.id) if context.run? && context.repository
         scope.find(normalize_numeric_ref(job_id, prefix: "job"))
       end
 
       def run_for(context, run_id:)
-        scope = context.user.admin? ? Run.joins(:job) : Run.joins(job: :repository).merge(Job.accessible_to(context.user))
+        visible_jobs = context.user.admin? ? Job.visible_to(context.user, scope: Job.all) : Job.visible_to(context.user)
+        scope = Run.joins(job: :repository).merge(visible_jobs)
         scope = scope.where(jobs: { repository_id: context.repository.id }) if context.run? && context.repository
         scope.find(normalize_numeric_ref(run_id, prefix: "run"))
       end

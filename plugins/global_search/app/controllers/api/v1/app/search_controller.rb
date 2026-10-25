@@ -346,7 +346,7 @@ module Api
           exact_slug = query.to_s.strip
           return [] if job_ids.empty? && exact_slug.blank?
 
-          jobs = Job.accessible_to(Current.user)
+          jobs = Job.visible_to(Current.user)
           jobs.where(id: job_ids)
             .or(jobs.where(slug: job_ids.map { |id| "JOB-#{id}" }))
             .or(jobs.where(slug: exact_slug))
@@ -468,7 +468,7 @@ module Api
         end
 
         def jobs_by_id
-          @jobs_by_id ||= Job.accessible_to(Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
+          @jobs_by_id ||= Job.visible_to(Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
         end
 
         def epics_by_id
@@ -560,7 +560,7 @@ module Api
         class JobSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:job_search_rows, query, limit)
           def row_id_key = :job_id
-          def filtered_scope(ids:, tree:, user:) = Jobs::Filter.from_tree(tree, user: user).apply(Job.accessible_to(user).where(id: ids))
+          def filtered_scope(ids:, tree:, user:) = Jobs::Filter.from_tree(tree, user: user).apply(Job.visible_to(user).where(id: ids))
           def result_json(row:, user:) = controller.send(:job_result_json, row)
         end
 

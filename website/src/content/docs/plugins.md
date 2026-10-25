@@ -182,6 +182,18 @@ surface.
 
 ## Authoring Guidelines
 
+Plugins that create Jobs with output intended for only some members of a
+shared repository can register a `job_visibility_restriction`. The provider
+names one Job `origin` and returns the origin IDs visible to the current user.
+Syrus combines that restriction with normal repository access everywhere Jobs
+are listed, searched, counted, or opened. Unrestricted origins behave exactly
+as before, while instance admins retain their existing global access.
+
+User-facing plugin code must use `Job.visible_to(user)` too, including plugin
+pages, APIs, search sources, and MCP tools. Direct `Job.where(origin: ...)`
+queries are reserved for the owning plugin's background lifecycle work. Full
+provider signatures and an example are in the in-app Plugins documentation.
+
 Keep plugin boundaries crisp:
 
 - put plugin-specific tests with the plugin,

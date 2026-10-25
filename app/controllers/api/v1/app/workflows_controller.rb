@@ -63,9 +63,9 @@ module Api
 
         def find_workflow
           readable_jobs = if Current.user.admin?
-            Job.all
+            Job.visible_to(Current.user, scope: Job.all)
           else
-            Job.where(user: Current.user).or(Job.accessible_to(Current.user))
+            Job.visible_to(Current.user, scope: Job.where(user: Current.user).or(Job.accessible_to(Current.user)))
           end
           workflow_scope = Workflow.joins(:job).merge(restrict_invocation_relation(readable_jobs))
           restrict_invocation_relation(workflow_scope).find(params[:workflow_id])

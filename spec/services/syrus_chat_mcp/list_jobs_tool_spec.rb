@@ -99,4 +99,15 @@ RSpec.describe Mcp::Tools::ListJobsTool do
     expect(response[:result][:isError]).to be_falsey
     expect(jobs.map { |j| j[:id] }).to include(other_job.id)
   end
+
+  it "omits Jobs hidden by an origin visibility restriction" do
+    visible = Factories.job_record(repository: repository, issue_number: 601)
+    Factories.job_record(repository: repository, issue_number: 602, origin: "private_tasks", origin_id: "7")
+
+    with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+      jobs = response_payload(call_tool).fetch(:jobs)
+
+      expect(jobs.map { |job| job[:id] }).to eq([ visible.id ])
+    end
+  end
 end

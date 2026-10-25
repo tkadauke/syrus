@@ -99,4 +99,19 @@ RSpec.describe Syrus::PluginRegistry do
       }.to raise_error(Syrus::PluginRegistry::RegistrationError, /must include Syrus::Plugin::DiffReviewAnnotationProvider/)
     end
   end
+
+  describe "Job visibility restriction validation" do
+    it "requires providers to include the restriction interface" do
+      expect {
+        described_class.register(
+          name: "bad_job_visibility",
+          version: "1.0.0",
+          provides: { job_visibility_restriction: Class.new }
+        )
+      }.to raise_error(
+        Syrus::PluginRegistry::RegistrationError,
+        /must include Syrus::Plugin::JobVisibilityRestriction/
+      )
+    end
+  end
 end
