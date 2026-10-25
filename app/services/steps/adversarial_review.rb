@@ -12,6 +12,8 @@ module Steps
     MISSING_TOOL_CALL_PROBLEM_CODE = "missing_required_tool_call".freeze
 
     def call
+      return if materialize_review_panel!
+
       workspace.setup
       run.update!(prompt: reviewer_prompt) if run.prompt.blank?
 
@@ -61,19 +63,14 @@ module Steps
     def parent_session_id
       return nil if agent_resume_disabled?
 
-      explicit_parent_session_id ||
-        workflow.steps
-          .where(kind: review_step_kind, loop_id: step.loop_id)
-          .where("iteration < ?", step.iteration)
-          .order(iteration: :desc)
-          .first&.latest_run&.provider_session&.session_id
+      explicit_parent_session_id || prior_member_session_id
     end
 
     def reviewer_prompt
       Prompts::AdversarialReview.new(
         issue: review_issue,
         diff: latest_agentic_diff,
-        prior_findings: review_iterations,
+        prior_findings: review_iterations.reject { |entry| entry["aggregate"] },
         base_ref: review_base_ref,
         workflow_kind: workflow.trigger_kind,
         feedback_context: feedback_context_text,
@@ -171,6 +168,65 @@ module Steps
 
     def review_iterations
       Array(workflow.artifact("adversarial_review_iterations"))
+    end
+
+    def prior_member_session_id
+      prior = workflow.steps.where(kind: review_step_kind, loop_id: step.loop_id)
+        .where("iteration < ?", step.iteration).order(iteration: :desc, position: :desc)
+      if step.details.to_h["panel_member"]
+        prior = prior.detect do |candidate|
+          details = candidate.details.to_h
+          details["panel_member"] && details["provider"] == step.details["provider"] && details["panel_id"] == step.details["panel_id"]
+        end
+        return prior&.latest_run&.provider_session&.session_id
+      end
+      prior.first&.latest_run&.provider_session&.session_id
+    end
+
+    def materialize_review_panel!
+      return false if step.details.to_h["panel_member"]
+      return true if step.details.to_h["panel_fanout"]
+
+      decision = ProviderRouting::AvailabilitySelector.panel(
+        job: job, task_key: review_step_kind,
+        trigger: StepDispatcher.provider_invocation_for(step),
+        workflow_trigger_kind: workflow.trigger_kind
+      )
+      return false unless (decision && decision.available_members.size > 1) || decision&.failed? || (decision&.dropped? && decision.available_members.size < decision.min_members)
+      raise StepFailed, "review panel has unavailable members and policy is fail" if decision.failed?
+
+      panel_id = "routing-rule-#{decision.routing_resolution.matched_rule.id}"
+      continuation = step.next_step
+      members = decision.available_members
+      Step.transaction do
+        workflow.steps.where("position >= ?", step.position + 1).update_all([ "position = position + ?", members.size + 1 ])
+        member_steps = members.each_with_index.map do |member, index|
+          Step.create!(
+            workflow: workflow, kind: review_step_kind, position: step.position + index + 1,
+            iteration: step.iteration, loop_id: step.loop_id,
+            details: {
+              "panel_member" => true, "panel_id" => panel_id,
+              "provider" => member["provider"], "model" => member["model"], "effort_level" => member["effort_level"]
+            }.compact
+          )
+        end
+        collect = Step.create!(
+          workflow: workflow, kind: "review_panel_collect", position: step.position + members.size + 1,
+          iteration: step.iteration, loop_id: step.loop_id,
+          placement_policy: Step::Kind.fetch("review_panel_collect").placement_policy_for(repository),
+          details: {
+            "panel_review_kind" => review_step_kind, "panel_id" => panel_id,
+            "consensus" => decision.consensus, "min_members" => decision.min_members,
+            "dropped_members" => decision.unavailable_members,
+            "required" => review_config&.required == true
+          }
+        )
+        chain = [ step, *member_steps, collect ]
+        chain.each_cons(2) { |left, right| left.update!(next_step_id: right.id) }
+        collect.update!(next_step_id: continuation&.id)
+        step.update!(details: step.details.to_h.merge("panel_fanout" => true, "panel_id" => panel_id))
+      end
+      true
     end
 
     # Repetition alone never earns a silent skip — only the specific

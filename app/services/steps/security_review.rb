@@ -12,7 +12,7 @@ module Steps
       Prompts::SecurityReview.new(
         issue: review_issue,
         diff: latest_agentic_diff,
-        prior_findings: review_iterations,
+        prior_findings: review_iterations.reject { |entry| entry["aggregate"] },
         base_ref: review_base_ref,
         workflow_kind: workflow.trigger_kind,
         feedback_context: feedback_context_text,

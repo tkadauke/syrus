@@ -897,6 +897,10 @@ or minimum-approval consensus. Each member uses the same availability checks as
 normal routing; the rule decides whether an unavailable member is dropped,
 holds admission, or fails panel admission, and a minimum-member guard prevents
 an undersized panel from producing a review decision.
+Panel members run serially with their configured provider, model, and effort.
+Syrus retains each attributed finding, then appends a consensus result that
+drives the existing review/repair loop; findings from an approving minority
+remain visible as non-blocking notes.
 A matching hold action
 stops first-match evaluation and leaves the workflow queued without launching a
 Run or treating the decision as provider failure. Holds are durable and retain

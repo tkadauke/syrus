@@ -649,7 +649,18 @@ module Steps
     end
 
     def needs_work_review_section(artifact_key, intro)
-      iterations = Array(workflow.artifact(artifact_key)).select { |entry| (entry["verdict"] || entry[:verdict]) == "needs_work" }
+      all_entries = Array(workflow.artifact(artifact_key))
+      approved_panel_iterations = all_entries.filter_map do |entry|
+        next unless entry["aggregate"] && entry["verdict"] == "approved"
+
+        [ entry["iteration"].to_i, entry["panel_id"] ]
+      end
+      iterations = all_entries.select do |entry|
+        next false unless (entry["verdict"] || entry[:verdict]) == "needs_work"
+        next true unless entry["panel_id"]
+
+        !approved_panel_iterations.include?([ entry["iteration"].to_i, entry["panel_id"] ])
+      end
       Prompts::ReviewFeedback.new(intro: intro, iterations: iterations).to_s
     end
 

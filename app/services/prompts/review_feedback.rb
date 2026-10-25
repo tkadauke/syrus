@@ -35,8 +35,10 @@ module Prompts
     def render_finding(finding)
       iteration = finding["iteration"] || finding[:iteration] || "unknown"
       critique = finding["critique"] || finding[:critique] || "(No critique provided.)"
+      provider = finding["provider"] || finding[:provider]
 
-      "Iteration #{iteration}:\n#{critique}"
+      attribution = provider.present? ? " (#{provider})" : ""
+      "Iteration #{iteration}#{attribution}:\n#{critique}"
     end
   end
 end
