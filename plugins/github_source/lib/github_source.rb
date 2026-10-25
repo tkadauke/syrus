@@ -1,3 +1,5 @@
+require "github_source/data_cleanup"
+
 module SyrusGithubSource
   extend Syrus::PluginApi
 
@@ -28,5 +30,9 @@ module SyrusGithubSource
         },
         ui_slots: { "github_source/UntaggedIssuesBanner" => "app/frontend/ui_slots/UntaggedIssuesBanner.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/github_source.json" ]
+
+    always do |scope|
+      GithubSource::DataCleanup.install_into(scope)
+    end
   end
 end

@@ -110,6 +110,12 @@ The tab's backing controller
 (`Api::V1::App::RepositoryIssuesController`) exposes list/comment/close/
 delegate (add the trigger label)/bulk actions — the same operations
 available from a Job's GitHub issue view, surfaced repository-wide.
+Repository polling persists the complete issue set locally, including labels
+and linked open pull requests. Listing, filtering, and sorting the tab read
+that cache without making GitHub requests; if a poll fails, the tab keeps the
+last synchronized rows and reports their stale/error status. Close, delegate,
+and bulk commands still execute against GitHub and update the affected cached
+rows after GitHub accepts the mutation.
 
 `GithubSource::AdminPages` contributes **GitHub API Usage**
 (`/admin/github_api_usage`, group `observability`, order `42`), backed by

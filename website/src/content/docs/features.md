@@ -1973,7 +1973,10 @@ Repository settings control trigger label, polling, default branch,
 provider override, prepare behavior, PR cost footer, auto-merge settings,
 and approval behavior. The repository issues panel can list GitHub issues
 and delegate work by adding the trigger label through the same credential
-path Syrus uses for polling.
+path Syrus uses for polling. Polling keeps a durable local issue index, so
+opening, filtering, and sorting the panel does not wait on GitHub. During a
+GitHub outage the panel continues to show its last synchronized data with a
+stale/error indicator, while mutations remain authoritative GitHub actions.
 
 GitHub issue ingestion is polling-based and runs about every five minutes by
 default. The issue body can declare Epics, attach child Jobs, and express
