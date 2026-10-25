@@ -14,6 +14,7 @@ import reconcileJobStateCard from "./tool_cards/reconcile_job_state"
 import reenqueueWorkCard from "./tool_cards/reenqueue_work"
 import retryFromCurrentPrBranchCard from "./tool_cards/retry_from_current_pr_branch"
 import retryJobCard from "./tool_cards/retry_job"
+import runVisualReviewCard from "./tool_cards/run_visual_review"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -241,6 +242,85 @@ describe("retry_job pending action card", () => {
   it("labels a recorded pending action whose input is missing", () => {
     render(<>{retryJobCard.renderExpanded(retryContext({ input: undefined }))}</>)
     expect(screen.getByText("Not provided")).toBeInTheDocument()
+  })
+})
+
+describe("run_visual_review pending action card", () => {
+  function visualReviewContext(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
+    return {
+      toolName: "run_visual_review",
+      input: { job_id: 4222 },
+      resultBody: "",
+      resultError: false,
+      parsedResult: standardPayload({ message: "Run a visual review pass for JOB-4222?" }),
+      ...overrides
+    }
+  }
+
+  it.each([
+    ["text content", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { content: [], structured_content: standardPayload() }]
+  ])("links the input Job from a normalizer-built %s envelope", (_label, envelope) => {
+    const cardContext = visualReviewContext({ parsedResult: normalizedToolCardParsedResult(envelope) })
+
+    render(<>{runVisualReviewCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("pending")).toBeInTheDocument()
+  })
+
+  it("labels a recorded pending action whose Job input is missing", () => {
+    render(<>{runVisualReviewCard.renderExpanded(visualReviewContext({ input: undefined }))}</>)
+
+    expect(screen.getByText("Not provided")).toBeInTheDocument()
+  })
+
+  it("renders production-shaped live workflow media as responsive previews", () => {
+    const livePendingAction = liveAction({
+      action: "run_visual_review",
+      execution_status: "applied",
+      outcome: {
+        workflow_id: 61270,
+        job_id: 4222,
+        media: [
+          {
+            type: "visual_review_screenshot_run_1_1",
+            title: "Desktop result",
+            image_url: "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_1",
+            content_type: "image/png"
+          },
+          {
+            type: "visual_review_screenshot_run_1_2",
+            title: "Mobile result",
+            image_url: "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_2",
+            content_type: "image/png"
+          }
+        ]
+      }
+    })
+
+    render(<>{runVisualReviewCard.renderExpanded(visualReviewContext({ livePendingAction }))}</>)
+
+    expect(screen.getByText("Review media")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open Desktop result" })).toHaveClass("w-full")
+    expect(screen.getByRole("img", { name: "Desktop result" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_1"
+    )
+    expect(screen.getByRole("img", { name: "Mobile result" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/61270/visual_artifact?type=visual_review_screenshot_run_1_2"
+    )
+    expect(screen.getByText("applied")).toBeInTheDocument()
+  })
+
+  it("keeps the attempted Job visible when the tool returns an error", () => {
+    const cardContext = visualReviewContext({ parsedResult: { error: "not_eligible", message: "Visual review is unavailable." }, resultError: true })
+
+    render(<>{runVisualReviewCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("Visual review is unavailable.")).toBeInTheDocument()
   })
 })
 

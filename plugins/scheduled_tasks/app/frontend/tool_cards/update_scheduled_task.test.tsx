@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import updateScheduledTaskToolCard from "./update_scheduled_task"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -63,6 +64,111 @@ describe("update_scheduled_task tool card", () => {
 
     expect(screen.getByText("Prompt")).toBeInTheDocument()
     expect(screen.getByText("Check main and repair it.")).toBeInTheDocument()
+  })
+
+  it("shows only supplied fields and compares them with an earlier task snapshot", () => {
+    const updated = { ...task, label: "Weekday health check", prompt: "Review **main** and JOB-42 at https://example.test/runbook." }
+    render(
+      <>
+        {updateScheduledTaskToolCard.renderExpanded(
+          context({
+            input: { scheduled_task_id: 12, name: "Weekday health check", prompt: updated.prompt },
+            parsedResult: { scheduled_task: updated },
+            priorCalls: [{ toolName: "read_scheduled_task", input: { scheduled_task_id: 12 }, parsedResult: { scheduled_task: task } }]
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Changed fields")).toBeInTheDocument()
+    expect(screen.getByText("Nightly main-branch health check → Weekday health check")).toBeInTheDocument()
+    expect(screen.queryByText("Fire at")).not.toBeInTheDocument()
+    expect(screen.getByText("main")).toBeInTheDocument()
+    expect(screen.getByText("Previous prompt")).toBeInTheDocument()
+    expect(screen.getByText("Check main and repair it.")).toBeInTheDocument()
+    expect(screen.getAllByTestId("markdown-preview-content").at(-1)).toHaveTextContent("JOB-42")
+    expect(screen.getByRole("link", { name: "https://example.test/runbook" })).toHaveAttribute("href", "https://example.test/runbook")
+  })
+
+  it("uses the most recent matching prior task snapshot", () => {
+    const updated = { ...task, label: "Current health check" }
+    render(
+      <>
+        {updateScheduledTaskToolCard.renderExpanded(
+          context({
+            input: { scheduled_task_id: 12, name: updated.label },
+            parsedResult: { scheduled_task: updated },
+            priorCalls: [
+              {
+                toolName: "read_scheduled_task",
+                input: { scheduled_task_id: 12 },
+                parsedResult: { scheduled_task: { ...task, label: "Oldest health check" } }
+              },
+              { toolName: "list_scheduled_tasks", input: {}, parsedResult: { scheduled_tasks: [{ ...task, label: "Latest health check" }] } }
+            ]
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Latest health check → Current health check")).toBeInTheDocument()
+    expect(screen.queryByText(/Oldest health check/)).not.toBeInTheDocument()
+  })
+
+  it("renders all update inputs and uses new values when no prior snapshot is available", () => {
+    const updated = { ...task, cron_expression: "30 5 * * 1-5", fire_at: "2026-10-25T08:30:00Z", prompt: "" }
+    render(
+      <>
+        {updateScheduledTaskToolCard.renderExpanded(
+          context({
+            input: {
+              scheduled_task_id: 12,
+              name: task.label,
+              prompt: "",
+              schedule_input: "Every weekday at 5am",
+              cron_expression: updated.cron_expression,
+              fire_at: updated.fire_at,
+              pr_pileup_policy: "replace"
+            },
+            parsedResult: { scheduled_task: updated }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Name")).toBeInTheDocument()
+    expect(screen.getAllByText("Schedule")).not.toHaveLength(0)
+    expect(screen.getByText("Cron expression")).toBeInTheDocument()
+    expect(screen.getAllByText("30 5 * * 1-5")).not.toHaveLength(0)
+    expect(screen.getByText("Fire at")).toBeInTheDocument()
+    expect(screen.getByText("Updated prompt")).toBeInTheDocument()
+    expect(screen.getByText("No prompt was provided.")).toBeInTheDocument()
+  })
+
+  it.each([
+    [{ error: { message: "Schedule could not be parsed." } }, "Schedule could not be parsed."],
+    [{ message: "Scheduled task was not found." }, "Scheduled task was not found."],
+    ["Repository write access is required.", "Repository write access is required."]
+  ])("renders a styled error card for %j", (parsedResult, message) => {
+    render(
+      <>
+        {updateScheduledTaskToolCard.renderExpanded(
+          context({ parsedResult, resultBody: typeof parsedResult === "string" ? parsedResult : "", resultError: true })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Scheduled task")).toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+  })
+
+  it("accepts normalized structured-content and text-block provider envelopes", () => {
+    const envelopes = [{ structured_content: { scheduled_task: task } }, { content: [{ type: "text", text: JSON.stringify({ scheduled_task: task }) }] }]
+
+    for (const envelope of envelopes) {
+      const parsedResult = normalizedToolCardParsedResult(envelope)
+      expect(updateScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Updated Nightly main-branch health check (#12)")
+    }
   })
 
   it("falls back to null for a malformed payload", () => {

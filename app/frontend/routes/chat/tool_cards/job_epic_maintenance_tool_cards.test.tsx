@@ -4,6 +4,7 @@ import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer 
 import type { ChatPendingActionInline, ChatPendingActionState } from "@app/api/chats"
 import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
+import { examples as cancelJobExamples } from "./cancel_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
 import setJobPriorityCard from "./set_job_priority"
 import updateJobCard from "./update_job"
@@ -122,6 +123,49 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("pending #7")).toBeInTheDocument()
     expect(screen.getByText("JOB-44")).toBeInTheDocument()
+  })
+
+  it("recovers the cancellation target from a normalized result when collapsed dispatch omits input", () => {
+    const ctx = toolCardContextForExample("cancel_job", cancelJobExamples[0])
+
+    expect(ctx.input).toBeUndefined()
+    expect(cancelJobCard.collapsedSummary?.(ctx)).toBe("Cancel requested · JOB-44 · pending #27")
+    render(<>{cancelJobCard.renderExpanded(ctx)}</>)
+
+    const targetLinks = screen.getAllByRole("link", { name: "JOB-44" })
+    expect(targetLinks.length).toBeGreaterThan(0)
+    expect(targetLinks.every((link) => link.getAttribute("href") === "/jobs/44")).toBe(true)
+  })
+
+  it("links every Job in a normalized bulk cancellation result", () => {
+    const ctx = toolCardContextForExample("cancel_job", cancelJobExamples[1])
+
+    expect(cancelJobCard.collapsedSummary?.(ctx)).toBe("Cancel requested · 3 JOBs · pending group #8")
+    render(<>{cancelJobCard.renderExpanded(ctx)}</>)
+
+    for (const id of [44, 45, 46]) {
+      expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    }
+  })
+
+  it.each([
+    ["confirmed", "Cancelled · JOB-44", "cancelled"],
+    ["cancelled", "Cancel Job cancelled · JOB-44", null],
+    ["rejected", "Cancel Job rejected · JOB-44", null]
+  ] as const)("renders a live %s cancellation outcome", (state, summary, subjectState) => {
+    const pending = toolCardContextForExample("cancel_job", cancelJobExamples[0])
+    const ctx = { ...pending, livePendingAction: livePendingAction(27, state) }
+
+    expect(cancelJobCard.collapsedSummary?.(ctx)).toBe(summary)
+    render(<>{cancelJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText(state)).toBeInTheDocument()
+    if (subjectState) {
+      expect(screen.getByText("Job state")).toBeInTheDocument()
+      expect(screen.getByText(subjectState)).toBeInTheDocument()
+    } else {
+      expect(screen.queryByText("Job state")).not.toBeInTheDocument()
+    }
   })
 
   it("renders canceled and rejected pending action acknowledgements", () => {

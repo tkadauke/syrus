@@ -118,6 +118,12 @@ describe("pluginToolCards", () => {
       expect(entry?.examples.map((example) => example.id)).toEqual(["single_pending", "bulk_pending", "validation_error"])
     })
 
+    it("discovers every reviewable state for the run visual review card", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "run_visual_review")
+
+      expect(entry?.examples.map((example) => example.id)).toEqual(["pending", "missing_input", "validation_error", "completed_with_media"])
+    })
+
     it("discovers examples exported alongside a plugin card module, purely by directory convention", () => {
       const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "browser_click")
       expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "browser" })
