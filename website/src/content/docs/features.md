@@ -897,6 +897,9 @@ or minimum-approval consensus. Each member uses the same availability checks as
 normal routing; the rule decides whether an unavailable member is dropped,
 holds admission, or fails panel admission, and a minimum-member guard prevents
 an undersized panel from producing a review decision.
+The Job review and workflow views keep each panel iteration together as one
+round: its consensus verdict stays visible while the individual provider/model
+verdicts, critiques, unavailable members, and non-blocking notes can be expanded.
 Panel members run serially with their configured provider, model, and effort.
 Syrus retains each attributed finding, then appends a consensus result that
 drives the existing review/repair loop; findings from an approving minority

@@ -36,6 +36,16 @@ describe("buildConversationRows", () => {
     expect(rows).toEqual([[nodes[0]], [nodes[1]]])
   })
 
+  it("groups adjacent members of the same review panel into one round", () => {
+    const nodes = [
+      node({ id: "review-a", step_kind: "adversarial_review", iteration: 1, detail: { panel_id: "panel-1", verdict: "approved" } }),
+      node({ id: "review-b", step_kind: "adversarial_review", iteration: 1, detail: { panel_id: "panel-1", verdict: "needs_work" } }),
+      node({ id: "implement-2", step_kind: "implement", iteration: 2 })
+    ]
+
+    expect(buildConversationRows(nodes, [])).toEqual([[nodes[0], nodes[1]], [nodes[2]]])
+  })
+
   it("groups adjacent deterministic_check nodes that share the same predecessor into one row", () => {
     const nodes = [
       node({ id: "implement-1", kind: "agent_session" }),
@@ -112,6 +122,16 @@ describe("edgeLabel", () => {
 })
 
 describe("connectorLabel", () => {
+  it("uses the panel consensus instead of treating member sessions as grader checks", () => {
+    const panel = [
+      node({ label: "Adversarial review", detail: { panel_id: "panel-1", panel_verdict: "needs_work" } }),
+      node({ detail: { panel_id: "panel-1", panel_verdict: "needs_work" } })
+    ]
+    const repair = [node({ label: "Implement" })]
+
+    expect(connectorLabel(panel, repair)).toBe("Adversarial review panel needs_work — Implement repair requested")
+  })
+
   it("aggregates a fan-in row of deterministic checks into one connector", () => {
     const checks = [
       node({ id: "grader-a", kind: "deterministic_check", label: "rspec", state: "succeeded" }),

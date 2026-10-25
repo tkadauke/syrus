@@ -585,9 +585,28 @@ export type JobAdversarialReviewIteration = {
   iteration: number
   critique: string
   verdict: "needs_work" | "approved" | "skipped"
+  panel_id?: string | null
+  aggregate?: boolean
+  consensus?: string | Record<string, number> | null
+  members?: JobReviewPanelMember[]
+  dropped_members?: JobReviewPanelMember[]
+  non_blocking_findings?: JobReviewPanelFinding[]
 }
 
 export type JobSecurityReviewIteration = JobAdversarialReviewIteration
+
+export type JobReviewPanelMember = {
+  provider: string
+  model: string | null
+  verdict?: "needs_work" | "approved" | "skipped" | null
+  critique?: string | null
+}
+
+export type JobReviewPanelFinding = {
+  provider: string
+  model: string | null
+  critique: string
+}
 
 export type JobVisualReviewArtifact = {
   type: string

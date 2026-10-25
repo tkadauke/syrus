@@ -393,6 +393,10 @@ module App
       def add_agent_session_node(step, run)
         id = "agent_session-#{run.id}"
         outcome = review_or_summary_outcome(step, run)
+        panel_id = step.details.to_h["panel_id"].presence
+        aggregate = panel_id && Array(@workflow.artifact(REVIEW_ARTIFACT_KEYS[step.kind])).find do |entry|
+          entry.is_a?(Hash) && entry["panel_id"] == panel_id && entry["iteration"].to_i == step.iteration.to_i && entry["aggregate"]
+        end
 
         @nodes << {
           id: id,
@@ -411,7 +415,12 @@ module App
           finished_at: run.finished_at&.iso8601,
           agentic: true,
           summary: outcome[:summary],
-          detail: { "verdict" => outcome[:verdict] }.compact
+          detail: {
+            "verdict" => outcome[:verdict],
+            "panel_id" => panel_id,
+            "panel_verdict" => aggregate&.dig("verdict"),
+            "consensus" => aggregate&.dig("consensus")
+          }.compact
         }
         id
       end
@@ -425,8 +434,15 @@ module App
       def review_or_summary_outcome(step, run)
         artifact_key = REVIEW_ARTIFACT_KEYS[step.kind]
         if artifact_key
-          entry = Array(@workflow.artifact(artifact_key)).find do |candidate|
-            candidate.is_a?(Hash) && candidate["iteration"].to_i == step.iteration.to_i
+          entries = Array(@workflow.artifact(artifact_key))
+          entry = entries.find do |candidate|
+            next false unless candidate.is_a?(Hash) && candidate["iteration"].to_i == step.iteration.to_i
+
+            if step.details.to_h["panel_member"]
+              !candidate["aggregate"] && candidate["provider"] == run.agent_provider && candidate["run_id"].to_i == run.id
+            else
+              candidate["panel_id"].blank? || candidate["aggregate"]
+            end
           end
           return { summary: entry["critique"].presence, verdict: entry["verdict"].presence } if entry
         end
