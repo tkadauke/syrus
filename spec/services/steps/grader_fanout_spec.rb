@@ -113,7 +113,13 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     graph = TargetGraph::Compiler.compile(@ws_path)
     plan = TargetGraph::GradePlan.for(workspace_path: @ws_path, graph: graph)
     GraderConclusionCache.fingerprint_for_plan(
-      LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration),
+      LandingGraderPlan.effective(
+        plan,
+        trigger_kind: workflow.trigger_kind,
+        iteration: run.iteration,
+        repository: repository,
+        job: job
+      ),
       target_graph: graph
     )
   end

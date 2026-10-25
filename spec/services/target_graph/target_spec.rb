@@ -79,9 +79,10 @@ RSpec.describe TargetGraph::Target do
         .to raise_error(ArgumentError, /dependencies/)
     end
 
-    it "rejects unknown phases" do
-      expect { described_class.new(label: label, kind: "grader", project_id: "cli", phases: [ "nightly" ]) }
-        .to raise_error(ArgumentError, /phases/)
+    it "accepts custom grader phases" do
+      target = described_class.new(label: label, kind: "grader", project_id: "cli", phases: [ "nightly" ])
+
+      expect(target.phases).to eq([ "nightly" ])
     end
 
     it "rejects a non-positive timeout" do

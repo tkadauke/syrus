@@ -890,7 +890,13 @@ module Steps
     end
 
     def effective_plan(plan)
-      LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
+      LandingGraderPlan.effective(
+        plan,
+        trigger_kind: workflow.trigger_kind,
+        iteration: run.iteration,
+        repository: repository,
+        job: job
+      )
     end
 
     def graph_grade_plan
@@ -985,7 +991,12 @@ module Steps
     end
 
     def grader_phase
-      LandingGraderPlan.phase_for(trigger_kind: workflow.trigger_kind, iteration: run.iteration)
+      LandingGraderPlan.phase_for(
+        trigger_kind: workflow.trigger_kind,
+        iteration: run.iteration,
+        repository: repository,
+        job: job
+      )
     end
   end
 end
