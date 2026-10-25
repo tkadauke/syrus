@@ -35,8 +35,8 @@ function installationsPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderRoute() {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(installationsPayload()))
+function renderRoute(payloadOverrides: Record<string, unknown> = {}) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(installationsPayload(payloadOverrides)))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -103,6 +103,18 @@ describe("AdminInstallations repositories configurable columns", () => {
     )
 
     expect(await screen.findByText("No repositories configured.")).toBeInTheDocument()
+  })
+
+  it("uses count-driven PAT repository copy", async () => {
+    renderRoute({
+      pat_owner_groups: [
+        { owner: "solo", repository_count: 1, install_url: "https://example.com/solo" },
+        { owner: "many", repository_count: 2, install_url: "https://example.com/many" }
+      ]
+    })
+
+    expect(await screen.findByText("1 PAT-only repository")).toBeInTheDocument()
+    expect(screen.getByText("2 PAT-only repositories")).toBeInTheDocument()
   })
 
   it("shows refresh failures instead of silently leaving the page unchanged", async () => {
