@@ -14,8 +14,11 @@ class HandleRegistry
       loop do
         return Handle.create!(handle: with_suffix(base, suffix), owner: owner).tap { owner.association(:handle_record).reset }
       rescue ActiveRecord::RecordNotUnique
+        return claimed_handle(owner) if Handle.exists?(owner: owner)
+
         suffix = suffix ? suffix + 1 : 2
       rescue ActiveRecord::RecordInvalid => error
+        return claimed_handle(owner) if Handle.exists?(owner: owner)
         raise unless error.record.errors.of_kind?(:handle, :taken)
 
         suffix = suffix ? suffix + 1 : 2
@@ -36,6 +39,10 @@ class HandleRegistry
     def normalize(value) = value.to_s.downcase.strip
 
     private
+
+    def claimed_handle(owner)
+      Handle.find_by!(owner: owner).tap { owner.association(:handle_record).reset }
+    end
 
     def source_for(owner)
       return owner.github_handle if owner.respond_to?(:github_handle) && owner.github_handle.present?
