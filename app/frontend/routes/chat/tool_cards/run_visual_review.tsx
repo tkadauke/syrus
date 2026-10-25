@@ -1,4 +1,4 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../../i18n"
 import { MediaPreviewShell } from "../mediaPreviewShell"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
@@ -98,3 +98,69 @@ const runVisualReviewToolCard: ToolCardRenderer = {
 }
 
 export default runVisualReviewToolCard
+
+const desktopPreview =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='540' viewBox='0 0 960 540'%3E%3Crect width='960' height='540' fill='%23f8fafc'/%3E%3Crect x='55' y='45' width='850' height='450' rx='18' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='4'/%3E%3Crect x='90' y='85' width='210' height='28' rx='8' fill='%23b6492e'/%3E%3Crect x='90' y='150' width='500' height='22' rx='6' fill='%2394a3b8'/%3E%3Crect x='90' y='195' width='760' height='220' rx='12' fill='%23e2e8f0'/%3E%3Ctext x='480' y='320' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%23475569'%3EDesktop review%3C/text%3E%3C/svg%3E"
+const mobilePreview =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='640' viewBox='0 0 360 640'%3E%3Crect width='360' height='640' fill='%23f8fafc'/%3E%3Crect x='42' y='25' width='276' height='590' rx='32' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='4'/%3E%3Crect x='75' y='82' width='145' height='24' rx='7' fill='%23b6492e'/%3E%3Crect x='75' y='145' width='210' height='250' rx='12' fill='%23e2e8f0'/%3E%3Ctext x='180' y='280' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%23475569'%3EMobile review%3C/text%3E%3C/svg%3E"
+
+const pendingResult = {
+  pending_confirmation_id: 501,
+  pending_action_id: 501,
+  state: "pending",
+  message: "Run a visual review pass for JOB-4222?"
+}
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "pending",
+    label: "Pending confirmation",
+    description: "Shows the linked Job while the visual review request waits for confirmation.",
+    input: { job_id: 4222 },
+    parsedResult: pendingResult,
+    sourceType: "generic"
+  },
+  {
+    id: "missing_input",
+    label: "Missing Job input",
+    description: "Shows the retained pending action when its original tool input is unavailable.",
+    parsedResult: pendingResult,
+    sourceType: "generic"
+  },
+  {
+    id: "validation_error",
+    label: "Visual review unavailable",
+    description: "Keeps the attempted Job visible alongside the tool error.",
+    input: { job_id: 4222 },
+    parsedResult: { error: "not_eligible", message: "Visual review is unavailable while the Job has an active run." },
+    resultError: true,
+    sourceType: "generic"
+  },
+  {
+    id: "completed_with_media",
+    label: "Completed with desktop and mobile screenshots",
+    description: "Shows the production live outcome after the resulting Workflow has submitted visual artifacts.",
+    input: { job_id: 4222 },
+    parsedResult: pendingResult,
+    sourceType: "generic",
+    livePendingAction: {
+      id: 501,
+      action: "run_visual_review",
+      state: "confirmed",
+      label: "Run visual review for JOB-4222",
+      detail: "Visual review workflow completed.",
+      execution_status: "applied",
+      execution_step: "Applied.",
+      outcome: {
+        workflow_id: 61270,
+        job_id: 4222,
+        media: [
+          { type: "visual_review_screenshot_run_1_1", title: "Desktop result", image_url: desktopPreview, content_type: "image/svg+xml" },
+          { type: "visual_review_screenshot_run_1_2", title: "Mobile result", image_url: mobilePreview, content_type: "image/svg+xml" }
+        ]
+      },
+      app_confirm_path: "/api/v1/app/chats/7/pending_actions/501/confirm",
+      app_reject_path: "/api/v1/app/chats/7/pending_actions/501/reject"
+    }
+  }
+]
