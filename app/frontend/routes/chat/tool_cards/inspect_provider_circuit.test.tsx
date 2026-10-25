@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import inspectProviderCircuitToolCard from "./inspect_provider_circuit"
+import i18n from "../../../i18n"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -45,6 +46,17 @@ describe("inspect_provider_circuit tool card", () => {
     render(<>{inspectProviderCircuitToolCard.renderExpanded(context({ parsedResult: CLOSED_PAYLOAD }))}</>)
     expect(screen.getByText("closed")).toBeInTheDocument()
     expect(screen.getByText("No failed Runs in the evidence window.")).toBeInTheDocument()
+  })
+
+  it("preserves the Run domain noun in Latin plural copy", async () => {
+    await i18n.changeLanguage("la")
+    try {
+      const parsedResult = { ...CLOSED_PAYLOAD, runs: [{ id: 1 }, { id: 2 }] }
+      render(<>{inspectProviderCircuitToolCard.renderExpanded(context({ parsedResult }))}</>)
+      expect(screen.getByText("2 Runs defecerunt")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("summarizes an open circuit with blocked consumers", () => {

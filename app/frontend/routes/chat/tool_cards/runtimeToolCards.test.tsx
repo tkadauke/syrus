@@ -17,6 +17,7 @@ import runtimeSnapshotToolCard from "./runtime_snapshot"
 import runtimeStartToolCard from "./runtime_start"
 import runtimeStatusToolCard from "./runtime_status"
 import runtimeStopToolCard from "./runtime_stop"
+import i18n from "../../../i18n"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -100,6 +101,27 @@ describe("Runtime tool cards", () => {
     render(<>{runtimeListSessionsToolCard.renderExpanded(context("runtime_list_sessions", { parsedResult }))}</>)
     expect(screen.getByText("No Runtime sessions found.")).toBeInTheDocument()
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+  })
+
+  it("localizes empty Runtime states and synthesized lease guidance in German", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const emptyContext = context("runtime_list_sessions", { parsedResult: { sessions: [] } })
+      expect(runtimeListSessionsToolCard.collapsedSummary?.(emptyContext)).toBe("Keine Runtime-Sitzungen")
+      render(<>{runtimeListSessionsToolCard.renderExpanded(emptyContext)}</>)
+      expect(screen.getByText("Keine Runtime-Sitzungen gefunden.")).toBeInTheDocument()
+
+      expect(runtimeStatusToolCard.collapsedSummary?.(context("runtime_status", { input: { session_id: 92 }, parsedResult: {} }))).toBe(
+        "Runtime #92: unbekannt, keine aktive Agenten-Lease"
+      )
+
+      const pluralContext = context("runtime_list_sessions", {
+        parsedResult: { sessions: [session({ id: 1, active_agent_input_lease: null }), session({ id: 2, primary: false })] }
+      })
+      expect(runtimeListSessionsToolCard.collapsedSummary?.(pluralContext)).toBe("2 Runtime-Sitzungen: #1 running, keine aktive Agenten-Lease")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("summarizes and renders multiple sessions with metadata, URLs, ownership, and errors", () => {

@@ -279,7 +279,7 @@ function parseQueueDetail(context: ToolCardContext): QueueDetailCard | null {
 
 function collapsedSummary(context: ToolCardContext) {
   const inputTab = displayValue(context.input?.tab)
-  if (context.resultError) return inputTab ? `${inputTab} queue failed` : i18n.t("chat:ops_queue_detail_failed_56fae6")
+  if (context.resultError) return inputTab ? i18n.t("chat:queue_named_failed", { name: inputTab }) : i18n.t("chat:ops_queue_detail_failed_56fae6")
   const card = parseQueueDetail(context)
   if (!card) return null
 
