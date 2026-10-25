@@ -111,7 +111,9 @@ RSpec.describe ProviderRouting::Resolver do
       expect(resolution.consensus).to eq("at_least" => 2)
       expect(resolution.explanation.fetch("final_action")).to include("strategy" => "panel", "on_unavailable" => "hold")
       expect(resolution.matched_rule).to eq(rule)
-      expect(described_class.call(job: job, task_key: "adversarial_review")).to eq(resolution.members)
+      expect {
+        described_class.call(job: job, task_key: "adversarial_review")
+      }.to raise_error(described_class::PanelResolutionRequired, /panel resolution path/)
     end
 
     it "skips disabled rules without changing their positions" do

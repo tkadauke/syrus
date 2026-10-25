@@ -46,6 +46,31 @@ RSpec.describe StepDispatcher, :ci_only do
     s2.update!(next_step_id: s3.id)
   end
 
+  describe ".run_provider_candidate_for" do
+    it "does not launch one ordinary candidate for a panel-routed review step" do
+      review_step = Step.create!(workflow: workflow, kind: "security_review", position: 3)
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        trigger: { type: "step", kind: "security_review" },
+        action: {
+          strategy: "panel",
+          candidates: [ { provider: "claude" }, { provider: "codex" } ],
+          consensus: "majority",
+          on_unavailable: "drop",
+          min_members: 1
+        }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      expect {
+        described_class.run_provider_candidate_for(review_step, workflow)
+      }.to raise_error(ProviderRouting::Resolver::PanelResolutionRequired, /AvailabilitySelector\.panel/)
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
+      expect(workflow.reload.artifact("agent_provider_routing_decision")).to be_nil
+    end
+  end
+
   describe ".fail_from" do
     it "expands a retry_until failure branch after the bounded grader loop exhausts" do
       train_workflow = Workflows::MergeTrain.instantiate(

@@ -14,6 +14,23 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
   end
 
   describe "#call" do
+    it "refuses to collapse a panel into the ordinary fallback selection path" do
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "security_review" },
+        action: {
+          strategy: "panel", candidates: [ { provider: "claude" }, { provider: "codex" } ],
+          consensus: "majority", on_unavailable: "drop", min_members: 1
+        }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      expect {
+        described_class.call(job: job, task_key: "security_review")
+      }.to raise_error(ProviderRouting::Resolver::PanelResolutionRequired, /AvailabilitySelector\.panel/)
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
+    end
+
     it "reports availability for every panel member and applies drop policy" do
       ProviderRoutingRule.create!(
         scope_type: "repository", scope_id: repository.id,
