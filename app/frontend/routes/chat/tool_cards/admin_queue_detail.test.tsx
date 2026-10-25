@@ -4,6 +4,7 @@ import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
 import adminQueueDetailToolCard from "./admin_queue_detail"
+import i18n from "../../../i18n"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -18,6 +19,17 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 describe("admin_queue_detail tool card", () => {
   it("registers under the exact MCP tool name", () => {
     expect(adminQueueDetailToolCard.toolName).toBe("admin_queue_detail")
+  })
+
+  it("localizes named queue failures", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      expect(adminQueueDetailToolCard.collapsedSummary?.(context({ input: { tab: "failed" }, resultError: true }))).toBe(
+        "Warteschlange „failed“ fehlgeschlagen"
+      )
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("summarizes and renders the active tab", () => {
