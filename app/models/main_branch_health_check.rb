@@ -11,7 +11,10 @@ class MainBranchHealthCheck < ApplicationRecord
   belongs_to :repository
   belongs_to :workflow, optional: true
 
+  before_validation :default_branch
+
   validates :sha, presence: true
+  validates :branch, presence: true
   validates :checked_at, presence: true
   validates :source, presence: true, inclusion: { in: SOURCES }
 
@@ -21,40 +24,55 @@ class MainBranchHealthCheck < ApplicationRecord
     cutoff ? where(checked_at: ..cutoff) : none
   }
 
-  def self.conclusive_grader_result_exists?(repository:, sha:)
+  def health
+    return "broken" if ci_health == "broken" || grader_health == "broken"
+    return "healthy" if grader_health == "healthy" && ci_health.in?(%w[healthy not_configured])
+    return "inconclusive" if grader_health == "inconclusive" || ci_health == "inconclusive"
+
+    "unknown"
+  end
+
+  private def default_branch
+    self.branch ||= repository&.default_branch
+  end
+
+  def self.conclusive_grader_result_exists?(repository:, sha:, branch: repository.default_branch)
     where(
       repository: repository,
+      branch: branch,
       sha: sha,
       grader_health: CONCLUSIVE_GRADER_HEALTH
     ).exists?
   end
 
-  def self.settled_ci_result_exists?(repository:, sha:)
+  def self.settled_ci_result_exists?(repository:, sha:, branch: repository.default_branch)
     where(
       repository: repository,
+      branch: branch,
       sha: sha,
       ci_health: SETTLED_CI_HEALTH
     ).exists?
   end
 
-  def self.broken_ci_result_exists?(repository:, sha:)
-    where(repository: repository, sha: sha, ci_health: "broken").exists?
+  def self.broken_ci_result_exists?(repository:, sha:, branch: repository.default_branch)
+    where(repository: repository, branch: branch, sha: sha, ci_health: "broken").exists?
   end
 
-  def self.settled_grader_result_exists?(repository:, sha:)
+  def self.settled_grader_result_exists?(repository:, sha:, branch: repository.default_branch)
     where(
       repository: repository,
+      branch: branch,
       sha: sha,
       grader_health: SETTLED_GRADER_HEALTH
     ).exists?
   end
 
-  def self.broken_grader_result_exists?(repository:, sha:)
-    where(repository: repository, sha: sha, grader_health: "broken").exists?
+  def self.broken_grader_result_exists?(repository:, sha:, branch: repository.default_branch)
+    where(repository: repository, branch: branch, sha: sha, grader_health: "broken").exists?
   end
 
-  def self.record_ci_poll(repository:, sha:, ci_health:, ci_failed_checks: nil)
-    existing = where(repository: repository, sha: sha)
+  def self.record_ci_poll(repository:, sha:, ci_health:, ci_failed_checks: nil, branch: repository.default_branch)
+    existing = where(repository: repository, branch: branch, sha: sha)
                  .where.not(source: "concern_quorum")
                  .recent
                  .first
@@ -66,18 +84,19 @@ class MainBranchHealthCheck < ApplicationRecord
 
     create!(
       repository: repository,
+      branch: branch,
       sha: sha,
       checked_at: Time.current,
       ci_health: ci_health,
-      grader_health: repository.grader_health,
+      grader_health: branch == repository.default_branch ? repository.grader_health : "unknown",
       ci_failed_checks: ci_failed_checks,
       grader_failed_names: nil,
       source: "ci_poll"
     )
   end
 
-  def self.record_grader_workflow(repository:, sha:, grader_health:, grader_failed_names: nil, workflow: nil)
-    existing = where(repository: repository, sha: sha)
+  def self.record_grader_workflow(repository:, sha:, grader_health:, grader_failed_names: nil, workflow: nil, branch: repository.default_branch)
+    existing = where(repository: repository, branch: branch, sha: sha)
                  .where.not(source: "concern_quorum")
                  .recent
                  .first
@@ -94,10 +113,11 @@ class MainBranchHealthCheck < ApplicationRecord
 
     create!(
       repository: repository,
+      branch: branch,
       workflow: workflow,
       sha: sha,
       checked_at: Time.current,
-      ci_health: repository.ci_health,
+      ci_health: branch == repository.default_branch ? repository.ci_health : "unknown",
       grader_health: grader_health,
       ci_failed_checks: nil,
       grader_failed_names: grader_failed_names,
@@ -105,9 +125,10 @@ class MainBranchHealthCheck < ApplicationRecord
     )
   end
 
-  def self.record_concern_quorum(repository:, sha:, grader_failed_names: nil)
+  def self.record_concern_quorum(repository:, sha:, grader_failed_names: nil, branch: repository.default_branch)
     create!(
       repository: repository,
+      branch: branch,
       sha: sha,
       checked_at: Time.current,
       ci_health: repository.ci_health,

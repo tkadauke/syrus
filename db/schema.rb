@@ -1988,6 +1988,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "source", null: false
     t.datetime "updated_at", null: false
     t.integer "workflow_id"
+    t.string "branch", null: false
+    t.index ["repository_id", "branch", "sha"], name: "idx_mbhc_repo_branch_sha"
     t.index ["repository_id", "checked_at"], name: "idx_mbhc_repo_checked_at"
     t.index ["repository_id", "sha", "ci_health"], name: "idx_mbhc_repo_sha_ci_health"
     t.index ["repository_id", "sha", "grader_health"], name: "idx_mbhc_repo_sha_grader_health"

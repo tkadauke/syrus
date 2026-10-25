@@ -68,14 +68,19 @@ module Workflows
 
     private_class_method def self.update_grader_health!(workflow, health, failed_names = nil)
       repository = workflow.job.repository
-      previous_health = repository.main_health
+      branch = workflow.artifact("health_branch").presence || repository.default_branch
+      default_branch = branch == repository.default_branch
+      previous_health = repository.main_health if default_branch
       was_landing_paused = repository.landing_paused?
       sha = workflow.artifact("main_sha").to_s.presence
-      updates = { grader_health: health }
-      updates[:last_graded_sha] = sha if sha
-      repository.update!(updates)
+      if default_branch
+        updates = { grader_health: health }
+        updates[:last_graded_sha] = sha if sha
+        repository.update!(updates)
+      end
       MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
+        branch: branch,
         workflow: workflow,
         sha: sha || "unknown",
         grader_health: health,
@@ -83,9 +88,9 @@ module Workflows
       )
       repository.reload
 
-      if repository.main_health != previous_health || (was_landing_paused && repository.main_health == "healthy")
+      if default_branch && (repository.main_health != previous_health || (was_landing_paused && repository.main_health == "healthy"))
         MainHealthChangedService.on_health_change!(repository)
-      elsif repository.main_health_broken?
+      elsif default_branch && repository.main_health_broken?
         MainHealthChangedService.ensure_repair_job!(repository)
       end
 
@@ -102,7 +107,13 @@ module Workflows
         target_health_status_for(workflow, entry)
       end
       aggregate = aggregate_target_statuses(skipped_statuses)
-      aggregate = workflow.job.repository.grader_health if aggregate == "unknown" && workflow.job.repository.grader_health.in?(%w[broken inconclusive])
+      if aggregate == "unknown"
+        previous = MainBranchHealthCheck.where(
+          repository: workflow.job.repository,
+          branch: workflow.artifact("health_branch").presence || workflow.job.repository.default_branch
+        ).recent.first&.grader_health
+        aggregate = previous if previous.in?(%w[broken inconclusive])
+      end
       failed_names = aggregate == "broken" ? failed_target_names(workflow, entries) : nil
 
       Rails.logger.info(
@@ -184,6 +195,7 @@ module Workflows
       interrupted_names = failed_required_grader_names(interrupted_steps)
       MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
+        branch: workflow.artifact("health_branch").presence || repository.default_branch,
         workflow: workflow,
         sha: workflow.artifact("main_sha").to_s.presence || "unknown",
         grader_health: "unknown",
@@ -201,6 +213,7 @@ module Workflows
 
       MainBranchHealthCheck.conclusive_grader_result_exists?(
         repository: workflow.job.repository,
+        branch: workflow.artifact("health_branch").presence || workflow.job.repository.default_branch,
         sha: sha
       )
     end
@@ -210,7 +223,11 @@ module Workflows
       return unless sha
       return if conclusive_grader_result_exists?(workflow)
 
-      MainGraderWorkflowJob.perform_later(workflow.job.repository_id, sha)
+      MainGraderWorkflowJob.perform_later(
+        workflow.job.repository_id,
+        sha,
+        base_branch: workflow.artifact("health_branch").presence || workflow.job.repository.default_branch
+      )
     end
 
     private_class_method def self.close_anchor_job!(workflow)

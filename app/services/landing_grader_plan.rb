@@ -17,8 +17,8 @@ class LandingGraderPlan
   # workflows with the same `phases: [promotion]`.
   PROMOTION_TRIGGER_KINDS = %w[ promotion hotfix_sync ].freeze
 
-  def self.effective(plan, trigger_kind:, iteration:)
-    new(plan, trigger_kind: trigger_kind, iteration: iteration).effective
+  def self.effective(plan, trigger_kind:, iteration:, phase: nil)
+    new(plan, trigger_kind: trigger_kind, iteration: iteration, phase: phase).effective
   end
 
   def self.landing(plan)
@@ -29,10 +29,11 @@ class LandingGraderPlan
     new(nil, trigger_kind: trigger_kind, iteration: iteration).phase
   end
 
-  def initialize(plan, trigger_kind:, iteration:)
+  def initialize(plan, trigger_kind:, iteration:, phase: nil)
     @plan = plan
     @trigger_kind = trigger_kind.to_s
     @iteration = iteration.to_i
+    @phase_override = phase&.to_sym
   end
 
   def effective
@@ -50,6 +51,7 @@ class LandingGraderPlan
   end
 
   def phase
+    return phase_override if phase_override
     return :ci if CI_TRIGGER_KINDS.include?(trigger_kind)
     return :landing if LANDING_TRIGGER_KINDS.include?(trigger_kind)
     return :promotion if PROMOTION_TRIGGER_KINDS.include?(trigger_kind)
@@ -59,5 +61,5 @@ class LandingGraderPlan
 
   private
 
-  attr_reader :plan, :trigger_kind, :iteration
+  attr_reader :plan, :trigger_kind, :iteration, :phase_override
 end
