@@ -818,5 +818,13 @@
     "execution_status": "Status executionis",
     "execution_message": "Nuntius executionis"
   },
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" }
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
+  "run_visual_review": {
+    "job": "Job",
+    "missing_target": "Non datum",
+    "media": "Media recensionis",
+    "screenshot": "Imago",
+    "preview_unavailable": "Praevisio non praesto",
+    "open_image": "Imaginem aperire"
+  }
 }

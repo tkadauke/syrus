@@ -818,5 +818,13 @@
     "execution_status": "Ausführungsstatus",
     "execution_message": "Ausführungsmeldung"
   },
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" }
+  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" },
+  "run_visual_review": {
+    "job": "Job",
+    "missing_target": "Nicht angegeben",
+    "media": "Review-Medien",
+    "screenshot": "Screenshot",
+    "preview_unavailable": "Vorschau nicht verfügbar",
+    "open_image": "Bild öffnen"
+  }
 }
