@@ -529,6 +529,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.datetime "deleted_at"
     t.integer "deleted_by_user_id"
     t.bigint "entity_revision", default: 0, null: false
+    t.json "mentions"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"

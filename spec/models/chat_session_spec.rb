@@ -1164,19 +1164,37 @@ RSpec.describe ChatSession do
   end
 
   describe "#agent_addressed?" do
-    it "matches a case-insensitive @syrus substring" do
+    it "matches a case-insensitive structured @syrus mention" do
       session = described_class.create!(user: repo.user)
 
       expect(session.agent_addressed?("hey @Syrus can you help?")).to be true
       expect(session.agent_addressed?("@SYRUS")).to be true
     end
 
-    it "does not false-positive on unrelated text" do
+    it "does not false-positive on unrelated or longer handles" do
       session = described_class.create!(user: repo.user)
 
       expect(session.agent_addressed?("syrus is great but no mention here")).to be false
+      expect(session.agent_addressed?("@syrus-team should handle this")).to be false
       expect(session.agent_addressed?("")).to be false
       expect(session.agent_addressed?(nil)).to be false
+    end
+
+    it "supports legacy messages without stored structured mentions" do
+      session = described_class.create!(user: repo.user, conversation_kind: "group")
+      session.chat_participants.create!(user: Factories.user, role: "member")
+      message = session.messages.create!(role: "user", content: { "text" => "hello @syrus" }, skip_turn_trigger: true)
+      message.update_column(:mentions, nil)
+
+      expect(session.agent_addressed?(message)).to be true
+    end
+
+    it "never treats a human mention as agentic" do
+      session = described_class.create!(user: repo.user, conversation_kind: "group")
+      other_user = Factories.user(email_address: "maya@example.com")
+      session.chat_participants.create!(user: other_user, role: "member")
+
+      expect(session.agent_addressed?(session.resolve_mentions("hello @maya"))).to be false
     end
   end
 
@@ -1196,6 +1214,7 @@ RSpec.describe ChatSession do
       expect(session.chat_participants.count).to eq(2)
       expect(session.should_trigger_agent?("no mention here")).to be false
       expect(session.should_trigger_agent?("hey @syrus")).to be true
+      expect(session.should_trigger_agent?("hey @syrus-team")).to be false
     end
   end
 

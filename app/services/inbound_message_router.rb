@@ -15,11 +15,13 @@ class InboundMessageRouter
     user = identity.user
     session = ChatSession.for_platform(user: user, platform: @platform)
 
-    turn_triggered = session.trigger_policy == "speak_when_spoken_to" && session.should_trigger_agent?(@message_text)
+    mentions = session.resolve_mentions(@message_text)
+    turn_triggered = session.trigger_policy == "speak_when_spoken_to" && session.should_trigger_agent?(mentions)
     message = session.messages.create!(
       role: "user",
       sender_user: user,
       content: { "text" => @message_text },
+      mentions: mentions,
       skip_turn_trigger: !turn_triggered
     )
 

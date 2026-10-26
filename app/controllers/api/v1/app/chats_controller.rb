@@ -338,13 +338,14 @@ module Api
           end
 
           user_message = nil
-          turn_triggered = chat_session.should_trigger_agent?(text)
+          mentions = chat_session.resolve_mentions(text)
+          turn_triggered = chat_session.should_trigger_agent?(mentions)
           ApplicationRecord.transaction do
             chat_session.update!(
               last_message_at: Time.current,
               chat_provider: chat_provider || chat_session.chat_provider
             )
-            user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
+            user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
             chat_session.pin_chat_provider!
           end
           chat_session.reload
@@ -560,7 +561,7 @@ module Api
           notice = "Message queued."
 
           unless chat_session.turn_in_flight? || chat_session.agent_busy?
-            turn_triggered = chat_session.should_trigger_agent?(text)
+            turn_triggered = chat_session.should_trigger_agent?(chat_session.resolve_mentions(text))
             user_message = promote_queued_message(chat_session, queued_message, trigger_turn: turn_triggered)
             if (chat_session.title.blank? || chat_session.title_auto_fallback?) && (title_message = first_user_message(chat_session))
               enqueue_chat_title(chat_session, title_message)
@@ -1724,6 +1725,7 @@ module Api
             user_message = locked_chat.messages.create!(
               role: promoted_role,
               content: locked_queued_message.promoted_content,
+              mentions: promoted_role == "user" ? locked_chat.resolve_mentions(locked_queued_message.text) : [],
               sender_user_id: promoted_role == "user" ? Current.user.id : nil,
               skip_turn_trigger: promoted_role == "user" && !trigger_turn
             )

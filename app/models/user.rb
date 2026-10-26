@@ -2,6 +2,7 @@ class User < ApplicationRecord
   include AutoApproveModes
   include PluginDataCleanup
   include ValidatesAgentProvider
+  include Mentionable
 
   has_secure_password
   has_many :sessions, dependent: :destroy
@@ -273,6 +274,11 @@ class User < ApplicationRecord
   def handle
     handle_record&.handle
   end
+
+  def kind = "human"
+  def subtitle = role.presence || profile_company
+  def color_key = nil
+  def addressable_in?(chat) = chat.chat_participants.exists?(user_id: id)
 
   def admin?
     unless has_attribute?(:global_role)

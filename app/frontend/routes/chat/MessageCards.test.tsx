@@ -350,6 +350,19 @@ describe("assistant message URL links", () => {
 })
 
 describe("sender attribution", () => {
+  it("highlights structured mentions in human messages", () => {
+    renderChatMessageItem(
+      userMessage("👋 Hello @syrus", {
+        mentions: [{ kind: "syrus", id: "syrus", handle: "syrus", start: 8, end: 14 }]
+      }),
+      makePayload()
+    )
+
+    const mention = screen.getByText("@syrus")
+    expect(mention.tagName).toBe("MARK")
+    expect(mention).toHaveAttribute("data-mention-kind", "syrus")
+  })
+
   it("renders the sender's name above a human message in a group chat", () => {
     const payload = makePayload()
     payload.chat.conversation_kind = "group"
