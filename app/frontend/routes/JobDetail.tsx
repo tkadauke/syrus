@@ -1142,15 +1142,16 @@ function JobCostLink({ prefix, value }: { prefix: string; value: number }) {
 }
 
 function EmergencyLandAudit({ job }: { job: JobDetailPayload["job"] }) {
+  const { t } = useT("jobs")
   const user = job.emergency_landed_by_user
-  const userLabel = user?.display_name || user?.email_address || "Unknown user"
+  const userLabel = user?.display_name || user?.email_address || t("unknown_user")
   const tier = job.emergency_landed_by_membership_tier
 
   return (
     <span className="inline-flex flex-col gap-1 text-sm">
       <span>{job.emergency_landed_at ? <RelativeTimestamp value={job.emergency_landed_at} /> : t("time_not_recorded")}</span>
       <span className="text-xs text-warning-text">
-        Confirmed by {userLabel}
+        {t("emergency_confirmed_by", { user: userLabel })}
         {tier ? ` (${tier})` : ""}
       </span>
     </span>
@@ -1555,7 +1556,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
                 ? replace.error.message
                 : retry.error instanceof Error
                   ? retry.error.message
-                  : "Action failed."}
+                  : t("action_failed")}
         </p>
       ) : null}
       <div className="mt-3 space-y-3">
