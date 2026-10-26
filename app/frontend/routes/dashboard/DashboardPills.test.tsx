@@ -72,6 +72,20 @@ describe("CommitsBehindBadge", () => {
     render(<CommitsBehindBadge count={30} />)
     expect(screen.getByRole("generic", { name: "30 commits behind base" })).toBeInTheDocument()
   })
+
+  it("uses count-driven German copy", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const { rerender } = render(<CommitsBehindBadge count={1} />)
+      expect(screen.getByText("1 Commit zurück")).toBeInTheDocument()
+      expect(screen.getByRole("generic", { name: "1 Commit hinter dem Basis-Branch" })).toBeInTheDocument()
+
+      rerender(<CommitsBehindBadge count={2} />)
+      expect(screen.getByText("2 Commits zurück")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
 })
 
 describe("WorkflowTriggerPill", () => {
