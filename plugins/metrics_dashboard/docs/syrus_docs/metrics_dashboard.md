@@ -53,9 +53,11 @@ It runs once a minute on the plugin tick (`tick_interval 1.minute`).
 makes disabling the plugin genuinely stop the recording rather than merely hide
 the page.
 
-Samples are one row per series per minute, retained 30 days, pruned hourly.
-Fixed resolution and fixed retention are what keep this a rollup table rather
-than a time-series database growing inside the primary database.
+Samples are one row per series per minute, retained seven days because seven
+days is the dashboard's longest selectable window. The
+`prune_metrics_dashboard_samples` recurring task enforces that window daily.
+Fixed resolution and fixed retention are what keep this a bounded dashboard
+store rather than a time-series database growing inside the primary database.
 
 ## What it can and cannot see
 

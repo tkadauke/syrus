@@ -137,6 +137,10 @@ default: &default
     class: RunResourceSummaryPruneJob
     queue: cleanup
     schedule: every day at 3:18am
+  prune_metrics_dashboard_samples:
+    class: MetricsDashboard::PruneJob
+    queue: cleanup
+    schedule: every day at 3:19am
   refresh_workflow_step_resource_profiles:
     class: WorkflowStepResourceProfileRefreshJob
     queue: low_priority_maintenance

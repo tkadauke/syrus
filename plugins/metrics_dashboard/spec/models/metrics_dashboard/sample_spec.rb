@@ -24,8 +24,8 @@ RSpec.describe MetricsDashboard::Sample do
   end
 
   describe ".retention_window" do
-    it "defaults to 30 days" do
-      expect(described_class.retention_window).to eq(30.days)
+    it "defaults to the dashboard's longest 7-day window" do
+      expect(described_class.retention_window).to eq(7.days)
     end
   end
 end
