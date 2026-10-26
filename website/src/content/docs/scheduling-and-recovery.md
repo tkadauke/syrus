@@ -98,10 +98,11 @@ retry can recover useful work even if the original workspace disappeared.
 
 For a failed workflow whose completed mutations are still useful but whose base
 has moved, an operator can confirm a base-refresh retry. Syrus restores the
-published checkpoint into a new workflow, pins the current effective base
-(including stacked parent branches), repairs rebase conflicts when necessary,
-publishes a new immutable source snapshot, and reruns setup and validation
-before the normal PR-publication steps. The historical workflow stays immutable.
+published checkpoint into a new workflow, resolves the current effective base
+(including stacked parent branches) again when the rebase starts, repairs
+rebase conflicts when necessary, publishes a new immutable source snapshot,
+and reruns setup and validation before the normal PR-publication steps. The
+historical workflow stays immutable.
 
 ## Provider Availability
 
