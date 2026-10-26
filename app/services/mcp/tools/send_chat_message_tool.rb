@@ -41,7 +41,7 @@ module Mcp::Tools
             return Mcp::Tools.invalid("a new bridge thread can only be opened directly from the operator's own message")
           end
 
-          target = find_chat_session!(target_chat_session_id)
+          target = find_writable_chat_session!(target_chat_session_id)
           return Mcp::Tools.invalid("cannot open a bridge thread to the same chat") if target.id == chat_session.id
 
           thread = ChatBridgeThread.new(origin_chat_session: chat_session, target_chat_session: target, opened_by_user: current_user)
@@ -67,6 +67,9 @@ module Mcp::Tools
         thread = ChatBridgeThread.find_by(id: thread_id)
         member = thread && (thread.origin_chat_session_id == chat_session.id || thread.target_chat_session_id == chat_session.id)
         raise AuthorizationSupport::AuthorizationError, "chat bridge thread not found or not accessible" unless member
+
+        find_writable_chat_session!(chat_session.id)
+        find_writable_chat_session!(thread.counterpart(chat_session).id)
 
         thread
       end

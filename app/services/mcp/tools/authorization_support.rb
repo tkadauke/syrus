@@ -99,6 +99,18 @@ module Mcp::Tools
       raise AuthorizationError, "chat session not found or not accessible"
     end
 
+    # Mutation tools must not widen their authority when a chat is shared.
+    # A participant may write; a share recipient may only read.
+    def find_writable_chat_session!(id)
+      scope = ChatSession.joins(:chat_participants)
+        .where(chat_participants: { user_id: current_user.id })
+        .active
+      scope = scope.where(id: mcp_context.allowed_chat_session_ids) if mcp_context&.allowed_chat_session_ids
+      scope.find_by!(id: id)
+    rescue ActiveRecord::RecordNotFound
+      raise AuthorizationError, "chat session not found or not writable"
+    end
+
     def authorize_resource!(resource, action: :read)
       return resource if admin?
 

@@ -105,6 +105,20 @@ RSpec.describe Mcp::Tools::SendChatMessageTool do
       expect(ChatBridgeThread.count).to eq(0)
     end
 
+    it "rejects a share-only target without posting or waking its agent" do
+      shared_chat = ChatSession.create!(user: other_user, title: "Shared read-only")
+      ChatShare.create!(chat_session: shared_chat, target: user, shared_by_user: other_user)
+      message = operator_message(origin_chat)
+
+      response = call(chat_session: origin_chat, current_message: message, text: "hi", target_chat_session_id: shared_chat.id)
+
+      expect(response).to be_error
+      expect(payload(response)).to eq(error: "not_authorized")
+      expect(ChatBridgeThread.count).to eq(0)
+      expect(ChatWakeup.count).to eq(0)
+      expect(shared_chat.messages).to be_empty
+    end
+
     it "rejects opening a bridge thread to the same chat" do
       message = operator_message(origin_chat)
 
@@ -199,6 +213,35 @@ RSpec.describe Mcp::Tools::SendChatMessageTool do
 
       expect(response).to be_error
       expect(payload(response)).to eq(error: "not_authorized")
+    end
+
+    it "rejects an existing thread after its target becomes share-only" do
+      shared_chat = ChatSession.create!(user: other_user, title: "Former group chat", conversation_kind: "group")
+      participant = shared_chat.chat_participants.create!(user: user, role: "member")
+      existing_thread = ChatBridgeThread.new(
+        origin_chat_session: origin_chat,
+        target_chat_session: shared_chat,
+        opened_by_user: user,
+        max_hops: 3
+      )
+      # Exercise authorization at reply time even for a persisted legacy
+      # thread whose participant relationship later changes.
+      existing_thread.save!(validate: false)
+      participant.destroy!
+      ChatShare.create!(chat_session: shared_chat, target: user, shared_by_user: other_user)
+
+      response = call(
+        chat_session: origin_chat,
+        current_message: operator_message(origin_chat),
+        text: "should not deliver",
+        thread_id: existing_thread.id
+      )
+
+      expect(response).to be_error
+      expect(payload(response)).to eq(error: "not_authorized")
+      expect(existing_thread.reload.hop_count).to eq(0)
+      expect(ChatWakeup.count).to eq(0)
+      expect(shared_chat.messages).to be_empty
     end
   end
 
