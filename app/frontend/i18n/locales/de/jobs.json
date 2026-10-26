@@ -53,6 +53,7 @@
   "retry_with_agent": "Mit {{provider}} erneut versuchen",
   "retry_with_agent_feedback": "Mit {{provider}} und Feedback erneut versuchen",
   "retrying": "Wird erneut versucht...",
+  "retry_implementation_unavailable": "Implementierung kann nicht erneut versucht werden: {{reason}}",
   "start_over": "Neu beginnen",
   "approve": "Genehmigen",
   "reapprove": "Erneut genehmigen",
