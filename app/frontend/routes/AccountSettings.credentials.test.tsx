@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import i18n from "../i18n"
 import type { CredentialsPayload } from "../api/credentials"
 import { APP_EVENT_RECEIVED_EVENT } from "../lib/appEvents"
-import { AgentSettingsRoute, CredentialsRoute } from "./AccountSettings"
+import { AccountProfileRoute, AgentSettingsRoute, CredentialsRoute } from "./AccountSettings"
 
 function makePayload(overrides: {
   credential_status?: Partial<CredentialsPayload["credential_status"]>
@@ -15,6 +15,7 @@ function makePayload(overrides: {
   agent_providers?: string[]
   agent_provider_labels?: Record<string, string>
   chat_provider_labels?: Record<string, string>
+  roles?: string[]
   admin?: boolean
   codex_auth_mode?: string
   provider_routing_rules?: CredentialsPayload["provider_routing_rules"]
@@ -66,7 +67,7 @@ function makePayload(overrides: {
       agent_provider_labels: overrides.agent_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       chat_providers: overrides.chat_providers ?? [],
       chat_provider_labels: overrides.chat_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
-      roles: ["developer", "product_owner"],
+      roles: overrides.roles ?? ["developer", "product_owner"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
       agent_max_turns: { min: 0, max: 1000 },
       recent_chats_group_size: { min: 1, max: 50 },
@@ -143,6 +144,21 @@ function renderAgentSettings() {
     </I18nextProvider>
   )
   return { client, ...view }
+}
+
+function renderProfileSettings() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/profile"]}>
+          <Routes>
+            <Route path="/profile" element={<AccountProfileRoute />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </I18nextProvider>
+  )
 }
 
 describe("CredentialsRoute (provider cards)", () => {
@@ -507,6 +523,48 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(agyPanel).not.toBeNull()
     expect(within(agyPanel as HTMLElement).getByText(/No usage percentage recorded\./)).toBeInTheDocument()
     expect(within(agyPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
+  })
+
+  it("localizes role options while preserving a readable fallback for unknown roles", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      mockRoutes(makePayload({ roles: ["developer", "product_owner", "release_manager"] }))
+      renderProfileSettings()
+
+      const role = await screen.findByLabelText("Rolle")
+      expect(within(role).getByRole("option", { name: "Entwickler" })).toBeInTheDocument()
+      expect(within(role).getByRole("option", { name: "Produktverantwortlicher" })).toBeInTheDocument()
+      expect(within(role).getByRole("option", { name: "Release Manager" })).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
+
+  it("localizes provider reset durations and absolute timestamps", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-08-29T11:00:00Z"))
+    await i18n.changeLanguage("de")
+    try {
+      mockRoutes({
+        ...makePayload({ agent_providers: ["claude"] }),
+        provider_availability: {
+          claude: {
+            provider: "claude", label: "Claude Code", model: null, state: "available", open: false,
+            usage_exhausted: false, retry_after: null, reason: null, message: "Claude Code available.",
+            usage: {
+              status: "ok", observed_at: "2026-08-29T11:00:00Z", remaining_percent: 42,
+              windows: { five_hour: { label: "5h", remaining_percent: 42, reset_at: "2026-08-30T12:00:00Z" } }
+            }
+          }
+        }
+      })
+      renderAgentSettings()
+
+      const reset = await screen.findByText("Wird in 1 Tag, 1 Stunde zurückgesetzt.")
+      expect(reset).toHaveAttribute("title", new Date("2026-08-30T12:00:00Z").toLocaleString("de"))
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("shows each Claude usage window's own remaining percent and reset separately, never blended", async () => {
