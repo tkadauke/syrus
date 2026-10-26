@@ -1135,6 +1135,18 @@
     "website": "Website",
     "github_handle": "GitHub handle",
     "role": "Role",
+    "role_options": {
+      "developer": "Developer",
+      "product_owner": "Product Owner",
+      "operator": "Operator"
+    },
+    "duration_less_than_minute": "less than a minute",
+    "duration_day_one": "{{count}} day",
+    "duration_day_other": "{{count}} days",
+    "duration_hour_one": "{{count}} hour",
+    "duration_hour_other": "{{count}} hours",
+    "duration_minute_one": "{{count}} minute",
+    "duration_minute_other": "{{count}} minutes",
     "avatar_url": "Avatar URL",
     "profile_bio": "Profile bio",
     "agent_provider": "Agent provider",

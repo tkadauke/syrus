@@ -1135,6 +1135,18 @@
     "website": "Webseite",
     "github_handle": "GitHub-Benutzername",
     "role": "Rolle",
+    "role_options": {
+      "developer": "Entwickler",
+      "product_owner": "Produktverantwortlicher",
+      "operator": "Betreiber"
+    },
+    "duration_less_than_minute": "weniger als einer Minute",
+    "duration_day_one": "{{count}} Tag",
+    "duration_day_other": "{{count}} Tage",
+    "duration_hour_one": "{{count}} Stunde",
+    "duration_hour_other": "{{count}} Stunden",
+    "duration_minute_one": "{{count}} Minute",
+    "duration_minute_other": "{{count}} Minuten",
     "avatar_url": "Avatar-URL",
     "profile_bio": "Profilbiografie",
     "agent_provider": "Agenten-Anbieter",
