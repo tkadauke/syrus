@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen, within } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import { redactToolCardText, redactToolCardValue } from "@app/toolCardSecurity"
@@ -89,6 +89,19 @@ describe("credential_store_ssh_exec tool card", () => {
     expect(stderr).toHaveAttribute("open")
     expect(stdout).not.toHaveAttribute("open")
     expect(within(stderr!).getByText("permission denied")).toBeInTheDocument()
+  })
+
+  it("preserves leading and trailing command whitespace for display and copy", () => {
+    const command = "\n  printf 'ready'  \n"
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+
+    render(<>{credentialStoreSshExecToolCard.renderExpanded(context({ input: { command }, parsedResult: success }))}</>)
+
+    const commandRow = screen.getByText("Command").parentElement!
+    expect(commandRow.querySelector(".font-mono")).toHaveTextContent(command, { normalizeWhitespace: false })
+    fireEvent.click(within(commandRow).getByRole("button"))
+    expect(writeText).toHaveBeenCalledWith(command)
   })
 
   it("normalizes structured_content and text-content result envelopes", () => {
