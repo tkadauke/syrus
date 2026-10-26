@@ -8,6 +8,7 @@
 // must not be imported into this bundle.
 import { notificationsBridge } from "./desktopShell"
 import { routePrefix, withRoutePrefix } from "./routing"
+import i18n from "../i18n"
 
 export type NativeNotificationPayload = {
   kind: string
@@ -25,42 +26,42 @@ export function nativeNotificationTag(notificationId: number | null) {
   return notificationId == null ? null : `syrus-notification-${notificationId}`
 }
 
-const KIND_LABELS: Record<string, string> = {
-  ci_failed: "CI failed",
-  ci_failure: "CI failed",
-  job_failed: "Job failed",
-  job_finished: "Job finished",
-  job_succeeded: "Job succeeded",
-  job_implemented: "Job implemented",
-  job_needs_attention: "Job needs attention",
-  epic_completed: "Feature completed",
-  pr_closed: "PR closed",
-  pr_comment_addressed: "PR feedback addressed",
-  pr_failed: "PR failed",
-  pr_merged: "PR merged",
-  pr_opened: "PR ready for review",
-  pr_ready: "PR ready for review",
-  pr_ready_for_review: "PR ready for review",
-  pull_request_closed: "PR closed",
-  pull_request_failed: "PR failed",
-  pull_request_merged: "PR merged",
-  pull_request_opened: "PR ready for review",
-  pull_request_ready_for_review: "PR ready for review",
-  main_broken: "Main branch broken",
-  main_inconclusive: "Main branch health inconclusive",
-  main_recovered: "Main branch recovered",
-  upstream_pr_closed: "Upstream PR closed",
-  external_pr_feedback: "External PR feedback",
-  investigation_escalated: "Investigation escalated"
+const KIND_LABEL_KEYS: Record<string, string> = {
+  ci_failed: "ci_failed",
+  ci_failure: "ci_failed",
+  job_failed: "job_failed",
+  job_finished: "job_finished",
+  job_succeeded: "job_succeeded",
+  job_implemented: "job_implemented",
+  job_needs_attention: "job_needs_attention",
+  epic_completed: "epic_completed",
+  pr_closed: "pr_closed",
+  pr_comment_addressed: "pr_comment_addressed",
+  pr_failed: "pr_failed",
+  pr_merged: "pr_merged",
+  pr_opened: "pr_ready",
+  pr_ready: "pr_ready",
+  pr_ready_for_review: "pr_ready",
+  pull_request_closed: "pr_closed",
+  pull_request_failed: "pr_failed",
+  pull_request_merged: "pr_merged",
+  pull_request_opened: "pr_ready",
+  pull_request_ready_for_review: "pr_ready",
+  main_broken: "main_broken",
+  main_inconclusive: "main_inconclusive",
+  main_recovered: "main_recovered",
+  upstream_pr_closed: "upstream_pr_closed",
+  external_pr_feedback: "external_pr_feedback",
+  investigation_escalated: "investigation_escalated"
 }
 
 export function nativeNotificationTitle(kind: string) {
   const normalized = kind.trim().toLowerCase()
-  const label = KIND_LABELS[normalized]
-  if (label) return label
+  const labelKey = KIND_LABEL_KEYS[normalized]
+  if (labelKey) return i18n.t(`common:native_notifications.${labelKey}`)
 
   const words = normalized.split(/[_\-. ]+/).filter(Boolean)
-  if (words.length === 0) return "Syrus notification"
+  if (words.length === 0) return i18n.t("common:native_notifications.generic")
 
   const firstWord = words[0] === "pr" ? "PR" : words[0][0].toUpperCase() + words[0].slice(1)
   return [firstWord, ...words.slice(1)].join(" ")

@@ -10,15 +10,14 @@ import {
   type ChatsIndexPayload
 } from "../api/chats"
 import { mergeMessageTail } from "../routes/chat/messageStreamItems"
+import i18n from "../i18n"
 
 export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: QueryKey, update: ChatPayloadUpdate) {
   let merged: ChatPayload | undefined
 
   queryClient.setQueryData<ChatPayload>(queryKey, (current) => {
     if (isFullChatPayload(update)) {
-      merged = current
-        ? { ...update, messages: mergeMessageTail(current.messages, update.messages) }
-        : update
+      merged = current ? { ...update, messages: mergeMessageTail(current.messages, update.messages) } : update
       return merged
     }
 
@@ -76,25 +75,28 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
 }
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
-  queryClient.getQueryCache().findAll({ queryKey: ["chats", "recent"] }).forEach((query) => {
-    queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
-      if (!current || !Array.isArray(current.groups)) return current
+  queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["chats", "recent"] })
+    .forEach((query) => {
+      queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
+        if (!current || !Array.isArray(current.groups)) return current
 
-      const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
-      if (!existing && !recentChatBelongsInQuery(chat, query.queryKey)) return current
+        const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
+        if (!existing && !recentChatBelongsInQuery(chat, query.queryKey)) return current
 
-      const updated = recentChatRecord(chat, existing, options.occurredAt)
-      const targetKey = chatGroupKey(updated)
-      const groups = withoutChat(current.groups, chat.id)
-      const targetIndex = groups.findIndex((group) => group.key === targetKey)
-      const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
-      const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
-      const nextGroup = { ...targetGroup, chats: nextChats }
-      const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
+        const updated = recentChatRecord(chat, existing, options.occurredAt)
+        const targetKey = chatGroupKey(updated)
+        const groups = withoutChat(current.groups, chat.id)
+        const targetIndex = groups.findIndex((group) => group.key === targetKey)
+        const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
+        const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
+        const nextGroup = { ...targetGroup, chats: nextChats }
+        const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
 
-      return { ...current, groups: nextGroups }
+        return { ...current, groups: nextGroups }
+      })
     })
-  })
 }
 
 export function refreshRecentChats(queryClient: QueryClient) {
@@ -156,7 +158,7 @@ function updateUnreadFlags(groups: ChatGroupRecord[], id: number, unread: boolea
 function statusGroupFor(key: "status-unread" | "status-active"): ChatGroupRecord {
   return {
     key,
-    label: key === "status-unread" ? "Unread" : "Active",
+    label: i18n.t(key === "status-unread" ? "chat:cache_groups.unread" : "chat:cache_groups.active"),
     repository_id: null,
     group_by: "status",
     group_value: key.replace("status-", ""),
@@ -241,7 +243,7 @@ function replaceOrPrependChat(chats: ChatNavRecord[], chat: ChatNavRecord) {
 export function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
   return {
     key: chatGroupKey(chat),
-    label: chat.repository?.slug || "General",
+    label: chat.repository?.slug || i18n.t("chat:cache_groups.general"),
     repository_id: chat.repository?.id ?? null,
     chats: [],
     has_more: false
