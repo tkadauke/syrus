@@ -1040,7 +1040,7 @@ export function Compose({
     }
 
     if (command.name === "/report") {
-      const transcriptAttachment = chatTranscriptBugReportAttachment(payload.messages)
+      const transcriptAttachment = chatTranscriptBugReportAttachment(payload.messages, t)
       bugReportTrigger.openBugReport({
         optionalAttachments: transcriptAttachment ? [transcriptAttachment] : []
       })

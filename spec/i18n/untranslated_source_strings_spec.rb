@@ -140,6 +140,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/components/MutationError.tsx
     app/frontend/components/NoticeToast.tsx
     app/frontend/components/PanelMessage.tsx
+    app/frontend/components/PrPreviewCard.tsx
     app/frontend/components/ProviderAvailabilityWarning.tsx
     app/frontend/components/ProviderRoutingRulesEditor.tsx
     app/frontend/components/Select.tsx
@@ -147,14 +148,27 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/components/Textarea.tsx
     app/frontend/components/Toggle.tsx
     app/frontend/components/WalkthroughRecorder.tsx
+    app/frontend/components/WorkflowPreviewCard.tsx
+    app/frontend/components/artifacts/BeforeAfterVisualComparison.tsx
+    app/frontend/components/artifacts/TypedArtifactPanel.tsx
+    app/frontend/components/artifacts/coreArtifactRenderers.tsx
     app/frontend/components/credentials/ConnectFlowUi.tsx
     app/frontend/components/credentials/CredentialCard.tsx
     app/frontend/components/credentials/GithubTokenStep.tsx
     app/frontend/components/credentials/ValidationStages.tsx
     app/frontend/components/dataTable/DataTableColumnHeaderRow.tsx
     app/frontend/components/dataTable/DataTableColumnMenu.tsx
+    app/frontend/components/diff/ImageDiffThumbnails.tsx
+    app/frontend/components/diff/ReviewableDiff.tsx
     app/frontend/components/filterBar/DateTimeRangeFilterValueEditor.tsx
     app/frontend/components/mobileChrome.tsx
+    app/frontend/components/timeline/TimeAxis.tsx
+    app/frontend/components/timeline/TimelineBar.tsx
+    app/frontend/components/timeline/TooltipCard.tsx
+    app/frontend/lib/chatBugReportAttachments.ts
+    app/frontend/lib/chatCache.ts
+    app/frontend/lib/nativeNotifications.ts
+    app/frontend/lib/passwordStrength.ts
     app/frontend/lib/slashCommands.ts
     app/frontend/routes/AccountSettings.tsx
     app/frontend/routes/AdminBackendExceptions.tsx
@@ -284,6 +298,10 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/Toggle.tsx|ternary|ring-1 ring-danger focus-visible:ring-danger
       app/frontend/components/ui/Text.tsx|jsx_text|, keyof TextOwnProps
       app/frontend/components/FilePreviewModal.tsx|jsx_text|cursor) parts.push(
+      app/frontend/components/PrPreviewCard.tsx|jsx_expression|PR #
+      app/frontend/components/diff/ReviewableDiff.tsx|jsx_expression|(+ -)
+      app/frontend/components/diff/ReviewableDiff.tsx|ternary|w-full table-fixed
+      app/frontend/components/timeline/TimeAxis.tsx|jsx_expression|0 0 24
       app/frontend/components/ProviderAvailabilityWarning.tsx|ternary|text-red-600 dark:text-red-400
       app/frontend/components/ProviderAvailabilityWarning.tsx|ternary|text-amber-600 dark:text-amber-400
       app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|, t: TFunction
@@ -508,6 +526,10 @@ RSpec.describe "Untranslated source strings", type: :unit do
     return true if code_or_protocol_literals.include?("#{relative_path}|#{kind}|#{text}")
     return true if placeholder_literals.include?("#{relative_path}|#{kind}|#{text}")
     return true if internal_diagnostic_literals.include?("#{relative_path}|#{kind}|#{text}")
+    # Renderer catalog metadata and examples are design-system fixtures, not
+    # shipped artifact-body copy. Runtime fallbacks in this file remain under
+    # the normal audit, so only fixture-shaped properties get this exemption.
+    return true if relative_path == "app/frontend/components/artifacts/coreArtifactRenderers.tsx" && kind == "user_visible_property"
 
     false
   end

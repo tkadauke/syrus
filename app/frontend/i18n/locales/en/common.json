@@ -476,6 +476,15 @@
     "scope": "scope {{scope}}"
   },
   "diff_review": {
+    "unavailable": "Diff not available",
+    "load_lines_above_one": "Load {{count}} more line above",
+    "load_lines_above_other": "Load {{count}} more lines above",
+    "load_lines_below_one": "Load {{count}} more line below",
+    "load_lines_below_other": "Load {{count}} more lines below",
+    "comment_on_line": "Comment on {{path}}:{{side}}:{{line}}",
+    "whole_file_loaded": "Whole file loaded",
+    "load_whole_file": "Load whole file",
+    "files": "Files",
     "changed_files": "Changed files",
     "close_changed_files": "Close changed files",
     "browse_changed_files": "Browse changed files",
@@ -505,6 +514,27 @@
       "pr_coverage_uncovered": "Changed line not covered by tests",
       "pr_coverage_not_executable": "Changed line is not executable"
     }
+  },
+  "native_notifications": {
+    "generic": "Syrus notification",
+    "ci_failed": "CI failed",
+    "job_failed": "Job failed",
+    "job_finished": "Job finished",
+    "job_succeeded": "Job succeeded",
+    "job_implemented": "Job implemented",
+    "job_needs_attention": "Job needs attention",
+    "epic_completed": "Feature completed",
+    "pr_closed": "PR closed",
+    "pr_comment_addressed": "PR feedback addressed",
+    "pr_failed": "PR failed",
+    "pr_merged": "PR merged",
+    "pr_ready": "PR ready for review",
+    "main_broken": "Main branch broken",
+    "main_inconclusive": "Main branch health inconclusive",
+    "main_recovered": "Main branch recovered",
+    "upstream_pr_closed": "Upstream PR closed",
+    "external_pr_feedback": "External PR feedback",
+    "investigation_escalated": "Investigation escalated"
   },
   "timeline_axis": {
     "timezone_hint": "Times shown in your local time ({{offset}})"

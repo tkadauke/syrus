@@ -213,6 +213,8 @@
   "artifact_visual_next": "Next",
   "artifact_visual_position": "{{current}} of {{total}}",
   "artifact_image_alt": "Screenshot",
+  "artifact_screenshot_number": "Screenshot {{number}}",
+  "preview_open_pr_on_github": "Open PR #{{number}} on GitHub",
   "artifact_provenance_path": "Path",
   "artifact_provenance_title": "Page title",
   "artifact_provenance_viewport": "Viewport",

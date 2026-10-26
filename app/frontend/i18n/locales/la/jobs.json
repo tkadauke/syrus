@@ -208,6 +208,8 @@
   "artifact_visual_next": "Proximum",
   "artifact_visual_position": "{{current}} ex {{total}}",
   "artifact_image_alt": "Imago capturae",
+  "artifact_screenshot_number": "Imago capturae {{number}}",
+  "preview_open_pr_on_github": "PR #{{number}} in GitHub aperire",
   "artifact_provenance_path": "Semita",
   "artifact_provenance_title": "Titulus paginae",
   "artifact_provenance_viewport": "Viewport",
