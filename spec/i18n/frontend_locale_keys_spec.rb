@@ -116,6 +116,9 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "configure_agent.tab_muse" => "product name"
     },
     "la" => {
+      "account_settings.role_options.developer" => "existing role label pending competent Latin review",
+      "account_settings.role_options.product_owner" => "existing role label pending competent Latin review",
+      "account_settings.role_options.operator" => "existing role label pending competent Latin review",
       "themes.token_label" => "placeholder-only value",
       "themes.token_groups.status" => "valid Latin noun",
       "design_system.semantic.badge" => "release-stage label",
