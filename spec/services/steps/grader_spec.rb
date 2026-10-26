@@ -72,6 +72,31 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join).to include("durable output")
   end
 
+  it "retains only declared regular coverage outputs on the successful Run" do
+    FileUtils.mkdir_p(@ws_path.join("coverage"))
+    @ws_path.join("coverage/lcov.info").write("TN:\nend_of_record\n")
+    outside = @ws_path.dirname.join("outside.info")
+    outside.write("secret")
+    FileUtils.ln_s(outside, @ws_path.join("coverage/link.info"))
+    step.update!(details: step.details.merge(
+      "coverage_outputs" => [
+        { "artifact" => "coverage/lcov.info", "format" => "lcov" },
+        { "artifact" => "../outside.info", "format" => "lcov" },
+        { "artifact" => "coverage/link.info", "format" => "lcov" },
+        { "artifact" => "coverage/missing.info", "format" => "lcov" }
+      ]
+    ))
+
+    handler.call
+
+    expect(run.coverage_outputs.count).to eq(1)
+    expect(run.coverage_outputs.first.blob.metadata).to include(
+      "artifact" => "coverage/lcov.info", "format" => "lcov", "grader_name" => "tests"
+    )
+    expect(step.reload.details.fetch("coverage_output_results").map { |result| result["status"] })
+      .to eq(%w[retained absent absent absent])
+  end
+
   it "preserves workspace metadata recorded during setup" do
     setup_metadata = {
       "prepare_cache" => { "status" => "hit" },
