@@ -86,8 +86,8 @@ function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string
   return (
     <section className="rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
       {preferences.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">{t('notifications.loading')}</p> : null}
-      {preferences.isError ? <PanelMessage tone="error">{errorMessage(preferences.error, "Unable to load notification preferences.")}</PanelMessage> : null}
-      {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, "Unable to update notification preferences.")}</PanelMessage> : null}
+      {preferences.isError ? <PanelMessage tone="error">{errorMessage(preferences.error, t("notifications.load_error"))}</PanelMessage> : null}
+      {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, t("notifications.update_error"))}</PanelMessage> : null}
       {preferences.isSuccess ? (
         <NotificationPreferenceToggles
           disabled={update.isPending}

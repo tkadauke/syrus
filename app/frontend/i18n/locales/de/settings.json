@@ -229,6 +229,8 @@
     "semantics_label": "Semantik"
   },
   "notifications": {
+    "load_error": "Benachrichtigungseinstellungen konnten nicht geladen werden.",
+    "update_error": "Benachrichtigungseinstellungen konnten nicht aktualisiert werden.",
     "heading": "Benachrichtigungen",
     "description": "Wähle aus, welche Syrus-Ereignisse Benachrichtigungen für dein Konto erstellen.",
     "loading": "Benachrichtigungseinstellungen werden geladen...",
@@ -1112,6 +1114,14 @@
     "issues_ingested_other": "{{count}} Issues aufgenommen"
   },
   "account_settings": {
+    "setup_title": "Einrichtung abschließen",
+    "setup_credentials_description": "Speichere die GitHub- und Agent-Zugangsdaten, die Syrus verwenden soll, und fahre dann mit der Repository-Einrichtung fort.",
+    "save_error": "Zugangsdaten konnten nicht gespeichert werden.",
+    "load_error": "Zugangsdaten konnten nicht geladen werden.",
+    "api_token_rotate_error": "API-Token konnte nicht erneuert werden.",
+    "api_token_revoke_error": "API-Token konnte nicht widerrufen werden.",
+    "provider_recheck_error": "Provider-Verfügbarkeit konnte nicht erneut geprüft werden.",
+    "provider_override_error": "Provider-Verfügbarkeit konnte nicht übergangen werden.",
     "loading_credentials": "Anmeldedaten werden geladen...",
     "credentials_description": "Verschlüsselte Anbieter- und GitHub-Zugangsdaten für Syrus-Läufe.",
     "profile_description": "Deine öffentlichen Team-Profildetails.",
