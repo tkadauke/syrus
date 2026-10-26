@@ -3,7 +3,9 @@ module RebaseResultLookup
     stack_entry = Array(workflow.artifact(StackRebasePlan::RESULTS_ARTIFACT)).find do |entry|
       entry["job_id"].to_i == job.id
     end
-    stack_entry&.fetch("result", nil) || workflow.artifact("auto_rebase_result")
+    stack_entry&.fetch("result", nil) ||
+      workflow.artifact("auto_rebase_result") ||
+      workflow.artifact("base_refresh_rebase_result")
   end
 
   def pr_head_sha(pr)
