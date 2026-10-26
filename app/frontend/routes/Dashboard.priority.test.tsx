@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { DashboardJobItem, DashboardPayload } from "../api/dashboard"
 import { DashboardTable } from "./Dashboard"
 import { PRIORITY_TONE } from "./dashboard/JobsTable"
+import i18n from "../i18n"
 
 // Only `id`, `priority`, `type`, `epic`, and `landing_queue_entry_key` are
 // read by the priority cell path.
@@ -29,7 +30,7 @@ function kanbanJobItem(id: number, priority: string): DashboardJobItem {
     summary_state: "running",
     active_workflow_trigger_kind: null,
     repository: { id: 1, slug: "owner/repo", repository_path: "/repos/1" },
-    paths: { job_path: `/jobs/${id}`, source_path: `/jobs/${id}` },
+    paths: { job_path: `/jobs/${id}`, source_path: `/jobs/${id}` }
   } as unknown as DashboardJobItem
 }
 
@@ -45,7 +46,7 @@ function mobileJobItem(id: number, priority: string): DashboardJobItem {
     summary_state: "succeeded",
     tags: [],
     total_cost_usd: null,
-    workflows_count: 1,
+    workflows_count: 1
   } as unknown as DashboardJobItem
 }
 
@@ -277,21 +278,21 @@ describe("urgent row highlight", () => {
   })
 
   it("applies a red background to the desktop table row for urgent jobs", () => {
-    renderTable([ jobItem(1, "urgent") ])
+    renderTable([jobItem(1, "urgent")])
     const pill = screen.getByText("urgent")
     const row = pill.closest("tr")
     expect(row?.className).toContain("bg-red-50")
   })
 
   it("does not apply a red background to high-priority rows", () => {
-    renderTable([ jobItem(2, "high") ])
+    renderTable([jobItem(2, "high")])
     const pill = screen.getByText("high")
     const row = pill.closest("tr")
     expect(row?.className ?? "").not.toContain("bg-red-50")
   })
 
   it("does not apply a red background to medium-priority rows", () => {
-    const { container } = renderTable([ jobItem(3, "medium") ])
+    const { container } = renderTable([jobItem(3, "medium")])
     const tbody = container.querySelector("tbody")
     const row = tbody?.querySelector("tr")
     expect(row?.className ?? "").not.toContain("bg-red-50")
@@ -299,7 +300,7 @@ describe("urgent row highlight", () => {
 
   it("renders the mobile jobs list edge-to-edge without a boxed card margin", () => {
     mockMediaQuery(false)
-    renderTable([ mobileJobItem(3, "medium") ])
+    renderTable([mobileJobItem(3, "medium")])
 
     const row = screen.getByRole("article", { name: "Job 3" })
     const list = row.parentElement?.parentElement
@@ -327,32 +328,49 @@ describe("urgent kanban card highlight", () => {
     const article = container.querySelector("article")
     expect(article?.className ?? "").not.toContain("bg-red-50")
   })
+
+  it("translates priority and dependency summaries into German", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const item = {
+        ...kanbanJobItem(3, "high"),
+        dependencies: [{ id: 1 }, { id: 2 }],
+        unsatisfied_dependencies: [{ id: 2 }]
+      } as unknown as DashboardJobItem
+
+      renderPayload(kanbanPayload(item))
+      expect(screen.getByText("Hoch")).toBeInTheDocument()
+      expect(screen.getByText("1/2 Abhängigkeiten blockiert")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
 })
 
 describe("priority column rendering", () => {
   it("renders a red pill for urgent jobs", () => {
-    renderTable([ jobItem(1, "urgent") ])
+    renderTable([jobItem(1, "urgent")])
     const pill = screen.getByText("urgent")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
     expect(pill.closest("[data-status-pill]")?.className).toContain("bg-danger-surface")
   })
 
   it("renders an amber pill for high-priority jobs", () => {
-    renderTable([ jobItem(2, "high") ])
+    renderTable([jobItem(2, "high")])
     const pill = screen.getByText("high")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
     expect(pill.closest("[data-status-pill]")?.className).toContain("bg-warning-surface")
   })
 
   it("renders an info pill for low-priority jobs", () => {
-    renderTable([ jobItem(3, "low") ])
+    renderTable([jobItem(3, "low")])
     const pill = screen.getByText("low")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
     expect(pill.closest("[data-status-pill]")?.className).toContain("text-info")
   })
 
   it("renders no pill for medium-priority jobs", () => {
-    renderTable([ jobItem(4, "medium") ])
+    renderTable([jobItem(4, "medium")])
     expect(screen.queryByText("medium")).toBeNull()
   })
 })
