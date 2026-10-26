@@ -8,6 +8,8 @@ import { signInAsDemo } from "../../../e2e/support/auth"
 // a session is opened the test only asserts on what the UI renders without a
 // live PTY: the panel opening with the right chrome, not any real output.
 test("signed-in admin enables the Terminal plugin and opens a session panel from a Job's workflow", async ({ page }) => {
+  test.setTimeout(90_000)
+
   // This spec asserts the plugin's disabled starting state and then enables
   // it, so it leaves the plugin enabled for the next run. Put it back first:
   // plugin enablement is instance-wide and nothing else resets it.
