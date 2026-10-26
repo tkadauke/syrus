@@ -131,8 +131,8 @@ export default cancelWakeupToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "cancelled",
-    label: "Cancelled wakeup with context",
-    description: "Linked wakeup reference, original fire time, prompt, and responsive wrapping.",
+    label: i18n.t("chat:tool_card_cancel_wakeup_example_cancelled"),
+    description: i18n.t("chat:tool_card_cancel_wakeup_example_cancelled_description"),
     sourceType: "claude",
     parsedResult: {
       cancelled: true,
@@ -141,7 +141,13 @@ export const examples: ToolCardExample[] = [
       prompt: "Review **JOB-42** and https://example.test/status before reporting back."
     }
   },
-  { id: "not_pending", label: "Wakeup not found or pending", sourceType: "codex", resultBody: "wakeup not found or not pending", resultError: true },
-  { id: "pending", label: "Cancellation pending", resultBody: "", resultSettled: false },
-  { id: "empty", label: "Empty response", parsedResult: {} }
+  {
+    id: "not_pending",
+    label: i18n.t("chat:tool_card_cancel_wakeup_example_not_pending"),
+    sourceType: "codex",
+    resultBody: "wakeup not found or not pending",
+    resultError: true
+  },
+  { id: "pending", label: i18n.t("chat:tool_card_cancel_wakeup_example_pending"), resultBody: "", resultSettled: false },
+  { id: "empty", label: i18n.t("chat:tool_card_cancel_wakeup_example_empty"), parsedResult: {} }
 ]
