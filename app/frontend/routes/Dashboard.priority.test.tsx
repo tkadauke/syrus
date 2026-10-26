@@ -279,14 +279,14 @@ describe("urgent row highlight", () => {
 
   it("applies a red background to the desktop table row for urgent jobs", () => {
     renderTable([jobItem(1, "urgent")])
-    const pill = screen.getByText("urgent")
+    const pill = screen.getByText("Urgent")
     const row = pill.closest("tr")
     expect(row?.className).toContain("bg-red-50")
   })
 
   it("does not apply a red background to high-priority rows", () => {
     renderTable([jobItem(2, "high")])
-    const pill = screen.getByText("high")
+    const pill = screen.getByText("High")
     const row = pill.closest("tr")
     expect(row?.className ?? "").not.toContain("bg-red-50")
   })
@@ -334,6 +334,7 @@ describe("urgent kanban card highlight", () => {
     try {
       const item = {
         ...kanbanJobItem(3, "high"),
+        active_workflow_trigger_kind: "initial",
         dependencies: [{ id: 1 }, { id: 2 }],
         unsatisfied_dependencies: [{ id: 2 }]
       } as unknown as DashboardJobItem
@@ -341,6 +342,7 @@ describe("urgent kanban card highlight", () => {
       renderPayload(kanbanPayload(item))
       expect(screen.getByText("Hoch")).toBeInTheDocument()
       expect(screen.getByText("1/2 Abhängigkeiten blockiert")).toBeInTheDocument()
+      expect(screen.getByLabelText("Auslöser des aktiven Workflows: Initial")).toBeInTheDocument()
     } finally {
       await i18n.changeLanguage("en")
     }
@@ -350,21 +352,21 @@ describe("urgent kanban card highlight", () => {
 describe("priority column rendering", () => {
   it("renders a red pill for urgent jobs", () => {
     renderTable([jobItem(1, "urgent")])
-    const pill = screen.getByText("urgent")
+    const pill = screen.getByText("Urgent")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
     expect(pill.closest("[data-status-pill]")?.className).toContain("bg-danger-surface")
   })
 
   it("renders an amber pill for high-priority jobs", () => {
     renderTable([jobItem(2, "high")])
-    const pill = screen.getByText("high")
+    const pill = screen.getByText("High")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
     expect(pill.closest("[data-status-pill]")?.className).toContain("bg-warning-surface")
   })
 
   it("renders an info pill for low-priority jobs", () => {
     renderTable([jobItem(3, "low")])
-    const pill = screen.getByText("low")
+    const pill = screen.getByText("Low")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
     expect(pill.closest("[data-status-pill]")?.className).toContain("text-info")
   })
@@ -372,5 +374,16 @@ describe("priority column rendering", () => {
   it("renders no pill for medium-priority jobs", () => {
     renderTable([jobItem(4, "medium")])
     expect(screen.queryByText("medium")).toBeNull()
+  })
+
+  it("translates desktop priority pills into German", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      renderTable([jobItem(5, "urgent")])
+      expect(screen.getByText("Dringend")).toBeInTheDocument()
+      expect(screen.queryByText("urgent")).toBeNull()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 })
