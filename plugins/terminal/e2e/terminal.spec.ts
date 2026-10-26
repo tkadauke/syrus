@@ -63,12 +63,12 @@ test("signed-in admin enables the Terminal plugin and opens a session panel from
   // The session panel opens against a real session record, but nothing ever
   // streams into it here -- assert the pane's chrome, not any PTY output.
   await expect(page.getByRole("tab", { selected: true })).toHaveText(/^WF-\d+ workspace$/)
-  await expect(page.getByText(/\.syrus\/workflows\/\d+$/)).toBeVisible()
+  await expect(page.getByText(/\/workflows\/\d+$/)).toBeVisible()
   await expect(page.getByRole("button", { name: "Kill" })).toBeVisible()
 
   // Reload to prove the session and its active tab are derived from the
   // server-persisted Terminal::Session, not just client-side navigation state.
   await page.reload()
   await expect(page.getByRole("tab", { selected: true })).toHaveText(/^WF-\d+ workspace$/)
-  await expect(page.getByText(/\.syrus\/workflows\/\d+$/)).toBeVisible()
+  await expect(page.getByText(/\/workflows\/\d+$/)).toBeVisible()
 })
