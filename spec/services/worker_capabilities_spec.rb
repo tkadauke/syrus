@@ -24,7 +24,7 @@ RSpec.describe WorkerCapabilities do
       3.times { described_class.current }
 
       expect(described_class).to have_received(:command_result)
-        .at_most(described_class::TOOL_PROBES.size + 4).times
+        .at_most(described_class::TOOL_PROBES.size + described_class.send(:plugin_tool_probes).size + 4).times
     end
 
     it "probes tool versions once per process rather than for every environment fingerprint" do
@@ -128,42 +128,76 @@ RSpec.describe WorkerCapabilities do
     # image has the SDK and sdkmanager on PATH, but nothing advertised it, so
     # every Android grader -- including main-branch-repair's preflight -- came
     # back no_capable_worker.
-    it "advertises the android toolchain when the SDK is installed" do
+    # Core owns the mechanism; a plugin owns where its tooling lives. Keeping
+    # a toolchain's SDK root and directory layout out of this class is what lets
+    # the plugin stay deletable.
+    it "advertises a toolchain a plugin probes for" do
+      provider = Class.new do
+        def self.capability_probes(env: ENV)
+          [ { dimension: "toolchain", token: "demo", command: [ "/opt/demo/bin/demo", "--version" ] } ]
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:worker_capability_probe).and_return([ provider ])
       allow(described_class).to receive(:command_result) do |command|
-        probe_result(success: command.first.end_with?("/platform-tools/adb"))
+        probe_result(success: command.first == "/opt/demo/bin/demo")
       end
 
       with_capability_env(nil) do
-        expect(described_class.current.fetch(:capabilities)["toolchain"]).to include("android")
+        expect(described_class.current.fetch(:capabilities)["toolchain"]).to include("demo")
       end
     end
 
-    # capability_probe runs with `env: {}` and the sandbox supplies a bare
-    # /usr/local/bin:/usr/bin:/bin PATH, so everything the image adds through
-    # `ENV PATH` -- the whole Android SDK -- is invisible to a probe that looks
-    # the command up by name. A `sdkmanager` probe reported the toolchain
-    # absent on a worker that had it, and shipped to production doing nothing.
-    it "probes the android SDK by absolute path, never by PATH lookup" do
-      command = described_class::TOOL_PROBES.find { |probe| probe.token == "android" }.command
-
-      expect(command.first).to start_with("/")
-      expect(command.first).to end_with("/platform-tools/adb")
-    end
-
-    # adb is native and answers in about 12ms; sdkmanager is a JVM program
-    # taking roughly 650ms of a 2 second probe budget.
-    it "probes with adb rather than the JVM-backed sdkmanager" do
-      command = described_class::TOOL_PROBES.find { |probe| probe.token == "android" }.command
-
-      expect(command.join(" ")).not_to include("sdkmanager")
-    end
-
-    it "does not advertise the android toolchain when the SDK is absent" do
+    it "does not advertise a plugin toolchain whose probe fails" do
+      provider = Class.new do
+        def self.capability_probes(env: ENV)
+          [ { dimension: "toolchain", token: "demo", command: [ "/opt/demo/bin/demo" ] } ]
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:worker_capability_probe).and_return([ provider ])
       allow(described_class).to receive(:command_result) { probe_result(success: false) }
 
       with_capability_env(nil) do
-        expect(Array(described_class.current.fetch(:capabilities)["toolchain"])).not_to include("android")
+        expect(Array(described_class.current.fetch(:capabilities)["toolchain"])).not_to include("demo")
       end
+    end
+
+    # A worker that advertises slightly less is recoverable; a worker that will
+    # not boot is not.
+    it "survives a plugin probe provider that raises" do
+      provider = Class.new do
+        def self.capability_probes(env: ENV) = raise("boom")
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:worker_capability_probe).and_return([ provider ])
+      allow(described_class).to receive(:command_result) { probe_result(success: false) }
+
+      with_capability_env(nil) do
+        expect(described_class.current.fetch(:capabilities)).to include("os", "arch")
+      end
+    end
+
+    it "ignores a plugin probe naming a dimension core does not model" do
+      provider = Class.new do
+        def self.capability_probes(env: ENV)
+          [ { dimension: "warp_drive", token: "demo", command: [ "/opt/demo/bin/demo" ] } ]
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:worker_capability_probe).and_return([ provider ])
+      allow(described_class).to receive(:command_result) { probe_result(success: true) }
+
+      with_capability_env(nil) do
+        expect(described_class.current.fetch(:capabilities)).not_to have_key("warp_drive")
+      end
+    end
+
+    # No SDK paths, no platform toolchain names in CODE. Comments may still
+    # explain why the extension point exists -- prose is documentation, not
+    # knowledge core depends on.
+    it "keeps platform-specific toolchain knowledge out of core" do
+      source = File.read(Rails.root.join("app/services/worker_capabilities.rb"))
+      code = source.lines.reject { |line| line.strip.start_with?("#") }.join
+
+      expect(code).not_to match(/android/i)
+      expect(code).not_to include("/opt/")
     end
 
     it "does not advertise the iOS simulator runtime when simctl has no available iOS runtimes" do

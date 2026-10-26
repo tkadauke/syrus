@@ -48,6 +48,7 @@ module Syrus
       memory_store
       test_evidence
       runtime_session_provider
+      worker_capability_probe
       build_system_graph_provider
       retention_policy
       repository_content_provider
@@ -106,6 +107,7 @@ module Syrus
       test_evidence:           -> { Syrus::Plugin::TestEvidence },
       memory_store:            -> { Syrus::Plugin::MemoryStore },
       runtime_session_provider: -> { Syrus::Plugin::RuntimeSessionProvider },
+      worker_capability_probe: -> { Syrus::Plugin::WorkerCapabilityProbe },
       build_system_graph_provider: -> { Syrus::Plugin::BuildSystemGraphProvider },
       retention_policy:        -> { Syrus::Plugin::RetentionPolicy },
       repository_content_provider: -> { Syrus::Plugin::RepositoryContentProvider },

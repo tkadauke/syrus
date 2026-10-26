@@ -5,6 +5,7 @@ require "android/prompt_context"
 require "android/review_criteria_provider"
 require "android/step_environment"
 require "android/toolchain_diagnostic"
+require "android/capability_probe"
 require "android/emulator_runtime_session_provider"
 require "android/gradle_grader_type"
 require "android/assemble_grader_type"
@@ -45,6 +46,7 @@ module Android
              review_criteria_provider: "Android::ReviewCriteriaProvider",
              step_environment: "Android::StepEnvironment",
              runtime_session_provider: "Android::EmulatorRuntimeSessionProvider",
+             worker_capability_probe: "Android::CapabilityProbe",
              grader_type: [
                "Android::AssembleGraderType",
                "Android::UnitTestGraderType",

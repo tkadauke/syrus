@@ -67,6 +67,7 @@ RSpec.describe Android::Engine do
         :review_criteria_provider,
         :step_environment,
         :runtime_session_provider,
+        :worker_capability_probe,
         :grader_type
       )
     end
@@ -77,6 +78,7 @@ RSpec.describe Android::Engine do
       expect(registration.provides[:review_criteria_provider]).to eq(Android::ReviewCriteriaProvider)
       expect(registration.provides[:step_environment]).to eq(Android::StepEnvironment)
       expect(registration.provides[:runtime_session_provider]).to eq(Android::EmulatorRuntimeSessionProvider)
+      expect(registration.provides[:worker_capability_probe]).to eq(Android::CapabilityProbe)
     end
 
     it "registers Android typed graders" do
