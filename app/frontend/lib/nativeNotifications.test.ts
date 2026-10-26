@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { SyrusShellBridge } from "./desktopShell"
+import i18n from "../i18n"
 import {
   dispatchNativeNotification,
   httpNotificationUrl,
@@ -40,6 +41,7 @@ class FakeNotification {
 }
 
 afterEach(() => {
+  void i18n.changeLanguage("en")
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   FakeNotification.permission = "default"
@@ -66,12 +68,18 @@ describe("nativeNotificationTitle", () => {
   it("falls back to a generic label for an empty kind", () => {
     expect(nativeNotificationTitle("   ")).toBe("Syrus notification")
   })
+
+  it("uses the active locale for known and generic titles", async () => {
+    await i18n.changeLanguage("de")
+
+    expect(nativeNotificationTitle("job_needs_attention")).toBe("Job braucht deine Aufmerksamkeit")
+    expect(nativeNotificationTitle("   ")).toBe("Syrus-Benachrichtigung")
+  })
 })
 
 describe("nativeNotificationClickUrl", () => {
   it("prefers the PR url when present", () => {
-    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "https://github.com/o/r/pull/1" }))
-      .toBe("https://github.com/o/r/pull/1")
+    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "https://github.com/o/r/pull/1" })).toBe("https://github.com/o/r/pull/1")
   })
 
   it("falls back to a job path scoped to the current route prefix", () => {
@@ -150,7 +158,13 @@ describe("dispatchNativeNotification", () => {
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "granted"
     const assign = vi.fn()
-    vi.stubGlobal("location", { ...window.location, pathname: "/dashboard", set href(value: string) { assign(value) } })
+    vi.stubGlobal("location", {
+      ...window.location,
+      pathname: "/dashboard",
+      set href(value: string) {
+        assign(value)
+      }
+    })
     const focus = vi.spyOn(window, "focus").mockImplementation(() => {})
 
     const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null, notificationId: 4 })
@@ -193,7 +207,13 @@ describe("dispatchNativeNotification", () => {
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "granted"
     const assign = vi.fn()
-    vi.stubGlobal("location", { ...window.location, pathname: "/dashboard", set href(value: string) { assign(value) } })
+    vi.stubGlobal("location", {
+      ...window.location,
+      pathname: "/dashboard",
+      set href(value: string) {
+        assign(value)
+      }
+    })
 
     const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null, notificationId: null })
 
