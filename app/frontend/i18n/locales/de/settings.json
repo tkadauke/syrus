@@ -629,6 +629,10 @@
     "health_source_concern_quorum": "Quorum",
     "run_graders_now": "Prüfer jetzt ausführen",
     "check_ci_now": "CI jetzt prüfen",
+    "health_unable_to_resume": "Arbeit konnte nicht fortgesetzt werden.",
+    "health_graders_failed": "Grader-Befehl ist fehlgeschlagen.",
+    "health_ci_check_failed": "CI-Prüfbefehl ist fehlgeschlagen.",
+    "health_repair_failed": "Reparaturbefehl ist fehlgeschlagen.",
     "aria_repository": "Repository",
     "aria_repository_health": "Repository-Gesundheit",
     "health_tab_empty": "Für dieses Repository liegen noch keine Gesundheitsinformationen vor.",
@@ -724,7 +728,15 @@
     "placeholder_optional_filename": "Optional; Standard ist der Dateiname",
     "placeholder_optional": "Optional",
     "confirm_delete": "Dieses Dokument löschen?",
-    "removed": "Dokument entfernt."
+    "removed": "Dokument entfernt.",
+    "added": "Dokument hinzugefügt.",
+    "file_title": "Dateititel",
+    "file": "Datei",
+    "url": "Webadresse",
+    "document_title": "Dokumenttitel",
+    "unable_to_add": "Dokument konnte nicht hinzugefügt werden.",
+    "unable_to_delete": "Dokument konnte nicht gelöscht werden.",
+    "unable_to_load": "Repository-Dokumente konnten nicht geladen werden."
   },
   "repository_memberships": {
     "loading": "Mitglieder werden geladen...",
@@ -767,7 +779,12 @@
     },
     "github_only_collaborators": "Nur-GitHub-Mitarbeiter",
     "github_only_collaborators_description": "GitHub-Mitarbeiter mit Schreib- oder Admin-Zugriff auf dieses Repository, die keinen entsprechenden Syrus-Zugriff haben. Nur eine Warnung — Syrus vergibt oder entzieht niemals GitHub-Zugriff.",
-    "github_only_on_github": "auf GitHub, kein Syrus-Zugriff"
+    "github_only_on_github": "auf GitHub, kein Syrus-Zugriff",
+    "unable_to_update_role": "Rolle konnte nicht aktualisiert werden.",
+    "unable_to_remove_member": "Mitglied konnte nicht entfernt werden.",
+    "unable_to_remove_team": "Team-Zugriff konnte nicht entfernt werden.",
+    "unable_to_add_team": "Team-Zugriff konnte nicht gewährt werden.",
+    "unable_to_add_member": "Mitglied konnte nicht hinzugefügt werden."
   },
   "document_preview": {
     "aria_label": "Vorschau von {{title}}",

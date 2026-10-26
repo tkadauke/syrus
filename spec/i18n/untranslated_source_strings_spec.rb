@@ -153,7 +153,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/AppChromeV2.tsx
     app/frontend/routes/ChatSearch.tsx
     app/frontend/routes/Dashboard.tsx
+    app/frontend/routes/EpicDetail.tsx
+    app/frontend/routes/JobDetail.tsx
     app/frontend/routes/Repositories.tsx
+    app/frontend/routes/RepositoryDetail.tsx
+    app/frontend/routes/RepositoryDocuments.tsx
+    app/frontend/routes/RepositoryMembers.tsx
     app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx
     app/frontend/routes/appChromeV2/adminNav.ts
     app/frontend/routes/appChromeV2/helpers.ts
@@ -164,6 +169,16 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/dashboard/KanbanBoard.tsx
     app/frontend/routes/dashboard/components.tsx
     app/frontend/routes/dashboard/helpers.ts
+    app/frontend/routes/jobDetail/AgentConversation.tsx
+    app/frontend/routes/jobDetail/Delivery.tsx
+    app/frontend/routes/jobDetail/JobHeader.tsx
+    app/frontend/routes/jobDetail/Report.tsx
+    app/frontend/routes/jobDetail/SourceBrowser.tsx
+    app/frontend/routes/jobDetail/Timeline.tsx
+    app/frontend/routes/jobDetail/components.tsx
+    app/frontend/routes/repositoryDetail/DeliveryTracks.tsx
+    app/frontend/routes/repositoryDetail/MainBranchHealth.tsx
+    app/frontend/routes/repositoryDetail/shared.tsx
   ].freeze
 
   CHAT_I18N_REVIEWED_FILES = %w[
@@ -256,6 +271,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/AppChromeV2.tsx|ternary|border-green-200 bg-green-50 text-green-700
       app/frontend/routes/ChatSearch.tsx|ternary|text-red-700 dark:text-red-300
       app/frontend/routes/ChatSearch.tsx|ternary|text-gray-500 dark:text-gray-400
+      app/frontend/routes/JobDetail.tsx|jsx_expression|CHAT-
+      app/frontend/routes/JobDetail.tsx|user_visible_property|Claude Code
       app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, value: T, t: TFunction
       app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, t: TFunction
       app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_expression|CHAT-
@@ -353,6 +370,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #
+      app/frontend/routes/jobDetail/SourceBrowser.tsx|jsx_expression|(+ -)
+      app/frontend/routes/jobDetail/Timeline.tsx|jsx_expression|0 0 32
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0 && highlight.start
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0) blocks.push(`
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|offset || highlight.end
@@ -397,7 +416,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/AdminTranscript.tsx|jsx_text|duration=ms
       app/frontend/routes/AdminTranscript.tsx|jsx_text|subtype=
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|(intent.requested_at ?
-      app/frontend/routes/jobDetail/SourceBrowser.tsx|jsx_attr|not covered
+      app/frontend/routes/jobDetail/SourceBrowser.tsx|ternary|bg-green-50 dark:bg-green-950/30
+      app/frontend/routes/jobDetail/SourceBrowser.tsx|ternary|bg-red-50 dark:bg-red-950/30
+      app/frontend/routes/jobDetail/components.tsx|ternary|min-h-0 flex-1 max-h-none
+      app/frontend/routes/jobDetail/components.tsx|ternary|max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none
+      app/frontend/routes/repositoryDetail/shared.tsx|ternary|border-brand bg-brand text-on-brand
+      app/frontend/routes/repositoryDetail/shared.tsx|ternary|border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800
     LITERALS
   end
 
