@@ -121,8 +121,8 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
       <>
         {setupStatus && !setupStatus.first_successful_job_completed ? (
           <OnboardingEmptyState
-            fallbackDescription="Save the GitHub and agent credentials Syrus should use, then continue to repository setup."
-            fallbackTitle="Finish setup"
+            fallbackDescription={t("account_settings.setup_credentials_description")}
+            fallbackTitle={t("account_settings.setup_title")}
             prefix={prefix}
             setupStatus={setupStatus}
           />
@@ -176,7 +176,7 @@ function ChatProviderPanel({ payload, onNotice, prefix }: { payload: Credentials
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <SectionHeading>{t('credential_cards.chat_provider_heading')}</SectionHeading>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('credential_cards.chat_provider_desc')}</p>
-      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
+      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("account_settings.save_error"))}</PanelMessage> : null}
       <Select
         aria-label={t('credential_cards.chat_provider_heading')}
         className="mt-3"
@@ -246,7 +246,7 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <form className="space-y-5" onSubmit={submit}>
-        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
+        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("account_settings.save_error"))}</PanelMessage> : null}
 
         {section === "profile" ? (
           <>
@@ -694,8 +694,8 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
         <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{t('account_settings.no_token')}</p>
       )}
 
-      {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, "Unable to rotate API token.")}</PanelMessage> : null}
-      {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, "Unable to revoke API token.")}</PanelMessage> : null}
+      {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, t("account_settings.api_token_rotate_error"))}</PanelMessage> : null}
+      {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("account_settings.api_token_revoke_error"))}</PanelMessage> : null}
 
       <div className="mt-3 flex gap-2">
         <button
@@ -729,7 +729,8 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 }
 
 function CredentialsError({ error }: { error: Error }) {
-  return <PanelMessage tone="error">{errorMessage(error, "Unable to load credentials.")}</PanelMessage>
+  const { t } = useT("settings")
+  return <PanelMessage tone="error">{errorMessage(error, t("account_settings.load_error"))}</PanelMessage>
 }
 
 
@@ -895,8 +896,8 @@ function ProviderAvailabilitySettings({
           </div>
         )
       })}
-      {recheck.isError ? <PanelMessage tone="error">{errorMessage(recheck.error, "Unable to recheck provider availability.")}</PanelMessage> : null}
-      {override.isError ? <PanelMessage tone="error">{errorMessage(override.error, "Unable to override provider availability.")}</PanelMessage> : null}
+      {recheck.isError ? <PanelMessage tone="error">{errorMessage(recheck.error, t("account_settings.provider_recheck_error"))}</PanelMessage> : null}
+      {override.isError ? <PanelMessage tone="error">{errorMessage(override.error, t("account_settings.provider_override_error"))}</PanelMessage> : null}
     </div>
   )
 }

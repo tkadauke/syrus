@@ -229,6 +229,8 @@
     "semantics_label": "Semantica"
   },
   "notifications": {
+    "load_error": "Praeferentiae notificationum onerari non potuerunt.",
+    "update_error": "Praeferentiae notificationum renovari non potuerunt.",
     "heading": "Notificationes",
     "description": "Elige quae eventus Syri notificationes pro tuo computatro creent.",
     "loading": "Praeferentias notificationum onerans...",
@@ -1112,6 +1114,14 @@
     "issues_ingested_other": "{{count}} quaestiones captae"
   },
   "account_settings": {
+    "setup_title": "Constitutionem perficere",
+    "setup_credentials_description": "Documenta GitHub et Agent quae Syrus adhibeat serva, deinde ad constitutionem Repository perge.",
+    "save_error": "Documenta servari non potuerunt.",
+    "load_error": "Documenta onerari non potuerunt.",
+    "api_token_rotate_error": "API token renovari non potuit.",
+    "api_token_revoke_error": "API token revocari non potuit.",
+    "provider_recheck_error": "Disponibilitas provider iterum examinari non potuit.",
+    "provider_override_error": "Disponibilitas provider praeteriri non potuit.",
     "loading_credentials": "Testimonia onerantur...",
     "credentials_description": "Testimonia praestantis et GitHub cryptographice pro cursibus Syri.",
     "profile_description": "Detalia personae tuae publicae gregis.",

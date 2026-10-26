@@ -138,6 +138,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/components/WalkthroughRecorder.tsx
     app/frontend/components/filterBar/DateTimeRangeFilterValueEditor.tsx
     app/frontend/lib/slashCommands.ts
+    app/frontend/routes/AccountSettings.tsx
     app/frontend/routes/AdminBackendExceptions.tsx
     app/frontend/routes/AdminBrowserErrors.tsx
     app/frontend/routes/AdminFeatures.tsx
@@ -150,15 +151,24 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/AdminTranscript.tsx
     app/frontend/routes/AdminWorkUnits.tsx
     app/frontend/routes/AdminWorkflowActivity.tsx
+    app/frontend/routes/AgentSettings.tsx
     app/frontend/routes/AppChromeV2.tsx
+    app/frontend/routes/Auth.tsx
     app/frontend/routes/ChatSearch.tsx
+    app/frontend/routes/ConnectedPlatforms.tsx
+    app/frontend/routes/Credentials.tsx
     app/frontend/routes/Dashboard.tsx
     app/frontend/routes/EpicDetail.tsx
     app/frontend/routes/JobDetail.tsx
+    app/frontend/routes/NotificationsSettings.tsx
+    app/frontend/routes/Onboarding.tsx
+    app/frontend/routes/Preferences.tsx
+    app/frontend/routes/Profile.tsx
     app/frontend/routes/Repositories.tsx
     app/frontend/routes/RepositoryDetail.tsx
     app/frontend/routes/RepositoryDocuments.tsx
     app/frontend/routes/RepositoryMembers.tsx
+    app/frontend/routes/ThemesSettings.tsx
     app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx
     app/frontend/routes/appChromeV2/adminNav.ts
     app/frontend/routes/appChromeV2/helpers.ts
@@ -416,6 +426,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/AdminTranscript.tsx|jsx_text|duration=ms
       app/frontend/routes/AdminTranscript.tsx|jsx_text|subtype=
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|(intent.requested_at ?
+      app/frontend/routes/AccountSettings.tsx|ternary|text-red-700 dark:text-red-300
+      app/frontend/routes/AccountSettings.tsx|ternary|text-gray-500 dark:text-gray-400
       app/frontend/routes/jobDetail/SourceBrowser.tsx|ternary|bg-green-50 dark:bg-green-950/30
       app/frontend/routes/jobDetail/SourceBrowser.tsx|ternary|bg-red-50 dark:bg-red-950/30
       app/frontend/routes/jobDetail/components.tsx|ternary|min-h-0 flex-1 max-h-none

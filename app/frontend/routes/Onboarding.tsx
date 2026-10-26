@@ -10,6 +10,7 @@ import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
 import { AddRepositoryModal } from "../components/AddRepositoryModal"
 import { buttonClasses } from "../components/Button"
 import { useT } from "../hooks/useT"
+import type { TFunction } from "i18next"
 import { fetchRepositoryReadiness } from "../api/repositories"
 import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
 
@@ -75,12 +76,12 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       navigate(withRoutePrefix(result.redirect_to, prefix))
     } catch {
-      setChatError("Could not start the Syrus chat. Try again.")
+      setChatError(t("onboarding.chat_start_error"))
       setStartingChat(false)
     }
   }
 
-  const steps = checklistSteps(setup, user)
+  const steps = checklistSteps(setup, user, t)
   const activeStep = steps.find((step) => !step.complete)
   const complete = !activeStep
   const dashboardPath = "/dashboard/jobs?view=list"
@@ -100,7 +101,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
             return (
               <li className={checklistItemClass(current)} key={step.key}>
                 <div className={checklistContentClass(current)}>
-                  <span className={statusMarkerClass(step.complete, current)}>{step.complete ? "OK" : current ? ">" : ""}</span>
+                  <span className={statusMarkerClass(step.complete, current)}>{step.complete ? t("onboarding.complete_marker") : current ? ">" : ""}</span>
                   <div className={current ? "min-w-0 text-center" : "min-w-0"}>
                     <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100">{step.title}</h2>
                     {showDetail ? (
@@ -144,7 +145,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                       onClick={launchChat}
                       type="button"
                     >
-                      {startingChat ? "Opening chat…" : step.ctaLabel}
+                      {startingChat ? t("onboarding.opening_chat") : step.ctaLabel}
                     </button>
                   ) : (
                     <Link className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)} to={withRoutePrefix(step.ctaPath, prefix)}>
@@ -196,89 +197,89 @@ function readinessTriggerClass(tone: "green" | "amber" | "red") {
   return "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950/40 dark:text-red-300"
 }
 
-function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>): ChecklistStep[] {
+function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>, t: TFunction): ChecklistStep[] {
   return [
     {
       key: "account",
-      title: "Account and admin access",
-      detail: user.admin ? `${user.display_name} can manage this Syrus instance.` : "Ask an admin to grant access before configuring shared setup.",
+      title: t("onboarding.account_title"),
+      detail: user.admin ? t("onboarding.account_admin", { name: user.display_name }) : t("onboarding.account_needs_admin"),
       complete: user.admin,
-      ctaLabel: "Open account settings",
+      ctaLabel: t("onboarding.account_cta"),
       ctaPath: "/profile"
     },
     {
       key: "github",
-      title: "GitHub integration",
-      detail: githubStepDetail(setup),
+      title: t("onboarding.github_title"),
+      detail: githubStepDetail(setup, t),
       complete: setup.credential_status.github,
-      ctaLabel: "Configure GitHub",
+      ctaLabel: t("onboarding.github_cta"),
       ctaPath: "/credentials",
       ctaModal: "github_token",
-      editLabel: "Edit GitHub connection"
+      editLabel: t("onboarding.github_edit")
     },
     {
       key: "agent",
-      title: "Agent credentials and provider",
+      title: t("onboarding.agent_title"),
       detail: setup.credential_status.agent
-        ? `${setup.credential_status.active_agent_provider_label || providerLabel(setup.credential_status.active_agent_provider)} is ready for runs.`
-        : "Choose a provider and add its credentials.",
+        ? t("onboarding.agent_ready", { provider: setup.credential_status.active_agent_provider_label || providerLabel(setup.credential_status.active_agent_provider) })
+        : t("onboarding.agent_missing"),
       complete: setup.credential_status.agent,
-      ctaLabel: "Configure agent",
+      ctaLabel: t("onboarding.agent_cta"),
       ctaPath: "/credentials",
       ctaModal: "configure_agent",
-      editLabel: "Edit agent settings"
+      editLabel: t("onboarding.agent_edit")
     },
     {
       key: "repository",
-      title: "Repository",
+      title: t("onboarding.repository_title"),
       detail: setup.repository_configured
-        ? `${setup.counts.repositories} active repository${setup.counts.repositories === 1 ? "" : "ies"} configured.`
-        : "Add the first repository Syrus should poll or run against.",
+        ? t("onboarding.repository_configured", { count: setup.counts.repositories })
+        : t("onboarding.repository_missing"),
       complete: setup.repository_configured,
-      ctaLabel: "Add repository",
+      ctaLabel: t("onboarding.repository_cta"),
       ctaPath: "/repositories/new",
       ctaModal: "add_repository",
       // Reopening the "add repository" modal wouldn't let the user manage
       // repos they already added — send them to the management page instead.
       editPath: "/repositories",
-      editLabel: "Manage repositories"
+      editLabel: t("onboarding.repository_edit")
     },
     {
       key: "chat",
-      title: "Meet Syrus",
+      title: t("onboarding.chat_title"),
       detail: setup.onboarding_chat_started
-        ? "You've started the Syrus chat. The other tabs are now unlocked."
-        : "Start a chat with Syrus. It will explain Epics and Jobs and help you plan your first Epic.",
+        ? t("onboarding.chat_started")
+        : t("onboarding.chat_missing"),
       complete: setup.onboarding_chat_started,
-      ctaLabel: setup.onboarding_chat_started ? "Open Syrus chat" : "Start Syrus chat",
+      ctaLabel: setup.onboarding_chat_started ? t("onboarding.chat_open") : t("onboarding.chat_start"),
       ctaPath: "/onboarding",
       ctaAction: "start_chat"
     },
     {
       key: "epic",
-      title: "Land your first Epic",
-      detail: epicStepDetail(setup),
+      title: t("onboarding.epic_title"),
+      detail: epicStepDetail(setup, t),
       complete: setup.first_epic_landed,
-      ctaLabel: "Open Syrus chat",
+      ctaLabel: t("onboarding.chat_open"),
       ctaPath: "/onboarding",
       ctaAction: "start_chat"
     }
   ]
 }
 
-function epicStepDetail(setup: SetupStatus) {
-  if (setup.first_epic_landed) return "Your first Epic landed — Syrus is fully set up."
-  if (setup.first_epic_started) return "Your first Epic is in progress. Approve its Jobs so they can land."
-  if (setup.first_epic_created) return "Your first Epic is drafted. Move it to In Progress in chat to start it."
-  return "In the chat, create your first Epic, move it to In Progress, and approve its Jobs so they land."
+function epicStepDetail(setup: SetupStatus, t: TFunction) {
+  if (setup.first_epic_landed) return t("onboarding.epic_landed")
+  if (setup.first_epic_started) return t("onboarding.epic_started")
+  if (setup.first_epic_created) return t("onboarding.epic_created")
+  return t("onboarding.epic_missing")
 }
 
-function githubStepDetail(setup: SetupStatus) {
+function githubStepDetail(setup: SetupStatus, t: TFunction) {
   const status = setup.credential_status
-  if (status.github) return "GitHub token and App are both connected."
-  if (status.github_pat) return "Token saved. Register the GitHub App to finish — both are required."
-  if (status.github_app) return "GitHub App registered. Add a personal access token to finish — both are required."
-  return "Connect a personal access token and the GitHub App — both are required."
+  if (status.github) return t("onboarding.github_connected")
+  if (status.github_pat) return t("onboarding.github_needs_app")
+  if (status.github_app) return t("onboarding.github_needs_token")
+  return t("onboarding.github_missing")
 }
 
 function providerLabel(provider: SetupStatus["credential_status"]["active_agent_provider"]) {
