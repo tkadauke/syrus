@@ -74,7 +74,7 @@ RSpec.describe Steps::Grader, :ci_only do
 
   it "retains only declared regular coverage outputs on the successful Run" do
     FileUtils.mkdir_p(@ws_path.join("coverage"))
-    @ws_path.join("coverage/lcov.info").write("TN:\nend_of_record\n")
+    @ws_path.join("coverage/lcov.info").write("TN:\nSF:app/models/user.rb\nDA:1,1\nend_of_record\n")
     outside = @ws_path.dirname.join("outside.info")
     outside.write("secret")
     FileUtils.ln_s(outside, @ws_path.join("coverage/link.info"))
@@ -83,7 +83,9 @@ RSpec.describe Steps::Grader, :ci_only do
         { "artifact" => "coverage/lcov.info", "format" => "lcov" },
         { "artifact" => "../outside.info", "format" => "lcov" },
         { "artifact" => "coverage/link.info", "format" => "lcov" },
-        { "artifact" => "coverage/missing.info", "format" => "lcov" }
+        { "artifact" => "coverage/missing.info", "format" => "lcov" },
+        { "artifact" => "README.md", "format" => "lcov" },
+        { "artifact" => "coverage/lcov.info", "format" => "unknown" }
       ]
     ))
 
@@ -94,7 +96,30 @@ RSpec.describe Steps::Grader, :ci_only do
       "artifact" => "coverage/lcov.info", "format" => "lcov", "grader_name" => "tests"
     )
     expect(step.reload.details.fetch("coverage_output_results").map { |result| result["status"] })
-      .to eq(%w[retained absent absent absent])
+      .to eq(%w[retained rejected rejected absent rejected rejected])
+  end
+
+
+  it "rejects oversized and coverage-shaped files with invalid content" do
+    FileUtils.mkdir_p(@ws_path.join("coverage"))
+    @ws_path.join("coverage/not-coverage.info").write("an unrelated build artifact\n")
+    oversized = @ws_path.join("coverage/oversized.info")
+    File.open(oversized, "wb") { |file| file.truncate(CoverageOutputValidation::MAX_BYTES + 1) }
+    step.update!(details: step.details.merge(
+      "coverage_outputs" => [
+        { "artifact" => "coverage/not-coverage.info", "format" => "lcov" },
+        { "artifact" => "coverage/oversized.info", "format" => "lcov" }
+      ]
+    ))
+
+    handler.call
+
+    expect(run.coverage_outputs).not_to be_attached
+    results = step.reload.details.fetch("coverage_output_results")
+    expect(results.map { |result| result["status"] }).to eq(%w[rejected rejected])
+    expect(results.map { |result| result["reason"] }).to contain_exactly(
+      "content is not valid for lcov", "file exceeds #{CoverageOutputValidation::MAX_BYTES} bytes"
+    )
   end
 
   it "preserves workspace metadata recorded during setup" do

@@ -46,7 +46,8 @@ before grading. The grade loop then runs the repository's `grade:`
 configuration for the current phase, and failed required graders feed the
 next bounded repair iteration. Successful graders retain their declared
 coverage outputs from isolated checkouts with grader, project, and source
-snapshot provenance. `coverage_analyze` deterministically merges those
+snapshot provenance. Only bounded regular files whose names and contents
+match a supported coverage format cross that boundary. `coverage_analyze` deterministically merges those
 retained artifacts (with a shared-workspace fallback) when `coverage:` is configured in
 `.syrus.yml`, evaluates thresholds, and pre-renders a PR comment body when
 `pr_comment: true`. `summarize` collects PR copy via MCP and
