@@ -1203,6 +1203,59 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(entry.blocked_reason).to be_nil
     end
 
+    # The per-Job gate honoured inherited failures while the Epic-sibling gate
+    # read raw pr_checks_state, so one broken default branch held every member
+    # of every Epic -- each blocked under the OWN-failure key and each naming a
+    # different member as the culprit, in pairs pointing at each other.
+    it "does not hold an Epic sibling for another member's inherited failure when the repository opts in" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      first = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      second = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+      [ first, second ].each { |job| job.update_columns(epic_id: epic.id) }
+      repository.update!(land_on_inherited_check_failure: true)
+      MainBranchHealthCheck.create!(
+        repository: repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+      [ first, second ].each do |job|
+        job.update_columns(
+          pr_checks_sha: "head-#{job.id}", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+          pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
+        )
+      end
+
+      entries = described_class.entries(Job.where(id: [ first.id, second.id ]))
+
+      keys = entries.map { |entry| entry.blocked_reason&.fetch(:key, nil) }
+      expect(keys).not_to include("pr_checks_failing")
+      # Positive assertion too: without it this example passes for any reason
+      # at all, including an unrelated earlier gate firing first.
+      expect(keys).to all(satisfy { |key| key.nil? || !key.to_s.start_with?("pr_checks") })
+    end
+
+    # The conservative half: a sibling whose failure is its OWN still holds the
+    # Epic, opt-in or not. Landing around a member that genuinely broke
+    # something is what the gate is for.
+    it "still holds an Epic sibling for another member's own failure" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      first = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      second = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+      [ first, second ].each { |job| job.update_columns(epic_id: epic.id) }
+      repository.update!(land_on_inherited_check_failure: true)
+      MainBranchHealthCheck.create!(
+        repository: repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "healthy", ci_failed_checks: []
+      )
+      second.update_columns(
+        pr_checks_sha: "head-2", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
+      )
+
+      entry = described_class.entries(Job.where(id: first.id)).first
+
+      expect(entry.blocked_reason&.fetch(:key, nil)).to eq("pr_checks_failing")
+    end
+
     it "requests a main-health poll and exposes an overridable blocker when base check attribution is unknown" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.update_columns(

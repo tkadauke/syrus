@@ -58,6 +58,15 @@ silently governed every other one.
   `LandingQueueProcessor` and the per-repository
   `Repository#land_on_inherited_check_failure` setting.
 
+`land_on_inherited_check_failure` governs the Epic-sibling check gate as well
+as the per-Job one. Both classify through `PrCheckAttribution`, so a member
+whose checks are all failing on the base no longer holds its siblings. A
+member whose failure is its *own* still holds them, whatever the setting:
+landing around a member that genuinely broke something is what the gate exists
+for. Until this was shared, one broken default branch could hold every member
+of every Epic — each reported under the own-failure reason key and each naming
+a different member as the culprit, with pairs pointing at each other.
+
 Main health is intentionally conservative: `Repository#main_health` is
 `broken` when either `ci_health` or `grader_health` is broken, so a single
 never-passing CI check can pause landing under `strict`.

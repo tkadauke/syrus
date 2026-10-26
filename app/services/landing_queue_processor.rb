@@ -1085,13 +1085,39 @@ class LandingQueueProcessor
   def pr_checks_unclean_epic_sibling(job)
     siblings = epic_sibling_jobs(job).reject { |sibling| sibling.id == job.id || sibling.closed? }
 
-    failing = siblings.find { |sibling| sibling.pr_checks_state == "failing" }
+    failing = siblings.find do |sibling|
+      sibling.pr_checks_state == "failing" && !tolerated_inherited_pr_checks?(sibling)
+    end
     return { sibling: failing, label: "failing" } if failing
 
     pending_sibling = siblings.find { |sibling| sibling.pr_checks_state == "pending" }
     return { sibling: pending_sibling, label: "pending" } if pending_sibling
 
     nil
+  end
+
+  # A sibling's failing checks hold the rest of its Epic only when the failure
+  # is the sibling's own. The per-Job gate already draws that line -- it
+  # classifies through PrCheckAttribution and, for a repository that opted into
+  # `land_on_inherited_check_failure`, lets an inherited failure through -- but
+  # this path read raw `pr_checks_state` and blocked regardless.
+  #
+  # So one broken default branch held every member of every Epic: twenty Jobs
+  # whose checks were all `every_failing_check_also_failing_on_base`, each
+  # blocked under the OWN-failure reason key and each naming a different member
+  # as the culprit, in pairs that pointed at each other. Nothing in that set was
+  # at fault and nothing in it could move.
+  #
+  # Memoized per tick: attribution queries MainBranchHealthCheck, and siblings
+  # repeat across every member of an Epic, so an un-memoized call is quadratic
+  # in Epic size.
+  def tolerated_inherited_pr_checks?(sibling)
+    return false unless sibling.repository&.land_on_inherited_check_failure?
+
+    @tolerated_inherited_pr_checks ||= {}
+    return @tolerated_inherited_pr_checks[sibling.id] if @tolerated_inherited_pr_checks.key?(sibling.id)
+
+    @tolerated_inherited_pr_checks[sibling.id] = PrCheckAttribution.for(sibling).inherited?
   end
 
   def no_effective_ci_repair?(job)
