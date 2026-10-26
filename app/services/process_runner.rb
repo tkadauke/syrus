@@ -516,11 +516,49 @@ class ProcessRunner
   # pipes let every command keep its own lifecycle record and process group;
   # starting consumers first also makes partial producer-spawn failures close
   # cleanly instead of leaving an unaccounted child behind.
+  # Named pipe directories left behind by a hard kill.
+  #
+  # mktmpdir removes its directory on normal exit, but SIGKILL -- a killed test
+  # run, an OOM, a crashed worker -- skips that and leaves the directory with
+  # its FIFOs sitting in the working tree. A stray FIFO is not inert: anything
+  # that walks the tree and opens it blocks forever, at zero CPU, with no
+  # error. Tailwind's source detection and `docker build`'s context transfer
+  # both did exactly that, and the resulting hangs read as network or
+  # emulation faults rather than as a leftover pipe. git compounds it by
+  # ignoring non-regular files entirely, so the debris never appears in
+  # `git status`, not even as untracked.
+  #
+  # The directory has to live under the mounted workdir so a sandboxed child
+  # can reach it, so it cannot simply be moved somewhere ignored. Instead each
+  # invocation collects the previous one's debris. Two hours is well past the
+  # longest capture timeout in this codebase (30 minutes), so a live
+  # invocation's directory is never a candidate.
+  STALE_PIPE_DIR_PREFIXES = %w[ process-runner-capture process-runner-pipeline ].freeze
+  STALE_PIPE_DIR_AGE = 2.hours
+
+  def self.sweep_stale_pipe_dirs(root)
+    return if root.to_s.empty?
+
+    cutoff = Time.now - STALE_PIPE_DIR_AGE
+    STALE_PIPE_DIR_PREFIXES.each do |prefix|
+      Dir.glob(File.join(root.to_s, "#{prefix}*")).each do |path|
+        next unless File.directory?(path)
+        next if File.mtime(path) > cutoff
+
+        FileUtils.rm_rf(path)
+      end
+    end
+  rescue StandardError => e
+    # Debris collection must never fail the command it is clearing the way for.
+    Rails.logger.warn("[ProcessRunner] stale pipe-dir sweep failed for #{root}: #{e.class}: #{e.message}") if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
+  end
+
   def self.pipeline(commands:, output_limit: 1.megabyte, **options)
     raise ArgumentError, "pipeline requires at least one command" if commands.empty?
 
     mounts = normalize_mounts(options.fetch(:mounts))
     options = options.merge(mounts: mounts)
+    sweep_stale_pipe_dirs(mounts.workdir)
     Dir.mktmpdir("process-runner-pipeline", mounts.workdir) do |dir|
       pipes = Array.new(commands.length - 1) { |index| File.join(dir, "pipe-#{index}") }
       pipes.each { |path| File.mkfifo(path) }
@@ -646,6 +684,7 @@ class ProcessRunner
   def capture(limit: 1.megabyte)
     stdout = BoundedBuffer.new(limit)
     stderr = BoundedBuffer.new(limit)
+    self.class.sweep_stale_pipe_dirs(@chdir)
     Dir.mktmpdir("process-runner-capture", @chdir) do |dir|
       stdout_path = File.join(dir, "stdout")
       stderr_path = File.join(dir, "stderr")

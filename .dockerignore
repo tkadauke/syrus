@@ -22,6 +22,15 @@
 /log/*
 /tmp/*
 /coverage/
+
+# ProcessRunner's named-pipe scratch directories. A hard kill leaves these
+# behind with their FIFOs intact, and a FIFO in the build context stalls
+# `docker build` forever while it transfers context: it opens the pipe, waits
+# for a writer that will never come, and reports nothing. git does not list
+# non-regular files at all, so the debris is invisible to `git status` and to
+# anything that reasons about the context from git.
+process-runner-capture*
+process-runner-pipeline*
 !/log/.keep
 !/tmp/.keep
 

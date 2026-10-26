@@ -11,6 +11,7 @@ RSpec.describe "Docker image scripts" do
   let(:test_docker) { File.read(File.join(root, "bin/test-docker")) }
   let(:compose_yml) { File.read(File.join(root, "docker-compose.yml")) }
   let(:persistent_mcp_daemon) { File.read(File.join(root, "app/services/persistent_mcp_daemon.rb")) }
+  let(:dockerignore) { File.read(File.join(root, ".dockerignore")) }
 
   # A shell function's body with its comment lines stripped. An assertion about
   # what a helper does must not be satisfied -- or broken -- by a comment
@@ -474,6 +475,27 @@ RSpec.describe "Docker image scripts" do
     expect(preflight).to include("syrus_docker_available_gb")
     # Not a second, independently drifting measurement of its own.
     expect(preflight).not_to include("df -k")
+  end
+
+  # A FIFO in the build context stalls `docker build` forever during context
+  # transfer: it opens the pipe, waits for a writer that never comes, and
+  # reports nothing -- no error, no progress, no CPU. A killed ProcessRunner
+  # leaves exactly that behind, and git never lists non-regular files, so the
+  # debris is invisible to `git status` and to anything reasoning about the
+  # context from git. One such leftover cost a full night of deploys.
+  #
+  # Driven off ProcessRunner's own prefixes so the two cannot drift: a new
+  # pipe-directory prefix without a matching exclusion fails here.
+  it "excludes ProcessRunner's named-pipe scratch directories from the build context" do
+    # Read from source rather than loading the class: this file runs on
+    # spec_helper, without Rails autoloading.
+    declared = File.read(File.join(root, "app/services/process_runner.rb"))[/STALE_PIPE_DIR_PREFIXES = %w\[(.*?)\]/m, 1]
+    prefixes = declared.to_s.split
+
+    expect(prefixes).not_to be_empty, "could not read STALE_PIPE_DIR_PREFIXES from ProcessRunner"
+    prefixes.each do |prefix|
+      expect(dockerignore).to include("#{prefix}*"), "`.dockerignore` does not exclude #{prefix}*"
+    end
   end
 
   it "tracks suspended rollout controls so failures resume them" do
