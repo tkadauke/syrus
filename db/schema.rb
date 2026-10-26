@@ -529,6 +529,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "tool_name"
     t.string "tool_use_id"
     t.datetime "updated_at", null: false
+    t.json "mentions"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"

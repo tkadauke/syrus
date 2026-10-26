@@ -2110,6 +2110,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(ChatTurnJob).not_to have_been_enqueued
       expect(response).to have_http_status(:ok)
       expect(chat.reload).not_to be_turn_in_flight
+      expect(chat.messages.last.mentions).to eq([])
     end
 
     it "enqueues a ChatTurnJob when the message mentions @syrus with 2+ human participants" do
@@ -2123,6 +2124,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
 
       expect(response).to have_http_status(:ok)
+      expect(chat.messages.last.mentions).to contain_exactly(include("kind" => "syrus", "id" => "syrus"))
+    end
+
+    it "does not treat a longer handle beginning with syrus as an agent mention" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      chat.chat_participants.create!(user: Factories.user, role: "member")
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "ask @syrus-team" } }
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(chat.messages.last.mentions).to eq([])
     end
 
     it "still enqueues a ChatTurnJob for an unmentioned message with 0-1 human participants" do
@@ -2155,6 +2169,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(chat.conversation_kind).to eq("group")
       expect(response).to have_http_status(:created)
       expect(chat).not_to be_turn_in_flight
+      expect(chat.messages.last.mentions).to eq([])
     end
 
     it "enqueues a ChatTurnJob when a new group chat's opening message mentions @syrus" do
@@ -2170,6 +2185,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         .and have_enqueued_job(ChatTurnJob)
 
       expect(response).to have_http_status(:created)
+      expect(ChatSession.last.messages.last.mentions).to contain_exactly(include("kind" => "syrus", "id" => "syrus"))
     end
 
     it "delivers but does not trigger the agent for an unmentioned enqueue_message in an idle group chat" do
@@ -2184,6 +2200,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(ChatTurnJob).not_to have_been_enqueued
       expect(response).to have_http_status(:ok)
       expect(chat.reload).not_to be_turn_in_flight
+      expect(chat.messages.last.mentions).to eq([])
     end
   end
 

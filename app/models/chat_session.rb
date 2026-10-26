@@ -598,19 +598,32 @@ class ChatSession < ApplicationRecord
     )
   end
 
-  # Plain-text, case-insensitive `@syrus` substring match — no
-  # autocomplete/chip UI in this pass. Mirrors Telegram's own
-  # plain-text bot-mention convention so this stays compatible with a
-  # future Telegram-group bridge.
-  def agent_addressed?(text)
-    text.to_s.downcase.include?("@syrus")
+  def resolve_mentions(text)
+    Mentionables::Resolver.resolve(text: text, chat: self)
+  end
+
+  def agent_addressed?(message_or_mentions)
+    mentions = if message_or_mentions.is_a?(ChatMessage)
+      message_or_mentions.resolved_mentions
+    elsif message_or_mentions.is_a?(Array)
+      message_or_mentions
+    else
+      # Compatibility for callers reading messages created before structured
+      # mentions existed. New messages always pass their resolved mentions.
+      resolve_mentions(message_or_mentions)
+    end
+
+    mentions.any? do |mention|
+      mentionable = Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      mentionable&.agentic? && mentionable.addressable_in?(self)
+    end
   end
 
   # Computed live from current human headcount, not a stored/toggleable
   # setting: chats with 0-1 participants always trigger the agent; chats
   # with 2+ participants require an explicit @syrus mention on every message.
-  def should_trigger_agent?(text)
-    chat_participants.count <= 1 || agent_addressed?(text)
+  def should_trigger_agent?(message_or_mentions)
+    chat_participants.count <= 1 || agent_addressed?(message_or_mentions)
   end
 
   def participants_payload
