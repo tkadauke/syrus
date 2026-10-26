@@ -477,6 +477,8 @@
   },
   "diff_review": {
     "unavailable": "Differentia non praesto est",
+    "load_more_files_one": "{{loadCount}} fasciculum plurem onerare ({{remainingCount}} restat)",
+    "load_more_files_other": "{{loadCount}} fasciculos plures onerare ({{remainingCount}} restant)",
     "load_lines_above_one": "{{count}} lineam superiorem plurem onerare",
     "load_lines_above_other": "{{count}} lineas superiores plures onerare",
     "load_lines_below_one": "{{count}} lineam inferiorem plurem onerare",
