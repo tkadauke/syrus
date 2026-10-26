@@ -839,7 +839,10 @@ module Ruby
           "grader_mode" => mode,
           "runtime_profile_destination" => parallel_rspec_enabled_for?(mode) ? parallel_runtime_log(mode) : nil,
           "result_outputs" => [ { "artifact" => junit_output, "format" => "junit" } ],
-          "coverage_outputs" => coverage? ? [ { "artifact" => "coverage/.resultset.json", "format" => "simplecov" } ] : [],
+          "coverage_outputs" => coverage? ? [
+            { "artifact" => "coverage/.resultset.json", "format" => "simplecov" },
+            { "artifact" => "coverage/lcov.info", "format" => "lcov" }
+          ] : [],
           "filter_capabilities" => {
             "changed_files" => mode == "focused",
             "failed_cases" => true,
