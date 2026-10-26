@@ -109,6 +109,10 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(displayValue).filter((item): item is string => Boolean(item)) : []
 }
 
+function uniqueStrings(...values: unknown[]): string[] {
+  return Array.from(new Set(values.flatMap(stringList)))
+}
+
 function dependencyRequirements(value: unknown): DependencyRequirement[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -200,7 +204,7 @@ export function parseProposalOutcome(
     labels: stringList(value.labels),
     repository,
     repositoryId: displayValue(value.repository_id) || (isPlainObject(value.repository) ? displayValue(value.repository.id) : null),
-    dependencies: stringList(value.dependencies ?? value.depends_on_proposal_slugs),
+    dependencies: uniqueStrings(value.dependencies, value.depends_on_proposal_slugs),
     jobDependencyIds: stringList(value.depends_on_job_ids ?? input.depends_on_job_ids),
     epicDependencyIds: stringList(value.depends_on_epic_ids ?? input.depends_on_epic_ids),
     dependencyRequirements: dependencyRequirements(value.dependency_requirements ?? input.dependency_requirements),
