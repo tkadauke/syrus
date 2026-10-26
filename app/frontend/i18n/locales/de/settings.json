@@ -710,6 +710,9 @@
     "action_available": "Verfügbar",
     "action_blocked": "Blockiert",
     "action_disabled": "Deaktiviert",
+    "promote": "Zur Veröffentlichung befördern",
+    "promoting": "Wird befördert...",
+    "promotion_failed": "Promotion konnte nicht gestartet werden.",
     "recent_ref_movements_heading": "Letzte Workflows mit Ref-Verschiebungen",
     "recent_pr_ingestions_heading": "Letzte PR-Übernahmen"
   },

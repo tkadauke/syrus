@@ -1410,7 +1410,14 @@ landing-queue length, and the last promotion/hotfix-sync into that track;
 the repository's configured ref-movement actions and whether each is
 currently available to dispatch; recent promotion/hotfix-sync/upstream-export
 Workflows with their source and target refs; and recent PR ingestions with
-their Syrus-provenance classification. The Dashboard's Jobs table shows a
+their Syrus-provenance classification.
+When promotion is enabled, repository writers can manually start the
+development-to-release promotion from this Delivery section. Syrus records the
+request in the ref-movement audit trail and prevents another promotion while
+one for the same repository is queued or running. Enabling promotion does not
+create a schedule.
+
+The Dashboard's Jobs table shows a
 small delivery-status badge (waiting for upstream approval, waiting for
 promotion, syncing hotfix, and so on) next to any Job whose delivery status
 is more specific than the default "waiting for local approval"/"approved for

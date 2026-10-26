@@ -116,7 +116,15 @@ function RepositoryDetail({
               <RepositorySummary payload={payload} />
               <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-              {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
+              {payload.delivery ? (
+                <DeliveryTracksSection
+                  delivery={payload.delivery}
+                  prefix={prefix}
+                  dispatchPath={payload.paths.app_ref_movement_actions_repository_path || undefined}
+                  queryKey={queryKey}
+                  onNotice={setNotice}
+                />
+              ) : null}
               <PluginUiSlot panels={payload.ui_panels} props={{ repository: payload.repository }} />
               <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
             </div>

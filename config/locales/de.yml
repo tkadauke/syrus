@@ -707,6 +707,9 @@ de:
       sent_upstream: "Upstream gesendet."
       blocked: "Ref-Movement-Aktion blockiert."
 
+    repository_ref_movement_actions:
+      promotion_dispatched: "Promotion gestartet."
+
     plugins:
       disabled: "Das Plugin %{plugin} ist deaktiviert."
       route_not_found: "Plugin-Route nicht gefunden."
