@@ -6,7 +6,7 @@ import { Badge, displayValue, SectionLabel } from "../toolCardUi"
 import i18n from "@app/i18n"
 import { safeMediaUrl } from "./list_chat_media"
 
-const inputFields: PendingActionInputField[] = [{ key: "feedback", label: "Feedback", format: "markdown" }]
+const inputFields: PendingActionInputField[] = [{ key: "feedback", label: i18n.t("chat:mutation_feedback"), format: "markdown" }]
 
 function mediaRefs(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -65,13 +65,13 @@ function FeedbackMediaItem({ context, reference }: { context: ToolCardContext; r
           badge: "image",
           fallbackLabel: "Image preview unavailable",
           actions: [
-            { label: "Open image", href: src },
-            { label: "Download", href: src, download: true },
-            { label: "Copy ID", copyValue: reference }
+            { label: i18n.t("chat:tool_card_list_media_open_image"), href: src },
+            { label: i18n.t("chat:download"), href: src, download: true },
+            { label: i18n.t("chat:tool_card_copy_id"), copyValue: reference }
           ],
           meta: [
             { label: "ID", value: reference, copyValue: reference },
-            { label: "Content type", value: image?.content_type }
+            { label: i18n.t("chat:content_type"), value: image?.content_type }
           ]
         }}
         modalLabel={title}
@@ -91,10 +91,10 @@ function FeedbackMediaItem({ context, reference }: { context: ToolCardContext; r
           subtitle: `${snapshot.element_count} whiteboard element${snapshot.element_count === 1 ? "" : "s"}`,
           badge: "snapshot",
           fallbackLabel: "Whiteboard snapshot",
-          actions: [{ label: "Copy ID", copyValue: reference }],
+          actions: [{ label: i18n.t("chat:tool_card_copy_id"), copyValue: reference }],
           meta: [
             { label: "ID", value: reference, copyValue: reference },
-            { label: "Created", value: snapshot.created_at }
+            { label: i18n.t("chat:created"), value: snapshot.created_at }
           ]
         }}
         modalLabel={title}
@@ -169,8 +169,8 @@ const thumbnail =
 export const examples: ToolCardExample[] = [
   {
     id: "pending_with_feedback_and_media",
-    label: "Pending feedback with media",
-    description: "Long Markdown feedback and message, linked references, image thumbnail, snapshot preview, and unresolved-media fallback.",
+    label: i18n.t("chat:mutation_feedback_example_pending_media"),
+    description: i18n.t("chat:mutation_feedback_example_pending_media_description"),
     input: {
       job_id: 4048,
       feedback:
@@ -189,7 +189,7 @@ export const examples: ToolCardExample[] = [
       chatId: 12,
       chatMedia: {
         snapshots: [{ id: 42, name: "Header hierarchy", snapshot_kind: "manual", element_count: 6, created_at: "2026-10-20T12:00:00Z" }],
-        chat_images: [{ id: 7, title: "Mobile header", filename: "mobile-header.svg", content_type: "image/svg+xml", image_url: thumbnail }],
+        chat_images: [{ id: 7, title: i18n.t("chat:mutation_feedback_example_mobile_header"), filename: "mobile-header.svg", content_type: "image/svg+xml", image_url: thumbnail }],
         typed_artifacts: [],
         whiteboard_has_unsaved_content: false
       }
@@ -198,22 +198,22 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "queued_feedback",
-    label: "Queued feedback",
-    description: "Feedback waiting for the current Job work to become actionable.",
+    label: i18n.t("chat:mutation_feedback_example_queued"),
+    description: i18n.t("chat:mutation_feedback_example_queued_description"),
     input: { job_id: 4048, feedback: "Recheck the **responsive spacing** before the next implementation pass." },
     parsedResult: {
       pending_action_id: 502,
       state: "queued",
       status: "queued",
-      message: "Feedback is queued until the Job finishes its current run."
+      message: i18n.t("chat:mutation_feedback_example_queued_message")
     },
     presentation: { chatId: 12 },
     sourceType: "codex"
   },
   {
     id: "feedback_error",
-    label: "Feedback error",
-    description: "Failure state retaining the requested Job, Markdown feedback, and unresolved media reference.",
+    label: i18n.t("chat:mutation_feedback_example_error"),
+    description: i18n.t("chat:mutation_feedback_example_error_description"),
     input: { job_id: 9999, feedback: "Apply the **header revision** shown in the attachment.", media: ["snapshot:404"] },
     resultBody: "Error: Job not found",
     resultError: true,
