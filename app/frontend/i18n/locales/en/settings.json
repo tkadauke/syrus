@@ -229,6 +229,8 @@
     "semantics_label": "Semantics"
   },
   "notifications": {
+    "load_error": "Unable to load notification preferences.",
+    "update_error": "Unable to update notification preferences.",
     "heading": "Notifications",
     "description": "Choose which Syrus events create notifications for your account.",
     "loading": "Loading notification preferences...",
@@ -1112,6 +1114,14 @@
     "issues_ingested_other": "{{count}} issues ingested"
   },
   "account_settings": {
+    "setup_title": "Finish setup",
+    "setup_credentials_description": "Save the GitHub and agent credentials Syrus should use, then continue to repository setup.",
+    "save_error": "Unable to save credentials.",
+    "load_error": "Unable to load credentials.",
+    "api_token_rotate_error": "Unable to rotate API token.",
+    "api_token_revoke_error": "Unable to revoke API token.",
+    "provider_recheck_error": "Unable to recheck provider availability.",
+    "provider_override_error": "Unable to override provider availability.",
     "loading_credentials": "Loading credentials...",
     "credentials_description": "Encrypted provider and GitHub credentials for Syrus runs.",
     "profile_description": "Your public team profile details.",
