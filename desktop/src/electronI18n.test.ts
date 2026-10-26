@@ -12,7 +12,7 @@ describe("Electron i18n", () => {
     const { appLocale, t } = await import("../electron/i18n")
 
     expect(appLocale()).toBe("de")
-    expect(t("shell.open")).toBe("Syrus oeffnen")
+    expect(t("shell.open")).toBe("Syrus öffnen")
     expect(t("dialog.update_backend")).toBe("Syrus-Backend aktualisieren?")
     expect(t("dialog.update_backend_detail_pinned", { image: "next", current: "old" })).toContain("next")
     expect(t("dialog.uninstall_data", { app: "Syrus Test" })).toContain("Syrus Test")

@@ -19,7 +19,6 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/lib/Markdown.tsx" => "markdown renderer emits author-provided table markup",
     "app/frontend/routes/RetentionSettings.tsx" => "per-table archive history mini-list nested under retention policy rows",
     "app/frontend/routes/chat/tool_cards/list_artifacts.tsx" => "compact chat tool-card result summary",
-    "app/frontend/routes/chat/tool_cards/list_proposals.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_repositories.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_wakeups.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/jobDetail/SourceBrowser.tsx" => "coverage-annotated source renderer with monospace line layout",
