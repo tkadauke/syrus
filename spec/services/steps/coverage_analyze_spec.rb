@@ -158,6 +158,16 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
         FileUtils.rm_rf(checkout)
       end
 
+
+      sql = []
+      callback = ->(*, payload) { sql << payload[:sql] unless payload[:name] == "SCHEMA" }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        RetainedGraderCoverageOutputs.for(workflow)
+      end
+      expect(sql.count { |query| query.match?(/FROM ["`]runs["`]/i) }).to eq(1)
+      expect(sql.count { |query| query.match?(/FROM ["`]active_storage_attachments["`]/i) }).to eq(1)
+      expect(sql.count { |query| query.match?(/FROM ["`]active_storage_blobs["`]/i) }).to eq(1)
+
       handler.call
 
       artifact = workflow.reload.artifact("coverage")

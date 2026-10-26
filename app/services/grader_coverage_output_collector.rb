@@ -33,12 +33,21 @@ class GraderCoverageOutputCollector
     artifact = output["artifact"].to_s
     format = output["format"].to_s
     relative_path = repository_relative_path(artifact)
+    return rejected(artifact:, format:, reason: "unsafe path") if relative_path.blank?
+
+    candidate = @workspace_path.join(relative_path)
+    return absent(artifact: relative_path, format:, reason: "file was not produced") unless candidate.exist?
+
     path = safe_regular_file(relative_path)
     unless path
-      reason = "missing or unsafe regular file"
-      @log.call("[grader:#{@grader_name}] coverage output absent: #{relative_path.presence || artifact.inspect} (#{reason})")
-      return Result.new(artifact: relative_path.presence || artifact, format:, status: "absent", reason:)
+      return rejected(artifact: relative_path.presence || artifact, format:, reason: "missing or unsafe regular file")
     end
+
+    validator = CoverageOutputValidation::Base.for(format)
+    return rejected(artifact: relative_path, format:, reason: "unsupported coverage format") unless validator
+
+    validation = validator.validate(path)
+    return rejected(artifact: relative_path, format:, reason: validation.reason) unless validation.valid?
 
     File.open(path, "rb") do |io|
       @run.coverage_outputs.attach(
@@ -61,6 +70,16 @@ class GraderCoverageOutputCollector
   rescue StandardError => e
     @log.call("[grader:#{@grader_name}] coverage output collection failed for #{artifact.inspect}: #{e.class}: #{e.message}")
     Result.new(artifact:, format:, status: "absent", reason: e.message)
+  end
+
+  def rejected(artifact:, format:, reason:)
+    @log.call("[grader:#{@grader_name}] coverage output rejected: #{artifact.inspect} (#{reason})")
+    Result.new(artifact:, format:, status: "rejected", reason:)
+  end
+
+  def absent(artifact:, format:, reason:)
+    @log.call("[grader:#{@grader_name}] coverage output absent: #{artifact.inspect} (#{reason})")
+    Result.new(artifact:, format:, status: "absent", reason:)
   end
 
   def repository_relative_path(artifact)
