@@ -615,7 +615,8 @@
     "health_repair_active": "Auto-fix is waiting for active repair job <slug/>.",
     "health_repair_waiting": "Auto-fix is waiting for repair job <slug/> to be reviewed.",
     "health_repair_landing": "Repair job <slug/> is landing.",
-    "health_repair_failed_cap": "Auto-fix is paused because {{count}} failed repair jobs remain open. Close one after review to allow another repair job. Maximum open failed repair jobs: {{max}}.",
+    "health_repair_failed_cap_one": "Auto-fix is paused because {{count}} failed repair job remains open. Close it after review to allow another repair job. Maximum open failed repair jobs: {{max}}.",
+    "health_repair_failed_cap_other": "Auto-fix is paused because {{count}} failed repair jobs remain open. Close one after review to allow another repair job. Maximum open failed repair jobs: {{max}}.",
     "health_repair_failed_jobs": "Failed repairs:",
     "health_repair_waiting_for_signals": "Auto-fix is waiting for CI and grader signals before creating a repair job.",
     "health_current_validation_pending": "The current commit is still being validated. Older broken signals are shown in the history below, but they are not enough to start an automatic repair for this commit.",
@@ -1068,8 +1069,7 @@
     "save_error": "Unable to save input source.",
     "last_polled_at": "Last polled: {{time}}",
     "issues_ingested_one": "{{count}} issue ingested",
-    "issues_ingested_other": "{{count}} issues ingested",
-    "issues_ingested": "{{count}} issues ingested"
+    "issues_ingested_other": "{{count}} issues ingested"
   },
   "linear_source": {
     "section_heading": "Linear",
@@ -1092,8 +1092,7 @@
     "save_error": "Unable to save Linear source.",
     "last_polled_at": "Last polled: {{time}}",
     "issues_ingested_one": "{{count}} issue ingested",
-    "issues_ingested_other": "{{count}} issues ingested",
-    "issues_ingested": "{{count}} issues ingested"
+    "issues_ingested_other": "{{count}} issues ingested"
   },
   "account_settings": {
     "loading_credentials": "Loading credentials...",

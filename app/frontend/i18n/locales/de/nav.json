@@ -1,7 +1,7 @@
 {
   "dashboard": "Übersicht",
   "setup": "Einrichtung",
-  "repositories": "Repositories",
+  "repositories": "Repositorys",
   "schedules": "Zeitpläne",
   "epics": "Epics",
   "terminal": "Terminal",
@@ -52,13 +52,13 @@
   },
   "onboarding": {
     "configure_credentials_title": "Zugangsdaten zuerst verbinden",
-    "configure_credentials_description": "Syrus benötigt sowohl GitHub-Zugang als auch einen Agenten-Anbieter, bevor es Repositories abfragen oder Aufgaben ausführen kann.",
+    "configure_credentials_description": "Syrus benötigt sowohl GitHub-Zugang als auch einen Agenten-Anbieter, bevor es Repositorys abfragen oder Jobs ausführen kann.",
     "configure_credentials_action": "Zugangsdaten öffnen",
     "add_repository_title": "Erstes Repository hinzufügen",
-    "add_repository_description": "Zugangsdaten sind bereit. Fügen Sie ein Repository hinzu, damit Syrus weiß, wo Issues beobachtet und direkte Aufgaben ausgeführt werden sollen.",
+    "add_repository_description": "Zugangsdaten sind bereit. Füge ein Repository hinzu, damit Syrus weiß, wo Issues beobachtet und direkte Jobs ausgeführt werden sollen.",
     "add_repository_action": "Repository hinzufügen",
     "start_first_chat_title": "Syrus im Chat kennenlernen",
-    "start_first_chat_description": "Zugangsdaten und ein Repository sind bereit. Chatten Sie mit Syrus, um Ihr erstes Epic zu erstellen und zu landen – es erklärt, wie Aufgaben und Epics durch die Pipeline fließen.",
+    "start_first_chat_description": "Zugangsdaten und ein Repository sind bereit. Chatte mit Syrus, um dein erstes Epic zu erstellen und zu landen – Syrus erklärt dir, wie Jobs und Epics durch die Pipeline fließen.",
     "start_first_chat_action": "Syrus-Chat starten"
   },
   "smart_folder": {
@@ -79,18 +79,18 @@
     "unable_to_update_landing": "Landing-Warteschlange konnte nicht aktualisiert werden.",
     "resume_landing": "Landing fortsetzen",
     "pause_landing": "Landing pausieren",
-    "pause_landing_confirm": "Landing-Warteschlange pausieren? Freigegebene Aufgaben werden nicht mehr landen, bis du sie fortsetzt.",
+    "pause_landing_confirm": "Landing-Warteschlange pausieren? Freigegebene Jobs werden nicht mehr landen, bis du sie fortsetzt.",
     "unable_to_rename": "Smart-Ordner konnte nicht umbenannt werden.",
     "unable_to_delete": "Smart-Ordner konnte nicht gelöscht werden.",
     "queued_blocked_count": "{{count}} blockiert",
     "queued_blocked_filter_aria": "{{count}} blockierte wartende Jobs anzeigen",
     "landing_paused_broken_main": "Arbeit pausiert — Haupt-Branch ist kaputt.",
     "landing_paused_main_health": "Arbeit pausiert — Repository-Gesundheit muss geprüft werden.",
-    "all_items_job": "Alle Aufgaben",
+    "all_items_job": "Alle Jobs",
     "all_items_epic": "Alle Epics",
     "all_items_workflow": "Alle Workflows",
     "names": {
-      "all_jobs": "Alle Aufgaben",
+      "all_jobs": "Alle Jobs",
       "backlogged_jobs": "Backlog",
       "pinned": "Angeheftet",
       "in_progress": "In Bearbeitung",
@@ -129,7 +129,7 @@
       "recently_failed": "Kürzlich fehlgeschlagen",
       "failed_today": "Heute fehlgeschlagen",
       "failed_this_hour": "In dieser Stunde fehlgeschlagen",
-      "admin_queue_runs": "Ausführungen",
+      "admin_queue_runs": "Läufe",
       "admin_queue_chat": "Chat",
       "admin_queue_merges": "Merges",
       "admin_queue_videos": "Videos",
@@ -137,7 +137,7 @@
       "admin_queue_polling": "Polling",
       "admin_queue_indexing": "Indexierung",
       "admin_queue_cleanup": "Cleanup",
-      "admin_queue_low_priority_maintenance": "Niedrige Prioritaet"
+      "admin_queue_low_priority_maintenance": "Niedrige Priorität"
     }
   },
   "filters_layout": {
@@ -222,7 +222,7 @@
   },
   "filter_fields": {
     "queue_name": "Warteschlange",
-    "job_class": "Aufgabenklasse",
+    "job_class": "Jobklasse",
     "failed_since": "Fehlgeschlagen seit",
     "window": "Zeit"
   },
@@ -255,7 +255,7 @@
   "smart_folder_names": {
     "failed_today": "Heute fehlgeschlagen",
     "failed_this_hour": "In dieser Stunde fehlgeschlagen",
-    "admin_queue_runs": "Laeufe",
+    "admin_queue_runs": "Läufe",
     "admin_queue_chat": "Chat",
     "admin_queue_merges": "Merges",
     "admin_queue_videos": "Videos",
@@ -263,9 +263,9 @@
     "admin_queue_polling": "Polling",
     "admin_queue_indexing": "Indexierung",
     "admin_queue_cleanup": "Cleanup",
-    "admin_queue_low_priority_maintenance": "Niedrige Prioritaet",
+    "admin_queue_low_priority_maintenance": "Niedrige Priorität",
     "repositories_all": "Alle",
-    "repositories_recent": "Kuerzlich",
+    "repositories_recent": "Kürzlich",
     "repositories_archived": "Archiviert"
   },
   "notifications": {
