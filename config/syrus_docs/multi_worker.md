@@ -519,6 +519,10 @@ Two things are specific to multi-worker:
 with pod count. It defaults to the pod's own CPU budget -- 80% of its cgroup
 CPU limit, rounded down, minimum 1 -- which is the same figure
 `RunHostAdmission` rations against. Set it explicitly only to override that.
+The production MySQL connection pool defaults to 9 connections per process,
+enough for 6 run threads plus Solid Queue's 3-connection supervision headroom.
+When setting `JOB_CONCURRENCY` above 6, also set `DB_POOL` to at least
+`JOB_CONCURRENCY + 3`; `bin/check-thread-budget` enforces this relationship.
 Give every worker pod a `resources.limits.cpu` (or set
 `SYRUS_WORKER_CPU_LIMIT`): with no readable quota, `RunProcessParallelism`
 deliberately assumes a small share rather than the node's core count, so an
