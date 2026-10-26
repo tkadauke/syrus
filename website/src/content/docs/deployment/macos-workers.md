@@ -188,7 +188,9 @@ pool:
 - Normalized capabilities and capability probe diagnostics, including macOS
   version, architecture, selected developer directory, Xcode version/build,
   command-line-tool usability, available iOS simulator runtimes, and a bounded
-  sample of available simulator devices.
+  sample of available simulator devices. Tool probe statuses distinguish a
+  missing or non-executable command from a command that ran and failed; probes
+  use the worker's `PATH` while keeping the rest of the environment scrubbed.
 - Consumed queues, including `runs-macos-arm64` and resume queues.
 - Drain/update state and desired release metadata.
 - `no_capable_worker` admission details when a Workflow cannot start, including
