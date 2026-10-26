@@ -126,7 +126,7 @@ function Expanded({ result }: { result: Result }) {
   return (
     <CardShell>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <SectionLabel>{t("tool_accept_label")}</SectionLabel>
+        <SectionLabel>{t("tool_accept_outcome")}</SectionLabel>
         {result.state ? <StatePill state={result.state} /> : null}
         {result.pendingId ? <Badge>#{result.pendingId}</Badge> : null}
       </div>

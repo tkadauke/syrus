@@ -209,7 +209,7 @@
   "tool_result_jobs": "Erstellte Jobs",
   "tool_result_memories": "Erstellte Erinnerungen",
   "tool_reason_empty": "Kein Grund für die Zurückziehung angegeben.",
-  "tool_accept_label": "Annahmeergebnis",
+  "tool_accept_outcome": "Annahmeergebnis",
   "tool_accept_summary": "{{count}} Einblick angenommen",
   "tool_accept_summary_plural": "{{count}} Einblicke angenommen",
   "tool_accept_summary_empty": "Annahme abgeschlossen",
