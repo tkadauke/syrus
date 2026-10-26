@@ -783,6 +783,22 @@
     "example_error": "Error instrumenti contextum petitionis servat",
     "example_error_description": "Job conexum, eventum petitum, causam Markdown, et singula defectus visibilia servat cum petitio deficit."
   },
+  "submit_chat_feedback": {
+    "feedback": "Responsum",
+    "open_image": "Imaginem aperi",
+    "download": "Depone",
+    "copy_id": "ID exscribe",
+    "content_type": "Genus contenti",
+    "created": "Creatum",
+    "example_pending": "Responsum pendens cum mediis",
+    "example_pending_description": "Responsum Markdown longum et nuntium, relationes conexas, imaginem parvam, prospectum snapshot, et subsidium mediorum insolubilium ostendit.",
+    "example_image_title": "Caput mobile",
+    "example_queued": "Responsum in ordine",
+    "example_queued_description": "Responsum exspectat dum opus Job praesens tractabile fiat.",
+    "example_queued_message": "Responsum in ordine manet donec cursus Job praesens finiatur.",
+    "example_error": "Error responsi",
+    "example_error_description": "Statum erroris cum Job petito, responso Markdown, et relatione medii insolubili servat."
+  },
   "force_landing_recheck": {
     "not_provided": "Non datum",
     "jobs_one": "Job",

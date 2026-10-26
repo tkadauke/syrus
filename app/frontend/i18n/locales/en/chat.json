@@ -1043,6 +1043,22 @@
     "example_error": "Tool error retains request context",
     "example_error_description": "Keeps the linked Job, requested event, Markdown reason, and failure detail visible when the request fails."
   },
+  "submit_chat_feedback": {
+    "feedback": "Feedback",
+    "open_image": "Open image",
+    "download": "Download",
+    "copy_id": "Copy ID",
+    "content_type": "Content type",
+    "created": "Created",
+    "example_pending": "Pending feedback with media",
+    "example_pending_description": "Long Markdown feedback and message, linked references, image thumbnail, snapshot preview, and unresolved-media fallback.",
+    "example_image_title": "Mobile header",
+    "example_queued": "Queued feedback",
+    "example_queued_description": "Feedback waiting for the current Job work to become actionable.",
+    "example_queued_message": "Feedback is queued until the Job finishes its current run.",
+    "example_error": "Feedback error",
+    "example_error_description": "Failure state retaining the requested Job, Markdown feedback, and unresolved media reference."
+  },
   "force_landing_recheck": {
     "not_provided": "Not provided",
     "jobs_one": "Job",

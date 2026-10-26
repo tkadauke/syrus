@@ -783,6 +783,22 @@
     "example_error": "Toolfehler behält Anfragekontext bei",
     "example_error_description": "Hält den verknüpften Job, das angeforderte Ereignis, den Markdown-Grund und die Fehlerdetails sichtbar, wenn die Anfrage fehlschlägt."
   },
+  "submit_chat_feedback": {
+    "feedback": "Feedback",
+    "open_image": "Bild öffnen",
+    "download": "Herunterladen",
+    "copy_id": "ID kopieren",
+    "content_type": "Inhaltstyp",
+    "created": "Erstellt",
+    "example_pending": "Ausstehendes Feedback mit Medien",
+    "example_pending_description": "Langes Markdown-Feedback und Nachricht, verknüpfte Referenzen, Bildvorschau, Snapshot-Vorschau und Ersatz für nicht auflösbare Medien.",
+    "example_image_title": "Mobile Kopfzeile",
+    "example_queued": "Feedback in der Warteschlange",
+    "example_queued_description": "Feedback wartet darauf, dass die aktuelle Job-Arbeit bearbeitbar wird.",
+    "example_queued_message": "Das Feedback wartet, bis der aktuelle Lauf des Jobs abgeschlossen ist.",
+    "example_error": "Feedback-Fehler",
+    "example_error_description": "Fehlerstatus mit angefordertem Job, Markdown-Feedback und nicht auflösbarer Medienreferenz."
+  },
   "force_landing_recheck": {
     "not_provided": "Nicht angegeben",
     "jobs_one": "Job",
