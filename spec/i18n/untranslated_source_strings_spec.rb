@@ -129,6 +129,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
   ].freeze
 
   NON_CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/components/AdminEventActions.tsx
+    app/frontend/components/AdminEventLogPanel.tsx
     app/frontend/components/ConfirmDialog.tsx
     app/frontend/components/GeminiSetupSheet.tsx
     app/frontend/components/ProviderAvailabilityWarning.tsx
@@ -136,6 +138,18 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/components/WalkthroughRecorder.tsx
     app/frontend/components/filterBar/DateTimeRangeFilterValueEditor.tsx
     app/frontend/lib/slashCommands.ts
+    app/frontend/routes/AdminBackendExceptions.tsx
+    app/frontend/routes/AdminBrowserErrors.tsx
+    app/frontend/routes/AdminFeatures.tsx
+    app/frontend/routes/AdminGithubApp.tsx
+    app/frontend/routes/AdminInstallations.tsx
+    app/frontend/routes/AdminInvitations.tsx
+    app/frontend/routes/AdminOverview.tsx
+    app/frontend/routes/AdminReconcilerActivity.tsx
+    app/frontend/routes/AdminStuck.tsx
+    app/frontend/routes/AdminTranscript.tsx
+    app/frontend/routes/AdminWorkUnits.tsx
+    app/frontend/routes/AdminWorkflowActivity.tsx
     app/frontend/routes/AppChromeV2.tsx
     app/frontend/routes/ChatSearch.tsx
     app/frontend/routes/Dashboard.tsx
@@ -229,6 +243,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/WalkthroughRecorder.tsx|ternary|hidden sm:inline-flex
       app/frontend/components/WalkthroughRecorder.tsx|ternary|bg-gray-400 dark:bg-gray-500
       app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|active job
+      app/frontend/routes/AdminBackendExceptions.tsx|user_visible_property|ActiveRecord::...
       app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|· ·
       app/frontend/routes/AdminReconcilerActivity.tsx|jsx_text|Run #
       app/frontend/routes/AdminUsers.tsx|jsx_text|[`#$`, job.state, job.kind,

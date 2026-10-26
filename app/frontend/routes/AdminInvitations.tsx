@@ -205,7 +205,7 @@ function InvitationShareUrl({ invitation, onNotice }: { invitation: AdminInvitat
 
   return (
     <button
-      aria-label={`Copy signup link for ${invitation.email_address}`}
+      aria-label={t("invitations.copy_signup_link", { email: invitation.email_address })}
       className="group inline-flex items-center gap-1 whitespace-nowrap text-left text-brand dark:text-brand-emphasis underline hover:no-underline cursor-copy"
       onClick={copyUrl}
       type="button"
