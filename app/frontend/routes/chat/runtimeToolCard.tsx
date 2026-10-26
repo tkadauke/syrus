@@ -91,13 +91,24 @@ type RuntimeSnapshot = {
 }
 
 type RuntimeArtifact = {
+  sessionId: string | null
+  requestedType: string | null
   id: string | null
   name: string | null
+  kind: string | null
   type: string | null
   path: string | null
   link: string | null
   previewUrl: string | null
   downloadUrl: string | null
+  latestFrameUrl: string | null
+  latestFrameAt: string | null
+  bytes: string | null
+  fallback: boolean | null
+  warning: string | null
+  textContent: string[]
+  element: string | null
+  target: string | null
   missing: boolean
   error: string | null
   raw: unknown
@@ -504,7 +515,7 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
       ? firstDisplayValue(parsed.message, contentText(parsed.content), parsed.error_message)
       : firstDisplayValue(parsed.error, parsed.error_message)
   const id = firstDisplayValue(artifact.id, artifact.artifact_id, artifact.document_id, parsed.artifact_id, parsed.document_id)
-  const name = firstDisplayValue(artifact.name, artifact.filename, artifact.title, artifact.kind)
+  const name = firstDisplayValue(artifact.name, artifact.filename, artifact.title)
   const path = firstDisplayValue(artifact.path, artifact.file_path)
   const link = firstDisplayValue(artifact.link, artifact.url, artifact.href)
   const previewUrl = firstDisplayValue(
@@ -521,18 +532,39 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
   return {
     kind: "artifact",
     artifact: {
+      sessionId: displayValue(context.input?.session_id),
+      requestedType: displayValue(context.input?.artifact_type),
       id,
       name,
+      kind: firstDisplayValue(artifact.kind, parsed.kind),
       type: firstDisplayValue(artifact.type, artifact.artifact_type, artifact.content_type, image.mimeType, artifact.kind, context.input?.artifact_type),
       path,
       link,
       previewUrl,
       downloadUrl,
+      latestFrameUrl: firstDisplayValue(artifact.latest_frame_url, parsed.latest_frame_url),
+      latestFrameAt: firstDisplayValue(artifact.latest_frame_at, parsed.latest_frame_at),
+      bytes: firstDisplayValue(artifact.bytes, parsed.bytes),
+      fallback: typeof artifact.fallback === "boolean" ? artifact.fallback : typeof parsed.fallback === "boolean" ? parsed.fallback : null,
+      warning: firstDisplayValue(artifact.warning, parsed.warning),
+      textContent: textContentItems(parsed.content),
+      element: displayValue(context.input?.element),
+      target: displayValue(context.input?.target),
       missing,
       error,
       raw: parsed
     }
   }
+}
+
+const ARTIFACT_LABELS: Record<string, string> = {
+  screenshot: "Screenshot",
+  android_screenshot: "Android screenshot"
+}
+
+function artifactLabel(artifact: RuntimeArtifact) {
+  const identity = artifact.kind ?? artifact.requestedType
+  return artifact.name ?? (identity && ARTIFACT_LABELS[identity]) ?? identity ?? artifact.id ?? artifact.type ?? "Runtime artifact"
 }
 
 function errorMessage(context: ToolCardContext): string | null {
@@ -708,7 +740,7 @@ function collapsedSummary(context: ToolCardContext) {
   if (card.kind === "artifact") {
     if (card.artifact.error) return "Runtime artifact capture failed"
     if (card.artifact.missing) return "No Runtime artifact captured"
-    return `Runtime artifact captured: ${card.artifact.name ?? card.artifact.id ?? card.artifact.type ?? "artifact"}`
+    return `Runtime artifact captured: ${artifactLabel(card.artifact)}`
   }
   if (card.kind === "acquire") {
     if (card.error || !card.lease) return "Runtime control not acquired"
@@ -1318,7 +1350,8 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
   const previewUrl = safeImageUrl(artifact.previewUrl)
   const downloadUrl = artifact.downloadUrl ? safeRuntimeUrl(artifact.downloadUrl) : null
   const link = artifact.link ? safeRuntimeUrl(artifact.link) : null
-  const artifactTitle = artifact.name ?? artifact.id ?? "Runtime artifact"
+  const latestFrameUrl = artifact.latestFrameUrl ? safeRuntimeUrl(artifact.latestFrameUrl) : null
+  const artifactTitle = artifactLabel(artifact)
 
   return (
     <CardShell>
@@ -1331,10 +1364,11 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state="captured" tone="success" />
-          <span className="font-semibold text-gray-900 dark:text-gray-100">{artifact.name ?? artifact.id ?? "Runtime artifact"}</span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{artifactTitle}</span>
           {artifact.type ? <Badge>{artifact.type}</Badge> : null}
         </div>
       )}
+      {artifact.warning ? <RuntimeNotice message={artifact.warning} tone="warning" /> : null}
       {previewUrl ? (
         <MediaPreviewShell
           item={{
@@ -1364,13 +1398,36 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
       <FieldRows
         rows={[
           ["ID", artifact.id],
+          ["Session ID", artifact.sessionId],
+          ["Requested artifact", artifact.requestedType],
           ["Name", artifact.name],
+          ["Kind", artifact.kind],
           ["Type", artifact.type],
+          ["Bytes", artifact.bytes],
+          ["Fallback", artifact.fallback == null ? null : artifact.fallback ? "Yes" : "No"],
+          ["Latest frame at", artifact.latestFrameAt],
+          ["Element", artifact.element],
+          ["Target", artifact.target],
           ["Path", artifact.path],
           ["Link", link],
           ["Download", downloadUrl]
         ]}
       />
+      {artifact.latestFrameUrl ? (
+        <div className="min-w-0">
+          <SectionLabel>Latest frame URL</SectionLabel>
+          {latestFrameUrl ? (
+            <a className="block break-all font-mono text-brand hover:underline dark:text-brand-emphasis" href={latestFrameUrl} rel="noreferrer" target="_blank">
+              {artifact.latestFrameUrl}
+            </a>
+          ) : (
+            <div className="break-all font-mono text-gray-700 dark:text-gray-300">{artifact.latestFrameUrl}</div>
+          )}
+        </div>
+      ) : null}
+      {artifact.textContent.map((text, index) => (
+        <TextPreview key={`${index}-${text.slice(0, 24)}`} maxLines={8} text={text} title="Capture output" />
+      ))}
       <div className="flex flex-wrap gap-2">
         {link ? (
           <a className="font-mono text-brand hover:underline dark:text-brand-emphasis" href={link}>
