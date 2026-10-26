@@ -2759,6 +2759,8 @@
   "mutation_before": "Before",
   "mutation_after": "After",
   "mutation_example_dependency_added": "Dependency added",
+  "mutation_example_job_assigned_to_epic": "Job assigned to Epic",
+  "mutation_example_archived_epic_error": "Archived Epic error",
   "mutation_example_job_removed_from_epic": "Job removed from Epic",
   "mutation_example_job_not_in_epic": "Job is not in an Epic",
   "mutation_example_reopen_pending_without_input": "Pending reopen without call input",
