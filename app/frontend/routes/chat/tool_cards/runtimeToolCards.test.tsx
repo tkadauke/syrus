@@ -484,31 +484,23 @@ describe("Runtime tool cards", () => {
     expect(screen.queryByText("Runtime launch: succeeded at Navigated to http://127.0.0.1:3001/settings")).not.toBeInTheDocument()
   })
 
-  it("summarizes inspect health while tolerating missing fields", () => {
+  it("renders browser inspection input and snapshot output", () => {
     const parsedResult = {
-      health: "healthy",
-      detected_framework: "Vite",
-      ports: [{ port: 5173, state: "listening" }],
-      process: { state: "running" },
-      warnings: ["missing alt text"],
+      error: false,
       content: [{ type: "text", text: "Snapshot: button Open settings" }]
     }
+    const input = { session_id: 27, options: { selector: "main", include_hidden: false } }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe(
-      "Runtime inspect: healthy, Vite, ports 5173 listening, running, 1 warning"
-    )
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { input, parsedResult }))).toBe("Runtime inspect complete")
 
-    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
-    expect(screen.getByText("healthy")).toBeInTheDocument()
-    expect(screen.getByText("Vite")).toBeInTheDocument()
-    expect(screen.getByText("5173 listening")).toBeInTheDocument()
-    expect(screen.getByText("missing alt text")).toBeInTheDocument()
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { input, parsedResult }))}</>)
+    expect(screen.getByText("27")).toBeInTheDocument()
+    expect(screen.getByText("selector")).toBeInTheDocument()
+    expect(screen.getByText("main")).toBeInTheDocument()
+    expect(screen.getByText("include_hidden")).toBeInTheDocument()
+    expect(screen.getByText("false")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
-
-    const sparse = { content: [{ type: "text", text: "Terminal scrollback is empty" }] }
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult: sparse }))).toBe("Runtime inspect: no health fields")
-    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult: sparse }))}</>)
-    expect(screen.getByText("Terminal scrollback is empty")).toBeInTheDocument()
+    expect(screen.getByText("Snapshot: button Open settings")).toBeInTheDocument()
   })
 
   it("renders Android UIAutomator inspection output without browser-only fields", () => {
@@ -518,28 +510,140 @@ describe("Runtime tool cards", () => {
       bytes: 67
     }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: no health fields")
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: android_uiautomator, 67 bytes")
 
     render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("android_uiautomator")).toBeInTheDocument()
+    expect(screen.getByText("67")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
     expect(screen.getAllByText(/<hierarchy>/).length).toBeGreaterThan(0)
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 
-  it("renders long Runtime logs as a collapsed preview with truncation details", () => {
+  it.each([
+    ["structured_content", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["content text JSON", (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })]
+  ])("normalizes runtime_inspect %s envelopes and keeps terminal output tail-aware and redacted", (_format, envelope) => {
+    const scrollback = Array.from({ length: 45 }, (_, index) =>
+      index === 44 ? "line 45 API_TOKEN=secret-value-that-must-not-render" : `line ${index + 1}`
+    ).join("\n")
+    const payload = { kind: "terminal_scrollback", scrollback, bytes: 775 }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime inspect",
+      calls: [
+        {
+          message_id: 62,
+          tool_name: "Runtime inspect",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_inspect",
+          detail: "",
+          display_label: "Runtime inspect",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 9, options: { source: "terminal" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText("Runtime inspect: terminal_scrollback, 775 bytes")).toBeInTheDocument()
+    expandToolGroup("Runtime inspect")
+    expect(screen.getByText("9")).toBeInTheDocument()
+    expect(screen.getByText("terminal")).toBeInTheDocument()
+    const preview = screen.getByTestId("text-preview-content")
+    expect(within(preview).getByText(/… 5 earlier lines/)).toBeInTheDocument()
+    expect(preview.textContent).not.toContain("\nline 1\n")
+    expect(within(preview).getByText(/line 45 API_TOKEN=\[redacted\]/)).toBeInTheDocument()
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+  })
+
+  it("renders boolean runtime inspection failures distinctly", () => {
+    const parsedResult = { error: true, content: [{ type: "text", text: "browser inspection timed out" }] }
+
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect failed")
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("browser inspection timed out", { selector: "div" })).toHaveClass("text-danger-text")
+  })
+
+  it("renders long Runtime logs as a tail preview with request details and full-log popup", () => {
     const entries = Array.from({ length: 45 }, (_, index) => `line ${index + 1}`)
     const parsedResult = { entries, cursor: 45 }
 
     expect(runtimeLogsToolCard.collapsedSummary?.(context("runtime_logs", { parsedResult }))).toBe("Runtime logs: 45 lines, cursor 45")
 
-    render(<>{runtimeLogsToolCard.renderExpanded(context("runtime_logs", { parsedResult, input: { cursor: 0 } }))}</>)
+    render(<>{runtimeLogsToolCard.renderExpanded(context("runtime_logs", { parsedResult, input: { session_id: 7, cursor: 0, limit: 45 } }))}</>)
+    expect(screen.getByText("Session ID")).toBeInTheDocument()
+    expect(screen.getByText("Limit")).toBeInTheDocument()
+    expect(screen.getByText("Requested cursor")).toBeInTheDocument()
+    expect(screen.getByText("Next cursor")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
+    expect(screen.getAllByText("45")).toHaveLength(3)
     const preview = screen.getByText("Log preview").closest("details")
     expect(preview).not.toBeNull()
     if (!preview) throw new Error("missing log preview")
     expect(within(preview).getByText(/… 5 earlier lines/)).toBeInTheDocument()
     expect(preview.textContent).not.toContain("\nline 1\n")
     expect(within(preview).getByText(/line 45/)).toBeInTheDocument()
+    fireEvent.click(within(preview).getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full Runtime logs" })
+    expect(within(dialog).getByText(/line 1/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/line 45/)).toBeInTheDocument()
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["direct", "runtime_logs", (payload: unknown) => payload],
+    ["structured content", "mcp__syrus-chat-sidecar__runtime_logs", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    [
+      "content text JSON",
+      "mcp__syrus-chat-sidecar__runtime_logs",
+      (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })
+    ]
+  ])("normalizes and redacts Runtime logs from %s results", (_format, rawName, envelope) => {
+    const payload = {
+      entries: ["starting", "API_TOKEN=secret-value-that-must-not-render", "ready"],
+      cursor: 103
+    }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime logs",
+      calls: [
+        {
+          message_id: 63,
+          tool_name: "Runtime logs",
+          raw_name: rawName,
+          detail: "",
+          display_label: "Runtime logs",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 12, cursor: 100, limit: 50 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText("Runtime logs: 3 lines, cursor 103")).toBeInTheDocument()
+    expandToolGroup("Runtime logs")
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("100")).toBeInTheDocument()
+    expect(screen.getByText("50")).toBeInTheDocument()
+    expect(screen.getByText("103")).toBeInTheDocument()
+    expect(screen.getAllByText(/API_TOKEN=\[redacted\]/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/secret-value-that-must-not-render/)).not.toBeInTheDocument()
   })
 
   it("shows stopped runtimes with their final state", () => {
@@ -850,12 +954,12 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText(/"api_token": "\[redacted\]"/)).toBeInTheDocument()
   })
 
-  it("summarizes delivered text input without exposing a large raw payload by default", () => {
+  it("masks typed text everywhere until an explicit reveal", () => {
     const longText = `whoami\n${"x".repeat(140)}`
-    const parsedResult = { delivered: true, echoed_event: { raw: "not shown outside details" } }
+    const parsedResult = { delivered: true, event: { type: "stdin", text: longText } }
     const toolContext = context("runtime_input", {
       parsedResult,
-      input: { event: { type: "stdin", target: "terminal", data: longText, internal_payload: { huge: true } } }
+      input: { session_id: 41, event: { type: "stdin", target: "terminal", text: longText, internal_payload: { huge: true } } }
     })
 
     expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input delivered: stdin on terminal")
@@ -864,11 +968,16 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("delivered")).toBeInTheDocument()
     expect(screen.getAllByText("terminal").length).toBeGreaterThan(0)
     const valueRow = screen.getByText("Value").parentElement
-    const valueSummary = valueRow?.querySelector("[title]")?.getAttribute("title")
-    expect(valueSummary?.startsWith("whoami\n")).toBe(true)
-    expect(valueSummary?.endsWith("...")).toBe(true)
-    expect(valueSummary?.length).toBeLessThan(longText.length)
+    expect(valueRow).toHaveTextContent(`[typed text: ${longText.length} characters]`)
+    expect(screen.queryByText(/whoami/)).not.toBeInTheDocument()
+    expect(screen.getByText("41")).toBeInTheDocument()
     expect(screen.getByText("Input event")).toBeInTheDocument()
+    expect(screen.getByText("Echoed event")).toBeInTheDocument()
+    expect(screen.getAllByText(new RegExp(`typed text: ${longText.length} characters`)).length).toBeGreaterThan(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Reveal typed text" }))
+    expect(screen.getByRole("button", { name: "Hide typed text" })).toBeInTheDocument()
+    expect(screen.getAllByText(/whoami/).length).toBeGreaterThan(0)
     expect(screen.queryByText("Runtime input delivered: stdin on terminal")).not.toBeInTheDocument()
   })
 
@@ -890,7 +999,69 @@ describe("Runtime tool cards", () => {
 
     expect(runtimeInputToolCard.collapsedSummary?.(failed)).toBe("Runtime input failed: lease_required")
     render(<>{runtimeInputToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("lease_required")).toBeInTheDocument()
     expect(screen.getByText("the agent must hold an active input lease before sending input events")).toBeInTheDocument()
+  })
+
+  it("treats the browser boolean error shape as failed and keeps its message separate", () => {
+    const toolContext = context("runtime_input", {
+      parsedResult: { error: true, delivered: false, content: "click dispatch failed", message: "Browser connection closed" },
+      input: { session_id: 12, event: { type: "click", x: 10, y: 20 } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input failed: input_failed")
+    render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("input_failed")).toBeInTheDocument()
+    expect(screen.getByText("Browser connection closed")).toBeInTheDocument()
+  })
+
+  it("treats delivered false as a failure and shows Android pointer details", () => {
+    const toolContext = context("runtime_input", {
+      parsedResult: { delivered: false, event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } },
+      input: { session_id: "android-9", event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input failed")
+    render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("android-9")).toBeInTheDocument()
+    expect(screen.getAllByText("120").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("240").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("touch").length).toBeGreaterThan(0)
+    expect(screen.getByText("Echoed event")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["structured content", { structured_content: { delivered: true }, content: [] }],
+    ["text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify({ delivered: true }) }] }]
+  ])("normalizes Runtime input from %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime input",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_input",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_input",
+          detail: "click",
+          display_label: "Runtime input",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7, event: { type: "click", target: "button#save" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime input")
+    expect(screen.getByText("delivered")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
   })
 
   it("shows Runtime snapshot preview and page metadata", () => {
