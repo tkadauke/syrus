@@ -58,6 +58,19 @@ RSpec.describe Observability::EventSink do
     expect(stream.batch_size).to eq(25)
   end
 
+  it "selects a persistence strategy when registering a stream" do
+    expect(Observability::EventStream.fetch(:performance).persistence)
+      .to be_a(Observability::EventStream::Persistence::InsertAll)
+    expect(Observability::EventStream.fetch(:operational).persistence)
+      .to be_a(Observability::EventStream::Persistence::CreateEach)
+  end
+
+  it "rejects unknown persistence strategies" do
+    expect {
+      Observability::EventStream.register(:unsupported, model: "PerformanceLogEvent", persist: :unsupported)
+    }.to raise_error(KeyError)
+  end
+
   it "allows a larger in-memory window for performance diagnostics than generic operational events" do
     stub_const("Observability::EventSink::MEMORY_LIMIT", 2)
     stub_const("Observability::EventSink::PERFORMANCE_MEMORY_LIMIT", 4)

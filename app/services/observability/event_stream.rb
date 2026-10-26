@@ -1,6 +1,38 @@
 module Observability
   module EventStream
-    Stream = Struct.new(:kind, :model_name, :durable, :persist_mode, :batch_size, keyword_init: true) do
+    class Persistence
+      def self.for(mode)
+        {
+          create_each: CreateEach,
+          insert_all: InsertAll
+        }.fetch(mode.to_sym).new
+      end
+
+      def persist(_model, _rows)
+        raise NotImplementedError
+      end
+
+      class CreateEach < self
+        def persist(model, rows)
+          rows.each { |row| model.create!(row) }
+        end
+      end
+
+      class InsertAll < self
+        def persist(model, rows)
+          model.insert_all(normalize_rows(rows)) # rubocop:disable Rails/SkipsModelValidations
+        end
+
+        private
+
+        def normalize_rows(rows)
+          keys = rows.flat_map(&:keys).uniq
+          rows.map { |row| keys.index_with { |key| row[key] } }
+        end
+      end
+    end
+
+    Stream = Struct.new(:kind, :model_name, :durable, :persistence, :batch_size, keyword_init: true) do
       def model
         model_name.to_s.constantize
       end
@@ -20,12 +52,7 @@ module Observability
         end
 
         rows.each_slice(effective_batch_size) do |batch|
-          case persist_mode
-          when :create_each
-            batch.each { |row| model.create!(row) }
-          else
-            model.insert_all(normalize_insert_rows(batch)) # rubocop:disable Rails/SkipsModelValidations
-          end
+          persistence.persist(model, batch)
         end
       end
 
@@ -33,13 +60,6 @@ module Observability
         return [] unless model.respond_to?(:as_recent_event_hashes)
 
         model.as_recent_event_hashes(limit: limit)
-      end
-
-      private
-
-      def normalize_insert_rows(rows)
-        keys = rows.flat_map(&:keys).uniq
-        rows.map { |row| keys.index_with { |key| row[key] } }
       end
     end
 
@@ -53,7 +73,7 @@ module Observability
         kind: kind,
         model_name: model.to_s,
         durable: durable,
-        persist_mode: persist.to_sym,
+        persistence: Persistence.for(persist),
         batch_size: normalized_batch_size(batch_size)
       )
     end
