@@ -1499,6 +1499,52 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("screenshot timed out")).toBeInTheDocument()
   })
 
+  it("preserves artifact request and structured result context for transport failures", () => {
+    const envelope = {
+      structured_content: {
+        error: "capture denied by provider",
+        error_code: "capture_denied",
+        retryable: false
+      },
+      content: [{ type: "text", text: "Error: capture denied by provider" }],
+      isError: true
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime capture artifact",
+      calls: [
+        {
+          message_id: 78,
+          tool_name: "runtime_capture_artifact",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_capture_artifact",
+          detail: "screenshot, session 17",
+          display_label: "Runtime capture artifact",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 17, artifact_type: "screenshot" },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
+          result_error: true,
+          result_kind: "error",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Failed"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText(/Runtime capture artifact failed/)).toBeInTheDocument()
+    expandToolGroup("Runtime capture artifact")
+    expect(screen.getByText("capture denied by provider")).toBeInTheDocument()
+    expect(screen.getByText("17")).toBeInTheDocument()
+    expect(screen.getByText("screenshot")).toBeInTheDocument()
+    expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+    expect(
+      screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes('"error_code": "capture_denied"') === true)
+    ).toBeInTheDocument()
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes('"retryable": false') === true)).toBeInTheDocument()
+  })
+
   it("renders no-op release distinctly", () => {
     const parsedResult = { released: [] }
 
