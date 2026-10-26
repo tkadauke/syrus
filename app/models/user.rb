@@ -282,7 +282,6 @@ class User < ApplicationRecord
   def addressable_in?(chat)
     participants = chat.association(:chat_participants)
     return participants.target.any? { |participant| participant.user_id == id } if participants.loaded?
-
     chat.chat_participants.exists?(user_id: id)
   end
   def admin?
