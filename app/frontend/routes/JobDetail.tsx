@@ -235,6 +235,7 @@ export function JobDetailView({
   initialDiff?: { base: string; head: string } | null
 }) {
   const { t } = useT("jobs")
+  const { t: commonT } = useT("common")
   const { t: tTours } = useT("tours")
   const location = useLocation()
   const navigate = useNavigate()
@@ -391,7 +392,7 @@ export function JobDetailView({
                 ? {
                     node: (
                       <span className="inline-flex items-center gap-1">
-                        <span title={providerFailoverTooltip(payload.job.provider_failover)}>{providerLabel}</span>
+                        <span title={providerFailoverTooltip(payload.job.provider_failover, commonT)}>{providerLabel}</span>
                         <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
                       </span>
                     ),
