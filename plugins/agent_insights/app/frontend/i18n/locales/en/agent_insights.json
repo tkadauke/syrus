@@ -209,7 +209,7 @@
   "tool_result_jobs": "Created Jobs",
   "tool_result_memories": "Created memories",
   "tool_reason_empty": "No retirement reason was provided.",
-  "tool_accept_label": "Acceptance outcome",
+  "tool_accept_outcome_label": "Acceptance outcome",
   "tool_accept_summary": "Accepted {{count}} insight",
   "tool_accept_summary_plural": "Accepted {{count}} insights",
   "tool_accept_summary_empty": "Insight acceptance completed",
