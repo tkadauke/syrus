@@ -46,7 +46,7 @@ RSpec.describe Mentionables::Resolver do
 
     expect(syrus).to have_attributes(
       handle: "syrus", display_name: "Syrus", subtitle: "Engineer", kind: "syrus",
-      avatar_url: "/bundled-avatars/syrus.svg", color_key: "coral-deep", agentic?: true
+      avatar_url: nil, color_key: "coral-deep", agentic?: true
     )
     expect(owner).to have_attributes(kind: "human", avatar_url: nil, color_key: nil, agentic?: false)
   end
