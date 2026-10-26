@@ -939,6 +939,11 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" },
   "tool_card_examples": {
+    "pending_reopen_without_input": "Ausstehende Wiedereröffnung ohne Aufrufeingabe",
+    "bulk_reopen_confirmation": "Bestätigung für mehrere Wiedereröffnungen",
+    "job_cannot_be_reopened": "Job kann nicht wiedereröffnet werden",
+    "job_removed_from_epic": "Job aus Epic entfernt",
+    "job_not_in_epic": "Job gehört zu keinem Epic",
     "pending_close_with_comment": "Ausstehende Schließung mit PR-Kommentar",
     "close_confirmation_required": "Das erfolgreiche Schließen des Jobs erfordert eine Bestätigung.",
     "bulk_close_confirmation": "Bestätigung für mehrere Schließungen",
