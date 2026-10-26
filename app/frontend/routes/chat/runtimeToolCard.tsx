@@ -108,6 +108,11 @@ type RuntimeCard =
       inputProvider: string | null
       inputName: string | null
       inputOptions: Record<string, unknown>
+      launchSessionId: string | null
+      launched: boolean | null
+      packageName: string | null
+      activity: string | null
+      output: string | null
       raw: unknown
     }
   | {
@@ -254,6 +259,10 @@ function withoutErrorPrefix(value: string | null) {
   return value?.replace(/^Error:\s*/i, "") ?? null
 }
 
+function launchedUrl(content: string | null) {
+  return content?.match(/^Navigated to (https?:\/\/\S+)$/)?.[1] ?? null
+}
+
 function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAction): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -270,7 +279,9 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
       : firstDisplayValue(parsed.error, parsed.error_message, parsed.last_error)
   )
   const explicitTarget =
-    action === "launch" && !error ? firstDisplayValue(options.url, options.path, parsed.target, parsed.path, parsed.launch_target, parsed.url, content) : null
+    action === "launch" && !error
+      ? firstDisplayValue(options.url, options.path, parsed.target, parsed.path, parsed.launch_target, parsed.url, launchedUrl(content))
+      : null
 
   return {
     kind: "lifecycle",
@@ -283,7 +294,12 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
     error,
     inputProvider: action === "start" ? displayValue(context.input?.provider) : null,
     inputName: action === "start" ? displayValue(context.input?.name) : null,
-    inputOptions: action === "start" ? options : {},
+    inputOptions: action === "start" || action === "launch" ? options : {},
+    launchSessionId: action === "launch" ? displayValue(context.input?.session_id) : null,
+    launched: action === "launch" && typeof parsed.launched === "boolean" ? parsed.launched : null,
+    packageName: action === "launch" ? displayValue(parsed.package) : null,
+    activity: action === "launch" ? displayValue(parsed.activity) : null,
+    output: action === "launch" ? displayValue(parsed.output) : null,
     raw: parsed
   }
 }
@@ -708,6 +724,11 @@ function safeRuntimeUrl(url: string) {
   return null
 }
 
+function safeExternalRuntimeUrl(url: string) {
+  const safeUrl = safeRuntimeUrl(url)
+  return safeUrl?.startsWith("/") ? null : safeUrl
+}
+
 function safeImageUrl(url: string | null) {
   if (!url) return null
   if (url.startsWith("data:image/")) return url
@@ -956,7 +977,7 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
       </div>
       {card.error ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {card.action === "start" ? <span className="font-semibold">Error: </span> : null}
+          {card.action === "start" || card.action === "launch" ? <span className="font-semibold">Error: </span> : null}
           {card.error}
         </div>
       ) : null}
@@ -979,14 +1000,24 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
         <>
           <FieldRows
             rows={[
+              ["Session ID", card.launchSessionId],
               ["State", card.session?.state ?? card.status],
               ["Command", card.command],
-              ["URL", card.url],
-              ["Launch target", card.target],
+              ["Launched", card.launched == null ? null : String(card.launched)],
+              ["Package", card.packageName],
+              ["Activity", card.activity],
+              ["Launch target", card.target && !safeExternalRuntimeUrl(card.target) ? card.target : null],
               ["Provider", card.session?.providerKey ?? null],
               ["Workspace", card.session?.workspaceRef ?? null]
             ]}
           />
+          <RuntimeUrl url={card.target && safeExternalRuntimeUrl(card.target) ? card.target : card.url} />
+          {card.action === "launch" ? <OptionRows values={card.inputOptions} /> : null}
+          {card.output ? (
+            <Disclosure label="Output">
+              <TextPreview maxLines={12} text={card.output} truncate="headTail" />
+            </Disclosure>
+          ) : null}
           {card.session ? <RuntimeSessionBlock session={card.session} /> : null}
         </>
       )}
