@@ -136,7 +136,6 @@ RSpec.describe AppEvents do
         hash_including("resource" => "chat")
       )
       expect(AppUserChannel).not_to have_received(:broadcast_to)
-
     end
 
     it "stops broadcasting to a recipient immediately after revocation" do
