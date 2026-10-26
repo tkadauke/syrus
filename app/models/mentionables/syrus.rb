@@ -7,7 +7,7 @@ module Mentionables
     def display_name = "Syrus"
     def subtitle = "Engineer"
     def kind = "syrus"
-    def avatar_url = "/bundled-avatars/syrus.svg"
+    def avatar_url = nil
     def color_key = "coral-deep"
     def agentic? = true
     def addressable_in?(_chat) = true

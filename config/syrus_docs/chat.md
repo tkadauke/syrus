@@ -375,8 +375,8 @@ participant, but never trigger an agent turn. Users can disable mention
 notifications in their notification preferences.
 
 Every mentionable also exposes `avatar_url` and `color_key`. Humans use their
-uploaded or linked avatar and a neutral highlight. Built-in Syrus uses the
-bundled Syrus avatar and a fixed curated color. The shared appearance palette
+uploaded or linked avatar and a neutral highlight. Built-in Syrus uses initials
+on a fixed curated color. The shared appearance palette
 stores stable keys with separately contrast-checked light and dark values;
 frontend callers resolve the key for the active mode rather than persisting a
 hex value. Reusable color and avatar pickers are fixed-choice grids, and the
