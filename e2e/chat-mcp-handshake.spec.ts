@@ -3,7 +3,9 @@ import { execFileSync } from "node:child_process"
 import { createServer } from "node:net"
 
 test("every configured chat provider completes persistent and fallback MCP handshakes", async () => {
-  test.setTimeout(150_000)
+  // Leave enough time around the Rails runner's own deadline for a cold Rails
+  // boot plus Playwright's worker setup and subprocess cleanup on hosted CI.
+  test.setTimeout(240_000)
   test.skip(Boolean(process.env.E2E_BASE_URL), "The MCP handshake guard runs inside the local ephemeral Rails environment.")
 
   const port = await availablePort()
@@ -15,7 +17,7 @@ test("every configured chat provider completes persistent and fallback MCP hands
       SYRUS_MCP_DAEMON_AUTO_START: "1",
       SYRUS_PERSISTENT_MCP_PORT: String(port)
     },
-    timeout: 120_000
+    timeout: 180_000
   })
   const resultLine = output.split("\n").find((line) => line.startsWith("CHAT_MCP_HANDSHAKE="))
 
