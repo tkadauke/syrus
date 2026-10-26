@@ -24,6 +24,12 @@ function safeText(value: unknown): string | null {
   return text || null
 }
 
+function safeVerbatimText(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null
+  const text = redactToolCardText(String(value))
+  return text.trim() ? text : null
+}
+
 function outputBlock(value: unknown): OutputBlock {
   if (!isPlainObject(value)) return { text: "", truncated: false, bytes: null, omittedBytes: null }
   return {
@@ -127,7 +133,7 @@ function Credential({ metadata, fallback }: { metadata: CredentialMetadata; fall
 function SshExecCard({ context, result }: { context: ToolCardContext; result: SshExecResult }) {
   const { t } = useT("credential_store")
   const input = redactToolCardValue(context.input ?? {}) as Record<string, unknown>
-  const command = safeText(input.command)
+  const command = safeVerbatimText(input.command)
   const target = result.target ?? requestedTarget(input)
 
   return (
