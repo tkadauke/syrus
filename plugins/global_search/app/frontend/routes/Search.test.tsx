@@ -29,6 +29,7 @@ function searchPayload(results: unknown[]) {
         { type: "job", label: "Jobs" },
         { type: "epic", label: "Epics" },
         { type: "chat", label: "Chats" },
+        { type: "repository", label: "Repositories" },
         { type: "test_case", label: "Tests" },
         { type: "design_doc", label: "Design Docs" }
       ],
@@ -105,6 +106,26 @@ describe("SearchRoute result rows", () => {
 
     await screen.findByText("Syrus Plugin Architecture Design")
     expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument()
+  })
+
+  it("renders repository results and their type filter", async () => {
+    renderRoute([
+      {
+        type: "repository",
+        id: 12,
+        title: "tkadauke/syrus",
+        snippet: "<mark>tkadauke/syrus</mark>",
+        rank: 0,
+        path: "/repositories/12",
+        state: "active",
+        repository_slug: null,
+        created_at: "2026-01-01T00:00:00Z"
+      }
+    ])
+
+    expect(await screen.findByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/12")
+    expect(screen.getByText("Repository")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/search?query=preview+environment&types%5B%5D=repository")
   })
 
   it("renders Design Doc rows with DOC slug, metadata, and navigation path", async () => {
