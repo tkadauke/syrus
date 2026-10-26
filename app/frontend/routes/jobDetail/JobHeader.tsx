@@ -185,41 +185,43 @@ export function HeaderActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-end gap-2" data-tour="job-approve">
-        {primaryAction ? (
-          primaryAction.key === "approve" && onApprove ? (
-            <button className={buttonClass(primaryAction.tone)} data-tour="job-approve" disabled={command.isPending} onClick={onApprove} type="button">
-              {primaryAction.label}
-            </button>
-          ) : primaryAction.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation" ? (
-            <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => setPlacementConfirmationOpen(true)} type="button">
-              {primaryAction.label}
-            </button>
-          ) : primaryAction.key === "retry_with" ? (
-            <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => openRetryDialog(primaryAction)} type="button">
-              {primaryAction.label}
-            </button>
-          ) : (
-            <CommandButton command={command} input={primaryAction.input} tone={primaryAction.tone}>
-              {primaryAction.label}
-            </CommandButton>
-          )
-        ) : null}
-        {overflowExtraItems.length > 0 || overflowActions.length > 0 ? (
-          <HeaderActionsMenu
-            actions={overflowActions}
-            command={command}
-            dataTourFeedback={canGiveFeedback}
-            extraItems={overflowExtraItems}
-            onActionClick={handleOverflowActionClick}
-          />
+      <div className="flex min-w-0 max-w-full flex-1 flex-col items-end gap-1 sm:flex-none">
+        <div className="flex flex-wrap items-center justify-end gap-2" data-tour="job-approve">
+          {primaryAction ? (
+            primaryAction.key === "approve" && onApprove ? (
+              <button className={buttonClass(primaryAction.tone)} data-tour="job-approve" disabled={command.isPending} onClick={onApprove} type="button">
+                {primaryAction.label}
+              </button>
+            ) : primaryAction.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation" ? (
+              <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => setPlacementConfirmationOpen(true)} type="button">
+                {primaryAction.label}
+              </button>
+            ) : primaryAction.key === "retry_with" ? (
+              <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => openRetryDialog(primaryAction)} type="button">
+                {primaryAction.label}
+              </button>
+            ) : (
+              <CommandButton command={command} input={primaryAction.input} tone={primaryAction.tone}>
+                {primaryAction.label}
+              </CommandButton>
+            )
+          ) : null}
+          {overflowExtraItems.length > 0 || overflowActions.length > 0 ? (
+            <HeaderActionsMenu
+              actions={overflowActions}
+              command={command}
+              dataTourFeedback={canGiveFeedback}
+              extraItems={overflowExtraItems}
+              onActionClick={handleOverflowActionClick}
+            />
+          ) : null}
+        </div>
+        {retryImplementationUnavailableReason ? (
+          <p className="w-full max-w-sm whitespace-normal break-words text-right text-xs text-muted" data-testid="retry-implementation-unavailable-reason">
+            {t("retry_implementation_unavailable", { reason: retryImplementationUnavailableReason })}
+          </p>
         ) : null}
       </div>
-      {retryImplementationUnavailableReason ? (
-        <p className="max-w-sm text-right text-xs text-muted" data-testid="retry-implementation-unavailable-reason">
-          {t("retry_implementation_unavailable", { reason: retryImplementationUnavailableReason })}
-        </p>
-      ) : null}
       {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="alt+a" onTrigger={triggerApproveShortcut} /> : null}
       {unapproveAction ? (
         <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} />
