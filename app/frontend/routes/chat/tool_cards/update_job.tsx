@@ -12,13 +12,17 @@ const attemptedDescription = "Keep the **attempted** description visible."
 export const examples: ToolCardExample[] = [
   {
     id: "title_and_description_updated",
-    label: i18n.t("chat:mutation_example_title_and_description_updated"),
+    get label() {
+      return i18n.t("chat:mutation_example_title_and_description_updated")
+    },
     input: { job_id: 70, title: updatedTitle, description: longDescription },
     parsedResult: { job_id: 70, title: updatedTitle, description: longDescription, state: "running" }
   },
   {
     id: "closed_job_update_failed",
-    label: i18n.t("chat:mutation_example_closed_job_update_failed"),
+    get label() {
+      return i18n.t("chat:mutation_example_closed_job_update_failed")
+    },
     input: { job_id: 70, title: attemptedTitle, description: attemptedDescription },
     resultBody: "JOB-70 is closed and cannot be updated.",
     resultError: true
