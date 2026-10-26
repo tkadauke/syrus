@@ -32,6 +32,17 @@ jobs:
         with:
           bundler-cache: true
 
+      # A small set of configuration specs load Vite itself so they can
+      # validate the production bundle contract. Keep their dependencies
+      # available in the Ruby job as well as the dedicated React job.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies for configuration specs
+        run: npm ci
+
       - name: Check migration baselines
         run: bin/check-primary-migration-baselines
 
