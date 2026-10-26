@@ -228,6 +228,9 @@ Runtime Session (`runtime_input`, and the equivalent direct
 first request a short-lived control lease with `runtime_acquire_control` and
 release it with `runtime_release_control` when finished, so agent-driven
 interaction never races an operator who is looking at the same session;
+chat tool cards show input delivery errors and provider event details, while
+typed text is masked by default and can only be revealed with an explicit
+control;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
 and `runtime_stop` tears the session down. Runtime providers include browser
 dev-server sessions and Android emulator sessions. Browser sessions navigate
@@ -1019,7 +1022,10 @@ so the wakeup and any follow-up action remain part of the transcript. The
 agent can schedule short relative wakeups with `delay_minutes`, or schedule a
 specific absolute UTC time with `fire_at` in ISO 8601 form for calendar dates
 and longer reminders. It can list pending wakeups for the current chat and
-cancel any that are no longer needed.
+cancel any that are no longer needed. Wakeup results use dedicated transcript
+cards: cancelled wakeups link back to their chat and retain the original prompt
+and fire time for context, while missing or already-completed wakeups appear as
+clear cancellation errors.
 
 The chat agent can also send a message to another one of the same operator's
 chat sessions, opening a bounded, visibly-marked message thread and waking the

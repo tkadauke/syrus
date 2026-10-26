@@ -134,6 +134,7 @@ module Mcp
           priority: proposal.priority,
           planned_execution: proposal.planned_execution_json,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
+          repository_id: proposal.effective_repository&.id,
           repository: proposal.effective_repository&.slug,
           goal_provenance: App::GoalProvenancePayload.for(proposal),
           target_epic: target_epic_payload(proposal),
