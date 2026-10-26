@@ -31,14 +31,7 @@ export type NotificationPayload = {
 }
 
 export type NotificationPreferenceKind =
-  | "job_failed"
-  | "job_implemented"
-  | "pr_comment_addressed"
-  | "pr_merged"
-  | "epic_completed"
-  | "main_inconclusive"
-  | "investigation_escalated"
-  | "chat_mention"
+  "job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed" | "main_inconclusive" | "investigation_escalated" | "chat_mention"
 
 export type NotificationPreferences = Record<NotificationPreferenceKind, boolean>
 
