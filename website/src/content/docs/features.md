@@ -220,6 +220,9 @@ Runtime Session (`runtime_input`, and the equivalent direct
 first request a short-lived control lease with `runtime_acquire_control` and
 release it with `runtime_release_control` when finished, so agent-driven
 interaction never races an operator who is looking at the same session;
+chat tool cards show input delivery errors and provider event details, while
+typed text is masked by default and can only be revealed with an explicit
+control;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
 and `runtime_stop` tears the session down. Runtime providers include browser
 dev-server sessions and Android emulator sessions. Browser sessions navigate
