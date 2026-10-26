@@ -220,6 +220,7 @@ RSpec.describe WorkerCapabilities do
 
     it "treats timed out probes as unavailable" do
       allow(described_class).to receive(:capability_probe).and_raise(Timeout::Error)
+      described_class.reset_detection_cache!
 
       with_capability_env(nil) do
         expect(described_class.current.fetch(:diagnostics)).to include(
