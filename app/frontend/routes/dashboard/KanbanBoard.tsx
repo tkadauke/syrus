@@ -293,7 +293,7 @@ function KanbanCard({
           <PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} />
         </Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <WorkflowBadges state={item.state} triggerAriaPrefix="Workflow trigger" triggerKind={item.trigger_kind} />
+          <WorkflowBadges state={item.state} triggerAriaPrefix={t("workflow_trigger_aria")} triggerKind={item.trigger_kind} />
           <OwnerBadge badge={item.job.owner_badge} />
         </div>
       </article>
@@ -414,7 +414,7 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
         ) : null}
       </div>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-        <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
+        <WorkflowBadges state={item.summary_state} triggerAriaPrefix={t("active_workflow_trigger_aria")} triggerKind={item.active_workflow_trigger_kind} />
         {item.state === "queued" && item.start_blocked_reason ? (
           <StartBlockedReasonPill
             count={item.start_blocked_count}

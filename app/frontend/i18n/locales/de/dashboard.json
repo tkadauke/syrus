@@ -104,6 +104,8 @@
   "commits_behind_base_aria_other": "{{count}} Commits hinter dem Basis-Branch",
   "latest_workflow_aria": "Neuester Workflow: {{trigger}} {{state}}",
   "latest_workflow_trigger_aria": "Auslöser des neuesten Workflows",
+  "workflow_trigger_aria": "Workflow-Auslöser",
+  "active_workflow_trigger_aria": "Auslöser des aktiven Workflows",
   "retry_state": {
     "retryable": "erneut ausführbar",
     "not_retryable": "nicht erneut ausführbar",

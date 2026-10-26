@@ -1129,7 +1129,7 @@ function MobileJobRow({
       <Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} />
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
+          <WorkflowBadges state={job.summary_state} triggerAriaPrefix={t("active_workflow_trigger_aria")} triggerKind={job.active_workflow_trigger_kind} />
           <ProviderAvailabilityWarning availability={job.provider_availability} />
           {job.total_cost_usd == null ? null : (
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd)}</span>
@@ -1529,11 +1529,12 @@ export const PRIORITY_TONE: Record<string, "red" | "amber" | "blue"> = {
 }
 
 function PriorityPillCell({ priority }: { priority: string }) {
+  const { t } = useT("dashboard")
   const tone = PRIORITY_TONE[priority]
   if (!tone) return <DataTable.Cell />
   return (
     <DataTable.Cell>
-      <TonePill tone={tone}>{priority}</TonePill>
+      <TonePill tone={tone}>{t(`priority_values.${priority}`, { defaultValue: priority })}</TonePill>
     </DataTable.Cell>
   )
 }
