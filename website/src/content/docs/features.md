@@ -465,7 +465,13 @@ the actor, timestamp, and before/after text.
 
 Repositories default new Epics to a linear child-Job dependency policy: child
 Jobs should form one ordered chain. Each Epic stores a concrete policy when it
-is created; `linear` is the only value that exists. Chat's
+is created; `linear` is the only value that exists. Syrus also enforces this
+at execution time: only one child Job can run an implementation Workflow at a
+time, even when Jobs created from GitHub issues have no explicit dependency
+edges. Later siblings wait and start automatically in deterministic creation
+order. Landing, merge-train, rebase, stack-rebase, grading, and feedback
+Workflows remain independent of this implementation gate so delivery and
+recovery cannot deadlock. Chat's
 `propose_epic_with_jobs` tool rejects a branching,
 fan-in, or disconnected child-Job graph immediately, with the offending child
 slugs in the error, before it even creates the proposal card — the operator

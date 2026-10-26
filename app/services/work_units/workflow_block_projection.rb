@@ -15,6 +15,7 @@ module WorkUnits
       "job_not_ready_for_execution" => "job_not_ready_for_execution",
       "urgent_job_active" => "urgent_job_active",
       "epic_wide_workflow_active" => "epic_wide_workflow_active",
+      "epic_sibling_implementation_active" => "epic_sibling_implementation_active",
       "no_capable_worker" => "no_capable_worker"
     }.freeze
 
