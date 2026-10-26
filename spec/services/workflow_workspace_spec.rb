@@ -1617,6 +1617,7 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       FileUtils.rm_rf(clone_path)
       FileUtils.mkdir_p(clone_path.dirname)
       sh("git clone -q --bare #{work} #{clone_path}")
+      sh("git --git-dir #{clone_path} remote set-url origin #{repository.remote_url}")
     end
   end
 
