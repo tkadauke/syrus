@@ -165,7 +165,7 @@ class RebaseAttemptGuard
     branch_name = branch_for(workflow, job)
     head_sha = pr_head_sha(pr)
     base_sha = pr_base_sha(pr)
-    pre_sha = result["pre_sha"].presence
+    pre_sha = result["pre_sha"].presence || result["checkpoint_sha"].presence
     result_base_sha = result["base_sha"].presence
 
     return false if branch_name.present? && job.branch_name.present? && branch_name != job.branch_name

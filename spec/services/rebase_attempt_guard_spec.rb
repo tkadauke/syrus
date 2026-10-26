@@ -43,8 +43,16 @@ RSpec.describe RebaseAttemptGuard do
     workflow
   end
 
-  def failed_base_refresh_retry!(retryable: false)
-    workflow = Workflow.create!(job: job, trigger_kind: "base_refresh_retry", state: "failed", finished_at: Time.current)
+  def failed_base_refresh_retry!(retryable: false, pre_sha: nil, base_sha: nil)
+    artifacts = {
+      "base_refresh_rebase_result" => {
+        "status" => "failed", "checkpoint_sha" => pre_sha, "base_sha" => base_sha
+      }.compact
+    }
+    workflow = Workflow.create!(
+      job: job, trigger_kind: "base_refresh_retry", state: "failed", finished_at: Time.current,
+      artifacts: artifacts
+    )
     step = Step.create!(workflow: workflow, kind: "base_refresh_rebase", position: 1, state: "failed")
     run = Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind, state: "failed")
     RunFailureClassification.create!(
@@ -237,6 +245,26 @@ RSpec.describe RebaseAttemptGuard do
       described_class::ATTEMPT_CAP.times { failed_base_refresh_retry! }
 
       expect(described_class.cap_reached?(job, pr: nil)).to be(true)
+    end
+
+    it "lifts the block when the PR head changes" do
+      described_class::ATTEMPT_CAP.times do
+        failed_base_refresh_retry!(pre_sha: "old-head", base_sha: "old-base")
+      end
+
+      changed_pr = pr(head_sha: "new-head", base_sha: "old-base")
+      expect(described_class.cap_reached?(job, pr: changed_pr)).to be(false)
+      expect(described_class.cooling_down?(job, pr: changed_pr)).to be(false)
+    end
+
+    it "lifts the block when the PR base changes" do
+      described_class::ATTEMPT_CAP.times do
+        failed_base_refresh_retry!(pre_sha: "old-head", base_sha: "old-base")
+      end
+
+      changed_pr = pr(head_sha: "old-head", base_sha: "new-base")
+      expect(described_class.cap_reached?(job, pr: changed_pr)).to be(false)
+      expect(described_class.cooling_down?(job, pr: changed_pr)).to be(false)
     end
 
     it "does not change the selector's rebase and stack-rebase trigger kinds" do
