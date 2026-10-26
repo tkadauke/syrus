@@ -142,6 +142,6 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "not_pending", label: "Wakeup not found or pending", sourceType: "codex", resultBody: "wakeup not found or not pending", resultError: true },
-  { id: "pending", label: "Cancellation pending", resultSettled: false },
+  { id: "pending", label: "Cancellation pending", resultBody: "", resultSettled: false },
   { id: "empty", label: "Empty response", parsedResult: {} }
 ]
