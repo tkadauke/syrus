@@ -1173,9 +1173,10 @@ describe("JobDetailView", () => {
       }
     })
 
-    expect(screen.getByTestId("retry-implementation-unavailable-reason")).toHaveTextContent(
-      "Retry implementation unavailable: A Run is already in progress - wait for it to finish."
-    )
+    const reason = screen.getByTestId("retry-implementation-unavailable-reason")
+    expect(reason).toHaveTextContent("Retry implementation unavailable: A Run is already in progress - wait for it to finish.")
+    expect(reason).toHaveClass("w-full", "max-w-sm", "whitespace-normal", "break-words")
+    expect(screen.getByTestId("job-header-actions")).toHaveClass("w-auto", "min-w-0", "max-w-full", "flex-wrap")
   })
 
   it("does not show an implementation retry refusal outside the failed action state", () => {
