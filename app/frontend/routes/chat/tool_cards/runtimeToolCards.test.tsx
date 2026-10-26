@@ -954,9 +954,9 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText(/"api_token": "\[redacted\]"/)).toBeInTheDocument()
   })
 
-  it("summarizes delivered text input without exposing a large raw payload by default", () => {
+  it("masks typed input by default and reveals it only on request", () => {
     const longText = `whoami\n${"x".repeat(140)}`
-    const parsedResult = { delivered: true, echoed_event: { raw: "not shown outside details" } }
+    const parsedResult = { delivered: true, event: { type: "stdin", text: longText } }
     const toolContext = context("runtime_input", {
       parsedResult,
       input: { event: { type: "stdin", target: "terminal", data: longText, internal_payload: { huge: true } } }
@@ -967,12 +967,15 @@ describe("Runtime tool cards", () => {
     render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("delivered")).toBeInTheDocument()
     expect(screen.getAllByText("terminal").length).toBeGreaterThan(0)
-    const valueRow = screen.getByText("Value").parentElement
-    const valueSummary = valueRow?.querySelector("[title]")?.getAttribute("title")
-    expect(valueSummary?.startsWith("whoami\n")).toBe(true)
-    expect(valueSummary?.endsWith("...")).toBe(true)
-    expect(valueSummary?.length).toBeLessThan(longText.length)
+    expect(screen.getAllByText(`[typed text: ${longText.length} chars]`).length).toBeGreaterThan(0)
+    expect(screen.queryByText(longText)).not.toBeInTheDocument()
     expect(screen.getByText("Input event")).toBeInTheDocument()
+    expect(screen.getByText("Echoed event")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Reveal typed text" }))
+    expect(screen.getByText("Hide typed text")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Input event"))
+    expect(document.querySelector("pre")?.textContent).toContain("whoami\\n")
+    expect(document.querySelector("pre")?.textContent).toContain("x".repeat(140))
     expect(screen.queryByText("Runtime input delivered: stdin on terminal")).not.toBeInTheDocument()
   })
 
@@ -994,7 +997,72 @@ describe("Runtime tool cards", () => {
 
     expect(runtimeInputToolCard.collapsedSummary?.(failed)).toBe("Runtime input failed: lease_required")
     render(<>{runtimeInputToolCard.renderExpanded(failed)}</>)
-    expect(screen.getByText("the agent must hold an active input lease before sending input events")).toBeInTheDocument()
+    expect(screen.getAllByText("the agent must hold an active input lease before sending input events").length).toBeGreaterThan(0)
+    expect(screen.getByText("lease_required")).toBeInTheDocument()
+  })
+
+  it("treats boolean browser errors and undelivered results as failures", () => {
+    const browserError = context("runtime_input", {
+      parsedResult: { error: true, content: "browser input failed", delivered: false },
+      input: { session_id: 7, event: { type: "click" } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(browserError)).toBe("Runtime input failed: Runtime input failed")
+    render(<>{runtimeInputToolCard.renderExpanded(browserError)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getAllByText("browser input failed").length).toBeGreaterThan(0)
+    expect(screen.getByText("false")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
+  })
+
+  it("shows Android echoed pointer details", () => {
+    const parsedResult = { delivered: true, event: { type: "pointer", x: 123, y: 456, button: 1, pointer_type: "touch" } }
+
+    render(
+      <>{runtimeInputToolCard.renderExpanded(context("runtime_input", { input: { session_id: "android-4", event: { type: "pointer" } }, parsedResult }))}</>
+    )
+    expect(screen.getByText("Echoed event")).toBeInTheDocument()
+    expect(screen.getByText("123")).toBeInTheDocument()
+    expect(screen.getByText("456")).toBeInTheDocument()
+    expect(screen.getByText("touch")).toBeInTheDocument()
+    expect(screen.getByText("android-4")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["structured content", { structured_content: { error: "connection_error", message: "terminal disconnected" }, content: [] }],
+    [
+      "text content",
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify({ error: "unsupported_input", message: "unsupported terminal input" }) }] }
+    ]
+  ])("renders Runtime input failures through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime input",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_input",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_input",
+          detail: "Runtime #7",
+          display_label: "Runtime input",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7, event: { type: "stdin", text: "secret-token" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Failed"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime input")
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.queryByText("secret-token")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reveal typed text" })).toBeInTheDocument()
   })
 
   it("shows Runtime snapshot preview and page metadata", () => {

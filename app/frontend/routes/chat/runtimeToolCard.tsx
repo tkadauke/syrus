@@ -1,3 +1,4 @@
+import { useState } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
@@ -55,6 +56,11 @@ type RuntimeInputEvent = {
   delivered: boolean | null
   error: string | null
   message: string | null
+  sessionId: string | null
+  x: string | null
+  y: string | null
+  button: string | null
+  pointerType: string | null
 }
 
 type RuntimeSnapshot = {
@@ -123,7 +129,7 @@ type RuntimeCard =
       nextCursor: string | null
       raw: unknown
     }
-  | { kind: "input"; event: RuntimeInputEvent; rawEvent: unknown; raw: unknown }
+  | { kind: "input"; event: RuntimeInputEvent; rawEvent: unknown; echoedEvent: unknown; raw: unknown }
   | { kind: "snapshot"; snapshot: RuntimeSnapshot }
   | { kind: "artifact"; artifact: RuntimeArtifact }
   | {
@@ -139,6 +145,7 @@ type RuntimeCard =
   | { kind: "error"; action: string; message: string; sessionId?: string | null; requestedMode?: string | null; durationSeconds?: string | null }
 
 const INPUT_VALUE_PREVIEW_LIMIT = 80
+const TYPED_INPUT_KEYS = new Set(["text", "value", "data", "input", "keys"])
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
@@ -201,6 +208,17 @@ function valuePreview(value: unknown): string | null {
   const displayed = displayValue(value)
   if (!displayed) return null
   return displayed.length > INPUT_VALUE_PREVIEW_LIMIT ? `${displayed.slice(0, INPUT_VALUE_PREVIEW_LIMIT)}...` : displayed
+}
+
+function typedInputLength(value: unknown): number | null {
+  return typeof value === "string" ? value.length : null
+}
+
+function maskTypedInput(value: unknown, key?: string): unknown {
+  if (key && TYPED_INPUT_KEYS.has(key) && typeof value === "string") return `[typed text: ${value.length} chars]`
+  if (Array.isArray(value)) return value.map((item) => maskTypedInput(item))
+  if (isPlainObject(value)) return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => [entryKey, maskTypedInput(entryValue, entryKey)]))
+  return value
 }
 
 function parseLease(value: unknown): RuntimeLease | null {
@@ -321,22 +339,31 @@ function parseInputCard(context: ToolCardContext): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
   const event = parseObject(context.input?.event)
-  const eventType = firstDisplayValue(event.type, parsed.event_type, parsed.type)
-  const error = firstDisplayValue(parsed.error, parsed.error_code)
+  const echoedEvent = parseObject(parsed.event ?? parsed.echoed_event)
+  const eventType = firstDisplayValue(event.type, echoedEvent.type, parsed.event_type, parsed.type)
+  const failed = context.resultError || parsed.error === true || parsed.delivered === false
+  const error = firstDisplayValue(typeof parsed.error === "string" ? parsed.error : null, parsed.error_code) ?? (failed ? "Runtime input failed" : null)
   const message = firstDisplayValue(parsed.message, contentText(parsed.content))
+  const typedValue = event.value ?? event.text ?? event.data ?? event.input ?? event.keys
 
   return {
     kind: "input",
     event: {
       type: eventType,
-      target: firstDisplayValue(event.target, event.element, event.selector, parsed.target, parsed.element),
-      valueSummary: valuePreview(event.value ?? event.text ?? event.data ?? event.input ?? event.keys),
-      key: firstDisplayValue(event.key, event.code),
+      target: firstDisplayValue(event.target, event.element, event.selector, echoedEvent.target, echoedEvent.element, parsed.target, parsed.element),
+      valueSummary: typedInputLength(typedValue) == null ? valuePreview(typedValue) : `[typed text: ${typedInputLength(typedValue)} chars]`,
+      key: firstDisplayValue(event.key, event.code, echoedEvent.key, echoedEvent.code),
       delivered: typeof parsed.delivered === "boolean" ? parsed.delivered : error ? false : null,
       error,
-      message
+      message,
+      sessionId: displayValue(context.input?.session_id),
+      x: firstDisplayValue(event.x, echoedEvent.x),
+      y: firstDisplayValue(event.y, echoedEvent.y),
+      button: firstDisplayValue(event.button, echoedEvent.button),
+      pointerType: firstDisplayValue(event.pointer_type, event.pointerType, echoedEvent.pointer_type, echoedEvent.pointerType)
     },
     rawEvent: event,
+    echoedEvent,
     raw: parsed
   }
 }
@@ -1020,38 +1047,54 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
 }
 
 function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input" }> }) {
-  const tone = card.event.error ? "failure" : card.event.delivered === true ? "success" : "info"
+  const [showTypedText, setShowTypedText] = useState(false)
+  const failed = Boolean(card.event.error) || card.event.delivered === false
+  const tone = failed ? "failure" : card.event.delivered === true ? "success" : "info"
+  const visibleInputEvent = showTypedText ? card.rawEvent : maskTypedInput(card.rawEvent)
+  const visibleEchoedEvent = showTypedText ? card.echoedEvent : maskTypedInput(card.echoedEvent)
+  const visibleResult = showTypedText ? card.raw : maskTypedInput(card.raw)
+  const hasEchoedEvent = objectEntries(card.echoedEvent).length > 0
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={card.event.error ? "failed" : card.event.delivered === true ? "delivered" : "sent"} tone={tone} />
+        <StatePill state={failed ? "failed" : card.event.delivered === true ? "delivered" : "sent"} tone={tone} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{card.event.type ?? "Runtime input"}</span>
         {card.event.target ? <Badge>{card.event.target}</Badge> : null}
       </div>
-      {card.event.error || card.event.message ? (
-        <div
-          className={
-            card.event.error
-              ? "rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-              : "text-gray-600 dark:text-gray-300"
-          }
-        >
-          {card.event.message ?? card.event.error}
-        </div>
-      ) : null}
+      {failed ? <RuntimeNotice tone="error" message={card.event.message ?? card.event.error ?? "Runtime input failed"} /> : null}
       <FieldRows
         rows={[
+          ["Session ID", card.event.sessionId],
           ["Type", card.event.type],
           ["Target", card.event.target],
           ["Value", card.event.valueSummary],
-          ["Key", card.event.key]
+          ["Key", card.event.key],
+          ["X", card.event.x],
+          ["Y", card.event.y],
+          ["Button", card.event.button],
+          ["Pointer type", card.event.pointerType],
+          ["Delivered", card.event.delivered == null ? null : String(card.event.delivered)],
+          ["Error", card.event.error],
+          ["Message", card.event.message]
         ]}
       />
+      <button
+        className="min-h-11 self-start rounded border border-border px-2 text-xs font-medium text-text-secondary hover:bg-surface-muted"
+        onClick={() => setShowTypedText((shown) => !shown)}
+        type="button"
+      >
+        {showTypedText ? "Hide typed text" : "Reveal typed text"}
+      </button>
       <Disclosure label="Input event">
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(card.rawEvent, null, 2)}</pre>
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(visibleInputEvent, null, 2)}</pre>
       </Disclosure>
-      <RawRuntimeDetails value={card.raw} />
+      {hasEchoedEvent ? (
+        <Disclosure label="Echoed event">
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(visibleEchoedEvent, null, 2)}</pre>
+        </Disclosure>
+      ) : null}
+      <RawRuntimeDetails value={visibleResult} />
     </CardShell>
   )
 }
