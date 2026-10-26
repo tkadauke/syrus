@@ -12,9 +12,29 @@ const DIMENSIONS: Record<AvatarSize, string> = {
 // ring-bordered initials fallback. Originally local to Profiles.tsx (team
 // directory); extracted so other surfaces (e.g. group chat participant UI)
 // reuse the same pattern instead of re-implementing it.
-export function Avatar({ avatarUrl, avatarKey, colorKey, mode = "light", name, size = "normal" }: { avatarUrl: string | null | undefined; avatarKey?: string | null; colorKey?: string | null; mode?: AppearanceMode; name: string; size?: AvatarSize }) {
+export function Avatar({
+  avatarUrl,
+  avatarKey,
+  colorKey,
+  mode = "light",
+  name,
+  size = "normal"
+}: {
+  avatarUrl: string | null | undefined
+  avatarKey?: string | null
+  colorKey?: string | null
+  mode?: AppearanceMode
+  name: string
+  size?: AvatarSize
+}) {
   const dimension = DIMENSIONS[size]
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U"
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U"
   const bundledAvatar = resolveBundledAvatar(avatarKey)
   const imageUrl = avatarUrl || bundledAvatar?.url
 
@@ -25,7 +45,11 @@ export function Avatar({ avatarUrl, avatarKey, colorKey, mode = "light", name, s
   const fallbackColor = colorKey ? resolveAppearanceColor(colorKey, mode).value : undefined
 
   return (
-    <div aria-hidden="true" className={`${dimension} flex shrink-0 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700`} style={fallbackColor ? { backgroundColor: fallbackColor, color: "var(--color-text-primary)" } : undefined}>
+    <div
+      aria-hidden="true"
+      className={`${dimension} flex shrink-0 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700`}
+      style={fallbackColor ? { backgroundColor: fallbackColor, color: "var(--color-text-primary)" } : undefined}
+    >
       {initials}
     </div>
   )
