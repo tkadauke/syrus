@@ -293,6 +293,7 @@ function CoverageAnnotatedSource({
   fileLanguage: ReturnType<typeof detectHighlighterLanguage>
   hitLines: Record<string, number>
 }) {
+  const { t } = useT("jobs")
   const lines = content.split("\n")
   const tokenLines = useHighlightedLines(content, fileLanguage)
   return (
@@ -306,11 +307,11 @@ function CoverageAnnotatedSource({
             <tr className={rowClass} data-coverage-hits={hits} data-line={lineNum} key={lineNum}>
               <td className="w-4 select-none border-r border-gray-200 px-1 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-500">
                 {hits === undefined ? null : hits > 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400" title={`${hits} hit${hits !== 1 ? "s" : ""}`}>
+                  <span className="text-emerald-600 dark:text-emerald-400" title={t("coverage_hits", { count: hits })}>
                     ✓
                   </span>
                 ) : (
-                  <span className="text-red-600 dark:text-red-400" title="not covered">
+                  <span className="text-red-600 dark:text-red-400" title={t("coverage_not_covered")}>
                     ✗
                   </span>
                 )}
