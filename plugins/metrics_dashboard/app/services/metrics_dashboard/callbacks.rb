@@ -12,6 +12,5 @@ module MetricsDashboard
       # retry into a loop. The dashboard losing one minute is not worth that.
       Rails.logger.warn("[MetricsDashboard] tick failed: #{e.class}: #{e.message}")
     end
-
   end
 end
