@@ -1,5 +1,7 @@
+import { useState } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../i18n"
+import { useT } from "../../hooks/useT"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
@@ -76,10 +78,15 @@ const RUNTIME_LIFECYCLE_KEYS: Record<RuntimeLifecycleAction, string> = {
 }
 
 type RuntimeInputEvent = {
+  sessionId: string | null
   type: string | null
   target: string | null
   valueSummary: string | null
+  typedText: string | null
   key: string | null
+  x: string | null
+  y: string | null
+  pointerType: string | null
   delivered: boolean | null
   error: string | null
   message: string | null
@@ -151,7 +158,7 @@ type RuntimeCard =
       nextCursor: string | null
       raw: unknown
     }
-  | { kind: "input"; event: RuntimeInputEvent; rawEvent: unknown; raw: unknown }
+  | { kind: "input"; event: RuntimeInputEvent; echoedEvent: Record<string, unknown>; rawEvent: Record<string, unknown>; raw: unknown }
   | { kind: "snapshot"; snapshot: RuntimeSnapshot }
   | { kind: "artifact"; artifact: RuntimeArtifact }
   | {
@@ -349,21 +356,40 @@ function parseInputCard(context: ToolCardContext): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
   const event = parseObject(context.input?.event)
-  const eventType = firstDisplayValue(event.type, parsed.event_type, parsed.type)
-  const error = firstDisplayValue(parsed.error, parsed.error_code)
+  const echoedEvent = parseObject(parsed.event ?? parsed.echoed_event)
+  const eventType = firstDisplayValue(event.type, echoedEvent.type, parsed.event_type, parsed.type)
+  const error = parsed.error === true ? firstDisplayValue(parsed.error_code, "input_failed") : firstDisplayValue(parsed.error, parsed.error_code)
   const message = firstDisplayValue(parsed.message, contentText(parsed.content))
+  const typedText = [event.text, event.value, event.data, event.input, echoedEvent.text, echoedEvent.value, echoedEvent.data, echoedEvent.input].find(
+    (value) => typeof value === "string"
+  ) as string | undefined
 
   return {
     kind: "input",
     event: {
+      sessionId: displayValue(context.input?.session_id),
       type: eventType,
-      target: firstDisplayValue(event.target, event.element, event.selector, parsed.target, parsed.element),
-      valueSummary: valuePreview(event.value ?? event.text ?? event.data ?? event.input ?? event.keys),
-      key: firstDisplayValue(event.key, event.code),
+      target: firstDisplayValue(
+        event.target,
+        event.element,
+        event.selector,
+        echoedEvent.target,
+        echoedEvent.element,
+        echoedEvent.selector,
+        parsed.target,
+        parsed.element
+      ),
+      valueSummary: typedText == null ? valuePreview(event.keys) : null,
+      typedText: typedText ?? null,
+      key: firstDisplayValue(event.key, event.code, echoedEvent.key, echoedEvent.code),
+      x: firstDisplayValue(event.x, echoedEvent.x),
+      y: firstDisplayValue(event.y, echoedEvent.y),
+      pointerType: firstDisplayValue(event.pointer_type, event.pointerType, echoedEvent.pointer_type, echoedEvent.pointerType),
       delivered: typeof parsed.delivered === "boolean" ? parsed.delivered : error ? false : null,
       error,
       message
     },
+    echoedEvent,
     rawEvent: event,
     raw: parsed
   }
@@ -632,7 +658,7 @@ function collapsedSummary(context: ToolCardContext) {
       : `Runtime logs: ${plural(card.entries.length, "line")}${card.nextCursor ? `, cursor ${card.nextCursor}` : ""}`
   }
   if (card.kind === "input") {
-    if (card.event.error) return `Runtime input failed: ${card.event.error}`
+    if (card.event.error || card.event.delivered === false) return `Runtime input failed${card.event.error ? `: ${card.event.error}` : ""}`
     const target = card.event.target ? ` on ${card.event.target}` : ""
     const outcome = card.event.delivered === true ? "delivered" : "sent"
     return `Runtime input ${outcome}: ${card.event.type ?? "event"}${target}`
@@ -1044,38 +1070,76 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
 }
 
 function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input" }> }) {
-  const tone = card.event.error ? "failure" : card.event.delivered === true ? "success" : "info"
+  const { t } = useT("chat")
+  const [showTypedText, setShowTypedText] = useState(false)
+  const failed = Boolean(card.event.error) || card.event.delivered === false
+  const tone = failed ? "failure" : card.event.delivered === true ? "success" : "info"
+  const redactTypedFields = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(redactTypedFields)
+    if (!isPlainObject(value)) return value
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        !showTypedText && ["text", "value", "data", "input"].includes(key) && typeof item === "string"
+          ? t("runtime_input_typed_text_mask", { count: item.length })
+          : redactTypedFields(item)
+      ])
+    )
+  }
+  const typedText = card.event.typedText
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={card.event.error ? "failed" : card.event.delivered === true ? "delivered" : "sent"} tone={tone} />
+        <StatePill state={failed ? "failed" : card.event.delivered === true ? "delivered" : "sent"} tone={tone} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{card.event.type ?? "Runtime input"}</span>
         {card.event.target ? <Badge>{card.event.target}</Badge> : null}
       </div>
-      {card.event.error || card.event.message ? (
-        <div
-          className={
-            card.event.error
-              ? "rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-              : "text-gray-600 dark:text-gray-300"
-          }
-        >
-          {card.event.message ?? card.event.error}
-        </div>
-      ) : null}
       <FieldRows
         rows={[
-          ["Type", card.event.type],
-          ["Target", card.event.target],
-          ["Value", card.event.valueSummary],
-          ["Key", card.event.key]
+          [t("runtime_input_session_id"), card.event.sessionId],
+          [t("runtime_input_type"), card.event.type],
+          [t("runtime_input_target"), card.event.target],
+          [
+            t("runtime_input_value"),
+            typedText == null
+              ? card.event.valueSummary
+              : showTypedText
+                ? valuePreview(typedText)
+                : t("runtime_input_typed_text_mask", { count: typedText.length })
+          ],
+          [t("runtime_input_key"), card.event.key],
+          [t("runtime_input_x"), card.event.x],
+          [t("runtime_input_y"), card.event.y],
+          [t("runtime_input_pointer_type"), card.event.pointerType],
+          [t("runtime_input_error_label"), card.event.error],
+          [t("runtime_input_message_label"), card.event.message]
         ]}
       />
-      <Disclosure label="Input event">
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(card.rawEvent, null, 2)}</pre>
+      {typedText != null ? (
+        <button
+          className="min-h-11 self-start text-sm font-medium text-brand hover:underline"
+          onClick={() => setShowTypedText((shown) => !shown)}
+          type="button"
+        >
+          {showTypedText ? t("runtime_input_hide_typed_text") : t("runtime_input_reveal_typed_text")}
+        </button>
+      ) : null}
+      <Disclosure label={t("runtime_input_event_label")}>
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">
+          {JSON.stringify(redactTypedFields(card.rawEvent), null, 2)}
+        </pre>
       </Disclosure>
-      <RawRuntimeDetails value={card.raw} />
+      {objectEntries(card.echoedEvent).length > 0 ? (
+        <Disclosure label={t("runtime_input_echoed_event_label")}>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">
+            {JSON.stringify(redactTypedFields(card.echoedEvent), null, 2)}
+          </pre>
+        </Disclosure>
+      ) : null}
+      <Disclosure label={t("runtime_input_json_label")}>
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(redactTypedFields(card.raw), null, 2)}</pre>
+      </Disclosure>
     </CardShell>
   )
 }
