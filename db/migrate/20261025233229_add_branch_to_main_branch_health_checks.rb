@@ -13,8 +13,9 @@ class AddBranchToMainBranchHealthChecks < ActiveRecord::Migration[8.1]
     SQL
 
     change_column_null :main_branch_health_checks, :branch, false
-    add_index :main_branch_health_checks, [ :repository_id, :branch, :sha ],
-      name: "idx_mbhc_repo_branch_sha" unless index_exists?(:main_branch_health_checks, [ :repository_id, :branch, :sha ])
+    unless index_exists?(:main_branch_health_checks, [ :repository_id, :branch, :sha ])
+      add_index :main_branch_health_checks, [ :repository_id, :branch, :sha ], name: "idx_mbhc_repo_branch_sha"
+    end
   end
 
   def down
