@@ -198,6 +198,7 @@
   "artifact_erd_foreign_keys": "Claves externae",
   "artifact_diff_before": "Ante",
   "artifact_diff_after": "Post",
+  "artifact_diff_empty": "(vacuum)",
   "artifact_visual_comparison_open": "Compara {{title}}. Tange ut praevisum maius aperias.",
   "artifact_visual_slider": "Divisor ante et post pro {{title}}",
   "artifact_visual_before_alt": "Ante: {{title}}",

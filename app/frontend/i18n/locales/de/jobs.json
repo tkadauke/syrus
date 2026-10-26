@@ -202,6 +202,7 @@
   "artifact_erd_foreign_keys": "Fremdschlüssel",
   "artifact_diff_before": "Vorher",
   "artifact_diff_after": "Nachher",
+  "artifact_diff_empty": "(leer)",
   "artifact_visual_comparison_open": "{{title}} vergleichen. Tippen, um eine größere Vorschau zu öffnen.",
   "artifact_visual_slider": "Vorher-Nachher-Trennlinie für {{title}}",
   "artifact_visual_before_alt": "Vorher: {{title}}",

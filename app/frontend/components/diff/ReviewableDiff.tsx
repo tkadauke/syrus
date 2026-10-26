@@ -584,7 +584,11 @@ export function ReviewableDiff({
               size="sm"
               variant="secondary"
             >
-              Load {Math.min(maxVisibleFiles, remainingFileCount)} more files ({remainingFileCount} remaining)
+              {t("diff_review.load_more_files", {
+                count: Math.min(maxVisibleFiles, remainingFileCount),
+                loadCount: Math.min(maxVisibleFiles, remainingFileCount),
+                remainingCount: remainingFileCount
+              })}
             </Button>
           </div>
         ) : null}
