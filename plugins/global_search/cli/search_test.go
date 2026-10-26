@@ -68,12 +68,12 @@ func TestSearchPassesTypeFilterThrough(t *testing.T) {
 	command := NewSearchCommand()
 	output := &bytes.Buffer{}
 	command.SetOut(output)
-	command.SetArgs([]string{"deploy", "--type", "job,chat"})
+	command.SetArgs([]string{"deploy", "--type", "job,repository"})
 
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if len(gotTypes) != 2 || gotTypes[0] != "job" || gotTypes[1] != "chat" {
+	if len(gotTypes) != 2 || gotTypes[0] != "job" || gotTypes[1] != "repository" {
 		t.Fatalf("types[] = %v", gotTypes)
 	}
 	if !strings.Contains(output.String(), "No results.") {

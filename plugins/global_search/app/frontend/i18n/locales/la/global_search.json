@@ -4,12 +4,13 @@
     "page": "Quaerere",
     "type_filters": "Filtra generis quaerendi"
   },
-  "description": "Jobs, Epics, colloquia, et probationes quaere.",
+  "description": "Jobs, Epics, colloquia, repositoria, et probationes quaere.",
   "error": "Exitus quaesitionis onerari non potuerunt.",
   "filter_types": {
     "chats": "Colloquia",
     "epics": "Epics",
     "jobs": "Jobs",
+    "repositories": "Repositoria",
     "tests": "Probationes"
   },
   "filters": {
@@ -31,6 +32,7 @@
     "design_doc": "Documentum consilii",
     "epic": "Epic",
     "job": "Job",
+    "repository": "Repositorium",
     "result": "Exitus",
     "test_case": "Probatio"
   },
