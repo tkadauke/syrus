@@ -2150,7 +2150,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("K8s Cluster Viewer")).toBeInTheDocument()
   })
 
-  it("renders a structured diagnostic card for unregistered tool failures", () => {
+  it("renders the registered structured diagnostic card for proposal failures", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Delete proposal",
@@ -2191,15 +2191,13 @@ describe("tool result rendering", () => {
 
     expandToolGroup("Delete proposal")
 
-    expect(screen.getByText("Delete proposal failed")).toBeInTheDocument()
+    expect(screen.getByText("Proposal withdrawal failed")).toBeInTheDocument()
     expect(screen.getByText("Validation failed: proposal is already confirmed")).toBeInTheDocument()
-    expect(screen.getByText("Do not retry blindly")).toBeInTheDocument()
-    expect(screen.getByText("high side-effect risk")).toBeInTheDocument()
+    expect(screen.getByText("Check before retrying")).toBeInTheDocument()
+    expect(screen.getByText("Check that the proposal slug is correct and that the proposal is still available to withdraw.")).toBeInTheDocument()
     expect(screen.getByText("ActiveRecord::RecordInvalid")).toBeInTheDocument()
-    expect(screen.getByText("syrus-chat-sidecar")).toBeInTheDocument()
-    expect(screen.getByText("delete_proposal")).toBeInTheDocument()
-    expect(screen.getByText("proposal:42")).toBeInTheDocument()
-    expect(screen.getByText("Error details")).toBeInTheDocument()
+    expect(screen.getByText(/"proposal_id": 42/)).toBeInTheDocument()
+    expect(screen.getByText("Failure details")).toBeInTheDocument()
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 })
