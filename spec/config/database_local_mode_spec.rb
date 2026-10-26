@@ -57,7 +57,7 @@ RSpec.describe "config/database.yml local SQLite mode" do
 
     expect(config.dig("production", "primary", "pool")).to eq(9)
     expect(config.dig("production", "queue", "pool")).to eq(9)
-    expect(config.dig("production", "search", "pool")).to eq(8)
+    expect(config.dig("production", "search", "pool")).to eq(9)
   end
 
   it "leaves development and test on SQLite regardless" do
