@@ -13,7 +13,7 @@ import runtimeLaunchToolCard from "./runtime_launch"
 import runtimeListSessionsToolCard from "./runtime_list_sessions"
 import runtimeLogsToolCard from "./runtime_logs"
 import runtimeReleaseControlToolCard from "./runtime_release_control"
-import runtimeSnapshotToolCard from "./runtime_snapshot"
+import runtimeSnapshotToolCard, { examples as runtimeSnapshotExamples } from "./runtime_snapshot"
 import runtimeStartToolCard from "./runtime_start"
 import runtimeStatusToolCard from "./runtime_status"
 import runtimeStopToolCard from "./runtime_stop"
@@ -128,8 +128,8 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("stopped")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getAllByText("browser").length).toBeGreaterThan(0)
-    expect(screen.getByText(workspaceRef)).toHaveClass("break-all", "sm:truncate")
-    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText(workspaceRef)).toHaveClass("break-all")
+    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-all")
     expect(screen.getAllByRole("link", { name: "Stream" })).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: "Stream" })[0]).toHaveAttribute("target", "_blank")
     expect(screen.queryByRole("link", { name: "Latest frame" })).not.toBeInTheDocument()
@@ -137,7 +137,7 @@ describe("Runtime tool cards", () => {
     expect(screen.getByAltText("Latest frame for Runtime #1")).toHaveAttribute("src", "/runtime/7/frame?latest_frame_at=2026-09-10T12%3A00%3A05Z")
     expect(screen.getAllByText("url").length).toBeGreaterThan(0)
     expect(screen.getByText("no lease")).toBeInTheDocument()
-    expect(screen.getByText("coding_mode_chat:8")).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText("coding_mode_chat:8")).toHaveClass("break-all")
     expect(screen.getAllByText("Capabilities")).toHaveLength(2)
     fireEvent.click(screen.getByText("Last error"))
     expect(screen.getByText(/The preview process exited unexpectedly/, { selector: "code" })).toHaveTextContent(
@@ -1332,6 +1332,10 @@ describe("Runtime tool cards", () => {
     const body = JSON.stringify({ content: [{ type: "image", data: "c25hcHNob3QtYmluYXJ5", mimeType: "image/png" }] })
 
     expect(redactToolCardText(body)).toContain("c25hcHNob3QtYmluYXJ5")
+  })
+
+  it("publishes browser and stale Android snapshot catalog fixtures", () => {
+    expect(runtimeSnapshotExamples.map((example) => example.id)).toEqual(["browser_capture", "android_stale_frame"])
   })
 
   it("renders Latest-frame snapshots with provider metadata", () => {

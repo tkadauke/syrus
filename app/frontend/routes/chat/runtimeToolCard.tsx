@@ -20,6 +20,9 @@ import {
 } from "./toolCardUi"
 import { MarkdownPreview, TextPreview } from "./toolCardMarkdown"
 
+const SNAPSHOT_STALE_CLASS =
+  "flex flex-wrap items-center gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+
 type RuntimeLease = {
   id: string
   owner: string | null
@@ -1245,7 +1248,7 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
         </div>
       ) : null}
       {snapshot.fallback ? (
-        <div className="flex flex-wrap items-center gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className={SNAPSHOT_STALE_CLASS}>
           <Badge>{t("runtime_snapshot_stale_frame")}</Badge>
           <span>{t("runtime_snapshot_stale_message")}</span>
           {snapshot.latestFrameAt ? <RelativeTimestamp value={snapshot.latestFrameAt} /> : null}
