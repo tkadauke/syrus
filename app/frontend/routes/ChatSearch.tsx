@@ -33,7 +33,7 @@ export function ChatSearchRoute() {
     queryFn: ({ signal }) => loadFilterOptions(signal)
   })
   const filter = useMemo(() => filterFromSearch(search), [search])
-  const filterSchema = useMemo(() => chatSearchFilterSchema(filterOptions.data), [filterOptions.data])
+  const filterSchema = useMemo(() => chatSearchFilterSchema(filterOptions.data, t), [filterOptions.data, t])
 
   return (
     <Page.Root aria-label={t("aria_chat_search")} gutter="responsive" size="wide">
@@ -116,10 +116,10 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
         {result.has_more_matches ? (
           <button
             aria-expanded={expanded}
-            aria-label={`${expanded ? "Hide" : "Show"} ${hiddenMatchCount} more ${hiddenMatchCount === 1 ? "match" : "matches"}`}
+            aria-label={t(expanded ? "search.hide_more_matches" : "search.show_more_matches", { count: hiddenMatchCount })}
             className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
             onClick={() => setExpanded((current) => !current)}
-            title={`${hiddenMatchCount} more ${hiddenMatchCount === 1 ? "match" : "matches"}`}
+            title={t("search.more_matches", { count: hiddenMatchCount })}
             type="button"
           >
             <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
@@ -207,12 +207,19 @@ function PanelMessage({ children, tone = "neutral" }: { children: string; tone?:
   return <div className={`rounded border border-gray-200 bg-white p-6 text-sm ${color} dark:border-gray-700 dark:bg-gray-900`}>{children}</div>
 }
 
-function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOptions>> | undefined): FilterSchemaField[] {
+function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOptions>> | undefined, t: (key: string) => string): FilterSchemaField[] {
   return [
-    { field: "q", label: "Search", bucket: "text", operators: ["contains"], values: [], expansions: { placeholder: "Keywords..." } },
-    { field: "repository_id", label: "Repository", bucket: "select", operators: ["is"], values: options?.repository_id || [] },
-    { field: "epic_id", label: "Epic", bucket: "select", operators: ["is"], values: options?.epic_id || [] },
-    { field: "job_id", label: "Job", bucket: "select", operators: ["is"], values: options?.job_id || [] }
+    {
+      field: "q",
+      label: t("search.filter_query"),
+      bucket: "text",
+      operators: ["contains"],
+      values: [],
+      expansions: { placeholder: t("search.filter_keywords") }
+    },
+    { field: "repository_id", label: t("search.filter_repository"), bucket: "select", operators: ["is"], values: options?.repository_id || [] },
+    { field: "epic_id", label: t("search.filter_epic"), bucket: "select", operators: ["is"], values: options?.epic_id || [] },
+    { field: "job_id", label: t("search.filter_job"), bucket: "select", operators: ["is"], values: options?.job_id || [] }
   ]
 }
 

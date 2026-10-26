@@ -420,6 +420,30 @@
   "page_title_terminal": "Terminal",
   "save": "Speichern",
   "cancel": "Abbrechen",
+  "confirm": "Bestätigen",
+  "gemini_setup": {
+    "rejected": "Google hat diesen Schlüssel abgelehnt.",
+    "verify_error": "Der Schlüssel konnte nicht überprüft werden. Versuche es erneut."
+  },
+  "provider_warning": {
+    "automatic_failover": "{{original}} ist nicht verfügbar; dieser Workflow läuft mit {{selected}}.",
+    "operator_failover": "Der Operator hat für diesen Workflow {{selected}} statt {{original}} ausgewählt.",
+    "mismatch": "Der Job läuft mit {{jobProvider}}; Repository-Standard ist {{repositoryProvider}}.",
+    "usage_low": "Die Nutzung von {{provider}} ist niedrig ({{remaining}} % verbleibend; Schwellenwert {{threshold}} %).",
+    "usage_reached": "Das Nutzungslimit von {{provider}} ist erreicht. Dieses Element verwendet {{provider}}, bis die Nutzung zurückgesetzt wird.",
+    "retry_after": "erneut versuchen nach {{time}}",
+    "five_hour_reset": "5-Stunden-Zurücksetzung {{time}}",
+    "weekly_reset": "wöchentliche Zurücksetzung {{time}}",
+    "evidence": "Nachweis: {{status}} von {{source}}",
+    "observed": "beobachtet {{time}}",
+    "state": "Status von {{provider}}: {{state}}",
+    "reason": "Grund: {{reason}}",
+    "reset": "Zurücksetzung {{time}}",
+    "decided": "Entschieden {{time}}",
+    "account": "Konto {{id}}",
+    "model": "Modell {{model}}",
+    "scope": "Bereich {{scope}}"
+  },
   "diff_review": {
     "changed_files": "Geänderte Dateien",
     "close_changed_files": "Geänderte Dateien schließen",

@@ -420,6 +420,30 @@
   "page_title_terminal": "Terminale",
   "save": "Serva",
   "cancel": "Abice",
+  "confirm": "Confirma",
+  "gemini_setup": {
+    "rejected": "Google hanc clavem reiecit.",
+    "verify_error": "Clavis comprobari non potuit. Iterum tenta."
+  },
+  "provider_warning": {
+    "automatic_failover": "{{original}} non praesto est; hic Workflow per {{selected}} currit.",
+    "operator_failover": "Operator {{selected}} pro hoc Workflow loco {{original}} elegit.",
+    "mismatch": "Job per {{jobProvider}} currit; norma Repository est {{repositoryProvider}}.",
+    "usage_low": "Usus {{provider}} exiguus est ({{remaining}}% reliquum; limen {{threshold}}%).",
+    "usage_reached": "Finis usus {{provider}} attactus est. Haec res {{provider}} utitur donec usus renovetur.",
+    "retry_after": "iterum tenta post {{time}}",
+    "five_hour_reset": "renovatio 5h {{time}}",
+    "weekly_reset": "renovatio hebdomadalis {{time}}",
+    "evidence": "Testimonium: {{status}} ex {{source}}",
+    "observed": "observatum {{time}}",
+    "state": "Status {{provider}}: {{state}}",
+    "reason": "Causa: {{reason}}",
+    "reset": "Renovatio {{time}}",
+    "decided": "Decretum {{time}}",
+    "account": "ratio {{id}}",
+    "model": "exemplar {{model}}",
+    "scope": "ambitus {{scope}}"
+  },
   "diff_review": {
     "changed_files": "Documenta mutata",
     "close_changed_files": "Documenta mutata claude",

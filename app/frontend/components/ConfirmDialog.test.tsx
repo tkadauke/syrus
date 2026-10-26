@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog"
+import i18n from "../i18n"
 
 function renderDialog(props: Partial<ConfirmDialogProps> = {}) {
   return render(
@@ -30,6 +31,17 @@ describe("ConfirmDialog", () => {
     renderDialog()
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+  })
+
+  it("localizes the default action labels", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      renderDialog()
+      expect(screen.getByRole("button", { name: "Bestätigen" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Abbrechen" })).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("renders custom button labels", () => {
