@@ -132,6 +132,12 @@ type RuntimeCard =
       url: string | null
       target: string | null
       command: string | null
+      pid: string | null
+      port: string | null
+      workspaceRef: string | null
+      gradleTask: string | null
+      installedApkPath: string | null
+      installOutput: string | null
       error: string | null
       inputProvider: string | null
       inputName: string | null
@@ -318,12 +324,23 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
     status: firstDisplayValue(lifecyclePayload.command_status, lifecyclePayload.build_status, lifecyclePayload.status, lifecyclePayload.state, session?.state),
     url: firstDisplayValue(lifecyclePayload.url, metadata.url),
     target: explicitTarget,
-    command: firstDisplayValue(parsed.command, parsed.build_command, metadata.command, metadata.pid ? `pid ${displayValue(metadata.pid)}` : null),
+    command: firstDisplayValue(
+      parsed.command,
+      parsed.build_command,
+      metadata.command,
+      action === "start" && metadata.pid ? `pid ${displayValue(metadata.pid)}` : null
+    ),
+    pid: firstDisplayValue(parsed.pid, metadata.pid),
+    port: firstDisplayValue(parsed.port, metadata.port),
+    workspaceRef: firstDisplayValue(parsed.workspace_ref, metadata.workspace_ref),
+    gradleTask: firstDisplayValue(parsed.gradle_task, metadata.gradle_task),
+    installedApkPath: firstDisplayValue(parsed.installed_apk_path, metadata.installed_apk_path),
+    installOutput: firstDisplayValue(parsed.install_output, metadata.install_output),
     error,
     inputProvider: action === "start" ? displayValue(context.input?.provider) : null,
     inputName: action === "start" ? displayValue(context.input?.name) : null,
-    inputOptions: action === "start" || action === "launch" ? options : {},
-    launchSessionId: action === "launch" ? displayValue(context.input?.session_id) : null,
+    inputOptions: action === "start" || action === "build/reload" || action === "launch" ? options : {},
+    launchSessionId: action === "launch" || action === "build/reload" ? displayValue(context.input?.session_id) : null,
     launched: action === "launch" && typeof parsed.launched === "boolean" ? parsed.launched : null,
     packageName: action === "launch" ? displayValue(parsed.package) : null,
     activity: action === "launch" ? displayValue(parsed.activity) : null,
@@ -534,6 +551,7 @@ function errorMessage(context: ToolCardContext): string | null {
 
 function parseCard(context: ToolCardContext): RuntimeCard | null {
   if (context.toolName === "runtime_start" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "start")
+  if (context.toolName === "runtime_build_or_reload" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "build/reload")
   if (context.toolName === "runtime_stop" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "stop")
 
   const error = errorMessage(context)
@@ -578,7 +596,6 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
     return session ? { kind: "status", session, raw: parsed } : null
   }
 
-  if (context.toolName === "runtime_build_or_reload") return parseLifecycleCard(context, "build/reload")
   if (context.toolName === "runtime_launch") return parseLifecycleCard(context, "launch")
   if (context.toolName === "runtime_inspect") return parseInspectCard(context)
   if (context.toolName === "runtime_logs") return parseLogsCard(context)
@@ -1027,16 +1044,25 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
               ["Session ID", card.launchSessionId],
               ["State", card.session?.state ?? card.status],
               ["Command", card.command],
+              ["PID", card.pid],
+              ["Port", card.port],
+              ["Gradle task", card.gradleTask],
+              ["Installed APK", card.installedApkPath],
               ["Launched", card.launched == null ? null : String(card.launched)],
               ["Package", card.packageName],
               ["Activity", card.activity],
               ["Launch target", card.target && !safeExternalRuntimeUrl(card.target) ? card.target : null],
               ["Provider", card.session?.providerKey ?? null],
-              ["Workspace", card.session?.workspaceRef ?? null]
+              ["Workspace", card.session?.workspaceRef ?? card.workspaceRef]
             ]}
           />
           <RuntimeUrl url={card.target && safeExternalRuntimeUrl(card.target) ? card.target : card.url} />
-          {card.action === "launch" ? <OptionRows values={card.inputOptions} /> : null}
+          {card.action === "launch" || card.action === "build/reload" ? <OptionRows values={card.inputOptions} /> : null}
+          {card.installOutput ? (
+            <Disclosure label="Install output">
+              <TextPreview maxLines={12} text={card.installOutput} truncate="headTail" />
+            </Disclosure>
+          ) : null}
           {card.output ? (
             <Disclosure label="Output">
               <TextPreview maxLines={12} text={card.output} truncate="headTail" />

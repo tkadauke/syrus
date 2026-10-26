@@ -412,16 +412,30 @@ describe("Runtime tool cards", () => {
   })
 
   it("renders build/reload success and failure distinctly", () => {
-    const parsedResult = { status: "rebuilt", command: "npm run dev", url: "http://127.0.0.1:4173" }
+    const parsedResult = {
+      status: "rebuilt",
+      command: "npm run dev",
+      workspace_ref: "browser-workspace",
+      pid: 2345,
+      port: 4173,
+      url: "http://127.0.0.1:4173"
+    }
+    const toolContext = context("runtime_build_or_reload", {
+      parsedResult,
+      input: { session_id: 17, options: { build_command: "npm run build" } }
+    })
 
-    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(context("runtime_build_or_reload", { parsedResult }))).toBe(
-      "Runtime build/reload: rebuilt at http://127.0.0.1:4173"
-    )
+    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(toolContext)).toBe("Runtime build/reload: rebuilt at http://127.0.0.1:4173")
 
-    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(context("runtime_build_or_reload", { parsedResult }))}</>)
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("Runtime build/reload")).toBeInTheDocument()
+    expect(screen.getByText("17")).toBeInTheDocument()
     expect(screen.getByText("npm run dev")).toBeInTheDocument()
-    expect(screen.getAllByText("http://127.0.0.1:4173").length).toBeGreaterThan(0)
+    expect(screen.getByText("2345")).toBeInTheDocument()
+    expect(screen.getByText("4173")).toBeInTheDocument()
+    expect(screen.getByText("browser-workspace")).toHaveClass("break-words")
+    expect(screen.getByRole("link", { name: "http://127.0.0.1:4173" })).toHaveAttribute("target", "_blank")
+    expect(screen.getByText("npm run build")).toBeInTheDocument()
 
     const failedContext = context("runtime_build_or_reload", {
       resultBody: "failed to build/reload runtime session: port is busy",
@@ -432,6 +446,90 @@ describe("Runtime tool cards", () => {
     expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(failedContext)).toBe("Runtime build or reload failed")
     render(<>{runtimeBuildOrReloadToolCard.renderExpanded(failedContext)}</>)
     expect(screen.getByText("failed to build/reload runtime session: port is busy")).toBeInTheDocument()
+  })
+
+  it("keeps build inputs visible with a structured provider error", () => {
+    const toolContext = context("runtime_build_or_reload", {
+      resultError: true,
+      input: { session_id: 29, options: { gradle_task: ":app:installDebug", apk_path: "/tmp/missing.apk", install_timeout_seconds: 45 } },
+      parsedResult: { error: true, content: [{ type: "text", text: "Error: adb device unavailable" }] }
+    })
+
+    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(toolContext)).toBe("Runtime build/reload failed")
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("adb device unavailable")).toBeInTheDocument()
+    expect(screen.getByText("29")).toBeInTheDocument()
+    expect(screen.getByText(":app:installDebug")).toBeInTheDocument()
+    expect(screen.getByText("/tmp/missing.apk")).toBeInTheDocument()
+    expect(screen.getByText("45")).toBeInTheDocument()
+  })
+
+  it("renders Android build inputs, artifact details, and bounded install output", () => {
+    const installOutput = Array.from({ length: 20 }, (_, index) => `adb install line ${index + 1}`).join("\n")
+    const toolContext = context("runtime_build_or_reload", {
+      input: {
+        session_id: 28,
+        options: { gradle_task: ":app:assembleDebug", apk_path: "app/build/outputs/apk/debug/app-debug.apk", install_timeout_seconds: 90 }
+      },
+      parsedResult: {
+        gradle_task: ":app:assembleDebug",
+        installed_apk_path: "app/build/outputs/apk/debug/app-debug.apk",
+        install_output: installOutput
+      }
+    })
+
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("28")).toBeInTheDocument()
+    expect(screen.getAllByText(":app:assembleDebug")).toHaveLength(2)
+    expect(screen.getAllByText("app/build/outputs/apk/debug/app-debug.apk")).toHaveLength(2)
+    expect(screen.getByText("90")).toBeInTheDocument()
+    expect(screen.getByText("Install output")).toBeInTheDocument()
+    expect(screen.getByText(/adb install line 1/, { selector: "code" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["direct", (payload: unknown) => payload],
+    ["structured content", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["text JSON", (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }] })]
+  ])("normalizes and redacts runtime_build_or_reload %s results through the real ToolGroup path", (_label, envelope) => {
+    const payload = {
+      gradle_task: ":app:installDebug",
+      installed_apk_path: "/tmp/app-debug.apk",
+      install_output: "API_TOKEN=secret-value-that-must-not-render"
+    }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime build or reload",
+      calls: [
+        {
+          message_id: 74,
+          tool_name: "Runtime build or reload",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_build_or_reload",
+          detail: "session_id: 74",
+          display_label: "Runtime build or reload",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 74, options: { gradle_task: ":app:installDebug", api_token: "input-secret" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime build or reload")
+    expect(screen.getByText("74")).toBeInTheDocument()
+    expect(screen.getAllByText(":app:installDebug")).toHaveLength(2)
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText("API_TOKEN=[redacted]", { selector: "code" })).toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
   })
 
   it("shows linked browser launch targets, session input, and provider-reported launch errors", () => {
