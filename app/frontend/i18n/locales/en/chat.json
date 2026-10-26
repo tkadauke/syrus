@@ -3188,5 +3188,20 @@
   "admin_pause_maintenance_task_confirmation_other": "Pause {{count}} maintenance tasks?",
   "admin_kill_process_confirmation_one": "Kill process {{targets}}?",
   "admin_kill_process_confirmation_other": "Kill processes {{targets}}?",
-  "admin_kill_process_catalog_targets": "#41, #42, and #43"
+  "admin_kill_process_catalog_targets": "#41, #42, and #43",
+  "mutation_example_priority_changed": "Priority changed",
+  "mutation_example_invalid_priority": "Invalid priority",
+  "mutation_example_epic_started": "Epic started",
+  "mutation_example_epic_not_ready": "Epic is not ready",
+  "mutation_example_product_owner_cannot_start_epic": "Product owner cannot start Epic",
+  "mutation_example_unapproved_job": "Unapproved Job",
+  "mutation_example_bulk_unapproval_confirmation": "Bulk unapproval confirmation",
+  "mutation_example_invalid_job_state": "Invalid Job state",
+  "mutation_example_epic_title": "Improve maintenance cards",
+  "mutation_example_updated_scope": "Updated scope",
+  "mutation_example_epic_description_sentence": "This Epic now covers **responsive** tool cards with linked details.",
+  "mutation_example_attempted_epic_description": "Keep the **attempted** description visible.",
+  "mutation_example_epic_title_and_description_updated": "Title and description updated",
+  "mutation_example_epic_update_failed": "Epic update failed",
+  "mutation_example_empty_epic_description_failed": "Empty description update failed"
 }

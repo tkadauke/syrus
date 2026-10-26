@@ -3188,5 +3188,20 @@
   "admin_pause_maintenance_task_confirmation_other": "{{count}} munera conservationis pausare?",
   "admin_kill_process_confirmation_one": "Processum {{targets}} finire?",
   "admin_kill_process_confirmation_other": "Processus {{targets}} finire?",
-  "admin_kill_process_catalog_targets": "#41, #42 et #43"
+  "admin_kill_process_catalog_targets": "#41, #42 et #43",
+  "mutation_example_priority_changed": "Prioritas mutata",
+  "mutation_example_invalid_priority": "Prioritas invalida",
+  "mutation_example_epic_started": "Epic coeptum",
+  "mutation_example_epic_not_ready": "Epic paratum non est",
+  "mutation_example_product_owner_cannot_start_epic": "Product owner Epic incipere non potest",
+  "mutation_example_unapproved_job": "Job non approbatum",
+  "mutation_example_bulk_unapproval_confirmation": "Confirmatio plurium approbationum removendarum",
+  "mutation_example_invalid_job_state": "Status Job invalidus",
+  "mutation_example_epic_title": "Chartas sustentationis meliora",
+  "mutation_example_updated_scope": "Ambitus renovatus",
+  "mutation_example_epic_description_sentence": "Hoc Epic nunc chartas instrumentorum **responsivas** cum singulis conexis complectitur.",
+  "mutation_example_attempted_epic_description": "Descriptionem **temptatam** visibilem serva.",
+  "mutation_example_epic_title_and_description_updated": "Titulus et descriptio renovata",
+  "mutation_example_epic_update_failed": "Renovatio Epic defecit",
+  "mutation_example_empty_epic_description_failed": "Renovatio descriptionis vacuae defecit"
 }
