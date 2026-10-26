@@ -815,6 +815,64 @@ RSpec.describe App::ProviderAvailability do
     expect(sql).not_to include("FORCE INDEX")
   end
 
+  it "keeps old display evidence in the batched payload" do
+    evidence = ProviderAvailabilityEvidence.create!(
+      user: user,
+      provider: "codex",
+      status: "available",
+      source: "usage_probe",
+      observed_at: now - 8.days,
+      details: {}
+    )
+
+    availability = described_class.all_for_user(user, now: now).fetch("codex")
+
+    expect(availability).to include(state: "available")
+    expect(availability.dig(:evidence, :current, :id)).to eq(evidence.id)
+  end
+
+  it "limits batched evidence per provider and status in SQL" do
+    rows = 105.times.map do |index|
+      {
+        user_id: user.id,
+        provider: "codex",
+        status: "exhausted",
+        source: "usage_probe",
+        observed_at: now - index.minutes,
+        details: {},
+        created_at: now,
+        updated_at: now
+      }
+    end
+    ProviderAvailabilityEvidence.insert_all!(rows)
+    batch = described_class::Batch.new(user: user, providers: [ "codex" ], now: now)
+
+    evidence = batch.evidence_for("codex")
+
+    expect(evidence.count { |row| row.status == "exhausted" }).to eq(described_class::USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
+  end
+
+  it "uses a constant number of batch queries as provider count grows" do
+    query_count = lambda do |providers|
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        queries << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+      end
+      batch = described_class::Batch.new(user: user, providers: providers, now: now)
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        providers.each do |provider|
+          batch.evidence_for(provider)
+          batch.usage_limit_runs_for(provider)
+          batch.latest_terminal_run_for(provider)
+        end
+      end
+      queries.size
+    end
+
+    expect(query_count.call(%w[codex claude gemini opencode])).to eq(query_count.call([ "codex" ]))
+  end
+
   it "caches provider availability outside the request-local cache" do
     failed_run(provider: "codex")
     shared_cache = {}
