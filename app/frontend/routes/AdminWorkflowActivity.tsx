@@ -149,7 +149,9 @@ function ActivityTable({
         <>
           <div>{event.message}</div>
           <details className="mt-1">
-            <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">metadata</summary>
+            <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+              {t("activity.metadata")}
+            </summary>
             <pre className="mt-1 max-h-64 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">
               {JSON.stringify(event.metadata, null, 2)}
             </pre>
