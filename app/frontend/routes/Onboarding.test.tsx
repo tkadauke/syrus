@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import { OnboardingRoute } from "./Onboarding"
+import i18n from "../i18n"
 
 // Completed onboarding steps used to collapse to a bare "Complete" badge
 // with no way back into the setting they configured (GitHub token, agent
@@ -375,6 +376,19 @@ describe("OnboardingRoute — revisiting completed steps", () => {
 
     expect(screen.getByText("Antigravity is ready for runs.")).toBeInTheDocument()
     expect(screen.queryByText("Claude is ready for runs.")).not.toBeInTheDocument()
+  })
+
+  it("renders checklist copy and count-driven plurals in the selected locale", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      renderOnboarding(bootstrap())
+
+      expect(screen.getByText("Konto- und Admin-Zugriff")).toBeInTheDocument()
+      expect(i18n.t("onboarding.repository_configured", { ns: "common", count: 2 })).toBe("2 aktive Repositorys konfiguriert.")
+      expect(screen.getByText("Claude ist für Läufe bereit.")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("uses semantic brand tokens for the current marker and onboarding actions", () => {
