@@ -23,9 +23,14 @@ const proposal = {
   state: "confirmed",
   repository: { slug: "acme/widget" },
   repository_id: 8,
-  depends_on_proposal_slugs: ["shared-primitives"],
+  dependencies: ["shared-primitives", "shared-primitives"],
+  depends_on_proposal_slugs: ["shared-primitives", "release-epic"],
   depends_on_job_ids: [12],
   depends_on_epic_ids: [3],
+  dependency_requirements: [
+    { job_id: 81, satisfaction_mode: "deployed", required_deployment_stage_name: "production" },
+    { proposal_slug: "requirement-proposal", satisfaction_mode: "success" }
+  ],
   target_epic: { epic_id: 9, title: "Interface polish" },
   materialized: { kind: "job", job_id: 44, job_title: "Rich card", job_state: "queued" }
 }
@@ -46,9 +51,14 @@ describe("list_proposals tool card", () => {
     expect(screen.getByText(proposal.title)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "acme/widget" })).toHaveAttribute("href", "/repositories/8")
     expect(screen.getByRole("link", { name: "JOB-12" })).toHaveAttribute("href", "/jobs/12")
+    expect(screen.getByRole("link", { name: "JOB-81" })).toHaveAttribute("href", "/jobs/81")
     expect(screen.getByRole("link", { name: "EPIC-3" })).toHaveAttribute("href", "/epics/3")
     expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
     expect(screen.getByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
+    expect(screen.getByText("release-epic")).toBeInTheDocument()
+    expect(screen.getByText("requirement-proposal")).toBeInTheDocument()
+    expect(screen.getByText(/deployed: production/)).toBeInTheDocument()
+    expect(screen.getAllByText("shared-primitives")).toHaveLength(1)
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("link", { name: "https://example.test/details" }))
     expect(onLinkClick).toHaveBeenCalled()
