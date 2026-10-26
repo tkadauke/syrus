@@ -93,11 +93,18 @@ type RuntimeInputEvent = {
 }
 
 type RuntimeSnapshot = {
+  sessionId: string | null
   imageUrl: string | null
   imageDataUrl: string | null
   mimeType: string | null
   kind: string | null
   documentId: string | null
+  filePath: string | null
+  bytes: string | null
+  fallback: boolean
+  latestFrameUrl: string | null
+  latestFrameAt: string | null
+  textContent: string[]
   pageUrl: string | null
   title: string | null
   viewport: string | null
@@ -451,6 +458,16 @@ function imageDataUrl(content: unknown): { dataUrl: string | null; mimeType: str
   return { dataUrl: `data:${mimeType};base64,${data}`, mimeType }
 }
 
+function textContentItems(content: unknown): string[] {
+  if (!Array.isArray(content)) return []
+  return content.flatMap((item) => {
+    if (typeof item === "string") return item.trim() ? [item] : []
+    if (!isPlainObject(item) || item.type !== "text") return []
+    const text = displayValue(item.text)
+    return text ? [text] : []
+  })
+}
+
 function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -465,6 +482,7 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
   return {
     kind: "snapshot",
     snapshot: {
+      sessionId: displayValue(context.input?.session_id),
       imageUrl: firstDisplayValue(
         parsed.image_url,
         parsed.preview_url,
@@ -478,6 +496,12 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
       mimeType: firstDisplayValue(parsed.mime_type, parsed.mimeType, parsed.content_type, metadata.mime_type, image.mimeType),
       kind: firstDisplayValue(parsed.kind, metadata.kind),
       documentId: firstDisplayValue(parsed.document_id, parsed.artifact_id, metadata.document_id),
+      filePath: firstDisplayValue(parsed.file_path, metadata.file_path),
+      bytes: firstDisplayValue(parsed.bytes, metadata.bytes),
+      fallback: parsed.fallback === true,
+      latestFrameUrl: firstDisplayValue(parsed.latest_frame_url, metadata.latest_frame_url),
+      latestFrameAt: firstDisplayValue(parsed.latest_frame_at, metadata.latest_frame_at),
+      textContent: textContentItems(parsed.content),
       pageUrl: firstDisplayValue(parsed.page_url, parsed.url, metadata.page_url, metadata.url),
       title: firstDisplayValue(parsed.title, parsed.page_title, metadata.title, parsed.kind),
       viewport: viewportLabel(
@@ -1202,8 +1226,11 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
 }
 
 function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "snapshot" }> }) {
+  const { t } = useT("chat")
   const snapshot = card.snapshot
   const imageUrl = safeImageUrl(snapshot.imageUrl ?? snapshot.imageDataUrl)
+  const pageUrl = snapshot.pageUrl ? safeRuntimeUrl(snapshot.pageUrl) : null
+  const latestFrameUrl = snapshot.latestFrameUrl ? safeRuntimeUrl(snapshot.latestFrameUrl) : null
 
   return (
     <CardShell>
@@ -1217,6 +1244,13 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
           {snapshot.warning}
         </div>
       ) : null}
+      {snapshot.fallback ? (
+        <div className="flex flex-wrap items-center gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <Badge>{t("runtime_snapshot_stale_frame")}</Badge>
+          <span>{t("runtime_snapshot_stale_message")}</span>
+          {snapshot.latestFrameAt ? <RelativeTimestamp value={snapshot.latestFrameAt} /> : null}
+        </div>
+      ) : null}
       {imageUrl ? (
         <MediaPreviewShell
           item={{
@@ -1224,10 +1258,10 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
             subtitle: snapshot.pageUrl ?? snapshot.target,
             src: imageUrl,
             alt: "Runtime snapshot preview",
-            badge: snapshot.mimeType?.split("/").pop()?.toUpperCase() ?? "image",
+            badge: snapshot.fallback ? t("runtime_snapshot_stale_frame") : (snapshot.mimeType?.split("/").pop()?.toUpperCase() ?? "image"),
             actions: [
               { label: "Open", href: imageUrl },
-              { label: "Copy link", copyValue: imageUrl },
+              { label: "Download", href: imageUrl, download: true },
               snapshot.pageUrl ? { label: "Copy page", copyValue: snapshot.pageUrl } : null
             ].filter(Boolean) as MediaPreviewAction[],
             meta: [
@@ -1237,28 +1271,64 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
               { label: "Target", value: snapshot.target },
               { label: "Kind", value: snapshot.kind },
               { label: "Document", value: snapshot.documentId, copyValue: snapshot.documentId },
+              { label: "File path", value: snapshot.filePath, copyValue: snapshot.filePath },
+              { label: "Bytes", value: snapshot.bytes },
               { label: "Type", value: snapshot.mimeType },
               { label: "Captured", value: snapshot.createdAt },
-              { label: "Source", value: imageUrl, copyValue: imageUrl }
+              { label: "Latest frame", value: snapshot.latestFrameUrl, copyValue: snapshot.latestFrameUrl }
             ]
           }}
           modalLabel="Runtime snapshot preview"
+          thumbnailClassName="w-full sm:w-56"
         />
       ) : (
         <EmptyState>No snapshot preview was returned.</EmptyState>
       )}
+      {pageUrl ? (
+        <div>
+          <SectionLabel>{t("runtime_snapshot_page_url")}</SectionLabel>
+          <a
+            className="block min-h-11 break-all font-mono text-sm text-brand hover:underline dark:text-brand-emphasis"
+            href={pageUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {snapshot.pageUrl}
+          </a>
+        </div>
+      ) : null}
       <FieldRows
         rows={[
+          [t("runtime_input_session_id"), snapshot.sessionId],
           ["Page", snapshot.pageUrl],
           ["Title", snapshot.title],
           ["Viewport", snapshot.viewport],
           ["Target", snapshot.target],
           ["Kind", snapshot.kind],
           ["Document", snapshot.documentId],
+          ["File path", snapshot.filePath],
+          ["Bytes", snapshot.bytes],
           ["Type", snapshot.mimeType],
-          ["Captured", snapshot.createdAt]
+          ["Captured", snapshot.createdAt],
+          ["Latest frame at", snapshot.latestFrameAt]
         ]}
       />
+      {latestFrameUrl ? (
+        <div>
+          <SectionLabel>{t("runtime_snapshot_latest_frame_url")}</SectionLabel>
+          <a
+            className="block min-h-11 break-all font-mono text-sm text-brand hover:underline dark:text-brand-emphasis"
+            href={latestFrameUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {snapshot.latestFrameUrl}
+          </a>
+        </div>
+      ) : null}
+      {snapshot.textContent.map((text, index) => (
+        <TextPreview key={`${index}-${text.slice(0, 24)}`} maxLines={8} text={text} title={t("runtime_snapshot_browser_output")} />
+      ))}
       <RawRuntimeDetails value={snapshot.raw} />
     </CardShell>
   )

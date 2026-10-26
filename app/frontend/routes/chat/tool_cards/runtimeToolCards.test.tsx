@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
-import { redactToolCardValue } from "../../../toolCardSecurity"
+import { redactToolCardText, redactToolCardValue } from "../../../toolCardSecurity"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
 import runtimeBuildOrReloadToolCard from "./runtime_build_or_reload"
 import runtimeCaptureArtifactToolCard from "./runtime_capture_artifact"
@@ -1241,7 +1241,10 @@ describe("Runtime tool cards", () => {
   it("shows Runtime snapshot preview and page metadata", () => {
     const parsedResult = {
       error: false,
-      content: [{ type: "image", data: "abc123", mimeType: "image/png" }],
+      content: [
+        { type: "image", data: "abc123", mimeType: "image/png" },
+        { type: "text", text: "Browser snapshot captured successfully." }
+      ],
       page_url: "http://127.0.0.1:4173/settings",
       title: "Settings",
       viewport: { width: 1280, height: 720 },
@@ -1249,7 +1252,7 @@ describe("Runtime tool cards", () => {
     }
     const toolContext = context("runtime_snapshot", {
       parsedResult,
-      input: { options: { target: "main" } }
+      input: { session_id: 17, options: { target: "main" } }
     })
 
     expect(runtimeSnapshotToolCard.collapsedSummary?.(toolContext)).toBe("Runtime snapshot captured of main, 1280x720")
@@ -1259,13 +1262,86 @@ describe("Runtime tool cards", () => {
     expect(screen.getAllByText("http://127.0.0.1:4173/settings").length).toBeGreaterThan(0)
     expect(screen.getAllByText("Settings").length).toBeGreaterThan(0)
     expect(screen.getByText("1280x720")).toBeInTheDocument()
+    expect(screen.getByText("17")).toBeInTheDocument()
+    expect(screen.getByText("Browser snapshot captured successfully.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "http://127.0.0.1:4173/settings" })).toHaveAttribute("href", "http://127.0.0.1:4173/settings")
     expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Open Settings" }))
+    expect(within(screen.getByRole("dialog", { name: "Runtime snapshot preview" })).getByRole("link", { name: "Download" })).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      "structured content",
+      {
+        structured_content: {
+          content: [{ type: "image", data: "c25hcHNob3Q=", mimeType: "image/png" }],
+          page_url: "https://example.test/dashboard",
+          title: "Dashboard"
+        },
+        content: []
+      }
+    ],
+    [
+      "text content",
+      {
+        structured_content: null,
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              content: [{ type: "image", data: "c25hcHNob3Q=", mimeType: "image/png" }],
+              page_url: "https://example.test/dashboard",
+              title: "Dashboard"
+            })
+          }
+        ]
+      }
+    ]
+  ])("renders browser snapshots through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime snapshot",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_snapshot",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_snapshot",
+          detail: "Runtime #17",
+          display_label: "Runtime snapshot",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 17 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime snapshot")
+    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "data:image/png;base64,c25hcHNob3Q=")
+    expect(screen.getByText("17")).toBeInTheDocument()
+  })
+
+  it("preserves base64 image data while redacting snapshot result text", () => {
+    const body = JSON.stringify({ content: [{ type: "image", data: "c25hcHNob3QtYmluYXJ5", mimeType: "image/png" }] })
+
+    expect(redactToolCardText(body)).toContain("c25hcHNob3QtYmluYXJ5")
   })
 
   it("renders Latest-frame snapshots with provider metadata", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:12:00Z"))
     const parsedResult = {
       kind: "mobile_screenshot",
       content_type: "image/png",
+      bytes: 48213,
+      file_path: "/tmp/runtime-frame.png",
       document_id: 31,
       preview_url: "/api/v1/app/chats/8/media/chat_images/31/file",
       latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
@@ -1276,12 +1352,21 @@ describe("Runtime tool cards", () => {
 
     expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of mobile_screenshot")
 
-    render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
-    expect(screen.getAllByText("mobile_screenshot").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("31").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
-    expect(screen.getByText("device offline")).toBeInTheDocument()
+    try {
+      render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
+      expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
+      expect(screen.getAllByText("mobile_screenshot").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("31").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("48213").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("/tmp/runtime-frame.png").length).toBeGreaterThan(0)
+      expect(screen.getByText("device offline")).toBeInTheDocument()
+      expect(screen.getAllByText("Stale frame").length).toBeGreaterThan(0)
+      expect(screen.getByText("1 minute ago")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: parsedResult.latest_frame_url })).toHaveAttribute("href", parsedResult.latest_frame_url)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("shows missing Runtime artifacts as an explicit empty state", () => {
