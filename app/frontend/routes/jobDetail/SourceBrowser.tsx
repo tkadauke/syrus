@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Dispatch, ReactNode, SetStateAction } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
@@ -6,7 +6,15 @@ import { Select } from "../../components/Select"
 import { useT } from "../../hooks/useT"
 import { CodeBlock, renderCodeLine, useHighlightedLines } from "../../components/CodeBlock"
 import { detectHighlighterLanguage } from "../../lib/highlighter"
-import { fetchJobSource, fetchJobSourceDiff, fetchJobSourceFileContent, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
+import {
+  fetchJobSource,
+  fetchJobSourceDiff,
+  fetchJobSourceFileContent,
+  fetchWorkflowCoverageHitMap,
+  type CoverageArtifact,
+  type JobSourceDiffPayload,
+  type JobSourcePayload
+} from "../../api/jobs"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
@@ -22,14 +30,23 @@ import { activeDiffMetricGutterId, coverageDiffLineMetricProviders, metricCandid
 import type { SourceTreeNode } from "./sourceTree"
 import { buildSourceTree } from "./sourceTree"
 
-
 // Source-browser tab extracted from JobDetail.tsx: the SourceTab entry point and
 // its subtree — the file-tree browser, coverage-annotated source view, the source
 // shell, and the source-diff browser. Depends only on leaf modules and shared UI
 // imports, so it carries no circular edge back to the route file. Unused header
 // imports were pruned after the move.
 
-export function SourceTab({ canReviewDiff = false, jobId, coverageInfo, initialDiff = null }: { canReviewDiff?: boolean; jobId: string; coverageInfo: { workflowId: number; coverage: CoverageArtifact } | null; initialDiff?: { base: string; head: string } | null }) {
+export function SourceTab({
+  canReviewDiff = false,
+  jobId,
+  coverageInfo,
+  initialDiff = null
+}: {
+  canReviewDiff?: boolean
+  jobId: string
+  coverageInfo: { workflowId: number; coverage: CoverageArtifact } | null
+  initialDiff?: { base: string; head: string } | null
+}) {
   const [mode, setMode] = useState<"browse" | "diff">(initialDiff ? "diff" : "browse")
   const [sourceRef, setSourceRef] = useState<string | null>(null)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
@@ -60,28 +77,64 @@ export function SourceTab({ canReviewDiff = false, jobId, coverageInfo, initialD
 
   if (mode === "diff") {
     if (sourceDiff.isPending) {
-      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage>{t("source_diff_loading")}</PanelMessage></SourceShell>
+      return (
+        <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}>
+          <PanelMessage>{t("source_diff_loading")}</PanelMessage>
+        </SourceShell>
+      )
     }
     if (sourceDiff.isError) {
-      return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage tone="error">{errorMessage(sourceDiff.error, t("source_diff_error"))}</PanelMessage></SourceShell>
+      return (
+        <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}>
+          <PanelMessage tone="error">{errorMessage(sourceDiff.error, t("source_diff_error"))}</PanelMessage>
+        </SourceShell>
+      )
     }
 
-    return <SourceDiffBrowser canReviewDiff={canReviewDiff} diffAnnotations={diffAnnotations} mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
+    return (
+      <SourceDiffBrowser
+        canReviewDiff={canReviewDiff}
+        diffAnnotations={diffAnnotations}
+        mode={mode}
+        onModeChange={setMode}
+        onSelectBaseRef={setDiffBaseRef}
+        onSelectHeadRef={setDiffHeadRef}
+        payload={sourceDiff.data}
+        showDiffToggle={source.data.branch_commits.length > 0}
+      />
+    )
   }
 
-  return <SourceBrowser coverageWorkflowId={coverageWorkflowId} expandedPaths={expandedPaths} hitMapAttached={hitMapAttached} mode={mode} onModeChange={setMode} payload={source.data} setExpandedPaths={setExpandedPaths} onSelectPath={(path) => {
-    setSourceRef(source.data.selected_ref)
-    setSourcePath(path)
-  }} onSelectRef={(ref) => {
-    setSourceRef(ref)
-    setSourcePath(null)
-  }} showDiffToggle={source.data.branch_commits.length > 0} />
+  return (
+    <SourceBrowser
+      coverageWorkflowId={coverageWorkflowId}
+      expandedPaths={expandedPaths}
+      hitMapAttached={hitMapAttached}
+      jobId={jobId}
+      key={source.data.selected_ref}
+      mode={mode}
+      onModeChange={setMode}
+      payload={source.data}
+      setExpandedPaths={setExpandedPaths}
+      onSelectPath={(path) => {
+        setSourceRef(source.data.selected_ref)
+        setSourcePath(path)
+      }}
+      onSelectRef={(ref) => {
+        setSourceRef(ref)
+        setSourcePath(null)
+        setExpandedPaths(new Set())
+      }}
+      showDiffToggle={source.data.branch_commits.length > 0}
+    />
+  )
 }
 
 function SourceBrowser({
   coverageWorkflowId,
   expandedPaths,
   hitMapAttached,
+  jobId,
   mode,
   onModeChange,
   payload,
@@ -93,6 +146,7 @@ function SourceBrowser({
   coverageWorkflowId: number | null
   expandedPaths: Set<string>
   hitMapAttached: boolean
+  jobId: string
   mode: "browse" | "diff"
   onModeChange: (mode: "browse" | "diff") => void
   payload: JobSourcePayload
@@ -102,8 +156,12 @@ function SourceBrowser({
   showDiffToggle: boolean
 }) {
   const { t } = useT("jobs")
-  const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
-  const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
+  const queryClient = useQueryClient()
+  const [treeItems, setTreeItems] = useState(payload.tree_items)
+  const [loadedDirectories, setLoadedDirectories] = useState<Set<string>>(() => new Set([""]))
+  const [loadingDirectories, setLoadingDirectories] = useState<Set<string>>(() => new Set())
+  const [directoryError, setDirectoryError] = useState<string | null>(null)
+  const tree = useMemo(() => buildSourceTree(treeItems), [treeItems])
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
   const fileLanguage = payload.file ? detectHighlighterLanguage(payload.file.path) : null
   const selectedFilePath = payload.file?.path ?? null
@@ -117,7 +175,8 @@ function SourceBrowser({
 
   if (payload.source_error) return <PanelMessage tone="error">{payload.source_error}</PanelMessage>
 
-  function toggleDirectory(path: string) {
+  async function toggleDirectory(path: string) {
+    const expanding = !expandedPaths.has(path)
     setExpandedPaths((current) => {
       const next = new Set(current)
       if (next.has(path)) {
@@ -127,6 +186,32 @@ function SourceBrowser({
       }
       return next
     })
+    if (!expanding || loadedDirectories.has(path) || loadingDirectories.has(path)) return
+
+    setLoadingDirectories((current) => new Set(current).add(path))
+    setDirectoryError(null)
+    try {
+      const search = sourceSearch(payload.selected_ref, null, path)
+      const directory = await queryClient.fetchQuery({
+        queryKey: ["jobs", jobId, "source_directory", payload.selected_ref, path],
+        queryFn: () => fetchJobSource(jobId, search)
+      })
+      setTreeItems((current) => {
+        const merged = new Map(current.map((item) => [item.path, item]))
+        directory.tree_items.forEach((item) => merged.set(item.path, item))
+        return Array.from(merged.values())
+      })
+      setLoadedDirectories((current) => new Set(current).add(path))
+      if (directory.tree_truncated) setDirectoryError(t("source_tree_truncated"))
+    } catch (error) {
+      setDirectoryError(errorMessage(error, t("source_directory_error")))
+    } finally {
+      setLoadingDirectories((current) => {
+        const next = new Set(current)
+        next.delete(path)
+        return next
+      })
+    }
   }
 
   const hitLines = hitMap.isSuccess && hitMap.data.hit_map_attached ? hitMap.data.lines : null
@@ -137,24 +222,32 @@ function SourceBrowser({
         <label className="text-sm text-gray-600 dark:text-gray-300">
           {t("source_viewing_label")}
           <Select className="ml-2" fullWidth={false} onChange={(event) => onSelectRef(event.target.value)} value={payload.selected_ref}>
-            {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {refOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </Select>
         </label>
         {payload.tree_truncated ? <span className="text-xs text-amber-700">{t("source_tree_truncated")}</span> : null}
       </div>
       <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
-          {tree.length > 0 ? tree.map((node) => (
-            <SourceTreeRow
-              expandedPaths={expandedPaths}
-              key={node.path}
-              node={node}
-              onSelectPath={onSelectPath}
-              onToggleDirectory={toggleDirectory}
-              selectedPath={payload.selected_path}
-            />
-          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_files")}</p>}
-          {payload.tree_items.length > visibleItems.length ? <p className="p-3 text-xs text-amber-700">{t("source_showing_first", { count: visibleItems.length })}</p> : null}
+          {directoryError ? <p className="p-3 text-xs text-red-700">{directoryError}</p> : null}
+          {tree.length > 0 ? (
+            tree.map((node) => (
+              <SourceTreeRow
+                expandedPaths={expandedPaths}
+                key={node.path}
+                node={node}
+                onSelectPath={onSelectPath}
+                onToggleDirectory={toggleDirectory}
+                selectedPath={payload.selected_path}
+              />
+            ))
+          ) : (
+            <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_files")}</p>
+          )}
         </div>
         <div className="min-w-0 overflow-auto">
           {payload.file_error ? <p className="p-4 text-sm text-red-700">{payload.file_error}</p> : null}
@@ -174,18 +267,28 @@ function SourceBrowser({
                   ) : hitMapAttached === false && coverageWorkflowId != null && selectedFilePath != null ? (
                     <p className="px-4 pt-2 text-xs text-gray-400 dark:text-gray-500">{t("source_coverage_expired")}</p>
                   ) : null}
-                  <CodeBlock className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100" code={payload.file.content} lang={fileLanguage} />
+                  <CodeBlock
+                    className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100"
+                    code={payload.file.content}
+                    lang={fileLanguage}
+                  />
                 </>
               )}
             </>
-          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_file")}</div>}
+          ) : (
+            <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_file")}</div>
+          )}
         </div>
       </div>
     </SourceShell>
   )
 }
 
-function CoverageAnnotatedSource({ content, fileLanguage, hitLines }: {
+function CoverageAnnotatedSource({
+  content,
+  fileLanguage,
+  hitLines
+}: {
   content: string
   fileLanguage: ReturnType<typeof detectHighlighterLanguage>
   hitLines: Record<string, number>
@@ -198,18 +301,18 @@ function CoverageAnnotatedSource({ content, fileLanguage, hitLines }: {
         {lines.map((line, i) => {
           const lineNum = i + 1
           const hits = hitLines[String(lineNum)]
-          const rowClass = hits === undefined
-            ? "bg-white dark:bg-gray-950"
-            : hits > 0
-            ? "bg-green-50 dark:bg-green-950/30"
-            : "bg-red-50 dark:bg-red-950/30"
+          const rowClass = hits === undefined ? "bg-white dark:bg-gray-950" : hits > 0 ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"
           return (
             <tr className={rowClass} data-coverage-hits={hits} data-line={lineNum} key={lineNum}>
               <td className="w-4 select-none border-r border-gray-200 px-1 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-500">
                 {hits === undefined ? null : hits > 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400" title={`${hits} hit${hits !== 1 ? "s" : ""}`}>✓</span>
+                  <span className="text-emerald-600 dark:text-emerald-400" title={`${hits} hit${hits !== 1 ? "s" : ""}`}>
+                    ✓
+                  </span>
                 ) : (
-                  <span className="text-red-600 dark:text-red-400" title="not covered">✗</span>
+                  <span className="text-red-600 dark:text-red-400" title="not covered">
+                    ✗
+                  </span>
                 )}
               </td>
               <td className="w-10 select-none px-2 text-right text-xs text-gray-400 dark:text-gray-600">{lineNum}</td>
@@ -241,12 +344,7 @@ function SourceShell({
       {showDiffToggle ? (
         <div className="inline-flex rounded border border-gray-300 bg-white p-0.5 text-sm dark:border-gray-700 dark:bg-gray-950">
           {(["browse", "diff"] as const).map((option) => (
-            <Button
-              key={option}
-              onClick={() => onModeChange(option)}
-              size="sm"
-              variant={mode === option ? "primary" : "secondary"}
-            >
+            <Button key={option} onClick={() => onModeChange(option)} size="sm" variant={mode === option ? "primary" : "secondary"}>
               {option === "browse" ? t("source_browse") : t("source_diff")}
             </Button>
           ))}
@@ -288,10 +386,7 @@ export function SourceDiffBrowser({
   })
   const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
   const settingsMutation = useReviewDiffSettingsMutation(reviewSettings)
-  const diffMetricProviders = useMemo(
-    () => coverageDiffLineMetricProviders(payload.coverage_annotations, commonT),
-    [commonT, payload.coverage_annotations]
-  )
+  const diffMetricProviders = useMemo(() => coverageDiffLineMetricProviders(payload.coverage_annotations, commonT), [commonT, payload.coverage_annotations])
   const diffMetricCandidates = diffMetricProviders.map(metricCandidateFromProvider)
   const activeMetricGutterId = activeDiffMetricGutterId(reviewSettings.metric_gutter, diffMetricCandidates)
   const sortedDiffFiles = useMemo(() => sortReviewFiles(payload.files, reviewSettings.file_sort), [payload.files, reviewSettings.file_sort])
@@ -324,7 +419,12 @@ export function SourceDiffBrowser({
     onSelectHeadRef(version.head_sha)
   }
 
-  if (payload.diff_error) return <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}><PanelMessage tone="error">{payload.diff_error}</PanelMessage></SourceShell>
+  if (payload.diff_error)
+    return (
+      <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}>
+        <PanelMessage tone="error">{payload.diff_error}</PanelMessage>
+      </SourceShell>
+    )
 
   return (
     <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}>
@@ -344,13 +444,21 @@ export function SourceDiffBrowser({
           <label className="text-sm text-gray-600 dark:text-gray-300">
             {t("source_from_label")}
             <Select className="ml-2" fullWidth={false} onChange={(event) => onSelectBaseRef(event.target.value)} value={payload.base_ref || ""}>
-              {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {refOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </Select>
           </label>
           <label className="text-sm text-gray-600 dark:text-gray-300">
             {t("source_to_label")}
             <Select className="ml-2" fullWidth={false} onChange={(event) => onSelectHeadRef(event.target.value)} value={payload.head_ref || ""}>
-              {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {refOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </Select>
           </label>
         </div>
@@ -372,30 +480,44 @@ export function SourceDiffBrowser({
             </button>
           </div>
           {payload.truncated ? <span className="text-xs text-amber-700">{t("source_diff_truncated")}</span> : null}
-          <Button onClick={() => setSettingsOpen(true)} size="sm" variant="secondary">{t("review_settings_button")}</Button>
+          <Button onClick={() => setSettingsOpen(true)} size="sm" variant="secondary">
+            {t("review_settings_button")}
+          </Button>
         </div>
       </div>
       {feedback.panel}
-      <div className={`grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white ${reviewSettings.file_list ? "lg:grid-cols-[20rem_minmax(0,1fr)]" : ""} dark:border-gray-700 dark:bg-gray-900`}>
-        {reviewSettings.file_list ? <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
-          {sortedDiffFiles.length > 0 ? sortedDiffFiles.map((file) => {
-            const depth = reviewSettings.file_list_layout === "nested" ? Math.max(0, file.path.split("/").length - 1) : 0
-            return (
-              <button
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedFile?.path === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
-                key={file.path}
-                onClick={() => setSelectedPath(file.path)}
-                style={{ paddingLeft: `${0.75 + Math.min(depth, 6) * 0.75}rem` }}
-                title={`${file.path} (+${file.additions} -${file.deletions})`}
-                type="button"
-              >
-                <SourceDiffStatusBadge status={file.status ?? "modified"} />
-                <span className="min-w-0 flex-1 truncate">{file.path}</span>
-                {feedback.commentCounts[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{feedback.commentCounts[file.path]}</span> : null}
-              </button>
-            )
-          }) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
-        </div> : null}
+      <div
+        className={`grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white ${reviewSettings.file_list ? "lg:grid-cols-[20rem_minmax(0,1fr)]" : ""} dark:border-gray-700 dark:bg-gray-900`}
+      >
+        {reviewSettings.file_list ? (
+          <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
+            {sortedDiffFiles.length > 0 ? (
+              sortedDiffFiles.map((file) => {
+                const depth = reviewSettings.file_list_layout === "nested" ? Math.max(0, file.path.split("/").length - 1) : 0
+                return (
+                  <button
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedFile?.path === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
+                    key={file.path}
+                    onClick={() => setSelectedPath(file.path)}
+                    style={{ paddingLeft: `${0.75 + Math.min(depth, 6) * 0.75}rem` }}
+                    title={`${file.path} (+${file.additions} -${file.deletions})`}
+                    type="button"
+                  >
+                    <SourceDiffStatusBadge status={file.status ?? "modified"} />
+                    <span className="min-w-0 flex-1 truncate">{file.path}</span>
+                    {feedback.commentCounts[file.path] ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        {feedback.commentCounts[file.path]}
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })
+            ) : (
+              <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>
+            )}
+          </div>
+        ) : null}
         <div className="min-w-0 overflow-y-auto">
           {renderMode === "continuous" || selectedFile ? (
             <ReviewableDiff
@@ -410,7 +532,11 @@ export function SourceDiffBrowser({
               editingThreadBody={feedback.editingThreadBody}
               editingThreadError={feedback.editingThreadError}
               editingThreadId={feedback.editingThreadId}
-              emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
+              emptyState={
+                <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+                  {t("source_select_diff_file")}
+                </div>
+              }
               files={payload.files}
               mode={renderMode}
               onCancelComposing={feedback.onCancelComposing}
@@ -425,7 +551,12 @@ export function SourceDiffBrowser({
               onSelectFile={setSelectedPath}
               onStartEditThread={feedback.onStartEditThread}
               renderImageDiff={(file) => (
-                <ImageDiffThumbnails baseRef={payload.base_sha ?? payload.base_ref} file={file} headRef={payload.head_sha ?? payload.head_ref} jobId={payload.job_id} />
+                <ImageDiffThumbnails
+                  baseRef={payload.base_sha ?? payload.base_ref}
+                  file={file}
+                  headRef={payload.head_sha ?? payload.head_ref}
+                  jobId={payload.job_id}
+                />
               )}
               reviewSettings={reviewSettings}
               activeDiffLineMetricProviderId={activeMetricGutterId}
@@ -434,7 +565,11 @@ export function SourceDiffBrowser({
               showFileHeaders
               unavailableState={t("source_diff_not_available")}
             />
-          ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
+          ) : (
+            <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+              {t("source_select_diff_file")}
+            </div>
+          )}
         </div>
       </div>
       {settingsOpen ? (
@@ -466,7 +601,13 @@ function SourceDiffStatusBadge({ status }: { status: string }) {
   }
   const labels: Record<string, string> = { added: "A", modified: "M", removed: "D", renamed: "R" }
 
-  return <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-2xs font-semibold ${styles[normalized] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{labels[normalized] || normalized.slice(0, 1).toUpperCase()}</span>
+  return (
+    <span
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-2xs font-semibold ${styles[normalized] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+    >
+      {labels[normalized] || normalized.slice(0, 1).toUpperCase()}
+    </span>
+  )
 }
 
 function SourceTreeRow({
@@ -505,20 +646,27 @@ function SourceTreeRow({
           title={node.path}
           type="button"
         >
-          <span aria-hidden="true" className={`mr-1 inline-block w-3 text-gray-400 transition-transform dark:text-gray-500 ${expandedPaths.has(node.path) ? "rotate-90" : ""}`}>{">"}</span>
+          <span
+            aria-hidden="true"
+            className={`mr-1 inline-block w-3 text-gray-400 transition-transform dark:text-gray-500 ${expandedPaths.has(node.path) ? "rotate-90" : ""}`}
+          >
+            {">"}
+          </span>
           {node.name}
         </button>
       )}
-      {!node.file && expandedPaths.has(node.path) ? node.children.map((child) => (
-        <SourceTreeRow
-          expandedPaths={expandedPaths}
-          key={child.path}
-          node={child}
-          onSelectPath={onSelectPath}
-          onToggleDirectory={onToggleDirectory}
-          selectedPath={selectedPath}
-        />
-      )) : null}
+      {!node.file && expandedPaths.has(node.path)
+        ? node.children.map((child) => (
+            <SourceTreeRow
+              expandedPaths={expandedPaths}
+              key={child.path}
+              node={child}
+              onSelectPath={onSelectPath}
+              onToggleDirectory={onToggleDirectory}
+              selectedPath={selectedPath}
+            />
+          ))
+        : null}
     </>
   )
 }

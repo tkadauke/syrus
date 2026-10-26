@@ -121,6 +121,48 @@ RSpec.describe "queue partitioning" do
     expect(status).to be_success, stderr
   end
 
+  # The run pool's thread count and the admission semaphore's ration have to be
+  # the same number. They were not: queue.yml hardcoded 3 threads while
+  # RunHostAdmission rationed against RunProcessParallelism.host_capacity, so a
+  # pod with an 8-core limit admitted 6 concurrent runs and only ever claimed
+  # 3. The claim concurrency, not the CPU budget, was the binding constraint,
+  # and widening a pod's CPU limit changed nothing at all.
+  # Every config that defines a run pool, not just queue.yml. Production
+  # compute pods select config/queue.compute.yml through SOLID_QUEUE_CONFIG, so
+  # a fix applied only to queue.yml -- the Compose/single-host config -- is
+  # inert where it matters, and a spec that only reads queue.yml still passes.
+  RUN_POOL_CONFIGS = %w[config/queue.yml config/queue.compute.yml].freeze
+
+  describe "run pool sizing" do
+    def rendered_run_threads(path)
+      raw = File.read(ROOT.join(path))
+      YAML.safe_load(ERB.new(raw).result, aliases: true, permitted_classes: [ Symbol ])
+          .fetch("default").fetch("workers").first.fetch("threads")
+    end
+
+    it "covers every config that declares a run pool" do
+      declaring = Dir[ROOT.join("config/queue*.yml").to_s].select { |path| File.read(path).include?("JOB_CONCURRENCY") }
+      expect(declaring.map { |path| Pathname.new(path).relative_path_from(ROOT).to_s })
+        .to match_array(RUN_POOL_CONFIGS)
+    end
+
+    RUN_POOL_CONFIGS.each do |path|
+      it "sizes #{path}'s run pool from the CPU budget rather than a fixed number" do
+        allow(RunProcessParallelism).to receive(:host_capacity).and_return(7)
+        stub_const("ENV", ENV.to_h.except("JOB_CONCURRENCY"))
+
+        expect(rendered_run_threads(path)).to eq(7)
+      end
+
+      it "still honors an explicit JOB_CONCURRENCY override in #{path}" do
+        allow(RunProcessParallelism).to receive(:host_capacity).and_return(7)
+        stub_const("ENV", ENV.to_h.merge("JOB_CONCURRENCY" => "2"))
+
+        expect(rendered_run_threads(path)).to eq(2)
+      end
+    end
+  end
+
   it "keeps queue.yml a complete single-worker config (Compose / single-host)" do
     expect(queues_for("config/queue.yml", capabilities: "os:linux")[:regular].uniq)
       .to match_array(HOME_QUEUES + LINUX_COMPUTE_QUEUES)

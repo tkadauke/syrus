@@ -95,7 +95,7 @@ describe("wake_provider_admission tool card", () => {
         ...result,
         observed_preview: { ...result.observed_preview, workflow_count: 1, auto_retry_count: 1 }
       }
-      expect(card.collapsedSummary?.(context(singularResult))).toBe("Einen wartenden codex-Workflow und 1 verzögerte automatische Wiederholung aufwecken?")
+      expect(card.collapsedSummary?.(context(singularResult))).toBe("1 wartenden codex-Workflow und 1 verzögerte automatische Wiederholung aufwecken?")
     } finally {
       await i18n.changeLanguage("en")
     }

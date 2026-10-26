@@ -76,7 +76,7 @@ RSpec.describe RunHostAdmission do
   # An agent turn waits on a provider API; disk contention is not its
   # constraint.
   it "admits a provider-bound agent turn when disk contention is the only critical pressure" do
-    worker_sample(io_pressure_some: 55.0)
+    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
     run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
     decision = described_class.call(run: run)
@@ -87,7 +87,7 @@ RSpec.describe RunHostAdmission do
   end
 
   it "still defers an agent turn when a hard limit is critical, not just the disk" do
-    worker_sample(io_pressure_some: 55.0, memory_used_percent: 96.0)
+    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0, memory_used_percent: 96.0)
     run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
     decision = described_class.call(run: run)
@@ -97,7 +97,7 @@ RSpec.describe RunHostAdmission do
   end
 
   it "keeps deferring disk-bound work while the disk is critical" do
-    worker_sample(io_pressure_some: 55.0)
+    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
     grader_step = Step.create!(workflow: workflow, kind: "grader", position: 97, details: { "name" => "rspec" })
     grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
 
@@ -107,8 +107,26 @@ RSpec.describe RunHostAdmission do
     expect(decision.reason).to eq("local_worker_pressure_critical")
   end
 
+  # The other half of that rule. A grader IS disk-bound, so a genuinely
+  # saturated disk must still defer it (above) -- but one large sequential
+  # read or write by a single process drives `io_pressure_some` high on a host
+  # that is otherwise idle, and that is what a grader cloning, building or
+  # running a suite looks like. Escalating on `some` alone made normal grader
+  # work refuse the next grader, and the refusals were then rerouted, which is
+  # how one host's queue came to hold work three idle hosts could not take.
+  it "admits a grader when high IO pressure is one busy writer rather than saturation" do
+    worker_sample(cpu_used_percent: 0.99, memory_used_percent: 7.83, io_pressure_some: 86.09, io_pressure_full: 0.4)
+    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 96, details: { "name" => "rspec" })
+    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+    decision = described_class.call(run: grader_run)
+
+    expect(decision).to be_admit
+    expect(decision.details.fetch("sample_health")).to include("level" => "warning")
+  end
+
   it "defers sticky resume work on a pressured host" do
-    worker_sample(io_pressure_some: 55.0)
+    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
 
     decision = described_class.call(run: run, queue_name: "resume-storage-a")
 

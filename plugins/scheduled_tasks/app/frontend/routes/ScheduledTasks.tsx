@@ -40,18 +40,28 @@ import { fetchRepositorySkills, type SkillSummary } from "@app/api/skills"
 import { initialArgs, SkillOption, SkillParameterInput } from "@app/routes/RepositorySkillNew"
 import { errorMessage } from "@app/lib/errorMessage"
 
-const fallbackOptions: ScheduledTaskOptions = {
-  kinds: ["cron", "one_shot"],
-  pr_pileup_policies: ["skip", "pile", "replace"],
-  auto_approve_modes: [
-    { value: "never", label: "Never", preview: "No direct rule; Jobs can still inherit a repository or user default." },
-    { value: "if_graders_pass", label: "If graders pass", preview: "Jobs using this rule enter landing after repo-committed graders pass." },
-    {
-      value: "if_graders_pass_and_tagged_safe",
-      label: "If graders pass and tagged safe",
-      preview: "Jobs using this rule also need the safe tag before landing."
-    }
-  ]
+function fallbackOptions(t: (key: string) => string): ScheduledTaskOptions {
+  return {
+    kinds: ["cron", "one_shot"],
+    pr_pileup_policies: ["skip", "pile", "replace"],
+    auto_approve_modes: [
+      { value: "never", label: t("auto_approve_never"), preview: t("auto_approve_never_preview") },
+      { value: "if_graders_pass", label: t("auto_approve_graders"), preview: t("auto_approve_graders_preview") },
+      {
+        value: "if_graders_pass_and_tagged_safe",
+        label: t("auto_approve_safe"),
+        preview: t("auto_approve_safe_preview")
+      }
+    ]
+  }
+}
+
+function localizeAutoApproveOptions(options: ScheduledTaskOptions, t: (key: string) => string): ScheduledTaskOptions {
+  const localized = new Map(fallbackOptions(t).auto_approve_modes.map((option) => [option.value, option]))
+  return {
+    ...options,
+    auto_approve_modes: options.auto_approve_modes.map((option) => localized.get(option.value) || option)
+  }
 }
 
 export function ScheduledTasksIndex() {
@@ -133,6 +143,7 @@ export function ScheduledTaskDetailRoute() {
 
 export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const { t } = useT("settings")
+  const { t: scheduledTasksT } = useT("scheduled_tasks")
   const location = useLocation()
   const params = useParams()
   const id = params.id || ""
@@ -166,7 +177,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const loading = mode === "new" ? form.isPending : detail.isPending
   const error = form.error || detail.error
   const initial = mode === "new" && form.data ? formInput(form.data.task) : detail.data ? detailInput(detail.data.task) : null
-  const options = form.data?.options || detail.data?.options || fallbackOptions
+  const options = localizeAutoApproveOptions(form.data?.options || detail.data?.options || fallbackOptions(scheduledTasksT), scheduledTasksT)
   const repository = form.data?.repository || detail.data?.task.repository
   const skillsRepositoryId = repository ? String(repository.id) : repositoryId
   const showRepositoryPicker = needsRepositoryPick && repositoryId.length === 0
@@ -251,7 +262,21 @@ function RepositoryPicker({
   )
 }
 
-function TaskSection({ title, tasks, empty, basePath, prefix, storageKey }: { title: string; tasks: ScheduledTaskRow[]; empty: string; basePath: string; prefix: string; storageKey: string }) {
+function TaskSection({
+  title,
+  tasks,
+  empty,
+  basePath,
+  prefix,
+  storageKey
+}: {
+  title: string
+  tasks: ScheduledTaskRow[]
+  empty: string
+  basePath: string
+  prefix: string
+  storageKey: string
+}) {
   const { t } = useT("settings")
   const columns = taskColumns({ basePath, prefix, t })
 
@@ -313,7 +338,13 @@ function taskColumns({
       sort: "repository",
       sortValue: (task) => task.repository.slug
     },
-    { key: "schedule", header: t("scheduled_tasks.schedule"), render: (task) => task.schedule_label || t("scheduled_tasks.none"), sort: "schedule", sortValue: (task) => task.schedule_label || "" },
+    {
+      key: "schedule",
+      header: t("scheduled_tasks.schedule"),
+      render: (task) => task.schedule_label || t("scheduled_tasks.none"),
+      sort: "schedule",
+      sortValue: (task) => task.schedule_label || ""
+    },
     { key: "state", header: t("scheduled_tasks.state"), render: (task) => <StatePill state={task.state} />, sort: "state", sortValue: (task) => task.state },
     {
       key: "last_fired_at",

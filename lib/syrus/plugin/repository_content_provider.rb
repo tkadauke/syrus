@@ -53,6 +53,8 @@ module Syrus
     #                                    replica that cannot promise that raises
     #                                    Unavailable so the chain moves on.
     #   tree(revision_id)             -> Array<RepositoryContent::Entry>
+    #   children(revision_id, path)   -> direct child entries for a directory;
+    #                                    `path` is empty for the snapshot root.
     #   read(revision_id, path)       -> RepositoryContent::Blob
     #   changes(base_id, head_id, patch:)
     #                                 -> Array<RepositoryContent::Change> for
@@ -127,6 +129,10 @@ module Syrus
 
       def tree(_revision_id)
         raise NotImplementedError, "#{self.class.name} must implement #tree"
+      end
+
+      def children(_revision_id, _path)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list directory children"
       end
 
       def read(_revision_id, _path)

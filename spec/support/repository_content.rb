@@ -109,6 +109,25 @@ class FakeRepositoryContentProvider
     entries
   end
 
+  def children(revision_id, directory)
+    record(:children, revision_id, directory)
+    prefix = directory.present? ? "#{directory}/" : ""
+    entries = {}
+    revision_for(revision_id)[:files].each do |path, bytes|
+      next unless path.start_with?(prefix)
+
+      relative = path.delete_prefix(prefix)
+      name, remainder = relative.split("/", 2)
+      child_path = prefix + name
+      entries[child_path] ||= if remainder
+        RepositoryContent::Entry.new(path: child_path, type: "directory")
+      else
+        RepositoryContent::Entry.new(path: child_path, size: bytes.bytesize, content_id: Digest::SHA1.hexdigest(bytes))
+      end
+    end
+    entries.values
+  end
+
   def read(revision_id, path)
     record(:read, revision_id, path)
     bytes = revision_for(revision_id)[:files][path]

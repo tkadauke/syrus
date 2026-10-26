@@ -55,6 +55,9 @@ func (f *fakeStore) Resolve(_ context.Context, _, _ string, maxAge time.Duration
 	return "abc", time.Unix(0, 0), f.resolveErr
 }
 func (f *fakeStore) Tree(context.Context, string, string) ([]mirror.Entry, error) { return nil, nil }
+func (f *fakeStore) Children(context.Context, string, string, string) ([]mirror.Entry, error) {
+	return nil, nil
+}
 func (f *fakeStore) Read(context.Context, string, string, string) (mirror.Blob, error) {
 	return mirror.Blob{Bytes: []byte{0xff, 0x00}, ContentID: "oid"}, f.readErr
 }

@@ -137,6 +137,15 @@ func TestResolveTreeAndRead(t *testing.T) {
 		t.Fatalf("unexpected tree %v", paths)
 	}
 
+	children, err := s.Children(ctx, "42", sha, "apps")
+	if err != nil || len(children) != 1 || children[0].Path != "apps/web" || children[0].Type != "directory" {
+		t.Fatalf("children = %+v, %v", children, err)
+	}
+	children, err = s.Children(ctx, "42", sha, "apps/web")
+	if err != nil || len(children) != 1 || children[0].Path != "apps/web/.syrus.yml" || children[0].Type != "file" {
+		t.Fatalf("nested children = %+v, %v", children, err)
+	}
+
 	blob, err := s.Read(ctx, "42", sha, "apps/web/.syrus.yml")
 	if err != nil || string(blob.Bytes) != "project:\n  id: web\n" || blob.ContentID == "" {
 		t.Fatalf("read = %q, %v", blob.Bytes, err)

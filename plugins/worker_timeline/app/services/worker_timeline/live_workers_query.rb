@@ -63,6 +63,12 @@ module WorkerTimeline
         hostname: hostname,
         worker_storage_key: key,
         status: status,
+        # Which resource is actually saturated, so the card can say so rather
+        # than making the reader infer it. "Overloaded" on a host at 1% CPU
+        # and 8% memory is not wrong -- it was stalled on IO -- but nothing on
+        # the card said "IO" where the reader was looking.
+        critical_dimensions: critical_dimensions_for(sample),
+        capacity_exceeded: used_slots > total_slots,
         status_reasons: status_reasons(status: status, used_slots: used_slots, total_slots: total_slots, health: health),
         occupancy: { used: used_slots, total: total_slots, slots: slots.length },
         health: health,
@@ -223,6 +229,16 @@ module WorkerTimeline
       "idle"
     end
 
+    def critical_dimensions_for(sample)
+      return [] unless sample
+
+      WorkerHealthSampleAnalysis.critical_dimensions_for(sample).map(&:to_s)
+    end
+
+    # Two unrelated conditions share this status: a host over its thread
+    # capacity, and a host whose health sample is critical. They are reported
+    # separately in the summary and distinguished per-card by
+    # `capacity_exceeded` and `critical_dimensions`.
     def status_for(used_slots:, total_slots:, health:)
       return "overloaded" if health[:level] == "critical" || used_slots > total_slots
       return "degraded" if %w[warning unknown].include?(health[:level])
@@ -252,6 +268,11 @@ module WorkerTimeline
         busy: workers.count { |worker| worker[:status] == "busy" },
         degraded: workers.count { |worker| worker[:status] == "degraded" },
         overloaded: workers.count { |worker| worker[:status] == "overloaded" },
+        # The same workers as `overloaded`, split by why. A reader could not
+        # previously tell "out of threads" from "unhealthy host" without
+        # opening every card, and the two call for different responses.
+        capacity_exceeded: workers.count { |worker| worker[:status] == "overloaded" && worker[:capacity_exceeded] },
+        health_critical: workers.count { |worker| worker[:status] == "overloaded" && worker.dig(:health, :level) == "critical" },
         used_slots: workers.sum { |worker| worker.dig(:occupancy, :used).to_i },
         total_slots: workers.sum { |worker| worker.dig(:occupancy, :total).to_i }
       }

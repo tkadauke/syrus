@@ -74,6 +74,25 @@ module RepositoryContent
       Glob.filter(glob, entries)
     end
 
+    # Direct children of `path`, or of the snapshot root when path is blank.
+    # Directory-scoped reads keep large source browsers incremental and avoid
+    # recursive-tree limits imposed by hosting providers.
+    def children(revision, path: "")
+      id = revision_id(revision)
+      path = path.to_s.delete_prefix("/").delete_suffix("/")
+      if path.split("/").any? { |segment| segment.blank? || segment == "." || segment == ".." }
+        raise ArgumentError, "invalid directory path"
+      end
+      key = cache_key("children", id, path)
+      entries = cache.read(key)&.map { |attrs| Entry.new(**attrs.symbolize_keys) }
+      record(CACHE_PROVIDER, :children, "answered") if entries
+      unless entries
+        entries = through_chain(:children) { |provider| provider.children(id, path) }
+        cache.write(key, entries.map { |entry| entry.to_h.transform_keys(&:to_s) }, expires_in: CONTENT_CACHE_TTL)
+      end
+      entries
+    end
+
     # The file at `path`. Raises NotFound when the revision has no such file.
     # `max_bytes` bounds what the caller receives; `size` still reports the
     # whole file.

@@ -8,6 +8,7 @@
 //	DELETE /v1/repositories/{id}
 //	GET    /v1/repositories/{id}/resolve?ref=&max_age=
 //	GET    /v1/repositories/{id}/tree?revision=
+//	GET    /v1/repositories/{id}/children?revision=&path=
 //	GET    /v1/repositories/{id}/blob?revision=&path=   raw bytes
 //	GET    /v1/repositories/{id}/changes?base=&head=&patch=1
 //	GET    /v1/repositories/{id}/refs?pattern=&max_age=
@@ -60,6 +61,7 @@ type Store interface {
 	Disk() mirror.Disk
 	Resolve(ctx context.Context, id, ref string, maxAge time.Duration) (string, time.Time, error)
 	Tree(ctx context.Context, id, revision string) ([]mirror.Entry, error)
+	Children(ctx context.Context, id, revision, path string) ([]mirror.Entry, error)
 	Read(ctx context.Context, id, revision, path string) (mirror.Blob, error)
 	Changes(ctx context.Context, id, base, head string, withPatch bool) ([]mirror.Change, error)
 	Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]mirror.Ref, error)
@@ -90,6 +92,7 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	mux.Handle("DELETE /v1/repositories/{id}", s.auth(s.remove))
 	mux.Handle("GET /v1/repositories/{id}/resolve", s.auth(s.resolve))
 	mux.Handle("GET /v1/repositories/{id}/tree", s.auth(s.tree))
+	mux.Handle("GET /v1/repositories/{id}/children", s.auth(s.children))
 	mux.Handle("GET /v1/repositories/{id}/blob", s.auth(s.blob))
 	mux.Handle("GET /v1/repositories/{id}/changes", s.auth(s.changes))
 	mux.Handle("GET /v1/repositories/{id}/refs", s.auth(s.refs))
@@ -225,6 +228,19 @@ func (s *server) resolve(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) tree(w http.ResponseWriter, r *http.Request) {
 	entries, err := s.store.Tree(r.Context(), r.PathValue("id"), r.URL.Query().Get("revision"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if entries == nil {
+		entries = []mirror.Entry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
+}
+
+func (s *server) children(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	entries, err := s.store.Children(r.Context(), r.PathValue("id"), query.Get("revision"), query.Get("path"))
 	if err != nil {
 		writeStoreError(w, err)
 		return

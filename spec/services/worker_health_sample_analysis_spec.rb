@@ -12,7 +12,9 @@ RSpec.describe WorkerHealthSampleAnalysis do
 
   describe ".health_for" do
     it "applies the shared worker pressure thresholds" do
-      health = described_class.health_for(sample(cpu_used_percent: 92.0, io_pressure_some: 55.0))
+      health = described_class.health_for(
+        sample(cpu_used_percent: 92.0, io_pressure_some: 55.0, io_pressure_full: 51.0)
+      )
 
       expect(health).to eq(
         level: "critical",
@@ -20,6 +22,33 @@ RSpec.describe WorkerHealthSampleAnalysis do
           "cpu 92.0% >= 90%",
           "IO pressure 55.0% >= 50%"
         ]
+      )
+    end
+
+    # `some` counts time with at least one task stalled, which one large
+    # sequential read or write drives high on an otherwise idle host -- a
+    # grader cloning, building or running a suite. Escalating on it alone made
+    # ordinary grader work look like a critical host and got that host's work
+    # routed away from it.
+    it "keeps high IO pressure some as warning when full pressure does not corroborate it" do
+      health = described_class.health_for(
+        sample(cpu_used_percent: 1.0, memory_used_percent: 8.0, io_pressure_some: 86.09, io_pressure_full: 0.4)
+      )
+
+      expect(health).to eq(
+        level: "warning",
+        reasons: [ "IO pressure 86.09% >= 20%" ]
+      )
+    end
+
+    it "treats high IO pressure some as critical when full pressure corroborates it" do
+      health = described_class.health_for(
+        sample(cpu_used_percent: 0.99, memory_used_percent: 7.83, io_pressure_some: 86.09, io_pressure_full: 86.03)
+      )
+
+      expect(health).to eq(
+        level: "critical",
+        reasons: [ "IO pressure 86.09% >= 50%" ]
       )
     end
 
@@ -57,9 +86,17 @@ RSpec.describe WorkerHealthSampleAnalysis do
 
   describe ".critical_dimensions_for" do
     it "names the saturated dimensions by key rather than by reason prose" do
-      sample = sample(cpu_used_percent: 99.0, io_pressure_some: 55.0, memory_used_percent: 10.0)
+      sample = sample(
+        cpu_used_percent: 99.0, io_pressure_some: 55.0, io_pressure_full: 51.0, memory_used_percent: 10.0
+      )
 
       expect(described_class.critical_dimensions_for(sample)).to eq(%i[cpu io_pressure])
+    end
+
+    it "leaves out IO pressure that full pressure does not corroborate" do
+      sample = sample(cpu_used_percent: 99.0, io_pressure_some: 55.0, io_pressure_full: 1.0)
+
+      expect(described_class.critical_dimensions_for(sample)).to eq([ :cpu ])
     end
 
     it "leaves out dimensions that are only at warning" do

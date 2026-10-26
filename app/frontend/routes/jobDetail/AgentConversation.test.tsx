@@ -187,6 +187,93 @@ describe("AgentConversationTab", () => {
     expect(document.querySelectorAll("details")).toHaveLength(1)
   })
 
+  it("renders agent summaries with light Markdown without heading elements", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        graph({
+          nodes: [
+            {
+              id: "agent_session-501",
+              kind: "agent_session",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 1,
+              step_kind: "adversarial_review",
+              run_id: 501,
+              role: "workflow:adversarial_review",
+              label: "Adversarial review",
+              state: "succeeded",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: "## Findings\n\nThe **hidden header** uses `top: 0`.",
+              detail: {}
+            }
+          ]
+        })
+      )
+    )
+
+    const { container } = renderTab()
+
+    expect((await screen.findByText("Findings")).tagName).toBe("STRONG")
+    expect(screen.getByText("hidden header").tagName).toBe("STRONG")
+    expect(screen.getByText("top: 0").tagName).toBe("CODE")
+    expect(container.querySelector("h1, h2, h3, h4, h5, h6")).not.toBeInTheDocument()
+    expect(screen.queryByText(/## Findings/)).not.toBeInTheDocument()
+  })
+
+  it("keeps links in light Markdown summaries outside card buttons", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        graph({
+          nodes: [
+            {
+              id: "agent_session-501",
+              kind: "agent_session",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 1,
+              step_kind: "adversarial_review",
+              run_id: 501,
+              role: "workflow:adversarial_review",
+              label: "Adversarial review",
+              state: "succeeded",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: "See [agent evidence](https://example.test/agent).",
+              detail: {}
+            },
+            {
+              id: "deterministic_check-77",
+              kind: "deterministic_check",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 77,
+              step_kind: "grader",
+              label: "rspec",
+              state: "failed",
+              started_at: null,
+              finished_at: null,
+              agentic: false,
+              summary: "See [check output](https://example.test/check).",
+              detail: {}
+            }
+          ]
+        })
+      )
+    )
+
+    renderTab()
+
+    const agentLink = await screen.findByRole("link", { name: "agent evidence" })
+    const checkLink = screen.getByRole("link", { name: "check output" })
+
+    expect(agentLink.closest("button")).toBeNull()
+    expect(checkLink.closest("button")).toBeNull()
+  })
+
   it("renders a deterministic_check card and shows raw output only, no reasoning framing", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse(

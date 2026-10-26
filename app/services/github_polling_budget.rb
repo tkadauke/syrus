@@ -4,6 +4,7 @@ class GithubPollingBudget
   MERGE_STATE_LIMIT = 60
   EXTERNAL_PR_LIMIT = 30
   FORK_REVIEW_LIMIT = 20
+  NON_URGENT_RESERVE = 1
 
   # Merge-state polling only needs full-cadence, every-tick attention for
   # Jobs actively moving toward or through landing -- everything else
@@ -75,13 +76,16 @@ class GithubPollingBudget
     end
 
     def take_pollable_jobs(scope, kind:, limit:, now: Time.current)
-      selected = []
-      ordered_jobs(scope).each do |job|
-        next unless poll_job_now?(job, kind: kind, now: now)
+      eligible = ordered_jobs(scope).select { |job| poll_job_now?(job, kind: kind, now: now) }
+      urgent, non_urgent = eligible.partition { |job| urgent?(job, kind: kind) }
 
-        selected << job
-        break if selected.size >= limit
+      selected = if kind.to_sym == :pr_feedback && non_urgent.any?
+        select_pr_feedback_jobs(urgent, non_urgent, limit)
+      else
+        eligible.first(limit)
       end
+
+      Job.where(id: selected.map(&:id)).update_all(pr_feedback_poll_selected_at: now) if kind.to_sym == :pr_feedback
       selected
     end
 
@@ -94,6 +98,18 @@ class GithubPollingBudget
     end
 
     private
+
+    def select_pr_feedback_jobs(urgent, non_urgent, limit)
+      urgent_limit = [ limit - NON_URGENT_RESERVE, 0 ].max
+      selected_urgent = urgent.first(urgent_limit)
+      fair_non_urgent = non_urgent.sort_by do |job|
+        [ job.pr_feedback_poll_selected_at || Time.at(0), job.id ]
+      end
+      selected_non_urgent = fair_non_urgent.first(limit - selected_urgent.size)
+      remaining = limit - selected_urgent.size - selected_non_urgent.size
+
+      selected_urgent + selected_non_urgent + urgent.drop(selected_urgent.size).first(remaining)
+    end
 
     def urgent?(job, kind:)
       polling_kind_for(kind).urgent_states.include?(job.state)

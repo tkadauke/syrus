@@ -543,6 +543,13 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).to eq("provider_auth_or_config")
   end
 
+  it "still classifies an invalid provider credential as provider auth/config" do
+    run.update!(state: "failed")
+    diagnostic("StandardError", "invalid provider credential")
+
+    expect(classification.classification).to eq("provider_auth_or_config")
+  end
+
   it "classifies a rejected repair-commit push as branch_diverged when the step declared that problem, despite the logged x-access-token URL" do
     run.update!(state: "failed")
     diagnostic(
@@ -1239,6 +1246,53 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
     expect(classification.classification).to eq("mcp_sidecar_failure")
     expect(classification.retryable).to eq(true)
+  end
+
+  it "classifies an agent that produced no changes as non-retryable" do
+    run.update!(state: "failed", agent_outcome: "no_changes_produced")
+
+    expect(classification).to have_attributes(
+      classification: "no_changes_produced",
+      retryable: false
+    )
+  end
+
+  it "classifies the no-changes exception when the outcome was not recorded" do
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::NoChangesProduced", "agent produced no changes")
+
+    expect(classification.classification).to eq("no_changes_produced")
+  end
+
+  it "prefers no changes over routine MCP initialization output" do
+    run.update!(state: "failed", agent_outcome: "no_changes_produced")
+    diagnostic("Steps::Base::NoChangesProduced", "agent produced no changes")
+    JobLog.append!(
+      run: run,
+      kind: "system",
+      chunk: "MCP client received initialize response; server is ready"
+    )
+
+    expect(classification.classification).to eq("no_changes_produced")
+  end
+
+  it "does not treat routine MCP initialization output as a sidecar failure" do
+    run.update!(state: "failed")
+    diagnostic("NoMethodError", "undefined method `call' for nil")
+    JobLog.append!(
+      run: run,
+      kind: "system",
+      chunk: "MCP client received initialize response; server is ready"
+    )
+
+    expect(classification.classification).to eq("application_error")
+  end
+
+  it "classifies an explicit initialize-response failure as an MCP sidecar failure" do
+    run.update!(state: "failed")
+    diagnostic("AgentInvocation::Error", "failed to decode initialize response")
+
+    expect(classification.classification).to eq("mcp_sidecar_failure")
   end
 
   it "classifies validation and user-input failures" do
