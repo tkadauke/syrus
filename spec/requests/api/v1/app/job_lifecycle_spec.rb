@@ -461,6 +461,42 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(job, tab: "workflows"))
   end
 
+  it "runs the displayed implementation retry as a fresh retry workflow" do
+    user.update!(claude_oauth_token: "claude-token", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    job.update!(agent_provider: "claude", state: "failed")
+    job.initial_run.update!(agent_provider: "claude", state: "failed", finished_at: 3.minutes.ago)
+    job.latest_workflow.update!(state: "failed", started_at: 4.minutes.ago, finished_at: 3.minutes.ago)
+    finish_work_units_for(job)
+    maintenance = Workflow.create!(
+      job: job,
+      trigger_kind: "rebase",
+      agent_provider: "claude",
+      state: "failed",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago
+    )
+    maintenance.steps.create!(kind: "force_push", position: 1, state: "failed", finished_at: 1.minute.ago)
+
+    retry_count = job.workflows.where(trigger_kind: "retry").count
+    expect(RunCheckpointResume).not_to receive(:call)
+    post app_job_path(job, "retry_implementation"), params: {
+      agent_provider: "codex",
+      retry_context: "Start again from the healed base."
+    }, as: :json
+
+    expect(response).to have_http_status(:ok), response.body
+    expect(job.reload.workflows.where(trigger_kind: "retry").count).to eq(retry_count + 1)
+    expect(enqueued_jobs.map { |entry| entry[:job] }).to include(RunJob)
+    workflow = job.workflows.where(trigger_kind: "retry").last
+    expect(workflow.agent_provider).to eq("codex")
+    expect(workflow.artifacts).to include(
+      RebaseTarget::BASE_BRANCH_ARTIFACT => job.effective_base_branch,
+      "skip_existing_branch_checkout" => true,
+      "implementation_retry" => true,
+      "replay_context" => "Start again from the healed base."
+    )
+  end
+
   it "records retry-from-current-PR as the selected recovery on a diverged source workflow" do
     job.initial_run.tap { |run| run.start!; run.fail!; run.save! }
     source = job.latest_workflow

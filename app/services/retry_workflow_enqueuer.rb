@@ -65,13 +65,14 @@ class RetryWorkflowEnqueuer
   def self.call(...) = new(...).call
 
   def initialize(job:, agent_provider: nil, artifacts: nil, provider_validation: :configured, automatic: false,
-                 resume_checkpoint: true)
+                 resume_checkpoint: true, retry_kind: nil)
     @job = job
     @agent_provider = agent_provider.to_s.presence
     @artifacts = retry_artifacts(artifacts)
     @provider_validation = ProviderValidation.for(provider_validation).new(job)
     @automatic = automatic
     @resume_checkpoint = resume_checkpoint
+    @retry_kind = retry_kind.to_s.presence
   end
 
   def call
@@ -213,6 +214,8 @@ class RetryWorkflowEnqueuer
   # The kind of the most recent failed workflow, when re-running it is the right
   # remedy; otherwise the initial-chain retry.
   def retry_kind
+    return @retry_kind if @retry_kind
+
     kind = job.workflows.where(state: "failed").order(:created_at, :id).last&.trigger_kind
     SELF_RETRYING_TRIGGER_KINDS.include?(kind) ? kind : "retry"
   end

@@ -61,7 +61,7 @@ RSpec.describe App::JobRetryActions do
       expect(actions[:implementation]).to include(
         key: "retry_implementation",
         label: "Retry implementation",
-        path: "/api/v1/app/jobs/#{job.id}/run_again"
+        path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       )
       expect(actions[:failed_step]).to be_nil
     end
@@ -192,21 +192,51 @@ RSpec.describe App::JobRetryActions do
     end
   end
 
-  %w[base_refresh_retry rebase stack_rebase].each do |trigger_kind|
+  {
+    "base_refresh_retry" => "base_refresh_rebase",
+    "rebase" => "force_push",
+    "stack_rebase" => "stack_force_push"
+  }.each do |trigger_kind, failed_step_kind|
     it "offers Retry implementation after a failed #{trigger_kind} workflow when its preflight is eligible" do
       job = Factories.job_record(user: user, repository: repo, state: "failed")
-      build_failed_workflow(job, trigger_kind: trigger_kind, failed_step_kind: "implement")
+      build_failed_workflow(job, trigger_kind: trigger_kind, failed_step_kind: failed_step_kind)
 
       preflight = RetryJobs::Modes::Implementation.new(job: job).preflight
       actions = actions_for(job)
 
       expect(preflight).to be_eligible
-      expect(actions[:implementation]).to include(key: "retry_implementation")
-      expect(actions[:implementation_unavailable_reason]).to be_nil
+      expect(actions[:implementation]).to include(
+        key: "retry_implementation",
+        path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
+      )
+    end
+
+    it "offers Retry implementation after a cancelled #{trigger_kind} workflow" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        agent_provider: job.agent_provider,
+        state: "succeeded",
+        started_at: 4.minutes.ago,
+        finished_at: 3.minutes.ago
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: trigger_kind,
+        agent_provider: job.agent_provider,
+        state: "cancelled",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+
+      preflight = RetryJobs::Modes::Implementation.new(job: job).preflight
+      expect(preflight).to be_eligible, preflight.message
+      expect(actions_for(job)[:implementation]).to include(key: "retry_implementation")
     end
   end
 
-  it "surfaces the implementation preflight refusal verbatim" do
+  it "omits implementation retry when its preflight refuses" do
     job = Factories.job_record(user: user, repository: repo, state: "failed")
     build_failed_workflow(job, failed_step_kind: "pr_open")
 
@@ -215,17 +245,14 @@ RSpec.describe App::JobRetryActions do
 
     expect(preflight).not_to be_eligible
     expect(actions[:implementation]).to be_nil
-    expect(actions[:implementation_unavailable_reason]).to eq(preflight.message)
+    expect(actions).not_to have_key(:implementation_unavailable_reason)
   end
 
   it "does not offer implementation retry for a landing workflow" do
     job = Factories.job_record(user: user, repository: repo, state: "failed")
     build_failed_workflow(job, trigger_kind: "auto_merge", failed_step_kind: "implement")
 
-    expect(actions_for(job)).to include(
-      implementation: nil,
-      implementation_unavailable_reason: "Landing workflows must be retried with their landing action."
-    )
+    expect(actions_for(job)[:implementation]).to be_nil
   end
 
   it "agrees with implementation preflight for every workflow trigger kind" do

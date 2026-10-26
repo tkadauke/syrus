@@ -1024,7 +1024,6 @@ export type JobActions = {
   can_retry_from_failed_step: boolean
   retry_failed_step_action?: JobRetryAction | null
   retry_implementation_action?: JobRetryAction | null
-  retry_implementation_unavailable_reason?: string | null
   can_restart: boolean
   can_cancel: boolean
   can_stop_landing: boolean
