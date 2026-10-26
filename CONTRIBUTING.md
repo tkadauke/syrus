@@ -84,7 +84,11 @@ fixtures. It provisions its own Chromium build and demo database state, so it
 can be run locally with no extra setup. It is not part of `bin/test` or the
 default `.syrus.yml` grade loop; CI runs it in a separate, longer-running
 workflow (`.github/workflows/e2e-ci.yml`) scoped to paths likely to affect
-app behavior.
+app behavior. Locally hosted runs also replace `SYRUS_DATA_ROOT` with a
+disposable directory for the duration of the command, isolating clone caches
+and all other filesystem-backed application state from a developer or worker's
+normal data root. Runs against an explicit remote `E2E_BASE_URL` leave the
+caller's environment unchanged.
 
 ```sh
 bin/test-e2e                     # core + every plugin's E2E specs

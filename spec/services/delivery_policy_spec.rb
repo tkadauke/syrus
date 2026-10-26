@@ -15,9 +15,9 @@ RSpec.describe DeliveryPolicy, :ci_only do
     FileUtils.rm_rf(@data_root)
   end
 
-  def write_bare_clone(repository, syrus_yml: nil)
+  def write_bare_clone(repository, syrus_yml: nil, branch: repository.default_branch, origin: repository.remote_url)
     work_dir = Dir.mktmpdir("syrus-work")
-    system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+    system("git", "init", "-q", "-b", branch, work_dir, exception: true)
     system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
     system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
     File.write(File.join(work_dir, "README.md"), "hi") unless syrus_yml
@@ -28,6 +28,7 @@ RSpec.describe DeliveryPolicy, :ci_only do
     clone_path = RepositoryBareClone.path_for(repository)
     FileUtils.mkdir_p(clone_path.dirname)
     system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+    system("git", "--git-dir", clone_path.to_s, "remote", "set-url", "origin", origin, exception: true)
   ensure
     FileUtils.rm_rf(work_dir) if work_dir
   end
@@ -305,6 +306,56 @@ RSpec.describe DeliveryPolicy, :ci_only do
     it "falls back to the backward-compatible default instead of raising" do
       expect(policy.job_landing_branch).to eq("main")
       expect(policy.promotion_enabled?).to be(false)
+    end
+  end
+
+  describe "bare-clone identity and default-branch validation" do
+    it "ignores a same-id cache owned by an unrelated repository" do
+      repo.update!(default_branch: "master")
+      write_bare_clone(
+        repo,
+        branch: "develop",
+        origin: "https://github.com/demo/e2e-fixture.git",
+        syrus_yml: <<~YAML
+          delivery:
+            tracks:
+              default:
+                branch: develop
+            promotion:
+              mode: manual_pr
+        YAML
+      )
+
+      policy = described_class.for(repository: repo)
+
+      expect(policy.job_landing_branch).to eq("master")
+      expect(policy.promotion_mode).to eq("auto_pr")
+    end
+
+    it "does not fall back to a cache's symbolic HEAD when the recorded default branch ref is missing" do
+      repo.update!(default_branch: "master")
+      write_bare_clone(repo, branch: "develop", syrus_yml: <<~YAML)
+        delivery:
+          tracks:
+            default:
+              branch: develop
+      YAML
+
+      expect(described_class.for(repository: repo).job_landing_branch).to eq("master")
+    end
+
+    it "uses a matching cache's recorded default branch even when symbolic HEAD points elsewhere" do
+      repo.update!(default_branch: "master")
+      write_bare_clone(repo, branch: "master", syrus_yml: <<~YAML)
+        delivery:
+          tracks:
+            default:
+              branch: release
+      YAML
+      clone_path = RepositoryBareClone.path_for(repo)
+      system("git", "--git-dir", clone_path.to_s, "symbolic-ref", "HEAD", "refs/heads/dangling", exception: true)
+
+      expect(described_class.for(repository: repo).job_landing_branch).to eq("release")
     end
   end
 
