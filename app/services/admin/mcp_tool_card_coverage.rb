@@ -19,8 +19,6 @@ module Admin
     TOOL_CARD_SPREAD_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s*\{[\s\S]*?\.\.\.\1\b/
     EXPLICIT_CARD_STATUSES = {
       "withdraw_pending_action" => "generic",
-      "retire_terminal_work_unit" => "generic",
-      "manual_agentic_run" => "generic",
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",
