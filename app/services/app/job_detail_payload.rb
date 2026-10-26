@@ -1112,6 +1112,7 @@ module App
         can_retry_from_failed_step: writable && retry_actions[:failed_step].present?,
         retry_failed_step_action: writable ? retry_actions[:failed_step] : nil,
         retry_implementation_action: writable ? retry_actions[:implementation] : nil,
+        retry_implementation_unavailable_reason: retry_actions[:implementation_unavailable_reason],
         can_restart: writable && !active_runtime_work && !@job.backlog? && !@job.cron? && !@job.no_change_needed? &&
           (
             (@job.closed? && @job.infrastructure?) ||

@@ -940,6 +940,9 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(actions[:can_retry]).to be(false)
       expect(actions[:retry_implementation_action]).to be_nil
+      expect(actions[:retry_implementation_unavailable_reason]).to eq(
+        RetryJobs::Modes::Implementation.new(job: job).preflight.message
+      )
       expect(actions[:retry_failed_step_action]).to include(
         label: "Retry failed step",
         workflow_id: workflow.id,

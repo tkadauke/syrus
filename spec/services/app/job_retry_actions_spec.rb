@@ -9,6 +9,16 @@ RSpec.describe App::JobRetryActions do
   end
 
   def build_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "coverage_analyze")
+    if trigger_kind != "initial" && !job.workflows.exists?(trigger_kind: "initial")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        agent_provider: job.agent_provider,
+        state: "succeeded",
+        started_at: 4.minutes.ago,
+        finished_at: 3.minutes.ago
+      )
+    end
     workflow = Workflow.create!(
       job: job,
       trigger_kind: trigger_kind,
@@ -179,6 +189,54 @@ RSpec.describe App::JobRetryActions do
 
       expect(actions[:implementation]).to include(key: "retry_implementation")
       expect(actions[:failed_step]).to be_nil
+    end
+  end
+
+  %w[base_refresh_retry rebase stack_rebase].each do |trigger_kind|
+    it "offers Retry implementation after a failed #{trigger_kind} workflow when its preflight is eligible" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      build_failed_workflow(job, trigger_kind: trigger_kind, failed_step_kind: "implement")
+
+      preflight = RetryJobs::Modes::Implementation.new(job: job).preflight
+      actions = actions_for(job)
+
+      expect(preflight).to be_eligible
+      expect(actions[:implementation]).to include(key: "retry_implementation")
+      expect(actions[:implementation_unavailable_reason]).to be_nil
+    end
+  end
+
+  it "surfaces the implementation preflight refusal verbatim" do
+    job = Factories.job_record(user: user, repository: repo, state: "failed")
+    build_failed_workflow(job, failed_step_kind: "pr_open")
+
+    preflight = RetryJobs::Modes::Implementation.new(job: job).preflight
+    actions = actions_for(job)
+
+    expect(preflight).not_to be_eligible
+    expect(actions[:implementation]).to be_nil
+    expect(actions[:implementation_unavailable_reason]).to eq(preflight.message)
+  end
+
+  it "does not offer implementation retry for a landing workflow" do
+    job = Factories.job_record(user: user, repository: repo, state: "failed")
+    build_failed_workflow(job, trigger_kind: "auto_merge", failed_step_kind: "implement")
+
+    expect(actions_for(job)).to include(
+      implementation: nil,
+      implementation_unavailable_reason: "Landing workflows must be retried with their landing action."
+    )
+  end
+
+  it "agrees with implementation preflight for every workflow trigger kind" do
+    Workflow::TriggerKind.values.each do |trigger_kind|
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      build_failed_workflow(job, trigger_kind: trigger_kind, failed_step_kind: "implement")
+
+      preflight = RetryJobs::Modes::Implementation.new(job: job).preflight
+      action = actions_for(job)[:implementation]
+
+      expect(action.present?).to eq(preflight.eligible?), "expected agreement for #{trigger_kind}"
     end
   end
 end
