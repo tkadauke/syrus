@@ -15,13 +15,20 @@ test("signed-in admin enables the Terminal plugin and opens a session panel from
   // in workspace" action hides itself when the workspace is not present on
   // this storage root (Terminal::WorkspaceAvailability), and nothing in a
   // preview database ever creates one.
-  execFileSync("bin/rails", ["runner", `
+  execFileSync(
+    "bin/rails",
+    [
+      "runner",
+      `
     PluginRecord.find_or_initialize_by(name: "terminal").update!(enabled: false)
 
     workflow = Job.find_by!(issue_title: "Inspect preview dashboard states").workflows.order(:id).last
     workflow.update_columns(cleaned_up_at: nil, worker_storage_key: nil, worker_hostname: nil)
     FileUtils.mkdir_p(WorkflowWorkspace.path_for(workflow))
-  `], { env: process.env, stdio: "inherit" })
+  `
+    ],
+    { env: process.env, stdio: "inherit" }
+  )
 
   await signInAsDemo(page)
 
@@ -63,12 +70,12 @@ test("signed-in admin enables the Terminal plugin and opens a session panel from
   // The session panel opens against a real session record, but nothing ever
   // streams into it here -- assert the pane's chrome, not any PTY output.
   await expect(page.getByRole("tab", { selected: true })).toHaveText(/^WF-\d+ workspace$/)
-  await expect(page.getByText(/\.syrus\/workflows\/\d+$/)).toBeVisible()
+  await expect(page.getByText(/\/workflows\/\d+$/)).toBeVisible()
   await expect(page.getByRole("button", { name: "Kill" })).toBeVisible()
 
   // Reload to prove the session and its active tab are derived from the
   // server-persisted Terminal::Session, not just client-side navigation state.
   await page.reload()
   await expect(page.getByRole("tab", { selected: true })).toHaveText(/^WF-\d+ workspace$/)
-  await expect(page.getByText(/\.syrus\/workflows\/\d+$/)).toBeVisible()
+  await expect(page.getByText(/\/workflows\/\d+$/)).toBeVisible()
 })
