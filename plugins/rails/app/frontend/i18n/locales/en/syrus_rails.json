@@ -7,5 +7,14 @@
   "migration_changes": "Changes",
   "change_added": "added",
   "change_removed": "removed",
-  "change_modified": "modified"
+  "change_modified": "modified",
+  "migration_error": "Artifact generation error",
+  "migration_no_schema_changes": "No schema changes",
+  "migration_cumulative": "Cumulative schema diff",
+  "migration_absent": "Absent",
+  "migration_index": "index",
+  "migration_check": "check constraint",
+  "migration_removed_structure": "Removed structure",
+  "migration_added_structure": "Added structure",
+  "migration_no_structure_statements": "No structural statements"
 }

@@ -84,7 +84,7 @@ describe("Agent Insights tool cards", () => {
     expect(mobileList).not.toBeNull()
     const mobileRow = within(mobileList!.firstElementChild as HTMLElement)
     expect(mobileRow.getByText("repeated failure")).toBeInTheDocument()
-    expect(mobileRow.getByText("create job")).toBeInTheDocument()
+    expect(mobileRow.getByText("Job")).toBeInTheDocument()
     expect(mobileRow.getByText("92% confidence")).toBeInTheDocument()
     expect(mobileRow.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
     expect(mobileRow.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
@@ -107,6 +107,12 @@ describe("Agent Insights tool cards", () => {
           ...baseInsight,
           evidence,
           suggested_prompt: longPrompt,
+          summary: "Read **JOB-200** at https://example.test/details.",
+          memory_suggestion: "Keep **this durable guidance**.",
+          target_memory_id: 18,
+          stale_memory_text: "The previous memory is *stale*.",
+          stale_memory_evidence: "Confirmed by RUN-70.",
+          target_insight_id: 40,
           retired_reason: "Fixed by follow-up work.",
           retired_at: "2026-09-10T09:00:00Z",
           superseded_by_job_id: 77
@@ -118,6 +124,13 @@ describe("Agent Insights tool cards", () => {
     render(<>{readInsightToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("Recommended action")).toBeInTheDocument()
+    expect(screen.getByText("Summary")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-200" })).toHaveAttribute("href", "/jobs/200")
+    expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
+    expect(screen.getByText("Memory suggestion")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Copy MEMORY-18 to clipboard" })).toHaveLength(2)
+    expect(screen.getByText("Target insight")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "INSIGHT-40" })).toHaveAttribute("href", "/s/INSIGHT-40")
     expect(screen.getByText("Show more")).toBeInTheDocument()
     expect(screen.getByText("Show remaining evidence (2)")).toBeInTheDocument()
     expect(screen.getByText("Retirement outcome")).toBeInTheDocument()
@@ -273,10 +286,10 @@ describe("Agent Insights tool cards", () => {
 
     expect(screen.getByText("Suggestion #51 saved.")).toBeInTheDocument()
     expect(screen.getByText("Repeated grader timeout")).toBeInTheDocument()
-    expect(screen.getByText("high")).toBeInTheDocument()
+    expect(screen.getByText("High")).toBeInTheDocument()
     expect(screen.getByText("repeated failure")).toBeInTheDocument()
     expect(screen.getByText("91% confidence")).toBeInTheDocument()
-    expect(screen.getByText("create job")).toBeInTheDocument()
+    expect(screen.getByText("Job")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "INSIGHT-51" })).toHaveAttribute("href", "/s/INSIGHT-51")
     expect(screen.getAllByRole("link", { name: "JOB-200" })[0]).toHaveAttribute("href", "/jobs/200")
     expect(screen.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
@@ -415,6 +428,60 @@ describe("Agent Insights tool cards", () => {
     expect(listInsightsToolCard.collapsedSummary?.(context({ parsedResult: wrapped }))).toBe("1 insight")
     render(<>{listInsightsToolCard.renderExpanded(context({ resultBody: "Repository is not accessible.", resultError: true }))}</>)
     expect(screen.getByText("Repository is not accessible.")).toBeInTheDocument()
+  })
+
+  it("normalizes read_insight provider envelopes and uses structured reference ids without slugs", () => {
+    const wrapped = {
+      structured_content: {
+        data: {
+          insight: {
+            ...baseInsight,
+            job: { id: 200, title: "Insight analysis", path: "/jobs/200" },
+            source_workflow: { id: 12, path: "/jobs/200?tab=workflows#workflow-12" },
+            source_run: { id: 99, path: "/admin/runs/99/transcript" }
+          }
+        }
+      }
+    }
+    render(<>{readInsightToolCard.renderExpanded(context({ toolName: "read_insight", parsedResult: wrapped }))}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-200" })).toHaveAttribute("href", "/jobs/200")
+    expect(screen.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
+    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+  })
+
+  it("renders read_insight not-found errors and empty successful results", () => {
+    const failed = context({ toolName: "read_insight", resultBody: "Error: insight not found or not accessible: 999", resultError: true })
+    expect(readInsightToolCard.collapsedSummary?.(failed)).toBe("Insight lookup failed")
+    const { rerender } = render(<>{readInsightToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("Error: insight not found or not accessible: 999")).toBeInTheDocument()
+
+    rerender(<>{readInsightToolCard.renderExpanded(context({ toolName: "read_insight", resultBody: "", parsedResult: null }))}</>)
+    expect(screen.getByText("No insight was returned.")).toBeInTheDocument()
+  })
+
+  it("renders isolated memory and supersession references without related prose", () => {
+    render(
+      <>
+        {readInsightToolCard.renderExpanded(
+          context({
+            toolName: "read_insight",
+            parsedResult: {
+              insight: {
+                ...baseInsight,
+                target_memory_id: 18,
+                superseded_by_insight_id: 44,
+                superseded_by_job_id: 82
+              }
+            }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByRole("button", { name: "Copy MEMORY-18 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "INSIGHT-44" })).toHaveAttribute("href", "/s/INSIGHT-44")
+    expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
   })
 
   it("localizes mutation summaries, labels, and fallback messages", async () => {

@@ -22,6 +22,14 @@ export type TypedArtifact = {
 export type ErdColumn = {
   name: string
   type: string
+  sql_type?: string
+  limit?: number
+  precision?: number
+  scale?: number
+  nullable?: boolean
+  default?: unknown
+  default_function?: string
+  collation?: string
   options?: Record<string, unknown>
 }
 
@@ -42,6 +50,7 @@ export type ErdTable = {
   columns: ErdColumn[]
   indexes?: ErdIndex[]
   foreign_keys?: ErdForeignKey[]
+  check_constraints?: Array<{ name?: string; expression: string }>
 }
 
 export type SchemaErdPayload = {
@@ -60,9 +69,13 @@ export type MigrationDiffChange = {
 
 export type MigrationDiffPayload = {
   migration_name: string
-  before: { table_name: string; columns: MigrationDiffColumn[] }
-  after: { table_name: string; columns: MigrationDiffColumn[] }
-  changes: MigrationDiffChange[]
+  status?: "success" | "no_schema_changes" | "cumulative_fallback" | "error"
+  stage?: string
+  message?: string
+  cumulative?: boolean
+  before?: { table_name?: string; columns?: MigrationDiffColumn[]; tables?: ErdTable[]; structure?: string[] }
+  after?: { table_name?: string; columns?: MigrationDiffColumn[]; tables?: ErdTable[]; structure?: string[] }
+  changes?: MigrationDiffChange[]
 }
 
 export type ImageDiffPayload = {

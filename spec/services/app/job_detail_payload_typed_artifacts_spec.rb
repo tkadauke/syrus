@@ -71,6 +71,35 @@ RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails"
     expect(diff_entry[:renderer_type]).to eq("migration_diff")
   end
 
+  it "preserves cumulative migration fallback outcome details for the reviewer" do
+    Syrus::PluginRegistry.register(
+      name: "syrus-rails",
+      version: "0.1.0",
+      provides: { artifact_renderer: [ SyrusRails::MigrationDiffRenderer ] }
+    )
+
+    run = Factories.job.initial_run
+    job = run.job
+    migration_payload = {
+      "migration_name" => "CreateAuditEntries",
+      "status" => "cumulative_fallback",
+      "cumulative" => true,
+      "message" => "Individual attribution is unavailable",
+      "before" => { "structure" => [] },
+      "after" => { "structure" => [ "CREATE TABLE audit_entries (id bigint NOT NULL)" ] }
+    }
+
+    SyrusMcp::SubmitArtifactTool.call(
+      type: "rails_migration_diff",
+      title: "Cumulative migration diff",
+      payload: migration_payload,
+      server_context: { run: run }
+    )
+
+    diff_entry = payload_for(job, job.user)[:typed_artifacts].find { |entry| entry[:type] == "rails_migration_diff" }
+    expect(diff_entry).to include(renderer_type: "migration_diff", payload: migration_payload)
+  end
+
   it "passes through artifacts with no registered renderer without renderer_type" do
     run = Factories.job.initial_run
     job = run.job

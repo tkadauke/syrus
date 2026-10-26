@@ -158,20 +158,30 @@ Rendered as an entity-relationship diagram (`:erd_diagram` renderer). Payload pr
 
 ### `rails_migration_diff`
 
-Rendered as a two-column before/after diff (`:migration_diff` renderer). Payload produced by the `explain_migration` MCP tool:
+Rendered as a before/after database-catalog diff (`:migration_diff` renderer). `explain_migration`
+loads the workflow base schema into a uniquely named disposable database, applies all newly added
+migrations in timestamp order, and snapshots the catalog through Active Record around each one.
+Server-backed adapters require a local-only `SYRUS_RAILS_ARTIFACT_DATABASE_URL`; when disposable
+database creation is unavailable, the tool clearly labels a cumulative base/head schema-dump diff.
+All named development database configurations are redirected to separately named sandboxes before the app boots.
+Both `schema.rb` and adapter-native `structure.sql` baselines are supported.
+Data-only migrations use `no_schema_changes`, and setup, execution, introspection, or cleanup
+failures use `error` rather than an empty successful-looking diff.
+
+Current payloads contain normalized `tables` catalogs (columns and type parameters, indexes,
+foreign keys, and supported check constraints):
 
 ```json
 {
   "migration_name": "AddEmailToUsers",
-  "before": { "table_name": "users", "columns": [...] },
-  "after":  { "table_name": "users", "columns": [...] },
-  "changes": [
-    { "type": "added",    "column": { "name": "email",  "type": "string" } },
-    { "type": "removed",  "column": { "name": "legacy_key", "type": "string" } },
-    { "type": "modified", "column": { "name": "status", "type": "integer" } }
-  ]
+  "status": "success",
+  "before": { "tables": [...] },
+  "after":  { "tables": [...] }
 }
 ```
+
+The renderer continues to accept the legacy single-table `before`/`after` plus `changes` shape for
+artifacts stored by older workflows.
 
 ## browser plugin artifact types
 

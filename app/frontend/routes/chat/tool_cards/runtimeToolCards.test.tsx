@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
@@ -630,18 +630,81 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("[redacted]")).toBeInTheDocument()
   })
 
-  it("clearly confirms acquired Runtime control", () => {
+  it("renders acquired Runtime control with request, linked owner, relative times, and Markdown reason", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:00:10Z"))
     const parsedResult = lease()
+    const toolContext = context("runtime_acquire_control", {
+      input: { session_id: 7, mode: "input", duration_seconds: 30 },
+      parsedResult
+    })
 
-    expect(runtimeAcquireControlToolCard.collapsedSummary?.(context("runtime_acquire_control", { parsedResult }))).toBe("Runtime control acquired: input #42")
+    expect(runtimeAcquireControlToolCard.collapsedSummary?.(toolContext)).toBe("Runtime control acquired: input #42")
 
-    render(<>{runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { parsedResult }))}</>)
+    try {
+      render(<>{runtimeAcquireControlToolCard.renderExpanded(toolContext)}</>)
+      expect(screen.getByText("Agent owns Runtime control.")).toBeInTheDocument()
+      expect(screen.getByText("Control #42")).toBeInTheDocument()
+      expect(screen.getByText("7")).toBeInTheDocument()
+      expect(screen.getAllByText("input").length).toBeGreaterThan(0)
+      expect(screen.getByText("30 seconds")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+      expect(screen.getByText("click the preview")).toBeInTheDocument()
+      expect(screen.getByText("10 seconds ago")).toHaveAttribute("datetime", "2026-09-10T12:00:00Z")
+      expect(screen.getByText("in 20 seconds")).toHaveAttribute("datetime", "2026-09-10T12:00:30Z")
+      expect(screen.queryByText("2026-09-10T12:00:00Z")).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ["structured content", { structured_content: lease(), content: [] }],
+    ["text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify(lease()) }] }]
+  ])("renders acquire control through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime acquire control",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_acquire_control",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_acquire_control",
+          detail: "Runtime #7",
+          display_label: "Runtime acquire control",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7, mode: "input", duration_seconds: 30 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime acquire control")
     expect(screen.getByText("Agent owns Runtime control.")).toBeInTheDocument()
-    expect(screen.getByText("Control #42")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
+  })
+
+  it("keeps acquire control payload secrets redacted", () => {
+    const parsedResult = redactToolCardValue(lease({ api_token: "result-secret" }))
+    const input = redactToolCardValue({ session_id: 7, mode: "input", duration_seconds: 30, api_token: "input-secret" }) as Record<string, unknown>
+
+    render(<>{runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { input, parsedResult }))}</>)
+    expect(screen.queryByText("result-secret")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText(/"api_token": "\[redacted\]"/)).toBeInTheDocument()
   })
 
   it("distinguishes denied Runtime control from confirmed ownership", () => {
     const toolContext = context("runtime_acquire_control", {
+      input: { session_id: 7, mode: "input", duration_seconds: 30 },
       resultBody: "runtime session 7 already has an active input lease",
       resultError: true,
       parsedResult: null
@@ -651,10 +714,15 @@ describe("Runtime tool cards", () => {
 
     render(<>{runtimeAcquireControlToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
     expect(screen.queryByText("Agent owns Runtime control.")).not.toBeInTheDocument()
   })
 
-  it("uses the Runtime error card for failed acquire results in the real ToolGroup path", () => {
+  it("extracts failed acquire messages from a real MCP error envelope", () => {
+    const envelope = {
+      content: [{ type: "text", text: "Error: runtime session 7 already has an active input lease" }],
+      isError: true
+    }
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Runtime acquire control",
@@ -662,12 +730,13 @@ describe("Runtime tool cards", () => {
         {
           message_id: 1,
           tool_name: "runtime_acquire_control",
-          raw_name: "runtime_acquire_control",
-          detail: "No arguments",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_acquire_control",
+          detail: "Runtime #7",
           display_label: "Runtime acquire control",
           progress_label: "Thinking",
-          raw_payload: {},
-          result_body: "runtime session 7 already has an active input lease",
+          raw_payload: { session_id: 7, mode: "input", duration_seconds: 30 },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
           result_error: true,
           result_kind: "error",
           result_summary: ""
@@ -679,11 +748,13 @@ describe("Runtime tool cards", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("Runtime acquire control failed")).toBeInTheDocument()
+    expect(screen.getByText(/Runtime acquire control failed/)).toBeInTheDocument()
 
     expandToolGroup("Runtime acquire control")
 
-    expect(screen.getByText("runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("Error: runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
+    expect(screen.queryByText(JSON.stringify(envelope))).not.toBeInTheDocument()
     expect(screen.queryByText("Agent owns Runtime control.")).not.toBeInTheDocument()
   })
 
@@ -699,14 +770,84 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("expired")).toBeInTheDocument()
   })
 
-  it("renders released control leases", () => {
+  it("renders released control leases with their session, linked owner, relative times, mode, reason, and state", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:00:40Z"))
     const parsedResult = { released: [lease({ id: 44, state: "released" })] }
+    const toolContext = context("runtime_release_control", { input: { session_id: 7 }, parsedResult })
 
-    expect(runtimeReleaseControlToolCard.collapsedSummary?.(context("runtime_release_control", { parsedResult }))).toBe("Released 1 Runtime control lease")
+    expect(runtimeReleaseControlToolCard.collapsedSummary?.(toolContext)).toBe("Released 1 Runtime control lease")
 
-    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { parsedResult }))}</>)
-    expect(screen.getByText("Released lease #44")).toBeInTheDocument()
-    expect(screen.getByText("released")).toBeInTheDocument()
+    try {
+      render(<>{runtimeReleaseControlToolCard.renderExpanded(toolContext)}</>)
+      expect(screen.getByText("Released lease #44")).toBeInTheDocument()
+      expect(screen.getByText("7")).toBeInTheDocument()
+      expect(screen.getByText("released")).toBeInTheDocument()
+      expect(screen.getByText("input")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+      expect(screen.getByText("click the preview")).toBeInTheDocument()
+      expect(screen.getByText("40 seconds ago")).toHaveAttribute("datetime", "2026-09-10T12:00:00Z")
+      expect(screen.getByText("10 seconds ago")).toHaveAttribute("datetime", "2026-09-10T12:00:30Z")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ["structured content", { structured_content: { released: [lease({ state: "released" })] }, content: [] }],
+    ["text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify({ released: [lease({ state: "released" })] }) }] }]
+  ])("renders release control through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime release control",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_release_control",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_release_control",
+          detail: "Runtime #7",
+          display_label: "Runtime release control",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime release control")
+    expect(screen.getByText("Released lease #42")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+    expect(screen.getByText("7")).toBeInTheDocument()
+  })
+
+  it("shows release failures with the requested session", () => {
+    const toolContext = context("runtime_release_control", {
+      input: { session_id: 7 },
+      resultBody: "runtime session is unavailable",
+      resultError: true
+    })
+
+    expect(runtimeReleaseControlToolCard.collapsedSummary?.(toolContext)).toBe("Runtime release control failed")
+    render(<>{runtimeReleaseControlToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("runtime session is unavailable")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
+  })
+
+  it("keeps release control payload secrets redacted", () => {
+    const parsedResult = redactToolCardValue({ released: [lease({ state: "released", api_token: "result-secret" })] })
+    const input = redactToolCardValue({ session_id: 7, api_token: "input-secret" }) as Record<string, unknown>
+
+    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { input, parsedResult }))}</>)
+    expect(screen.queryByText("result-secret")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText(/"api_token": "\[redacted\]"/)).toBeInTheDocument()
   })
 
   it("summarizes delivered text input without exposing a large raw payload by default", () => {
@@ -868,8 +1009,9 @@ describe("Runtime tool cards", () => {
 
     expect(runtimeReleaseControlToolCard.collapsedSummary?.(context("runtime_release_control", { parsedResult }))).toBe("No Runtime control leases released")
 
-    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { parsedResult }))}</>)
+    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { input: { session_id: 527 }, parsedResult }))}</>)
     expect(screen.getByText("No active agent Runtime control leases were held.")).toBeInTheDocument()
+    expect(screen.getByText("527")).toBeInTheDocument()
   })
 
   it("falls back to raw rendering for malformed Runtime payloads", () => {

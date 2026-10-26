@@ -750,7 +750,26 @@
     "example_empty_description": "Prüft den allgemeinen Ersatz für ein leeres Ergebnis einer abgeschlossenen Provider-Antwort."
   },
   "emergency_land": {
-    "example_pending": "Ausstehende Bestätigung der Notfall-Landung"
+    "job": "Job",
+    "branch": "Branch",
+    "warning_title": "Destruktive Notfallaktion",
+    "warning_message": "Die Bestätigung führt die Änderung zusammen und überspringt Prüfer, adversariale Überprüfung und visuelle Überprüfung.",
+    "example_pending": "Ausstehende Bestätigung der Notfall-Landung",
+    "example_pending_message": "Die Notfall-Landung erfordert eine **Bestätigung durch den Operator**.",
+    "example_feature_disabled": "Notfall-Landung deaktiviert"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Branch",
+    "active_checkout_branch": "Aktiver Checkout-Branch",
+    "example_pending": "Ausstehende Übergabe mit Branch",
+    "example_pending_description": "Zeigt den verknüpften Job, einen langen kopierbaren Branch und eine Markdown-Bestätigung in responsiven Layouts.",
+    "example_pending_message": "Prüfen Sie die **Implementierungsübergabe** vor der Bestätigung.",
+    "example_rejected": "Abgelehnte Übergabe des aktiven Checkout-Branches",
+    "example_rejected_description": "Zeigt die Bezeichnung für den ausgelassenen Branch und eine abgeschlossene Ablehnung mit dem angeforderten Job.",
+    "example_rejected_message": "Der **aktive Checkout-Branch** wurde nicht übergeben.",
+    "example_error": "Validierungsfehler bei der Übergabe",
+    "example_error_description": "Zeigt einen Klartextfehler mit dem übermittelten Job und dem Kontext des aktiven Checkout-Branches."
   },
   "force_landing_recheck": {
     "not_provided": "Nicht angegeben",
@@ -3045,6 +3064,19 @@
   "admin_mcp_error_count_with_rate_other": "{{count}} Fehler, {{rate}}",
   "admin_mcp_unused": "nicht verwendet",
   "admin_mcp_surface": "Oberfläche {{surface}}",
+  "admin_mcp_occurred": "Aufgetreten",
+  "admin_mcp_started": "Gestartet",
+  "admin_mcp_completed": "Abgeschlossen",
+  "admin_mcp_input": "Eingabe",
+  "admin_mcp_result": "Ergebnis",
+  "admin_mcp_repository": "Repository {{id}}",
+  "admin_mcp_user": "Benutzer {{id}}",
+  "admin_mcp_startup_timing": "Startzeitmessung",
+  "admin_mcp_window": "Zeitraum: {{window}}",
+  "admin_mcp_provider": "Provider: {{provider}}",
+  "admin_mcp_server": "Server: {{server}}",
+  "admin_mcp_turns_observed": "{{count}} beobachtete Turns",
+  "admin_mcp_no_startup_phases": "In diesem Zeitraum wurden keine MCP-Startphasen aufgezeichnet.",
   "admin_mcp_volume_priorities": "Volumenprioritäten",
   "admin_mcp_error_priorities": "Fehlerprioritäten",
   "admin_mcp_missing_high_volume_cards": "Fehlende Karten mit hohem Volumen",

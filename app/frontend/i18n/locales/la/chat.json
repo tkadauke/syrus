@@ -750,7 +750,26 @@
     "example_empty_description": "Subsidium commune exitus vacui responsi provisoris perfecti exercet."
   },
   "emergency_land": {
-    "example_pending": "Confirmatio landing subiti pendet"
+    "job": "Job",
+    "branch": "Ramus",
+    "warning_title": "Actio subita destructiva",
+    "warning_message": "Haec actio mutationem coniunget atque examinatores, recensionem adversariam, et recensionem visualem praeteribit.",
+    "example_pending": "Confirmatio landing subiti pendet",
+    "example_pending_message": "Landing subitum **confirmationem operatoris** requirit.",
+    "example_feature_disabled": "Landing subitum prohibitum"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Ramus",
+    "active_checkout_branch": "Ramus checkout activus",
+    "example_pending": "Traditio cum ramo pendet",
+    "example_pending_description": "Job conexum, ramum longum exscribibilem, et nuntium confirmationis Markdown in aspectibus variis ostendit.",
+    "example_pending_message": "**Traditionem exsecutionis** ante confirmationem inspice.",
+    "example_rejected": "Traditio rami checkout activi reiecta",
+    "example_rejected_description": "Titulum rami omissi et reiectionem perfectam cum Job petito ostendit.",
+    "example_rejected_message": "**Ramus checkout activus** traditus non est.",
+    "example_error": "Error validationis traditionis",
+    "example_error_description": "Errorem simplicem cum Job dato et contextu rami checkout activi ostendit."
   },
   "force_landing_recheck": {
     "not_provided": "Non datum",
@@ -3045,6 +3064,19 @@
   "admin_mcp_error_count_with_rate_other": "{{count}} errores, {{rate}}",
   "admin_mcp_unused": "non adhibitum",
   "admin_mcp_surface": "facies {{surface}}",
+  "admin_mcp_occurred": "Accidit",
+  "admin_mcp_started": "Coeptum",
+  "admin_mcp_completed": "Perfectum",
+  "admin_mcp_input": "Ingressus",
+  "admin_mcp_result": "Exitus",
+  "admin_mcp_repository": "Repositorium {{id}}",
+  "admin_mcp_user": "Usor {{id}}",
+  "admin_mcp_startup_timing": "Tempus initii",
+  "admin_mcp_window": "Intervallum: {{window}}",
+  "admin_mcp_provider": "Provider: {{provider}}",
+  "admin_mcp_server": "Server: {{server}}",
+  "admin_mcp_turns_observed": "{{count}} vices observatae",
+  "admin_mcp_no_startup_phases": "Nullae phases initii MCP hoc intervallo relata sunt.",
   "admin_mcp_volume_priorities": "Prioritates usus",
   "admin_mcp_error_priorities": "Prioritates errorum",
   "admin_mcp_missing_high_volume_cards": "Chartae magni usus absentes",
