@@ -34,57 +34,57 @@ RSpec.describe "German localization orthography", type: :unit do
   # Temporary debt is recorded by exact catalog coordinate. Deleting or
   # correcting an entry must delete its coordinate here in the same change.
   DEBT_BASELINE = %w[
-    desktop/src/i18n.ts:adopt_existing.body
-    desktop/src/i18n.ts:adopt_existing.confirm_label
-    desktop/src/i18n.ts:adopt_existing.delete_all
-    desktop/src/i18n.ts:adopt_existing.fresh_hint
-    desktop/src/i18n.ts:adopt_existing.keep_hint
-    desktop/src/i18n.ts:backend.checking
-    desktop/src/i18n.ts:backend.containers_down.body
-    desktop/src/i18n.ts:backend.daemon_down.body
-    desktop/src/i18n.ts:backend.daemon_down.title
-    desktop/src/i18n.ts:backend.data_gone.body
-    desktop/src/i18n.ts:backend.default.body
-    desktop/src/i18n.ts:backend.reset_hint
-    desktop/src/i18n.ts:backend.stopped.body
-    desktop/src/i18n.ts:common.back
-    desktop/src/i18n.ts:install_failed.code_12
-    desktop/src/i18n.ts:install_failed.code_30
-    desktop/src/i18n.ts:install_failed.code_31
-    desktop/src/i18n.ts:install_failed.code_32
-    desktop/src/i18n.ts:install_failed.code_41
-    desktop/src/i18n.ts:install_progress.env_check
-    desktop/src/i18n.ts:install_progress.runtime_check
-    desktop/src/i18n.ts:onboarding.adopt_running.title
-    desktop/src/i18n.ts:onboarding.connect.check_failed
-    desktop/src/i18n.ts:onboarding.connect.checking
-    desktop/src/i18n.ts:onboarding.done_local
-    desktop/src/i18n.ts:onboarding.precheck_mac
-    desktop/src/i18n.ts:onboarding.precheck_pc
-    desktop/src/i18n.ts:onboarding.welcome.local_mac
-    desktop/src/i18n.ts:onboarding.welcome.local_windows
-    desktop/src/i18n.ts:onboarding.welcome.subtitle
-    desktop/src/i18n.ts:port_conflict.invalid
-    desktop/src/i18n.ts:port_conflict.subtitle
-    desktop/src/i18n.ts:repo_picker.select
-    desktop/src/i18n.ts:repo_picker.selected
-    desktop/src/i18n.ts:runtime.auto_install_body
-    desktop/src/i18n.ts:runtime.check_now
-    desktop/src/i18n.ts:runtime.install_wsl_first
-    desktop/src/i18n.ts:runtime.installing_subtitle
-    desktop/src/i18n.ts:runtime.missing_subtitle
-    desktop/src/i18n.ts:runtime.missing_title
-    desktop/src/i18n.ts:runtime.needs_other
-    desktop/src/i18n.ts:runtime.needs_setup_title
-    desktop/src/i18n.ts:runtime.needs_windows
-    desktop/src/i18n.ts:runtime.open
-    desktop/src/i18n.ts:runtime.open_step
-    desktop/src/i18n.ts:runtime.recommend_mac
-    desktop/src/i18n.ts:runtime.recommend_windows
-    desktop/src/i18n.ts:runtime.return_step
-    desktop/src/i18n.ts:runtime.running_installer
-    desktop/src/i18n.ts:runtime.wait_available
-    desktop/src/i18n.ts:runtime.wsl_body
+    desktop/electron/i18nCatalog.ts:adopt_existing.body
+    desktop/electron/i18nCatalog.ts:adopt_existing.confirm_label
+    desktop/electron/i18nCatalog.ts:adopt_existing.delete_all
+    desktop/electron/i18nCatalog.ts:adopt_existing.fresh_hint
+    desktop/electron/i18nCatalog.ts:adopt_existing.keep_hint
+    desktop/electron/i18nCatalog.ts:backend.checking
+    desktop/electron/i18nCatalog.ts:backend.containers_down.body
+    desktop/electron/i18nCatalog.ts:backend.daemon_down.body
+    desktop/electron/i18nCatalog.ts:backend.daemon_down.title
+    desktop/electron/i18nCatalog.ts:backend.data_gone.body
+    desktop/electron/i18nCatalog.ts:backend.default.body
+    desktop/electron/i18nCatalog.ts:backend.reset_hint
+    desktop/electron/i18nCatalog.ts:backend.stopped.body
+    desktop/electron/i18nCatalog.ts:common.back
+    desktop/electron/i18nCatalog.ts:install_failed.code_12
+    desktop/electron/i18nCatalog.ts:install_failed.code_30
+    desktop/electron/i18nCatalog.ts:install_failed.code_31
+    desktop/electron/i18nCatalog.ts:install_failed.code_32
+    desktop/electron/i18nCatalog.ts:install_failed.code_41
+    desktop/electron/i18nCatalog.ts:install_progress.env_check
+    desktop/electron/i18nCatalog.ts:install_progress.runtime_check
+    desktop/electron/i18nCatalog.ts:onboarding.adopt_running.title
+    desktop/electron/i18nCatalog.ts:onboarding.connect.check_failed
+    desktop/electron/i18nCatalog.ts:onboarding.connect.checking
+    desktop/electron/i18nCatalog.ts:onboarding.done_local
+    desktop/electron/i18nCatalog.ts:onboarding.precheck_mac
+    desktop/electron/i18nCatalog.ts:onboarding.precheck_pc
+    desktop/electron/i18nCatalog.ts:onboarding.welcome.local_mac
+    desktop/electron/i18nCatalog.ts:onboarding.welcome.local_windows
+    desktop/electron/i18nCatalog.ts:onboarding.welcome.subtitle
+    desktop/electron/i18nCatalog.ts:port_conflict.invalid
+    desktop/electron/i18nCatalog.ts:port_conflict.subtitle
+    desktop/electron/i18nCatalog.ts:repo_picker.select
+    desktop/electron/i18nCatalog.ts:repo_picker.selected
+    desktop/electron/i18nCatalog.ts:runtime.auto_install_body
+    desktop/electron/i18nCatalog.ts:runtime.check_now
+    desktop/electron/i18nCatalog.ts:runtime.install_wsl_first
+    desktop/electron/i18nCatalog.ts:runtime.installing_subtitle
+    desktop/electron/i18nCatalog.ts:runtime.missing_subtitle
+    desktop/electron/i18nCatalog.ts:runtime.missing_title
+    desktop/electron/i18nCatalog.ts:runtime.needs_other
+    desktop/electron/i18nCatalog.ts:runtime.needs_setup_title
+    desktop/electron/i18nCatalog.ts:runtime.needs_windows
+    desktop/electron/i18nCatalog.ts:runtime.open
+    desktop/electron/i18nCatalog.ts:runtime.open_step
+    desktop/electron/i18nCatalog.ts:runtime.recommend_mac
+    desktop/electron/i18nCatalog.ts:runtime.recommend_windows
+    desktop/electron/i18nCatalog.ts:runtime.return_step
+    desktop/electron/i18nCatalog.ts:runtime.running_installer
+    desktop/electron/i18nCatalog.ts:runtime.wait_available
+    desktop/electron/i18nCatalog.ts:runtime.wsl_body
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:col_rows_examined
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:confirm_kill_query
     plugins/admin_mysql/app/frontend/i18n/locales/de/admin_mysql.json:killed_query
@@ -192,16 +192,22 @@ RSpec.describe "German localization orthography", type: :unit do
     entries
   end
 
-  def desktop_entries(path = Rails.root.join("desktop/src/i18n.ts"), contents: File.read(path))
+  def desktop_entries(path = Rails.root.join("desktop/electron/i18nCatalog.ts"), contents: File.read(path))
     body = contents[/\bconst deMessages\s*=\s*\{(?<body>.*?)\n\}\s+satisfies\s+Record<DesktopMessageKey, string>/m, :body]
-    raise "Could not find the bounded deMessages object in desktop/src/i18n.ts" unless body
+    raise "Could not find the bounded deMessages object in desktop/electron/i18nCatalog.ts" unless body
 
-    body.lines.filter_map do |line|
-      match = line.match(/^\s*"(?<key>(?:[^"\\]|\\.)+)"\s*:\s*"(?<value>(?:[^"\\]|\\.)*)"\s*,?\s*$/)
-      next if line.strip.empty?
-      raise "Unsupported deMessages entry: #{line.strip}" unless match
+    entry_pattern = /"(?<key>(?:[^"\\]|\\.)+)"\s*:\s*(?<quote>["'])(?<value>(?:\\.|(?!\k<quote>).)*)\k<quote>\s*,?/m
+    matches = body.to_enum(:scan, entry_pattern).map { Regexp.last_match }
+    remainder = body.gsub(entry_pattern, "").strip
+    raise "Unsupported deMessages content: #{remainder}" unless remainder.empty?
 
-      Entry.new("desktop/src/i18n.ts", JSON.parse(%("#{match[:key]}")), JSON.parse(%("#{match[:value]}")))
+    matches.map do |match|
+      value = if match[:quote] == "\""
+        JSON.parse(%("#{match[:value]}"))
+      else
+        match[:value].gsub(/\\(['\\nrt])/) { { "'" => "'", "\\" => "\\", "n" => "\n", "r" => "\r", "t" => "\t" }.fetch($1) }
+      end
+      Entry.new("desktop/electron/i18nCatalog.ts", JSON.parse(%("#{match[:key]}")), value)
     end
   end
 
@@ -308,8 +314,8 @@ RSpec.describe "German localization orthography", type: :unit do
 
       expect(structured_entries(Pathname(yaml.path)).map(&:key)).to eq([ "de.nested.label" ])
       expect(structured_entries(Pathname(json.path)).map(&:key)).to eq([ "nested.label" ])
-      expect(desktop_entries(Pathname("desktop/src/i18n.ts"), contents: desktop)).to eq([
-        Entry.new("desktop/src/i18n.ts", "desktop.label", "Schliessen")
+      expect(desktop_entries(Pathname("desktop/electron/i18nCatalog.ts"), contents: desktop)).to eq([
+        Entry.new("desktop/electron/i18nCatalog.ts", "desktop.label", "Schliessen")
       ])
     ensure
       yaml.close!
