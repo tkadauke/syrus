@@ -821,6 +821,13 @@ audited via `JobLog` (when the session has a `run`) and broadcast live over
 `runtime_session_<id>_control` for the operator's Take Control / Abort Agent
 Control affordance.
 
+The `runtime_input` chat tool card reports delivery state, session and pointer
+details, and provider error/message fields. Because typed events may contain
+passwords or tokens, `text`, `value`, and equivalent typed-input fields are
+masked by default in both event details and raw Runtime JSON; the card shows
+their character count and exposes the original only after the operator uses
+the explicit reveal control.
+
 **Operator surface: the Coding Mode Runtime panel.** The right sidebar's
 `runtime` tab (`app/frontend/routes/RuntimePanel.tsx`, wired into
 `ChatWorkspacePanel` in `WorkspacePanels.tsx`) is a human-facing mirror of the

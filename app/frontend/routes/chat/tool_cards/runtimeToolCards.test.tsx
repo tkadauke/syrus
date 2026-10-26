@@ -2,6 +2,9 @@ import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import deChat from "@app/i18n/locales/de/chat.json"
+import enChat from "@app/i18n/locales/en/chat.json"
+import laChat from "@app/i18n/locales/la/chat.json"
 import { ToolGroup } from "../MessageCards"
 import { redactToolCardValue } from "../../../toolCardSecurity"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
@@ -76,6 +79,12 @@ function session(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Runtime tool cards", () => {
+  it("defines every Runtime input card label in each supported locale", () => {
+    const keys = Object.keys(enChat.runtime_input_tool_card).sort()
+    expect(Object.keys(deChat.runtime_input_tool_card).sort()).toEqual(keys)
+    expect(Object.keys(laChat.runtime_input_tool_card).sort()).toEqual(keys)
+  })
+
   it("registers the Runtime MCP tools by exact name", () => {
     expect(runtimeListSessionsToolCard.toolName).toBe("runtime_list_sessions")
     expect(runtimeStatusToolCard.toolName).toBe("runtime_status")

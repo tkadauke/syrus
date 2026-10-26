@@ -238,6 +238,12 @@ short-lived by design, but the panel renews an active operator lease
 automatically in the background, so staying on the tab keeps control without it
 silently expiring mid-task.
 
+Runtime input tool cards show delivery state, session and pointer details, and
+provider errors alongside the returned message. Text typed into a Runtime may
+contain passwords or tokens, so Syrus masks typed values in event details and
+raw Runtime JSON by default, shows only their character count, and requires an
+explicit **Reveal typed text** action to display them.
+
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same
 conversation. If a retry is pushed to a replacement branch, pass that branch to

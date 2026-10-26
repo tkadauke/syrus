@@ -1,7 +1,9 @@
 import { useState } from "react"
+import i18n from "@app/i18n"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
+import { useT } from "../../hooks/useT"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
 import {
   Badge,
@@ -52,6 +54,7 @@ type RuntimeInputEvent = {
   type: string | null
   target: string | null
   valueSummary: string | null
+  typedValueLength: number | null
   key: string | null
   delivered: boolean | null
   error: string | null
@@ -214,10 +217,11 @@ function typedInputLength(value: unknown): number | null {
   return typeof value === "string" ? value.length : null
 }
 
-function maskTypedInput(value: unknown, key?: string): unknown {
-  if (key && TYPED_INPUT_KEYS.has(key) && typeof value === "string") return `[typed text: ${value.length} chars]`
-  if (Array.isArray(value)) return value.map((item) => maskTypedInput(item))
-  if (isPlainObject(value)) return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => [entryKey, maskTypedInput(entryValue, entryKey)]))
+function maskTypedInput(value: unknown, typedTextLabel: (length: number) => string, key?: string): unknown {
+  if (key && TYPED_INPUT_KEYS.has(key) && typeof value === "string") return typedTextLabel(value.length)
+  if (Array.isArray(value)) return value.map((item) => maskTypedInput(item, typedTextLabel))
+  if (isPlainObject(value))
+    return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => [entryKey, maskTypedInput(entryValue, typedTextLabel, entryKey)]))
   return value
 }
 
@@ -342,7 +346,9 @@ function parseInputCard(context: ToolCardContext): RuntimeCard | null {
   const echoedEvent = parseObject(parsed.event ?? parsed.echoed_event)
   const eventType = firstDisplayValue(event.type, echoedEvent.type, parsed.event_type, parsed.type)
   const failed = context.resultError || parsed.error === true || parsed.delivered === false
-  const error = firstDisplayValue(typeof parsed.error === "string" ? parsed.error : null, parsed.error_code) ?? (failed ? "Runtime input failed" : null)
+  const error =
+    firstDisplayValue(typeof parsed.error === "string" ? parsed.error : null, parsed.error_code) ??
+    (failed ? i18n.t("chat:runtime_input_tool_card.input_failed") : null)
   const message = firstDisplayValue(parsed.message, contentText(parsed.content))
   const typedValue = event.value ?? event.text ?? event.data ?? event.input ?? event.keys
 
@@ -351,7 +357,8 @@ function parseInputCard(context: ToolCardContext): RuntimeCard | null {
     event: {
       type: eventType,
       target: firstDisplayValue(event.target, event.element, event.selector, echoedEvent.target, echoedEvent.element, parsed.target, parsed.element),
-      valueSummary: typedInputLength(typedValue) == null ? valuePreview(typedValue) : `[typed text: ${typedInputLength(typedValue)} chars]`,
+      valueSummary: typedInputLength(typedValue) == null ? valuePreview(typedValue) : null,
+      typedValueLength: typedInputLength(typedValue),
       key: firstDisplayValue(event.key, event.code, echoedEvent.key, echoedEvent.code),
       delivered: typeof parsed.delivered === "boolean" ? parsed.delivered : error ? false : null,
       error,
@@ -1047,12 +1054,14 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
 }
 
 function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input" }> }) {
+  const { t } = useT("chat")
   const [showTypedText, setShowTypedText] = useState(false)
   const failed = Boolean(card.event.error) || card.event.delivered === false
   const tone = failed ? "failure" : card.event.delivered === true ? "success" : "info"
-  const visibleInputEvent = showTypedText ? card.rawEvent : maskTypedInput(card.rawEvent)
-  const visibleEchoedEvent = showTypedText ? card.echoedEvent : maskTypedInput(card.echoedEvent)
-  const visibleResult = showTypedText ? card.raw : maskTypedInput(card.raw)
+  const typedTextLabel = (length: number) => t("runtime_input_tool_card.typed_text", { count: length })
+  const visibleInputEvent = showTypedText ? card.rawEvent : maskTypedInput(card.rawEvent, typedTextLabel)
+  const visibleEchoedEvent = showTypedText ? card.echoedEvent : maskTypedInput(card.echoedEvent, typedTextLabel)
+  const visibleResult = showTypedText ? card.raw : maskTypedInput(card.raw, typedTextLabel)
   const hasEchoedEvent = objectEntries(card.echoedEvent).length > 0
 
   return (
@@ -1062,21 +1071,21 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
         <span className="font-semibold text-gray-900 dark:text-gray-100">{card.event.type ?? "Runtime input"}</span>
         {card.event.target ? <Badge>{card.event.target}</Badge> : null}
       </div>
-      {failed ? <RuntimeNotice tone="error" message={card.event.message ?? card.event.error ?? "Runtime input failed"} /> : null}
+      {failed ? <RuntimeNotice tone="error" message={card.event.message ?? card.event.error ?? t("runtime_input_tool_card.input_failed")} /> : null}
       <FieldRows
         rows={[
-          ["Session ID", card.event.sessionId],
-          ["Type", card.event.type],
-          ["Target", card.event.target],
-          ["Value", card.event.valueSummary],
-          ["Key", card.event.key],
-          ["X", card.event.x],
-          ["Y", card.event.y],
-          ["Button", card.event.button],
-          ["Pointer type", card.event.pointerType],
-          ["Delivered", card.event.delivered == null ? null : String(card.event.delivered)],
-          ["Error", card.event.error],
-          ["Message", card.event.message]
+          [t("runtime_input_tool_card.session_id"), card.event.sessionId],
+          [t("runtime_input_tool_card.type"), card.event.type],
+          [t("runtime_input_tool_card.target"), card.event.target],
+          [t("runtime_input_tool_card.value"), card.event.typedValueLength == null ? card.event.valueSummary : typedTextLabel(card.event.typedValueLength)],
+          [t("runtime_input_tool_card.key"), card.event.key],
+          [t("runtime_input_tool_card.x"), card.event.x],
+          [t("runtime_input_tool_card.y"), card.event.y],
+          [t("runtime_input_tool_card.button"), card.event.button],
+          [t("runtime_input_tool_card.pointer_type"), card.event.pointerType],
+          [t("runtime_input_tool_card.delivered"), card.event.delivered == null ? null : String(card.event.delivered)],
+          [t("runtime_input_tool_card.error"), card.event.error],
+          [t("runtime_input_tool_card.message"), card.event.message]
         ]}
       />
       <button
@@ -1084,13 +1093,13 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
         onClick={() => setShowTypedText((shown) => !shown)}
         type="button"
       >
-        {showTypedText ? "Hide typed text" : "Reveal typed text"}
+        {showTypedText ? t("runtime_input_tool_card.hide_typed_text") : t("runtime_input_tool_card.reveal_typed_text")}
       </button>
-      <Disclosure label="Input event">
+      <Disclosure label={t("runtime_input_tool_card.input_event")}>
         <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(visibleInputEvent, null, 2)}</pre>
       </Disclosure>
       {hasEchoedEvent ? (
-        <Disclosure label="Echoed event">
+        <Disclosure label={t("runtime_input_tool_card.echoed_event")}>
           <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(visibleEchoedEvent, null, 2)}</pre>
         </Disclosure>
       ) : null}
