@@ -193,17 +193,27 @@ module App
       attr_reader :user, :providers, :now
 
       def evidence_by_provider
-        @evidence_by_provider ||= ProviderAvailabilityEvidence
+        @evidence_by_provider ||= begin
+          ranked = ProviderAvailabilityEvidence
           .where(user: user, provider: providers)
-          .where("observed_at >= ?", now - MODEL_UNSUPPORTED_WINDOW)
+          .select(
+            "provider_availability_evidences.*, " \
+            "ROW_NUMBER() OVER (PARTITION BY provider, status ORDER BY observed_at DESC, id DESC) AS evidence_rank"
+          )
+          ProviderAvailabilityEvidence
+          .from(ranked, :ranked_evidence)
+          .select("ranked_evidence.*")
+          .where("evidence_rank <= ?", USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
           .includes(:run)
-          .recent
+          .order(observed_at: :desc, id: :desc)
           .to_a
           .group_by(&:provider)
+        end
       end
 
       def usage_limit_runs_by_provider
-        @usage_limit_runs_by_provider ||= Run
+        @usage_limit_runs_by_provider ||= begin
+          ranked = Run
           .where(user_id: user.id, agent_provider: providers, state: "failed")
           .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
           .left_outer_joins(:run_failure_classification)
@@ -212,10 +222,19 @@ module App
             ProviderUsageLimit::OUTCOME,
             ProviderUsageLimit::CLASSIFICATION
           )
+          .select(
+            "runs.*, " \
+            "ROW_NUMBER() OVER (PARTITION BY runs.agent_provider ORDER BY runs.finished_at DESC, runs.updated_at DESC, runs.id DESC) AS provider_rank"
+          )
+          Run
+          .from(ranked, :ranked_runs)
+          .select("ranked_runs.*")
+          .where("provider_rank <= 50")
           .includes(:run_diagnostic, :run_failure_classification, :step)
           .order(finished_at: :desc, updated_at: :desc)
           .to_a
           .group_by(&:agent_provider)
+        end
       end
 
       def terminal_runs_by_provider
@@ -224,8 +243,9 @@ module App
             .where(user_id: user.id, agent_provider: providers, state: %w[succeeded failed])
             .where.not(finished_at: nil)
             .select("runs.*, ROW_NUMBER() OVER (PARTITION BY agent_provider ORDER BY finished_at DESC, updated_at DESC, id DESC) AS provider_rank")
-          ids = Run.from(ranked, :ranked_runs).where("provider_rank = 1").pluck("ranked_runs.id")
-          Run.where(id: ids)
+          Run.from(ranked, :ranked_runs)
+            .select("ranked_runs.*")
+            .where("provider_rank = 1")
             .includes(:run_diagnostic, :run_failure_classification)
             .index_by(&:agent_provider)
         end
