@@ -42,7 +42,7 @@
     "wait-on": "^9.5.1"
   },
   "allowScripts": {
-    "electron@44.9.0": true,
+    "electron@44.9.3": true,
     "electron-winstaller@5.4.0": true,
     "fsevents@2.3.3": true
   }
