@@ -1,10 +1,10 @@
-name: parallel epic siblings implement independently
+name: linear epic siblings implement in turn
 repository:
   owner: simulation
-  name: parallel-epic-siblings-implement-independently
+  name: linear-epic-siblings-implement-in-turn
 epics:
   feature:
-    title: Independent sibling jobs
+    title: Serialized sibling jobs
 jobs:
   alpha:
     title: Alpha job
@@ -27,6 +27,25 @@ jobs:
     workflow:
       template: true
       kind: initial
+events:
+  - name: retry beta after alpha implementation finishes
+    once: true
+    when:
+      job:
+        id: alpha
+        state: implemented
+    do:
+      resume_deferred_phase:
+        job: beta
+  - name: retry gamma after beta implementation finishes
+    once: true
+    when:
+      job:
+        id: beta
+        state: implemented
+    do:
+      resume_deferred_phase:
+        job: gamma
 outcomes:
   default: success
 success_states:

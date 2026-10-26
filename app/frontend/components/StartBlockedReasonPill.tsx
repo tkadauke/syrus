@@ -24,6 +24,7 @@ type StartBlockedReason =
   | "job_not_ready_for_execution"
   | "urgent_job_active"
   | "epic_wide_workflow_active"
+  | "epic_sibling_implementation_active"
   | "resource_safety"
   | "ci_repair_safety"
   | "ci_repair_disabled"
@@ -49,6 +50,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   job_not_ready_for_execution: "amber",
   urgent_job_active: "gray",
   epic_wide_workflow_active: "gray",
+  epic_sibling_implementation_active: "gray",
   resource_safety: "amber",
   ci_repair_safety: "amber",
   ci_repair_disabled: "gray",

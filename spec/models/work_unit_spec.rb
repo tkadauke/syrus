@@ -36,6 +36,7 @@ RSpec.describe WorkUnit do
       job_not_ready_for_execution
       urgent_job_active
       epic_wide_workflow_active
+      epic_sibling_implementation_active
       resource_safety
       ci_repair_safety
       ci_repair_disabled
@@ -84,6 +85,7 @@ RSpec.describe WorkUnit do
       "main_branch_health",
       "urgent_job_active",
       "epic_wide_workflow_active",
+      "epic_sibling_implementation_active",
       "resource_safety",
       "ci_repair_safety",
       "ci_repair_disabled",
