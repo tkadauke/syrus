@@ -18,10 +18,11 @@ export function refOptionsFor(payload: SourceRefPayload, activeRefs: Array<strin
   return Array.from(options, ([value, label]) => ({ value, label }))
 }
 
-export function sourceSearch(ref: string | null, path: string | null) {
+export function sourceSearch(ref: string | null, path: string | null, treePath: string | null = null) {
   const params = new URLSearchParams()
   if (ref) params.set("ref", ref)
   if (path) params.set("path", path)
+  if (treePath) params.set("tree_path", treePath)
   const value = params.toString()
   return value ? `?${value}` : ""
 }

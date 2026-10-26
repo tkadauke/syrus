@@ -50,13 +50,20 @@ class RunProcessParallelism
     return if @warned_about_undetectable_cpu_share
 
     @warned_about_undetectable_cpu_share = true
-    Rails.logger.warn(
+    message =
       "[RunProcessParallelism] no CPU quota visible to this process " \
       "(cgroup cpu.max is unset); assuming #{assumed} core(s) of " \
       "#{Etc.nprocessors} on the host rather than trusting the host count. " \
       "Set #{CPU_LIMIT_ENV} to this process's real budget, or give the pod " \
       "a resources.limits.cpu, to size parallelism accurately."
-    )
+
+    # config/queue.yml sizes its run pool from host_capacity, and that ERB is
+    # rendered by the worker BEFORE Rails exists (see
+    # spec/config/queue_partitioning_spec.rb). Reaching for Rails.logger on
+    # that path raises NameError and takes worker startup with it, so the
+    # warning degrades to stderr rather than becoming a boot dependency.
+    logger = (Rails.logger if defined?(Rails) && Rails.respond_to?(:logger))
+    logger ? logger.warn(message) : warn(message)
   end
 
   def self.reset_undetectable_cpu_warning!

@@ -5,7 +5,7 @@ RSpec.describe RepositoryContent do
   let(:repository) { Factories.repository(user: user) }
 
   # A scripted provider: each operation either returns its value or raises.
-  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, read: nil, changes: nil, history: nil, tree_sha: nil, log: [])
+  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, children: nil, read: nil, changes: nil, history: nil, tree_sha: nil, log: [])
     Class.new do
       include Syrus::Plugin::RepositoryContentProvider
 
@@ -26,6 +26,9 @@ RSpec.describe RepositoryContent do
 
       define_method(:resolve) { |ref, max_age:| answer.call(:resolve, resolve, ref, max_age) }
       define_method(:tree) { |id| answer.call(:tree, tree, id) }
+      if children
+        define_method(:children) { |id, path| answer.call(:children, children, id, path) }
+      end
       define_method(:read) { |id, path| answer.call(:read, read, id, path) }
       if changes
         define_method(:changes) { |base, head, patch: false| answer.call(:changes, changes, base, head, patch) }
@@ -263,6 +266,27 @@ RSpec.describe RepositoryContent do
     it "refuses a pattern that matches more files than max_files" do
       expect { described_class.for(repository, user: user).files(revision, glob: "**", max_files: 2) }
         .to raise_error(ArgumentError, /max_files/)
+    end
+  end
+
+  describe "#children" do
+    it "caches each directory independently at an immutable revision" do
+      log = []
+      entries = [ RepositoryContent::Entry.new(path: "app/models", type: "directory") ]
+      described_class.provider_classes_override = [ provider_class(:github, children: entries, log: log) ]
+      with_memory_cache
+      content = described_class.for(repository, user: user)
+
+      2.times { expect(content.children(revision, path: "app")).to eq(entries) }
+
+      expect(log).to eq([ [ :github, :children, revision.id, "app" ] ])
+    end
+
+    it "rejects traversal paths before asking a provider" do
+      described_class.provider_classes_override = [ provider_class(:github, children: []) ]
+
+      expect { described_class.for(repository, user: user).children(revision, path: "app/../secrets") }
+        .to raise_error(ArgumentError, "invalid directory path")
     end
   end
 

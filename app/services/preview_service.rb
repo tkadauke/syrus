@@ -34,10 +34,16 @@ class PreviewService
   end
 
   # Raised when the local health check passes but the internal proxy host
-  # can't reach the app — the fixable "bind to 0.0.0.0" case. Tagged
-  # separately so PreviewEnvironment#error_reason can drive a "Fix preview"
-  # remediation action in the UI instead of a plain failure message.
-  class NotReachableError < RuntimeError; end
+  # can't successfully reach the app. Tagged separately so
+  # PreviewEnvironment#error_reason can drive a "Fix preview" remediation
+  # action in the UI instead of a plain failure message.
+  class NotReachableError < RuntimeError
+    def remediation_reason = "not_reachable"
+  end
+
+  class HttpStatusError < NotReachableError
+    def remediation_reason = nil
+  end
 
   def initialize
     @children = {}  # environment_id → ChildProcess
@@ -96,7 +102,7 @@ class PreviewService
       start_environment(env)
     rescue => e
       Rails.logger.error("[PreviewService] error starting environment #{env.id}: #{e.class}: #{e.message}")
-      reason = e.is_a?(NotReachableError) ? "not_reachable" : nil
+      reason = e.is_a?(NotReachableError) ? e.remediation_reason : nil
       with_connection { mark_failed(env, e.message, reason: reason) }
     end
   end
@@ -296,7 +302,16 @@ class PreviewService
     return if loopback_internal_host?
 
     url = proxy_health_check_url(port, health_check_path)
-    return if http_ok?(url)
+    response = http_response(url)
+    return if successful_http_response?(response)
+
+    if response
+      message = "preview process is reachable at #{INTERNAL_HOST}:#{port} but returned HTTP #{response.code} #{response.message}"
+      if response.code.to_i == 403
+        message += "; check Rails host authorization and config.hosts for #{INTERNAL_HOST}"
+      end
+      raise HttpStatusError, message
+    end
 
     raise NotReachableError, "preview process is healthy on 127.0.0.1:#{port} but is not reachable at #{INTERNAL_HOST}:#{port}; configure the preview start command to bind to 0.0.0.0"
   end
@@ -306,13 +321,20 @@ class PreviewService
   end
 
   def http_ok?(url)
+    successful_http_response?(http_response(url))
+  end
+
+  def http_response(url)
     uri = URI.parse(url)
-    response = Net::HTTP.start(uri.host, uri.port, open_timeout: 1, read_timeout: 2) do |http|
+    Net::HTTP.start(uri.host, uri.port, open_timeout: 1, read_timeout: 2) do |http|
       http.get(uri.request_uri)
     end
-    response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
   rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Net::OpenTimeout, Net::ReadTimeout, SocketError
-    false
+    nil
+  end
+
+  def successful_http_response?(response)
+    response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
   end
 
   def check_ttl_expirations

@@ -38,21 +38,10 @@ const FILTER_FIELDS = ["artifact_type", "renderer_type", "owner_type", "plugin_n
 type CatalogFilterField = (typeof FILTER_FIELDS)[number]
 const TEXT_FILTER_FIELDS: readonly CatalogFilterField[] = ["artifact_type", "example_label"]
 
-const OWNER_TYPE_OPTIONS = [
-  { value: "core", label: "Core" },
-  { value: "plugin", label: "Plugin" }
-]
-
 // A dedicated status option beyond plain owner type: "fallback" isolates
 // the single raw_json entry every unregistered/malformed artifact degrades
 // to, which is conceptually distinct from an ordinary core renderer even
 // though it happens to ship with core too.
-const STATUS_OPTIONS = [
-  { value: "core", label: "Core" },
-  { value: "plugin", label: "Plugin" },
-  { value: "fallback", label: "Fallback" }
-]
-
 function statusFor(entry: ArtifactRendererEntry): RendererStatus {
   if (entry.rendererType === RAW_JSON_RENDERER_TYPE) return "fallback"
   return entry.ownerType === "plugin" ? "plugin" : "core"
@@ -198,18 +187,22 @@ export function AdminArtifactRenderers() {
     return shapes.map((shape) => ({ value: shape, label: shape }))
   }, [allEntries])
 
-  const filterSchema: FilterSchemaField[] = useMemo(
-    () => [
+  const filterSchema: FilterSchemaField[] = useMemo(() => {
+    const ownerTypeOptions = [
+      { value: "core", label: t("artifact_renderers.option_core") },
+      { value: "plugin", label: t("artifact_renderers.option_plugin") }
+    ]
+    const statusOptions = [...ownerTypeOptions, { value: "fallback", label: t("artifact_renderers.option_fallback") }]
+    return [
       { field: "artifact_type", label: t("artifact_renderers.filter_artifact_type"), bucket: "text", operators: ["contains"], values: [] },
       { field: "renderer_type", label: t("artifact_renderers.filter_renderer_type"), bucket: "select", operators: ["is"], values: rendererTypeOptions },
-      { field: "owner_type", label: t("artifact_renderers.filter_owner_type"), bucket: "select", operators: ["is"], values: OWNER_TYPE_OPTIONS },
+      { field: "owner_type", label: t("artifact_renderers.filter_owner_type"), bucket: "select", operators: ["is"], values: ownerTypeOptions },
       { field: "plugin_name", label: t("artifact_renderers.filter_plugin_name"), bucket: "select", operators: ["is"], values: pluginNameOptions },
       { field: "example_label", label: t("artifact_renderers.filter_example_label"), bucket: "text", operators: ["contains"], values: [] },
-      { field: "status", label: t("artifact_renderers.filter_status"), bucket: "select", operators: ["is"], values: STATUS_OPTIONS },
+      { field: "status", label: t("artifact_renderers.filter_status"), bucket: "select", operators: ["is"], values: statusOptions },
       { field: "payload_shape", label: t("artifact_renderers.filter_payload_shape"), bucket: "select", operators: ["is"], values: payloadShapeOptions }
-    ],
-    [t, rendererTypeOptions, pluginNameOptions, payloadShapeOptions]
-  )
+    ]
+  }, [t, rendererTypeOptions, pluginNameOptions, payloadShapeOptions])
 
   const filters = useMemo(() => catalogFiltersFromSearch(FILTER_FIELDS, search), [search])
   const filterTree = useMemo(() => catalogFilterTreeFromSearch(FILTER_FIELDS, TEXT_FILTER_FIELDS, search), [search])

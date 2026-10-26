@@ -23,21 +23,62 @@ RSpec.describe PollAllPullRequestsJob do
     }.not_to have_enqueued_job(PollPullRequestJob).with(closed_with_pr.id)
   end
 
-  it "stays within the PR feedback poll budget and keeps recent Jobs first" do
+  it "stays within the PR feedback poll budget" do
     ActiveJob::Base.queue_adapter.enqueued_jobs.clear
     Array.new(GithubPollingBudget::PR_FEEDBACK_LIMIT + 5) do |index|
       Factories.job_record(repository: repo, issue_number: 100 + index).tap do |job|
         job.update_columns(pr_number: 100 + index, updated_at: Time.current)
       end
     end
-    recent = Factories.job_record(repository: repo, issue_number: 999)
-    recent.update!(pr_number: 999)
-
     described_class.perform_now
 
     poll_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |entry| entry[:job] == PollPullRequestJob }
     expect(poll_jobs.count).to eq(GithubPollingBudget::PR_FEEDBACK_LIMIT)
-    expect(PollPullRequestJob).to have_been_enqueued.with(recent.id)
+    expect(Job.where.not(pr_feedback_poll_selected_at: nil).count).to eq(GithubPollingBudget::PR_FEEDBACK_LIMIT)
+  end
+
+  it "eventually selects every non-urgent Job despite sustained newer updates" do
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    original_jobs = Array.new(GithubPollingBudget::PR_FEEDBACK_LIMIT + 5) do |index|
+      Factories.job_record(repository: repo, issue_number: 1_000 + index).tap do |job|
+        job.update_columns(pr_number: 1_000 + index, updated_at: Time.current)
+      end
+    end
+    selected_ids = []
+
+    3.times do |tick|
+      newer = Factories.job_record(repository: repo, issue_number: 2_000 + tick)
+      newer.update_columns(pr_number: 2_000 + tick, updated_at: Time.current)
+      described_class.perform_now
+      selected_ids.concat(
+        ActiveJob::Base.queue_adapter.enqueued_jobs
+          .select { |entry| entry[:job] == PollPullRequestJob }
+          .map { |entry| entry[:args].first }
+      )
+      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    end
+
+    expect(selected_ids).to include(*original_jobs.map(&:id))
+  end
+
+  it "reserves eventual service for non-urgent Jobs while prioritizing urgent work" do
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    urgent_jobs = Array.new(GithubPollingBudget::PR_FEEDBACK_LIMIT) do |index|
+      Factories.job_record(repository: repo, issue_number: 3_000 + index, state: "running").tap do |job|
+        job.update_columns(pr_number: 3_000 + index)
+      end
+    end
+    routine = Factories.job_record(repository: repo, issue_number: 4_000, state: "implemented")
+    routine.update_columns(pr_number: 4_000, updated_at: 1.hour.ago)
+
+    travel_to(Time.at((routine.id % 6) * GithubPollingBudget::BASE_TICK_SECONDS)) do
+      described_class.perform_now
+    end
+
+    poll_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |entry| entry[:job] == PollPullRequestJob }
+    selected_ids = poll_jobs.map { |entry| entry[:args].first }
+    expect(selected_ids).to include(routine.id)
+    expect(selected_ids.count { |id| urgent_jobs.map(&:id).include?(id) }).to eq(GithubPollingBudget::PR_FEEDBACK_LIMIT - 1)
   end
 
   it "skips PR feedback polling while the repository's GitHub App installation is rate-limited" do

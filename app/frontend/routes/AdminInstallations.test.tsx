@@ -35,8 +35,8 @@ function installationsPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderRoute() {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(installationsPayload()))
+function renderRoute(payloadOverrides: Record<string, unknown> = {}) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(installationsPayload(payloadOverrides)))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -105,6 +105,18 @@ describe("AdminInstallations repositories configurable columns", () => {
     expect(await screen.findByText("No repositories configured.")).toBeInTheDocument()
   })
 
+  it("uses count-driven PAT repository copy", async () => {
+    renderRoute({
+      pat_owner_groups: [
+        { owner: "solo", repository_count: 1, install_url: "https://example.com/solo" },
+        { owner: "many", repository_count: 2, install_url: "https://example.com/many" }
+      ]
+    })
+
+    expect(await screen.findByText("1 PAT-only repository")).toBeInTheDocument()
+    expect(screen.getByText("2 PAT-only repositories")).toBeInTheDocument()
+  })
+
   it("shows refresh failures instead of silently leaving the page unchanged", async () => {
     vi.spyOn(window, "fetch").mockImplementation((_input, options) =>
       Promise.resolve(
@@ -126,21 +138,39 @@ describe("AdminInstallations repositories configurable columns", () => {
   })
 
   it("shows the queued message and polls for completed sync data", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, options) => Promise.resolve(options?.method === "POST"
-      ? jsonResponse({ ...installationsPayload(), message: "Installation sync queued." })
-      : jsonResponse(installationsPayload())))
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockImplementation((_input, options) =>
+        Promise.resolve(
+          options?.method === "POST" ? jsonResponse({ ...installationsPayload(), message: "Installation sync queued." }) : jsonResponse(installationsPayload())
+        )
+      )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={client}><MemoryRouter><AdminInstallations /></MemoryRouter></QueryClientProvider>)
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <AdminInstallations />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
     const refreshButton = await screen.findByRole("button", { name: "Refresh installation list" })
     vi.useFakeTimers()
     fireEvent.click(refreshButton)
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
 
     expect(screen.getByText("Installation sync queued.")).toBeInTheDocument()
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     const callsAfterInvalidation = fetchSpy.mock.calls.length
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(2_000) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
     expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsAfterInvalidation)
   })
 })

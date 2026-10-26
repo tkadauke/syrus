@@ -197,6 +197,53 @@ describe("RepositoryDetailRoute overview", () => {
     expect(await screen.findByText("Security review")).toBeInTheDocument()
     expect(screen.getByText("2 rounds · Check authorization boundaries")).toBeInTheDocument()
   })
+
+  it("renders the base detail before readiness resolves and opens the shared report", async () => {
+    let resolveReadiness!: (response: Response) => void
+    const readinessResponse = new Promise<Response>((resolve) => {
+      resolveReadiness = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input).endsWith("/readiness")) return readinessResponse
+      return Promise.resolve(jsonResponse(repositoryDetailPayload()))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1"]}>
+          <Routes>
+            <Route element={<RepositoryDetailRoute />} path="/app-shell/repositories/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "Recent jobs" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Readiness:/ })).not.toBeInTheDocument()
+
+    resolveReadiness(
+      jsonResponse({
+        readiness: {
+          status: "incompatible",
+          summary: "Incompatible",
+          revision: "abc123",
+          repository_size_bytes: 42,
+          file_count: 2,
+          checks: [{ key: "worker", level: "block", message: "No capable worker is available." }],
+          prepare_commands: [],
+          grader_commands: [],
+          required_capabilities: { os: ["macos"] },
+          execution_scopes: []
+        }
+      })
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Readiness: Incompatible" }))
+    expect(screen.getByRole("dialog", { name: "Repository readiness" })).toBeInTheDocument()
+    expect(screen.getByText("No capable worker is available.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    expect(screen.queryByRole("dialog", { name: "Repository readiness" })).not.toBeInTheDocument()
+  })
 })
 
 const ISSUES_PATH = "/api/v1/app/repositories/1/issues?state=open"
