@@ -221,7 +221,9 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       key: "agent",
       title: t("onboarding.agent_title"),
       detail: setup.credential_status.agent
-        ? t("onboarding.agent_ready", { provider: setup.credential_status.active_agent_provider_label || providerLabel(setup.credential_status.active_agent_provider) })
+        ? t("onboarding.agent_ready", {
+            provider: setup.credential_status.active_agent_provider_label || providerLabel(setup.credential_status.active_agent_provider)
+          })
         : t("onboarding.agent_missing"),
       complete: setup.credential_status.agent,
       ctaLabel: t("onboarding.agent_cta"),
@@ -232,9 +234,7 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
     {
       key: "repository",
       title: t("onboarding.repository_title"),
-      detail: setup.repository_configured
-        ? t("onboarding.repository_configured", { count: setup.counts.repositories })
-        : t("onboarding.repository_missing"),
+      detail: setup.repository_configured ? t("onboarding.repository_configured", { count: setup.counts.repositories }) : t("onboarding.repository_missing"),
       complete: setup.repository_configured,
       ctaLabel: t("onboarding.repository_cta"),
       ctaPath: "/repositories/new",
@@ -247,9 +247,7 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
     {
       key: "chat",
       title: t("onboarding.chat_title"),
-      detail: setup.onboarding_chat_started
-        ? t("onboarding.chat_started")
-        : t("onboarding.chat_missing"),
+      detail: setup.onboarding_chat_started ? t("onboarding.chat_started") : t("onboarding.chat_missing"),
       complete: setup.onboarding_chat_started,
       ctaLabel: setup.onboarding_chat_started ? t("onboarding.chat_open") : t("onboarding.chat_start"),
       ctaPath: "/onboarding",
