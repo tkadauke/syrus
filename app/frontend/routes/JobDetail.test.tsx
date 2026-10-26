@@ -990,6 +990,26 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Confirmed by Incident Owner (admin)")).toBeInTheDocument()
   })
 
+  it("shows localized fallbacks when emergency land audit details are incomplete", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "closed",
+          summary_state: "closed",
+          closure_reason: "emergency_landed",
+          finished_at: "2026-09-18T12:00:00Z",
+          emergency_landed_at: null,
+          emergency_landed_by_user: null,
+          emergency_landed_by_membership_tier: null
+        }
+      })
+    )
+
+    expect(screen.getByText("Time not recorded")).toBeInTheDocument()
+    expect(screen.getByText("Confirmed by Unknown user")).toBeInTheDocument()
+  })
+
   it("links scheduled jobs back to their scheduled task", () => {
     renderJobDetail(
       jobPayload({
