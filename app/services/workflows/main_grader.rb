@@ -223,11 +223,12 @@ module Workflows
       return unless sha
       return if conclusive_grader_result_exists?(workflow)
 
-      MainGraderWorkflowJob.perform_later(
-        workflow.job.repository_id,
-        sha,
-        base_branch: workflow.artifact("health_branch").presence || workflow.job.repository.default_branch
-      )
+      branch = workflow.artifact("health_branch").presence || workflow.job.repository.default_branch
+      if branch == workflow.job.repository.default_branch
+        MainGraderWorkflowJob.perform_later(workflow.job.repository_id, sha)
+      else
+        MainGraderWorkflowJob.perform_later(workflow.job.repository_id, sha, base_branch: branch)
+      end
     end
 
     private_class_method def self.close_anchor_job!(workflow)
