@@ -161,7 +161,7 @@ Read the reference file that matches the work in front of you:
 
 ## Conventions summary
 
-Public docs, operator docs, prompt source, plugin boundaries, frontend i18n,
+Public docs, operator docs, prompt source, plugin boundaries, localization,
 CLI/API behavior, desktop behavior, workflow registries, credentials, queues,
 migrations, and tests all have detailed rules in
 [.claude/reference/conventions.md](.claude/reference/conventions.md). Before
@@ -180,6 +180,9 @@ High-frequency reminders:
   plugin-owned workflow kinds belong behind the `:workflow_kinds` provider.
 - Do not add core references that make bundled plugins undeletable; plugin-owned
   tools, docs, routes, and specs belong with the plugin.
+- Localize user-visible SPA copy with i18next and server/API copy with Rails
+  I18n; add matching English, German, and Latin keys, and keep machine-readable
+  API error codes separate from translated messages.
 - New chat-facing MCP tools need an explicit rendering decision: add a tool card
   under `app/frontend/routes/chat/tool_cards/` or
   `plugins/<name>/app/frontend/tool_cards/`, or register an explicit
