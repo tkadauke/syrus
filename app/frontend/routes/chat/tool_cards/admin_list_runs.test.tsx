@@ -33,7 +33,7 @@ describe("admin_list_runs tool card", () => {
       expect(adminListRunsToolCard.collapsedSummary?.(context({ parsedResult: { runs: [{ id: 1 }, { id: 2 }] } }))).toBe("2 Läufe")
 
       render(<>{adminListRunsToolCard.renderExpanded(context({ parsedResult: { runs: [] } }))}</>)
-      expect(screen.getByText("Keine Runs gefunden.")).toBeInTheDocument()
+      expect(screen.getByText("Keine Läufe gefunden.")).toBeInTheDocument()
     } finally {
       await i18n.changeLanguage("en")
     }

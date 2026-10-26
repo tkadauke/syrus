@@ -75,6 +75,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "provider_routing.trigger_step" => "product terminology with placeholder",
       "provider_routing.trigger_chat_role" => "product terminology with placeholder",
       "provider_routing.workflow_condition_pill" => "approved domain noun with placeholder",
+      "provider_routing.action_strategies.panel" => "shared German technical term",
       "connected_platforms.platforms.telegram" => "product name",
       "connected_platforms.platforms.slack" => "product name",
       "linear_source.section_heading" => "product name",
@@ -133,6 +134,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "repository_memberships.role_admin" => "abbreviated role name",
       "tags.field_color" => "valid Latin noun",
       "tags.col_color" => "valid Latin noun",
+      "provider_routing.panel_consensus" => "valid Latin noun",
       "connected_platforms.platforms.telegram" => "product name",
       "connected_platforms.platforms.slack" => "product name",
       "linear_source.section_heading" => "product name",
@@ -253,6 +255,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "Latin domain term pending competent review" => %w[
         jobs.review_version_workflow jobs.review_version_run
       ],
+      "valid Latin noun" => %w[jobs.review_panel_consensus],
       "valid Latin or established UI term" => %w[
         jobs.detail_provider jobs.provider_setting_default jobs.approval_status jobs.grader_status_label
         jobs.prepare_failure_status_label jobs.review_settings_off jobs.review_metric_gutter_off

@@ -34,12 +34,6 @@ RSpec.describe "German localization orthography", type: :unit do
   # Temporary debt is recorded by exact catalog coordinate. Deleting or
   # correcting an entry must delete its coordinate here in the same change.
   DEBT_BASELINE = %w[
-    app/frontend/i18n/locales/de/admin.json:mcp_tool_usage.card_gap_ranking_empty
-    app/frontend/i18n/locales/de/admin.json:mcp_tool_usage.card_gap_ranking_heading
-    app/frontend/i18n/locales/de/nav.json:smart_folder.names.admin_queue_low_priority_maintenance
-    app/frontend/i18n/locales/de/nav.json:smart_folder_names.admin_queue_runs
-    app/frontend/i18n/locales/de/nav.json:smart_folder_names.admin_queue_low_priority_maintenance
-    app/frontend/i18n/locales/de/nav.json:smart_folder_names.repositories_recent
     desktop/src/i18n.ts:adopt_existing.body
     desktop/src/i18n.ts:adopt_existing.confirm_label
     desktop/src/i18n.ts:adopt_existing.delete_all
