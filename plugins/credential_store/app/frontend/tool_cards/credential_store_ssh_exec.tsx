@@ -154,8 +154,13 @@ function SshExecCard({ context, result }: { context: ToolCardContext; result: Ss
         <Row label={t("ssh_exec_card.known_hosts_enforced")} value={t(result.knownHostsEnforced ? "ssh_exec_card.yes" : "ssh_exec_card.no")} />
       ) : null}
       {result.fingerprint ? <Row copyable label={t("ssh_exec_card.fingerprint")} value={result.fingerprint} wrap /> : null}
-      <Output label={t("ssh_exec_card.stdout")} open={Boolean(result.stdout.text)} output={result.stdout} />
-      <Output label={t("ssh_exec_card.stderr")} open={!result.ok && Boolean(result.stderr.text)} output={result.stderr} />
+      <Output key={`stdout-${result.ok}-${result.status}`} label={t("ssh_exec_card.stdout")} open={Boolean(result.stdout.text)} output={result.stdout} />
+      <Output
+        key={`stderr-${result.ok}-${result.status}`}
+        label={t("ssh_exec_card.stderr")}
+        open={!result.ok && Boolean(result.stderr.text)}
+        output={result.stderr}
+      />
     </CardShell>
   )
 }
