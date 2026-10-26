@@ -171,6 +171,8 @@ export type WorkerTimelineLiveWorker = {
   hostname: string | null
   worker_storage_key: string | null
   status: WorkerTimelineLiveStatus
+  critical_dimensions: string[]
+  capacity_exceeded: boolean
   status_reasons: string[]
   occupancy: { used: number; total: number; slots?: number }
   health: {
@@ -200,6 +202,8 @@ export type WorkerTimelineLivePayload = {
     busy: number
     degraded: number
     overloaded: number
+    capacity_exceeded: number
+    health_critical: number
     used_slots: number
     total_slots: number
   }

@@ -154,7 +154,8 @@ function LiveWorkers({ payload, prefix }: { payload: WorkerTimelineLivePayload; 
         <LiveMetric label={t("status_idle")} value={payload.summary.idle} />
         <LiveMetric label={t("status_busy")} value={payload.summary.busy} />
         <LiveMetric label={t("status_degraded")} value={payload.summary.degraded} />
-        <LiveMetric label={t("status_overloaded")} value={payload.summary.overloaded} />
+        <LiveMetric label={t("status_capacity_exceeded")} value={payload.summary.capacity_exceeded} />
+        <LiveMetric label={t("status_health_critical")} value={payload.summary.health_critical} />
       </div>
       <Text variant="caption" tone="muted">
         {payload.attribution.strategy}
@@ -166,7 +167,11 @@ function LiveWorkers({ payload, prefix }: { payload: WorkerTimelineLivePayload; 
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <h2 className="truncate text-sm font-semibold">{worker.hostname || worker.worker_storage_key || t("unknown_storage_key")}</h2>
-                  <StatusPill status={worker.status} />
+                  <StatusPill
+                    capacityExceeded={worker.capacity_exceeded}
+                    criticalDimensions={worker.critical_dimensions}
+                    status={worker.status}
+                  />
                 </div>
                 <Text className="mt-1 truncate" variant="caption" tone="muted">
                   {worker.worker_storage_key || t("unknown_storage_key")}
@@ -319,9 +324,41 @@ function TinyPill({ children }: { children: string }) {
   return <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-semibold text-text-muted">{children}</span>
 }
 
-function StatusPill({ status }: { status: WorkerTimelineLiveStatus }) {
+// "Overloaded" covers both a host over its thread capacity and a host whose
+// health sample is critical, and the two read identically on the card. A host
+// stalled on disk IO at 1% CPU is the confusing case: the figure the reader
+// checks next is CPU, which looks fine. When the backend names the saturated
+// resource, say that instead; fall back to the plain status otherwise.
+function StatusPill({
+  status,
+  criticalDimensions = [],
+  capacityExceeded = false
+}: {
+  status: WorkerTimelineLiveStatus
+  criticalDimensions?: string[]
+  capacityExceeded?: boolean
+}) {
   const { t } = useT("worker_timeline")
-  return <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillClass(status)}`}>{t(`status_${status}`)}</span>
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillClass(status)}`}>
+      {statusLabel(t, status, criticalDimensions, capacityExceeded)}
+    </span>
+  )
+}
+
+function statusLabel(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  status: WorkerTimelineLiveStatus,
+  criticalDimensions: string[],
+  capacityExceeded: boolean
+) {
+  if (status !== "overloaded") return t(`status_${status}`)
+  if (capacityExceeded) return t("status_capacity_exceeded")
+
+  const dimension = criticalDimensions[0]
+  if (!dimension) return t("status_overloaded")
+
+  return t("status_saturated", { resource: t(`dimension_${dimension}`, { defaultValue: dimension }) })
 }
 
 function statusPillClass(status: WorkerTimelineLiveStatus) {

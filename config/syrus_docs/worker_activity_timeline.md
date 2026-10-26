@@ -53,12 +53,31 @@ browser SPA calls.
   `WorkerTimeline::LiveWorkersQuery`. Params: `from`/`to` (ISO8601; default
   health window is the last hour), `hostname`, and `status` (`idle`, `busy`,
   `degraded`, `overloaded`; accepts comma-separated values). Returns:
+
+  A worker reads `overloaded` for either of two unrelated reasons: it holds
+  more work than it has threads, or its latest health sample is critical. The
+  card names the saturated resource (`IO saturated`, `Disk saturated`,
+  `Memory saturated`) from `critical_dimensions` rather than saying
+  "Overloaded", because a host stalled on disk I/O shows flat CPU and memory
+  and the plain word sends you to the wrong two numbers. `capacity_exceeded`
+  distinguishes the capacity case, and the underlying figures stay in
+  `status_reasons`.
+
+  Note that I/O pressure escalates to critical only when `io_pressure_full`
+  corroborates `io_pressure_some`: `some` counts time with at least one task
+  stalled, which a single large read or write drives high on an otherwise
+  idle host.
   - `attribution`: includes `exact_thread_ownership: false` and a strategy
     sentence documenting that the payload is inferred, not exact per-thread
     ownership.
-  - `summary`: worker counts by status plus used/total inferred slots.
+  - `summary`: worker counts by status plus used/total inferred slots. The
+    `overloaded` count is also broken out as `capacity_exceeded` (more work
+    than threads) and `health_critical` (a critical health sample), because
+    the two call for different responses and `overloaded` alone does not say
+    which applies.
   - `workers`: one payload per worker host/storage identity, with
-    `hostname`, `worker_storage_key`, status, status reasons, `occupancy`,
+    `hostname`, `worker_storage_key`, status, status reasons,
+    `critical_dimensions`, `capacity_exceeded`, `occupancy`,
     current `health`, CPU/memory/I/O `sparklines`, and queue `pools`.
     Pool payloads include worker pid, queue names, capacity, used count, and
     active `slots`. Each slot carries the best available Job/Workflow
