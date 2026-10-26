@@ -108,9 +108,24 @@ module Syrus
       # supervises or attributes it.
       def capture(command)
         ProcessRunner.new(
-          env: {}, command: command, mounts: ProcessRunner.mounts(output_path),
+          env: build_env, command: command, mounts: ProcessRunner.mounts(output_path),
           network: "grader", timeout: 2.minutes
         ).capture
+      end
+
+      # `env: {}` leaves the sandbox's own minimal PATH, which finds `brotli`
+      # and `node` only where they sit in /usr/bin or /usr/local/bin. That is
+      # true of the production image and false of a developer machine, where
+      # Homebrew puts brotli in /opt/homebrew/bin: both probes exited 127
+      # ("command not found"), brotli_available? went false, and the build
+      # produced gzip-only assets without saying so.
+      #
+      # This is build plumbing run from `rake assets:precompile`, not agent
+      # work, so it inherits the PATH of the process that started the build
+      # rather than probing by bare name under a PATH it does not control.
+      def build_env
+        path = ENV["PATH"].to_s
+        path.empty? ? {} : { "PATH" => path }
       end
   end
 end

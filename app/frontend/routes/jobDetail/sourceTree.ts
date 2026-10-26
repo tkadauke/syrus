@@ -35,7 +35,7 @@ export function buildSourceTree(items: SourceTreeFile[]) {
         parent.children.push(node)
       }
 
-      if (index === parts.length - 1) node.file = item
+      if (index === parts.length - 1 && item.type !== "directory") node.file = item
       parent = node
     })
   }

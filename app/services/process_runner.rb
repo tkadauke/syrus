@@ -1355,8 +1355,14 @@ class ProcessRunner
       sleep 0.1
     end
     Process.kill("KILL", -pid)
-  rescue Errno::ESRCH
-    # Already dead.
+  rescue Errno::ESRCH, Errno::EPERM
+    # Already dead. ESRCH is the usual answer, but a group that exits while we
+    # are signalling it can report EPERM instead -- the pgid no longer names
+    # our group, and on BSD/macOS the kernel answers "not permitted" rather
+    # than "no such process". Both mean the same thing here, and letting EPERM
+    # escape turned a timeout into `base_retry_error: Errno::EPERM`, losing
+    # the fact that the command had timed out at all. The other two kill
+    # paths in this class already pair them.
   ensure
     reap_escaped_descendants(descendants, pid)
   end

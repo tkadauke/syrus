@@ -1,6 +1,6 @@
 import { useId } from "react"
 
-import { isDesktopTestChannel } from "../lib/desktopShell"
+import { TestChannelDot } from "./TestChannelDot"
 
 // Theme-aware winged-stylus mark: the rounded-square backdrop and the glyph
 // are painted from semantic color tokens (`--color-brand`/`--color-on-brand`)
@@ -28,15 +28,14 @@ export function SyrusMark({ className = "h-6 w-6" }: { className?: string }) {
   )
 }
 
-export function SyrusBrand({ markOnly = false }: { markOnly?: boolean }) {
-  // A side-by-side test build renders "Syrus Test" so the window is
-  // unmistakable next to a production install (detected via the desktop
-  // shell's SyrusDesktopChannel/test UA token; plain browsers show "Syrus").
-  const name = isDesktopTestChannel() ? "Syrus Test" : "Syrus"
+export function SyrusBrand({ markOnly = false, showTestChannelMarker = true }: { markOnly?: boolean; showTestChannelMarker?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <SyrusMark />
-      {markOnly ? <span className="sr-only">{name}</span> : <span>{name}</span>}
+      <span className="relative shrink-0">
+        <SyrusMark />
+        {showTestChannelMarker ? <TestChannelDot /> : null}
+      </span>
+      {markOnly ? <span className="sr-only">Syrus</span> : <span>Syrus</span>}
     </span>
   )
 }

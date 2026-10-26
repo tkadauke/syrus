@@ -51,7 +51,11 @@ class PollMergeStateJob < ApplicationJob
       previous_base_sha = @job.mergeability_base_sha
       persist_mergeability(@pr)
 
-      return if @pr.merged
+      if @pr.merged
+        Rails.logger.info("[PollMergeStateJob] closing #{@job.slug}: pr_merged")
+        PullRequestMergeCloser.call(job: @job)
+        return
+      end
       return if @pr.state == "closed"
       return unless we_control_head?(@pr)
       return if job_closed?

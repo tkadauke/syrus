@@ -246,14 +246,30 @@ class MainHealthChangedService
         workflow = unit.workflow
         next unless workflow&.state.in?(%w[queued running])
 
+        # The artifact is unconditional: whether main was red while a workflow
+        # ran is useful context regardless of whether it gates anything. Only
+        # the block itself is policy-dependent.
         workflow.set_artifact!("main_broken", true)
         record_queued_work_unit_main_health_block!(workflow)
       end
   end
 
+  # One predicate decides whether main health holds work at the start line,
+  # and StepDispatcher owns it.
+  #
+  # This used to stamp the block whenever main went broken, with no reference
+  # to the repository's breakage policy, while the dispatcher requires a
+  # strict policy, main_branch_repair_blocks_work?, AND a paused landing
+  # queue. Under `isolate_unrelated_failures` the two disagreed: the
+  # dispatcher would never block the workflow, and this stamped the block
+  # anyway. Nothing then re-admitted it, so workflows sat `blocked` for as
+  # long as main stayed red -- six of them for over seven days, not one
+  # having started a single run, while the policy said health must not gate
+  # anything. Asking the dispatcher makes the disagreement impossible.
   def record_queued_work_unit_main_health_block!(workflow)
     return unless workflow.queued?
     return if workflow.steps.joins(:runs).exists?
+    return unless StepDispatcher.main_health_blocking?(workflow)
 
     WorkUnits::WorkflowBlockProjection.record!(
       workflow,
@@ -264,6 +280,16 @@ class MainHealthChangedService
         "repository_slug" => @repository.slug,
         "main_health_state" => "broken"
       }
+    )
+
+    # Even a legitimate block has to be able to clear itself. Without a
+    # recheck this waited on a later health transition to call
+    # start_blocked_queued_workflows!, which never comes while main stays
+    # broken.
+    WorkflowPhaseAdmissionJob.enqueue_once(
+      workflow.id,
+      wait: StepDispatcher::START_BLOCKED_BACKOFF,
+      priority: workflow.solid_queue_priority
     )
   end
 

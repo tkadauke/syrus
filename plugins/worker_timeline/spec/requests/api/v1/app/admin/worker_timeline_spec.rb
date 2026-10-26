@@ -339,6 +339,36 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       expect(slot.fetch("command_excerpt")).not_to include("super-secret-token")
     end
 
+    # "overloaded" is two unrelated conditions wearing one word: a host past
+    # its thread capacity, and a host whose health sample is critical. A
+    # worker stalled on disk IO reported overloaded with a single slot busy at
+    # 1% CPU and 8% memory, and nothing in the payload said which of the two
+    # it was without reading the prose in status_reasons.
+    it "names the saturated dimension and splits the overloaded summary by cause" do
+      enable_plugin!
+      sign_in_as(admin)
+      solid_queue_process(hostname: "worker-io", pid: 131, metadata: { "queues" => "runs", "pool_size" => 8 })
+      io_job = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "IO bound")
+      io_workflow = Workflow.create!(job: io_job, trigger_kind: "initial", state: "running", started_at: 5.minutes.ago, worker_hostname: "worker-io", worker_storage_key: "storage-io")
+      io_step = io_workflow.steps.create!(kind: "grader", position: 1, state: "running", started_at: 4.minutes.ago)
+      Run.create!(job: io_job, user: admin, step: io_step, trigger_kind: "initial", agent_provider: "codex", state: "running", started_at: 3.minutes.ago)
+      create_health_sample(
+        hostname: "worker-io", worker_storage_key: "storage-io",
+        cpu_used_percent: 0.99, memory_used_percent: 7.83,
+        io_pressure_some: 86.09, io_pressure_full: 86.03
+      )
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      expect(response).to have_http_status(:ok)
+      worker = parse_body.fetch("workers").find { |candidate| candidate.fetch("hostname") == "worker-io" }
+      expect(worker.fetch("status")).to eq("overloaded")
+      expect(worker.fetch("critical_dimensions")).to eq([ "io_pressure" ])
+      expect(worker.fetch("capacity_exceeded")).to be(false)
+      expect(worker.fetch("occupancy")).to include("used" => 1, "total" => 8)
+      expect(parse_body.fetch("summary")).to include("health_critical" => 1, "capacity_exceeded" => 0)
+    end
+
     it "assigns each inferred slot to at most one matching worker pool" do
       enable_plugin!
       sign_in_as(admin)
@@ -566,7 +596,7 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
     SolidQueue::Process.create!(kind: kind, name: "#{kind.downcase}-#{pid}", hostname: hostname, pid: pid, last_heartbeat_at: last_heartbeat_at, created_at: Time.current, metadata: metadata)
   end
 
-  def create_health_sample(hostname:, worker_storage_key:, cpu_used_percent:, memory_used_percent:, io_pressure_some:)
-    WorkerHostHealthSample.create!(hostname: hostname, worker_storage_key: worker_storage_key, role: "worker", version: "abc123", observed_at: 1.minute.ago, cpu_used_percent: cpu_used_percent, memory_used_percent: memory_used_percent, io_pressure_some: io_pressure_some)
+  def create_health_sample(hostname:, worker_storage_key:, cpu_used_percent:, memory_used_percent:, io_pressure_some:, io_pressure_full: nil)
+    WorkerHostHealthSample.create!(hostname: hostname, worker_storage_key: worker_storage_key, role: "worker", version: "abc123", observed_at: 1.minute.ago, cpu_used_percent: cpu_used_percent, memory_used_percent: memory_used_percent, io_pressure_some: io_pressure_some, io_pressure_full: io_pressure_full)
   end
 end

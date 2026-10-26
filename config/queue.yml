@@ -5,6 +5,15 @@
 <% $LOAD_PATH.unshift(services_path) unless $LOAD_PATH.include?(services_path) %>
 <% require "worker_storage_identity" %>
 <% require "worker_capabilities" %>
+<% require "run_process_parallelism" %>
+<%# The run pool's thread count is this pod's CPU budget, not a fixed 3.
+    RunProcessParallelism derives it from the cgroup quota (and already
+    assumes a deliberately small share when no quota is visible), which is
+    the same figure RunHostAdmission rations against. They were independent
+    before: a pod with an 8-core limit admitted 6 concurrent runs but only
+    ever claimed 3, so the claim concurrency -- not the CPU budget -- was the
+    binding constraint, and widening the pod's CPU limit changed nothing. %>
+<% run_threads = ENV.fetch("JOB_CONCURRENCY") { RunProcessParallelism.host_capacity } %>
 <% run_queues = WorkerCapabilities.queue_names_for("runs") %>
 <% merge_queues = WorkerCapabilities.queue_names_for("merges") %>
 default: &default
@@ -31,7 +40,7 @@ default: &default
 <% ([WorkerStorageIdentity.dispatch_queue_name, WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
         - "<%= queue_name %>"
 <% end %>
-      threads: <%= ENV.fetch("JOB_CONCURRENCY", 3) %>
+      threads: <%= run_threads %>
       processes: 1
       polling_interval: 0.1
     # Deterministic landing and merge work runs outside the agent

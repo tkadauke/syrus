@@ -46,7 +46,10 @@ RSpec.describe WorkflowAdmissionBudget do
     )
   end
 
-  def worker_sample(hostname: "worker-1", worker_storage_key: nil, cpu: 5.0, io: 5.0, memory: 40.0, disk: 25.0)
+  # `io_full` is what makes high IO pressure critical rather than merely a
+  # warning: `io_pressure_some` alone is one stalled task, which a single large
+  # read or write produces on an otherwise idle host.
+  def worker_sample(hostname: "worker-1", worker_storage_key: nil, cpu: 5.0, io: 5.0, io_full: nil, memory: 40.0, disk: 25.0)
     WorkerHostHealthSample.create!(
       hostname: hostname,
       role: "worker",
@@ -55,6 +58,7 @@ RSpec.describe WorkflowAdmissionBudget do
       worker_storage_key: worker_storage_key,
       cpu_pressure_some: cpu,
       io_pressure_some: io,
+      io_pressure_full: io_full,
       memory_used_percent: memory,
       data_root_used_percent: disk,
       raw_metrics: {}
@@ -506,7 +510,7 @@ RSpec.describe WorkflowAdmissionBudget do
 
   it "admits step-level work when pressure is localized to one storage key with healthy alternatives" do
     WorkerHostHealthSample.delete_all
-    worker_sample(hostname: "syrus-worker-compute-bad", worker_storage_key: "storage-critical", io: 90.0)
+    worker_sample(hostname: "syrus-worker-compute-bad", worker_storage_key: "storage-critical", io: 90.0, io_full: 85.0)
     worker_sample(hostname: "syrus-worker-home-bad", worker_storage_key: "storage-critical", io: 45.0)
     worker_sample(hostname: "syrus-worker-compute-ok", worker_storage_key: "storage-healthy-a", io: 2.0)
     worker_sample(hostname: "syrus-worker-home-ok", worker_storage_key: "storage-healthy-b", io: 3.0)

@@ -121,6 +121,34 @@ RSpec.describe "queue partitioning" do
     expect(status).to be_success, stderr
   end
 
+  # The run pool's thread count and the admission semaphore's ration have to be
+  # the same number. They were not: queue.yml hardcoded 3 threads while
+  # RunHostAdmission rationed against RunProcessParallelism.host_capacity, so a
+  # pod with an 8-core limit admitted 6 concurrent runs and only ever claimed
+  # 3. The claim concurrency, not the CPU budget, was the binding constraint,
+  # and widening a pod's CPU limit changed nothing at all.
+  describe "run pool sizing" do
+    def rendered_run_threads
+      raw = File.read(ROOT.join("config/queue.yml"))
+      YAML.safe_load(ERB.new(raw).result, aliases: true, permitted_classes: [ Symbol ])
+          .fetch("default").fetch("workers").first.fetch("threads")
+    end
+
+    it "sizes the run pool from the CPU budget rather than a fixed number" do
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(7)
+      stub_const("ENV", ENV.to_h.except("JOB_CONCURRENCY"))
+
+      expect(rendered_run_threads).to eq(7)
+    end
+
+    it "still honors an explicit JOB_CONCURRENCY override" do
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(7)
+      stub_const("ENV", ENV.to_h.merge("JOB_CONCURRENCY" => "2"))
+
+      expect(rendered_run_threads).to eq(2)
+    end
+  end
+
   it "keeps queue.yml a complete single-worker config (Compose / single-host)" do
     expect(queues_for("config/queue.yml", capabilities: "os:linux")[:regular].uniq)
       .to match_array(HOME_QUEUES + LINUX_COMPUTE_QUEUES)

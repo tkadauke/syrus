@@ -38,7 +38,6 @@ import { ConnectionStatusButton } from "../components/ConnectionStatus"
 import { NotificationsBell } from "../components/Notifications"
 import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
-import { TestChannelBadge } from "../components/TestChannelBadge"
 import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
 import { InactiveShortcutsProvider, ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
@@ -687,9 +686,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
               type="button"
             >
               <MenuIcon />
-              <SyrusBrand />
+              <SyrusBrand showTestChannelMarker={!drawerOpen} />
             </button>
-            <TestChannelBadge />
           </div>
           <div className="flex items-center gap-1">
             <BugReportTriggerButton onClick={() => openBugReport()} />
@@ -1374,7 +1372,6 @@ function SidebarContent({
           <div className={`flex min-w-0 items-center gap-2 ${collapsed ? "justify-center" : ""}`}>
             <span aria-hidden="true" className="text-gray-900 dark:text-white lg:hidden"><MenuIcon /></span>
             <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"} title={collapsed ? "Syrus" : undefined}><SyrusBrand markOnly={collapsed} /></Link>
-            {collapsed ? null : <TestChannelBadge />}
           </div>
           <div className={`items-center gap-1 ${collapsed ? "hidden" : "flex"}`}>
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}

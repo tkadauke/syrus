@@ -25,14 +25,29 @@ class WorkerHealthSampleAnalysis
   THRESHOLDS = [
     [ :cpu, "cpu", :cpu_used_percent, 90, 98 ],
     [ :memory, "memory", :memory_used_percent, 85, 95 ],
-    [ :data_root_disk, "data root disk", :data_root_used_percent, DataRootDiskUsage::WARNING_USED_PERCENT, DataRootDiskUsage::CRITICAL_USED_PERCENT ],
-    [ :io_pressure, "IO pressure", :io_pressure_some, 20, 50 ]
+    [ :data_root_disk, "data root disk", :data_root_used_percent, DataRootDiskUsage::WARNING_USED_PERCENT, DataRootDiskUsage::CRITICAL_USED_PERCENT ]
   ].freeze
   CPU_PRESSURE_DIMENSION = :cpu_pressure
   CPU_PRESSURE_SOME_WARNING = 20
   CPU_PRESSURE_SOME_CRITICAL = 50
   CPU_PRESSURE_FULL_CRITICAL = 5
   CPU_PRESSURE_CPU_USED_CRITICAL = 90
+  IO_PRESSURE_DIMENSION = :io_pressure
+  IO_PRESSURE_SOME_WARNING = 20
+  IO_PRESSURE_SOME_CRITICAL = 50
+  # `some` is the share of time *at least one* task was stalled on IO, so a
+  # single process doing one large sequential read or write drives it high on
+  # a host that is otherwise fine -- which is exactly what a grader cloning a
+  # repository, building, or running a test suite looks like. Escalating on
+  # `some` alone turned normal grader work into a critical host: one observed
+  # worker read 86% `some` at 0.99% CPU and 7.8% memory, refused further
+  # admissions, and its work was rerouted away.
+  #
+  # `full` is the share of time *every* runnable task was stalled, which is
+  # saturation rather than one busy writer. Requiring it mirrors the
+  # corroboration CPU pressure already demands, and still escalates a host
+  # that is genuinely IO-starved -- the worker above had `full` at 86% too.
+  IO_PRESSURE_FULL_CRITICAL = 20
 
   class << self
     def summarize(samples, fields: NUMERIC_FIELDS, include_sample_count: true)
@@ -87,7 +102,7 @@ class WorkerHealthSampleAnalysis
         threshold_signal(dimension, label, sample.public_send(field), warning: warning, critical: critical)
       end
 
-      threshold_signals + [ cpu_pressure_signal(sample) ].compact
+      threshold_signals + [ io_pressure_signal(sample), cpu_pressure_signal(sample) ].compact
     end
 
     def threshold_signal(dimension, label, value, warning:, critical:)
@@ -97,6 +112,17 @@ class WorkerHealthSampleAnalysis
         signal(dimension, "critical", "#{label} #{value.round(2)}% >= #{critical}%")
       elsif value >= warning
         signal(dimension, "warning", "#{label} #{value.round(2)}% >= #{warning}%")
+      end
+    end
+
+    def io_pressure_signal(sample)
+      some = sample.io_pressure_some
+      return if some.nil?
+
+      if some >= IO_PRESSURE_SOME_CRITICAL && io_pressure_corroborated?(sample)
+        signal(IO_PRESSURE_DIMENSION, "critical", "IO pressure #{some.round(2)}% >= #{IO_PRESSURE_SOME_CRITICAL}%")
+      elsif some >= IO_PRESSURE_SOME_WARNING
+        signal(IO_PRESSURE_DIMENSION, "warning", "IO pressure #{some.round(2)}% >= #{IO_PRESSURE_SOME_WARNING}%")
       end
     end
 
@@ -118,6 +144,10 @@ class WorkerHealthSampleAnalysis
     def cpu_pressure_corroborated?(sample)
       sample.cpu_pressure_full.to_f >= CPU_PRESSURE_FULL_CRITICAL ||
         sample.cpu_used_percent.to_f >= CPU_PRESSURE_CPU_USED_CRITICAL
+    end
+
+    def io_pressure_corroborated?(sample)
+      sample.io_pressure_full.to_f >= IO_PRESSURE_FULL_CRITICAL
     end
   end
 end
