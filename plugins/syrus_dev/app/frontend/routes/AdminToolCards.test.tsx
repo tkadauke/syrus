@@ -104,6 +104,23 @@ describe("AdminToolCards", () => {
     expect(within(region).queryByText("JOB-101")).not.toBeInTheDocument()
   })
 
+  it("renders reviewable Runtime input redaction and provider-error states", () => {
+    renderRoute("/admin/tool_cards?tool_name=runtime_input")
+
+    const region = screen.getByRole("region", { name: "Runtime input" })
+    expect(within(region).queryByText("No example fixtures registered for this tool yet.")).not.toBeInTheDocument()
+    expandToolGroup(region)
+
+    expect(within(region).getAllByText("[typed text: 35 chars]").length).toBeGreaterThan(0)
+    fireEvent.click(within(region).getByRole("button", { name: "Reveal typed text" }))
+    expect(within(region).getByRole("button", { name: "Hide typed text" })).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Provider rejected input" }))
+    expect(within(region).getByText("failed")).toBeInTheDocument()
+    expect(within(region).getByText("lease_required")).toBeInTheDocument()
+    expect(within(region).getByText("touch")).toBeInTheDocument()
+  })
+
   it("deep-links directly to a specific tool and example", () => {
     renderRoute("/admin/tool_cards?tool_name=Bash&tool=Bash&example=command_failed")
 
