@@ -89,8 +89,8 @@ export const examples: ToolCardExample[] = [
       slug: "shared-card-primitives",
       state: "withdrawn",
       cascade: [
-        { slug: "proposal-list-card", title: "Render proposal lists", kind: "job", state: "withdrawn" },
-        { slug: "proposal-card-suite", title: "Complete the proposal card suite", kind: "epic", state: "withdrawn" }
+        { slug: "proposal-list-card", title: i18n.t("chat:tool_card_withdraw_proposal_example_job"), kind: "job", state: "withdrawn" },
+        { slug: "proposal-card-suite", title: i18n.t("chat:tool_card_withdraw_proposal_example_epic"), kind: "epic", state: "withdrawn" }
       ]
     }
   },
