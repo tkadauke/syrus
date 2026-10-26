@@ -34,6 +34,16 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).to include("FROM docker.io/library/ruby:$RUBY_VERSION-slim-trixie AS base")
   end
 
+  it "keeps plugin container builders on the repository Go toolchain" do
+    plugin_dockerfiles = %w[browser git_mirror plugin_runtime tailscale whisper_stt].map do |plugin|
+      Rails.root.join("plugins", plugin, "container", "Dockerfile").read
+    end
+
+    plugin_dockerfiles.each do |contents|
+      expect(contents).to include("FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.26.5-alpine")
+    end
+  end
+
   it "probes readiness only for web/default image roles" do
     healthchecks = dockerfile.scan(/^HEALTHCHECK .+$/)
 
