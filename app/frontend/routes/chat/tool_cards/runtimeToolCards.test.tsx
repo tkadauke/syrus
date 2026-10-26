@@ -13,7 +13,7 @@ import runtimeLaunchToolCard from "./runtime_launch"
 import runtimeListSessionsToolCard from "./runtime_list_sessions"
 import runtimeLogsToolCard from "./runtime_logs"
 import runtimeReleaseControlToolCard from "./runtime_release_control"
-import runtimeSnapshotToolCard from "./runtime_snapshot"
+import runtimeSnapshotToolCard, { examples as runtimeSnapshotExamples } from "./runtime_snapshot"
 import runtimeStartToolCard from "./runtime_start"
 import runtimeStatusToolCard from "./runtime_status"
 import runtimeStopToolCard from "./runtime_stop"
@@ -1333,6 +1333,10 @@ describe("Runtime tool cards", () => {
     const body = JSON.stringify({ content: [{ type: "image", data: "c25hcHNob3QtYmluYXJ5", mimeType: "image/png" }] })
 
     expect(redactToolCardText(body)).toContain("c25hcHNob3QtYmluYXJ5")
+  })
+
+  it("publishes browser and stale Android snapshot catalog fixtures", () => {
+    expect(runtimeSnapshotExamples.map((example) => example.id)).toEqual(["browser_capture", "android_stale_frame"])
   })
 
   it("renders Android latest-frame snapshots with provider metadata", () => {
