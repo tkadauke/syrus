@@ -21,7 +21,7 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     end
 
     Bundler.with_unbundled_env do
-      env = ENV.to_h.merge(bundler_install_env).merge(env_overrides)
+      env = ENV.to_h.merge(bundler_install_env, "DB_POOL" => nil).merge(env_overrides)
       Open3.capture3(env, RbConfig.ruby, script, unsetenv_others: true, chdir: root)
     end
   end
