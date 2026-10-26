@@ -85,6 +85,10 @@ export default defineConfig(({ mode }) => {
       // desktop/node_modules carries a slightly different version that imports
       // its own local react, triggering the same duplicate-React crash.
       alias: {
+        // Root CI deliberately installs only the Rails SPA dependencies. Give
+        // Vitest a resolvable Electron module so electron/i18n.ts can be
+        // unit-tested; individual tests replace this shim with vi.mock.
+        electron: `${rootDir}desktop/src/test/electron.ts`,
         react: `${rootDir}node_modules/react`,
         "react/jsx-runtime": `${rootDir}node_modules/react/jsx-runtime.js`,
         "react/jsx-dev-runtime": `${rootDir}node_modules/react/jsx-dev-runtime.js`,
