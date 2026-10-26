@@ -35,18 +35,31 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function LinkedValues({ proposal }: { proposal: ProposalOutcome }) {
-  if (!(proposal.dependencies.length || proposal.jobDependencyIds.length || proposal.epicDependencyIds.length))
+  if (!(proposal.dependencies.length || proposal.jobDependencyIds.length || proposal.epicDependencyIds.length || proposal.dependencyRequirements.length))
     return <span className="text-text-subtle">—</span>
   return (
-    <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-      {proposal.dependencies.map((slug) => (
-        <EntityReference key={`proposal-${slug}`} kind="proposal" slug={slug} />
-      ))}
-      {proposal.jobDependencyIds.map((id) => (
-        <EntityReference id={id} key={`job-${id}`} kind="job" />
-      ))}
-      {proposal.epicDependencyIds.map((id) => (
-        <EntityReference id={id} key={`epic-${id}`} kind="epic" />
+    <div className="min-w-0 space-y-1">
+      <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
+        {proposal.dependencies.map((slug) => (
+          <EntityReference key={`proposal-${slug}`} kind="proposal" slug={slug} />
+        ))}
+        {proposal.jobDependencyIds.map((id) => (
+          <EntityReference id={id} key={`job-${id}`} kind="job" />
+        ))}
+        {proposal.epicDependencyIds.map((id) => (
+          <EntityReference id={id} key={`epic-${id}`} kind="epic" />
+        ))}
+      </div>
+      {proposal.dependencyRequirements.map((requirement) => (
+        <div className="min-w-0 break-words [overflow-wrap:anywhere]" key={`${requirement.target}-${requirement.mode}-${requirement.stage || "any"}`}>
+          {requirement.target.startsWith("JOB-") ? (
+            <EntityReference id={requirement.target.slice(4)} kind="job" />
+          ) : (
+            <EntityReference kind="proposal" slug={requirement.target} />
+          )}{" "}
+          · {requirement.mode.replace(/_/g, " ")}
+          {requirement.stage ? `: ${requirement.stage}` : ""}
+        </div>
       ))}
     </div>
   )
@@ -147,7 +160,9 @@ export const examples: ToolCardExample[] = [
           repository_id: 7,
           repository: "acme/widget",
           dependencies: ["card-primitives"],
+          depends_on_proposal_slugs: ["card-primitives", "release-epic"],
           depends_on_job_ids: [12],
+          dependency_requirements: [{ job_id: 18, satisfaction_mode: "deployed", required_deployment_stage_name: "production" }],
           target_epic: { id: 9, label: "UI polish" },
           materialized: { kind: "job", job_id: 44, job_title: "Fix output", job_state: "queued" }
         },
