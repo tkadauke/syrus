@@ -213,7 +213,7 @@ export function useWalkthroughRecorder({
         setState({ phase: "error", message: t("walkthrough_finalize_error") })
       }
     },
-    [cleanup]
+    [cleanup, t]
   )
 
   const start = useCallback(async () => {
