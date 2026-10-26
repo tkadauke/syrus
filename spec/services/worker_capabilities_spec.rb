@@ -130,12 +130,32 @@ RSpec.describe WorkerCapabilities do
     # back no_capable_worker.
     it "advertises the android toolchain when the SDK is installed" do
       allow(described_class).to receive(:command_result) do |command|
-        probe_result(success: command.first == "sdkmanager")
+        probe_result(success: command.first.end_with?("/platform-tools/adb"))
       end
 
       with_capability_env(nil) do
         expect(described_class.current.fetch(:capabilities)["toolchain"]).to include("android")
       end
+    end
+
+    # capability_probe runs with `env: {}` and the sandbox supplies a bare
+    # /usr/local/bin:/usr/bin:/bin PATH, so everything the image adds through
+    # `ENV PATH` -- the whole Android SDK -- is invisible to a probe that looks
+    # the command up by name. A `sdkmanager` probe reported the toolchain
+    # absent on a worker that had it, and shipped to production doing nothing.
+    it "probes the android SDK by absolute path, never by PATH lookup" do
+      command = described_class::TOOL_PROBES.find { |probe| probe.token == "android" }.command
+
+      expect(command.first).to start_with("/")
+      expect(command.first).to end_with("/platform-tools/adb")
+    end
+
+    # adb is native and answers in about 12ms; sdkmanager is a JVM program
+    # taking roughly 650ms of a 2 second probe budget.
+    it "probes with adb rather than the JVM-backed sdkmanager" do
+      command = described_class::TOOL_PROBES.find { |probe| probe.token == "android" }.command
+
+      expect(command.join(" ")).not_to include("sdkmanager")
     end
 
     it "does not advertise the android toolchain when the SDK is absent" do

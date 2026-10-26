@@ -23,17 +23,34 @@ class WorkerCapabilities
   ToolProbe = Data.define(:dimension, :token, :diagnostic_key, :command, :available_value)
   CommandResult = Data.define(:success, :output)
 
+  ANDROID_SDK_DEFAULT_ROOT = "/opt/android-sdk".freeze
+
+  # Resolved at load time, like the rest of TOOL_PROBES. ANDROID_SDK_ROOT is set
+  # by the image; the default keeps the probe honest on a host that sets neither
+  # (it simply will not find adb and will not advertise the toolchain).
+  def self.android_probe_command
+    root = ENV["ANDROID_SDK_ROOT"].presence || ENV["ANDROID_HOME"].presence || ANDROID_SDK_DEFAULT_ROOT
+    File.join(root, "platform-tools", "adb")
+  end
+
   TOOL_PROBES = [
     ToolProbe.new(dimension: "toolchain", token: "xcode", diagnostic_key: "xcode", command: [ "xcodebuild", "-version" ], available_value: true),
     ToolProbe.new(dimension: "runtime", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true),
-    # The Linux worker image installs the Android SDK (cmdline-tools, platform,
-    # build-tools) and puts sdkmanager on PATH, but nothing advertised it, so
-    # `toolchain=android` -- which Android::GradleGraderType requires -- was
-    # satisfiable by no worker at all. Every Android grader resolved to
+    # The Linux worker image installs the Android SDK, and nothing advertised
+    # it, so `toolchain=android` -- which Android::GradleGraderType requires --
+    # was satisfiable by no worker at all. Every Android grader resolved to
     # `no_capable_worker`, including the ones in main-branch-repair preflight,
     # so the job that exists to fix a broken default branch could not get past
     # its own preflight.
-    ToolProbe.new(dimension: "toolchain", token: "android", diagnostic_key: "android", command: [ "sdkmanager", "--version" ], available_value: true),
+    #
+    # Probed by absolute path, NOT by name: capability_probe runs with
+    # `env: {}`, and the sandbox then supplies a bare
+    # `/usr/local/bin:/usr/bin:/bin:...` PATH. Everything the image adds through
+    # `ENV PATH` -- the whole Android SDK among it -- is invisible there, so a
+    # `sdkmanager` probe reported "absent" on a worker that has it. `adb` is
+    # also deliberate over `sdkmanager`: it is a native binary that answers in
+    # ~12ms, where sdkmanager is a JVM program taking ~650ms of the 2s budget.
+    ToolProbe.new(dimension: "toolchain", token: "android", diagnostic_key: "android", command: [ android_probe_command, "--version" ], available_value: true),
     ToolProbe.new(dimension: "feature", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true)
   ].freeze
   VERSION_PROBES = {
