@@ -410,6 +410,7 @@ export type ChatMessageItem = {
   tool_name?: string | null
   content?: unknown
   text: string
+  mentions?: ChatMessageMention[]
   bookmarkable: boolean
   pinnable?: boolean
   created_at?: string
@@ -422,6 +423,14 @@ export type ChatMessageItem = {
   sidechain?: boolean
   parent_tool_use_id?: string | null
   cross_chat_bridge?: ChatCrossChatBridge | null
+}
+
+export type ChatMessageMention = {
+  kind: "human" | "coworker" | "syrus"
+  id: number | string
+  handle: string
+  start: number
+  end: number
 }
 
 export type ChatPendingActionInline = {

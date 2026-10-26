@@ -235,9 +235,27 @@ export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "m
 
 function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload }) {
   const slugTone = isCurrentUserBubble(item, payload) ? "inverted" : "default"
+  const characters = Array.from(item.text)
 
   if (shouldRenderUserMarkdown(item.text)) {
-    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />
+    const highlightTerms = item.mentions?.map((mention) => characters.slice(mention.start, mention.end).join(""))
+    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} highlightTerms={highlightTerms} text={item.text} linkifyUrls slugTone={slugTone} />
+  }
+
+  if (item.mentions?.length) {
+    let cursor = 0
+    const parts: ReactNode[] = []
+    item.mentions.forEach((mention, index) => {
+      parts.push(characters.slice(cursor, mention.start).join(""))
+      parts.push(
+        <mark className="rounded bg-black/15 px-0.5 text-inherit dark:bg-white/20" data-mention-kind={mention.kind} key={`${mention.kind}-${mention.id}-${index}`}>
+          {characters.slice(mention.start, mention.end).join("")}
+        </mark>
+      )
+      cursor = mention.end
+    })
+    parts.push(characters.slice(cursor).join(""))
+    return <div className={humanMessageBubbleClass(item, payload)}>{parts}</div>
   }
 
   return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />

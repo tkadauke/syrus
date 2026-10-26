@@ -54,6 +54,7 @@ RSpec.describe InboundMessageRouter do
         expect(message).to be_present
         expect(message.content["text"]).to eq("Hi Syrus")
         expect(message.sender_user).to eq(user)
+        expect(message.mentions).to eq([])
       end
 
       it "enqueues ChatTurnJob for speak_when_spoken_to sessions" do
@@ -112,14 +113,17 @@ RSpec.describe InboundMessageRouter do
         end
 
         it "enqueues ChatTurnJob when the message mentions @syrus" do
+          result = nil
           expect {
-            described_class.new(
+            result = described_class.new(
               platform: "telegram",
               external_id: "42",
               external_handle: "@alice",
               message_text: "hey @syrus can you help?"
             ).call
           }.to have_enqueued_job(ChatTurnJob)
+
+          expect(result.session.messages.last.mentions).to contain_exactly(include("kind" => "syrus", "id" => "syrus"))
         end
       end
 

@@ -131,7 +131,7 @@ module App
     end
 
     def message_json(message)
-      text = text_from_content(message)
+      text, mentions = message.rendered_text_and_mentions
       payload = {
         type: "message",
         id: message.id,
@@ -140,6 +140,7 @@ module App
         tool_name: message.tool_name,
         content: message.content,
         text: text,
+        mentions: mentions,
         bookmarkable: message.bookmarkable?,
         sender_user: sender_user_json(message),
         pinnable: message.pinnable?,

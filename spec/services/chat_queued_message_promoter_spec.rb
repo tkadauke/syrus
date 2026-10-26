@@ -479,6 +479,7 @@ RSpec.describe ChatQueuedMessagePromoter do
 
         expect(result).to be true
         expect(ChatMessage.where(chat_session: chat).count).to eq(1)
+        expect(ChatMessage.where(chat_session: chat).sole.mentions).to eq([])
         expect(chat.reload).not_to be_turn_in_flight
       end
 
@@ -488,6 +489,8 @@ RSpec.describe ChatQueuedMessagePromoter do
         expect {
           described_class.deliver_one_if_idle!(chat)
         }.to have_enqueued_job(ChatTurnJob)
+
+        expect(ChatMessage.where(chat_session: chat).sole.mentions).to contain_exactly(include("kind" => "syrus", "id" => "syrus"))
       end
     end
   end

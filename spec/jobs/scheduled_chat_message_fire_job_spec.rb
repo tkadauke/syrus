@@ -49,6 +49,7 @@ RSpec.describe ScheduledChatMessageFireJob do
     described_class.perform_now(scheduled_message.id)
 
     message = group_chat.messages.last
+    expect(message.mentions).to eq([])
     expect(message).to have_attributes(role: "user", sender_user_id: user.id)
     expect(message.content).to include(
       "text" => "Posting an FYI for the team.",
@@ -66,6 +67,7 @@ RSpec.describe ScheduledChatMessageFireJob do
     described_class.perform_now(scheduled_message.id)
 
     message = group_chat.messages.last
+    expect(message.mentions).to contain_exactly(include("kind" => "syrus", "id" => "syrus"))
     expect(group_chat.reload).to be_turn_in_flight
     expect(ChatTurnJob).to have_been_enqueued.with(group_chat.id, message.id).on_queue("chat")
   end

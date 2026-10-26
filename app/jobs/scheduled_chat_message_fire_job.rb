@@ -21,11 +21,13 @@ class ScheduledChatMessageFireJob < ApplicationJob
         )
         chat.touch
       else
-        turn_triggered = chat.should_trigger_agent?(message.body)
+        mentions = chat.resolve_mentions(message.body)
+        turn_triggered = chat.should_trigger_agent?(mentions)
         chat_message = chat.messages.create!(
           role: "user",
           sender_user: message.user,
           content: content,
+          mentions: mentions,
           skip_turn_trigger: !turn_triggered
         )
         chat.update!(last_message_at: Time.current)

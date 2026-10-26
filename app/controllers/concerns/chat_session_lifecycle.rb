@@ -66,8 +66,9 @@ module ChatSessionLifecycle
         chat_session.chat_participants.create!(user: participant_user, role: "member")
       end
       if text.present?
-        turn_triggered = chat_session.should_trigger_agent?(text)
-        user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
+        mentions = chat_session.resolve_mentions(text)
+        turn_triggered = chat_session.should_trigger_agent?(mentions)
+        user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
         chat_session.pin_chat_provider!
       end
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_25_233430) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_004206) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -525,6 +525,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_233430) do
     t.string "tool_name"
     t.string "tool_use_id"
     t.datetime "updated_at", null: false
+    t.json "mentions"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"

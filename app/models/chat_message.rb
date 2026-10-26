@@ -26,6 +26,7 @@ class ChatMessage < ApplicationRecord
   # that will never run and clear it.
   attr_accessor :skip_turn_trigger
 
+  before_validation :resolve_mentions_once, on: :create
   after_create :record_chat_turn_state
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
@@ -34,6 +35,7 @@ class ChatMessage < ApplicationRecord
   after_update :invalidate_context_checkpoints, if: :newly_soft_deleted?
 
   validates :role, presence: true, inclusion: { in: ROLES }
+  validate :mentions_are_structured
   validate :content_is_present
 
   def bookmarkable?
@@ -88,10 +90,60 @@ class ChatMessage < ApplicationRecord
     end
   end
 
+  def resolved_mentions
+    return [] unless role == "user"
+    return mentions unless mentions.nil?
+
+    Mentionables::Resolver.resolve(text: extract_text_from_content, chat: chat_session)
+  end
+
+  def rendered_text_and_mentions
+    text = extract_text_from_content.to_s
+    rendered_parts = []
+    rendered_mentions = []
+    cursor = 0
+
+    resolved_mentions.sort_by { |mention| mention.fetch("start") }.each do |mention|
+      mentionable = Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      next unless mentionable&.addressable_in?(chat_session)
+
+      start_offset = mention.fetch("start")
+      end_offset = mention.fetch("end")
+      next if start_offset < cursor || end_offset > text.length
+
+      replacement = "@#{mentionable.handle}"
+      prefix = text[cursor...start_offset].to_s
+      rendered_start = rendered_parts.sum(&:length) + prefix.length
+      rendered_parts << prefix << replacement
+      rendered_mentions << mention.merge(
+        "handle" => mentionable.handle,
+        "start" => rendered_start,
+        "end" => rendered_start + replacement.length
+      )
+      cursor = end_offset
+    end
+
+    rendered_parts << text[cursor..].to_s
+    [ rendered_parts.join, rendered_mentions ]
+  end
+
   private
 
   def content_is_present
     errors.add(:content, "can't be blank") if content.nil?
+  end
+
+  def resolve_mentions_once
+    return unless role == "user" && mentions.nil? && chat_session
+
+    self.mentions = Mentionables::Resolver.resolve(text: extract_text_from_content, chat: chat_session)
+  end
+
+  def mentions_are_structured
+    return if mentions.nil?
+    return if mentions.is_a?(Array) && mentions.all? { |mention| mention.is_a?(Hash) && %w[kind id handle start end].all? { |key| mention.key?(key) } }
+
+    errors.add(:mentions, "must contain structured mentions")
   end
 
   def newly_soft_deleted?

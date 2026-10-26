@@ -23,10 +23,12 @@ class ChatQueuedMessagePromoter
       return false if queued_messages.empty?
 
       promoted_role = queued_messages.first.promoted_role
-      turn_triggered = turn_triggered?(chat, queued_messages.first)
+      mentions = promoted_role == "user" ? chat.resolve_mentions(queued_messages.first.text) : []
+      turn_triggered = turn_triggered?(chat, queued_messages.first, mentions)
       user_message = chat.messages.create!(
         role: promoted_role,
         content: promoted_content_for(queued_messages),
+        mentions: mentions,
         sender_user_id: queued_messages.one? ? queued_messages.first.promoted_sender_user_id : nil,
         skip_turn_trigger: promoted_role == "user" && !turn_triggered
       )
@@ -102,10 +104,10 @@ class ChatQueuedMessagePromoter
     PROMPT
   end
 
-  def turn_triggered?(chat, queued_message)
+  def turn_triggered?(chat, queued_message, mentions)
     return true if queued_message.promoted_role == "system"
 
-    chat.should_trigger_agent?(queued_message.text)
+    chat.should_trigger_agent?(mentions)
   end
 
   def ready_to_promote?(chat, queued_message)
