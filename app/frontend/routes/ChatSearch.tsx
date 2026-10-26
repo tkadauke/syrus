@@ -209,7 +209,14 @@ function PanelMessage({ children, tone = "neutral" }: { children: string; tone?:
 
 function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOptions>> | undefined, t: (key: string) => string): FilterSchemaField[] {
   return [
-    { field: "q", label: t("search.filter_query"), bucket: "text", operators: ["contains"], values: [], expansions: { placeholder: t("search.filter_keywords") } },
+    {
+      field: "q",
+      label: t("search.filter_query"),
+      bucket: "text",
+      operators: ["contains"],
+      values: [],
+      expansions: { placeholder: t("search.filter_keywords") }
+    },
     { field: "repository_id", label: t("search.filter_repository"), bucket: "select", operators: ["is"], values: options?.repository_id || [] },
     { field: "epic_id", label: t("search.filter_epic"), bucket: "select", operators: ["is"], values: options?.epic_id || [] },
     { field: "job_id", label: t("search.filter_job"), bucket: "select", operators: ["is"], values: options?.job_id || [] }

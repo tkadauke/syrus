@@ -63,11 +63,19 @@ export const slashCommands = [
   { name: "/settings", kind: "system", args: [], description: "slash_commands.settings" },
   { name: "/copy", kind: "system", args: [], description: "slash_commands.copy" },
   { name: "/search", kind: "system", args: [{ name: "query", required: false }], description: "slash_commands.search" },
-  { name: "/pin", kind: "system", args: [], description: (context) => context.chat?.pinned ? "slash_commands.unpin" : "slash_commands.pin" },
+  { name: "/pin", kind: "system", args: [], description: (context) => (context.chat?.pinned ? "slash_commands.unpin" : "slash_commands.pin") },
   { name: "/report", kind: "system", args: [], description: "slash_commands.report" },
   { name: "/scratch", kind: "system", args: [{ name: "text", required: false }], description: "slash_commands.scratch" },
   { name: "/share", kind: "system", args: [], description: "slash_commands.share" },
-  { name: "/schedule", kind: "system", args: [{ name: "time", required: false }, { name: "message", required: false }], description: "slash_commands.schedule" },
+  {
+    name: "/schedule",
+    kind: "system",
+    args: [
+      { name: "time", required: false },
+      { name: "message", required: false }
+    ],
+    description: "slash_commands.schedule"
+  },
   { name: "/goal", kind: "system", args: [{ name: "action/objective", required: false }], description: "slash_commands.goal" },
   {
     name: "/jobs",
@@ -153,14 +161,15 @@ export const slashCommands = [
     kind: "skill",
     args: [{ name: "message", required: false }],
     description: "slash_commands.remind",
-    toPrompt: (args) => `The operator wants to set a reminder${args.trim() ? `: ${args.trim()}` : "."} Use the schedule_wakeup MCP tool to schedule a wakeup at the time they specify. Use fire_at for specific dates/times or longer reminders, and delay_minutes only for short relative reminders within 24 hours. If no time is specified, ask for one before calling the tool. Confirm the wakeup time back to the operator after scheduling.`
+    toPrompt: (args) =>
+      `The operator wants to set a reminder${args.trim() ? `: ${args.trim()}` : "."} Use the schedule_wakeup MCP tool to schedule a wakeup at the time they specify. Use fire_at for specific dates/times or longer reminders, and delay_minutes only for short relative reminders within 24 hours. If no time is specified, ask for one before calling the tool. Confirm the wakeup time back to the operator after scheduling.`
   }
 ] as const satisfies readonly SlashCommand[]
 
 export const slashCommandPattern = /^\s*(\/[a-z]+(?:-[a-z]+)*)\b/i
 
 export function slashCommandSignature(command: SlashCommand) {
-  return command.args.map((arg) => arg.required ? `<${arg.name}>` : `[${arg.name}]`).join(" ")
+  return command.args.map((arg) => (arg.required ? `<${arg.name}>` : `[${arg.name}]`)).join(" ")
 }
 
 export function slashCommandDescription(command: SlashCommand, context: SlashCommandContext = {}, t: (key: string) => string = (key) => key) {
@@ -204,11 +213,9 @@ export function slashCommandPrompt(text: string, context: SlashCommandContext = 
 }
 
 function commandsForContext(context: SlashCommandContext) {
-  const dynamic = (context.dynamicCommands ?? []).filter(
-    (command) => !slashCommands.some((existing) => existing.name === command.name)
-  )
+  const dynamic = (context.dynamicCommands ?? []).filter((command) => !slashCommands.some((existing) => existing.name === command.name))
 
-  return dynamic.length > 0 ? [ ...slashCommands, ...dynamic ] : slashCommands
+  return dynamic.length > 0 ? [...slashCommands, ...dynamic] : slashCommands
 }
 
 function commandMatchRank(commandName: string, query: string) {
@@ -223,9 +230,7 @@ function quotedArg(value: string) {
 
 function proposeWizardPrompt(args: string) {
   const trimmed = args.trim()
-  const initialContext = trimmed.length > 0
-    ? `\n\nThe operator included this initial context after the command:\n${trimmed}`
-    : ""
+  const initialContext = trimmed.length > 0 ? `\n\nThe operator included this initial context after the command:\n${trimmed}` : ""
 
   return `Start the guided Job proposal wizard.
 

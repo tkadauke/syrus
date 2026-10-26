@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { filterSlashCommands, findSlashCommand, repoSkillCommands, slashCommandDescription, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
+import {
+  filterSlashCommands,
+  findSlashCommand,
+  repoSkillCommands,
+  slashCommandDescription,
+  slashCommandPrompt,
+  slashCommandSignature,
+  slashCommands,
+  type SlashCommand
+} from "./slashCommands"
 
 function promptFor(commandName: string, args = "") {
   const command: SlashCommand | undefined = slashCommands.find((item) => item.name === commandName)
@@ -116,7 +125,10 @@ describe("slashCommands", () => {
 
     expect(match?.command.kind).toBe("system")
     expect(match?.command.description).toBe("slash_commands.schedule")
-    expect(match?.command.args).toEqual([{ name: "time", required: false }, { name: "message", required: false }])
+    expect(match?.command.args).toEqual([
+      { name: "time", required: false },
+      { name: "message", required: false }
+    ])
     expect(match?.argsText).toBe("2h check the queue")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[time] [message]")
   })
@@ -131,7 +143,7 @@ describe("slashCommands", () => {
   })
 
   it("keeps agent-backed commands as skill commands", () => {
-    for (const commandName of [ "/propose", "/feedback" ]) {
+    for (const commandName of ["/propose", "/feedback"]) {
       expect(slashCommands.find((item) => item.name === commandName)?.kind).toBe("skill")
     }
   })
@@ -149,12 +161,7 @@ describe("slashCommands", () => {
   it("keeps proposal commands for ordinary chats", () => {
     const context = { chat: {} }
 
-    expect(filterSlashCommands("", context).map((command) => command.name)).toEqual(expect.arrayContaining([
-      "/proposals",
-      "/discard",
-      "/feedback",
-      "/propose"
-    ]))
+    expect(filterSlashCommands("", context).map((command) => command.name)).toEqual(expect.arrayContaining(["/proposals", "/discard", "/feedback", "/propose"]))
     expect(findSlashCommand("/propose", context)?.command.name).toBe("/propose")
     expect(slashCommandPrompt("/propose", context)).toContain("call the propose_job tool")
   })
@@ -282,17 +289,17 @@ describe("slashCommands", () => {
 
   describe("repository skill commands", () => {
     const skills = [
-      { name: "investigate", description: "Investigate something.", parameters: [ { key: "question", required: true } ] },
+      { name: "investigate", description: "Investigate something.", parameters: [{ key: "question", required: true }] },
       { name: "audit", description: "Audit repo-local instructions.", parameters: [] }
     ]
 
     it("builds one slash command per resolved skill, sent as raw text with no confirmation", () => {
       const commands = repoSkillCommands(skills)
 
-      expect(commands.map((command) => command.name)).toEqual([ "/investigate", "/audit" ])
+      expect(commands.map((command) => command.name)).toEqual(["/investigate", "/audit"])
       const investigate = commands[0]
       expect(investigate.kind).toBe("repo_skill")
-      expect(investigate.args).toEqual([ { name: "question", required: true } ])
+      expect(investigate.args).toEqual([{ name: "question", required: true }])
       expect(investigate.requiresConfirmation).toBeUndefined()
       expect(investigate.toPrompt).toBeUndefined()
     })
@@ -307,7 +314,7 @@ describe("slashCommands", () => {
     it("is discoverable via findSlashCommand and the autocomplete filter once resolved for this chat's repository", () => {
       const context = { dynamicCommands: repoSkillCommands(skills) }
 
-      expect(findSlashCommand('/investigate question=foo', context)?.command.kind).toBe("repo_skill")
+      expect(findSlashCommand("/investigate question=foo", context)?.command.kind).toBe("repo_skill")
       expect(filterSlashCommands("audit", context).map((command) => command.name)).toContain("/audit")
     })
 
@@ -316,7 +323,9 @@ describe("slashCommands", () => {
     })
 
     it("does not let a repo-local skill name shadow an existing system/canned-prompt command", () => {
-      const context = { dynamicCommands: repoSkillCommands([ { name: "propose", description: "A repo skill named the same as the built-in wizard.", parameters: [] } ]) }
+      const context = {
+        dynamicCommands: repoSkillCommands([{ name: "propose", description: "A repo skill named the same as the built-in wizard.", parameters: [] }])
+      }
 
       expect(findSlashCommand("/propose", context)?.command.kind).toBe("skill")
     })

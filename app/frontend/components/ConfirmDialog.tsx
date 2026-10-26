@@ -13,15 +13,7 @@ export interface ConfirmDialogProps {
   onCancel: () => void
 }
 
-export function ConfirmDialog({
-  open,
-  message,
-  confirmLabel,
-  cancelLabel,
-  destructive = false,
-  onConfirm,
-  onCancel
-}: ConfirmDialogProps) {
+export function ConfirmDialog({ open, message, confirmLabel, cancelLabel, destructive = false, onConfirm, onCancel }: ConfirmDialogProps) {
   const { t } = useT("common")
   const confirmRef = useRef<HTMLButtonElement>(null)
 
