@@ -255,6 +255,80 @@ syrus_docker_prune_build_cache_since() {
     --min-free-space "${min_free_space}" >/dev/null || true
 }
 
+# The daemon's data directory, or empty when it cannot be read. Not the
+# host's: on Colima/Lima, Docker Desktop, or any remote context the two are
+# different filesystems with unrelated free space.
+syrus_docker_root() {
+  docker info --format '{{.DockerRootDir}}' 2>/dev/null || true
+}
+
+# Available GiB on the DAEMON's filesystem, or empty when it cannot be read.
+#
+# Shared by the reclaim and the preflight below so the two can never disagree
+# about how much room there is -- a reclaim that measured differently from the
+# check it feeds could report success and still leave the preflight rejecting
+# the deploy.
+syrus_docker_available_gb() {
+  local docker_root
+  docker_root="$(syrus_docker_root)"
+  [ -n "$docker_root" ] || return 0
+
+  # `df -k` rather than `-BG`/`-h`: POSIX, and the only form busybox (Alpine)
+  # and GNU coreutils agree on. Converting 1K blocks to GiB in awk keeps the
+  # arithmetic out of the shell and avoids parsing a unit suffix.
+  docker run --rm -v /:/host:ro alpine:3 \
+    sh -c "df -k /host${docker_root} 2>/dev/null | awk 'NR==2 {print int(\$4/1048576)}'" \
+    2>/dev/null || true
+}
+
+# Reclaim BuildKit cache to satisfy the preflight, BEFORE it runs.
+#
+# syrus_docker_prune_build_cache_since only runs after a build succeeds, so the
+# invariant syrus_docker_require_free_space documents -- that a deploy leaves
+# the volume in a state its own preflight accepts -- silently does not hold for
+# a deploy that FAILS. Its cache survives, the next preflight is that much
+# tighter, and each failure makes the following one likelier: a 12GB cache was
+# observed refilling across two failed builds until the volume went from 31GB
+# free to 14GB and no deploy could start at all. Running out of disk is what
+# prevents the cleanup that would free the disk.
+#
+# Gated on measured space so a deploy that already has room keeps its warm
+# cache and does not pay for a cold build it did not need.
+syrus_docker_reclaim_for_preflight() {
+  local target_gb avail_gb
+
+  target_gb="${SYRUS_DOCKER_MIN_BUILD_FREE_GB:-20}"
+  avail_gb="$(syrus_docker_available_gb)"
+
+  # Unmeasurable: leave it to the preflight, which reports and continues.
+  case "$avail_gb" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+
+  if [ "$avail_gb" -ge "$target_gb" ]; then
+    return 0
+  fi
+
+  # Once short, reclaim all unused BuildKit cache rather than a measured
+  # slice of it. A size-hinted prune was tried first and does not reach the
+  # target: on a volume with 15GB free and an 11.4GB fully-reclaimable cache
+  # it freed 0.67GB and stopped, because BuildKit applies the hint to its own
+  # accounting rather than to the filesystem. An unconditional prune is the
+  # only form that reliably frees what it reports, and the cache is
+  # regenerable -- the build pulls registry-backed cache through
+  # `--cache-from`. No `until` filter either: the whole point is to reach the
+  # target even when the cache was written minutes ago by a build that just
+  # failed, which is exactly the case an `until` window excludes.
+  echo "→ docker cache prune: ${avail_gb}GB free, below the ${target_gb}GB a build needs; reclaiming unused BuildKit cache"
+  docker builder prune -f >/dev/null 2>&1 || true
+
+  avail_gb="$(syrus_docker_available_gb)"
+  case "$avail_gb" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  echo "→ docker cache prune: ${avail_gb}GB free after reclaim"
+}
+
 # Fail fast when the Docker data volume cannot hold a build, instead of
 # discovering it as an opaque layer-extract error.
 #
@@ -265,37 +339,28 @@ syrus_docker_prune_build_cache_since() {
 # into the build. Nothing in that message says "disk", and the build spine
 # has already been rebuilt by then.
 #
-# Checked against the daemon's own filesystem rather than the host's: on
-# Colima/Lima, Docker Desktop, or any remote context the host's free space is
-# unrelated to the VM's. Reports and continues when it cannot read the
-# daemon's root -- a preflight that cannot measure must not block a deploy.
+# Reports and continues when it cannot measure -- a preflight that cannot
+# measure must not block a deploy.
 syrus_docker_require_free_space() {
   local required_gb avail_gb docker_root
 
-  # Matches SYRUS_DOCKER_POST_BUILD_MIN_FREE_SPACE's 20gb target below, so
-  # the space the post-build prune tries to leave free is the same figure the
-  # next deploy's preflight demands. Picking a different number here would
-  # mean a successful deploy could leave the volume in a state its own
-  # preflight rejects. The observed failure had <1GB free, so this is a wide
-  # margin rather than a tight bound.
+  # The same knob the pre-flight reclaim targets, and the same default as
+  # SYRUS_DOCKER_POST_BUILD_MIN_FREE_SPACE's 20gb above. All three have to
+  # agree or a deploy can leave the volume in a state its own preflight
+  # rejects -- the ratchet syrus_docker_reclaim_for_preflight exists to break.
+  # The observed failure had <1GB free, so 20 is a wide margin rather than a
+  # tight bound.
   required_gb="${SYRUS_DOCKER_MIN_BUILD_FREE_GB:-20}"
 
-  docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
-  if [ -z "$docker_root" ]; then
-    echo "→ disk preflight: skipped (could not read the daemon's root directory)"
-    return 0
-  fi
-
-  # `df -k` rather than `-BG`/`-h`: POSIX, and the only form busybox (Alpine)
-  # and GNU coreutils agree on. Converting 1K blocks to GiB in awk keeps the
-  # arithmetic out of the shell and avoids parsing a unit suffix.
-  avail_gb="$(docker run --rm -v /:/host:ro alpine:3 \
-      sh -c "df -k /host${docker_root} 2>/dev/null | awk 'NR==2 {print int(\$4/1048576)}'" \
-      2>/dev/null || true)"
+  avail_gb="$(syrus_docker_available_gb)"
+  # Display only -- which filesystem to reclaim on is the first thing the
+  # operator needs, and the measurement above has already handled a daemon
+  # whose root cannot be read.
+  docker_root="$(syrus_docker_root)"
 
   case "$avail_gb" in
     ''|*[!0-9]*)
-      echo "→ disk preflight: skipped (could not measure free space on ${docker_root})"
+      echo "→ disk preflight: skipped (could not measure the daemon's free space)"
       return 0
       ;;
   esac

@@ -12,6 +12,16 @@ RSpec.describe "Docker image scripts" do
   let(:compose_yml) { File.read(File.join(root, "docker-compose.yml")) }
   let(:persistent_mcp_daemon) { File.read(File.join(root, "app/services/persistent_mcp_daemon.rb")) }
 
+  # A shell function's body with its comment lines stripped. An assertion about
+  # what a helper does must not be satisfied -- or broken -- by a comment
+  # explaining what it deliberately does not do.
+  def shell_function(source, name)
+    body = source[/^#{Regexp.escape(name)}\(\)[\s\S]*?\n\}/]
+    raise "no shell function #{name} in source" if body.nil?
+
+    body.lines.reject { |line| line.strip.start_with?("#") }.join
+  end
+
   it "waits for the release stack and uses an enabled provider in chat smoke tests" do
     expect(test_docker).to include('curl -fsS "http://127.0.0.1:${PORT}/readyz"')
     expect(test_docker).to include('Web container did not become ready within 90s.')
@@ -124,9 +134,12 @@ RSpec.describe "Docker image scripts" do
     # silently misreported under Alpine's busybox.
     expect(helper).to include("df -k")
     expect(helper).not_to include("df -BG")
-    # A preflight that cannot measure must not block a deploy.
-    expect(helper).to match(/could not read the daemon's root directory/)
-    expect(helper).to match(/could not measure free space/)
+    # A preflight that cannot measure must not block a deploy: an unreadable
+    # daemon root and an unreadable `df` both surface as an empty measurement,
+    # which skips rather than fails.
+    expect(helper).to match(/disk preflight: skipped \(could not measure/)
+    preflight = shell_function(helper, "syrus_docker_require_free_space")
+    expect(preflight).to match(/skipped \(could not measure[\s\S]*?return 0/)
     # Same figure the post-build prune targets, so a successful deploy never
     # leaves the volume in a state its own preflight rejects.
     expect(helper).to include("SYRUS_DOCKER_MIN_BUILD_FREE_GB:-20")
@@ -415,6 +428,52 @@ RSpec.describe "Docker image scripts" do
 
     expect(skip_block).to include('syrus_ghcr_login "$GHCR_USER" "$GHCR_TOKEN"')
     expect(skip_block.index("syrus_ghcr_login")).to be < skip_block.index('verify_pushed "${REGISTRY}"')
+  end
+
+  # The post-build prune only runs when the build succeeds, so a failed deploy
+  # used to leave its cache behind and tighten the next preflight -- a 12GB
+  # cache refilled across two failed builds and took the volume from 31GB free
+  # to 14GB, at which point no deploy could start. Running out of disk is what
+  # prevents the cleanup that would free the disk.
+  it "reclaims build cache before the preflight, not only after a successful build" do
+    build = deploy[/if \[ "\$SKIP_BUILD" = false \]; then.*?\nelse/m]
+
+    expect(build).to include("syrus_docker_reclaim_for_preflight")
+    expect(build.index("syrus_docker_reclaim_for_preflight")).to be < build.index("syrus_docker_require_free_space")
+  end
+
+  # Gated on the same figure the preflight demands, so a deploy with room to
+  # spare keeps its warm cache instead of paying for a cold build every time.
+  it "only reclaims when the measured free space is below the preflight's target" do
+    reclaim = shell_function(helper, "syrus_docker_reclaim_for_preflight")
+
+    expect(reclaim).to include("SYRUS_DOCKER_MIN_BUILD_FREE_GB")
+    expect(reclaim).to include("syrus_docker_available_gb")
+    expect(reclaim).to match(/avail_gb.*-ge.*target_gb/)
+  end
+
+  # `--min-free-space` was tried and does not reach the target: measured on a
+  # volume with 15GB free and an 11.4GB fully-reclaimable cache it freed 0.67GB
+  # and stopped, because BuildKit applies the figure to its own accounting
+  # rather than the filesystem. An `until` window is wrong for the same reason
+  # it exists -- it excludes cache a build that just failed wrote.
+  it "reclaims unconditionally once it has decided to, rather than by a cache-size hint" do
+    reclaim = shell_function(helper, "syrus_docker_reclaim_for_preflight")
+
+    expect(reclaim).to include("docker builder prune -f")
+    expect(reclaim).not_to include("--min-free-space")
+    expect(reclaim).not_to include("--filter")
+  end
+
+  # The reclaim and the preflight must never disagree about how much room there
+  # is, or one will prune for a target the other does not recognise.
+  it "measures free space the same way the preflight does" do
+    expect(helper).to include("syrus_docker_available_gb()")
+
+    preflight = shell_function(helper, "syrus_docker_require_free_space")
+    expect(preflight).to include("syrus_docker_available_gb")
+    # Not a second, independently drifting measurement of its own.
+    expect(preflight).not_to include("df -k")
   end
 
   it "tracks suspended rollout controls so failures resume them" do
