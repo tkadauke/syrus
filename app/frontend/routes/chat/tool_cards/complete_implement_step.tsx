@@ -1,7 +1,6 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "@app/i18n"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
-import i18n from "@app/i18n"
 
 // Core-owned tool card for complete_implement_step. Reuses the shared
 // pending-action parsing/rendering, which preserves target context from the
