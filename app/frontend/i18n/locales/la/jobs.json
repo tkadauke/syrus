@@ -51,6 +51,7 @@
   "retry_with": "Itera cum ...",
   "retry_with_feedback": "Cum responso itera",
   "retrying": "Iteratur...",
+  "retry_implementation_unavailable": "Implementatio iterari non potest: {{reason}}",
   "start_over": "De integro incipe",
   "approve": "Proba",
   "reapprove": "Iterum proba",
