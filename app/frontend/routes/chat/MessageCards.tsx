@@ -239,7 +239,9 @@ function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { ty
 
   if (shouldRenderUserMarkdown(item.text)) {
     const highlightTerms = item.mentions?.map((mention) => characters.slice(mention.start, mention.end).join(""))
-    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} highlightTerms={highlightTerms} text={item.text} linkifyUrls slugTone={slugTone} />
+    return (
+      <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} highlightTerms={highlightTerms} text={item.text} linkifyUrls slugTone={slugTone} />
+    )
   }
 
   if (item.mentions?.length) {
@@ -248,7 +250,11 @@ function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { ty
     item.mentions.forEach((mention, index) => {
       parts.push(characters.slice(cursor, mention.start).join(""))
       parts.push(
-        <mark className="rounded bg-black/15 px-0.5 text-inherit dark:bg-white/20" data-mention-kind={mention.kind} key={`${mention.kind}-${mention.id}-${index}`}>
+        <mark
+          className="rounded bg-black/15 px-0.5 text-inherit dark:bg-white/20"
+          data-mention-kind={mention.kind}
+          key={`${mention.kind}-${mention.id}-${index}`}
+        >
           {characters.slice(mention.start, mention.end).join("")}
         </mark>
       )
