@@ -203,7 +203,16 @@ type RuntimeCard =
       raw: unknown
     }
   | { kind: "release"; released: RuntimeLease[]; error: string | null; sessionId: string | null; raw: unknown }
-  | { kind: "error"; action: string; message: string; sessionId?: string | null; requestedMode?: string | null; durationSeconds?: string | null }
+  | {
+      kind: "error"
+      action: string
+      message: string
+      sessionId?: string | null
+      requestedMode?: string | null
+      durationSeconds?: string | null
+      requestedArtifactType?: string | null
+      raw?: unknown
+    }
 
 const INPUT_VALUE_PREVIEW_LIMIT = 80
 
@@ -621,7 +630,9 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
       message: error,
       sessionId: displayValue(context.input?.session_id),
       requestedMode: context.toolName === "runtime_acquire_control" ? displayValue(context.input?.mode) : null,
-      durationSeconds: context.toolName === "runtime_acquire_control" ? displayValue(context.input?.duration_seconds) : null
+      durationSeconds: context.toolName === "runtime_acquire_control" ? displayValue(context.input?.duration_seconds) : null,
+      requestedArtifactType: context.toolName === "runtime_capture_artifact" ? displayValue(context.input?.artifact_type) : null,
+      raw: context.toolName === "runtime_capture_artifact" ? context.parsedResult : undefined
     }
   }
 
@@ -1036,7 +1047,14 @@ function RawRuntimeDetails({ value }: { value: unknown }) {
 function RuntimeErrorCard({ card }: { card: Extract<RuntimeCard, { kind: "error" }> }) {
   return (
     <CardShell>
-      {card.action === "runtime_acquire_control" ? (
+      {card.action === "runtime_capture_artifact" ? (
+        <FieldRows
+          rows={[
+            ["Session ID", card.sessionId ?? null],
+            ["Requested artifact", card.requestedArtifactType ?? null]
+          ]}
+        />
+      ) : card.action === "runtime_acquire_control" ? (
         <AcquireRequestDetails card={card} />
       ) : card.action === "runtime_release_control" && card.sessionId ? (
         <Row label="Session ID" value={card.sessionId} wrap />
@@ -1046,6 +1064,7 @@ function RuntimeErrorCard({ card }: { card: Extract<RuntimeCard, { kind: "error"
       <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
         {card.message}
       </div>
+      {card.action === "runtime_capture_artifact" && card.raw !== undefined ? <RawRuntimeDetails value={card.raw} /> : null}
     </CardShell>
   )
 }
