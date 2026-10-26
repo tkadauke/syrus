@@ -187,7 +187,7 @@ function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
 
 function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
   const { copied, copy } = useCopyToClipboard()
-  const blobHref = useBlobUrl(action.href)
+  const blobHref = useBlobUrl(action.copyValue ? undefined : action.href)
   if (action.copyValue) {
     return (
       <button
@@ -201,7 +201,7 @@ function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
     )
   }
 
-  const href = blobHref ?? action.href
+  const href = action.href?.startsWith("data:") ? blobHref : action.href
   if (!href) return null
 
   return (
@@ -233,10 +233,16 @@ function useBlobUrl(href: string | null | undefined) {
     const encoded = href.slice(separator + 1)
     const base64 = header.endsWith(";base64")
     const mimeType = header.replace(/;base64$/, "") || "application/octet-stream"
-    const decoded = base64 ? window.atob(encoded) : decodeURIComponent(encoded)
-    const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0))
-    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }))
-    setBlobUrl(url)
+    let url: string
+    try {
+      const decoded = base64 ? window.atob(encoded) : decodeURIComponent(encoded)
+      const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0))
+      url = URL.createObjectURL(new Blob([bytes], { type: mimeType }))
+      setBlobUrl(url)
+    } catch {
+      setBlobUrl(null)
+      return
+    }
 
     return () => URL.revokeObjectURL(url)
   }, [href])

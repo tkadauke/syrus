@@ -93,7 +93,7 @@ describe("workflow artifact tool cards", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open visual_review_screenshot_1" }))
     expect(screen.getByRole("dialog", { name: "visual_review_screenshot_1" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "data:image/png;base64,abc123")
+    expect(screen.getByRole("link", { name: "Open" }).getAttribute("href")).toMatch(/^blob:/)
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("download")
   })
 
