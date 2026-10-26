@@ -1010,7 +1010,53 @@
     "example_empty_description": "Exercises the generic empty-result fallback for a completed provider response."
   },
   "emergency_land": {
-    "example_pending": "Pending emergency land confirmation"
+    "example_pending": "Pending emergency land confirmation",
+    "warning_title": "Destructive emergency action",
+    "warning_body": "Confirming this action will land the change and skip graders, adversarial review, and visual review.",
+    "job": "Job",
+    "branch": "Branch",
+    "example_pending_message": "Emergency land requires **operator confirmation**.",
+    "example_disabled": "Emergency land feature disabled"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Branch",
+    "active_checkout_branch": "Active checkout branch",
+    "example_pending": "Pending handoff with branch",
+    "example_pending_description": "Shows the linked Job, a long copyable branch, and a Markdown confirmation message across responsive layouts.",
+    "example_pending_message": "Review the **implementation handoff** before confirming.",
+    "example_rejected": "Rejected active-checkout handoff",
+    "example_rejected_description": "Shows the omitted-branch label and a settled rejection while retaining the requested Job.",
+    "example_rejected_message": "The **active checkout branch** was not handed off.",
+    "example_error": "Handoff validation error",
+    "example_error_description": "Shows a plain-text tool error with the submitted Job and active-checkout branch context."
+  },
+  "force_state_transition": {
+    "reason": "Reason",
+    "transition": "Transition",
+    "example_pending": "Pending transition with Markdown",
+    "example_pending_description": "Shows the linked Job, requested event, and expandable operator reason and confirmation message.",
+    "example_confirmed": "Confirmed transition snapshot",
+    "example_confirmed_description": "Shows the audited current-to-resulting Job state after the pending action executes.",
+    "example_live_label": "Force force_fail on JOB-4048",
+    "example_error": "Tool error retains request context",
+    "example_error_description": "Keeps the linked Job, requested event, Markdown reason, and failure detail visible when the request fails."
+  },
+  "submit_chat_feedback": {
+    "feedback": "Feedback",
+    "open_image": "Open image",
+    "download": "Download",
+    "copy_id": "Copy ID",
+    "content_type": "Content type",
+    "created": "Created",
+    "example_pending": "Pending feedback with media",
+    "example_pending_description": "Long Markdown feedback and message, linked references, image thumbnail, snapshot preview, and unresolved-media fallback.",
+    "example_image_title": "Mobile header",
+    "example_queued": "Queued feedback",
+    "example_queued_description": "Feedback waiting for the current Job work to become actionable.",
+    "example_queued_message": "Feedback is queued until the Job finishes its current run.",
+    "example_error": "Feedback error",
+    "example_error_description": "Failure state retaining the requested Job, Markdown feedback, and unresolved media reference."
   },
   "force_landing_recheck": {
     "not_provided": "Not provided",

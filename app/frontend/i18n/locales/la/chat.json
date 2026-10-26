@@ -750,7 +750,53 @@
     "example_empty_description": "Subsidium commune exitus vacui responsi provisoris perfecti exercet."
   },
   "emergency_land": {
-    "example_pending": "Confirmatio landing subiti pendet"
+    "example_pending": "Confirmatio landing subiti pendet",
+    "warning_title": "Actio subita destructiva",
+    "warning_body": "Haec actio confirmata mutationem applicabit et examinatores, recensionem adversariam, atque recensionem visualem praeteribit.",
+    "job": "Job",
+    "branch": "Ramus",
+    "example_pending_message": "Landing subitus **confirmationem operatoris** requirit.",
+    "example_disabled": "Landing subitus impeditus"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Ramus",
+    "active_checkout_branch": "Ramus checkout activus",
+    "example_pending": "Traditio pendens cum ramo",
+    "example_pending_description": "Job conexum, ramum longum exscribendum, et nuntium confirmationis Markdown in dispositionibus responsivis ostendit.",
+    "example_pending_message": "**Traditionem implementationis** ante confirmationem inspice.",
+    "example_rejected": "Traditio checkout activi reiecta",
+    "example_rejected_description": "Titulum rami omissi et reiectionem perfectam cum Job petito ostendit.",
+    "example_rejected_message": "**Ramus checkout activus** non traditus est.",
+    "example_error": "Error validationis traditionis",
+    "example_error_description": "Errorem textus simplicis cum Job misso et contextu rami checkout activi ostendit."
+  },
+  "force_state_transition": {
+    "reason": "Causa",
+    "transition": "Transitus",
+    "example_pending": "Transitus pendens cum Markdown",
+    "example_pending_description": "Job conexum, eventum petitum, causam operatoris expandendam, et nuntium confirmationis ostendit.",
+    "example_confirmed": "Imago transitus confirmati",
+    "example_confirmed_description": "Statum Job inspectum ante et post actionem pendentem effectam ostendit.",
+    "example_live_label": "force_fail in JOB-4048 coge",
+    "example_error": "Error instrumenti contextum petitionis servat",
+    "example_error_description": "Job conexum, eventum petitum, causam Markdown, et detail erroris visibilia servat."
+  },
+  "submit_chat_feedback": {
+    "feedback": "Responsum",
+    "open_image": "Imaginem aperi",
+    "download": "Depone",
+    "copy_id": "ID exscribe",
+    "content_type": "Genus contenti",
+    "created": "Creatum",
+    "example_pending": "Responsum pendens cum mediis",
+    "example_pending_description": "Responsum Markdown longum et nuntium, relationes conexas, imaginem parvam, prospectum snapshot, et subsidium mediorum insolubilium ostendit.",
+    "example_image_title": "Caput mobile",
+    "example_queued": "Responsum in ordine",
+    "example_queued_description": "Responsum exspectat dum opus Job praesens tractabile fiat.",
+    "example_queued_message": "Responsum in ordine manet donec cursus Job praesens finiatur.",
+    "example_error": "Error responsi",
+    "example_error_description": "Statum erroris cum Job petito, responso Markdown, et relatione medii insolubili servat."
   },
   "force_landing_recheck": {
     "not_provided": "Non datum",

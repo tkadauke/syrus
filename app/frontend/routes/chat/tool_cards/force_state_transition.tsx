@@ -14,7 +14,7 @@ function collapsedSummary(context: ToolCardContext) {
 
 const inputFields: PendingActionInputField[] = [
   { key: "event", label: () => i18n.t("chat:mutation_requested_event"), format: "badge" },
-  { key: "reason", label: "Reason", format: "markdown" }
+  { key: "reason", label: () => i18n.t("chat:force_state_transition.reason"), format: "markdown" }
 ]
 
 function snapshotJobState(snapshot: unknown, jobId: unknown) {
@@ -33,7 +33,7 @@ function TransitionDetails({ context }: { context: ToolCardContext }) {
   if (fromState && toState) {
     return (
       <Row
-        label="Transition"
+        label={i18n.t("chat:force_state_transition.transition")}
         value={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             <StatePill state={fromState} />
@@ -85,8 +85,8 @@ const longMessage = [
 export const examples: ToolCardExample[] = [
   {
     id: "pending_confirmation",
-    label: "Pending transition with Markdown",
-    description: "Shows the linked Job, requested event, and expandable operator reason and confirmation message.",
+    label: i18n.t("chat:force_state_transition.example_pending"),
+    description: i18n.t("chat:force_state_transition.example_pending_description"),
     input: { job_id: 4048, event: "force_fail", reason: longReason },
     parsedResult: {
       pending_confirmation_id: 501,
@@ -98,8 +98,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "confirmed_transition",
-    label: "Confirmed transition snapshot",
-    description: "Shows the audited current-to-resulting Job state after the pending action executes.",
+    label: i18n.t("chat:force_state_transition.example_confirmed"),
+    description: i18n.t("chat:force_state_transition.example_confirmed_description"),
     input: { job_id: 4048, event: "force_fail", reason: "Repair the stale Job state after the workflow stopped." },
     parsedResult: {
       pending_confirmation_id: 501,
@@ -111,7 +111,7 @@ export const examples: ToolCardExample[] = [
       id: 501,
       action: "force_state_transition",
       state: "confirmed",
-      label: "Force force_fail on JOB-4048",
+      label: i18n.t("chat:force_state_transition.example_live_label"),
       detail: "Event: `force_fail`",
       reason: "Repair the stale Job state after the workflow stopped.",
       execution_status: "applied",
@@ -124,8 +124,8 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "tool_error",
-    label: "Tool error retains request context",
-    description: "Keeps the linked Job, requested event, Markdown reason, and failure detail visible when the request fails.",
+    label: i18n.t("chat:force_state_transition.example_error"),
+    description: i18n.t("chat:force_state_transition.example_error_description"),
     input: { job_id: 9999, event: "force_fail", reason: "Retry after **verifying** the Job identifier." },
     resultBody: "Error: job not found: 9999",
     resultError: true

@@ -750,7 +750,53 @@
     "example_empty_description": "Prüft den allgemeinen Ersatz für ein leeres Ergebnis einer abgeschlossenen Provider-Antwort."
   },
   "emergency_land": {
-    "example_pending": "Ausstehende Bestätigung der Notfall-Landung"
+    "example_pending": "Ausstehende Bestätigung der Notfall-Landung",
+    "warning_title": "Destruktive Notfallaktion",
+    "warning_body": "Das Bestätigen dieser Aktion landet die Änderung und überspringt Prüfer, adversariale Überprüfung und visuelle Überprüfung.",
+    "job": "Job",
+    "branch": "Branch",
+    "example_pending_message": "Die Notfall-Landung erfordert eine **Bestätigung durch den Operator**.",
+    "example_disabled": "Notfall-Landung deaktiviert"
+  },
+  "complete_implement_step": {
+    "job": "Job",
+    "branch": "Branch",
+    "active_checkout_branch": "Aktiver Checkout-Branch",
+    "example_pending": "Ausstehende Übergabe mit Branch",
+    "example_pending_description": "Zeigt den verknüpften Job, einen langen kopierbaren Branch und eine Markdown-Bestätigung in responsiven Layouts.",
+    "example_pending_message": "Prüfe die **Implementierungsübergabe** vor der Bestätigung.",
+    "example_rejected": "Abgelehnte Übergabe des aktiven Checkouts",
+    "example_rejected_description": "Zeigt die Bezeichnung für den ausgelassenen Branch und eine abgeschlossene Ablehnung mit dem angeforderten Job.",
+    "example_rejected_message": "Der **aktive Checkout-Branch** wurde nicht übergeben.",
+    "example_error": "Validierungsfehler bei der Übergabe",
+    "example_error_description": "Zeigt einen Klartextfehler mit dem übermittelten Job und dem Kontext des aktiven Checkout-Branches."
+  },
+  "force_state_transition": {
+    "reason": "Grund",
+    "transition": "Übergang",
+    "example_pending": "Ausstehender Übergang mit Markdown",
+    "example_pending_description": "Zeigt den verknüpften Job, das angeforderte Ereignis sowie den erweiterbaren Grund und die Bestätigungsnachricht.",
+    "example_confirmed": "Bestätigte Übergangsmomentaufnahme",
+    "example_confirmed_description": "Zeigt den geprüften Job-Status vor und nach der Ausführung der ausstehenden Aktion.",
+    "example_live_label": "force_fail für JOB-4048 erzwingen",
+    "example_error": "Tool-Fehler behält Anfragekontext bei",
+    "example_error_description": "Hält den verknüpften Job, das angeforderte Ereignis, den Markdown-Grund und das Fehlerdetail sichtbar."
+  },
+  "submit_chat_feedback": {
+    "feedback": "Feedback",
+    "open_image": "Bild öffnen",
+    "download": "Herunterladen",
+    "copy_id": "ID kopieren",
+    "content_type": "Inhaltstyp",
+    "created": "Erstellt",
+    "example_pending": "Ausstehendes Feedback mit Medien",
+    "example_pending_description": "Langes Markdown-Feedback und Nachricht, verknüpfte Referenzen, Bildvorschau, Snapshot-Vorschau und Ersatz für nicht auflösbare Medien.",
+    "example_image_title": "Mobile Kopfzeile",
+    "example_queued": "Feedback in der Warteschlange",
+    "example_queued_description": "Feedback wartet darauf, dass die aktuelle Job-Arbeit bearbeitbar wird.",
+    "example_queued_message": "Das Feedback wartet, bis der aktuelle Lauf des Jobs abgeschlossen ist.",
+    "example_error": "Feedback-Fehler",
+    "example_error_description": "Fehlerstatus mit angefordertem Job, Markdown-Feedback und nicht auflösbarer Medienreferenz."
   },
   "force_landing_recheck": {
     "not_provided": "Nicht angegeben",
