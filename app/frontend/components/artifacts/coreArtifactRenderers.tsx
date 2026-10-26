@@ -76,13 +76,13 @@ function BeforeAfterDiffBody({ payload }: { payload: Record<string, unknown> }) 
       <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_before")}</p>
         <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-          {before ?? "(empty)"}
+          {before ?? t("artifact_diff_empty")}
         </pre>
       </div>
       <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_after")}</p>
         <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-          {after ?? "(empty)"}
+          {after ?? t("artifact_diff_empty")}
         </pre>
       </div>
     </div>

@@ -40,4 +40,18 @@ describe("TypedArtifactPanel", () => {
 
     expect(container.firstElementChild).toHaveClass("min-w-0", "overflow-x-auto")
   })
+
+  it("renders a localized empty marker for a missing side of a text comparison", () => {
+    const artifact: TypedArtifact = {
+      type: "config_diff",
+      title: "Configuration change",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "before_after_diff",
+      payload: { before: "enabled: false", after: null }
+    }
+
+    render(<ArtifactBody artifact={artifact} />)
+
+    expect(screen.getByText("(empty)")).toBeInTheDocument()
+  })
 })
