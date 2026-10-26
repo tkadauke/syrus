@@ -719,7 +719,8 @@
     "revoke_yes": "Yes, revoke",
     "cancel": "Cancel",
     "invitation_created": "Invitation created.",
-    "link_copied": "Link copied to clipboard."
+    "link_copied": "Link copied to clipboard.",
+    "copy_signup_link": "Copy signup link for {{email}}"
   },
   "settings": {
     "heading": "App settings",

@@ -562,7 +562,8 @@
     "revoke_yes": "Ja, widerrufen",
     "cancel": "Abbrechen",
     "invitation_created": "Einladung erstellt.",
-    "link_copied": "Link in die Zwischenablage kopiert."
+    "link_copied": "Link in die Zwischenablage kopiert.",
+    "copy_signup_link": "Anmeldelink für {{email}} kopieren"
   },
   "settings": {
     "heading": "App-Einstellungen",

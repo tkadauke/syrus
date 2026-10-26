@@ -562,7 +562,8 @@
     "revoke_yes": "Ita, revocare",
     "cancel": "Omittere",
     "invitation_created": "Invitatio creata.",
-    "link_copied": "Nexus in instrumentum copiatum."
+    "link_copied": "Nexus in instrumentum copiatum.",
+    "copy_signup_link": "Nexum inscriptionis pro {{email}} exscribere"
   },
   "settings": {
     "heading": "Optiones Applicamenti",
