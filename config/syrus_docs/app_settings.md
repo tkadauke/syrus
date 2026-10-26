@@ -442,7 +442,7 @@ stays fixed or on its own settings.
 | `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` | no |
 | `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` | no |
 | `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` | no |
-| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
+| `metrics_dashboard_sample_retention_days` | 7 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
 | `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` | yes |
 | `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` | yes |
 | `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` | no |
@@ -484,7 +484,9 @@ Three entries are worth calling out:
   column itself is still added by a core migration and validated/exposed in
   admin settings unconditionally, the same as other plugin-owned settings
   like `discord_bot_token` — only the model's `.prunable` scope and PruneJob
-  go inert while the plugin is disabled.
+  go inert while the plugin is disabled. Its seven-day default matches the
+  dashboard's longest selectable window; `prune_metrics_dashboard_samples`
+  enforces it daily from `config/recurring.yml`.
 
 ### Retention size estimation
 

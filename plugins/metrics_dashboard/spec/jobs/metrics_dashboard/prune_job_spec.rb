@@ -15,6 +15,18 @@ RSpec.describe MetricsDashboard::PruneJob do
     expect(MetricsDashboard::Sample.exists?(fresh.id)).to be true
   end
 
+  it "keeps a sample exactly at the retention boundary" do
+    travel_to(Time.zone.parse("2026-10-26 12:00:00")) do
+      boundary = sample(recorded_at: MetricsDashboard::Sample.retention_window.ago)
+      expired = sample(recorded_at: (MetricsDashboard::Sample.retention_window + 1.second).ago)
+
+      described_class.perform_now
+
+      expect(MetricsDashboard::Sample.exists?(boundary.id)).to be true
+      expect(MetricsDashboard::Sample.exists?(expired.id)).to be false
+    end
+  end
+
   it "is a no-op when retention is set to 0 (infinite)" do
     AppSetting.current.update!(metrics_dashboard_sample_retention_days: 0)
     old = sample(recorded_at: 10.years.ago)

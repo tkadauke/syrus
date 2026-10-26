@@ -15,9 +15,10 @@ RSpec.describe MetricsDashboard::RetentionPolicy do
     expect(definition.model_class).to eq(MetricsDashboard::Sample)
     expect(definition.table_name).to eq("metrics_dashboard_samples")
     expect(definition.setting_key).to eq(:metrics_dashboard_sample_retention_days)
-    expect(definition.default_value).to eq(30)
+    expect(definition.default_value).to eq(7)
     expect(definition.unit).to eq(:days)
     expect(definition.job_class).to eq("MetricsDashboard::PruneJob")
+    expect(definition.description).to include("longest selectable window (7 days)")
   end
 
   it "is registered with core's RetentionPolicyRegistry and merged into .definitions" do
@@ -30,7 +31,7 @@ RSpec.describe MetricsDashboard::RetentionPolicy do
     definition = AppSettingRegistry.fetch(:metrics_dashboard_sample_retention_days)
 
     expect(definition.type).to eq(:integer)
-    expect(definition.default).to eq(30)
+    expect(definition.default).to eq(7)
     expect(definition.admin_editable).to be true
   end
 end
