@@ -40,17 +40,6 @@ module K8sCluster
       }
     end
 
-    def recent_conditions(item)
-      (item.dig("status", "conditions") || []).last(3).map do |condition|
-        {
-          type: condition["type"],
-          status: condition["status"],
-          reason: condition["reason"],
-          last_transition_time: condition["lastTransitionTime"]
-        }
-      end
-    end
-
     # `.status.active` is an integer count on a real API server, but tolerate
     # an array shape as well so list-shaped payloads still count correctly.
     def active_count(value)
