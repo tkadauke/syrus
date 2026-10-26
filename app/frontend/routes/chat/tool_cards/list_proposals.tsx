@@ -163,7 +163,7 @@ export const examples: ToolCardExample[] = [
           depends_on_proposal_slugs: ["card-primitives", "release-epic"],
           depends_on_job_ids: [12],
           dependency_requirements: [{ job_id: 18, satisfaction_mode: "deployed", required_deployment_stage_name: "production" }],
-          target_epic: { id: 9, label: "UI polish" },
+          target_epic: { id: 9, label: i18n.t("chat:tool_card_list_proposals_example_target_epic") },
           materialized: { kind: "job", job_id: 44, job_title: "Fix output", job_state: "queued" }
         },
         {
@@ -175,7 +175,7 @@ export const examples: ToolCardExample[] = [
           repository_id: 7,
           repository: "acme/widget",
           depends_on_epic_ids: [3],
-          materialized: { kind: "epic", epic_id: 10, child_jobs: [{ job_id: 45, title: "Add cards" }] }
+          materialized: { kind: "epic", epic_id: 10, child_jobs: [{ job_id: 45, title: i18n.t("chat:tool_card_list_proposals_example_child_job") }] }
         }
       ]
     }
