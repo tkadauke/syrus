@@ -481,6 +481,8 @@
   },
   "diff_review": {
     "unavailable": "Diff not available",
+    "load_more_files_one": "Load {{loadCount}} more file ({{remainingCount}} remaining)",
+    "load_more_files_other": "Load {{loadCount}} more files ({{remainingCount}} remaining)",
     "load_lines_above_one": "Load {{count}} more line above",
     "load_lines_above_other": "Load {{count}} more lines above",
     "load_lines_below_one": "Load {{count}} more line below",

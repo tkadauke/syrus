@@ -203,6 +203,7 @@
   "artifact_erd_foreign_keys": "Foreign keys",
   "artifact_diff_before": "Before",
   "artifact_diff_after": "After",
+  "artifact_diff_empty": "(empty)",
   "artifact_visual_comparison_open": "Compare {{title}}. Tap to open a larger preview.",
   "artifact_visual_slider": "Before and after divider for {{title}}",
   "artifact_visual_before_alt": "Before: {{title}}",
