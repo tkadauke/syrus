@@ -104,6 +104,8 @@
   "commits_behind_base_aria_other": "{{count}} promissiones post ramum basem",
   "latest_workflow_aria": "Cursus operis recentissimus: {{trigger}} {{state}}",
   "latest_workflow_trigger_aria": "Initium cursus operis recentissimi",
+  "workflow_trigger_aria": "Initium cursus operis",
+  "active_workflow_trigger_aria": "Initium cursus operis activi",
   "retry_state": {
     "retryable": "iterum temptari potest",
     "not_retryable": "iterum temptari non potest",
