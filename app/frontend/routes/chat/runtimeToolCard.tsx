@@ -1,9 +1,22 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../i18n"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
+import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
-import { Badge, CardShell, Disclosure, FilterableList, displayValue, EmptyState, LargeTextPreview, Row, SectionLabel, StatePill } from "./toolCardUi"
-import { TextPreview } from "./toolCardMarkdown"
+import {
+  Badge,
+  CardShell,
+  Disclosure,
+  EntityReference,
+  FilterableList,
+  displayValue,
+  EmptyState,
+  LargeTextPreview,
+  Row,
+  SectionLabel,
+  StatePill
+} from "./toolCardUi"
+import { MarkdownPreview, TextPreview } from "./toolCardMarkdown"
 
 type RuntimeLease = {
   id: string
@@ -132,9 +145,17 @@ type RuntimeCard =
   | { kind: "input"; event: RuntimeInputEvent; rawEvent: unknown; raw: unknown }
   | { kind: "snapshot"; snapshot: RuntimeSnapshot }
   | { kind: "artifact"; artifact: RuntimeArtifact }
-  | { kind: "acquire"; lease: RuntimeLease | null; error: string | null; raw: unknown }
+  | {
+      kind: "acquire"
+      lease: RuntimeLease | null
+      error: string | null
+      sessionId: string | null
+      requestedMode: string | null
+      durationSeconds: string | null
+      raw: unknown
+    }
   | { kind: "release"; released: RuntimeLease[]; error: string | null; raw: unknown }
-  | { kind: "error"; action: string; message: string; sessionId?: string | null }
+  | { kind: "error"; action: string; message: string; sessionId?: string | null; requestedMode?: string | null; durationSeconds?: string | null }
 
 const INPUT_VALUE_PREVIEW_LIMIT = 80
 
@@ -471,8 +492,14 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
 
 function errorMessage(context: ToolCardContext): string | null {
   if (!context.resultError) return null
-  if (isPlainObject(context.parsedResult))
-    return displayValue(context.parsedResult.error) ?? displayValue(context.parsedResult.message) ?? displayValue(context.resultBody)
+  if (isPlainObject(context.parsedResult)) {
+    return (
+      displayValue(context.parsedResult.error) ??
+      displayValue(context.parsedResult.message) ??
+      contentText(context.parsedResult.content) ??
+      displayValue(context.resultBody)
+    )
+  }
   return displayValue(context.resultBody)
 }
 
@@ -481,7 +508,16 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
   if (context.toolName === "runtime_stop" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "stop")
 
   const error = errorMessage(context)
-  if (error) return { kind: "error", action: context.toolName, message: error, sessionId: displayValue(context.input?.session_id) }
+  if (error) {
+    return {
+      kind: "error",
+      action: context.toolName,
+      message: error,
+      sessionId: displayValue(context.input?.session_id),
+      requestedMode: context.toolName === "runtime_acquire_control" ? displayValue(context.input?.mode) : null,
+      durationSeconds: context.toolName === "runtime_acquire_control" ? displayValue(context.input?.duration_seconds) : null
+    }
+  }
 
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -521,7 +557,15 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
   if (context.toolName === "runtime_snapshot") return parseSnapshotCard(context)
   if (context.toolName === "runtime_capture_artifact") return parseArtifactCard(context)
   if (context.toolName === "runtime_acquire_control") {
-    return { kind: "acquire", lease: parseLease(parsed), error: displayValue(parsed.error), raw: parsed }
+    return {
+      kind: "acquire",
+      lease: parseLease(parsed),
+      error: displayValue(parsed.error),
+      sessionId: displayValue(context.input?.session_id),
+      requestedMode: displayValue(context.input?.mode),
+      durationSeconds: displayValue(context.input?.duration_seconds),
+      raw: parsed
+    }
   }
 
   if (context.toolName === "runtime_release_control") {
@@ -717,7 +761,7 @@ function SafeLinks({ session, showLatestFrame = true }: { session: RuntimeSessio
   )
 }
 
-function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null; title?: string }) {
+function LeaseDetails({ lease, rich = false, title = "Control" }: { lease: RuntimeLease | null; rich?: boolean; title?: string }) {
   if (!lease) return <StatePill state="no lease" tone="neutral" />
 
   return (
@@ -731,11 +775,46 @@ function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null
         {lease.mode ? <Badge>{lease.mode}</Badge> : null}
       </div>
       <div className="mt-2 grid gap-1 sm:grid-cols-2">
-        {lease.ownerRef ? <Row label="Owner ref" value={lease.ownerRef} wrap /> : null}
-        {lease.reason ? <Row label="Reason" value={lease.reason} wrap /> : null}
-        {lease.acquiredAt ? <Row label="Acquired" value={lease.acquiredAt} /> : null}
-        {lease.expiresAt ? <Row label="Expires" value={lease.expiresAt} /> : null}
+        {lease.ownerRef ? rich ? <LeaseOwnerReference ownerRef={lease.ownerRef} /> : <Row label="Owner ref" value={lease.ownerRef} wrap /> : null}
+        {lease.reason ? rich ? <MarkdownPreview maxLines={3} text={lease.reason} title="Reason" /> : <Row label="Reason" value={lease.reason} wrap /> : null}
+        {lease.acquiredAt ? rich ? <LeaseTimestamp label="Acquired" value={lease.acquiredAt} /> : <Row label="Acquired" value={lease.acquiredAt} /> : null}
+        {lease.expiresAt ? rich ? <LeaseTimestamp label="Expires" value={lease.expiresAt} /> : <Row label="Expires" value={lease.expiresAt} /> : null}
         {lease.cancellable != null ? <Row label="Cancellable" value={lease.cancellable ? "yes" : "no"} /> : null}
+      </div>
+    </div>
+  )
+}
+
+function LeaseOwnerReference({ ownerRef }: { ownerRef: string }) {
+  const chatId = ownerRef.match(/^coding_mode_chat:(\d+)$/)?.[1]
+
+  return (
+    <div className="min-w-0">
+      <SectionLabel>Owner ref</SectionLabel>
+      {chatId ? <EntityReference id={chatId} kind="chat" /> : <div className="break-all font-mono text-xs text-text-primary">{ownerRef}</div>}
+    </div>
+  )
+}
+
+function LeaseTimestamp({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <SectionLabel>{label}</SectionLabel>
+      <RelativeTimestamp className="font-mono text-xs text-text-primary" value={value} />
+    </div>
+  )
+}
+
+function AcquireRequestDetails({ card }: { card: { sessionId?: string | null; requestedMode?: string | null; durationSeconds?: string | null } }) {
+  if (!card.sessionId && !card.requestedMode && !card.durationSeconds) return null
+
+  return (
+    <div>
+      <SectionLabel>Request</SectionLabel>
+      <div className="mt-1 grid gap-1 sm:grid-cols-3">
+        {card.sessionId ? <Row label="Session ID" value={card.sessionId} wrap /> : null}
+        {card.requestedMode ? <Row label="Mode" value={card.requestedMode} wrap /> : null}
+        {card.durationSeconds ? <Row label="Duration" value={`${card.durationSeconds} seconds`} wrap /> : null}
       </div>
     </div>
   )
@@ -843,11 +922,13 @@ function RawRuntimeDetails({ value }: { value: unknown }) {
   )
 }
 
-function RuntimeErrorCard({ message, sessionId }: { message: string; sessionId?: string | null }) {
+function RuntimeErrorCard({ card }: { card: Extract<RuntimeCard, { kind: "error" }> }) {
   return (
     <CardShell>
-      {sessionId ? <RuntimeId id={sessionId} /> : null}
-      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{message}</div>
+      {card.action === "runtime_acquire_control" ? <AcquireRequestDetails card={card} /> : card.sessionId ? <RuntimeId id={card.sessionId} /> : null}
+      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+        {card.message}
+      </div>
     </CardShell>
   )
 }
@@ -1154,7 +1235,7 @@ function renderExpanded(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  if (card.kind === "error") return <RuntimeErrorCard message={card.message} sessionId={card.sessionId} />
+  if (card.kind === "error") return <RuntimeErrorCard card={card} />
 
   if (card.kind === "sessions") {
     return (
@@ -1200,7 +1281,8 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         <RuntimeNotice message={message} tone={confirmed ? "success" : "warning"} />
-        <LeaseDetails lease={card.lease} />
+        <AcquireRequestDetails card={card} />
+        <LeaseDetails lease={card.lease} rich />
         <RawRuntimeDetails value={card.raw} />
       </CardShell>
     )
