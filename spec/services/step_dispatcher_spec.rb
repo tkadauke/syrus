@@ -4098,6 +4098,81 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
   end
 end
 
+RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_only do
+  include ActiveJob::TestHelper
+
+  let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user: user) }
+  let(:epic) do
+    Factories.epic(
+      user: user,
+      repository: repository,
+      epic_dependency_policy: "linear",
+      state: "in_progress"
+    )
+  end
+
+  def build_workflow(job:, trigger_kind:, step_kind: "implement", artifacts: {})
+    workflow = Workflow.create!(job: job, trigger_kind: trigger_kind, artifacts: artifacts)
+    step = Step.create!(workflow: workflow, kind: step_kind, position: 0)
+    [ workflow, step ]
+  end
+
+  def epic_job(issue_number:, state: "queued", kind: "issue")
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: kind == "main_grader" ? nil : issue_number,
+      issue_title: kind == "main_grader" ? "main_grader:abc123" : "Epic child #{issue_number}",
+      kind: kind,
+      state: state
+    )
+  end
+
+  it "admits one sibling at a time and automatically admits the next after backoff" do
+    first_job = epic_job(issue_number: 201)
+    second_job = epic_job(issue_number: 202)
+    first_workflow, first_step = build_workflow(job: first_job, trigger_kind: "initial")
+    second_workflow, second_step = build_workflow(job: second_job, trigger_kind: "initial")
+
+    expect { described_class.start_workflow(second_workflow) }.not_to change { Run.count }
+    expect(second_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+
+    expect { described_class.start_workflow(first_workflow) }.to change { first_step.runs.count }.by(1)
+
+    first_workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    travel described_class::START_BLOCKED_BACKOFF + 1.second do
+      expect { described_class.start_workflow(second_workflow) }.to change { second_step.runs.count }.by(1)
+    end
+    expect(second_workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "does not serialize landing, recovery, or main-grader workflows behind implementation" do
+    implementing_job = epic_job(issue_number: 203, state: "running")
+    implementing_workflow, = build_workflow(job: implementing_job, trigger_kind: "initial")
+    implementing_workflow.update_columns(state: "running", started_at: 1.minute.ago)
+
+    candidates = [
+      [ "auto_merge", "mergeability_preflight", "landing", {}, "issue" ],
+      [ "merge_train", "merge_train_land", "approved", { "merge_train_id" => 123 }, "issue" ],
+      [ "rebase", "auto_rebase", "implemented", {}, "issue" ],
+      [ "stack_rebase", "stack_auto_rebase", "implemented", {}, "issue" ],
+      [ "main_grader", "grader_fanout", "queued", {}, "main_grader" ]
+    ]
+
+    candidates.each_with_index do |(trigger_kind, step_kind, state, artifacts, job_kind), index|
+      job = epic_job(issue_number: 210 + index, state: state, kind: job_kind)
+      workflow, step = build_workflow(job: job, trigger_kind: trigger_kind, step_kind: step_kind, artifacts: artifacts)
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { step.runs.count }.by(1), "expected #{trigger_kind} to bypass the sibling implementation gate"
+      expect(workflow.reload.artifact("start_blocked_reason")).not_to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+    end
+  end
+end
+
 RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
   before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper

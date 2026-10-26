@@ -148,6 +148,17 @@ describe("StartBlockedReasonPill", () => {
     expect(title).not.toContain("retry_after_budget_recheck")
   })
 
+  it("renders the Epic sibling implementation reason", () => {
+    render(<StartBlockedReasonPill reason="epic_sibling_implementation_active" />)
+
+    const pill = screen.getByText("Epic sibling in progress").closest("[data-status-pill]")
+    expect(pill).toHaveClass("bg-neutral-surface")
+    expect(pill).toHaveAttribute(
+      "title",
+      "Another child Job in this Epic is being implemented. This Job starts automatically when its sibling finishes."
+    )
+  })
+
   it("escalates gray tone to amber when start_blocked_at is more than 30 minutes ago", () => {
     const blockedAt = new Date(Date.now() - 31 * 60 * 1000).toISOString()
     render(<StartBlockedReasonPill reason="urgent_job_active" startBlockedAt={blockedAt} />)

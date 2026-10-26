@@ -3434,6 +3434,8 @@ module WorkEngine
         StepDispatcher.urgent_blocking?(workflow)
       when StepDispatcher::EPIC_WIDE_BLOCK_REASON, "epic_wide_workflow_active"
         active_epic_wide_workflow_for_job?(workflow.job)
+      when StepDispatcher::EPIC_SIBLING_BLOCK_REASON, "epic_sibling_implementation_active"
+        StepDispatcher.epic_sibling_blocking?(workflow)
       else
         true
       end
