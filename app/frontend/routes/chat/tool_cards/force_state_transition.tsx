@@ -85,8 +85,12 @@ const longMessage = [
 export const examples: ToolCardExample[] = [
   {
     id: "pending_confirmation",
-    label: i18n.t("chat:force_state_transition.example_pending"),
-    description: i18n.t("chat:force_state_transition.example_pending_description"),
+    get label() {
+      return i18n.t("chat:force_state_transition.example_pending")
+    },
+    get description() {
+      return i18n.t("chat:force_state_transition.example_pending_description")
+    },
     input: { job_id: 4048, event: "force_fail", reason: longReason },
     parsedResult: {
       pending_confirmation_id: 501,
@@ -98,20 +102,28 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "confirmed_transition",
-    label: i18n.t("chat:force_state_transition.example_confirmed"),
-    description: i18n.t("chat:force_state_transition.example_confirmed_description"),
+    get label() {
+      return i18n.t("chat:force_state_transition.example_confirmed")
+    },
+    get description() {
+      return i18n.t("chat:force_state_transition.example_confirmed_description")
+    },
     input: { job_id: 4048, event: "force_fail", reason: "Repair the stale Job state after the workflow stopped." },
     parsedResult: {
       pending_confirmation_id: 501,
       pending_action_id: 501,
       state: "pending",
-      message: i18n.t("chat:force_state_transition.example_confirmed_message")
+      get message() {
+        return i18n.t("chat:force_state_transition.example_confirmed_message")
+      }
     },
     livePendingAction: {
       id: 501,
       action: "force_state_transition",
       state: "confirmed",
-      label: i18n.t("chat:force_state_transition.example_live_label"),
+      get label() {
+        return i18n.t("chat:force_state_transition.example_live_label")
+      },
       detail: "Event: `force_fail`",
       reason: "Repair the stale Job state after the workflow stopped.",
       execution_status: "applied",
@@ -124,8 +136,12 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "tool_error",
-    label: i18n.t("chat:force_state_transition.example_error"),
-    description: i18n.t("chat:force_state_transition.example_error_description"),
+    get label() {
+      return i18n.t("chat:force_state_transition.example_error")
+    },
+    get description() {
+      return i18n.t("chat:force_state_transition.example_error_description")
+    },
     input: { job_id: 9999, event: "force_fail", reason: "Retry after **verifying** the Job identifier." },
     resultBody: "Error: job not found: 9999",
     resultError: true

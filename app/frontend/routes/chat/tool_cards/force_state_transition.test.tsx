@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import i18n from "@app/i18n"
 import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { normalizedToolName } from "../toolRendering"
@@ -27,6 +28,20 @@ describe("force_state_transition tool card", () => {
     const pendingContext = toolCardContextForExample(forceStateTransitionToolCard.toolName, examples[0])
     render(<>{forceStateTransitionToolCard.renderExpanded(pendingContext)}</>)
     expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+  })
+
+  it("resolves catalog copy in the active locale", async () => {
+    const previousLanguage = i18n.language
+    try {
+      expect(examples[0].label).toBe("Pending transition with Markdown")
+      await i18n.changeLanguage("de")
+      expect(examples[0].label).toBe("Ausstehender Übergang mit Markdown")
+      expect(examples[0].description).toContain("verknüpften Job")
+      expect(examples[1].parsedResult).toMatchObject({ message: "**Erzwungenes Fehlschlagen** auf JOB-4048 anwenden?" })
+      expect(examples[1].livePendingAction).toMatchObject({ label: "force_fail für JOB-4048 erzwingen" })
+    } finally {
+      await i18n.changeLanguage(previousLanguage)
+    }
   })
 
   it("registers under the exact MCP tool name", () => {
