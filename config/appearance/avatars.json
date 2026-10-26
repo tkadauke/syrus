@@ -1,5 +1,4 @@
 [
-  { "key": "syrus", "label": "Syrus", "url": "/bundled-avatars/syrus.svg" },
   { "key": "comet", "label": "Comet", "url": "/bundled-avatars/comet.svg" },
   { "key": "orbit", "label": "Orbit", "url": "/bundled-avatars/orbit.svg" },
   { "key": "prism", "label": "Prism", "url": "/bundled-avatars/prism.svg" },
