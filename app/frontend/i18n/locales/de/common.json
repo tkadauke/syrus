@@ -480,6 +480,15 @@
     "scope": "Bereich {{scope}}"
   },
   "diff_review": {
+    "unavailable": "Diff nicht verfügbar",
+    "load_lines_above_one": "{{count}} weitere Zeile darüber laden",
+    "load_lines_above_other": "{{count}} weitere Zeilen darüber laden",
+    "load_lines_below_one": "{{count}} weitere Zeile darunter laden",
+    "load_lines_below_other": "{{count}} weitere Zeilen darunter laden",
+    "comment_on_line": "{{path}}:{{side}}:{{line}} kommentieren",
+    "whole_file_loaded": "Gesamte Datei geladen",
+    "load_whole_file": "Gesamte Datei laden",
+    "files": "Dateien",
     "changed_files": "Geänderte Dateien",
     "close_changed_files": "Geänderte Dateien schließen",
     "browse_changed_files": "Geänderte Dateien durchsuchen",
@@ -509,6 +518,27 @@
       "pr_coverage_uncovered": "Geänderte Zeile nicht durch Tests abgedeckt",
       "pr_coverage_not_executable": "Geänderte Zeile ist nicht ausführbar"
     }
+  },
+  "native_notifications": {
+    "generic": "Syrus-Benachrichtigung",
+    "ci_failed": "CI fehlgeschlagen",
+    "job_failed": "Job fehlgeschlagen",
+    "job_finished": "Job abgeschlossen",
+    "job_succeeded": "Job erfolgreich",
+    "job_implemented": "Job implementiert",
+    "job_needs_attention": "Job braucht deine Aufmerksamkeit",
+    "epic_completed": "Feature abgeschlossen",
+    "pr_closed": "PR geschlossen",
+    "pr_comment_addressed": "PR-Feedback bearbeitet",
+    "pr_failed": "PR fehlgeschlagen",
+    "pr_merged": "PR gemergt",
+    "pr_ready": "PR bereit zur Review",
+    "main_broken": "Main-Branch fehlerhaft",
+    "main_inconclusive": "Zustand des Main-Branches unklar",
+    "main_recovered": "Main-Branch wiederhergestellt",
+    "upstream_pr_closed": "Upstream-PR geschlossen",
+    "external_pr_feedback": "Feedback zum externen PR",
+    "investigation_escalated": "Untersuchung eskaliert"
   },
   "timeline_axis": {
     "timezone_hint": "Zeiten werden in deiner Ortszeit angezeigt ({{offset}})"

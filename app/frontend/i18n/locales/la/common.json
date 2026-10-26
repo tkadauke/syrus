@@ -480,6 +480,15 @@
     "scope": "ambitus {{scope}}"
   },
   "diff_review": {
+    "unavailable": "Differentia non praesto est",
+    "load_lines_above_one": "{{count}} lineam superiorem plurem onerare",
+    "load_lines_above_other": "{{count}} lineas superiores plures onerare",
+    "load_lines_below_one": "{{count}} lineam inferiorem plurem onerare",
+    "load_lines_below_other": "{{count}} lineas inferiores plures onerare",
+    "comment_on_line": "Commentarium in {{path}}:{{side}}:{{line}}",
+    "whole_file_loaded": "Totus fasciculus oneratus",
+    "load_whole_file": "Totum fasciculum onerare",
+    "files": "Fasciculi",
     "changed_files": "Documenta mutata",
     "close_changed_files": "Documenta mutata claude",
     "browse_changed_files": "Documenta mutata perlustra",
@@ -509,6 +518,27 @@
       "pr_coverage_uncovered": "Linea mutata probationibus non tecta",
       "pr_coverage_not_executable": "Linea mutata non exsecutabilis est"
     }
+  },
+  "native_notifications": {
+    "generic": "Nuntiatio Syrus",
+    "ci_failed": "CI defecit",
+    "job_failed": "Job defecit",
+    "job_finished": "Job perfectum",
+    "job_succeeded": "Job prospere gestum",
+    "job_implemented": "Job effectum",
+    "job_needs_attention": "Job attentionem requirit",
+    "epic_completed": "Feature perfectum",
+    "pr_closed": "PR clausum",
+    "pr_comment_addressed": "Responsum PR tractatum",
+    "pr_failed": "PR defecit",
+    "pr_merged": "PR coniunctum",
+    "pr_ready": "PR ad recognitionem paratum",
+    "main_broken": "Ramus main fractus",
+    "main_inconclusive": "Valetudo rami main incerta",
+    "main_recovered": "Ramus main restitutus",
+    "upstream_pr_closed": "PR upstream clausum",
+    "external_pr_feedback": "Responsum PR externi",
+    "investigation_escalated": "Investigatio escalata"
   },
   "timeline_axis": {
     "timezone_hint": "Tempora in hora tua locali monstrantur ({{offset}})"

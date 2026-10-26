@@ -131,6 +131,7 @@ function ImageProvenance({ payload }: { payload: ImageDiffPayload }) {
 }
 
 function BeforeAfterVisualDiffBody({ payload }: { payload: BeforeAfterVisualDiffPayload }) {
+  const { t } = useT("jobs")
   const pairs = Array.isArray(payload.pairs) ? payload.pairs : []
   if (pairs.length === 0) {
     return <RawArtifactBody payload={payload} />
@@ -140,8 +141,8 @@ function BeforeAfterVisualDiffBody({ payload }: { payload: BeforeAfterVisualDiff
     <div className="space-y-4">
       {pairs.map((pair, index) => (
         <div className="space-y-2" key={`${pair.title || "visual"}-${index}`}>
-          <div className="text-xs font-semibold text-gray-700">{pair.title || `Screenshot ${index + 1}`}</div>
-          <BeforeAfterVisualComparison before={pair.before} after={pair.after} title={pair.title || `Screenshot ${index + 1}`} />
+          <div className="text-xs font-semibold text-gray-700">{pair.title || t("artifact_screenshot_number", { number: index + 1 })}</div>
+          <BeforeAfterVisualComparison before={pair.before} after={pair.after} title={pair.title || t("artifact_screenshot_number", { number: index + 1 })} />
         </div>
       ))}
     </div>

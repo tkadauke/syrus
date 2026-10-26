@@ -359,7 +359,7 @@ export function ReviewableDiff({
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
-  unavailableState = "Diff not available",
+  unavailableState,
   wordHighlighting
 }: ReviewableDiffProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -376,6 +376,7 @@ export function ReviewableDiff({
   const effectiveReviewSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, ...reviewSettings }
   const wordHighlightingEnabled = wordHighlighting ?? effectiveReviewSettings.intraline_highlighting === "word"
   const { t } = useT("common")
+  unavailableState ??= t("diff_review.unavailable")
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
   // path -- survives a file section unmounting when it scrolls out of the
   // virtualized window. Reset below whenever the diff itself changes.
@@ -549,7 +550,11 @@ export function ReviewableDiff({
   }
 
   return (
-    <div className={["relative min-w-0 max-w-full [contain:inline-size]", className].filter(Boolean).join(" ")} data-testid="agent-diff-viewer" ref={containerRef}>
+    <div
+      className={["relative min-w-0 max-w-full [contain:inline-size]", className].filter(Boolean).join(" ")}
+      data-testid="agent-diff-viewer"
+      ref={containerRef}
+    >
       <div
         className={containerClass}
         data-rendered-file-count={renderedFileCount}
@@ -1675,7 +1680,9 @@ export function UnifiedDiffTable({
     if (threads.length === 0) return null
 
     const panel = (
-      <div className={`${diffInlineReviewPanelClass(!splitRow && !isMobileViewport, !splitRow && isMobileViewport)} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
+      <div
+        className={`${diffInlineReviewPanelClass(!splitRow && !isMobileViewport, !splitRow && isMobileViewport)} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}
+      >
         {threads.map((thread) => (
           <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
             <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
@@ -1816,11 +1823,7 @@ export function UnifiedDiffTable({
       <div className={`${panelClass} space-y-3 ${panelToneClass}`}>
         {reviewNotes.map((note, index) => {
           const inlineNote = reviewAnnotationInlineItem(note)
-          return (
-            <div key={String(note.id ?? index)}>
-              {renderPluginReviewAnnotation(inlineNote, reviewAnnotationFallbackPanel(inlineNote), "inline")}
-            </div>
-          )
+          return <div key={String(note.id ?? index)}>{renderPluginReviewAnnotation(inlineNote, reviewAnnotationFallbackPanel(inlineNote), "inline")}</div>
         })}
       </div>
     )
@@ -2725,9 +2728,10 @@ function HunkRow({
 /* eslint-enable design-system/no-raw-table-classes */
 
 function HunkContextButton({ direction, lineCount, loading, onClick }: { direction: "down" | "up"; lineCount: number; loading: boolean; onClick: () => void }) {
+  const { t } = useT("common")
   return (
     <button
-      aria-label={direction === "up" ? `Load ${lineCount} more lines above` : `Load ${lineCount} more lines below`}
+      aria-label={t(direction === "up" ? "diff_review.load_lines_above" : "diff_review.load_lines_below", { count: lineCount })}
       className="inline-flex h-4 w-4 items-center justify-center rounded text-info hover:bg-info/10 disabled:opacity-50"
       disabled={loading}
       onClick={onClick}
@@ -2753,9 +2757,10 @@ function GutterCommentButton({
   reviewSettings: ReviewDiffSettings
   side: "old" | "new"
 }) {
+  const { t } = useT("common")
   return (
     <button
-      aria-label={`Comment on ${file.path}:${side}:${line.newLine ?? line.oldLine}`}
+      aria-label={t("diff_review.comment_on_line", { path: file.path, side, line: line.newLine ?? line.oldLine })}
       className="relative block h-full w-full text-right"
       onClick={() => onCommentLine?.({ file, line, side })}
       type="button"
@@ -2843,7 +2848,11 @@ function DiffFileHeader({
           onClick={onLoadWholeFile}
           type="button"
         >
-          {loadWholeFileState === "loaded" ? "Whole file loaded" : loadWholeFileState === "loading" ? "Loading…" : "Load whole file"}
+          {loadWholeFileState === "loaded"
+            ? t("diff_review.whole_file_loaded")
+            : loadWholeFileState === "loading"
+              ? t("loading")
+              : t("diff_review.load_whole_file")}
         </button>
       ) : null}
       {showFilesPopupTrigger ? (
@@ -2853,7 +2862,7 @@ function DiffFileHeader({
           onClick={onToggleFilesPopup}
           type="button"
         >
-          Files
+          {t("diff_review.files")}
         </button>
       ) : null}
     </div>
