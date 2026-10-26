@@ -584,7 +584,7 @@
   "source_directory_error": "Hic fasciculorum locus onerari non potuit.",
   "source_select_file": "Fasciculum elige ut eius contenta videas.",
   "source_select_diff_file": "Fasciculum elige ut eius diff videas.",
-  "source_diff_not_available": "Diff non praesto est (fasciculus binarius aut maximus).",
+  "source_diff_not_available": "Diff non praesto est (fasciculus vacuus, binarius, aut maximus).",
   "source_no_changed_files": "Nulli fasciculi mutati inventi.",
   "source_viewing_label": "Visum",
   "source_from_label": "Ab",

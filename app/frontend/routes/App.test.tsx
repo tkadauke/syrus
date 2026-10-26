@@ -11278,7 +11278,7 @@ describe("App", () => {
 
     expect(await screen.findByText("Select a file to view its diff.")).toBeInTheDocument()
     expect(screen.getByText("app/models/user.rb")).toBeInTheDocument()
-    expect(screen.getByText("public/logo.png")).toBeInTheDocument()
+    expect(screen.getByText("pycon/tests/unit/homes/helpers/yaml/__init__.py")).toBeInTheDocument()
     expect(screen.queryByText("README.md")).not.toBeInTheDocument()
     expect(screen.getByText("M")).toBeInTheDocument()
     expect(screen.getByText("A")).toBeInTheDocument()
@@ -11316,14 +11316,14 @@ describe("App", () => {
       )
     })
 
-    fireEvent.click(screen.getByText("public/logo.png"))
-    expect(screen.getByText("Diff not available (binary or very large file).")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("pycon/tests/unit/homes/helpers/yaml/__init__.py"))
+    expect(screen.getByText("Diff not available (empty, binary, or very large file).")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Continuous" }))
     expect(screen.getByTitle("app/models/user.rb")).toHaveClass("sticky")
     expect(screen.getByText("old")).toBeInTheDocument()
     expect(screen.getByText("new")).toBeInTheDocument()
-    expect(screen.getByText("Diff not available (binary or very large file).")).toBeInTheDocument()
+    expect(screen.getByText("Diff not available (empty, binary, or very large file).")).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "deadbeef12345678" } })
     await waitFor(() => {
@@ -19458,7 +19458,7 @@ function jobSourceDiffPayload(overrides: { baseRef?: string; headRef?: string } 
     branch_commits: [{ sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair aqueduct", date: "2026-05-30T11:00:00Z" }],
     files: [
       { path: "app/models/user.rb", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },
-      { path: "public/logo.png", status: "added", additions: 0, deletions: 0, patch: null }
+      { path: "pycon/tests/unit/homes/helpers/yaml/__init__.py", status: "added", additions: 0, deletions: 0, patch: null }
     ],
     truncated: false,
     diff_error: null,
