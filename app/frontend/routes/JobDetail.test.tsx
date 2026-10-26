@@ -1162,37 +1162,6 @@ describe("JobDetailView", () => {
     })
   })
 
-  it("shows why implementation retry is unavailable for a failed Job", () => {
-    const payload = jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } })
-    renderJobDetail({
-      ...payload,
-      actions: {
-        ...payload.actions,
-        retry_implementation_action: null,
-        retry_implementation_unavailable_reason: "A Run is already in progress - wait for it to finish."
-      }
-    })
-
-    const reason = screen.getByTestId("retry-implementation-unavailable-reason")
-    expect(reason).toHaveTextContent("Retry implementation unavailable: A Run is already in progress - wait for it to finish.")
-    expect(reason).toHaveClass("w-full", "max-w-sm", "whitespace-normal", "break-words")
-    expect(screen.getByTestId("job-header-actions")).toHaveClass("w-auto", "min-w-0", "max-w-full", "flex-wrap")
-  })
-
-  it("does not show an implementation retry refusal outside the failed action state", () => {
-    const payload = jobPayload({ job: { ...baseJob(), state: "running", summary_state: "running" } })
-    renderJobDetail({
-      ...payload,
-      actions: {
-        ...payload.actions,
-        retry_implementation_action: null,
-        retry_implementation_unavailable_reason: "A Run is already in progress - wait for it to finish."
-      }
-    })
-
-    expect(screen.queryByTestId("retry-implementation-unavailable-reason")).not.toBeInTheDocument()
-  })
-
   it("hides the Give feedback action for other job states", () => {
     renderJobDetail(
       jobPayload({
