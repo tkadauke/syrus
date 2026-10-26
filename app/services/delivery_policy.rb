@@ -53,6 +53,10 @@ class DeliveryPolicy
     delivery.promotion.enabled
   end
 
+  def delivery_configured?
+    config.raw_delivery.present?
+  end
+
   def promotion_mode
     delivery.promotion.mode
   end

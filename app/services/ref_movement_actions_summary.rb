@@ -7,7 +7,7 @@ class RefMovementActionsSummary
   def self.for(repository:, job: nil)
     policy = DeliveryPolicy.for(repository: repository)
 
-    policy.ref_movement_actions.map do |name, config|
+    actions = policy.ref_movement_actions.map do |name, config|
       available, reason = RefMovementActions::Base.for(name).available?(repository: repository, job: job)
       {
         name: name,
@@ -18,5 +18,13 @@ class RefMovementActionsSummary
         blocked_reason: config.enabled ? (available ? nil : reason) : "not enabled in delivery.ref_movement_actions"
       }
     end
+
+    return actions unless policy.delivery_configured?
+
+    available, reason = RefMovementActions::PromoteDevelopmentToRelease.new.available?(repository: repository)
+    actions << {
+      name: "promote_development_to_release", enabled: policy.promotion_enabled?, mode: policy.promotion_mode,
+      grade_phases: [ "promotion" ], available: available, blocked_reason: reason
+    }
   end
 end

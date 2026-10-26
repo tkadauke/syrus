@@ -413,6 +413,7 @@ module Api
                 app_run_main_branch_graders_repository_path: "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders",
                 app_repair_main_branch_repository_path: "/api/v1/app/repositories/#{repository.id}/repair_main_branch",
                 app_check_ci_now_repository_path: "/api/v1/app/repositories/#{repository.id}/check_ci_now",
+                app_ref_movement_actions_repository_path: writable_repository?(repository) ? "/api/v1/app/repositories/#{repository.id}/ref_movement_actions" : nil,
                 repositories_path: repositories_path,
                 repository_documents_path: repository_documents_path(repository),
                 repository_scheduled_tasks_path: "/repositories/#{repository.id}/scheduled_tasks",
