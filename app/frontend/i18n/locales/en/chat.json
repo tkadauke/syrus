@@ -2624,6 +2624,8 @@
   "tool_card_withdrew_proposal_with_cascade_other": "Withdrew {{slug}} and {{count}} downstream proposals",
   "tool_card_also_withdrawn": "Also withdrawn ({{count}})",
   "tool_card_withdraw_proposal_example_cascade": "Withdrawal with downstream proposals",
+  "tool_card_withdraw_proposal_example_job": "Render proposal lists",
+  "tool_card_withdraw_proposal_example_epic": "Complete the proposal card suite",
   "tool_card_withdraw_proposal_example_empty": "Withdrawal without downstream proposals",
   "tool_card_withdraw_proposal_example_error": "Unknown proposal slug",
   "tool_card_propose_job_example": "Detailed Job proposal",
