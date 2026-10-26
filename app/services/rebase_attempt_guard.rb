@@ -2,6 +2,7 @@ class RebaseAttemptGuard
   extend RebaseResultLookup
 
   ATTEMPT_CAP = 3
+  ATTEMPT_TRIGGER_KINDS = [ *RebaseWorkflowSelector::TRIGGER_KINDS, "base_refresh_retry" ].freeze
   BLOCK_REASON = "rebase retry blocked after repeated failures; manual rebase or a PR update is required (cooldown expiry alone won't help if the failure wasn't transient)".freeze
   AGENT_REBASE_STEPS = %w[ agent_rebase stack_agent_rebase ].freeze
   MEMORY_WRITE_RETRY_STORM_THRESHOLD = 2
@@ -50,7 +51,7 @@ class RebaseAttemptGuard
 
   def self.permanently_blocked_by_provider_configuration?(job)
     workflow = job.workflows
-      .where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS)
+      .where(trigger_kind: ATTEMPT_TRIGGER_KINDS)
       .reorder(id: :desc)
       .first
     return false unless workflow&.failed? && failed_in_agent_rebase?(workflow)
@@ -88,7 +89,7 @@ class RebaseAttemptGuard
   # one that no longer matches the PR.
   def self.consecutive_failed_agent_rebase_workflows(job, pr: nil)
     workflows = []
-    job.workflows.where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS).reorder(id: :desc).each do |workflow|
+    job.workflows.where(trigger_kind: ATTEMPT_TRIGGER_KINDS).reorder(id: :desc).each do |workflow|
       break if workflow.succeeded?
       next unless workflow.failed?
 
@@ -110,7 +111,7 @@ class RebaseAttemptGuard
 
   def self.recent_failed_agent_workflow(job, pr:, since:)
     job.workflows
-       .where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS, state: "failed")
+       .where(trigger_kind: ATTEMPT_TRIGGER_KINDS, state: "failed")
        .where("COALESCE(finished_at, updated_at) >= ?", since)
        .reorder(id: :desc)
        .detect do |workflow|
