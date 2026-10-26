@@ -498,9 +498,9 @@ function RecentCalls({ calls }: { calls: RecentCall[] }) {
         {calls.map((call) => (
           <tr key={call.key}>
             <Td mono wrap>
-              <div>Occurred: {call.occurredAt || "-"}</div>
-              <div>Started: {call.startedAt || "-"}</div>
-              <div>Completed: {call.completedAt || "-"}</div>
+              <div>{i18n.t("chat:admin_mcp_occurred")}: {call.occurredAt || "-"}</div>
+              <div>{i18n.t("chat:admin_mcp_started")}: {call.startedAt || "-"}</div>
+              <div>{i18n.t("chat:admin_mcp_completed")}: {call.completedAt || "-"}</div>
             </Td>
             <Td maxWidth wrap title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
               <div className="font-medium text-gray-900 dark:text-gray-100">{call.toolName}</div>
@@ -513,15 +513,15 @@ function RecentCalls({ calls }: { calls: RecentCall[] }) {
               {call.errorSummary ? <div className="mt-1"><TextPreview maxLines={3} modalLabel="Full error preview" text={call.errorSummary} /></div> : null}
             </Td>
             <Td mono>
-              <div>Input: {formatBytes(call.inputBytes)}</div>
-              <div>Result: {formatBytes(call.resultBytes)}</div>
+              <div>{i18n.t("chat:admin_mcp_input")}: {formatBytes(call.inputBytes)}</div>
+              <div>{i18n.t("chat:admin_mcp_result")}: {formatBytes(call.resultBytes)}</div>
             </Td>
             <Td wrap>
               <div className="flex flex-wrap gap-2">
                 {call.links.map((link) => <EntityReference href={link.href} id={link.id} key={link.key} kind={link.key} />)}
-                {call.repositoryId ? <EntityReference id={call.repositoryId} kind="repository" label={`Repository ${call.repositoryId}`} repositoryId={call.repositoryId} /> : null}
+                {call.repositoryId ? <EntityReference id={call.repositoryId} kind="repository" label={i18n.t("chat:admin_mcp_repository", { id: call.repositoryId })} repositoryId={call.repositoryId} /> : null}
               </div>
-              {call.userId ? <div className="mt-1 font-mono text-2xs text-gray-500 dark:text-gray-400">User {call.userId}</div> : null}
+              {call.userId ? <div className="mt-1 font-mono text-2xs text-gray-500 dark:text-gray-400">{i18n.t("chat:admin_mcp_user", { id: call.userId })}</div> : null}
               {call.links.length === 0 && !call.repositoryId && !call.userId ? "—" : null}
             </Td>
           </tr>
@@ -543,14 +543,14 @@ function StartupTiming({ section }: { section: UsageCard["startupTiming"] }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        <SectionLabel>Startup timing</SectionLabel>
-        <Badge>Window: {window}</Badge>
-        <Badge>Provider: {section.filters.provider || "all"}</Badge>
-        <Badge>Server: {section.filters.serverName || "all"}</Badge>
-        <Badge>{section.turnsObserved} turns observed</Badge>
+        <SectionLabel>{i18n.t("chat:admin_mcp_startup_timing")}</SectionLabel>
+        <Badge>{i18n.t("chat:admin_mcp_window", { window })}</Badge>
+        <Badge>{i18n.t("chat:admin_mcp_provider", { provider: section.filters.provider || "all" })}</Badge>
+        <Badge>{i18n.t("chat:admin_mcp_server", { server: section.filters.serverName || "all" })}</Badge>
+        <Badge>{i18n.t("chat:admin_mcp_turns_observed", { count: section.turnsObserved })}</Badge>
         <Badge>{section.stalledTurns} stalled</Badge>
       </div>
-      {section.rows.length === 0 ? <EmptyState>No MCP startup phases recorded in this window.</EmptyState> : (
+      {section.rows.length === 0 ? <EmptyState>{i18n.t("chat:admin_mcp_no_startup_phases")}</EmptyState> : (
         <Table responsive>
           <THead columns={["Phase", "Count", "Avg since start", "p50", "p95", "Max"]} />
           <TBody>
