@@ -11,20 +11,26 @@ const attemptedDescription = i18n.t("chat:tool_card_examples.attempted_epic_desc
 export const examples: ToolCardExample[] = [
   {
     id: "title_and_description_updated",
-    label: i18n.t("chat:tool_card_examples.epic_title_and_description_updated"),
+    get label() {
+      return i18n.t("chat:tool_card_examples.epic_title_and_description_updated")
+    },
     input: { epic_id: 71, title: sampleTitle, description: longDescription },
     parsedResult: { epic_id: 71, title: sampleTitle, description: longDescription, state: "ready" }
   },
   {
     id: "update_failed",
-    label: i18n.t("chat:tool_card_examples.epic_update_failed"),
+    get label() {
+      return i18n.t("chat:tool_card_examples.epic_update_failed")
+    },
     input: { epic_id: 71, title: "", description: attemptedDescription },
     resultBody: "Error: title cannot be blank",
     resultError: true
   },
   {
     id: "empty_description_failed",
-    label: i18n.t("chat:tool_card_examples.empty_epic_description_failed"),
+    get label() {
+      return i18n.t("chat:tool_card_examples.empty_epic_description_failed")
+    },
     input: { epic_id: 72, description: "" },
     resultBody: "Error: archived Epics cannot be updated",
     resultError: true
