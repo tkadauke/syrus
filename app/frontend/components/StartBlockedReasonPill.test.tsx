@@ -153,10 +153,7 @@ describe("StartBlockedReasonPill", () => {
 
     const pill = screen.getByText("Epic sibling in progress").closest("[data-status-pill]")
     expect(pill).toHaveClass("bg-neutral-surface")
-    expect(pill).toHaveAttribute(
-      "title",
-      "Another child Job in this Epic is being implemented. This Job starts automatically when its sibling finishes."
-    )
+    expect(pill).toHaveAttribute("title", "Another child Job in this Epic is being implemented. This Job starts automatically when its sibling finishes.")
   })
 
   it("escalates gray tone to amber when start_blocked_at is more than 30 minutes ago", () => {
