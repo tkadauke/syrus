@@ -373,6 +373,16 @@ prefix collisions, and rendering uses the mentionable's current handle. Human
 mentions are highlighted and create an in-app notification for the mentioned
 participant, but never trigger an agent turn. Users can disable mention
 notifications in their notification preferences.
+
+Every mentionable also exposes `avatar_url` and `color_key`. Humans use their
+uploaded or linked avatar and a neutral highlight. Built-in Syrus uses the
+bundled Syrus avatar and a fixed curated color. The shared appearance palette
+stores stable keys with separately contrast-checked light and dark values;
+frontend callers resolve the key for the active mode rather than persisting a
+hex value. Reusable color and avatar pickers are fixed-choice grids, and the
+shared avatar renderer falls back from an uploaded image to a bundled avatar
+and then to initials on the mentionable color.
+
 `InboundMessageRouter`, `ChatsController#message`,
 `ChatQueuedMessagePromoter`, and `ScheduledChatMessageFireJob` all gate their
 `ChatTurnJob` enqueue on this. Unmentioned scheduled group-chat messages are

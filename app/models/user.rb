@@ -278,6 +278,7 @@ class User < ApplicationRecord
 
   def kind = "human"
   def subtitle = role.presence || profile_company
+  def avatar_url = self[:avatar_url]
   def color_key = nil
   def addressable_in?(chat)
     participants = chat.association(:chat_participants)
