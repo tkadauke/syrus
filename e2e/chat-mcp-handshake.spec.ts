@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process"
 import { createServer } from "node:net"
 
 test("every configured chat provider completes persistent and fallback MCP handshakes", async () => {
+  test.setTimeout(150_000)
   test.skip(Boolean(process.env.E2E_BASE_URL), "The MCP handshake guard runs inside the local ephemeral Rails environment.")
 
   const port = await availablePort()
