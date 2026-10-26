@@ -88,7 +88,12 @@ RSpec.describe "Mcp::Tools wakeup management tools" do
     response = call_tool("cancel_wakeup", wakeup_id: wakeup.id)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to eq(cancelled: true, wakeup_id: wakeup.id)
+    expect(response_payload(response)).to eq(
+      cancelled: true,
+      wakeup_id: wakeup.id,
+      fire_at: wakeup.fire_at.iso8601,
+      prompt: wakeup.prompt
+    )
     expect(wakeup.reload).to be_cancelled
     expect(ChatSession::WakeupTurn).not_to receive(:new)
 
