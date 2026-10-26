@@ -711,6 +711,9 @@
     "action_available": "Parata",
     "action_blocked": "Obstructa",
     "action_disabled": "Inactiva",
+    "promote": "Ad editionem promove",
+    "promoting": "Promovetur...",
+    "promotion_failed": "Promotio incipi non potuit.",
     "recent_ref_movements_heading": "Recentes Motus Rami",
     "recent_pr_ingestions_heading": "Recentes Susceptiones PR"
   },
