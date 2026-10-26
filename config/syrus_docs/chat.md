@@ -545,6 +545,15 @@ uses `delay_minutes` for short relative reminders within 24 hours, or `fire_at`
 with an absolute UTC ISO 8601 timestamp for specific dates/times and longer
 one-shot reminders.
 
+The wakeup tools have dedicated transcript cards. `list_wakeups` shows each
+pending wakeup's prompt and fire time, and `cancel_wakeup` shows a linked wakeup
+reference plus the cancelled prompt and fire time. Cancellation failures,
+including a wakeup that is missing or no longer pending, render as an explicit
+error state rather than generic tool output. A successful `cancel_wakeup` MCP
+result includes `cancelled`, `wakeup_id`, `fire_at`, and `prompt`; older
+transcripts that only recorded the first two fields can recover the display
+context from an earlier `list_wakeups` or `schedule_wakeup` call when present.
+
 ## Coding Mode existing-Job takeover
 
 Coding Mode exposes `open_in_coding_mode(job_id)` to let a chat agent take over
