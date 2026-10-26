@@ -186,6 +186,6 @@ export const examples: ToolCardExample[] = [
     description: i18n.t("chat:tool_card_list_proposals_example_empty_description"),
     parsedResult: { proposals: [] }
   },
-  { id: "pending", label: i18n.t("chat:tool_card_list_proposals_pending"), resultSettled: false },
+  { id: "pending", label: i18n.t("chat:tool_card_list_proposals_pending"), resultBody: "", resultSettled: false },
   { id: "error", label: i18n.t("chat:tool_card_list_proposals_failed"), resultBody: "Unable to list proposals.", resultError: true }
 ]
