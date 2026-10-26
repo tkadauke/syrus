@@ -231,6 +231,18 @@ RSpec.describe Workflows::MainGrader do
       expect(check.workflow).to eq(workflow)
     end
 
+    it "preserves a non-default health branch when retrying an interrupted grader" do
+      workflow.set_artifact!("health_branch", "develop")
+      grader_step = create_failed_required_grader!(workflow, name: "rspec")
+      create_failed_run!(grader_step, agent_outcome: "worker_died")
+
+      expect {
+        described_class.after_fail(workflow)
+      }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha, base_branch: "develop")
+
+      expect(MainBranchHealthCheck.last.branch).to eq("develop")
+    end
+
     it "marks timed-out required graders inconclusive instead of broken" do
       repository.update!(grader_health: "unknown", ci_health: "not_configured")
       create_failed_required_grader!(
