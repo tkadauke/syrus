@@ -3,9 +3,9 @@ import { signInAsDemo } from "../../../e2e/support/auth"
 
 // This dev sandbox seeds a demo repository and demo Jobs (db/seeds.rb) but
 // deliberately has no GitHub App registration and no user github_token (see
-// .syrus.yml's visual_review.seed_notes). So both GitHub Source plugin
-// surfaces should render their "not configured" states rather than error out.
-test("signed-in user sees the not-configured state on the repository's GitHub Issues tab and connection settings", async ({ page }) => {
+// .syrus.yml's visual_review.seed_notes). Repository settings should report
+// that state while the issue browser still renders its local cache.
+test("signed-in user sees connection settings and the empty local GitHub Issues cache", async ({ page }) => {
   await signInAsDemo(page)
 
   await page.goto("/repositories")
@@ -19,17 +19,18 @@ test("signed-in user sees the not-configured state on the repository's GitHub Is
   await expect(page.getByText("PAT fallback because this repository has no active App installation.")).toBeVisible()
   await expect(page.getByRole("link", { name: "Register Syrus App" })).toBeVisible()
 
-  // GitHub Issues tab: listing issues requires a real GitHub client, which
-  // is unavailable here, so the tab reports the same "not configured" state
-  // instead of a raw API failure.
+  // GitHub Issues reads the poll-synchronized local cache, so browsing remains
+  // available without making a live GitHub request or requiring credentials.
   await page.getByRole("link", { name: "GitHub Issues", exact: true }).click()
   await expect(page).toHaveURL(/\/repositories\/\d+\/plugin\/issues$/)
-  await expect(page.getByText("No GitHub token configured — add one in Settings.")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "No issues in Open" })).toBeVisible()
+  await expect(page.getByText("0 issues", { exact: true })).toBeVisible()
 
-  // Reload to prove the empty state is derived server-side on every load,
-  // not just an artifact of client-side tab navigation.
+  // Reload to prove the cached empty state is derived server-side on every
+  // load, not just an artifact of client-side tab navigation.
   await page.reload()
-  await expect(page.getByText("No GitHub token configured — add one in Settings.")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "No issues in Open" })).toBeVisible()
+  await expect(page.getByText("0 issues", { exact: true })).toBeVisible()
 })
 
 test("signed-in user browses the fixture-backed source on a Job's Source tab", async ({ page }) => {
