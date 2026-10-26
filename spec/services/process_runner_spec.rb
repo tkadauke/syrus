@@ -347,6 +347,28 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result).not_to be_success
   end
 
+  # A process group that exits while we are signalling it can answer EPERM
+  # rather than ESRCH -- the pgid no longer names our group, and on BSD/macOS
+  # the kernel says "not permitted" instead of "no such process". Letting it
+  # escape replaced a timeout result with `Errno::EPERM`, so a graded command
+  # that had plainly timed out was reported as an opaque error instead. It
+  # surfaced as a roughly one-in-four flake under parallel load.
+  it "still reports a timeout when the dying process group answers EPERM" do
+    allow(Process).to receive(:kill).and_raise(Errno::EPERM)
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 0.05,
+      kill_grace_seconds: 0
+    ).run
+
+    expect(result).to be_timed_out
+    expect(result).not_to be_success
+  end
+
   # mysql2 opens its sockets in a C extension, so they carry no FD_CLOEXEC
   # (production shows flags=02) and survived exec into every graded command:
   # a four-minute-old rspec worker held six live connections to the

@@ -42,6 +42,27 @@ RSpec.describe Syrus::PrecompressedAssetBuilder do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(:kind))
   end
 
+  # `env: {}` left the sandbox's own minimal PATH, so `brotli` and `node` were
+  # found only in /usr/bin or /usr/local/bin -- true of the production image,
+  # false of a developer machine where Homebrew installs brotli under
+  # /opt/homebrew/bin. Both probes exited 127, brotli_available? went false,
+  # and the build produced gzip-only assets without complaining.
+  #
+  # Asserted here rather than only through the `.br` file: on a host whose
+  # PATH does include brotli, a regression to `env: {}` still produces the
+  # file, so the file alone does not guard this.
+  it "gives the compression probe the PATH of the process running the build" do
+    output_path.join("app.js").write("console.log('hello')")
+    success = instance_double(ProcessRunner::CaptureResult, success?: true, stderr: "")
+    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, capture: success))
+
+    builder.call
+
+    expect(ProcessRunner).to have_received(:new)
+      .with(hash_including(env: { "PATH" => ENV.fetch("PATH") })).at_least(:once)
+    expect(ProcessRunner).not_to have_received(:new).with(hash_including(env: {}))
+  end
+
   it "preserves the compressor failure message" do
     asset = output_path.join("app.js")
     asset.write("console.log('hello')")

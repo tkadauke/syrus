@@ -14,6 +14,15 @@ RSpec.describe ProcessResourceSampler do
     File.write(File.join(process_dir, "io"), "read_bytes: #{read_bytes}\nwrite_bytes: #{write_bytes}\n")
   end
 
+  # The injected-root escape hatch must not make the real /proc look readable
+  # on a platform that has none: that would turn "unavailable" into a stream
+  # of File::ENOENT rescues reported as zeroed counters.
+  it "still defers to the platform when reading the real /proc" do
+    sampler = described_class.new(pid: Process.pid, pgid: Process.pid)
+
+    expect(sampler.send(:proc_filesystem_available?)).to eq(RUBY_PLATFORM.include?("linux"))
+  end
+
   it "retains counters for processes that exit between samples" do
     Dir.mktmpdir do |proc_root|
       sampler = described_class.new(pid: 10, pgid: 10, proc_root: proc_root)
