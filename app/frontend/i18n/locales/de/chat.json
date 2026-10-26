@@ -3190,5 +3190,20 @@
   "admin_pause_maintenance_task_confirmation_other": "{{count}} Wartungsaufgaben pausieren?",
   "admin_kill_process_confirmation_one": "Prozess {{targets}} beenden?",
   "admin_kill_process_confirmation_other": "Prozesse {{targets}} beenden?",
-  "admin_kill_process_catalog_targets": "#41, #42 und #43"
+  "admin_kill_process_catalog_targets": "#41, #42 und #43",
+  "mutation_example_priority_changed": "Priorität geändert",
+  "mutation_example_invalid_priority": "Ungültige Priorität",
+  "mutation_example_epic_started": "Epic gestartet",
+  "mutation_example_epic_not_ready": "Epic ist nicht bereit",
+  "mutation_example_product_owner_cannot_start_epic": "Product Owner kann Epic nicht starten",
+  "mutation_example_unapproved_job": "Job-Freigabe aufgehoben",
+  "mutation_example_bulk_unapproval_confirmation": "Bestätigung für mehrere aufgehobene Freigaben",
+  "mutation_example_invalid_job_state": "Ungültiger Job-Status",
+  "mutation_example_epic_title": "Wartungskarten verbessern",
+  "mutation_example_updated_scope": "Aktualisierter Umfang",
+  "mutation_example_epic_description_sentence": "Dieses Epic umfasst jetzt **responsive** Werkzeugkarten mit verknüpften Details.",
+  "mutation_example_attempted_epic_description": "Die **versuchte** Beschreibung sichtbar lassen.",
+  "mutation_example_epic_title_and_description_updated": "Titel und Beschreibung aktualisiert",
+  "mutation_example_epic_update_failed": "Epic-Aktualisierung fehlgeschlagen",
+  "mutation_example_empty_epic_description_failed": "Aktualisierung mit leerer Beschreibung fehlgeschlagen"
 }
