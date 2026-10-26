@@ -1,8 +1,12 @@
 require "rails_helper"
 
 RSpec.describe WorkerCapabilities do
-  def probe_result(success:, output: "")
-    described_class::CommandResult.new(success: success, output: output)
+  def probe_result(success:, output: "", status: nil)
+    described_class::CommandResult.new(
+      success: success,
+      output: output,
+      status: status || (success ? "available" : "failed")
+    )
   end
 
   def with_capability_env(value)
@@ -300,10 +304,29 @@ RSpec.describe WorkerCapabilities do
       with_capability_env(nil) do
         expect(described_class.current.fetch(:diagnostics)).to include(
           "docker" => false,
+          "docker_probe_status" => "timed_out",
           "xcode" => false,
-          "ios_simulator" => false
+          "xcode_probe_status" => "timed_out",
+          "ios_simulator" => false,
+          "ios_simulator_probe_status" => "timed_out"
         )
       end
+    end
+
+    it "distinguishes a missing command from one that ran and failed" do
+      allow(described_class).to receive(:command_result) do |command|
+        status = command.first == "docker" ? "not_found" : "failed"
+        probe_result(success: false, status: status)
+      end
+
+      payload = described_class.current
+
+      expect(payload.fetch(:diagnostics)).to include(
+        "docker" => false,
+        "docker_probe_status" => "not_found",
+        "xcode" => false,
+        "xcode_probe_status" => "failed"
+      )
     end
 
     it "includes the external worker pool name in diagnostics when configured" do
@@ -316,6 +339,43 @@ RSpec.describe WorkerCapabilities do
       )
     ensure
       previous.nil? ? ENV.delete("SYRUS_WORKER_POOL_NAME") : ENV["SYRUS_WORKER_POOL_NAME"] = previous
+    end
+  end
+
+  describe "probe execution" do
+    it "forwards only PATH to every core probe" do
+      capture = double(success?: false, stdout: "", stderr: "", result: double(timed_out?: false, exit_status: 1))
+      runner = instance_double(ProcessRunner, capture: capture)
+      allow(ProcessRunner).to receive(:new).and_return(runner)
+
+      described_class::TOOL_PROBES.each do |probe|
+        described_class.send(:command_result, probe.command)
+      end
+
+      described_class::TOOL_PROBES.each do |probe|
+        expect(ProcessRunner).to have_received(:new).with(
+          env: { "PATH" => ENV.fetch("PATH", "") },
+          command: probe.command,
+          mounts: kind_of(ProcessRunner::Mounts),
+          network: "grader",
+          timeout: described_class::PROBE_TIMEOUT_SECONDS,
+          kind: "runtime_probe"
+        )
+      end
+    end
+
+    it "classifies command lookup and execution failures separately" do
+      result = ->(exit_status) { double(timed_out?: false, exit_status: exit_status) }
+
+      allow(described_class).to receive(:capability_probe).and_return(
+        double(success?: false, stdout: "", stderr: "", result: result.call(127)),
+        double(success?: false, stdout: "", stderr: "", result: result.call(126)),
+        double(success?: false, stdout: "", stderr: "", result: result.call(1))
+      )
+
+      expect(described_class.send(:command_result, [ "missing" ]).status).to eq("not_found")
+      expect(described_class.send(:command_result, [ "unusable" ]).status).to eq("not_executable")
+      expect(described_class.send(:command_result, [ "failing" ]).status).to eq("failed")
     end
   end
 
