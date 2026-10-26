@@ -108,7 +108,8 @@ RSpec.describe App::DeliveryTracksPayload do
     expect(hotfix_track[:last_promotion]).to be_nil
 
     expect(payload[:ref_movement_actions]).to contain_exactly(
-      a_hash_including(name: "send_job_upstream", enabled: true, mode: "manual_pr")
+      a_hash_including(name: "send_job_upstream", enabled: true, mode: "manual_pr"),
+      a_hash_including(name: "promote_development_to_release", enabled: true, mode: "manual_pr", available: true)
     )
 
     workflow_entry = payload[:recent_ref_movement_workflows].find { |entry| entry[:job_id] == landed.id }

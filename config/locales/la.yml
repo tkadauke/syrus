@@ -707,6 +707,9 @@ la:
       sent_upstream: "Ad fontem superiorem missum est."
       blocked: "Actio motus ref obstructa est."
 
+    repository_ref_movement_actions:
+      promotion_dispatched: "Promotio incepta est."
+
     plugins:
       disabled: "Plugin %{plugin} deactivatum est."
       route_not_found: "Iter plugin non inventum est."

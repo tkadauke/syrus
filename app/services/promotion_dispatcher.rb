@@ -53,6 +53,7 @@ class PromotionDispatcher
         source_type: "promotion_dispatcher"
       )
       WorkUnits::Launcher.start!(workflow)
+      workflow
     end
   end
 end
