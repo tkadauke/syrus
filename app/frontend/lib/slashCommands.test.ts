@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { filterSlashCommands, findSlashCommand, repoSkillCommands, slashCommandDescription, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
+import {
+  filterSlashCommands,
+  findSlashCommand,
+  repoSkillCommands,
+  slashCommandDescription,
+  slashCommandPrompt,
+  slashCommandSignature,
+  slashCommands,
+  type SlashCommand
+} from "./slashCommands"
 
 function promptFor(commandName: string, args = "") {
   const command: SlashCommand | undefined = slashCommands.find((item) => item.name === commandName)
@@ -34,7 +43,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/propose")
 
     expect(match?.command.kind).toBe("skill")
-    expect(match?.command.description).toBe("Start a guided Job proposal wizard")
+    expect(match?.command.description).toBe("slash_commands.propose")
     expect(match?.command.args).toEqual([])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
@@ -51,7 +60,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/branch")
 
     expect(match?.command.kind).toBe("system")
-    expect(match?.command.description).toBe("Start a new chat branched from this point")
+    expect(match?.command.description).toBe("slash_commands.branch")
     expect(match?.command.args).toEqual([])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
@@ -60,7 +69,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/copy")
 
     expect(match?.command.kind).toBe("system")
-    expect(match?.command.description).toBe("Copy last response to clipboard")
+    expect(match?.command.description).toBe("slash_commands.copy")
     expect(match?.command.args).toEqual([])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
@@ -69,7 +78,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/search deployment notes")
 
     expect(match?.command.kind).toBe("system")
-    expect(match?.command.description).toBe("Find and open another chat")
+    expect(match?.command.description).toBe("slash_commands.search")
     expect(match?.command.args).toEqual([{ name: "query", required: false }])
     expect(match?.argsText).toBe("deployment notes")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[query]")
@@ -79,15 +88,16 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/pin")
 
     expect(match?.command.kind).toBe("system")
-    expect(match ? slashCommandDescription(match.command, { chat: { pinned: false } }) : "missing").toBe("Pin this chat to the top of the sidebar")
-    expect(match ? slashCommandDescription(match.command, { chat: { pinned: true } }) : "missing").toBe("Unpin this chat")
+    const t = (key: string) => ({ "slash_commands.pin": "Pin translated", "slash_commands.unpin": "Unpin translated" })[key] || key
+    expect(match ? slashCommandDescription(match.command, { chat: { pinned: false } }, t) : "missing").toBe("Pin translated")
+    expect(match ? slashCommandDescription(match.command, { chat: { pinned: true } }, t) : "missing").toBe("Unpin translated")
   })
 
   it("registers /queue as a no-argument system command", () => {
     const match = findSlashCommand("/queue")
 
     expect(match?.command.kind).toBe("system")
-    expect(match?.command.description).toBe("Open the landing queue.")
+    expect(match?.command.description).toBe("slash_commands.queue")
     expect(match?.command.args).toEqual([])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
@@ -96,7 +106,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/spend")
 
     expect(match?.command.kind).toBe("system")
-    expect(match?.command.description).toBe("Open spending insights.")
+    expect(match?.command.description).toBe("slash_commands.spend")
     expect(match?.command.args).toEqual([])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
@@ -105,7 +115,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/share")
 
     expect(match?.command.kind).toBe("system")
-    expect(match?.command.description).toBe("Copy a shareable link to this chat")
+    expect(match?.command.description).toBe("slash_commands.share")
     expect(match?.command.args).toEqual([])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
@@ -114,8 +124,11 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/schedule 2h check the queue")
 
     expect(match?.command.kind).toBe("system")
-    expect(match?.command.description).toBe("Schedule a chat message to send later.")
-    expect(match?.command.args).toEqual([{ name: "time", required: false }, { name: "message", required: false }])
+    expect(match?.command.description).toBe("slash_commands.schedule")
+    expect(match?.command.args).toEqual([
+      { name: "time", required: false },
+      { name: "message", required: false }
+    ])
     expect(match?.argsText).toBe("2h check the queue")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[time] [message]")
   })
@@ -130,7 +143,7 @@ describe("slashCommands", () => {
   })
 
   it("keeps agent-backed commands as skill commands", () => {
-    for (const commandName of [ "/propose", "/feedback" ]) {
+    for (const commandName of ["/propose", "/feedback"]) {
       expect(slashCommands.find((item) => item.name === commandName)?.kind).toBe("skill")
     }
   })
@@ -148,12 +161,7 @@ describe("slashCommands", () => {
   it("keeps proposal commands for ordinary chats", () => {
     const context = { chat: {} }
 
-    expect(filterSlashCommands("", context).map((command) => command.name)).toEqual(expect.arrayContaining([
-      "/proposals",
-      "/discard",
-      "/feedback",
-      "/propose"
-    ]))
+    expect(filterSlashCommands("", context).map((command) => command.name)).toEqual(expect.arrayContaining(["/proposals", "/discard", "/feedback", "/propose"]))
     expect(findSlashCommand("/propose", context)?.command.name).toBe("/propose")
     expect(slashCommandPrompt("/propose", context)).toContain("call the propose_job tool")
   })
@@ -218,7 +226,7 @@ describe("slashCommands", () => {
     expect(match?.command.kind).toBe("system")
     expect(match?.command.args).toEqual([{ name: "id", required: false }])
     expect(match?.command.requiresConfirmation).toBeFalsy()
-    expect(match?.command.description).toBe("Open a Job's pull request in a new tab.")
+    expect(match?.command.description).toBe("slash_commands.review")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
   })
 
@@ -228,7 +236,7 @@ describe("slashCommands", () => {
     expect(match?.command.kind).toBe("system")
     expect(match?.command.args).toEqual([{ name: "id", required: false }])
     expect(match?.command.requiresConfirmation).toBe(true)
-    expect(match?.command.description).toBe("Approve a Job for landing.")
+    expect(match?.command.description).toBe("slash_commands.approve")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
   })
 
@@ -236,7 +244,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/diff")
 
     expect(match?.command.kind).toBe("skill")
-    expect(match?.command.description).toBe("Show the diff for a Job's PR inline.")
+    expect(match?.command.description).toBe("slash_commands.diff")
     expect(match?.command.args).toEqual([{ name: "id", required: false }])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
   })
@@ -259,7 +267,7 @@ describe("slashCommands", () => {
     const match = findSlashCommand("/remind")
 
     expect(match?.command.kind).toBe("skill")
-    expect(match?.command.description).toBe("Ask the agent to set a reminder.")
+    expect(match?.command.description).toBe("slash_commands.remind")
     expect(match?.command.args).toEqual([{ name: "message", required: false }])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[message]")
   })
@@ -281,17 +289,17 @@ describe("slashCommands", () => {
 
   describe("repository skill commands", () => {
     const skills = [
-      { name: "investigate", description: "Investigate something.", parameters: [ { key: "question", required: true } ] },
+      { name: "investigate", description: "Investigate something.", parameters: [{ key: "question", required: true }] },
       { name: "audit", description: "Audit repo-local instructions.", parameters: [] }
     ]
 
     it("builds one slash command per resolved skill, sent as raw text with no confirmation", () => {
       const commands = repoSkillCommands(skills)
 
-      expect(commands.map((command) => command.name)).toEqual([ "/investigate", "/audit" ])
+      expect(commands.map((command) => command.name)).toEqual(["/investigate", "/audit"])
       const investigate = commands[0]
       expect(investigate.kind).toBe("repo_skill")
-      expect(investigate.args).toEqual([ { name: "question", required: true } ])
+      expect(investigate.args).toEqual([{ name: "question", required: true }])
       expect(investigate.requiresConfirmation).toBeUndefined()
       expect(investigate.toPrompt).toBeUndefined()
     })
@@ -306,7 +314,7 @@ describe("slashCommands", () => {
     it("is discoverable via findSlashCommand and the autocomplete filter once resolved for this chat's repository", () => {
       const context = { dynamicCommands: repoSkillCommands(skills) }
 
-      expect(findSlashCommand('/investigate question=foo', context)?.command.kind).toBe("repo_skill")
+      expect(findSlashCommand("/investigate question=foo", context)?.command.kind).toBe("repo_skill")
       expect(filterSlashCommands("audit", context).map((command) => command.name)).toContain("/audit")
     })
 
@@ -315,7 +323,9 @@ describe("slashCommands", () => {
     })
 
     it("does not let a repo-local skill name shadow an existing system/canned-prompt command", () => {
-      const context = { dynamicCommands: repoSkillCommands([ { name: "propose", description: "A repo skill named the same as the built-in wizard.", parameters: [] } ]) }
+      const context = {
+        dynamicCommands: repoSkillCommands([{ name: "propose", description: "A repo skill named the same as the built-in wizard.", parameters: [] }])
+      }
 
       expect(findSlashCommand("/propose", context)?.command.kind).toBe("skill")
     })

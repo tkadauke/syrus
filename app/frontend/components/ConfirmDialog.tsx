@@ -1,4 +1,5 @@
 import { useRef } from "react"
+import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 import { Modal } from "./Modal"
 
@@ -12,15 +13,8 @@ export interface ConfirmDialogProps {
   onCancel: () => void
 }
 
-export function ConfirmDialog({
-  open,
-  message,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  destructive = false,
-  onConfirm,
-  onCancel
-}: ConfirmDialogProps) {
+export function ConfirmDialog({ open, message, confirmLabel, cancelLabel, destructive = false, onConfirm, onCancel }: ConfirmDialogProps) {
+  const { t } = useT("common")
   const confirmRef = useRef<HTMLButtonElement>(null)
 
   return (
@@ -28,10 +22,10 @@ export function ConfirmDialog({
       <p className="text-sm text-gray-700 dark:text-gray-300">{message}</p>
       <div className="mt-4 flex justify-end gap-2">
         <Button onClick={onCancel} variant="secondary">
-          {cancelLabel}
+          {cancelLabel ?? t("cancel")}
         </Button>
         <Button onClick={onConfirm} ref={confirmRef} variant={destructive ? "danger" : "primary"}>
-          {confirmLabel}
+          {confirmLabel ?? t("confirm")}
         </Button>
       </div>
     </Modal>

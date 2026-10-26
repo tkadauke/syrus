@@ -416,6 +416,30 @@
   "page_title_terminal": "Terminal",
   "save": "Save",
   "cancel": "Cancel",
+  "confirm": "Confirm",
+  "gemini_setup": {
+    "rejected": "Google rejected this key.",
+    "verify_error": "Could not verify the key. Try again."
+  },
+  "provider_warning": {
+    "automatic_failover": "{{original}} unavailable; running this Workflow with {{selected}}.",
+    "operator_failover": "Operator selected {{selected}} for this Workflow instead of {{original}}.",
+    "mismatch": "Job runs on {{jobProvider}}; Repository default is {{repositoryProvider}}.",
+    "usage_low": "{{provider}} usage is low ({{remaining}}% remaining; threshold {{threshold}}%).",
+    "usage_reached": "{{provider}} usage limit reached. This item uses {{provider}} until usage resets.",
+    "retry_after": "retry after {{time}}",
+    "five_hour_reset": "5h reset {{time}}",
+    "weekly_reset": "weekly reset {{time}}",
+    "evidence": "Evidence: {{status}} from {{source}}",
+    "observed": "observed {{time}}",
+    "state": "{{provider}} state: {{state}}",
+    "reason": "Reason: {{reason}}",
+    "reset": "Reset {{time}}",
+    "decided": "Decided {{time}}",
+    "account": "account {{id}}",
+    "model": "model {{model}}",
+    "scope": "scope {{scope}}"
+  },
   "diff_review": {
     "changed_files": "Changed files",
     "close_changed_files": "Close changed files",
