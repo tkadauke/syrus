@@ -958,6 +958,11 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
   "tool_card_examples": {
+    "pending_reopen_without_input": "Reapertura pendens sine argumento",
+    "bulk_reopen_confirmation": "Confirmatio reaperturae multiplicis",
+    "job_cannot_be_reopened": "Job reaperiri non potest",
+    "job_removed_from_epic": "Job ab Epic remotum",
+    "job_not_in_epic": "Job in nullo Epic est",
     "pending_close_with_comment": "Clausura pendens cum commentario PR",
     "close_confirmation_required": "Clausura prospera Job confirmationem requirit.",
     "bulk_close_confirmation": "Confirmatio clausurae multiplicis",
