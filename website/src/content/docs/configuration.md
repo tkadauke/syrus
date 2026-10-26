@@ -765,7 +765,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | No | SMTP credentials, when required by the server |
 | `SMTP_AUTHENTICATION` | No | SMTP authentication mode; defaults to `plain` |
 | `SMTP_ENABLE_STARTTLS_AUTO` | No | Whether Action Mailer should auto-enable STARTTLS; defaults to `true` |
-| `JOB_CONCURRENCY` | No | Solid Queue worker thread count for the `runs` queue; defaults to `3` |
+| `JOB_CONCURRENCY` | No | Solid Queue worker thread count for the `runs` queue; defaults to the pod's CPU budget (80% of its cgroup CPU limit, rounded down, minimum 1) |
 | `RAILS_MAX_THREADS` | No | Rails and database pool sizing |
 | `RAILS_LOG_LEVEL` | No | Production log level; defaults to `info` |
 | `PORT` | Web only | Rails server port; defaults to `3000` |
