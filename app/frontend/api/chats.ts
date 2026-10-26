@@ -24,6 +24,7 @@ export type ChatRecord = {
   entity_revision?: number
   current_user_id?: number
   user_id?: number
+  read_only?: boolean
   title: string | null
   title_pending: boolean
   system_kind?: string | null
@@ -1240,6 +1241,28 @@ export function addChatParticipant(chatId: number | string, userId: number) {
 
 export function removeChatParticipant(chatId: number | string, userId: number) {
   return deleteJson<{ participants: ChatParticipant[] }>(`/api/v1/app/chats/${chatId}/participants/${userId}`)
+}
+
+export type ChatSharePerson = {
+  id?: number
+  user_id: number
+  name: string
+  handle: string
+  avatar_url: string | null
+  repository_access: boolean
+}
+
+export function fetchChatShares(chatId: number | string, query = "") {
+  const suffix = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""
+  return getJson<{ shares: ChatSharePerson[]; candidates: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares${suffix}`)
+}
+
+export function createChatShare(chatId: number | string, userId: number, query = "") {
+  return postJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares`, { user_id: userId, q: query })
+}
+
+export function removeChatShare(chatId: number | string, shareId: number) {
+  return deleteJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares/${shareId}`)
 }
 
 // Create the first-run onboarding chat (seeded so the agent greets the

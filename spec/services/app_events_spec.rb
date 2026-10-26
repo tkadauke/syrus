@@ -97,10 +97,12 @@ RSpec.describe AppEvents do
   end
 
   describe ".broadcast_chat_resource" do
-    it "broadcasts a sequence-less event envelope only to current participants' streams" do
+    it "broadcasts a sequence-less event envelope only to current participants and share recipients" do
       owner = Factories.user
       removed_user = Factories.user
+      shared_user = Factories.user
       chat = ChatSession.create!(user: owner, conversation_kind: "group")
+      share = ChatShare.create!(chat_session: chat, target: shared_user, shared_by_user: owner)
       removed_participant = chat.chat_participants.create!(user: removed_user, role: "member")
       removed_participant.destroy!
       allow(ActionCable.server).to receive(:broadcast)
@@ -129,7 +131,25 @@ RSpec.describe AppEvents do
         ChatChannel.stream_name(chat.id, removed_user.id),
         anything
       )
+      expect(ActionCable.server).to have_received(:broadcast).with(
+        ChatChannel.stream_name(chat.id, shared_user.id),
+        hash_including("resource" => "chat")
+      )
       expect(AppUserChannel).not_to have_received(:broadcast_to)
+
+    end
+
+    it "stops broadcasting to a recipient immediately after revocation" do
+      owner = Factories.user
+      recipient = Factories.user
+      chat = ChatSession.create!(user: owner)
+      share = ChatShare.create!(chat_session: chat, target: recipient, shared_by_user: owner)
+      share.destroy!
+      allow(ActionCable.server).to receive(:broadcast)
+
+      described_class.broadcast_chat_resource(chat_session_id: chat.id, type: "updated", resource: "chat", id: chat.id)
+
+      expect(ActionCable.server).not_to have_received(:broadcast).with(ChatChannel.stream_name(chat.id, recipient.id), anything)
     end
 
     it "matches the stream ChatChannel subscribes to" do

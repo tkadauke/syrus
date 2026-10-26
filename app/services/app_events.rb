@@ -73,7 +73,9 @@ class AppEvents
 
   def self.broadcast_chat_resource(chat_session_id:, type:, resource:, id:, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
     event = resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
-    ChatParticipant.where(chat_session_id: chat_session_id).pluck(:user_id).each do |user_id|
+    participant_ids = ChatParticipant.where(chat_session_id: chat_session_id).pluck(:user_id)
+    shared_user_ids = ChatShare.where(chat_session_id: chat_session_id, target_type: "User").pluck(:target_id)
+    (participant_ids | shared_user_ids).each do |user_id|
       ActionCable.server.broadcast(ChatChannel.stream_name(chat_session_id, user_id), event)
     end
     record_delivery(resource)

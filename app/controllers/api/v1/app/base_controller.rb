@@ -19,6 +19,7 @@ module Api
         before_action :enforce_invocation_context_scope
         before_action :authorize_machine_invocation_context
         before_action :authorize_internal_cli_invocation
+        before_action :reject_read_only_shared_chat_mutation
 
         rescue_from ActiveRecord::RecordNotFound do |e|
           render_error("not_found", e.message, status: :not_found)
@@ -29,6 +30,15 @@ module Api
         end
 
         private
+
+        def reject_read_only_shared_chat_mutation
+          return if request.get? || request.head?
+          chat_id = params[:chat_id]
+          return if chat_id.blank? || Current.user.nil? || Current.user.chat_participants.exists?(chat_session_id: chat_id)
+          return unless Current.user.received_chat_shares.exists?(chat_session_id: chat_id)
+
+          render_error("forbidden", "Shared chats are read-only.", status: :forbidden)
+        end
 
         def resume_session
           resume_api_token_session || super

@@ -129,6 +129,16 @@ module ChatIndexPayload
   def recent_chats_index_json
     PerformanceLogging.phase("chat_index.groups") do
       group_specs = PerformanceLogging.phase("chat_index.initial_groups") { initial_chat_index_group_specs }
+      shared_ids = Current.user.received_chat_shares.select(:chat_session_id)
+      shared_chats = invocation_scoped_chat_scope(ChatSession.where(id: shared_ids))
+        .active
+        .ordinary_chats
+        .order(Arel.sql(chat_index_order_sql))
+        .preload(:chat_participants, repository_attachments: :attachable)
+        .to_a
+      if shared_chats.any?
+        group_specs.unshift(key: "shared-with-me", label: "Shared with me", repository_id: nil, chats: shared_chats, has_more: false, group_by: "share", group_value: "shared")
+      end
 
       context = PerformanceLogging.phase("chat_index.context", count: group_specs.sum { |group| group.fetch(:chats).size }) do
         chat_index_context_for(group_specs.flat_map { |group| group.fetch(:chats) })
@@ -173,6 +183,7 @@ module ChatIndexPayload
         id: chat_session.id,
         current_user_id: Current.user.id,
         user_id: chat_session.user_id,
+        read_only: chat_session.user_id != Current.user.id && !chat_session.chat_participants.any? { |participant| participant.user_id == Current.user.id },
         title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
         title_pending: chat_session.title.blank? && context.fetch(:title_pending_ids).include?(chat_session.id),
         system_kind: chat_session.system_kind,
@@ -438,6 +449,7 @@ module ChatIndexPayload
 
   def chat_index_base_scope
     scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+      .where.not(id: Current.user.received_chat_shares.select(:chat_session_id))
     scope = case chat_index_settings.fetch(:status)
     when "hidden"
       scope.where.not(chat_participants: { hidden_at: nil })
@@ -531,6 +543,7 @@ module ChatIndexPayload
   end
 
   def sort_chat_index_groups(groups)
+    shared, groups = groups.partition { |group| group.fetch(:key) == "shared-with-me" }
     sorted = case chat_index_settings.fetch(:group_by)
     when "repository"
       groups.sort_by { |group| [ group.fetch(:chats).empty? ? 1 : 0, -(group.delete(:active_at)&.to_i || 0), group.fetch(:label).downcase ] }
@@ -549,7 +562,7 @@ module ChatIndexPayload
     else
       groups.sort_by { |group| group.fetch(:key) }.reverse
     end
-    sorted.each { |group| group.delete(:active_at) }
+    (shared + sorted).each { |group| group.delete(:active_at) }
   end
 
   def chat_index_group_key_sql

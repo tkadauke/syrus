@@ -44,6 +44,46 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     [ chat, message, attempt ]
   end
 
+  it "exposes a shared chat read-only on the list, API, and both search paths, then revokes access immediately" do
+    allow(AppEvents).to receive(:broadcast)
+    prepare_search_tables
+    owner = Factories.user
+    recipient = Factories.user
+    outsider = Factories.user
+    chat = ChatSession.create!(user: owner, title: "Shared research")
+    message = create_indexed_message(chat, text: "shareneedle history", role: "assistant")
+    share = ChatShare.create!(chat_session: chat, target: recipient, shared_by_user: owner)
+
+    sign_in_as(recipient)
+    get "/api/v1/app/chats"
+    shared_group = parse_body.fetch("groups").find { |group| group["key"] == "shared-with-me" }
+    expect(shared_group).to include("label" => "Shared with me")
+    expect(shared_group.fetch("chats")).to contain_exactly(include("id" => chat.id, "read_only" => true))
+
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "read_only")).to be(true)
+    expect(parse_body.fetch("messages")).to include(include("id" => message.id))
+
+    get "/api/v1/app/chats/search", params: { q: "shareneedle" }
+    expect(parse_body.fetch("results")).to contain_exactly(include("chat_session_id" => chat.id))
+    get "/api/v1/app/chats/search/messages", params: { chat_session_id: chat.id, q: "shareneedle" }
+    expect(parse_body.fetch("matches")).to contain_exactly(include("message_id" => message.id))
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { message: "not allowed" } }
+    expect(response).to have_http_status(:forbidden)
+
+    share.destroy!
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(response).to have_http_status(:not_found)
+
+    sign_in_as(outsider)
+    get "/api/v1/app/chats"
+    expect(parse_body.to_s).not_to include("Shared research")
+    get "/api/v1/app/chats/search", params: { q: "shareneedle" }
+    expect(parse_body).to include("results" => [], "total" => 0)
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/chats"
 
@@ -4293,7 +4333,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(queries.grep(/FROM ["`]?chat_goals["`]?/i).size).to be <= 2
     expect(queries.grep(/FROM ["`]?chat_scratchpad_items["`]?/i).size).to be <= 2
     expect(queries.grep(/FROM ["`]?chat_agent_questions["`]?/i).size).to eq(1)
-    expect(queries.grep(/FROM ["`]?chat_participants["`]?/i).size).to be <= 2
+    expect(queries.grep(/FROM ["`]?chat_participants["`]?/i).size).to be <= 3
   end
 
   it "loads bookmarks on demand through the bookmarks endpoint" do

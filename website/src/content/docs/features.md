@@ -689,6 +689,12 @@ chat clears its outcome glyphs for that participant, while unread messages
 remain indicated by the bold title. Hover or keyboard-focus the indicator
 cluster for the per-Job and Epic breakdown plus goal, pending-action, and
 scratch-pad details.
+Chat owners can share a conversation with another person without inviting them
+as a participant. Shared chats are live and include the complete history,
+attachments, and tool results, but recipients cannot post or start an agent
+turn. Recipients find them under **Shared with me**, and access disappears as
+soon as the owner revokes the share. Sharing a chat does not grant access to an
+attached repository.
 Chat owners can pin or unpin a chat from the sidebar actions menu or through
 the chat agent, and rename it through the same menu (or the `/rename` slash
 command). Any participant can hide a chat from their sidebar and chat search,

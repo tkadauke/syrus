@@ -20,11 +20,24 @@ module Api
         include ChatLockErrors
         include ChatProposalOutcomeNotice
 
+        before_action :reject_read_only_share_mutation, if: -> { !request.get? && params[:id].present? }
+
         HIDDEN_CHATS_PAGE_SIZE = 20
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
         CODING_RELAY_READ_TIMEOUT_SECONDS = 10
         PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
           "claim the Epic as a developer to elaborate it.".freeze
+
+        private
+
+        def reject_read_only_share_mutation
+          return if Current.user.chat_participants.exists?(chat_session_id: params[:id])
+          return unless Current.user.received_chat_shares.exists?(chat_session_id: params[:id])
+
+          render_error("forbidden", "Shared chats are read-only.", status: :forbidden)
+        end
+
+        public
 
         def index
           return unless validate_chat_index_settings
@@ -1848,16 +1861,19 @@ module Api
           chat_image_count = PerformanceLogging.phase("chat_json.chat_image_count", chat_id: chat_session.id) do
             ChatMediaLibrary.chat_image_count(chat_session)
           end
+          participants = chat_session.participants_payload
 
           {
             id: chat_session.id,
             entity_revision: chat_session.entity_revision,
             current_user_id: Current.user.id,
+            user_id: chat_session.user_id,
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
             system_kind: chat_session.system_kind,
             conversation_kind: chat_session.conversation_kind,
-            participants: chat_session.participants_payload,
+            participants: participants,
+            read_only: chat_session.user_id != Current.user.id && participants.none? { |participant| participant.fetch(:id) == Current.user.id },
             pinned: chat_session.pinned?,
             pinned_context: chat_session.pinned_context,
             chat_provider: chat_session.chat_provider,

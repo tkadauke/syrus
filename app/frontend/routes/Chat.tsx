@@ -153,6 +153,7 @@ import { keyboardVisualViewport } from "../lib/visualViewport"
 import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
+import { ChatShares } from "./chat/ChatShares"
 import { ChatMessage, SharedMessageRenderer, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle, TurnRetryIndicator } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
@@ -2002,6 +2003,12 @@ function ChatColumn({
             {payload.chat.conversation_kind === "group" ? (
               <GroupChatParticipants payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
             ) : null}
+            <div className="mt-2 flex items-center gap-2">
+              {payload.chat.user_id === payload.chat.current_user_id ? <ChatShares chatId={payload.chat.id} /> : null}
+              {payload.chat.read_only ? (
+                <span className="rounded-full bg-surface-raised px-2.5 py-1 text-xs font-medium text-text-secondary">{t("chat_shares.read_only")}</span>
+              ) : null}
+            </div>
           </div>
         </header>
       ) : null}
@@ -2030,7 +2037,7 @@ function ChatColumn({
           onSelectWorkspaceTab={onSelectWorkspaceTab}
         />
         {showUsageOverlay && !contextFindOpen ? <UsageOverlay payload={payload} /> : null}
-        {!landing ? (
+        {!landing && !payload.chat.read_only ? (
           <Compose
             key={chatId}
             canLoadEarlierMessages={canLoadEarlierMessages}
@@ -2049,7 +2056,7 @@ function ChatColumn({
           />
         ) : null}
       </div>
-      {landing ? (
+      {landing && !payload.chat.read_only ? (
         <div className="w-full max-w-sm sm:max-w-2xl">
           <Compose
             key={chatId}

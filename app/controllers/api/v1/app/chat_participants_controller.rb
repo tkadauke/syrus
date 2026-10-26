@@ -67,7 +67,7 @@ module Api
         private
 
         def find_chat_session
-          Current.user.accessible_chat_sessions.active.find(params[:chat_id])
+          Current.user.chat_participants.joins(:chat_session).merge(ChatSession.active).find_by!(chat_session_id: params[:chat_id]).chat_session
         end
 
         def target_user_from_params

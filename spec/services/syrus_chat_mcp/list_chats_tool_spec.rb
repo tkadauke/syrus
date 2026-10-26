@@ -101,6 +101,20 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     )
   end
 
+  it "lists exactly the chats shared with the caller and stops listing them after revocation" do
+    owner = Factories.user
+    shared = ChatSession.create!(user: owner, title: "Shared read-only chat", updated_at: Time.current)
+    outsider_chat = ChatSession.create!(user: owner, title: "Private chat", updated_at: Time.current)
+    share = ChatShare.create!(chat_session: shared, target: user, shared_by_user: owner)
+
+    chat_ids = response_payload(call_tool).fetch(:chats).map { |chat| chat[:id] }
+    expect(chat_ids).to include(shared.id)
+    expect(chat_ids).not_to include(outsider_chat.id)
+
+    share.destroy!
+    expect(response_payload(call_tool).fetch(:chats).map { |chat| chat[:id] }).not_to include(shared.id, outsider_chat.id)
+  end
+
   it "does not load full message rows to compute compact message counts" do
     50.times { |i| add_message(chat_session, text: "large transcript #{i}") }
 

@@ -17,6 +17,7 @@ class ChatSession < ApplicationRecord
 
   has_many :chat_participants, dependent: :destroy
   has_many :participants, through: :chat_participants, source: :user
+  has_many :chat_shares, dependent: :destroy
   has_one :owner_participant,
           -> { where(role: "owner") },
           class_name: "ChatParticipant",

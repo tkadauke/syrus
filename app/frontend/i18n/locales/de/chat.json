@@ -3061,5 +3061,15 @@
   "admin_pause_maintenance_task_confirmation_other": "{{count}} Wartungsaufgaben pausieren?",
   "admin_kill_process_confirmation_one": "Prozess {{targets}} beenden?",
   "admin_kill_process_confirmation_other": "Prozesse {{targets}} beenden?",
-  "admin_kill_process_catalog_targets": "#41, #42 und #43"
+  "admin_kill_process_catalog_targets": "#41, #42 und #43",
+  "chat_shares": {
+    "share": "Teilen",
+    "title": "Chat teilen",
+    "search": "Personen suchen oder exakten @Handle eingeben",
+    "add": "Teilen",
+    "remove": "Entfernen",
+    "loading": "Personen werden geladen…",
+    "repository_warning": "Diese Person hat keinen Zugriff auf das angehängte Repository.",
+    "read_only": "Schreibgeschützt"
+  }
 }

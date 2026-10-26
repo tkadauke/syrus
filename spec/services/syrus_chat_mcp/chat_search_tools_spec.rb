@@ -40,6 +40,17 @@ RSpec.describe "Mcp::Tools chat search tools" do
   end
 
   describe "search_chats" do
+    it "searches shared chats while excluding outsiders' unshared chats" do
+      shared = message(other_user_chat, role: "user", text: "sharedneedle visible")
+      private_chat = ChatSession.create!(user: other_user, title: "Still private")
+      private_message = message(private_chat, role: "user", text: "sharedneedle private")
+      [ shared, private_message ].each { |chat_message| ChatMessageSearchIndex.insert(chat_message) }
+      ChatShare.create!(chat_session: other_user_chat, target: user, shared_by_user: other_user)
+
+      results = response_payload(call_tool("search_chats", query: "sharedneedle")).fetch(:results)
+      expect(results.map { |result| result[:chat_session_id] }).to contain_exactly(other_user_chat.id)
+    end
+
     it "returns ranked results scoped to the current user" do
       chat_session.update!(mode: "coding")
       job = Factories.job_record(
@@ -265,6 +276,19 @@ RSpec.describe "Mcp::Tools chat search tools" do
     it "rejects access to another user's chat" do
       response = call_tool("read_chat_messages", chat_session_id: other_user_chat.id)
 
+      expect(response[:result][:isError]).to be(true)
+      expect(response[:result][:content].first[:text]).to include("not_authorized")
+    end
+
+    it "reads a shared chat but not an unshared chat and loses access immediately on revocation" do
+      shared_message = message(other_user_chat, text: "shared history")
+      share = ChatShare.create!(chat_session: other_user_chat, target: user, shared_by_user: other_user)
+
+      payload = response_payload(call_tool("read_chat_messages", chat_session_id: other_user_chat.id))
+      expect(payload.fetch(:messages)).to contain_exactly(include(id: shared_message.id))
+
+      share.destroy!
+      response = call_tool("read_chat_messages", chat_session_id: other_user_chat.id)
       expect(response[:result][:isError]).to be(true)
       expect(response[:result][:content].first[:text]).to include("not_authorized")
     end

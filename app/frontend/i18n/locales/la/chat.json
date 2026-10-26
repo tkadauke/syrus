@@ -3061,5 +3061,15 @@
   "admin_pause_maintenance_task_confirmation_other": "{{count}} munera conservationis pausare?",
   "admin_kill_process_confirmation_one": "Processum {{targets}} finire?",
   "admin_kill_process_confirmation_other": "Processus {{targets}} finire?",
-  "admin_kill_process_catalog_targets": "#41, #42 et #43"
+  "admin_kill_process_catalog_targets": "#41, #42 et #43",
+  "chat_shares": {
+    "share": "Communica",
+    "title": "Colloquium communica",
+    "search": "Personas quaere vel exactum @nomen scribe",
+    "add": "Communica",
+    "remove": "Remove",
+    "loading": "Personae onerantur…",
+    "repository_warning": "Haec persona repositorium adiunctum accedere non potest.",
+    "read_only": "Lectio tantum"
+  }
 }
