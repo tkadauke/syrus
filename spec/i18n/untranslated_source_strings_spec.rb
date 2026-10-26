@@ -131,12 +131,30 @@ RSpec.describe "Untranslated source strings", type: :unit do
   NON_CHAT_I18N_REVIEWED_FILES = %w[
     app/frontend/components/AdminEventActions.tsx
     app/frontend/components/AdminEventLogPanel.tsx
+    app/frontend/components/Checkbox.tsx
+    app/frontend/components/ColumnVisibilityMenu.tsx
     app/frontend/components/ConfirmDialog.tsx
     app/frontend/components/GeminiSetupSheet.tsx
+    app/frontend/components/Input.tsx
+    app/frontend/components/Modal.tsx
+    app/frontend/components/MutationError.tsx
+    app/frontend/components/NoticeToast.tsx
+    app/frontend/components/PanelMessage.tsx
     app/frontend/components/ProviderAvailabilityWarning.tsx
     app/frontend/components/ProviderRoutingRulesEditor.tsx
+    app/frontend/components/Select.tsx
+    app/frontend/components/ShortcutsHelpModal.tsx
+    app/frontend/components/Textarea.tsx
+    app/frontend/components/Toggle.tsx
     app/frontend/components/WalkthroughRecorder.tsx
+    app/frontend/components/credentials/ConnectFlowUi.tsx
+    app/frontend/components/credentials/CredentialCard.tsx
+    app/frontend/components/credentials/GithubTokenStep.tsx
+    app/frontend/components/credentials/ValidationStages.tsx
+    app/frontend/components/dataTable/DataTableColumnHeaderRow.tsx
+    app/frontend/components/dataTable/DataTableColumnMenu.tsx
     app/frontend/components/filterBar/DateTimeRangeFilterValueEditor.tsx
+    app/frontend/components/mobileChrome.tsx
     app/frontend/lib/slashCommands.ts
     app/frontend/routes/AccountSettings.tsx
     app/frontend/routes/AdminBackendExceptions.tsx
@@ -254,7 +272,16 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/CoverageCard.tsx|jsx_text|(threshold: %)
       app/frontend/components/AdminEventActions.tsx|jsx_text|JOB-
       app/frontend/components/Checkbox.tsx|jsx_text|in a
+      app/frontend/components/Checkbox.tsx|ternary|border-danger text-danger accent-danger focus-visible:ring-danger
+      app/frontend/components/Checkbox.tsx|ternary|border-border text-brand accent-brand focus-visible:ring-brand
+      app/frontend/components/Input.tsx|ternary|border-danger focus:border-danger focus:ring-danger
+      app/frontend/components/Input.tsx|ternary|border-border focus:border-brand focus:ring-brand
+      app/frontend/components/Select.tsx|ternary|border-danger focus:border-danger focus:ring-danger
+      app/frontend/components/Select.tsx|ternary|border-border focus:border-brand focus:ring-brand
       app/frontend/components/ShortcutsHelpModal.tsx|jsx_text|(items: T[]): ShortcutGroupSummary
+      app/frontend/components/Textarea.tsx|ternary|border-danger focus:border-danger focus:ring-danger
+      app/frontend/components/Textarea.tsx|ternary|border-border focus:border-brand focus:ring-brand
+      app/frontend/components/Toggle.tsx|ternary|ring-1 ring-danger focus-visible:ring-danger
       app/frontend/components/ui/Text.tsx|jsx_text|, keyof TextOwnProps
       app/frontend/components/FilePreviewModal.tsx|jsx_text|cursor) parts.push(
       app/frontend/components/ProviderAvailabilityWarning.tsx|ternary|text-red-600 dark:text-red-400
@@ -406,6 +433,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/credentials/CredentialCard.tsx|jsx_attr|sk-…
       app/frontend/components/credentials/CredentialCard.tsx|jsx_attr|LLM|…
       app/frontend/components/credentials/GithubTokenStep.tsx|jsx_attr|ghp_…
+      app/frontend/components/credentials/CredentialCard.tsx|user_visible_property|sk-…
+      app/frontend/components/credentials/CredentialCard.tsx|user_visible_property|LLM|…
+      app/frontend/components/credentials/GithubTokenStep.tsx|user_visible_property|ghp_…
       plugins/codex_agent/app/frontend/components/credentials/CodexConnect.tsx|jsx_attr|sk-…
       plugins/muse_agent/app/frontend/components/credentials/MuseConnect.tsx|jsx_attr|LLM|…
     LITERALS
@@ -604,6 +634,28 @@ RSpec.describe "Untranslated source strings", type: :unit do
       Reviewed non-chat surfaces contain untranslated user-visible strings:
       #{findings.join("\n")}
     MESSAGE
+  end
+
+  it "keeps representative shared-control copy translated in German and Latin" do
+    locale = ->(language, namespace) { JSON.parse(Rails.root.join("app/frontend/i18n/locales/#{language}/#{namespace}.json").read) }
+    keys = {
+      "common" => [%w[notice_toast dismiss]],
+      "nav" => [%w[shortcuts title], %w[shortcuts empty]],
+      "settings" => [%w[github_token step1_heading], %w[github_token save_continue]]
+    }
+
+    keys.each do |namespace, paths|
+      english = locale.call("en", namespace)
+      %w[de la].each do |language|
+        translation = locale.call(language, namespace)
+        paths.each do |path|
+          english_value = english.dig(*path)
+          translated_value = translation.dig(*path)
+          expect(translated_value).to be_present, "#{language}.#{namespace}.#{path.join('.')} must be present"
+          expect(translated_value).not_to eq(english_value), "#{language}.#{namespace}.#{path.join('.')} must be translated"
+        end
+      end
+    end
   end
 
   it "does not mistake one-word admin labels for code tokens" do
