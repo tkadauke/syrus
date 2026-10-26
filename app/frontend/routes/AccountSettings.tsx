@@ -8,6 +8,7 @@ import { Form, Pill } from "../components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
+import type { TFunction } from "i18next"
 import { Link, useLocation } from "react-router-dom"
 import i18n from "../i18n"
 import { useT } from "../hooks/useT"
@@ -291,7 +292,7 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
             <Form.Field>
               <Form.Label>{t('account_settings.role')}</Form.Label>
               <Form.Select onChange={(event) => setValues({ ...values, role: event.target.value })} value={values.role}>
-                {roleOptions.map((role) => <option key={role} value={role}>{titleize(role)}</option>)}
+                {roleOptions.map((role) => <option key={role} value={role}>{roleLabel(role, t)}</option>)}
               </Form.Select>
             </Form.Field>
 
@@ -778,7 +779,7 @@ function ProviderAvailabilitySettings({
   setValues: (values: CredentialsInput) => void
   onNotice: (message: string | null) => void
 }) {
-  const { t } = useT("settings")
+  const { t, i18n } = useT("settings")
   const queryClient = useQueryClient()
   const recheck = useMutation({
     mutationFn: recheckProviderAvailability,
@@ -806,7 +807,7 @@ function ProviderAvailabilitySettings({
       {payload.options.agent_providers.map((provider) => {
         const availability = payload.provider_availability?.[provider]
         const threshold = values.provider_availability_pause_thresholds?.[provider] ?? 10
-        const usageReset = providerUsageReset(availability)
+        const usageReset = providerUsageReset(availability, t, i18n.resolvedLanguage)
         const usageWindows = providerUsageWindowEntries(availability)
         const usageTextClass = availability?.usage_exhausted
           ? "text-red-700 dark:text-red-300"
@@ -844,7 +845,7 @@ function ProviderAvailabilitySettings({
                   </p>
                 ) : usageWindows.length > 0 ? (
                   usageWindows.map((window, index) => {
-                    const windowReset = providerUsageWindowReset(window)
+                    const windowReset = providerUsageWindowReset(window, t, i18n.resolvedLanguage)
                     return (
                       <p key={window.label || index}>
                         {window.remaining_percent != null
@@ -907,12 +908,16 @@ function titleize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
+function roleLabel(role: string, t: TFunction) {
+  return t(`account_settings.role_options.${role}`, { defaultValue: titleize(role) })
+}
+
 function providerLabel(payload: CredentialsPayload, provider: string, kind: "agent" | "chat" = "agent") {
   const labels = kind === "chat" ? payload.options.chat_provider_labels : payload.options.agent_provider_labels
   return labels?.[provider] || titleize(provider)
 }
 
-function providerUsageReset(availability?: ProviderAvailability) {
+function providerUsageReset(availability: ProviderAvailability | undefined, t: TFunction, locale?: string) {
   const now = new Date()
   const resetAt = futureResetCandidate(providerUsageResetCandidates(availability, now), now) ||
     futureResetCandidate([parseTimestamp(availability?.retry_after)], now)
@@ -920,8 +925,8 @@ function providerUsageReset(availability?: ProviderAvailability) {
   if (!resetAt) return null
 
   return {
-    absolute: resetAt.toLocaleString(),
-    relative: formatRelativeReset(resetAt, now)
+    absolute: resetAt.toLocaleString(locale),
+    relative: formatRelativeReset(resetAt, t, now)
   }
 }
 
@@ -929,15 +934,15 @@ function providerUsageWindowEntries(availability?: ProviderAvailability): Provid
   return Object.values(availability?.usage?.windows || {}).filter((window): window is ProviderUsageWindow => Boolean(window))
 }
 
-function providerUsageWindowReset(window: ProviderUsageWindow) {
+function providerUsageWindowReset(window: ProviderUsageWindow, t: TFunction, locale?: string) {
   const now = new Date()
   const resetAt = futureResetCandidate([parseTimestamp(window.reset_at)], now)
 
   if (!resetAt) return null
 
   return {
-    absolute: resetAt.toLocaleString(),
-    relative: formatRelativeReset(resetAt, now)
+    absolute: resetAt.toLocaleString(locale),
+    relative: formatRelativeReset(resetAt, t, now)
   }
 }
 
@@ -991,19 +996,19 @@ function parseTimestamp(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function formatRelativeReset(resetAt: Date, now = new Date()) {
+function formatRelativeReset(resetAt: Date, t: TFunction, now = new Date()) {
   const remainingMinutes = Math.max(0, Math.ceil((resetAt.getTime() - now.getTime()) / 60_000))
-  if (remainingMinutes <= 0) return "less than a minute"
+  if (remainingMinutes <= 0) return t("account_settings.duration_less_than_minute")
 
   const days = Math.floor(remainingMinutes / (24 * 60))
   const hours = Math.floor((remainingMinutes % (24 * 60)) / 60)
   const minutes = remainingMinutes % 60
 
-  if (days > 0) return [pluralizeTime(days, "day"), hours > 0 ? pluralizeTime(hours, "hour") : null].filter(Boolean).join(", ")
-  if (hours > 0) return [pluralizeTime(hours, "hour"), minutes > 0 ? pluralizeTime(minutes, "minute") : null].filter(Boolean).join(", ")
-  return pluralizeTime(minutes, "minute")
+  if (days > 0) return [durationUnit(days, "day", t), hours > 0 ? durationUnit(hours, "hour", t) : null].filter(Boolean).join(", ")
+  if (hours > 0) return [durationUnit(hours, "hour", t), minutes > 0 ? durationUnit(minutes, "minute", t) : null].filter(Boolean).join(", ")
+  return durationUnit(minutes, "minute", t)
 }
 
-function pluralizeTime(value: number, unit: string) {
-  return `${value} ${unit}${value === 1 ? "" : "s"}`
+function durationUnit(value: number, unit: "day" | "hour" | "minute", t: TFunction) {
+  return t(`account_settings.duration_${unit}`, { count: value })
 }

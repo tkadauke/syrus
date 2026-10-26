@@ -1135,6 +1135,18 @@
     "website": "Pagina Reticularis",
     "github_handle": "Nomen GitHub",
     "role": "Munus",
+    "role_options": {
+      "developer": "Developer",
+      "product_owner": "Product Owner",
+      "operator": "Operator"
+    },
+    "duration_less_than_minute": "minus quam uno minuto",
+    "duration_day_one": "{{count}} dies",
+    "duration_day_other": "{{count}} dies",
+    "duration_hour_one": "{{count}} hora",
+    "duration_hour_other": "{{count}} horae",
+    "duration_minute_one": "{{count}} minutum",
+    "duration_minute_other": "{{count}} minuta",
     "avatar_url": "URL Avatarum",
     "profile_bio": "Vita Personae",
     "agent_provider": "Praebitor Agentis",
