@@ -27,6 +27,25 @@ class RepositoryBareClone
     @path ||= self.class.path_for(@repository)
   end
 
+  # Reads a file only when this cache is configured for the Repository that
+  # owns its numeric path. Repository ids are database-local, so the path alone
+  # is not proof of ownership (an isolated/demo database can reuse an id).
+  # Target the recorded default branch explicitly: a bare clone's symbolic
+  # HEAD can be stale or dangling after a default-branch rename.
+  def read_from_default_branch(relative_path)
+    return nil unless path.directory?
+    return nil unless origin_matches_repository?
+
+    result = @git.capture(
+      "--git-dir", path.to_s,
+      "show", "refs/heads/#{@repository.default_branch}:#{relative_path}",
+      chdir: path.dirname
+    )
+    result.success? && result.stdout.present? ? result.stdout : nil
+  rescue StandardError
+    nil
+  end
+
   # Initializes the bare clone if absent, or fetches updates if present.
   # Authenticates via `user` so private repos work.
   def sync!(user:)
@@ -56,6 +75,16 @@ class RepositoryBareClone
   end
 
   private
+
+  def origin_matches_repository?
+    result = @git.capture(
+      "--git-dir", path.to_s,
+      "config", "--get", "remote.origin.url",
+      chdir: path.dirname
+    )
+
+    result.success? && result.stdout.strip == @repository.remote_url
+  end
 
   def clone!(user:)
     FileUtils.mkdir_p(path.dirname)
