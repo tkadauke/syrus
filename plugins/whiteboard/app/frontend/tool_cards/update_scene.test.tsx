@@ -5,7 +5,10 @@ import updateSceneToolCard, { examples } from "./update_scene"
 
 const exportToSvg = vi.fn(async () => document.createElementNS("http://www.w3.org/2000/svg", "svg"))
 
-vi.mock("@excalidraw/excalidraw", () => ({ exportToSvg }))
+vi.mock("@excalidraw/excalidraw", () => ({
+  convertToExcalidrawElements: vi.fn((elements) => elements),
+  exportToSvg
+}))
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "update_scene", resultBody: "", resultError: false, parsedResult: null, ...overrides }
