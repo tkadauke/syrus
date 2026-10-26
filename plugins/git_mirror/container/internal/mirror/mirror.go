@@ -634,6 +634,61 @@ func (s *Store) Tree(ctx context.Context, id, revision string) ([]Entry, error) 
 	return entries, nil
 }
 
+// Children lists the direct files and directories beneath path at a commit.
+func (s *Store) Children(ctx context.Context, id, revision, path string) ([]Entry, error) {
+	if path != "" && !validPath(path) {
+		return nil, fmt.Errorf("%w: invalid path", ErrBadRequest)
+	}
+	r, err := s.revisionRepo(ctx, id, revision)
+	if err != nil {
+		return nil, err
+	}
+	treeish := revision
+	if path != "" {
+		treeish += ":" + path
+	}
+	res, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "ls-tree", "-l", "-z", treeish)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrNotFound, err)
+	}
+	var entries []Entry
+	prefix := ""
+	if path != "" {
+		prefix = path + "/"
+	}
+	for _, record := range bytes.Split(res.Stdout, []byte{0}) {
+		if len(record) == 0 {
+			continue
+		}
+		meta, name, ok := bytes.Cut(record, []byte{'\t'})
+		if !ok {
+			continue
+		}
+		fields := strings.Fields(string(meta))
+		if len(fields) != 4 {
+			continue
+		}
+		entry := Entry{Path: prefix + string(name), ContentID: fields[2]}
+		switch {
+		case fields[1] == "tree":
+			entry.Type = "directory"
+		case fields[1] == "commit":
+			entry.Type = "submodule"
+		case fields[1] == "blob" && fields[0] == "120000":
+			entry.Type = "symlink"
+		case fields[1] == "blob":
+			entry.Type = "file"
+		default:
+			continue
+		}
+		if size, parseErr := strconv.ParseInt(fields[3], 10, 64); parseErr == nil {
+			entry.Size = &size
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
 // Read returns the file at path in a commit. ErrNotFound means the commit is
 // known and has no file there.
 func (s *Store) Read(ctx context.Context, id, revision, path string) (Blob, error) {

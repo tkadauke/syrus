@@ -1,4 +1,10 @@
 {
+  "auto_approve_never": "Nie",
+  "auto_approve_never_preview": "Keine direkte Regel; Jobs können weiterhin eine Repository- oder Benutzervorgabe erben.",
+  "auto_approve_graders": "Wenn Grader erfolgreich sind",
+  "auto_approve_graders_preview": "Jobs mit dieser Regel gehen nach erfolgreichen, im Repository festgelegten Gradern in die Landing-Phase.",
+  "auto_approve_safe": "Wenn Grader erfolgreich sind und als sicher markiert",
+  "auto_approve_safe_preview": "Jobs mit dieser Regel benötigen vor der Landing-Phase zusätzlich das Sicher-Tag.",
   "tool_list_summary_one": "{{count}} geplanter Task",
   "tool_list_summary_other": "{{count}} geplante Tasks",
   "tool_list_empty": "Keine geplanten Tasks für dieses Repository.",

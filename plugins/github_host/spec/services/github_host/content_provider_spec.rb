@@ -99,6 +99,23 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  describe "#children" do
+    it "returns direct files and directories" do
+      allow(client).to receive(:commit_tree_children).with("acme/widgets", sha, "lib").and_return(
+        truncated: false,
+        entries: [
+          { path: "lib/tasks", type: "tree", mode: "040000", size: nil, sha: "t1" },
+          { path: "lib/a.rb", type: "blob", mode: "100644", size: 12, sha: "b1" }
+        ]
+      )
+
+      expect(provider.children(sha, "lib").map { |entry| [ entry.path, entry.type ] }).to eq([
+        [ "lib/tasks", "directory" ],
+        [ "lib/a.rb", "file" ]
+      ])
+    end
+  end
+
   describe "#read" do
     it "returns the file's bytes addressed by its blob SHA" do
       allow(client).to receive(:file_bytes_at).with("acme/widgets", ".syrus.yml", sha).and_return(bytes: "grade: []", size: 9, sha: "blob")

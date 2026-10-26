@@ -1,7 +1,6 @@
 {
   "app_name": "Syrus",
-  "test_channel_badge": {
-    "label": "Probatio",
+  "test_channel_dot": {
     "tooltip": "Haec est aedificatio probationis, a Syro tuo vero segregata."
   },
   "loading": "Oneratur...",
@@ -70,6 +69,8 @@
     "ready_description": "Primum Epicum terram tetigit — Syrus constitutus est. Tabella Constitutionis ex navigatione cadet.",
     "open_dashboard": "Tabulam Aperire",
     "readiness_label": "Promptitudo repositorii",
+    "readiness_status": "Promptitudo: {{status}}",
+    "readiness_close": "Claudere",
     "readiness_loading": "Promptitudo repositorii examinatur…",
     "readiness_prepare": "Mandata praeparationis proposita",
     "readiness_graders": "Mandata probationis proposita",

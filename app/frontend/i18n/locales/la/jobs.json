@@ -581,7 +581,7 @@
   "source_tree_truncated": "Arbor a GitHub truncata.",
   "source_diff_truncated": "Diff a GitHub truncatum.",
   "source_no_files": "Nulli fasciculi inventi.",
-  "source_showing_first": "Primi {{count}} fasciculi ostenduntur.",
+  "source_directory_error": "Hic fasciculorum locus onerari non potuit.",
   "source_select_file": "Fasciculum elige ut eius contenta videas.",
   "source_select_diff_file": "Fasciculum elige ut eius diff videas.",
   "source_diff_not_available": "Diff non praesto est (fasciculus binarius aut maximus).",
