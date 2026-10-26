@@ -1413,20 +1413,80 @@ describe("Runtime tool cards", () => {
     const parsedResult = {
       kind: "mobile_screenshot",
       content_type: "image/png",
+      bytes: 48213,
       document_id: 44,
       file_path: "/api/v1/app/chats/8/media/chat_images/44/file",
+      preview_url: "/api/v1/app/chats/8/media/chat_images/44/file",
       latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
-      latest_frame_at: "2026-09-10T12:12:00Z"
+      latest_frame_at: "2026-09-10T12:12:00Z",
+      fallback: true,
+      warning: "Using the last available emulator frame.",
+      content: [{ type: "text", text: "Android screenshot capture completed." }]
+    }
+    const toolContext = context("runtime_capture_artifact", {
+      input: { session_id: 7, artifact_type: "screenshot" },
+      parsedResult
+    })
+
+    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(toolContext)).toBe("Runtime artifact captured: Android screenshot")
+
+    render(<>{runtimeCaptureArtifactToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByRole("img", { name: "Android screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
+    expect(screen.getAllByText("44").length).toBeGreaterThan(0)
+    expect(screen.getByText("7")).toBeInTheDocument()
+    expect(screen.getByText("screenshot")).toBeInTheDocument()
+    expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
+    expect(screen.getByText("48213")).toBeInTheDocument()
+    expect(screen.getByText("Yes")).toBeInTheDocument()
+    expect(screen.getByText("2026-09-10T12:12:00Z")).toBeInTheDocument()
+    expect(screen.getByText("Using the last available emulator frame.")).toBeInTheDocument()
+    expect(screen.getByText("Android screenshot capture completed.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: parsedResult.latest_frame_url })).toHaveAttribute("href", parsedResult.latest_frame_url)
+    fireEvent.click(screen.getByRole("button", { name: "Open Android screenshot" }))
+    expect(screen.getByRole("dialog", { name: "Runtime artifact preview" })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["structured content", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["content text JSON", (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })]
+  ])("renders browser artifact captures through the real provider envelope with %s", (_label, envelope) => {
+    const payload = {
+      content: [
+        { type: "image", data: "YnJvd3Nlci1jYXB0dXJl", mimeType: "image/png" },
+        { type: "text", text: "Browser screenshot captured successfully." }
+      ]
+    }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime capture artifact",
+      calls: [
+        {
+          message_id: 77,
+          tool_name: "runtime_capture_artifact",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_capture_artifact",
+          detail: "screenshot, session 17",
+          display_label: "Runtime capture artifact",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 17, artifact_type: "screenshot", element: "Dashboard", target: "ref-22" },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
     }
 
-    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe(
-      "Runtime artifact captured: mobile_screenshot"
-    )
-
-    render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "mobile_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
-    expect(screen.getAllByText("44").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime capture artifact")
+    expect(screen.getByRole("img", { name: "Screenshot" })).toHaveAttribute("src", "data:image/png;base64,YnJvd3Nlci1jYXB0dXJl")
+    expect(screen.getByText("17")).toBeInTheDocument()
+    expect(screen.getByText("Dashboard")).toBeInTheDocument()
+    expect(screen.getByText("ref-22")).toBeInTheDocument()
+    expect(screen.getByText("Browser screenshot captured successfully.")).toBeInTheDocument()
   })
 
   it("renders Runtime capture failures distinctly", () => {
