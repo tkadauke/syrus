@@ -343,10 +343,15 @@ class StepDispatcher
     return false unless epic&.resolved_epic_dependency_policy == "linear"
     return false unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
 
-    winner = Workflow
+    implementation_workflows = Workflow
       .where(job_id: epic.jobs.select(:id))
-      .where(state: Workflow::TriggerKind::ACTIVE_STATES)
       .where(trigger_kind: WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS)
+
+    return true if implementation_workflows.running.where.not(job_id: workflow.job_id).exists?
+    return false if implementation_workflows.running.where(job_id: workflow.job_id).exists?
+
+    winner = implementation_workflows
+      .where(state: "queued")
       .order(:created_at, :id)
       .first
 

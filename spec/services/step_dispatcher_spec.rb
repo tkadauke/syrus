@@ -4148,6 +4148,18 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     expect(second_workflow.reload.artifact("start_blocked_reason")).to be_nil
   end
 
+  it "blocks an older queued workflow when a newer sibling is already running" do
+    queued_job = epic_job(issue_number: 204)
+    running_job = epic_job(issue_number: 205, state: "running")
+    queued_workflow, = build_workflow(job: queued_job, trigger_kind: "initial")
+    running_workflow, = build_workflow(job: running_job, trigger_kind: "initial")
+    running_workflow.update_columns(state: "running", started_at: 1.minute.ago)
+
+    expect(queued_workflow.id).to be < running_workflow.id
+    expect { described_class.start_workflow(queued_workflow) }.not_to change { Run.count }
+    expect(queued_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+  end
+
   it "does not serialize landing, recovery, or main-grader workflows behind implementation" do
     implementing_job = epic_job(issue_number: 203, state: "running")
     implementing_workflow, = build_workflow(job: implementing_job, trigger_kind: "initial")
