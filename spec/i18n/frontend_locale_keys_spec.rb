@@ -530,7 +530,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
       jobs.start_blocked_generic
     ])
 
-    expect(matching_german_keys(locales, /\b(?:Arbeitsabl\p{L}*|Runs?)\b/)).to be_empty
+    expect(matching_german_keys(locales, /\b(?:Arbeitsabl\p{L}*|Repositories|Runs?)\b/)).to be_empty
     expect(locales.dig("de", "chat", "search", "empty_prompt")).to include("Job")
     expect(locales.dig("de", "dashboard", "legacy_epics_banner")).to include("Epics")
     expect(locales.dig("de", "dashboard", "new_feature")).to eq("Neues Epic")
