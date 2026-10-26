@@ -17,11 +17,18 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { Trans } from "react-i18next"
 import { useT } from "../../hooks/useT"
-import { resumeRepositoryLanding, runMainBranchGraders, repairMainBranch, checkCiNow, type RepositoryDetailPayload, type RepositoryHealthCheckRecord, type RepositoryHealthHistory } from "../../api/repositories"
+import {
+  resumeRepositoryLanding,
+  runMainBranchGraders,
+  repairMainBranch,
+  checkCiNow,
+  type RepositoryDetailPayload,
+  type RepositoryHealthCheckRecord,
+  type RepositoryHealthHistory
+} from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
 import type { ReactNode } from "react"
-
 
 // Repository main-branch health section extracted from RepositoryDetail.tsx:
 // the health section (MainBranchHealthSection), health badge, failing-checks
@@ -37,14 +44,24 @@ function healthTone(health: string): HealthTone {
 
 type HealthTone = "green" | "red" | "gray" | "amber"
 
-export function MainBranchHealthSection({ history, payload, prefix, queryKey, onNotice }: { history: RepositoryHealthHistory; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+export function MainBranchHealthSection({
+  history,
+  payload,
+  prefix,
+  queryKey,
+  onNotice
+}: {
+  history: RepositoryHealthHistory
+  payload: RepositoryDetailPayload
+  prefix: string
+  queryKey: RepositoryDetailQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("settings")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const repository = payload.repository
-  const shaUrl = history.last_health_checked_sha
-    ? `https://github.com/${repository.slug}/commit/${history.last_health_checked_sha}`
-    : null
+  const shaUrl = history.last_health_checked_sha ? `https://github.com/${repository.slug}/commit/${history.last_health_checked_sha}` : null
   const search = queryKey[3]
   const graders = useMutation({
     mutationFn: () => runMainBranchGraders(appendSearch(payload.paths.app_run_main_branch_graders_repository_path, search), payload.pagination.page),
@@ -77,16 +94,14 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
   const canResume = history.main_branch_health_enabled && history.main_branch_repair_blocks_work && history.landing_paused && history.main_health === "broken"
 
   async function confirmResume() {
-    if (!await confirm({ message: t("repository.resume_landing_confirm") })) return
+    if (!(await confirm({ message: t("repository.resume_landing_confirm") }))) return
     onNotice(null)
     resumeWork.mutate()
   }
 
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
-        {t("repository.main_branch_health")}
-      </h2>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("repository.main_branch_health")}</h2>
       <div className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <div className="flex flex-wrap items-center gap-4">
           <HealthBadge label={t("repository.health_ci")} health={history.ci_health} />
@@ -99,19 +114,27 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
               </a>
             </div>
           ) : null}
-          {payload.can_edit ? <button
-            className={buttonClass("gray")}
-            disabled={graders.isPending}
-            onClick={() => { onNotice(null); graders.mutate() }}
-            type="button"
-          >
-            {t("repository.run_graders_now")}
-          </button> : null}
+          {payload.can_edit ? (
+            <button
+              className={buttonClass("gray")}
+              disabled={graders.isPending}
+              onClick={() => {
+                onNotice(null)
+                graders.mutate()
+              }}
+              type="button"
+            >
+              {t("repository.run_graders_now")}
+            </button>
+          ) : null}
           {payload.can_edit && history.ci_health !== "not_configured" ? (
             <button
               className={buttonClass("gray")}
               disabled={ciCheck.isPending}
-              onClick={() => { onNotice(null); ciCheck.mutate() }}
+              onClick={() => {
+                onNotice(null)
+                ciCheck.mutate()
+              }}
               type="button"
             >
               {t("repository.check_ci_now")}
@@ -121,7 +144,10 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
             <button
               className={buttonClass("gray")}
               disabled={repair.isPending}
-              onClick={() => { onNotice(null); repair.mutate() }}
+              onClick={() => {
+                onNotice(null)
+                repair.mutate()
+              }}
               type="button"
             >
               {repair.isPending ? t("repository.health_repair_starting") : t("repository.health_repair_start")}
@@ -159,7 +185,13 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
           <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-300">
             <Trans
               components={{ slug: <CopyableSlug slug={history.main_branch_repair.blocking_job.slug} /> }}
-              i18nKey={history.main_branch_repair.blocked_reason === "active" ? "repository.health_repair_active" : history.main_branch_repair.blocked_reason === "landing" ? "repository.health_repair_landing" : "repository.health_repair_waiting"}
+              i18nKey={
+                history.main_branch_repair.blocked_reason === "active"
+                  ? "repository.health_repair_active"
+                  : history.main_branch_repair.blocked_reason === "landing"
+                    ? "repository.health_repair_landing"
+                    : "repository.health_repair_waiting"
+              }
               t={t}
             />{" "}
             <a className="font-medium text-brand hover:underline" href={history.main_branch_repair.blocking_job.job_path}>
@@ -172,15 +204,11 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
           </div>
         ) : null}
         {history.current_health_pending ? (
-          <div className="rounded border border-info/30 bg-info/10 p-3 text-sm text-info">
-            {t("repository.health_current_validation_pending")}
-          </div>
+          <div className="rounded border border-info/30 bg-info/10 p-3 text-sm text-info">{t("repository.health_current_validation_pending")}</div>
         ) : null}
         {payload.can_edit && canResume ? (
           <div className="flex flex-col gap-3 rounded border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-amber-900 dark:text-amber-100">
-              {t("repository.resume_landing_warning")}
-            </p>
+            <p className="text-sm text-amber-900 dark:text-amber-100">{t("repository.resume_landing_warning")}</p>
             <button
               className="rounded border border-amber-300 dark:border-amber-600 bg-white dark:bg-amber-950 px-3 py-1.5 text-sm font-medium text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={resumeWork.isPending}
@@ -191,19 +219,15 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
             </button>
           </div>
         ) : null}
-        {resumeWork.isError ? (
-          <PanelMessage tone="error">{errorMessage(resumeWork.error, "Unable to resume work.")}</PanelMessage>
-        ) : null}
-        {history.ci_health === "broken" ? (
-          <FailingChecks checks={history.current_ci_failed_checks} />
-        ) : null}
+        {resumeWork.isError ? <PanelMessage tone="error">{errorMessage(resumeWork.error, t("repository.health_unable_to_resume"))}</PanelMessage> : null}
+        {history.ci_health === "broken" ? <FailingChecks checks={history.current_ci_failed_checks} /> : null}
         {history.grader_health === "broken" && history.current_grader_failed_names.length > 0 ? (
           <FailingGraders names={history.current_grader_failed_names} />
         ) : null}
         <HealthHistoryTable records={history.records} prefix={prefix} t={t} />
-        {graders.isError ? <PanelMessage tone="error">{errorMessage(graders.error, "Run graders command failed.")}</PanelMessage> : null}
-        {ciCheck.isError ? <PanelMessage tone="error">{errorMessage(ciCheck.error, "Check CI command failed.")}</PanelMessage> : null}
-        {repair.isError ? <PanelMessage tone="error">{errorMessage(repair.error, "Repair command failed.")}</PanelMessage> : null}
+        {graders.isError ? <PanelMessage tone="error">{errorMessage(graders.error, t("repository.health_graders_failed"))}</PanelMessage> : null}
+        {ciCheck.isError ? <PanelMessage tone="error">{errorMessage(ciCheck.error, t("repository.health_ci_check_failed"))}</PanelMessage> : null}
+        {repair.isError ? <PanelMessage tone="error">{errorMessage(repair.error, t("repository.health_repair_failed"))}</PanelMessage> : null}
       </div>
       {dialog}
     </section>
@@ -237,7 +261,9 @@ function FailingChecks({ checks }: { checks: Array<{ name: string; url: string }
         <li key={check.name} className="flex items-center gap-1.5 text-red-700 dark:text-red-300">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
           {check.url ? (
-            <a className="hover:underline" href={check.url} rel="noopener" target="_blank">{check.name}</a>
+            <a className="hover:underline" href={check.url} rel="noopener" target="_blank">
+              {check.name}
+            </a>
           ) : (
             <span>{check.name}</span>
           )}
@@ -261,11 +287,35 @@ function FailingGraders({ names }: { names: string[] }) {
   )
 }
 
-function buildHealthHistoryColumns({ prefix, t }: { prefix: string; t: (key: string, options?: Record<string, unknown>) => string }): DataTableColumnDef<RepositoryHealthCheckRecord>[] {
+function buildHealthHistoryColumns({
+  prefix,
+  t
+}: {
+  prefix: string
+  t: (key: string, options?: Record<string, unknown>) => string
+}): DataTableColumnDef<RepositoryHealthCheckRecord>[] {
   return [
-    { key: "time", label: t("repository.health_col_time"), required: true, cellClassName: "whitespace-nowrap text-gray-500 dark:text-gray-400", renderCell: (record) => <RelativeTimestamp value={record.checked_at} /> },
-    { key: "sha", label: t("repository.health_col_sha"), renderCell: (record) => <a className="font-mono text-xs text-brand hover:underline" href={record.sha_url} rel="noopener" target="_blank">{record.sha}</a> },
-    { key: "ci", label: t("repository.health_col_ci"), renderCell: (record) => <TonePill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</TonePill> },
+    {
+      key: "time",
+      label: t("repository.health_col_time"),
+      required: true,
+      cellClassName: "whitespace-nowrap text-gray-500 dark:text-gray-400",
+      renderCell: (record) => <RelativeTimestamp value={record.checked_at} />
+    },
+    {
+      key: "sha",
+      label: t("repository.health_col_sha"),
+      renderCell: (record) => (
+        <a className="font-mono text-xs text-brand hover:underline" href={record.sha_url} rel="noopener" target="_blank">
+          {record.sha}
+        </a>
+      )
+    },
+    {
+      key: "ci",
+      label: t("repository.health_col_ci"),
+      renderCell: (record) => <TonePill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</TonePill>
+    },
     {
       key: "graders",
       label: t("repository.health_col_graders"),
@@ -284,14 +334,22 @@ function buildHealthHistoryColumns({ prefix, t }: { prefix: string; t: (key: str
       label: t("repository.health_col_failures"),
       cellClassName: "text-xs text-gray-600 dark:text-gray-400",
       renderCell: (record) => {
-        const failureNames = [ ...record.ci_failed_checks.map((c) => c.name), ...record.grader_failed_names ]
+        const failureNames = [...record.ci_failed_checks.map((c) => c.name), ...record.grader_failed_names]
         return failureNames.length > 0 ? failureNames.join(", ") : null
       }
     }
   ]
 }
 
-function HealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthCheckRecord[]; prefix: string; t: (key: string, options?: Record<string, unknown>) => string }) {
+function HealthHistoryTable({
+  records,
+  prefix,
+  t
+}: {
+  records: RepositoryHealthCheckRecord[]
+  prefix: string
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
   const columns = buildHealthHistoryColumns({ prefix, t })
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: "syrus.repository_detail.main_branch_health_history.visible_columns" })
   const isMobile = useMediaQuery("(max-width: 639px)", false)
@@ -339,7 +397,15 @@ function HealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthC
   )
 }
 
-function MobileHealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthCheckRecord[]; prefix: string; t: (key: string, options?: Record<string, unknown>) => string }) {
+function MobileHealthHistoryTable({
+  records,
+  prefix,
+  t
+}: {
+  records: RepositoryHealthCheckRecord[]
+  prefix: string
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
   return (
     <DataTable.Root>
       <DataTable.Header>
@@ -387,14 +453,10 @@ function MobileHealthHistoryTable({ records, prefix, t }: { records: RepositoryH
 }
 
 function HealthHistoryFailures({ record }: { record: RepositoryHealthCheckRecord }) {
-  const failureNames = [ ...record.ci_failed_checks.map((c) => c.name), ...record.grader_failed_names ]
+  const failureNames = [...record.ci_failed_checks.map((c) => c.name), ...record.grader_failed_names]
   if (failureNames.length === 0) return null
 
-  return (
-    <div className="text-xs text-gray-600 dark:text-gray-400">
-      {failureNames.join(", ")}
-    </div>
-  )
+  return <div className="text-xs text-gray-600 dark:text-gray-400">{failureNames.join(", ")}</div>
 }
 
 function MobileHealthSource({ source, t }: { source: string; t: (key: string) => string }) {

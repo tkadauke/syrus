@@ -4633,7 +4633,7 @@ describe("SourceTab", () => {
     const keyword = await within(table).findByText("class")
     expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
     expect(within(table).getByTitle("2 hits")).toBeInTheDocument()
-    expect(within(table).getByTitle("not covered")).toBeInTheDocument()
+    expect(within(table).getByTitle("Not covered")).toBeInTheDocument()
   })
 
   it("uses a rotating chevron for directory toggles", async () => {

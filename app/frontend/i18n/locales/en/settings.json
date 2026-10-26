@@ -630,6 +630,10 @@
     "health_source_concern_quorum": "Quorum",
     "run_graders_now": "Run graders now",
     "check_ci_now": "Check CI now",
+    "health_unable_to_resume": "Unable to resume work.",
+    "health_graders_failed": "Run graders command failed.",
+    "health_ci_check_failed": "Check CI command failed.",
+    "health_repair_failed": "Repair command failed.",
     "aria_repository": "Repository",
     "aria_repository_health": "Repository health",
     "health_tab_empty": "Health information is not available for this repository yet.",
@@ -724,7 +728,15 @@
     "placeholder_optional_filename": "Optional; defaults to filename",
     "placeholder_optional": "Optional",
     "confirm_delete": "Delete this document?",
-    "removed": "Document removed."
+    "removed": "Document removed.",
+    "added": "Document added.",
+    "file_title": "File title",
+    "file": "File",
+    "url": "URL",
+    "document_title": "Document title",
+    "unable_to_add": "Unable to add document.",
+    "unable_to_delete": "Unable to delete document.",
+    "unable_to_load": "Unable to load repository documents."
   },
   "repository_memberships": {
     "loading": "Loading members...",
@@ -767,7 +779,12 @@
     },
     "github_only_collaborators": "GitHub-only collaborators",
     "github_only_collaborators_description": "GitHub collaborators with write or admin access on this repository who have no corresponding Syrus access. Warning only — Syrus never grants or revokes GitHub access.",
-    "github_only_on_github": "on GitHub, no Syrus access"
+    "github_only_on_github": "on GitHub, no Syrus access",
+    "unable_to_update_role": "Unable to update role.",
+    "unable_to_remove_member": "Unable to remove member.",
+    "unable_to_remove_team": "Unable to remove team access.",
+    "unable_to_add_team": "Unable to grant team access.",
+    "unable_to_add_member": "Unable to add member."
   },
   "document_preview": {
     "aria_label": "Preview of {{title}}",
