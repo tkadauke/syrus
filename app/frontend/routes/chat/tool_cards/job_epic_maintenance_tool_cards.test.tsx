@@ -38,6 +38,7 @@ import { examples as unapproveJobExamples } from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
 import { examples as removeJobFromEpicExamples } from "./remove_job_from_epic"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import i18n from "@app/i18n"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -88,6 +89,18 @@ describe("Job and Epic maintenance tool cards", () => {
   it("registers under the exact MCP tool names", () => {
     expect(CARDS).toHaveLength(18)
     expect(new Set(CARDS.map(([name]) => name)).size).toBe(18)
+  })
+
+  it("resolves localized catalog labels at read time", async () => {
+    expect(updateJobExamples[0].label).toBe("Title and description updated")
+
+    await i18n.changeLanguage("de")
+    try {
+      expect(updateJobExamples[0].label).toBe("Titel und Beschreibung aktualisiert")
+      expect(updateJobExamples[1].label).toBe("Aktualisierung des geschlossenen Jobs fehlgeschlagen")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
