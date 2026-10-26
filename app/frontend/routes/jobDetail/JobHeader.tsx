@@ -144,6 +144,8 @@ export function HeaderActions({
   const stopLandingAction = actions.find((action) => action.key === "stop_landing")
   const reopenAction = actions.find((action) => action.key === "reopen")
   const pinAction = actions.find((action) => action.key === "pin")
+  const retryImplementationUnavailableReason =
+    payload.job.state === "failed" && !payload.actions.retry_implementation_action ? payload.actions.retry_implementation_unavailable_reason : null
 
   // Approve's own click path is `onApprove` (JobDetail.tsx), not a plain
   // `command.mutate` -- it first runs the withPreviewStop check that offers
@@ -213,6 +215,11 @@ export function HeaderActions({
           />
         ) : null}
       </div>
+      {retryImplementationUnavailableReason ? (
+        <p className="max-w-sm text-right text-xs text-muted" data-testid="retry-implementation-unavailable-reason">
+          {t("retry_implementation_unavailable", { reason: retryImplementationUnavailableReason })}
+        </p>
+      ) : null}
       {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="alt+a" onTrigger={triggerApproveShortcut} /> : null}
       {unapproveAction ? (
         <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} />
