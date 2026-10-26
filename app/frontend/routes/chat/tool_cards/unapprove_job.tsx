@@ -7,13 +7,17 @@ export default maintenanceToolCard("unapprove_job")
 export const examples: ToolCardExample[] = [
   {
     id: "success",
-    label: i18n.t("chat:mutation_example_unapproved_job"),
+    get label() {
+      return i18n.t("chat:mutation_example_unapproved_job")
+    },
     input: { job_id: 52 },
     parsedResult: { job_id: 52, previous_state: "approved", new_state: "implemented" }
   },
   {
     id: "bulk_pending",
-    label: i18n.t("chat:mutation_example_bulk_unapproval_confirmation"),
+    get label() {
+      return i18n.t("chat:mutation_example_bulk_unapproval_confirmation")
+    },
     input: { job_ids: [56, 57] },
     parsedResult: {
       pending_action_group_id: 6,
@@ -25,7 +29,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "validation_error",
-    label: i18n.t("chat:mutation_example_invalid_job_state"),
+    get label() {
+      return i18n.t("chat:mutation_example_invalid_job_state")
+    },
     input: { job_ids: [58, 59] },
     resultBody: "Error: job must be in approved state: JOB-58, JOB-59",
     resultError: true
