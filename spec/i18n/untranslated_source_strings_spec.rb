@@ -384,7 +384,19 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
   def internal_diagnostic_literals
     @internal_diagnostic_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
+      app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|` : ""}
+      app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|request
+      app/frontend/routes/AdminBrowserErrors.tsx|jsx_text|trace
+      app/frontend/routes/AdminInstallations.tsx|jsx_text|string): DataTableColumnDef
+      app/frontend/routes/AdminOverview.tsx|jsx_text|) : null, item.decided_at ? formatShortDate(item.decided_at) : null].filter(Boolean).join(" · ")}
+      app/frontend/routes/AdminOverview.tsx|jsx_text|0 ? intersperse(links, " · ") : `event `}
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|back to `}
       app/frontend/routes/AdminTranscript.tsx|jsx_text|job log
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|result
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|turns=
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|duration=ms
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|subtype=
+      app/frontend/routes/AdminWorkUnits.tsx|jsx_text|(intent.requested_at ?
       app/frontend/routes/jobDetail/SourceBrowser.tsx|jsx_attr|not covered
     LITERALS
   end
@@ -422,9 +434,10 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
   def allowed_literal?(path, kind, text, allow_chat_debt: true)
     relative_path = path.delete_prefix("#{Rails.root}/")
+    strict_admin_path = NON_CHAT_I18N_REVIEWED_FILES.include?(relative_path) && File.basename(relative_path).start_with?("Admin")
     return true if allow_chat_debt && CHAT_I18N_DEBT_FILES.include?(relative_path)
     return true if product_and_provider_names.include?(text)
-    return true if text.match?(code_like_text)
+    return true if text.match?(code_like_text) && !(strict_admin_path && kind == "jsx_text")
     return true if internal_diagnostic_path_patterns.any? { |pattern| path.match?(pattern) }
     return true if code_or_protocol_literals.include?("#{relative_path}|#{kind}|#{text}")
     return true if placeholder_literals.include?("#{relative_path}|#{kind}|#{text}")
@@ -555,6 +568,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
       Reviewed non-chat surfaces contain untranslated user-visible strings:
       #{findings.join("\n")}
     MESSAGE
+  end
+
+  it "does not mistake one-word admin labels for code tokens" do
+    path = Rails.root.join("app/frontend/routes/AdminReconcilerActivity.tsx").to_s
+
+    expect(allowed_literal?(path, "jsx_text", "details")).to be(false)
   end
 
   it "detects visible JSX text around interpolation" do
