@@ -18,14 +18,6 @@
     "lines_omitted_other": "… {{count}} lines omitted",
     "text_omitted": "… text omitted"
   },
-  "ssh_exec_card": {
-    "succeeded": "SSH command succeeded (exit {{status}})",
-    "failed": "SSH command failed (exit {{status}})",
-    "target": "Target",
-    "command": "Command",
-    "stdout": "stdout",
-    "stderr": "stderr"
-  },
   "markdown_preview": {
     "empty": "No text provided.",
     "dialog_label": "Full markdown preview",
