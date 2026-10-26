@@ -136,8 +136,20 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/components/WalkthroughRecorder.tsx
     app/frontend/components/filterBar/DateTimeRangeFilterValueEditor.tsx
     app/frontend/lib/slashCommands.ts
+    app/frontend/routes/AppChromeV2.tsx
     app/frontend/routes/ChatSearch.tsx
+    app/frontend/routes/Dashboard.tsx
+    app/frontend/routes/Repositories.tsx
     app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx
+    app/frontend/routes/appChromeV2/adminNav.ts
+    app/frontend/routes/appChromeV2/helpers.ts
+    app/frontend/routes/appChromeV2/quotes.ts
+    app/frontend/routes/appChromeV2/sidebarNav.tsx
+    app/frontend/routes/dashboard/EpicWorkflowTables.tsx
+    app/frontend/routes/dashboard/JobsTable.tsx
+    app/frontend/routes/dashboard/KanbanBoard.tsx
+    app/frontend/routes/dashboard/components.tsx
+    app/frontend/routes/dashboard/helpers.ts
   ].freeze
 
   CHAT_I18N_REVIEWED_FILES = %w[
@@ -225,13 +237,22 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WI-
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WU-
       app/frontend/routes/AppChromeV2.tsx|jsx_text|queryClient.getQueryData
+      app/frontend/routes/AppChromeV2.tsx|ternary|border-red-200 bg-red-50 text-red-700
+      app/frontend/routes/AppChromeV2.tsx|ternary|border-green-200 bg-green-50 text-green-700
       app/frontend/routes/ChatSearch.tsx|ternary|text-red-700 dark:text-red-300
       app/frontend/routes/ChatSearch.tsx|ternary|text-gray-500 dark:text-gray-400
       app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, value: T, t: TFunction
       app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, t: TFunction
       app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_expression|CHAT-
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|h-9 w-9 justify-center p-0
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|min-h-[44px] w-full gap-2 px-2.5 py-2
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|text-brand dark:text-brand-emphasis sm:bg-brand/10 dark:sm:bg-brand/10
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-emphasis
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|bg-brand/10 text-brand dark:bg-brand/10 dark:text-brand-emphasis
       app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/dashboard/jobs", icon:
       app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/repositories", icon:
+      app/frontend/routes/dashboard/JobsTable.tsx|jsx_expression|JOB-
+      app/frontend/routes/dashboard/JobsTable.tsx|jsx_expression|CHAT-
       app/frontend/routes/EpicDetail.tsx|jsx_text|· Goal #
       app/frontend/routes/JobDetail.tsx|jsx_text|( )
       app/frontend/routes/JobDetail.tsx|jsx_text|· Goal #
