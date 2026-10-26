@@ -55,92 +55,92 @@ export type SlashCommandMatch = {
 }
 
 export const slashCommands = [
-  { name: "/rename", kind: "system", args: [{ name: "title", required: true }], description: "Rename the current chat." },
-  { name: "/clear", kind: "system", args: [], description: "Clear this chat's message history." },
-  { name: "/new", kind: "system", args: [], description: "Start a new chat." },
-  { name: "/branch", kind: "system", args: [], description: "Start a new chat branched from this point" },
-  { name: "/bookmarks", kind: "system", args: [], description: "Show saved bookmarks in this chat." },
-  { name: "/settings", kind: "system", args: [], description: "Open chat settings." },
-  { name: "/copy", kind: "system", args: [], description: "Copy last response to clipboard" },
-  { name: "/search", kind: "system", args: [{ name: "query", required: false }], description: "Find and open another chat" },
-  { name: "/pin", kind: "system", args: [], description: (context) => context.chat?.pinned ? "Unpin this chat" : "Pin this chat to the top of the sidebar" },
-  { name: "/report", kind: "system", args: [], description: "File a GitHub issue about Syrus" },
-  { name: "/scratch", kind: "system", args: [{ name: "text", required: false }], description: "Stash text to the scratch pad, or open the scratch pad panel." },
-  { name: "/share", kind: "system", args: [], description: "Copy a shareable link to this chat" },
-  { name: "/schedule", kind: "system", args: [{ name: "time", required: false }, { name: "message", required: false }], description: "Schedule a chat message to send later." },
-  { name: "/goal", kind: "system", args: [{ name: "action/objective", required: false }], description: "Start, edit, pause, resume, or stop the active goal." },
+  { name: "/rename", kind: "system", args: [{ name: "title", required: true }], description: "slash_commands.rename" },
+  { name: "/clear", kind: "system", args: [], description: "slash_commands.clear" },
+  { name: "/new", kind: "system", args: [], description: "slash_commands.new" },
+  { name: "/branch", kind: "system", args: [], description: "slash_commands.branch" },
+  { name: "/bookmarks", kind: "system", args: [], description: "slash_commands.bookmarks" },
+  { name: "/settings", kind: "system", args: [], description: "slash_commands.settings" },
+  { name: "/copy", kind: "system", args: [], description: "slash_commands.copy" },
+  { name: "/search", kind: "system", args: [{ name: "query", required: false }], description: "slash_commands.search" },
+  { name: "/pin", kind: "system", args: [], description: (context) => context.chat?.pinned ? "slash_commands.unpin" : "slash_commands.pin" },
+  { name: "/report", kind: "system", args: [], description: "slash_commands.report" },
+  { name: "/scratch", kind: "system", args: [{ name: "text", required: false }], description: "slash_commands.scratch" },
+  { name: "/share", kind: "system", args: [], description: "slash_commands.share" },
+  { name: "/schedule", kind: "system", args: [{ name: "time", required: false }, { name: "message", required: false }], description: "slash_commands.schedule" },
+  { name: "/goal", kind: "system", args: [{ name: "action/objective", required: false }], description: "slash_commands.goal" },
   {
     name: "/jobs",
     kind: "system",
     args: [{ name: "filter", required: false }],
-    description: "Open Jobs."
+    description: "slash_commands.jobs"
   },
   {
     name: "/job",
     kind: "system",
     args: [{ name: "id", required: false }],
-    description: "Open a Job."
+    description: "slash_commands.job"
   },
   {
     name: "/epic",
     kind: "system",
     args: [{ name: "id", required: false }],
-    description: "Open an Epic."
+    description: "slash_commands.epic"
   },
   {
     name: "/prs",
     kind: "system",
     args: [],
-    description: "Open pull requests for the current repository."
+    description: "slash_commands.prs"
   },
   {
     name: "/issues",
     kind: "system",
     args: [],
-    description: "Open GitHub issues for the current repository."
+    description: "slash_commands.issues"
   },
   {
     name: "/queue",
     kind: "system",
     args: [],
-    description: "Open the landing queue."
+    description: "slash_commands.queue"
   },
   {
     name: "/spend",
     kind: "system",
     args: [],
-    description: "Open spending insights."
+    description: "slash_commands.spend"
   },
   {
     name: "/proposals",
     kind: "system",
     args: [],
-    description: "Jump to proposed work in this chat."
+    description: "slash_commands.proposals"
   },
   {
     name: "/bookmark",
     kind: "system",
     args: [{ name: "label", required: true }],
-    description: "Bookmark this chat topic."
+    description: "slash_commands.bookmark"
   },
-  { name: "/discard", kind: "system", args: [{ name: "slug", required: true }], description: "Discard proposed work.", requiresConfirmation: true },
-  { name: "/cancel", kind: "system", args: [{ name: "id", required: false }], description: "Cancel work.", requiresConfirmation: true },
-  { name: "/retry", kind: "system", args: [{ name: "id", required: false }], description: "Retry failed work.", requiresConfirmation: true },
-  { name: "/review", kind: "system", args: [{ name: "id", required: false }], description: "Open a Job's pull request in a new tab." },
-  { name: "/approve", kind: "system", args: [{ name: "id", required: false }], description: "Approve a Job for landing.", requiresConfirmation: true },
-  { name: "/feedback", kind: "skill", args: [{ name: "id", required: false }], description: "Send feedback for the agent to address.", requiresConfirmation: true },
+  { name: "/discard", kind: "system", args: [{ name: "slug", required: true }], description: "slash_commands.discard", requiresConfirmation: true },
+  { name: "/cancel", kind: "system", args: [{ name: "id", required: false }], description: "slash_commands.cancel", requiresConfirmation: true },
+  { name: "/retry", kind: "system", args: [{ name: "id", required: false }], description: "slash_commands.retry", requiresConfirmation: true },
+  { name: "/review", kind: "system", args: [{ name: "id", required: false }], description: "slash_commands.review" },
+  { name: "/approve", kind: "system", args: [{ name: "id", required: false }], description: "slash_commands.approve", requiresConfirmation: true },
+  { name: "/feedback", kind: "skill", args: [{ name: "id", required: false }], description: "slash_commands.feedback", requiresConfirmation: true },
   {
     name: "/propose",
     kind: "skill",
     args: [],
-    description: "Start a guided Job proposal wizard",
+    description: "slash_commands.propose",
     toPrompt: proposeWizardPrompt
   },
   {
     name: "/diff",
     kind: "skill",
     args: [{ name: "id", required: false }],
-    description: "Show the diff for a Job's PR inline.",
+    description: "slash_commands.diff",
     toPrompt: (args) => {
       const id = args.trim()
       return id
@@ -152,7 +152,7 @@ export const slashCommands = [
     name: "/remind",
     kind: "skill",
     args: [{ name: "message", required: false }],
-    description: "Ask the agent to set a reminder.",
+    description: "slash_commands.remind",
     toPrompt: (args) => `The operator wants to set a reminder${args.trim() ? `: ${args.trim()}` : "."} Use the schedule_wakeup MCP tool to schedule a wakeup at the time they specify. Use fire_at for specific dates/times or longer reminders, and delay_minutes only for short relative reminders within 24 hours. If no time is specified, ask for one before calling the tool. Confirm the wakeup time back to the operator after scheduling.`
   }
 ] as const satisfies readonly SlashCommand[]
@@ -163,8 +163,9 @@ export function slashCommandSignature(command: SlashCommand) {
   return command.args.map((arg) => arg.required ? `<${arg.name}>` : `[${arg.name}]`).join(" ")
 }
 
-export function slashCommandDescription(command: SlashCommand, context: SlashCommandContext = {}) {
-  return typeof command.description === "function" ? command.description(context) : command.description
+export function slashCommandDescription(command: SlashCommand, context: SlashCommandContext = {}, t: (key: string) => string = (key) => key) {
+  const key = typeof command.description === "function" ? command.description(context) : command.description
+  return command.kind === "repo_skill" ? key : t(key)
 }
 
 export function findSlashCommand(text: string, context: SlashCommandContext = {}): SlashCommandMatch | null {

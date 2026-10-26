@@ -23,27 +23,27 @@ import { chatQueryKey } from "../Chat"
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
 const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
 const STATUS_OPTIONS: Array<{ value: ChatSidebarStatus; label: string }> = [
-  { value: "active", label: "Active" },
-  { value: "hidden", label: "Hidden" },
-  { value: "all", label: "All" }
+  { value: "active", label: "recent_chats_options.status.active" },
+  { value: "hidden", label: "recent_chats_options.status.hidden" },
+  { value: "all", label: "recent_chats_options.status.all" }
 ]
 const GROUP_BY_OPTIONS: Array<{ value: ChatSidebarGroupBy; label: string }> = [
-  { value: "date", label: "Date" },
-  { value: "repository", label: "Repository" },
-  { value: "status", label: "Status" },
-  { value: "mode", label: "Mode" },
-  { value: "chat_type", label: "Chat type" },
-  { value: "agent", label: "Agent" }
+  { value: "date", label: "recent_chats_options.group_by.date" },
+  { value: "repository", label: "recent_chats_options.group_by.repository" },
+  { value: "status", label: "recent_chats_options.group_by.status" },
+  { value: "mode", label: "recent_chats_options.group_by.mode" },
+  { value: "chat_type", label: "recent_chats_options.group_by.chat_type" },
+  { value: "agent", label: "recent_chats_options.group_by.agent" }
 ]
 const CHAT_TYPE_OPTIONS: Array<{ value: ChatType; label: string }> = [
-  { value: "agent", label: "Agent chats" },
-  { value: "group", label: "Group chats" },
-  { value: "external", label: "External chats" }
+  { value: "agent", label: "recent_chats_options.chat_type.agent" },
+  { value: "group", label: "recent_chats_options.chat_type.group" },
+  { value: "external", label: "recent_chats_options.chat_type.external" }
 ]
 const SORT_BY_OPTIONS: Array<{ value: ChatSidebarSortBy; label: string }> = [
-  { value: "name", label: "Name" },
-  { value: "date_created", label: "Date created" },
-  { value: "last_activity", label: "Last activity" }
+  { value: "name", label: "recent_chats_options.sort_by.name" },
+  { value: "date_created", label: "recent_chats_options.sort_by.date_created" },
+  { value: "last_activity", label: "recent_chats_options.sort_by.last_activity" }
 ]
 const PER_GROUP_OPTIONS: ChatSidebarPerGroup[] = [5, 10, 15, 20]
 const SIDEBAR_MENU_ROW_CLASS = "flex w-full items-center gap-3 px-3 py-2 text-left text-text-primary hover:bg-surface-subtle"
@@ -438,11 +438,11 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                 <div className={RECENT_CHAT_ACTION_SLOT_CLASS} data-testid="recent-chat-header-action-slot">
                   {showQuickStart ? (
                     <button
-                      aria-label={`New chat in ${section.label}`}
+                      aria-label={t("nav:recent_chats_new_in", { group: section.label })}
                       className={RECENT_CHATS_ICON_BUTTON_CLASS}
                       disabled={startingChat}
                       onClick={() => onStartChat?.(quickStartRepositoryId)}
-                      title={`New chat in ${section.label}`}
+                      title={t("nav:recent_chats_new_in", { group: section.label })}
                       type="button"
                     >
                       <PlusIcon />
@@ -617,16 +617,20 @@ function RecentChatsSettingsMenu({ agentFeatureVisible, availableAgents, availab
     setSubmenu("root")
   }, [floatingRefs.floating])
   const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
-  const statusLabel = optionLabel(STATUS_OPTIONS, settings.status)
+  const statusLabel = optionLabel(STATUS_OPTIONS, settings.status, t)
   const visibleGroupByOptions = useMemo(() => GROUP_BY_OPTIONS.filter((option) => {
     if (option.value === "chat_type") return chatTypeFeatureVisible
     if (option.value === "agent") return agentFeatureVisible
     return true
   }), [agentFeatureVisible, chatTypeFeatureVisible])
   const visibleChatTypeOptions = useMemo(() => CHAT_TYPE_OPTIONS.filter((option) => availableChatTypes.includes(option.value)), [availableChatTypes])
-  const groupByLabel = optionLabel(visibleGroupByOptions, settings.group_by)
-  const chatTypeLabel = settings.chat_types.length === availableChatTypes.length ? "All" : settings.chat_types.map((value) => optionLabel(CHAT_TYPE_OPTIONS, value)).join(", ")
-  const sortByLabel = optionLabel(SORT_BY_OPTIONS, settings.sort_by)
+  const groupByLabel = optionLabel(visibleGroupByOptions, settings.group_by, t)
+  const chatTypeLabel = settings.chat_types.length === availableChatTypes.length ? t("recent_chats_options.all") : settings.chat_types.map((value) => optionLabel(CHAT_TYPE_OPTIONS, value, t)).join(", ")
+  const sortByLabel = optionLabel(SORT_BY_OPTIONS, settings.sort_by, t)
+  const localizedStatusOptions = localizeOptions(STATUS_OPTIONS, t)
+  const localizedGroupByOptions = localizeOptions(visibleGroupByOptions, t)
+  const localizedChatTypeOptions = localizeOptions(visibleChatTypeOptions, t)
+  const localizedSortByOptions = localizeOptions(SORT_BY_OPTIONS, t)
 
   function apply(patch: Partial<ChatSidebarSettings>) {
     setSettings((current) => updateSidebarSettings(current, patch, availableChatTypes, availableAgents))
@@ -680,12 +684,12 @@ function RecentChatsSettingsMenu({ agentFeatureVisible, availableAgents, availab
             <div className={isDesktop ? undefined : "mx-auto w-full max-w-md"}>
               {submenu === "root" ? (
                 <>
-                  <SettingsParentRow current={statusLabel} label="Status" onClick={() => setSubmenu("status")} />
+                  <SettingsParentRow current={statusLabel} label={t("recent_chats_options.status_label")} onClick={() => setSubmenu("status")} />
                   {chatTypeFeatureVisible ? (
-                    <SettingsParentRow current={chatTypeLabel} label="Chat type" onClick={() => setSubmenu("chat_type")} />
+                    <SettingsParentRow current={chatTypeLabel} label={t("recent_chats_options.chat_type_label")} onClick={() => setSubmenu("chat_type")} />
                   ) : null}
-                  <SettingsParentRow current={groupByLabel} label="Group by" onClick={() => setSubmenu("group_by")} />
-                  <SettingsParentRow current={sortByLabel} label="Sort by" onClick={() => setSubmenu("sort_by")} />
+                  <SettingsParentRow current={groupByLabel} label={t("recent_chats_options.group_by_label")} onClick={() => setSubmenu("group_by")} />
+                  <SettingsParentRow current={sortByLabel} label={t("recent_chats_options.sort_by_label")} onClick={() => setSubmenu("sort_by")} />
                   {settings.group_by !== "date" ? (
                     <button
                       className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
@@ -700,48 +704,48 @@ function RecentChatsSettingsMenu({ agentFeatureVisible, availableAgents, availab
                       </span>
                     </button>
                   ) : null}
-                  <SettingsParentRow current={String(settings.per_group)} label="Chats per group" onClick={() => setSubmenu("per_group")} />
+                  <SettingsParentRow current={String(settings.per_group)} label={t("recent_chats_options.per_group_label")} onClick={() => setSubmenu("per_group")} />
                 </>
               ) : null}
               {submenu === "status" ? (
                 <SettingsOptionList
-                  label="Status"
+                  label={t("recent_chats_options.status_label")}
                   onBack={() => setSubmenu("root")}
                   onSelect={(value) => apply({ status: value as ChatSidebarStatus })}
-                  options={STATUS_OPTIONS}
+                  options={localizedStatusOptions}
                   value={settings.status}
                 />
               ) : null}
               {submenu === "group_by" ? (
                 <SettingsOptionList
-                  label="Group by"
+                  label={t("recent_chats_options.group_by_label")}
                   onBack={() => setSubmenu("root")}
                   onSelect={(value) => apply({ group_by: value as ChatSidebarGroupBy })}
-                  options={visibleGroupByOptions}
+                  options={localizedGroupByOptions}
                   value={settings.group_by}
                 />
               ) : null}
               {submenu === "chat_type" ? (
                 <SettingsCheckboxList
-                  label="Chat type"
+                  label={t("recent_chats_options.chat_type_label")}
                   onBack={() => setSubmenu("root")}
                   onToggle={toggleChatType}
-                  options={visibleChatTypeOptions}
+                  options={localizedChatTypeOptions}
                   values={settings.chat_types}
                 />
               ) : null}
               {submenu === "sort_by" ? (
                 <SettingsOptionList
-                  label="Sort by"
+                  label={t("recent_chats_options.sort_by_label")}
                   onBack={() => setSubmenu("root")}
                   onSelect={(value) => apply({ sort_by: value as ChatSidebarSortBy })}
-                  options={SORT_BY_OPTIONS}
+                  options={localizedSortByOptions}
                   value={settings.sort_by}
                 />
               ) : null}
               {submenu === "per_group" ? (
                 <SettingsOptionList
-                  label="Chats per group"
+                  label={t("recent_chats_options.per_group_label")}
                   onBack={() => setSubmenu("root")}
                   onSelect={(value) => apply({ per_group: Number(value) as ChatSidebarPerGroup })}
                   options={PER_GROUP_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
@@ -814,8 +818,13 @@ function SettingsCheckboxList<T extends string>({ label, onBack, onToggle, optio
   )
 }
 
-function optionLabel<T extends string>(options: Array<{ value: T; label: string }>, value: T) {
-  return options.find((option) => option.value === value)?.label || value
+function optionLabel<T extends string>(options: Array<{ value: T; label: string }>, value: T, t: TFunction<"nav">) {
+  const label = options.find((option) => option.value === value)?.label
+  return label ? t(label) : value
+}
+
+function localizeOptions<T extends string>(options: Array<{ value: T; label: string }>, t: TFunction<"nav">) {
+  return options.map((option) => ({ ...option, label: t(option.label) }))
 }
 
 function useMediaQuery(query: string, defaultMatches: boolean) {
@@ -1095,7 +1104,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
     <div className="absolute right-2 top-1/2 z-10 -translate-y-1/2" data-testid="recent-chat-action-slot" ref={referenceRef}>
       <button
         aria-expanded={open}
-        aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
+        aria-label={t("chat:chat_actions_for", { title: sidebarChatTitle(chat, t("chat:new_title")) })}
         className={`inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 ${open ? "opacity-100" : "opacity-0 group-hover/recent-chat:opacity-100"}`}
         onClick={() => setOpen((value) => !value)}
         type="button"

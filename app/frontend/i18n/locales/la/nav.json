@@ -315,6 +315,8 @@
   "recent_chats_settings": "Optiones colloquiorum recentium",
   "recent_chats_settings_close": "Optiones colloquiorum recentium claude",
   "recent_chats_show_empty_groups": "Greges vacuos monstra",
+  "recent_chats_new_in": "Colloquium novum in {{group}}",
+  "recent_chats_options": { "all": "Omnia", "status_label": "Status", "chat_type_label": "Genus colloquii", "group_by_label": "Congrega secundum", "sort_by_label": "Ordina secundum", "per_group_label": "Colloquia per gregem", "status": { "active": "Activa", "hidden": "Occulta", "all": "Omnia" }, "group_by": { "date": "Dies", "repository": "Repository", "status": "Status", "mode": "Modus", "chat_type": "Genus colloquii", "agent": "Agent" }, "chat_type": { "agent": "Colloquia Agent", "group": "Colloquia gregis", "external": "Colloquia externa" }, "sort_by": { "name": "Nomen", "date_created": "Dies creationis", "last_activity": "Actio recentissima" } },
   "smart_folders_panel_aria": "Tabula loculorum sapientium",
   "smart_folders_aria": "Loculi sapientes tabulae",
   "saved_folders_aria": "Loculi sapientes servati",

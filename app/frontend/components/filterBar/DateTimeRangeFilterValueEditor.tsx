@@ -9,18 +9,17 @@ const UNITS = ["minutes", "hours", "days", "weeks", "months"] as const
 
 type Preset = {
   key: string
-  label: string
   build: (precision: "date" | "datetime", now: Date) => Pick<FilterChip, "op" | "value">
 }
 
 const PRESETS: Preset[] = [
-  { key: "today", label: "Today", build: (precision, now) => rangePreset(precision, startOfDay(now), endOfDay(now)) },
-  { key: "yesterday", label: "Yesterday", build: (precision, now) => rangePreset(precision, shiftDays(startOfDay(now), -1), shiftDays(endOfDay(now), -1)) },
-  { key: "last_24_hours", label: "Last 24 hours", build: () => ({ op: "within_last", value: { n: 24, unit: "hours" } }) },
-  { key: "last_7_days", label: "Last 7 days", build: () => ({ op: "within_last", value: { n: 7, unit: "days" } }) },
-  { key: "last_30_days", label: "Last 30 days", build: () => ({ op: "within_last", value: { n: 30, unit: "days" } }) },
-  { key: "this_week", label: "This week", build: (precision, now) => rangePreset(precision, startOfWeek(now), endOfDay(now)) },
-  { key: "this_month", label: "This month", build: (precision, now) => rangePreset(precision, startOfMonth(now), endOfDay(now)) }
+  { key: "today", build: (precision, now) => rangePreset(precision, startOfDay(now), endOfDay(now)) },
+  { key: "yesterday", build: (precision, now) => rangePreset(precision, shiftDays(startOfDay(now), -1), shiftDays(endOfDay(now), -1)) },
+  { key: "last_24_hours", build: () => ({ op: "within_last", value: { n: 24, unit: "hours" } }) },
+  { key: "last_7_days", build: () => ({ op: "within_last", value: { n: 7, unit: "days" } }) },
+  { key: "last_30_days", build: () => ({ op: "within_last", value: { n: 30, unit: "days" } }) },
+  { key: "this_week", build: (precision, now) => rangePreset(precision, startOfWeek(now), endOfDay(now)) },
+  { key: "this_month", build: (precision, now) => rangePreset(precision, startOfMonth(now), endOfDay(now)) }
 ]
 
 export function DateTimeRangeFilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: FilterSchemaField; onChange: (chip: FilterChip) => void }) {
@@ -35,7 +34,7 @@ export function DateTimeRangeFilterValueEditor({ chip, meta, onChange }: { chip:
   return (
     <div className="space-y-3">
       <div>
-        <div className={filterLabelClass()}>{t("filter_bar.presets", { defaultValue: "Presets" })}</div>
+        <div className={filterLabelClass()}>{t("filter_bar.presets")}</div>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {PRESETS.map((preset) => (
             <Button
@@ -45,7 +44,7 @@ export function DateTimeRangeFilterValueEditor({ chip, meta, onChange }: { chip:
               type="button"
               variant="secondary"
             >
-              {t(`filter_bar.date_preset.${preset.key}`, { defaultValue: preset.label })}
+              {t(`filter_bar.date_preset.${preset.key}`)}
             </Button>
           ))}
         </div>

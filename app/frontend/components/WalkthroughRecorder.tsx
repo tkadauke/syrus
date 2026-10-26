@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { MAX_WALKTHROUGH_DURATION_SECONDS } from "../api/videoWalkthroughs"
 import { Button } from "./Button"
+import { useT } from "../hooks/useT"
 import {
   annotationBridge,
   recorderHudBridge,
@@ -137,6 +138,7 @@ export function useWalkthroughRecorder({
   onFinished: (result: RecordingResult) => void
   annotation?: SyrusAnnotationBridge | null
 }) {
+  const { t } = useT("chat")
   const [state, setState] = useState<RecorderState>({ phase: "idle" })
   const [elapsed, setElapsed] = useState(0)
   // Which surface the user chose to share, read once per recording from the
@@ -224,9 +226,9 @@ export function useWalkthroughRecorder({
       recorder.stop() // onstop assembles + delivers the result
     } catch {
       cleanup()
-      setState({ phase: "error", message: "Recording could not be finalized." })
+      setState({ phase: "error", message: t("walkthrough_finalize_error") })
     }
-  }, [cleanup])
+  }, [cleanup, t])
 
   const start = useCallback(async () => {
     if (state.phase === "recording" || state.phase === "starting") return
@@ -325,7 +327,7 @@ export function useWalkthroughRecorder({
       })
     } catch {
       cleanup()
-      setState({ phase: "error", message: "This browser cannot record the screen. Drag a video file in instead." })
+      setState({ phase: "error", message: t("walkthrough_browser_recording_error") })
       return
     }
 
@@ -374,7 +376,7 @@ export function useWalkthroughRecorder({
         recorderRef.current.stop()
       }
     }, 500)
-  }, [state.phase, cleanup])
+  }, [state.phase, cleanup, t])
 
   useEffect(() => {
     mountedRef.current = true

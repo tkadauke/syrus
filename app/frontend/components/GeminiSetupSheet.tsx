@@ -103,7 +103,7 @@ export function GeminiSetupSheet({
           await pause(250)
           setStage("video", "failed")
         }
-        setError(result.message || "Google rejected this key.")
+        setError(result.message || t("gemini_setup.rejected"))
         return
       }
       setStage("reach", "ok")
@@ -122,7 +122,7 @@ export function GeminiSetupSheet({
       onConfigured()
     } catch (err) {
       setStage("reach", "failed")
-      setError(err instanceof Error ? err.message : "Could not verify the key. Try again.")
+      setError(err instanceof Error ? err.message : t("gemini_setup.verify_error"))
     } finally {
       setBusy(false)
     }

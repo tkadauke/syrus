@@ -128,6 +128,18 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
   ].freeze
 
+  NON_CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/components/ConfirmDialog.tsx
+    app/frontend/components/GeminiSetupSheet.tsx
+    app/frontend/components/ProviderAvailabilityWarning.tsx
+    app/frontend/components/ProviderRoutingRulesEditor.tsx
+    app/frontend/components/WalkthroughRecorder.tsx
+    app/frontend/components/filterBar/DateTimeRangeFilterValueEditor.tsx
+    app/frontend/lib/slashCommands.ts
+    app/frontend/routes/ChatSearch.tsx
+    app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx
+  ].freeze
+
   CHAT_I18N_REVIEWED_FILES = %w[
     app/frontend/routes/chat/Compose.tsx
     app/frontend/routes/chat/AgentQuestions.tsx
@@ -194,6 +206,16 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/ShortcutsHelpModal.tsx|jsx_text|(items: T[]): ShortcutGroupSummary
       app/frontend/components/ui/Text.tsx|jsx_text|, keyof TextOwnProps
       app/frontend/components/FilePreviewModal.tsx|jsx_text|cursor) parts.push(
+      app/frontend/components/ProviderAvailabilityWarning.tsx|ternary|text-red-600 dark:text-red-400
+      app/frontend/components/ProviderAvailabilityWarning.tsx|ternary|text-amber-600 dark:text-amber-400
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|, t: TFunction
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|, lowUsage: boolean, t: TFunction
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|, base: string, t: TFunction
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|["current"], t: TFunction
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|⌘⇧A
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|Ctrl+Shift+A
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|hidden sm:inline-flex
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|bg-gray-400 dark:bg-gray-500
       app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|active job
       app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|· ·
       app/frontend/routes/AdminReconcilerActivity.tsx|jsx_text|Run #
@@ -203,6 +225,11 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WI-
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WU-
       app/frontend/routes/AppChromeV2.tsx|jsx_text|queryClient.getQueryData
+      app/frontend/routes/ChatSearch.tsx|ternary|text-red-700 dark:text-red-300
+      app/frontend/routes/ChatSearch.tsx|ternary|text-gray-500 dark:text-gray-400
+      app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, value: T, t: TFunction
+      app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, t: TFunction
+      app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_expression|CHAT-
       app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/dashboard/jobs", icon:
       app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/repositories", icon:
       app/frontend/routes/EpicDetail.tsx|jsx_text|· Goal #
@@ -426,7 +453,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
         add_finding(findings, path, line_number, "jsx_attr", match.first, allow_chat_debt: allow_chat_debt)
       end
 
-      if core_chat_path?(path) || path.include?("/tmp/i18n-audit")
+      if core_chat_path?(path) || NON_CHAT_I18N_REVIEWED_FILES.include?(path.delete_prefix("#{Rails.root}/")) || path.include?("/tmp/i18n-audit")
         visible_matches(line, /(?:aria-label|title|placeholder)=\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/).each do |match|
           add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
         end
@@ -478,6 +505,23 @@ RSpec.describe "Untranslated source strings", type: :unit do
       Reviewed chat surfaces contain untranslated user-visible strings:
       #{findings.join("\n")}
     MESSAGE
+  end
+
+  it "keeps reviewed non-chat surfaces free of untranslated copy" do
+    expect(NON_CHAT_I18N_REVIEWED_FILES).to eq(NON_CHAT_I18N_REVIEWED_FILES.sort.uniq)
+    findings = NON_CHAT_I18N_REVIEWED_FILES.flat_map { |path| findings_for(Rails.root.join(path).to_s, allow_chat_debt: false) }
+    expect(findings).to be_empty, "Reviewed non-chat surfaces contain untranslated user-visible strings:\n#{findings.join("\n")}"
+  end
+
+  it "preserves pending Latin domain nouns and locale-reactive recorder errors" do
+    latin_nav = JSON.parse(Rails.root.join("app/frontend/i18n/locales/la/nav.json").read)
+    options = latin_nav.fetch("recent_chats_options")
+    recorder = Rails.root.join("app/frontend/components/WalkthroughRecorder.tsx").read
+
+    expect(options.dig("group_by", "repository")).to eq("Repository")
+    expect(options.dig("group_by", "agent")).to eq("Agent")
+    expect(options.dig("chat_type", "agent")).to include("Agent")
+    expect(recorder).to include("}, [cleanup, t])")
   end
 
   it "detects visible JSX text around interpolation" do
