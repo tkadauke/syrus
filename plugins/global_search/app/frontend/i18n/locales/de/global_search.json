@@ -4,12 +4,13 @@
     "page": "Suche",
     "type_filters": "Suchtyp-Filter"
   },
-  "description": "Durchsuche Jobs, Epics, Chats und Tests.",
+  "description": "Durchsuche Jobs, Epics, Chats, Repositorys und Tests.",
   "error": "Suchergebnisse konnten nicht geladen werden.",
   "filter_types": {
     "chats": "Chats",
     "epics": "Epics",
     "jobs": "Jobs",
+    "repositories": "Repositorys",
     "tests": "Testfälle"
   },
   "filters": {
@@ -31,6 +32,7 @@
     "design_doc": "Design Doc",
     "epic": "Epic",
     "job": "Job",
+    "repository": "Repository",
     "result": "Ergebnis",
     "test_case": "Test"
   },

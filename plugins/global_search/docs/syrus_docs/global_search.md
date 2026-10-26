@@ -9,13 +9,18 @@ The global search API (`/api/v1/app/search`) returns a payload with `results`,
 lists the currently enabled selectable result types and their labels. `q=` is
 now the FilterBar AST parameter on this route, matching dashboard/list
 filtering. Result type selection remains `types[]`; when omitted, search
-combines Jobs, Epics, Chats, and every enabled plugin-contributed source such
-as Tests or Design Docs.
+combines Jobs, Epics, Chats, Repositories, and every enabled plugin-contributed
+source such as Tests or Design Docs. Repository results do not use the search
+index: an accessible repository matches only when the query is its exact full
+slug (for example, `tkadauke/syrus`) or exact repository name (`syrus`),
+case-insensitively.
 
 Filtering is applied after the FTS query and preserves FTS relevance order.
 Combined results expose common filter chips (`repository_id`, `created_at`,
 `updated_at`). Single Job and Epic views expose their existing subject schemas.
 Chat and Test views expose `repository_id`, `created_at`, and `updated_at`.
+Repository views expose `created_at` and `updated_at`; `repository_id` is not
+shown because a Repository result has no parent repository to filter by.
 Design Doc views expose the Design Docs filter subject, including state,
 visibility, repository, owner, and timestamp chips.
 For chats, `repository_id` filters by the repository(ies) attached to the
