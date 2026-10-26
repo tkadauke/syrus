@@ -1,5 +1,5 @@
 import i18n from "i18next"
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } from "@app/toolCardSecurity"
 import { Badge, CardShell, Disclosure, EmptyState, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
@@ -186,3 +186,79 @@ const credentialStoreSshExecToolCard: ToolCardRenderer = {
 }
 
 export default credentialStoreSshExecToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "successful_truncated_output",
+    label: "Successful command with truncated output",
+    description: "Shows risk flags, copy controls, credential metadata, tail-first output, and server truncation byte counts.",
+    input: {
+      credential: "production deploy",
+      host: "app.example.test",
+      user: "deploy",
+      command: "journalctl --unit app --lines 200",
+      port: 2222,
+      connect_timeout: 15,
+      allow_unconstrained_host: true,
+      allow_risky_command: true
+    },
+    parsedResult: {
+      ok: true,
+      status: 0,
+      stdout: {
+        text: [
+          "2026-10-25T20:40:01Z starting release",
+          "2026-10-25T20:40:02Z loading configuration",
+          "2026-10-25T20:40:03Z connecting to database",
+          "2026-10-25T20:40:04Z migrating schema",
+          "2026-10-25T20:40:05Z warming cache",
+          "2026-10-25T20:40:06Z accepting traffic",
+          "2026-10-25T20:40:07Z health check passed",
+          "2026-10-25T20:40:08Z release complete"
+        ].join("\n"),
+        truncated: true,
+        bytes: 69_632,
+        omitted_bytes: 4_096
+      },
+      stderr: { text: "", truncated: false, bytes: 0 },
+      target: { host: "app.example.test", user: "deploy", port: 2222 },
+      credential: { credential_id: 17, credential_name: "production deploy", credential_type: "ssh_private_key" },
+      known_hosts_enforced: true,
+      fingerprint: "SHA256:catalog-example-host-key"
+    },
+    sourceType: "generic"
+  },
+  {
+    id: "nonzero_with_stderr",
+    label: "Nonzero exit with stderr",
+    description: "Shows the failure state with stderr expanded automatically and an empty stdout state.",
+    input: {
+      credential: 17,
+      host: "app.example.test",
+      user: "deploy",
+      command: "systemctl status missing-service",
+      connect_timeout: 10
+    },
+    parsedResult: {
+      ok: false,
+      status: 4,
+      stdout: { text: "", truncated: false, bytes: 0 },
+      stderr: { text: "Unit missing-service.service could not be found.\n", truncated: false, bytes: 49 },
+      target: { host: "app.example.test", user: "deploy" },
+      credential: { credential_id: 17, credential_name: "production deploy", credential_type: "ssh_private_key" },
+      known_hosts_enforced: true,
+      fingerprint: "SHA256:catalog-example-host-key"
+    },
+    resultError: true,
+    sourceType: "generic"
+  },
+  {
+    id: "host_key_error",
+    label: "Host-key enrollment error",
+    description: "Shows the plain-text tool error state returned before an SSH command can run.",
+    input: { credential: 17, host: "new.example.test", user: "deploy", command: "uptime" },
+    resultBody: "Error: SSH host-key enrollment is required before execution",
+    resultError: true,
+    sourceType: "generic"
+  }
+]

@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
+import { discoveredToolCardEntries, pluginToolCardRendererFor, toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import { redactToolCardText, redactToolCardValue } from "@app/toolCardSecurity"
-import credentialStoreSshExecToolCard from "./credential_store_ssh_exec"
+import credentialStoreSshExecToolCard, { examples } from "./credential_store_ssh_exec"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -31,6 +31,17 @@ describe("credential_store_ssh_exec tool card", () => {
     for (const rawName of ["mcp__syrus-chat-sidecar__credential_store_ssh_exec", "mcp__syrus-chat-deferred-sidecar__credential_store_ssh_exec"]) {
       expect(normalizedToolName(rawName)).toBe("credential_store_ssh_exec")
       expect(pluginToolCardRendererFor(normalizedToolName(rawName))).toBe(credentialStoreSshExecToolCard)
+    }
+  })
+
+  it("registers representative catalog fixtures for visual review", () => {
+    const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "credential_store_ssh_exec")
+    expect(entry?.examples).toEqual(examples)
+    expect(examples.map((example) => example.id)).toEqual(["successful_truncated_output", "nonzero_with_stderr", "host_key_error"])
+
+    for (const example of examples) {
+      const exampleContext = toolCardContextForExample("credential_store_ssh_exec", example)
+      expect(credentialStoreSshExecToolCard.renderExpanded(exampleContext)).not.toBeNull()
     }
   })
 
