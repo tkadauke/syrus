@@ -66,7 +66,6 @@ RSpec.describe App::ChatMessagePayload do
 
     expect(mention_lookup_queries.size).to be <= 5
   end
-
   it "includes the message's revision so the frontend entity store can order/dedupe events against this snapshot" do
     message = chat.messages.create!(role: "assistant", content: { "text" => "Hello." })
 
