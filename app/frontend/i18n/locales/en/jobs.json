@@ -54,7 +54,6 @@
   "retry_with_agent": "Retry with {{provider}}",
   "retry_with_agent_feedback": "Retry with {{provider}} and feedback",
   "retrying": "Retrying...",
-  "retry_implementation_unavailable": "Retry implementation unavailable: {{reason}}",
   "start_over": "Start over",
   "approve": "Approve",
   "reapprove": "Reapprove",

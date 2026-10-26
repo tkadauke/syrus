@@ -8,7 +8,7 @@ RSpec.describe "RetryJobs modes" do
 
     allow(RetryWorkflowEnqueuer).to receive(:call).with(job: job).and_return(auto_result)
     allow(RetryWorkflowEnqueuer).to receive(:call)
-      .with(job: job, resume_checkpoint: false, artifacts: {
+      .with(job: job, agent_provider: nil, provider_validation: :retry_alternate, resume_checkpoint: false, retry_kind: "retry", artifacts: {
         RebaseTarget::BASE_BRANCH_ARTIFACT => job.effective_base_branch,
         "skip_existing_branch_checkout" => true,
         "implementation_retry" => true

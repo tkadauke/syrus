@@ -13,8 +13,7 @@ module App
     def as_json
       {
         failed_step: failed_step_action,
-        implementation: implementation_action,
-        implementation_unavailable_reason: implementation_preflight.message
+        implementation: implementation_action
       }
     end
 
@@ -55,7 +54,7 @@ module App
       {
         key: "retry_implementation",
         label: "Retry implementation",
-        path: "/api/v1/app/jobs/#{job.id}/run_again"
+        path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       }
     end
 

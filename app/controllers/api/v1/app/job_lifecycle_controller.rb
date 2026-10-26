@@ -161,6 +161,33 @@ module Api
           render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], tab: "workflows")
         end
 
+        def retry_implementation
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          agent_provider = params[:agent_provider].to_s.presence
+          mode = RetryJobs::Modes::Implementation.new(
+            job: job,
+            agent_provider: agent_provider,
+            retry_context: params[:retry_context].presence || params[:replay_context]
+          )
+          preflight = mode.preflight
+          unless preflight.eligible?
+            render_error("validation_failed", preflight.message, status: :unprocessable_content)
+            return
+          end
+
+          result = mode.execute
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          Metrics::ProductUsage.record(:job_retried)
+          notice = agent_provider.present? ? lifecycle_t("retry_enqueued_with_provider", provider: agent_provider.titleize) : lifecycle_t("retry_enqueued")
+          render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], tab: "workflows")
+        end
+
         def restart
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
