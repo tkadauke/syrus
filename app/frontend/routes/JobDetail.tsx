@@ -406,7 +406,7 @@ export function JobDetailView({
                 : null
             ]}
           />
-          <div className="flex w-auto min-w-0 shrink-0 flex-wrap items-center justify-end gap-3" data-testid="job-header-actions">
+          <div className="flex w-auto min-w-0 max-w-full shrink-0 flex-wrap items-center justify-end gap-3" data-testid="job-header-actions">
             <HeaderActions
               command={command}
               onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
