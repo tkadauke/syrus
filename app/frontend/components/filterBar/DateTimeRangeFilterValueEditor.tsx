@@ -9,18 +9,17 @@ const UNITS = ["minutes", "hours", "days", "weeks", "months"] as const
 
 type Preset = {
   key: string
-  label: string
   build: (precision: "date" | "datetime", now: Date) => Pick<FilterChip, "op" | "value">
 }
 
 const PRESETS: Preset[] = [
-  { key: "today", label: "Today", build: (precision, now) => rangePreset(precision, startOfDay(now), endOfDay(now)) },
-  { key: "yesterday", label: "Yesterday", build: (precision, now) => rangePreset(precision, shiftDays(startOfDay(now), -1), shiftDays(endOfDay(now), -1)) },
-  { key: "last_24_hours", label: "Last 24 hours", build: () => ({ op: "within_last", value: { n: 24, unit: "hours" } }) },
-  { key: "last_7_days", label: "Last 7 days", build: () => ({ op: "within_last", value: { n: 7, unit: "days" } }) },
-  { key: "last_30_days", label: "Last 30 days", build: () => ({ op: "within_last", value: { n: 30, unit: "days" } }) },
-  { key: "this_week", label: "This week", build: (precision, now) => rangePreset(precision, startOfWeek(now), endOfDay(now)) },
-  { key: "this_month", label: "This month", build: (precision, now) => rangePreset(precision, startOfMonth(now), endOfDay(now)) }
+  { key: "today", build: (precision, now) => rangePreset(precision, startOfDay(now), endOfDay(now)) },
+  { key: "yesterday", build: (precision, now) => rangePreset(precision, shiftDays(startOfDay(now), -1), shiftDays(endOfDay(now), -1)) },
+  { key: "last_24_hours", build: () => ({ op: "within_last", value: { n: 24, unit: "hours" } }) },
+  { key: "last_7_days", build: () => ({ op: "within_last", value: { n: 7, unit: "days" } }) },
+  { key: "last_30_days", build: () => ({ op: "within_last", value: { n: 30, unit: "days" } }) },
+  { key: "this_week", build: (precision, now) => rangePreset(precision, startOfWeek(now), endOfDay(now)) },
+  { key: "this_month", build: (precision, now) => rangePreset(precision, startOfMonth(now), endOfDay(now)) }
 ]
 
 export function DateTimeRangeFilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: FilterSchemaField; onChange: (chip: FilterChip) => void }) {
@@ -35,17 +34,11 @@ export function DateTimeRangeFilterValueEditor({ chip, meta, onChange }: { chip:
   return (
     <div className="space-y-3">
       <div>
-        <div className={filterLabelClass()}>{t("filter_bar.presets", { defaultValue: "Presets" })}</div>
+        <div className={filterLabelClass()}>{t("filter_bar.presets")}</div>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {PRESETS.map((preset) => (
-            <Button
-              key={preset.key}
-              onClick={() => applyPreset(preset)}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              {t(`filter_bar.date_preset.${preset.key}`, { defaultValue: preset.label })}
+            <Button key={preset.key} onClick={() => applyPreset(preset)} size="sm" type="button" variant="secondary">
+              {t(`filter_bar.date_preset.${preset.key}`)}
             </Button>
           ))}
         </div>
@@ -69,19 +62,47 @@ function RelativeDateControls({ chip, onChange }: { chip: FilterChip; onChange: 
     <div className="flex flex-wrap items-end gap-2">
       <label className={filterLabelClass()} htmlFor="filter-date-amount">
         {t("filter_bar.amount")}
-        <Input className="mt-1 w-20" fullWidth={false} id="filter-date-amount" min="0" onChange={(event) => onChange({ ...chip, value: { ...value, n: Number(event.target.value || 0) } })} type="number" value={Number(value.n || 0)} />
+        <Input
+          className="mt-1 w-20"
+          fullWidth={false}
+          id="filter-date-amount"
+          min="0"
+          onChange={(event) => onChange({ ...chip, value: { ...value, n: Number(event.target.value || 0) } })}
+          type="number"
+          value={Number(value.n || 0)}
+        />
       </label>
       <label className={filterLabelClass()} htmlFor="filter-date-unit">
         {t("filter_bar.unit")}
-        <Select className="mt-1" fullWidth={false} id="filter-date-unit" onChange={(event) => onChange({ ...chip, value: { ...value, unit: event.target.value } })} value={String(value.unit || "days")}>
-          {UNITS.map((unit) => <option key={unit} value={unit}>{t(`filter_bar.time_unit.${unit}`)}</option>)}
+        <Select
+          className="mt-1"
+          fullWidth={false}
+          id="filter-date-unit"
+          onChange={(event) => onChange({ ...chip, value: { ...value, unit: event.target.value } })}
+          value={String(value.unit || "days")}
+        >
+          {UNITS.map((unit) => (
+            <option key={unit} value={unit}>
+              {t(`filter_bar.time_unit.${unit}`)}
+            </option>
+          ))}
         </Select>
       </label>
     </div>
   )
 }
 
-function BetweenDateControls({ chip, inputType, onChange, precision }: { chip: FilterChip; inputType: "date" | "datetime-local"; onChange: (chip: FilterChip) => void; precision: "date" | "datetime" }) {
+function BetweenDateControls({
+  chip,
+  inputType,
+  onChange,
+  precision
+}: {
+  chip: FilterChip
+  inputType: "date" | "datetime-local"
+  onChange: (chip: FilterChip) => void
+  precision: "date" | "datetime"
+}) {
   const { t } = useT("nav")
   const value = Array.isArray(chip.value) ? chip.value : ["", ""]
 
@@ -89,23 +110,54 @@ function BetweenDateControls({ chip, inputType, onChange, precision }: { chip: F
     <div className="flex flex-wrap items-end gap-2">
       <label className={filterLabelClass()} htmlFor="filter-date-from">
         {t("filter_bar.from")}
-        <Input className="mt-1" fullWidth={false} id="filter-date-from" onChange={(event) => onChange({ ...chip, value: [serializeInputValue(event.target.value, precision), value[1] || ""] })} type={inputType} value={inputValue(value[0], precision)} />
+        <Input
+          className="mt-1"
+          fullWidth={false}
+          id="filter-date-from"
+          onChange={(event) => onChange({ ...chip, value: [serializeInputValue(event.target.value, precision), value[1] || ""] })}
+          type={inputType}
+          value={inputValue(value[0], precision)}
+        />
       </label>
       <label className={filterLabelClass()} htmlFor="filter-date-to">
         {t("filter_bar.to")}
-        <Input className="mt-1" fullWidth={false} id="filter-date-to" onChange={(event) => onChange({ ...chip, value: [value[0] || "", serializeInputValue(event.target.value, precision)] })} type={inputType} value={inputValue(value[1], precision)} />
+        <Input
+          className="mt-1"
+          fullWidth={false}
+          id="filter-date-to"
+          onChange={(event) => onChange({ ...chip, value: [value[0] || "", serializeInputValue(event.target.value, precision)] })}
+          type={inputType}
+          value={inputValue(value[1], precision)}
+        />
       </label>
     </div>
   )
 }
 
-function SingleDateControl({ chip, inputType, onChange, precision }: { chip: FilterChip; inputType: "date" | "datetime-local"; onChange: (chip: FilterChip) => void; precision: "date" | "datetime" }) {
+function SingleDateControl({
+  chip,
+  inputType,
+  onChange,
+  precision
+}: {
+  chip: FilterChip
+  inputType: "date" | "datetime-local"
+  onChange: (chip: FilterChip) => void
+  precision: "date" | "datetime"
+}) {
   const { t } = useT("nav")
 
   return (
     <label className={filterLabelClass()} htmlFor="filter-date-value">
       {t("filter_bar.value")}
-      <Input className="mt-1" fullWidth={false} id="filter-date-value" onChange={(event) => onChange({ ...chip, value: serializeInputValue(event.target.value, precision) })} type={inputType} value={inputValue(chip.value, precision)} />
+      <Input
+        className="mt-1"
+        fullWidth={false}
+        id="filter-date-value"
+        onChange={(event) => onChange({ ...chip, value: serializeInputValue(event.target.value, precision) })}
+        type={inputType}
+        value={inputValue(chip.value, precision)}
+      />
     </label>
   )
 }
