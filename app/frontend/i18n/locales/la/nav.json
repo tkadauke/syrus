@@ -325,8 +325,8 @@
     "sort_by_label": "Ordina secundum",
     "per_group_label": "Colloquia per gregem",
     "status": { "active": "Activa", "hidden": "Occulta", "all": "Omnia" },
-    "group_by": { "date": "Dies", "repository": "Repositorium", "status": "Status", "mode": "Modus", "chat_type": "Genus colloquii", "agent": "Agens" },
-    "chat_type": { "agent": "Colloquia agentis", "group": "Colloquia gregis", "external": "Colloquia externa" },
+    "group_by": { "date": "Dies", "repository": "Repository", "status": "Status", "mode": "Modus", "chat_type": "Genus colloquii", "agent": "Agent" },
+    "chat_type": { "agent": "Colloquia Agent", "group": "Colloquia gregis", "external": "Colloquia externa" },
     "sort_by": { "name": "Nomen", "date_created": "Dies creationis", "last_activity": "Actio recentissima" }
   },
   "smart_folders_panel_aria": "Tabula loculorum sapientium",
