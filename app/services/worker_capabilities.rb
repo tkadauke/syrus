@@ -21,7 +21,7 @@ class WorkerCapabilities
   }.freeze
 
   ToolProbe = Data.define(:dimension, :token, :diagnostic_key, :command, :available_value)
-  CommandResult = Data.define(:success, :output)
+  CommandResult = Data.define(:success, :output, :status)
 
   TOOL_PROBES = [
     ToolProbe.new(dimension: "toolchain", token: "xcode", diagnostic_key: "xcode", command: [ "xcodebuild", "-version" ], available_value: true),
@@ -194,6 +194,7 @@ class WorkerCapabilities
         result = command_result(probe.command)
         probe_diagnostics = probe_diagnostics(probe, result)
         diagnostics[probe.diagnostic_key] = result.success
+        diagnostics["#{probe.diagnostic_key}_probe_status"] = result.status
         diagnostics.merge!(probe_diagnostics)
         next unless capability_available?(probe, result, probe_diagnostics) && TargetGraph::ExecutionCapabilities::DIMENSIONS.include?(probe.dimension)
 
@@ -249,15 +250,30 @@ class WorkerCapabilities
 
     def command_result(command)
       capture = capability_probe(command)
-      CommandResult.new(success: capture.success?, output: "#{capture.stdout}#{capture.stderr}")
+      CommandResult.new(
+        success: capture.success?,
+        output: "#{capture.stdout}#{capture.stderr}",
+        status: probe_status(capture)
+      )
     rescue Errno::ENOENT
-      CommandResult.new(success: false, output: "")
+      CommandResult.new(success: false, output: "", status: "not_found")
+    rescue Errno::EACCES
+      CommandResult.new(success: false, output: "", status: "not_executable")
     rescue Timeout::Error
       debug_log { "[WorkerCapabilities] probe timed out #{command.first}" }
-      CommandResult.new(success: false, output: "")
+      CommandResult.new(success: false, output: "", status: "timed_out")
     rescue StandardError => e
       debug_log { "[WorkerCapabilities] probe failed #{command.first}: #{e.class}: #{e.message}" }
-      CommandResult.new(success: false, output: "")
+      CommandResult.new(success: false, output: "", status: "error")
+    end
+
+    def probe_status(capture)
+      return "available" if capture.success?
+      return "timed_out" if capture.result.timed_out?
+      return "not_executable" if capture.result.exit_status == 126
+      return "not_found" if capture.result.exit_status == 127
+
+      "failed"
     end
 
     def probe_diagnostics(probe, result)
@@ -422,7 +438,9 @@ class WorkerCapabilities
 
     def capability_probe(command)
       capture = ProcessRunner.new(
-        env: {}, command: command, mounts: ProcessRunner.mounts(Dir.pwd),
+        # Keep the probe environment scrubbed while exposing tools installed by
+        # the worker image in directories outside the sandbox's default PATH.
+        env: { "PATH" => ENV.fetch("PATH", "") }, command: command, mounts: ProcessRunner.mounts(Dir.pwd),
         network: "grader", timeout: PROBE_TIMEOUT_SECONDS, kind: "runtime_probe"
       ).capture
       debug_log { "[WorkerCapabilities] probe timed out #{command.first}" } if capture.result.timed_out?
