@@ -104,6 +104,8 @@
   "commits_behind_base_aria_other": "{{count}} commits behind base",
   "latest_workflow_aria": "Latest workflow: {{trigger}} {{state}}",
   "latest_workflow_trigger_aria": "Latest workflow trigger",
+  "workflow_trigger_aria": "Workflow trigger",
+  "active_workflow_trigger_aria": "Active workflow trigger",
   "retry_state": {
     "retryable": "retryable",
     "not_retryable": "not retryable",
