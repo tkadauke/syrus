@@ -233,6 +233,7 @@
     "description": "Choose which Syrus events create notifications for your account.",
     "loading": "Loading notification preferences...",
     "section_label": "Notifications",
+    "pref_chat_mention": "Notify me when someone mentions me in a chat",
     "pref_job_failed": "Notify me when a job fails",
     "pref_job_implemented": "Notify me when a PR is ready for review",
     "pref_pr_comment_addressed": "Notify me when Syrus addresses my PR comments",

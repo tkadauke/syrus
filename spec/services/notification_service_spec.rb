@@ -39,6 +39,25 @@ RSpec.describe NotificationService do
       )
     end
 
+    it "includes a chat mention target in persisted and broadcast payloads" do
+      user = Factories.user
+      allow(ActionCable.server).to receive(:broadcast)
+
+      notification = described_class.create_for(
+        user: user,
+        kind: "chat_mention",
+        body: "Maya mentioned you in a chat.",
+        target_path: "/chats/12#message-34",
+        dedupe_key: "chat-mention:message:34:user:#{user.id}"
+      )
+
+      expect(notification.target_path).to eq("/chats/12#message-34")
+      expect(ActionCable.server).to have_received(:broadcast).with(
+        AppUserChannel.broadcasting_for(user),
+        hash_including(payload: hash_including(notification: hash_including(target_path: "/chats/12#message-34")))
+      )
+    end
+
     it "publishes a chat work event to the ordinary chat that originated the Job" do
       user = Factories.user
       job = Factories.job_record(user: user)

@@ -19,6 +19,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 const queryKey = ["notification_preferences"] as const
 
 const notificationPreferenceKinds: Array<{ kind: NotificationPreferenceKind; labelKey: string }> = [
+  { kind: "chat_mention", labelKey: "notifications.pref_chat_mention" },
   { kind: "job_failed", labelKey: "notifications.pref_job_failed" },
   { kind: "job_implemented", labelKey: "notifications.pref_job_implemented" },
   { kind: "pr_comment_addressed", labelKey: "notifications.pref_pr_comment_addressed" },

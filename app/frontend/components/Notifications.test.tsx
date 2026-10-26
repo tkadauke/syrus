@@ -167,6 +167,32 @@ describe("Notifications", () => {
     expect(fireEvent.keyDown(prLink, { key: " " })).toBe(true)
     expect(screen.queryByText("Job detail")).not.toBeInTheDocument()
   })
+
+  it("opens the mentioned chat message from a chat mention notification", async () => {
+    const notification = notificationRecord({
+      id: 75,
+      kind: "chat_mention",
+      body: "Maya mentioned you in a chat.",
+      target_path: "/chats/12#message-34"
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(notificationsPayload({
+      notifications: [ notification ],
+      unread_count: 1
+    })))
+
+    renderWithClient(
+      <MemoryRouter initialEntries={["/app-shell/notifications"]}>
+        <Routes>
+          <Route element={<NotificationsRoute />} path="/app-shell/notifications" />
+          <Route element={<div>Mentioned chat</div>} path="/app-shell/chats/12" />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    fireEvent.click(await screen.findByText("Maya mentioned you in a chat."))
+
+    expect(await screen.findByText("Mentioned chat")).toBeInTheDocument()
+  })
 })
 
 function renderWithClient(children: React.ReactNode) {
@@ -205,6 +231,7 @@ function notificationRecord(overrides: Partial<{
   pr_url: string | null
   job_id: number | null
   job_title: string | null
+  target_path: string | null
   created_at: string
 }> = {}) {
   return {
@@ -215,6 +242,7 @@ function notificationRecord(overrides: Partial<{
     pr_url: overrides.pr_url ?? null,
     job_id: overrides.job_id ?? null,
     job_title: overrides.job_title ?? null,
+    target_path: overrides.target_path ?? null,
     created_at: overrides.created_at ?? "2026-06-25T12:00:00Z"
   }
 }

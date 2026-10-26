@@ -61,6 +61,7 @@ module App
     def messages(messages)
       records = messages.to_a
       preload_message_associations(records)
+      preload_mentionables(records)
       preload_chat_shell_commands(records)
       preload_cross_chat_bridges(records)
       records.map { |message| message_json(message) }
@@ -75,6 +76,7 @@ module App
         records: messages,
         associations: [
           :chat_session,
+          { chat_session: { chat_participants: :user } },
           { pending_action: { pending_action_group: :chat_pending_actions } },
           :sender_user
         ]
@@ -106,6 +108,16 @@ module App
       ).call
     end
 
+    def preload_mentionables(messages)
+      human_ids = messages.flat_map(&:resolved_mentions).filter_map do |mention|
+        mention["id"] if mention["kind"] == "human"
+      end.map(&:to_i).uniq
+      @mentionables_by_key = User.where(id: human_ids).includes(:handle_record).index_by do |user|
+        [ "human", user.id.to_s ]
+      end
+      @mentionables_by_key[[ "syrus", "syrus" ]] = Mentionables::Syrus.new
+    end
+
     def preload_chat_shell_commands(messages)
       ids = messages.filter_map { |message| message.content["chat_shell_command_id"] if message.content.is_a?(Hash) }.map(&:to_i).uniq
       return if ids.empty?
@@ -131,7 +143,12 @@ module App
     end
 
     def message_json(message)
-      text, mentions = message.rendered_text_and_mentions
+      text, mentions = message.rendered_text_and_mentions do |kind, id|
+        key = [ kind.to_s, id.to_s ]
+        @mentionables_by_key.fetch(key) do
+          @mentionables_by_key[key] = Mentionables::Resolver.find(kind: kind, id: id)
+        end
+      end
       payload = {
         type: "message",
         id: message.id,

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
 import { NotificationsSettingsRoute } from "./NotificationsSettings"
 
-const payload = { notification_preferences: { job_failed: true, job_implemented: true, pr_comment_addressed: true, pr_merged: true, epic_completed: false, main_inconclusive: true, investigation_escalated: true } }
+const payload = { notification_preferences: { chat_mention: true, job_failed: true, job_implemented: true, pr_comment_addressed: true, pr_merged: true, epic_completed: false, main_inconclusive: true, investigation_escalated: true } }
 
 describe("NotificationsSettingsRoute", () => {
   afterEach(() => vi.restoreAllMocks())

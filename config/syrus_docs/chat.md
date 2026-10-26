@@ -370,7 +370,9 @@ participants trigger the agent on every message; chats with 2+ require a
 resolved `@syrus` mention on that specific message. Mentions are stored on the
 message as `{ kind, id, handle, start, end }`; exact handle resolution prevents
 prefix collisions, and rendering uses the mentionable's current handle. Human
-mentions are highlighted but never trigger an agent turn.
+mentions are highlighted and create an in-app notification for the mentioned
+participant, but never trigger an agent turn. Users can disable mention
+notifications in their notification preferences.
 `InboundMessageRouter`, `ChatsController#message`,
 `ChatQueuedMessagePromoter`, and `ScheduledChatMessageFireJob` all gate their
 `ChatTurnJob` enqueue on this. Unmentioned scheduled group-chat messages are
