@@ -27,5 +27,18 @@ module GlobalSearch
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/global_search.json" ]
+
+    while_enabled do |scope|
+      scope.effect("repository search filters") do
+        Filters.register_subject(
+          name: :repository,
+          model: Repository,
+          chips: {
+            "created_at" => "Filters::Chips::CreatedAt",
+            "updated_at" => "Filters::Chips::UpdatedAt"
+          }
+        )
+      end
+    end
   end
 end

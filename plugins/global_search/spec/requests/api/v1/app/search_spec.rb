@@ -216,6 +216,46 @@ RSpec.describe "App API unified search", type: :request do
     )
   end
 
+  it "returns accessible repositories for exact full-slug and name matches without an index" do
+    repository
+    same_name = Factories.repository(user: user, owner: "other", name: "widgets")
+
+    get "/api/v1/app/search", params: { query: "ACME/WIDGETS", types: [ "repository" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include(
+        "type" => "repository",
+        "id" => repository.id,
+        "title" => "acme/widgets",
+        "snippet" => "<mark>acme/widgets</mark>",
+        "path" => repository_path(repository),
+        "state" => "active",
+        "repository_slug" => nil
+      )
+    )
+
+    get "/api/v1/app/search", params: { query: "WiDgEtS", types: [ "repository" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results.map { |row| row.fetch("id") }).to contain_exactly(repository.id, same_name.id)
+  end
+
+  it "does not return partial or inaccessible repository matches" do
+    other_user = Factories.user
+    hidden_repository = Factories.repository(user: other_user, owner: "private", name: "widgets")
+
+    get "/api/v1/app/search", params: { query: "widget", types: [ "repository" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+
+    get "/api/v1/app/search", params: { query: hidden_repository.slug, types: [ "repository" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+  end
+
   it "ranks an exact EPIC slug match ahead of indexed text that mentions the slug" do
     target = Factories.epic(user: user, repository: repository, title: "Exact epic target")
     mention = Factories.epic(user: user, repository: repository, title: "Mention-heavy competing epic")

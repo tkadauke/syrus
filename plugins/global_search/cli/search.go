@@ -3,7 +3,7 @@
 //
 // It is a thin, read-only client over the plugin's unified search endpoint
 // (plugins/global_search/app/controllers/api/v1/app/search_controller.rb),
-// which ranks results across Jobs, Epics, and chats in one call.
+// which ranks results across Jobs, Epics, chats, and repositories in one call.
 package globalsearch
 
 import (
@@ -25,7 +25,7 @@ func NewSearchCommand() *cobra.Command {
 	var jsonOutput bool
 	cmd := &cobra.Command{
 		Use:           "search <query>",
-		Short:         "Search Jobs, Epics, and chats",
+		Short:         "Search Jobs, Epics, chats, and repositories",
 		Args:          cobra.ExactArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -51,13 +51,13 @@ func NewSearchCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&typesFlag, "type", "", "comma-separated result types to search: job,epic,chat (default: all)")
+	cmd.Flags().StringVar(&typesFlag, "type", "", "comma-separated result types to search: job,epic,chat,repository (default: all)")
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum number of results (server default: 30, capped at 100)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "print the raw JSON response")
 	return cmd
 }
 
-var validSearchTypes = map[string]bool{"job": true, "epic": true, "chat": true}
+var validSearchTypes = map[string]bool{"job": true, "epic": true, "chat": true, "repository": true}
 
 func parseTypes(flag string) ([]string, error) {
 	trimmed := strings.TrimSpace(flag)
@@ -71,7 +71,7 @@ func parseTypes(flag string) ([]string, error) {
 			continue
 		}
 		if !validSearchTypes[t] {
-			return nil, fmt.Errorf("unknown --type %q; must be one of job, epic, chat", t)
+			return nil, fmt.Errorf("unknown --type %q; must be one of job, epic, chat, repository", t)
 		}
 		types = append(types, t)
 	}

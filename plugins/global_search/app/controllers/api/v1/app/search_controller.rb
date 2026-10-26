@@ -2,16 +2,18 @@ module Api
   module V1
     module App
       class SearchController < BaseController
-        BUILT_IN_TYPES = %w[job epic chat].freeze
+        BUILT_IN_TYPES = %w[job epic chat repository].freeze
         BUILT_IN_TYPE_OPTIONS = [
           { type: "job", label: "Jobs" },
           { type: "epic", label: "Epics" },
-          { type: "chat", label: "Chats" }
+          { type: "chat", label: "Chats" },
+          { type: "repository", label: "Repositories" }
         ].freeze
         BUILT_IN_FILTER_SUBJECTS = {
-          "job"   => :job,
-          "epic"  => :epic,
-          "chat"  => :chat_message
+          "job"        => :job,
+          "epic"       => :epic,
+          "chat"       => :chat_message,
+          "repository" => :repository
         }.freeze
         COMMON_FILTER_FIELDS = %w[repository_id created_at updated_at].freeze
         DEFAULT_LIMIT = 30
@@ -203,6 +205,28 @@ module Api
             rows,
             :chat_message_id
           )
+        end
+
+        def repository_search_rows(query, limit)
+          normalized_query = query.to_s.strip.downcase
+          repositories = Repository.accessible_to(Current.user)
+            .where("LOWER(name) = ?", normalized_query)
+
+          owner, name = normalized_query.split("/", 2)
+          if owner.present? && name.present?
+            repositories = repositories.or(
+              Repository.accessible_to(Current.user).where("LOWER(owner) = ? AND LOWER(name) = ?", owner, name)
+            )
+          end
+
+          repositories.order(:owner, :name).limit(limit).map do |repository|
+            {
+              repository_id: repository.id,
+              priority: -1,
+              rank: 0.0,
+              snippet: "<mark>#{ERB::Util.html_escape(repository.slug)}</mark>"
+            }
+          end
         end
 
         def reject_unsearchable_chat_rows(rows)
@@ -414,6 +438,23 @@ module Api
           payload
         end
 
+        def repository_result_json(row)
+          repository = repositories_by_id[row.fetch(:repository_id).to_i]
+          return unless repository
+
+          {
+            type: "repository",
+            id: repository.id,
+            title: repository.slug,
+            snippet: row.fetch(:snippet),
+            rank: row.fetch(:rank),
+            path: repository_path(repository),
+            state: repository.archived? ? "archived" : "active",
+            repository_slug: nil,
+            created_at: repository.created_at&.iso8601
+          }
+        end
+
         def chat_grouped_match_json(row)
           message = chat_messages_by_id[row.fetch(:chat_message_id).to_i]
           return unless message
@@ -440,6 +481,10 @@ module Api
             .includes(chat_session: :attached_repositories)
             .distinct
             .index_by(&:id)
+        end
+
+        def repositories_by_id
+          @repositories_by_id ||= Repository.accessible_to(Current.user).where(id: result_ids(:repository_id)).index_by(&:id)
         end
 
         def result_ids(key)
@@ -547,10 +592,27 @@ module Api
           def result_json(row:, user:) = controller.send(:chat_result_json, row)
         end
 
+        class RepositorySearchSource < BuiltInSearchSource
+          def search_rows(query:, user:, limit:) = controller.send(:repository_search_rows, query, limit)
+          def row_id_key = :repository_id
+
+          def filtered_scope(ids:, tree:, user:)
+            ::Filters::Compiler.call(
+              ::Filters::Ast.parse(tree),
+              scope: Repository.accessible_to(user).where(id: ids),
+              user: user,
+              subject: :repository
+            )
+          end
+
+          def result_json(row:, user:) = controller.send(:repository_result_json, row)
+        end
+
         BuiltInSearchSource::SOURCES.replace(
           "job" => JobSearchSource,
           "epic" => EpicSearchSource,
-          "chat" => ChatSearchSource
+          "chat" => ChatSearchSource,
+          "repository" => RepositorySearchSource
         )
       end
     end
