@@ -92,7 +92,10 @@ describe("credential_store_ssh_exec tool card", () => {
     const cardContext = context({ input: { command: "cat /root/file" }, parsedResult: failed, resultError: true })
 
     expect(credentialStoreSshExecToolCard.collapsedSummary?.(cardContext)).toBe("ssh deploy@app.example.test:2222: exit 23")
-    render(<>{credentialStoreSshExecToolCard.renderExpanded(cardContext)}</>)
+    const { rerender } = render(<>{credentialStoreSshExecToolCard.renderExpanded(context({ input: { command: "uptime" }, parsedResult: success }))}</>)
+    expect(screen.getByText("stderr").closest("details")).not.toHaveAttribute("open")
+
+    rerender(<>{credentialStoreSshExecToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("exit 23")).toBeInTheDocument()
     const stderr = screen.getByText("stderr").closest("details")
