@@ -2783,6 +2783,8 @@
   "mutation_before": "Before",
   "mutation_after": "After",
   "mutation_example_dependency_added": "Dependency added",
+  "mutation_example_job_assigned_to_epic": "Job assigned to Epic",
+  "mutation_example_archived_epic_error": "Archived Epic error",
   "mutation_example_reopen_pending_without_input": "Pending reopen without call input",
   "mutation_example_bulk_reopen_confirmation": "Bulk reopen confirmation",
   "mutation_example_job_cannot_be_reopened": "Job cannot be reopened",

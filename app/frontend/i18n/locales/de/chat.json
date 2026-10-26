@@ -2783,6 +2783,8 @@
   "mutation_before": "Vorher",
   "mutation_after": "Nachher",
   "mutation_example_dependency_added": "Abhängigkeit hinzugefügt",
+  "mutation_example_job_assigned_to_epic": "Job dem Epic zugewiesen",
+  "mutation_example_archived_epic_error": "Fehler bei archiviertem Epic",
   "mutation_example_reopen_pending_without_input": "Ausstehende Wiedereröffnung ohne Aufrufparameter",
   "mutation_example_bulk_reopen_confirmation": "Bestätigung der Massenwiedereröffnung",
   "mutation_example_job_cannot_be_reopened": "Job kann nicht wiedereröffnet werden",
