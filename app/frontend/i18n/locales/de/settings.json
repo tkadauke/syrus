@@ -235,6 +235,7 @@
     "description": "Wähle aus, welche Syrus-Ereignisse Benachrichtigungen für dein Konto erstellen.",
     "loading": "Benachrichtigungseinstellungen werden geladen...",
     "section_label": "Benachrichtigungen",
+    "pref_chat_mention": "Benachrichtige mich, wenn mich jemand in einem Chat erwähnt",
     "pref_job_failed": "Benachrichtige mich, wenn ein Job fehlschlägt",
     "pref_job_implemented": "Benachrichtige mich, wenn ein PR zur Überprüfung bereit ist",
     "pref_pr_comment_addressed": "Benachrichtige mich, wenn Syrus meine PR-Kommentare beantwortet",

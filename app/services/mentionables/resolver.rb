@@ -30,7 +30,13 @@ module Mentionables
       private
 
       def candidates_for(chat)
-        core = [ Mentionables::Syrus.new, *chat.participants ]
+        participants = chat.association(:chat_participants)
+        humans = if participants.loaded?
+          participants.target.map(&:user)
+        else
+          chat.participants.to_a
+        end
+        core = [ Mentionables::Syrus.new, *humans ]
         plugin = ::Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
           Array(provider.mentionables(chat: chat))
         end

@@ -8,6 +8,7 @@ export type NotificationRecord = {
   pr_url: string | null
   job_id: number | null
   job_title: string | null
+  target_path: string | null
   created_at: string
 }
 
@@ -37,6 +38,7 @@ export type NotificationPreferenceKind =
   | "epic_completed"
   | "main_inconclusive"
   | "investigation_escalated"
+  | "chat_mention"
 
 export type NotificationPreferences = Record<NotificationPreferenceKind, boolean>
 

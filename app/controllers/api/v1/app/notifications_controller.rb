@@ -71,6 +71,7 @@ module Api
             pr_url: notification.pr_url,
             job_id: notification.job_id,
             job_title: notification.job&.title,
+            target_path: notification.target_path,
             created_at: notification.created_at.iso8601
           }
         end

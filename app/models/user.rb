@@ -163,7 +163,8 @@ class User < ApplicationRecord
     "main_inconclusive" => true,
     "main_recovered" => true,
     "external_pr_feedback" => true,
-    "investigation_escalated" => true
+    "investigation_escalated" => true,
+    "chat_mention" => true
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban dependencies].freeze
   # Deliberately not an `enum :global_role` — that macro validates the
@@ -278,7 +279,12 @@ class User < ApplicationRecord
   def kind = "human"
   def subtitle = role.presence || profile_company
   def color_key = nil
-  def addressable_in?(chat) = chat.chat_participants.exists?(user_id: id)
+  def addressable_in?(chat)
+    participants = chat.association(:chat_participants)
+    return participants.target.any? { |participant| participant.user_id == id } if participants.loaded?
+
+    chat.chat_participants.exists?(user_id: id)
+  end
 
   def admin?
     unless has_attribute?(:global_role)

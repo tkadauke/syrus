@@ -32,6 +32,7 @@ class ChatMessage < ApplicationRecord
   after_create_commit :enqueue_search_index
   after_create_commit :clear_suggested_next_step, if: -> { role == "user" }
   after_create_commit :deliver_to_platform, if: :platform_delivery_needed?
+  after_create_commit :notify_human_mentions, if: -> { role == "user" }
   after_update :invalidate_context_checkpoints, if: :newly_soft_deleted?
 
   validates :role, presence: true, inclusion: { in: ROLES }
@@ -97,14 +98,18 @@ class ChatMessage < ApplicationRecord
     Mentionables::Resolver.resolve(text: extract_text_from_content, chat: chat_session)
   end
 
-  def rendered_text_and_mentions
+  def rendered_text_and_mentions(&mentionable_lookup)
     text = extract_text_from_content.to_s
     rendered_parts = []
     rendered_mentions = []
     cursor = 0
 
     resolved_mentions.sort_by { |mention| mention.fetch("start") }.each do |mention|
-      mentionable = Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      mentionable = if mentionable_lookup
+        mentionable_lookup.call(mention["kind"], mention["id"])
+      else
+        Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      end
       next unless mentionable&.addressable_in?(chat_session)
 
       start_offset = mention.fetch("start")
@@ -250,6 +255,26 @@ class ChatMessage < ApplicationRecord
 
   def platform_delivery_needed?
     role == "assistant" && chat_session.origin_platform.present?
+  end
+
+  def notify_human_mentions
+    mentioned_user_ids = Array(mentions).filter_map do |mention|
+      mention["id"] if mention["kind"] == "human"
+    end.map(&:to_i).uniq
+    mentioned_user_ids.delete(sender_user_id)
+    return if mentioned_user_ids.empty?
+
+    User.where(id: mentioned_user_ids).find_each do |mentioned_user|
+      NotificationService.create_for(
+        user: mentioned_user,
+        kind: "chat_mention",
+        repository: chat_session.repository,
+        actor: sender_user,
+        body: "#{sender_user&.display_name || "Someone"} mentioned you in a chat.",
+        target_path: "/chats/#{chat_session_id}#message-#{id}",
+        dedupe_key: "chat-mention:message:#{id}:user:#{mentioned_user.id}"
+      )
+    end
   end
 
   def deliver_to_platform

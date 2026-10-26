@@ -168,6 +168,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
   const queryClient = useQueryClient()
   const read = Boolean(notification.read_at)
   const jobTarget = notification.job_id ? withRoutePrefix(`/jobs/${notification.job_id}`, prefix) : null
+  const target = notification.target_path ? withRoutePrefix(notification.target_path, prefix) : jobTarget
   const prNumber = notification.pr_url?.match(/\/pull\/(\d+)/)?.[1]
   const showJobTitle = Boolean(notification.job_title && !bodyIncludesJobTitle(notification.body, notification.job_title))
   const markRead = useMutation({
@@ -188,7 +189,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
     markRead.mutate(undefined, {
       onSettled() {
         onNavigate?.()
-        if (jobTarget) navigate(jobTarget)
+        if (target) navigate(target)
       }
     })
   }
@@ -203,18 +204,18 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
 
   return (
     <div
-      className={`flex w-full min-w-0 items-start gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 ${jobTarget ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900" : ""} ${read ? "" : "bg-brand/10"}`}
+      className={`flex w-full min-w-0 items-start gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 ${target ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900" : ""} ${read ? "" : "bg-brand/10"}`}
       onClick={openNotification}
       onKeyDown={(event) => {
-        if (!jobTarget) return
+        if (!target) return
         if (event.target !== event.currentTarget) return
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           openNotification()
         }
       }}
-      role={jobTarget ? "button" : undefined}
-      tabIndex={jobTarget ? 0 : undefined}
+      role={target ? "button" : undefined}
+      tabIndex={target ? 0 : undefined}
     >
       <KindIcon kind={notification.kind} />
       <span className="min-w-0 flex-1">

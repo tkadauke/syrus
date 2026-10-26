@@ -2276,6 +2276,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.integer "user_id", null: false
     t.integer "repository_id"
     t.string "dedupe_key", limit: 191
+    t.string "target_path"
     t.index ["job_id"], name: "index_notifications_on_job_id"
     t.index ["repository_id"], name: "index_notifications_on_repository_id"
     t.index ["user_id", "kind", "repository_id", "dedupe_key"], name: "idx_notifications_dedupe_identity", unique: true
