@@ -4,7 +4,7 @@ class CreateGithubIssues < ActiveRecord::Migration[8.1]
     add_column :repositories, :github_issues_full_synced_at, :datetime unless column_exists?(:repositories, :github_issues_full_synced_at)
 
     create_table :github_source_issues do |t|
-      t.references :repository, null: false
+      t.references :repository, null: false, foreign_key: false
       t.bigint :github_id, null: false
       t.integer :number, null: false
       t.string :title, null: false
