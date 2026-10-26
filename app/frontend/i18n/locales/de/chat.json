@@ -2636,6 +2636,8 @@
   "tool_card_withdrew_proposal_with_cascade_other": "{{slug}} und {{count}} nachgelagerte Vorschläge zurückgezogen",
   "tool_card_also_withdrawn": "Ebenfalls zurückgezogen ({{count}})",
   "tool_card_withdraw_proposal_example_cascade": "Zurückziehen mit nachgelagerten Vorschlägen",
+  "tool_card_withdraw_proposal_example_job": "Vorschlagslisten darstellen",
+  "tool_card_withdraw_proposal_example_epic": "Vorschlagskarten-Suite vervollständigen",
   "tool_card_withdraw_proposal_example_empty": "Zurückziehen ohne nachgelagerte Vorschläge",
   "tool_card_withdraw_proposal_example_error": "Unbekannter Vorschlags-Slug",
   "tool_card_propose_job_example": "Detaillierter Job-Vorschlag",
