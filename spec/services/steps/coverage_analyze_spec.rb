@@ -102,6 +102,74 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
     end
   end
 
+  context "with coverage retained from isolated grader checkouts" do
+    it "merges multiple grader outputs, annotates changed lines, and reports an absent source" do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/ruby/lcov.info
+              format: lcov
+            - artifact: coverage/js/lcov.info
+              format: lcov
+            - artifact: coverage/absent/lcov.info
+              format: lcov
+      YAML
+      diff = <<~DIFF
+        diff --git a/app/models/user.rb b/app/models/user.rb
+        --- a/app/models/user.rb
+        +++ b/app/models/user.rb
+        @@ -0,0 +1,2 @@
+        +covered
+        +uncovered
+        diff --git a/app/frontend/app.ts b/app/frontend/app.ts
+        --- a/app/frontend/app.ts
+        +++ b/app/frontend/app.ts
+        @@ -0,0 +1 @@
+        +covered
+      DIFF
+      allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner, run: diff))
+
+      collect = workflow.steps.create!(kind: "grader_collect", position: 98, state: "succeeded")
+      outputs = [
+        [ "ruby", "coverage/ruby/lcov.info", SAMPLE_LCOV ],
+        [ "vitest", "coverage/js/lcov.info", <<~LCOV ]
+          TN:
+          SF:app/frontend/app.ts
+          DA:1,2
+          LF:1
+          LH:1
+          end_of_record
+        LCOV
+      ]
+      outputs.each_with_index do |(name, artifact_path, content), index|
+        grader = workflow.steps.create!(
+          kind: "grader", position: 90 + index, state: "succeeded",
+          details: { "name" => name, "coverage_outputs" => [ { "artifact" => artifact_path, "format" => "lcov" } ] }
+        )
+        grader_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded")
+        checkout = @ws_path.dirname.join("immutable-checkouts/steps/#{grader.id}")
+        FileUtils.mkdir_p(checkout.join(File.dirname(artifact_path)))
+        checkout.join(artifact_path).write(content)
+        GraderCoverageOutputCollector.call(
+          run: grader_run, workspace_path: checkout,
+          outputs: grader.details["coverage_outputs"], grader_name: name,
+          project_path: nil, source_snapshot_id: nil, log: ->(_) { }
+        )
+        FileUtils.rm_rf(checkout)
+      end
+
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("diff_annotations", "app/models/user.rb")).to include("1" => "covered", "2" => "uncovered")
+      expect(artifact.dig("diff_annotations", "app/frontend/app.ts", "1")).to eq("covered")
+      expect(artifact.fetch("sources_status").map { |status| [ status["artifact"], status["found"] ] }).to contain_exactly(
+        [ "coverage/ruby/lcov.info", true ], [ "coverage/js/lcov.info", true ], [ "coverage/absent/lcov.info", false ]
+      )
+      expect(collect).to be_succeeded
+    end
+  end
+
   context "with a valid LCOV file" do
     before do
       write_syrus_yml(<<~YAML)

@@ -39,6 +39,7 @@ class Run < ApplicationRecord
   has_one :run_diagnostic, dependent: :destroy
   has_one :run_failure_classification, dependent: :destroy
   has_one :run_resource_summary, dependent: :destroy
+  has_many_attached :coverage_outputs
 
   # Convenience walk up to Workflow when step is set.
   def workflow

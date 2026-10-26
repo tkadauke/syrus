@@ -165,6 +165,20 @@ module Steps
       duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
       passed = runner_result&.success?
 
+      coverage_output_results = if passed
+        GraderCoverageOutputCollector.call(
+          run: run,
+          workspace_path: workspace.path,
+          outputs: definition["coverage_outputs"],
+          grader_name: name,
+          project_path: definition["project_path"],
+          source_snapshot_id: definition["source_snapshot_id"],
+          log: ->(message) { log(message) }
+        ).map(&:to_h)
+      else
+        []
+      end
+
       append_grade_diagnostic(absolute_log_path, "\n[grader:#{name}] failed (exit #{exit_code})\n") unless passed
 
       # Snapshot the result onto Step#details after all failure
@@ -186,7 +200,8 @@ module Steps
         "timed_out" => timed_out,
         "log_path" => log_path.to_s,
         "log_bytes" => absolute_log_path.size,
-        "output" => output_excerpt
+        "output" => output_excerpt,
+        "coverage_output_results" => coverage_output_results
       ))
 
       record_formatter_like_grader_failure_warning!(

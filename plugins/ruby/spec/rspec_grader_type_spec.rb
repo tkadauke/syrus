@@ -895,7 +895,8 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect(step.run).to include("COVERAGE=true")
     expect(step.metadata["coverage_outputs"]).to eq([
-      { "artifact" => "coverage/.resultset.json", "format" => "simplecov" }
+      { "artifact" => "coverage/.resultset.json", "format" => "simplecov" },
+      { "artifact" => "coverage/lcov.info", "format" => "lcov" }
     ])
     expect(step.metadata.dig("filter_capabilities", "coverage")).to be(true)
   end
