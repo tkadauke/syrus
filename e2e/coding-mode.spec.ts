@@ -48,6 +48,6 @@ test("renders Coding Mode handoff confirmations and moves one into the pending c
 
   await existingJobHandoff.getByRole("button", { name: "Confirm", exact: true }).click()
 
-  await expect(existingJobHandoff).toContainText("Working...")
+  await expect(existingJobHandoff).toContainText("Working…")
   await expect(existingJobHandoff).toContainText("Waiting for background worker...")
 })
