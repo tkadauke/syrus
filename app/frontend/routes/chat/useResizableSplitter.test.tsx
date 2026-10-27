@@ -16,7 +16,11 @@ describe("useResizableSplitter", () => {
 
   it("removes active window resize listeners when unmounted mid-drag", () => {
     const clampWidth = vi.fn((width: number) => width)
-    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    // window.localStorage, not Storage.prototype: under Node 26 the former is a
+    // plain object with its own setItem, so a prototype spy never fires. That
+    // made this assertion vacuous -- it compares the recorded call count to
+    // itself, which holds trivially at zero.
+    const setItem = vi.spyOn(window.localStorage, "setItem")
     const addEventListener = vi.spyOn(window, "addEventListener")
     const removeEventListener = vi.spyOn(window, "removeEventListener")
     const { result, unmount } = renderHook(() => useResizableSplitter({

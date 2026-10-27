@@ -359,7 +359,13 @@ describe("AccountSettings form primitives", () => {
   })
 
   it("shows unavailable storage without breaking preferences", async () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    // Spy on the storage object the code actually reads, not Storage.prototype.
+    // Under Node 26 `window.localStorage` is no longer a jsdom Storage instance
+    // -- it is a plain object carrying its own getItem/setItem -- so patching
+    // the prototype silently reaches nothing, the "storage is unavailable"
+    // simulation stops simulating anything, and the assertion below fails for a
+    // reason that has nothing to do with the code under test.
+    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
       throw new Error("storage unavailable")
     })
     renderRoute(credentialsPayload(), <PreferencesRoute />)
