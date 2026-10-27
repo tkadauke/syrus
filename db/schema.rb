@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_201833) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1644,6 +1644,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.integer "run_id", null: false
     t.integer "sequence", null: false
     t.datetime "updated_at", null: false
+    t.json "tool_metadata"
     t.index ["created_at"], name: "index_job_logs_on_created_at"
     t.index ["kind", "run_id"], name: "idx_job_logs_kind_run_id"
     t.index ["run_id", "sequence"], name: "index_job_logs_on_run_id_and_sequence", unique: true

@@ -1287,6 +1287,43 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     ])
   end
 
+  it "returns redacted structured tool metadata and handles legacy rows" do
+    run = job.initial_run
+    JobLog.append!(
+      run: run,
+      chunk: "tool call",
+      kind: "tool_call",
+      tool_name: "run_command",
+      tool_input: { "command" => "deploy", "api_token" => "top-secret-value" },
+      tool_use_id: "call_1"
+    )
+    JobLog.append!(run: run, chunk: "tool result", kind: "tool_result",
+                   tool_result_content: "authorization=top-secret-value", tool_result_error: false,
+                   tool_use_id: "call_1")
+    JobLog.create!(run: run, sequence: 2, kind: "system", chunk: "legacy row")
+
+    get "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts"
+
+    expect(response).to have_http_status(:ok)
+    tool_call, tool_result, legacy = parse_body.fetch("logs")
+    expect(tool_call).to include(
+      "tool_name" => "run_command",
+      "tool_input" => { "command" => "deploy", "api_token" => "[redacted]" },
+      "tool_use_id" => "call_1"
+    )
+    expect(tool_result).to include(
+      "tool_result_content" => "authorization=[redacted]",
+      "tool_result_error" => false
+    )
+    expect(legacy).to include(
+      "tool_name" => nil,
+      "tool_input" => nil,
+      "tool_use_id" => nil,
+      "tool_result_content" => nil,
+      "tool_result_error" => nil
+    )
+  end
+
   it "does not eager-load full JobLog rows for the artifact payload" do
     run = job.initial_run
     JobLog.append!(run: run, chunk: "artifact transcript row", kind: "system")
@@ -1298,6 +1335,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     job_log_selects = sql.select { |statement| statement.match?(/FROM [`"]?job_logs[`"]?/i) }
     expect(job_log_selects).not_to include(match(/SELECT [`"]?job_logs[`"]?\.\*/i))
     expect(job_log_selects.join("\n")).to include("chunk")
+    expect(job_log_selects.join("\n")).to include("tool_metadata")
   end
 
   it "returns only the requested diff artifact" do

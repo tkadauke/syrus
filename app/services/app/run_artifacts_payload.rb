@@ -47,7 +47,7 @@ module App
         logs_scope = run.job_logs.reorder(sequence: :desc, id: :desc)
         logs_count = logs_scope.count
         rows = logs_scope.offset((page - 1) * per).limit(per)
-          .pluck(:id, :sequence, :kind, :chunk, :created_at)
+          .pluck(:id, :sequence, :kind, :chunk, :tool_metadata, :created_at)
           .reverse
 
         {
@@ -62,8 +62,20 @@ module App
       end
 
       def serialize_log(row)
-        id, sequence, kind, chunk, created_at = row
-        { id: id, sequence: sequence, kind: kind, chunk: chunk, created_at: created_at&.iso8601 }
+        id, sequence, kind, chunk, tool_metadata, created_at = row
+        metadata = ToolPayloadRedactor.redact(tool_metadata || {})
+        {
+          id: id,
+          sequence: sequence,
+          kind: kind,
+          chunk: chunk,
+          tool_name: metadata["tool_name"],
+          tool_input: metadata["tool_input"],
+          tool_use_id: metadata["tool_use_id"],
+          tool_result_content: metadata["tool_result_content"],
+          tool_result_error: metadata["tool_result_error"],
+          created_at: created_at&.iso8601
+        }
       end
     end
 

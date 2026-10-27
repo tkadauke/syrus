@@ -786,24 +786,26 @@ RSpec.describe Steps::Base, :ci_only do
       expect(run.job_logs.first.chunk).to eq("hello world")
     end
 
-    # Regression: ClaudeInvocation passes structured tool metadata
-    # (tool_name, tool_input on tool_use events; tool_result_content,
-    # tool_use_id on tool_result events) as kwargs to log_sink. The
-    # sink only uses chunk + kind but must tolerate the extras
-    # without ArgumentError. Production hit "ArgumentError: unknown
-    # keywords: :tool_name, :tool_input" mid-run on the first
-    # submit_summary MCP call.
-    it "tolerates the structured tool-metadata kwargs ClaudeInvocation passes on tool_use/tool_result" do
+    it "persists structured tool events as separate rows instead of coalescing them" do
       sink, _flush = handler.buffered_log_sink
 
-      expect {
-        sink.call("● Bash(ls)", kind: "tool_call", tool_name: "Bash", tool_input: { "command" => "ls" })
-      }.not_to raise_error
+      sink.call("● Bash(ls)", kind: "tool_call", tool_name: "Bash",
+                              tool_input: { "command" => "ls" }, tool_use_id: "abc")
+      sink.call("  ⎿ ok", kind: "tool_result", tool_name: "Bash",
+                          tool_result_content: "ok", tool_result_error: false, tool_use_id: "abc")
 
-      expect {
-        sink.call("  ⎿ ok", kind: "tool_result", tool_result_content: "ok",
-                            tool_result_error: false, tool_use_id: "abc")
-      }.not_to raise_error
+      call_log, result_log = run.job_logs.order(:sequence)
+      expect(call_log.tool_metadata).to eq(
+        "tool_name" => "Bash",
+        "tool_input" => { "command" => "ls" },
+        "tool_use_id" => "abc"
+      )
+      expect(result_log.tool_metadata).to eq(
+        "tool_name" => "Bash",
+        "tool_use_id" => "abc",
+        "tool_result_content" => "ok",
+        "tool_result_error" => false
+      )
     end
 
     it "waits for LOG_FLUSH_MIN_GAP before flushing byte-threshold bursts" do
