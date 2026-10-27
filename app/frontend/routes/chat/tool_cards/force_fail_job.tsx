@@ -1,4 +1,5 @@
 import type { ToolCardExample } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
 
 const forceFailJobCard = maintenanceToolCard("force_fail_job")
@@ -13,7 +14,9 @@ export default {
 export const examples: ToolCardExample[] = [
   {
     id: "pending_confirmation",
-    label: "Pending destructive confirmation",
+    get label() {
+      return i18n.t("chat:tool_card_examples.pending_force_fail_confirmation")
+    },
     input: { job_id: 73, reason: "The workflow is **irrecoverably** stuck." },
     parsedResult: {
       pending_confirmation_id: 41,
@@ -28,7 +31,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "bulk_pending",
-    label: "Bulk destructive confirmation",
+    get label() {
+      return i18n.t("chat:tool_card_examples.bulk_force_fail_confirmation")
+    },
     input: { job_ids: [73, 74, 75], reason: "All three runs share the same **fatal** failure." },
     parsedResult: {
       pending_action_group_id: 12,
@@ -40,7 +45,9 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "invalid_state",
-    label: "Job cannot be force-failed",
+    get label() {
+      return i18n.t("chat:tool_card_examples.job_cannot_be_force_failed")
+    },
     input: { job_id: 76, reason: "No longer recoverable." },
     resultBody: "Error: JOB-76 is closed and cannot be force-failed.",
     resultError: true

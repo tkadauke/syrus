@@ -1251,6 +1251,11 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" },
   "tool_card_examples": {
+    "pending_force_fail_confirmation": "Pending destructive confirmation",
+    "bulk_force_fail_confirmation": "Bulk destructive confirmation",
+    "job_cannot_be_force_failed": "Job cannot be force-failed",
+    "job_assigned_to_epic": "Job assigned to Epic",
+    "archived_epic_error": "Archived Epic error",
     "priority_changed": "Priority changed",
     "invalid_priority": "Invalid priority",
     "epic_started": "Epic started",
