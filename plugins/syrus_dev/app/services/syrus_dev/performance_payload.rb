@@ -40,7 +40,7 @@ module SyrusDev
       {
         kind: "performance_log_events",
         max_events: PerformanceLogging::Store::MAX_EVENTS,
-        expires_in_seconds: PerformanceLogEvent::RETENTION.to_i,
+        expires_in_seconds: PerformanceLogEvent.retention_window&.to_i,
         buffered: Observability::EventSink.stats.dig(:buffered, :performance).to_i,
         dropped: Observability::EventSink.stats.dig(:dropped, :performance).to_i
       }
@@ -220,7 +220,7 @@ module SyrusDev
 
     def previous_persisted_revision
       PerformanceLogEvent
-        .where(occurred_at: PerformanceLogEvent::RETENTION.ago..)
+        .where(occurred_at: PerformanceLogEvent.retention_floor..)
         .where.not(app_revision: [ nil, "", current_revision ])
         .reorder(occurred_at: :desc, id: :desc)
         .limit(1)
@@ -230,7 +230,7 @@ module SyrusDev
     def events_for_revision(raw_events, revision)
       events = raw_events.select { |event| event["app_revision"] == revision }
       persisted = PerformanceLogEvent
-        .where(app_revision: revision, occurred_at: PerformanceLogEvent::RETENTION.ago..)
+        .where(app_revision: revision, occurred_at: PerformanceLogEvent.retention_floor..)
         .recent_first
         .limit(limit)
         .map(&:as_event_hash)
