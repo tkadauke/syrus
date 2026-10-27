@@ -170,6 +170,25 @@ RSpec.describe TargetGraph::Fingerprints do
     expect(fingerprints_for("//:grade/tests").command_fingerprint).not_to eq(first.command_fingerprint)
   end
 
+  it "invalidates command fingerprints when the requested execution backend changes" do
+    write(".syrus.yml", <<~YAML)
+      grade:
+        - name: tests
+          run: bin/test
+          execution_backend: local
+    YAML
+    first = fingerprints_for("//:grade/tests")
+
+    write(".syrus.yml", <<~YAML)
+      grade:
+        - name: tests
+          run: bin/test
+          execution_backend: container_execution
+    YAML
+
+    expect(fingerprints_for("//:grade/tests").command_fingerprint).not_to eq(first.command_fingerprint)
+  end
+
   it "invalidates environment fingerprints when worker capabilities change" do
     write(".syrus.yml", <<~YAML)
       grade:

@@ -117,6 +117,7 @@ RSpec.describe ProcessRunner, :ci_only do
       agent: nil,
       display_command: nil,
       on_spawned_process: nil,
+      execution_backend: nil,
       local_runner: nil
     )
 

@@ -72,6 +72,22 @@ RSpec.describe TargetGraph::GradePlan do
       grader = graders.find { |candidate| candidate.name == "plugins-rails-schema-check" }
       expect(grader.display_name).to be_nil
     end
+
+    it "carries target execution backend metadata onto resolved graders" do
+      write(".syrus.yml", <<~YAML)
+        execution:
+          grader_backend: container_execution
+        grade:
+          - name: tests
+            run: bin/rspec
+      YAML
+
+      graph = TargetGraph::Compiler.compile(@dir)
+      graders = described_class.for(workspace_path: @dir, graph: graph).graders
+
+      grader = graders.find { |candidate| candidate.name == "tests" }
+      expect(grader.execution_backend).to eq("container_execution")
+    end
   end
 
   def write(rel, contents)
