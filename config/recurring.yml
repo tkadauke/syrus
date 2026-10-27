@@ -165,6 +165,14 @@ default: &default
     class: ProviderSessionPruneJob
     queue: cleanup
     schedule: every day at 3:00am
+  prune_job_logs:
+    class: JobLogPruneJob
+    queue: cleanup
+    schedule: every day at 3:05am
+  prune_performance_log_events:
+    class: PerformanceLogEventPruneJob
+    queue: cleanup
+    schedule: every hour
   prune_run_diagnostics:
     class: RunDiagnosticPruneJob
     queue: cleanup

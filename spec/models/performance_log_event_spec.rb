@@ -1,18 +1,28 @@
 require "rails_helper"
 
 RSpec.describe PerformanceLogEvent do
-  describe ".expired" do
-    it "includes events older than the retention window and excludes newer ones" do
-      stale = described_class.create!(occurred_at: (described_class::RETENTION + 1.hour).ago, event_name: "sql", payload: {})
-      fresh = described_class.create!(occurred_at: 1.hour.ago, event_name: "sql", payload: {})
+  describe ".prunable" do
+    it "includes events strictly older than the configured window" do
+      travel_to(Time.zone.parse("2026-10-26 12:00:00")) do
+        stale = described_class.create!(occurred_at: 24.hours.ago - 1.second, event_name: "sql", payload: {})
+        boundary = described_class.create!(occurred_at: 24.hours.ago, event_name: "sql", payload: {})
+        fresh = described_class.create!(occurred_at: 1.hour.ago, event_name: "sql", payload: {})
 
-      expect(described_class.expired).to include(stale)
-      expect(described_class.expired).not_to include(fresh)
+        expect(described_class.prunable).to contain_exactly(stale)
+        expect(described_class.prunable).not_to include(boundary, fresh)
+      end
+    end
+
+    it "keeps all events when retention is infinite" do
+      AppSetting.current.update!(performance_log_event_retention_hours: 0)
+      event = described_class.create!(occurred_at: 10.years.ago, event_name: "sql", payload: {})
+
+      expect(described_class.prunable).not_to include(event)
     end
 
     it "uses the occurred_at index instead of a full table scan" do
       plan = ActiveRecord::Base.connection.select_all(
-        "EXPLAIN QUERY PLAN #{described_class.expired.to_sql}"
+        "EXPLAIN QUERY PLAN #{described_class.prunable.to_sql}"
       ).to_a
 
       detail = plan.map { |row| row["detail"] }.join(" ")

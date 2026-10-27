@@ -1,5 +1,14 @@
 class JobLog < ApplicationRecord
+  include HasConfigurableRetention
+
   belongs_to :run
+
+  configurable_retention setting_key: :job_log_retention_days, unit: :days
+
+  scope :prunable, -> {
+    cutoff = retention_cutoff
+    cutoff ? where("created_at < ?", cutoff) : none
+  }
 
   MAX_APPEND_ATTEMPTS = 5
   NEXT_SEQUENCE_CACHE_KEY = :syrus_job_log_next_sequence_by_run_id

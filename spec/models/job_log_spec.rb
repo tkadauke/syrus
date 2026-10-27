@@ -5,6 +5,26 @@ RSpec.describe JobLog do
 
   before { described_class.clear_sequence_cache! }
 
+  describe ".prunable" do
+    it "prunes logs strictly older than the configured window" do
+      travel_to(Time.zone.parse("2026-10-26 12:00:00")) do
+        stale = described_class.create!(run: run, chunk: "stale", sequence: 0, created_at: 30.days.ago - 1.second)
+        boundary = described_class.create!(run: run, chunk: "boundary", sequence: 1, created_at: 30.days.ago)
+        fresh = described_class.create!(run: run, chunk: "fresh", sequence: 2, created_at: 1.day.ago)
+
+        expect(described_class.prunable).to contain_exactly(stale)
+        expect(described_class.prunable).not_to include(boundary, fresh)
+      end
+    end
+
+    it "keeps all logs when retention is infinite" do
+      AppSetting.current.update!(job_log_retention_days: 0)
+      log = described_class.create!(run: run, chunk: "old", sequence: 0, created_at: 10.years.ago)
+
+      expect(described_class.prunable).not_to include(log)
+    end
+  end
+
   it "allows chunks at least as large as the step log buffer cap" do
     expect(described_class.columns_hash.fetch("chunk").limit).to be >= Steps::Base::LOG_FLUSH_MAX_BUF
   end
