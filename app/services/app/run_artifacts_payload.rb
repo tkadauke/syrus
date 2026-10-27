@@ -46,9 +46,10 @@ module App
       def artifact_payload
         logs_scope = run.job_logs.reorder(sequence: :desc, id: :desc)
         logs_count = logs_scope.count
-        rows = logs_scope.offset((page - 1) * per).limit(per)
+        page_rows = logs_scope.offset((page - 1) * per).limit(per)
           .pluck(:id, :sequence, :kind, :chunk, :tool_metadata, :created_at)
           .reverse
+        rows = include_tool_pair_context(logs_scope, page_rows)
 
         {
           artifact: "transcript",
@@ -59,6 +60,49 @@ module App
           logs_has_older: page * per < logs_count,
           logs: rows.map { |row| serialize_log(row) }
         }
+      end
+
+      # A row page may cut between a structured tool call and its result. Add
+      # the matching row as render context without changing pagination counts;
+      # otherwise either side of the boundary becomes an orphaned SYSTEM row
+      # or a permanently-running tool. This is deliberately id-based because
+      # parallel calls make adjacency unreliable.
+      def include_tool_pair_context(logs_scope, page_rows)
+        page_ids = page_rows.filter_map { |row| tool_use_id(row) }.to_set
+        return page_rows if page_ids.empty?
+
+        kinds_by_id = page_rows.each_with_object(Hash.new { |hash, key| hash[key] = Set.new }) do |row, kinds|
+          id = tool_use_id(row)
+          kinds[id] << row[2] if id
+        end
+        missing_call_ids = page_ids.reject { |id| kinds_by_id[id].include?("tool_call") }.to_set
+        missing_result_ids = page_ids.reject { |id| kinds_by_id[id].include?("tool_result") }.to_set
+        return page_rows if missing_call_ids.empty? && missing_result_ids.empty?
+
+        first_sequence = page_rows.first[1]
+        last_sequence = page_rows.last[1]
+        context_rows = matching_context_rows(logs_scope.where("sequence < ?", first_sequence), missing_call_ids, "tool_call")
+        context_rows.concat(matching_context_rows(logs_scope.where("sequence > ?", last_sequence), missing_result_ids, "tool_result"))
+
+        (page_rows + context_rows).sort_by { |row| [row[1], row[0]] }
+      end
+
+      def matching_context_rows(scope, missing_ids, kind)
+        return [] if missing_ids.empty?
+
+        rows = []
+        scope.where(kind: kind).find_each do |log|
+          id = log.tool_metadata&.fetch("tool_use_id", nil)
+          next unless missing_ids.delete?(id)
+
+          rows << [log.id, log.sequence, log.kind, log.chunk, log.tool_metadata, log.created_at]
+          break if missing_ids.empty?
+        end
+        rows
+      end
+
+      def tool_use_id(row)
+        row[4]&.fetch("tool_use_id", nil)
       end
 
       def serialize_log(row)
