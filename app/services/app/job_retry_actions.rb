@@ -1,13 +1,5 @@
 module App
   class JobRetryActions
-    IMPLEMENTATION_TRIGGER_KINDS = %w[initial retry].freeze
-    IMPLEMENTATION_FAILURE_STEP_KINDS = %w[
-      prepare
-      implement
-      grader_fanout
-      grader
-      grader_collect
-    ].freeze
     GIT_STATE_CORRUPT_PROBLEM_CODE = "git_state_corrupt".freeze
 
     def self.for(job)
@@ -57,32 +49,17 @@ module App
     end
 
     def implementation_action
-      return unless implementation_retry_available?
+      return unless implementation_preflight.eligible?
 
       {
         key: "retry_implementation",
         label: "Retry implementation",
-        path: "/api/v1/app/jobs/#{job.id}/run_again"
+        path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       }
     end
 
-    def implementation_retry_available?
-      return false if job.no_change_needed?
-      return false if latest_workflow&.infrastructure_workflow?
-      eligibility = RetryWorkflowEligibility.call(job: job)
-      return false unless eligibility.eligible?
-      return false if job.landing_failure_reason.present?
-      return false unless job.failed? || latest_workflow_retryable_as_implementation?
-      return false if latest_workflow&.landing_workflow?
-      return false unless IMPLEMENTATION_TRIGGER_KINDS.include?(latest_workflow&.trigger_kind)
-
-      failed_step.blank? ||
-        IMPLEMENTATION_FAILURE_STEP_KINDS.include?(failed_step.kind) ||
-        failed_step_workspace_git_state_corrupt?
-    end
-
-    def latest_workflow_retryable_as_implementation?
-      latest_workflow&.failed? || latest_workflow&.cancelled?
+    def implementation_preflight
+      @implementation_preflight ||= RetryJobs::Modes::Implementation.new(job: job).preflight
     end
 
     def failed_step_label

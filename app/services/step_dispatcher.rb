@@ -84,6 +84,17 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, EPIC_WIDE_BLOCK_REASON)
 
+    if epic_sibling_blocking?(workflow)
+      reason = EPIC_SIBLING_BLOCK_REASON
+      return if start_blocked_backoff_active?(workflow, reason)
+
+      record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF)
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
+      warn_if_stuck_queued(workflow, reason)
+      return
+    end
+    clear_start_blocked!(workflow, EPIC_SIBLING_BLOCK_REASON)
+
     if manually_paused?(workflow)
       record_manual_pause!(workflow)
       warn_if_stuck_queued(workflow, MANUAL_PAUSE_REASON)
@@ -272,6 +283,7 @@ class StepDispatcher
   ADMISSION_BLOCK_REASON = "workflow_admission_budget"
   PROVIDER_AVAILABILITY_BLOCK_REASON = "provider_availability"
   EPIC_WIDE_BLOCK_REASON = EpicWorkflowLock::BLOCK_REASON
+  EPIC_SIBLING_BLOCK_REASON = "epic_sibling_implementation_active"
   PAUSE_REASON_ADMISSION = ADMISSION_BLOCK_REASON
   PAUSE_REASON_RESOURCE_SAFETY = "resource_safety"
   MANUAL_PAUSE_REASON = "manual_pause"
@@ -328,6 +340,26 @@ class StepDispatcher
 
     blocking_jobs
       .exists?
+  end
+
+  def self.epic_sibling_blocking?(workflow)
+    epic = workflow.job.epic
+    return false unless epic&.resolved_epic_dependency_policy == "linear"
+    return false unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
+
+    implementation_workflows = Workflow
+      .where(job_id: epic.jobs.select(:id))
+      .where(trigger_kind: WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS)
+
+    return true if implementation_workflows.running.where.not(job_id: workflow.job_id).exists?
+    return false if implementation_workflows.running.where(job_id: workflow.job_id).exists?
+
+    winner = implementation_workflows
+      .where(state: "queued")
+      .order(:created_at, :id)
+      .first
+
+    winner.present? && winner.job_id != workflow.job_id
   end
 
   def self.start_blocked_backoff_active?(workflow, reason)

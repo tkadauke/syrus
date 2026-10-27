@@ -4,7 +4,7 @@
 # stage compiles the pinned server binary and downloads the default model; the
 # runtime stage keeps only the binary, model, ffmpeg, and its shared-library
 # dependencies.
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.25-alpine AS gateway-build
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.26.5-alpine AS gateway-build
 ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY go.mod ./

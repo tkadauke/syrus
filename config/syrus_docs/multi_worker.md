@@ -62,7 +62,11 @@ include the normalized capability map and probe diagnostics. For iOS-capable
 Mac workers those diagnostics include macOS host version and architecture facts,
 selected developer directory, Xcode version and build version,
 command-line-tool usability, available iOS simulator runtimes, and a bounded
-sample of available simulator devices. Historical health samples keep the
+sample of available simulator devices. Each tool probe also reports a status
+such as `available`, `not_found`, `not_executable`, `failed`, or `timed_out`,
+so a missing executable can be distinguished from a tool that ran and rejected
+the probe. Probes inherit the worker's `PATH` but keep the rest of their
+environment scrubbed. Historical health samples keep the
 capability snapshot that was true when the sample was recorded. `admin_version`
 is intentionally limited to the request handler and live instance version
 fields.
@@ -519,6 +523,10 @@ Two things are specific to multi-worker:
 with pod count. It defaults to the pod's own CPU budget -- 80% of its cgroup
 CPU limit, rounded down, minimum 1 -- which is the same figure
 `RunHostAdmission` rations against. Set it explicitly only to override that.
+The production MySQL connection pool defaults to 9 connections per process,
+enough for 6 run threads plus Solid Queue's 3-connection supervision headroom.
+When setting `JOB_CONCURRENCY` above 6, also set `DB_POOL` to at least
+`JOB_CONCURRENCY + 3`; `bin/check-thread-budget` enforces this relationship.
 Give every worker pod a `resources.limits.cpu` (or set
 `SYRUS_WORKER_CPU_LIMIT`): with no readable quota, `RunProcessParallelism`
 deliberately assumes a small share rather than the node's core count, so an

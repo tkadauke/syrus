@@ -10,7 +10,7 @@
 
 # The Go build runs on the build host and cross-compiles, so a multi-arch
 # build never compiles under QEMU emulation.
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.25-alpine AS build
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.26.5-alpine AS build
 ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY go.mod ./

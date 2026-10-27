@@ -739,6 +739,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SECRET_KEY_BASE` | Production yes | Rails sessions, signed cookies, message verification |
 | `DB_HOST` | Production yes | MySQL host; defaults to `127.0.0.1` |
 | `SYRUS_DATABASE_PASSWORD` | Production yes | MySQL password |
+| `DB_POOL` | No | Active Record pool size per process; production MySQL defaults to `9`. Worker pools must be at least `JOB_CONCURRENCY + 3` |
 | `SYRUS_APP_HOST` | Web yes | Canonical app hostname for URL generation, mailer links, and Host header authorization |
 | `SYRUS_ALLOWED_HOSTS` | No | Optional comma-separated extra hostnames; `SYRUS_APP_HOST` is always allowed, and a blank value falls back to only `SYRUS_APP_HOST` |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |

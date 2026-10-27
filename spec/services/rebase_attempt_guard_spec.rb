@@ -43,6 +43,25 @@ RSpec.describe RebaseAttemptGuard do
     workflow
   end
 
+  def failed_base_refresh_retry!(retryable: false, pre_sha: nil, base_sha: nil)
+    artifacts = {
+      "base_refresh_rebase_result" => {
+        "status" => "failed", "checkpoint_sha" => pre_sha, "base_sha" => base_sha
+      }.compact
+    }
+    workflow = Workflow.create!(
+      job: job, trigger_kind: "base_refresh_retry", state: "failed", finished_at: Time.current,
+      artifacts: artifacts
+    )
+    step = Step.create!(workflow: workflow, kind: "base_refresh_rebase", position: 1, state: "failed")
+    run = Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind, state: "failed")
+    RunFailureClassification.create!(
+      run: run, classification: retryable ? "worker_died" : "application_error", retryable: retryable,
+      confidence: 0.9, reason: "pinned by spec", classified_at: Time.current
+    )
+    workflow
+  end
+
   def failed_agent_rebase!(finished_at:, pre_sha: "head", base_sha: "base")
     workflow = Workflows::Rebase.instantiate(
       job: job,
@@ -204,5 +223,64 @@ RSpec.describe RebaseAttemptGuard do
       expect(described_class.consecutive_failures(job)).to eq(0)
       expect(described_class.cap_reached?(job)).to be(false)
     end
+  end
+
+  describe "base refresh retry failures" do
+    it "caps three consecutive non-retryable failures" do
+      described_class::ATTEMPT_CAP.times { failed_base_refresh_retry! }
+
+      expect(described_class.consecutive_failures(job)).to eq(3)
+      expect(described_class.cap_reached?(job)).to be(true)
+    end
+
+    it "does not count a retryable failure" do
+      described_class::ATTEMPT_CAP.times { failed_base_refresh_retry!(retryable: true) }
+
+      expect(described_class.consecutive_failures(job)).to eq(0)
+      expect(described_class.cap_reached?(job)).to be(false)
+    end
+
+    it "still caps when the Job has no PR or branch" do
+      job.update!(pr_number: nil, branch_name: nil)
+      described_class::ATTEMPT_CAP.times { failed_base_refresh_retry! }
+
+      expect(described_class.cap_reached?(job, pr: nil)).to be(true)
+    end
+
+    it "lifts the block when the PR head changes" do
+      described_class::ATTEMPT_CAP.times do
+        failed_base_refresh_retry!(pre_sha: "old-head", base_sha: "old-base")
+      end
+
+      changed_pr = pr(head_sha: "new-head", base_sha: "old-base")
+      expect(described_class.cap_reached?(job, pr: changed_pr)).to be(false)
+      expect(described_class.cooling_down?(job, pr: changed_pr)).to be(false)
+    end
+
+    it "lifts the block when the PR base changes" do
+      described_class::ATTEMPT_CAP.times do
+        failed_base_refresh_retry!(pre_sha: "old-head", base_sha: "old-base")
+      end
+
+      changed_pr = pr(head_sha: "old-head", base_sha: "new-base")
+      expect(described_class.cap_reached?(job, pr: changed_pr)).to be(false)
+      expect(described_class.cooling_down?(job, pr: changed_pr)).to be(false)
+    end
+
+    it "does not change the selector's rebase and stack-rebase trigger kinds" do
+      expect(RebaseWorkflowSelector::TRIGGER_KINDS).to contain_exactly("rebase", "stack_rebase")
+      expect(described_class::ATTEMPT_TRIGGER_KINDS).to contain_exactly(
+        "rebase", "stack_rebase", "base_refresh_retry"
+      )
+    end
+  end
+
+  it "continues to cap stack-rebase failures" do
+    described_class::ATTEMPT_CAP.times do
+      workflow = Workflow.create!(job: job, trigger_kind: "stack_rebase", state: "failed")
+      Step.create!(workflow: workflow, kind: "stack_agent_rebase", position: 1, state: "failed")
+    end
+
+    expect(described_class.cap_reached?(job)).to be(true)
   end
 end

@@ -33,11 +33,25 @@ module Steps
 
     def fetch_and_verify_base!
       raise StepFailed, "base refresh retry has no pinned base ref or SHA" if pinned_base_ref.blank? || pinned_base_sha.blank?
+
+      # The checkpoint SHA protects the unpublished work above. The base SHA is
+      # only an enqueue-time observation: a refresh must be allowed to follow a
+      # base that advanced while the workflow waited to run.
+      current_base_sha = RepositoryContent.for(effective_base_repository, user: job.user)
+        .resolve(pinned_base_ref, max_age: 0).id
+      if current_base_sha != pinned_base_sha
+        log("[base_refresh_rebase] stale base pin: #{pinned_base_ref} was #{pinned_base_sha} at enqueue, refreshing to #{current_base_sha}")
+      end
+
       authenticated_git("git_base_refresh_fetch", repository: effective_base_repository) do |url|
         git.run("fetch", url, "refs/heads/#{pinned_base_ref}", chdir: workspace.path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
       end
       fetched = git.run("rev-parse", "FETCH_HEAD", chdir: workspace.path.to_s).strip
-      raise StepFailed, "effective base moved while base refresh was starting: #{pinned_base_ref} resolved to #{fetched}, expected #{pinned_base_sha}" unless fetched == pinned_base_sha
+      unless fetched == current_base_sha
+        raise StepFailed, "effective base moved during base refresh startup: #{pinned_base_ref} resolved to #{current_base_sha} immediately before fetch, but fetch returned #{fetched}; retry to resolve the latest base"
+      end
+
+      workflow.set_artifact!(RebaseTarget::BASE_SHA_ARTIFACT, fetched)
     end
 
     def effective_base_repository = job.base_on_upstream_default? ? job.base_repository : repository

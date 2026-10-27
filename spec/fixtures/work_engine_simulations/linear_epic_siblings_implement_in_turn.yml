@@ -1,0 +1,101 @@
+name: linear epic siblings implement in turn
+repository:
+  owner: simulation
+  name: linear-epic-siblings-implement-in-turn
+epics:
+  feature:
+    title: Serialized sibling jobs
+jobs:
+  alpha:
+    title: Alpha job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  beta:
+    title: Beta job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  gamma:
+    title: Gamma job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: beta and gamma parked behind alpha implementation
+    once: true
+    when:
+      all:
+        - workflow:
+            job: alpha
+            state: running
+        - workflow:
+            job: beta
+            state: queued
+            start_blocked: epic_sibling_implementation_active
+        - workflow:
+            job: gamma
+            state: queued
+            start_blocked: epic_sibling_implementation_active
+    do:
+      approve: alpha
+  - name: retry beta after alpha implementation finishes
+    once: true
+    when:
+      job:
+        id: alpha
+        state: implemented
+    do:
+      resume_deferred_phase:
+        job: beta
+  - name: gamma remains parked while beta implements
+    once: true
+    when:
+      all:
+        - job:
+            id: alpha
+            state: implemented
+        - workflow:
+            job: beta
+            state: running
+        - workflow:
+            job: gamma
+            state: queued
+            start_blocked: epic_sibling_implementation_active
+    do:
+      approve: beta
+  - name: retry gamma after beta implementation finishes
+    once: true
+    when:
+      job:
+        id: beta
+        state: implemented
+    do:
+      resume_deferred_phase:
+        job: gamma
+outcomes:
+  default: success
+success_states:
+  alpha:
+    - implemented
+  beta:
+    - implemented
+  gamma:
+    - implemented
+expect:
+  jobs:
+    alpha:
+      - implemented
+    beta:
+      - implemented
+    gamma:
+      - implemented
+  events:
+    - "beta and gamma parked behind alpha implementation"
+    - "gamma remains parked while beta implements"

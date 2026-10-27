@@ -588,7 +588,7 @@
   "source_directory_error": "Dieser Ordner konnte nicht geladen werden.",
   "source_select_file": "Wähle eine Datei aus, um ihren Inhalt anzuzeigen.",
   "source_select_diff_file": "Wähle eine Datei aus, um ihren Diff anzuzeigen.",
-  "source_diff_not_available": "Diff nicht verfügbar (Binärdatei oder sehr große Datei).",
+  "source_diff_not_available": "Diff nicht verfügbar (leere, binäre oder sehr große Datei).",
   "source_no_changed_files": "Keine geänderten Dateien gefunden.",
   "source_viewing_label": "Angezeigt",
   "source_from_label": "Von",

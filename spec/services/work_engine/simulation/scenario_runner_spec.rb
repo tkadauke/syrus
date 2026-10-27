@@ -29,7 +29,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     manual_grade_loop_restart_ignores_superseded_failures
     merge_train_unverified_member_reconciles_after_land
     non_agentic_claim_without_process_retries
-    parallel_epic_siblings_implement_independently
+    linear_epic_siblings_implement_in_turn
     parallel_grader_worker_loss_retries
     pinned_host_admission_deferral_budget_reenqueues_elsewhere
     queued_job_with_published_pr_converges
@@ -163,8 +163,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(third).to be_implemented
   end
 
-  it "runs independent jobs in the same epic without serializing them through dependencies" do
-    result = run_scenario("parallel_epic_siblings_implement_independently")
+  it "serializes same-Epic implementation even without dependency edges" do
+    result = run_scenario("linear_epic_siblings_implement_in_turn")
 
     expect(result).to be_success
     jobs = Job.where(id: result.job_ids).order(:id).to_a

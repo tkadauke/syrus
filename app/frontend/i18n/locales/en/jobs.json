@@ -594,7 +594,7 @@
   "source_directory_error": "Unable to load this folder.",
   "source_select_file": "Select a file to view its contents.",
   "source_select_diff_file": "Select a file to view its diff.",
-  "source_diff_not_available": "Diff not available (binary or very large file).",
+  "source_diff_not_available": "Diff not available (empty, binary, or very large file).",
   "source_no_changed_files": "No changed files found.",
   "source_viewing_label": "Viewing",
   "source_from_label": "From",

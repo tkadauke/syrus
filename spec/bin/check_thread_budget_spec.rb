@@ -65,6 +65,19 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     expect(stderr).not_to include("undefined method `present?'")
   end
 
+  it "fits the default MySQL pool around a six-thread run worker" do
+    stdout, stderr, status = spawn_clean(
+      "HOME" => ENV.fetch("HOME"),
+      "PATH" => ENV.fetch("PATH"),
+      "JOB_CONCURRENCY" => "6",
+      "SYRUS_SQLITE" => nil
+    )
+
+    expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+    expect(stdout).to include("threads=6, pool: 9, required: 9")
+    expect(stderr).to be_empty
+  end
+
   it "finds gems when BUNDLE_PATH is set to an empty Syrus worker path (main grader scenario)" do
     # When MainGraderWorkflowJob runs graders, the Syrus worker's env has
     # BUNDLE_PATH pointing to its own bundle cache (.syrus/deps/bundle), which

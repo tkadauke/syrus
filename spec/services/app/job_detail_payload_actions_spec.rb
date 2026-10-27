@@ -921,7 +921,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(actions[:retry_implementation_action]).to include(
         key: "retry_implementation",
         label: "Retry implementation",
-        path: "/api/v1/app/jobs/#{job.id}/run_again"
+        path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       )
       expect(actions[:can_retry_from_failed_step]).to be(true)
       expect(actions[:retry_failed_step_action]).to include(
@@ -940,6 +940,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(actions[:can_retry]).to be(false)
       expect(actions[:retry_implementation_action]).to be_nil
+      expect(actions).not_to have_key(:retry_implementation_unavailable_reason)
       expect(actions[:retry_failed_step_action]).to include(
         label: "Retry failed step",
         workflow_id: workflow.id,
@@ -970,7 +971,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(actions[:retry_implementation_action]).to include(
         key: "retry_implementation",
         label: "Retry implementation",
-        path: "/api/v1/app/jobs/#{job.id}/run_again"
+        path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       )
       expect(actions[:can_retry_from_failed_step]).to be(false)
       expect(actions[:retry_failed_step_action]).to be_nil

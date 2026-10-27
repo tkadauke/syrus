@@ -243,6 +243,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/reopen` | `api/v1/app/job_lifecycle#reopen` |
 | core | POST | `/api/v1/app/jobs/:job_id/restart` | `api/v1/app/job_lifecycle#restart` |
 | core | POST | `/api/v1/app/jobs/:job_id/resume` | `api/v1/app/job_run_commands#resume` |
+| core | POST | `/api/v1/app/jobs/:job_id/retry_implementation` | `api/v1/app/job_lifecycle#retry_implementation` |
 | core | POST | `/api/v1/app/jobs/:job_id/retry_pr_ingestion` | `api/v1/app/job_run_commands#retry_pr_ingestion` |
 | core | POST | `/api/v1/app/jobs/:job_id/run_again` | `api/v1/app/job_lifecycle#run_again` |
 | core | GET | `/api/v1/app/jobs/:job_id/runs/:run_id/artifacts` | `api/v1/app/jobs#run_artifacts` |
