@@ -49,4 +49,45 @@ describe("MediaPreviewShell", () => {
     expect(screen.queryByRole("img", { name: "broken.png" })).not.toBeInTheDocument()
     expect(screen.getByText("Image unavailable")).toBeInTheDocument()
   })
+
+  it("opens and downloads data-backed media through a temporary blob URL", () => {
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:runtime-snapshot")
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+
+    const { unmount } = render(
+      <MediaPreviewShell
+        item={{
+          title: "snapshot.png",
+          src: "data:image/png;base64,YWJj",
+          actions: [
+            { label: "Open", href: "data:image/png;base64,YWJj", dataUrlAsBlob: true },
+            { label: "Download", href: "data:image/png;base64,YWJj", download: true, dataUrlAsBlob: true }
+          ]
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Open snapshot.png" }))
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "blob:runtime-snapshot")
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "blob:runtime-snapshot")
+    expect(createObjectURL).toHaveBeenCalledTimes(2)
+
+    unmount()
+    expect(revokeObjectURL).toHaveBeenCalledTimes(2)
+  })
+
+  it("falls back to the original URL when data-backed media is malformed", () => {
+    render(
+      <MediaPreviewShell
+        item={{
+          title: "placeholder.png",
+          src: "data:image/png;base64,abc123",
+          actions: [{ label: "Open", href: "data:image/png;base64,abc123", dataUrlAsBlob: true }]
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Open placeholder.png" }))
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "data:image/png;base64,abc123")
+  })
 })

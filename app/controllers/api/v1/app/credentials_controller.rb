@@ -19,6 +19,7 @@ module Api
           attrs = credentials_params.to_h.reject { |key, value| blank_write_only_value?(key, value) }
 
           if Current.user.update(attrs)
+            refresh_affected_provider_availability(Current.user.saved_changes.keys)
             render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.updated"))
           else
             render_error("validation_failed", Current.user.errors.full_messages.to_sentence,
@@ -34,6 +35,7 @@ module Api
           end
 
           Current.user.clear_credential!(credential)
+          refresh_affected_provider_availability([ credential ])
           render json: credentials_payload(Current.user.reload).merge(
             message: I18n.t("api.credentials.cleared", label: credential_label(credential))
           )
@@ -119,6 +121,7 @@ module Api
 
           if oauth.looks_like_token?(pasted)
             Current.user.update!(claude_oauth_token: pasted.strip)
+            refresh_affected_provider_availability(Current.user.saved_changes.keys)
             session.delete(:claude_oauth)
             probe = CredentialProbe.call(user: Current.user, credential: "claude_oauth_token")
             return render json: { credential_test: probe.as_json, message: probe.message }
@@ -137,6 +140,7 @@ module Api
             redirect_uri: stash["redirect_uri"]
           )
           Current.user.update!(claude_oauth_token: token)
+          refresh_affected_provider_availability(Current.user.saved_changes.keys)
           session.delete(:claude_oauth)
 
           probe = CredentialProbe.call(user: Current.user, credential: "claude_oauth_token")
@@ -174,6 +178,7 @@ module Api
             redirect_uri: stash["redirect_uri"]
           )
           Current.user.update!(codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json)
+          refresh_affected_provider_availability(Current.user.saved_changes.keys)
           session.delete(:codex_oauth)
 
           probe = CredentialProbe.call(user: Current.user, credential: "codex_auth_json")
@@ -420,6 +425,18 @@ module Api
         rescue AgentProviders::ConfigurationError
           ::App::ProviderAvailability.broadcast_changed(user: Current.user, provider: provider)
           nil
+        end
+
+        def refresh_affected_provider_availability(changed_attributes)
+          changed = changed_attributes.map(&:to_sym)
+
+          Syrus::PluginRegistry.providers_for(:agent_provider).each do |provider_class|
+            next if (provider_class.credential_attributes & changed).empty?
+
+            provider = provider_class.provider_key
+            refresh_provider_availability(provider)
+            ProviderAvailabilityWakeup.call(provider: provider, user: Current.user)
+          end
         end
 
         def blank_write_only_value?(key, value)

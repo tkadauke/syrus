@@ -32,6 +32,7 @@ import { examples as addJobDependencyExamples } from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
 import { examples as removeJobDependencyExamples } from "./remove_job_dependency"
 import unapproveJobCard from "./unapprove_job"
+import { examples as unapproveJobExamples } from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
 import { examples as removeJobFromEpicExamples } from "./remove_job_from_epic"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
@@ -621,6 +622,95 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("Approve Job")).toBeInTheDocument()
     expect(screen.getByText("Unapprove Job")).toBeInTheDocument()
     expect(screen.getAllByText("JOB-52")).toHaveLength(2)
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(unapproveJobExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: unapproveJobExamples[0].parsedResult }]
+  ] as const)("renders a linked unapproval transition from normalized %s", (_label, envelope) => {
+    const ctx = toolCardContextForExample("unapprove_job", {
+      ...unapproveJobExamples[0],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(unapproveJobCard.collapsedSummary?.(ctx)).toBe("Unapproved · JOB-52")
+    render(<>{unapproveJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-52" })).toHaveAttribute("href", "/jobs/52")
+    expect(screen.getByText("Before")).toBeInTheDocument()
+    expect(screen.getByText("approved")).toBeInTheDocument()
+    expect(screen.getByText("After")).toBeInTheDocument()
+    expect(screen.getAllByText("implemented").length).toBeGreaterThan(0)
+  })
+
+  it("links every Job and renders the live outcome for a bulk unapproval", () => {
+    const pending = toolCardContextForExample("unapprove_job", unapproveJobExamples[1])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(19, "confirmed", {
+        action: "unapprove_job",
+        label: "Unapprove Job",
+        outcome: {
+          status: "confirmed",
+          succeeded_job_ids: [56, 57],
+          failed_job_ids: [],
+          previous_state: "approved",
+          new_state: "implemented",
+          message: "Unapproved 2 Jobs."
+        }
+      })
+    }
+
+    expect(unapproveJobCard.collapsedSummary?.(ctx)).toBe("Unapproved · 2 JOBs")
+    render(<>{unapproveJobCard.renderExpanded(ctx)}</>)
+
+    for (const id of [56, 57]) {
+      expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    }
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.getByText("Job state")).toBeInTheDocument()
+    expect(screen.getByText("Before")).toBeInTheDocument()
+    expect(screen.getByText("After")).toBeInTheDocument()
+  })
+
+  it("reports a partial bulk unapproval without claiming every Job succeeded", () => {
+    const pending = toolCardContextForExample("unapprove_job", unapproveJobExamples[1])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(19, "confirmed", {
+        action: "unapprove_job",
+        label: "Unapprove Job",
+        outcome: {
+          status: "partial_failure",
+          succeeded_job_ids: [56],
+          failed_job_ids: [57],
+          message: "Unapproved 1 of 2 Jobs; JOB-57: job must be in approved state"
+        }
+      })
+    }
+
+    expect(unapproveJobCard.collapsedSummary?.(ctx)).toBe("Unapprove Job failed · 2 JOBs")
+    render(<>{unapproveJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("partial failure")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-57" })).toHaveAttribute("href", "/jobs/57")
+    expect(screen.queryByText("Before")).not.toBeInTheDocument()
+    expect(screen.queryByText("After")).not.toBeInTheDocument()
+  })
+
+  it("links every Job slug in a bulk unapproval error", () => {
+    const ctx = toolCardContextForExample("unapprove_job", {
+      ...unapproveJobExamples[2],
+      parsedResult: normalizedToolCardParsedResult({ content: [{ type: "text", text: unapproveJobExamples[2].resultBody }] })
+    })
+
+    expect(unapproveJobCard.collapsedSummary?.(ctx)).toBe("Unapprove Job failed · 2 JOBs")
+    render(<>{unapproveJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    for (const id of [58, 59]) {
+      expect(screen.getAllByRole("link", { name: `JOB-${id}` }).length).toBeGreaterThan(0)
+    }
   })
 
   it("describes grouped approval changes as requests when no transition occurred", () => {

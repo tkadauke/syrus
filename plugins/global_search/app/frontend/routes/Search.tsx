@@ -28,6 +28,7 @@ const builtInFilterLabelKeys: Record<string, string> = {
   job: "filter_types.jobs",
   epic: "filter_types.epics",
   chat: "filter_types.chats",
+  repository: "filter_types.repositories",
   test_case: "filter_types.tests"
 }
 
@@ -46,6 +47,11 @@ const typeStyles: Record<SearchResultType, { border: string; tone: "amber" | "bl
     border: "border-l-green-500",
     tone: "green",
     labelKey: "result_types.chat"
+  },
+  repository: {
+    border: "border-l-gray-500",
+    tone: "gray",
+    labelKey: "result_types.repository"
   },
   test_case: {
     border: "border-l-amber-500",

@@ -416,6 +416,9 @@ row's indicator cluster opens a portaled breakdown of agent, Job, Epic, goal,
 pending-action, and scratch-pad activity. Collapsed groups roll up Job activity
 so work remains visible, while unread messages use the existing bold title
 without a separate dot.
+The sidebar settings can filter the paginated list to unread chats. The chat
+currently open remains visible after it is marked read and drops out when the
+operator navigates away.
 
 The normal UI only offers chat provider selection before a chat has started;
 after the first message, chat settings show the stored provider as read-only.

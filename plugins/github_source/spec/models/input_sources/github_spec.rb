@@ -76,7 +76,7 @@ RSpec.describe InputSources::Github do
       expect(Job.last.delivery_track).to eq("hotfix")
     end
 
-    it "applies label-derived attributes to Epic children" do
+    it "applies compatible label-derived attributes to Epic children" do
       epic = Epic.create!(
         user: user,
         repository: repository,
@@ -94,7 +94,7 @@ RSpec.describe InputSources::Github do
       source.poll!
 
       job = epic.jobs.sole
-      expect(job).to be_investigation
+      expect(job).not_to be_investigation
       expect(job.delivery_track).to eq("hotfix")
     end
 

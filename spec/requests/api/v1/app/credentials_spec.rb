@@ -120,6 +120,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "updates write-only credentials while preserving blank secrets and false booleans" do
     sign_in_as(user)
     user.update!(scheduling_paused: true)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     patch "/api/v1/app/credentials", params: {
       user: {
@@ -147,10 +149,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.recent_chats_group_size).to eq(20)
     expect(user.role).to eq("product_owner")
     expect(parse_body["message"]).to eq("Credentials updated.")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "saves Muse API keys without echoing the secret" do
     sign_in_as(user)
+    allow(AgentProviders::Muse).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     patch "/api/v1/app/credentials", params: {
       user: {
@@ -162,6 +168,34 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.reload.muse_api_key).to eq("muse-new-secret")
     expect(parse_body.dig("credential_status", "muse_api_key")).to be true
     expect(response.body).not_to include("muse-new-secret")
+    expect(AgentProviders::Muse).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "muse", user: user).at_least(:once)
+  end
+
+  it "refreshes each provider affected by a changed shared credential only once" do
+    sign_in_as(user)
+    allow(AgentProviders::Agy).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
+
+    2.times do
+      patch "/api/v1/app/credentials", params: { user: { gemini_api_key: "gemini-new-secret" } }
+      expect(response).to have_http_status(:ok)
+    end
+
+    expect(AgentProviders::Agy).to have_received(:refresh_usage!).with(user: user, force: true).once
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "agy", user: user).at_least(:once)
+  end
+
+  it "refreshes Codex when its auth mode switches to an already-saved credential" do
+    sign_in_as(user)
+    allow(AgentProviders::Codex).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
+
+    patch "/api/v1/app/credentials", params: { user: { codex_auth_mode: "chatgpt_login" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(AgentProviders::Codex).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "codex", user: user).at_least(:once)
   end
 
   it "shows and updates per-provider availability pause thresholds" do
@@ -412,6 +446,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "clears known credentials" do
     sign_in_as(user)
+    allow(AgentProviders::Muse).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     post "/api/v1/app/credentials/clear_credential", params: { credential: "muse_api_key" }
 
@@ -419,10 +455,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.reload.muse_api_key).to be_nil
     expect(parse_body["message"]).to eq("Muse API key cleared.")
     expect(parse_body.dig("credential_status", "muse_api_key")).to be false
+    expect(AgentProviders::Muse).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "muse", user: user).at_least(:once)
   end
 
   it "localizes successful credential clearing in German and Latin" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(AgentProviders::Muse).to receive(:refresh_usage!).and_return(nil)
     user.update!(locale: "de", claude_oauth_token: "claude-secret")
 
     post "/api/v1/app/credentials/clear_credential", params: { credential: "claude_oauth_token" }
@@ -579,6 +619,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "exchanges a pasted code, saves the token, and tests it" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
     post "/api/v1/app/credentials/claude_oauth_start"
     state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
 
@@ -592,6 +634,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("credential_test", "ok")).to be true
     expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-new")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "rejects an exchange that was never started" do
@@ -605,6 +649,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "saves a long-lived token directly when a sk-ant- value is pasted instead of an auth code" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
     post "/api/v1/app/credentials/claude_oauth_start"
 
     probe = CredentialProbe::Result.new(credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {})
@@ -615,10 +661,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("credential_test", "ok")).to be true
     expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-direct-token")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "saves a long-lived token directly even without a prior oauth start" do
     sign_in_as(user)
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
 
     probe = CredentialProbe::Result.new(credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {})
     expect(CredentialProbe).to receive(:call).with(user: user, credential: "claude_oauth_token").and_return(probe)
@@ -627,6 +677,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-no-flow-needed")
+    expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
 
   it "starts the Codex OAuth flow using the CLI paste callback" do
@@ -647,6 +699,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "exchanges a pasted Codex code, saves auth.json, switches mode, and tests it" do
     sign_in_as(user)
+    allow(AgentProviders::Codex).to receive(:refresh_usage!).and_return(nil)
+    allow(ProviderAvailabilityWakeup).to receive(:call)
     allow(CodexOauth).to receive(:start_callback_listener).and_return(true)
     post "/api/v1/app/credentials/codex_oauth_start"
     state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
@@ -672,6 +726,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     saved = JSON.parse(user.codex_auth_json)
     expect(saved["auth_mode"]).to eq("chatgpt")
     expect(saved.dig("tokens", "access_token")).to eq("access-token-new")
+    expect(AgentProviders::Codex).to have_received(:refresh_usage!).with(user: user, force: true)
+    expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "codex", user: user).at_least(:once)
   end
 
   it "rejects a Codex exchange that was never started" do

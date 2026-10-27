@@ -413,6 +413,25 @@ RSpec.describe PollRepositoryJob, :ci_only do
       )
     end
 
+    it "ignores the incompatible investigation label on an Epic child" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/41",
+        state: "in_progress"
+      )
+      child = issue(number: 42, body: epic_marker("#41"), labels: [ "syrus", Workflows::INVESTIGATION_LABEL ])
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
+        state == "closed" ? [] : [ child ]
+      end
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.epic).to eq(epic)
+      expect(job).not_to be_investigation
+    end
+
     it "quarantines a disconnected GitHub child instead of starting a parallel Epic branch" do
       epic = Factories.epic(
         user: user,

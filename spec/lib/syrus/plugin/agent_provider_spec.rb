@@ -20,6 +20,10 @@ RSpec.describe Syrus::Plugin::AgentProvider do
     it "defaults configured_for_user? to false" do
       expect(concrete.configured_for_user?(nil)).to eq(false)
     end
+
+    it "defaults credential_attributes to an empty array" do
+      expect(concrete.credential_attributes).to eq([])
+    end
   end
 
   describe "ModelInfo" do

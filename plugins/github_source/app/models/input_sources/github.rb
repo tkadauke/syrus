@@ -183,7 +183,7 @@ module InputSources
         pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url),
         input_source: self,
         external_ref: dedup_key(issue),
-        **GithubIssueJobAttributes.for_creation(issue)
+        **GithubIssueJobAttributes.for_creation(issue).merge(investigation: false)
       )
       job.advance_after_triage! if job.epic && job.may_advance_after_triage?
       enqueue_issue_image_ingest(job)

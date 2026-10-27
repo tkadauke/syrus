@@ -62,6 +62,8 @@ module ChatIndexPayload
         sort_by: sort_by,
         per_group: per_group,
         group_offset: group_offset,
+        unread_only: ActiveModel::Type::Boolean.new.cast(params[:unread_only]),
+        active_chat_id: Integer(params[:active_chat_id], exception: false),
         show_empty_groups: group_by != "date" && ActiveModel::Type::Boolean.new.cast(params[:show_empty_groups])
       }
     end
@@ -445,6 +447,15 @@ module ChatIndexPayload
       scope
     else
       scope.where(chat_participants: { hidden_at: nil })
+    end
+
+    if chat_index_settings.fetch(:unread_only)
+      active_chat_id = chat_index_settings.fetch(:active_chat_id)
+      scope = if active_chat_id
+        scope.where("(#{chat_index_unread_sql}) OR chat_sessions.id = ?", active_chat_id)
+      else
+        scope.where(chat_index_unread_sql)
+      end
     end
 
     return scope unless chat_index_settings.fetch(:apply_chat_type_filter)

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
-import { redactToolCardValue } from "../../../toolCardSecurity"
+import { redactToolCardText, redactToolCardValue } from "../../../toolCardSecurity"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
 import runtimeBuildOrReloadToolCard from "./runtime_build_or_reload"
 import runtimeCaptureArtifactToolCard from "./runtime_capture_artifact"
@@ -13,7 +13,7 @@ import runtimeLaunchToolCard from "./runtime_launch"
 import runtimeListSessionsToolCard from "./runtime_list_sessions"
 import runtimeLogsToolCard from "./runtime_logs"
 import runtimeReleaseControlToolCard from "./runtime_release_control"
-import runtimeSnapshotToolCard from "./runtime_snapshot"
+import runtimeSnapshotToolCard, { examples as runtimeSnapshotExamples } from "./runtime_snapshot"
 import runtimeStartToolCard from "./runtime_start"
 import runtimeStatusToolCard from "./runtime_status"
 import runtimeStopToolCard from "./runtime_stop"
@@ -412,16 +412,30 @@ describe("Runtime tool cards", () => {
   })
 
   it("renders build/reload success and failure distinctly", () => {
-    const parsedResult = { status: "rebuilt", command: "npm run dev", url: "http://127.0.0.1:4173" }
+    const parsedResult = {
+      status: "rebuilt",
+      command: "npm run dev",
+      workspace_ref: "browser-workspace",
+      pid: 2345,
+      port: 4173,
+      url: "http://127.0.0.1:4173"
+    }
+    const toolContext = context("runtime_build_or_reload", {
+      parsedResult,
+      input: { session_id: 17, options: { build_command: "npm run build" } }
+    })
 
-    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(context("runtime_build_or_reload", { parsedResult }))).toBe(
-      "Runtime build/reload: rebuilt at http://127.0.0.1:4173"
-    )
+    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(toolContext)).toBe("Runtime build/reload: rebuilt at http://127.0.0.1:4173")
 
-    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(context("runtime_build_or_reload", { parsedResult }))}</>)
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("Runtime build/reload")).toBeInTheDocument()
+    expect(screen.getByText("17")).toBeInTheDocument()
     expect(screen.getByText("npm run dev")).toBeInTheDocument()
-    expect(screen.getAllByText("http://127.0.0.1:4173").length).toBeGreaterThan(0)
+    expect(screen.getByText("2345")).toBeInTheDocument()
+    expect(screen.getByText("4173")).toBeInTheDocument()
+    expect(screen.getByText("browser-workspace")).toHaveClass("break-words")
+    expect(screen.getByRole("link", { name: "http://127.0.0.1:4173" })).toHaveAttribute("target", "_blank")
+    expect(screen.getByText("npm run build")).toBeInTheDocument()
 
     const failedContext = context("runtime_build_or_reload", {
       resultBody: "failed to build/reload runtime session: port is busy",
@@ -432,6 +446,90 @@ describe("Runtime tool cards", () => {
     expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(failedContext)).toBe("Runtime build or reload failed")
     render(<>{runtimeBuildOrReloadToolCard.renderExpanded(failedContext)}</>)
     expect(screen.getByText("failed to build/reload runtime session: port is busy")).toBeInTheDocument()
+  })
+
+  it("keeps build inputs visible with a structured provider error", () => {
+    const toolContext = context("runtime_build_or_reload", {
+      resultError: true,
+      input: { session_id: 29, options: { gradle_task: ":app:installDebug", apk_path: "/tmp/missing.apk", install_timeout_seconds: 45 } },
+      parsedResult: { error: true, content: [{ type: "text", text: "Error: adb device unavailable" }] }
+    })
+
+    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(toolContext)).toBe("Runtime build/reload failed")
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("adb device unavailable")).toBeInTheDocument()
+    expect(screen.getByText("29")).toBeInTheDocument()
+    expect(screen.getByText(":app:installDebug")).toBeInTheDocument()
+    expect(screen.getByText("/tmp/missing.apk")).toBeInTheDocument()
+    expect(screen.getByText("45")).toBeInTheDocument()
+  })
+
+  it("renders Android build inputs, artifact details, and bounded install output", () => {
+    const installOutput = Array.from({ length: 20 }, (_, index) => `adb install line ${index + 1}`).join("\n")
+    const toolContext = context("runtime_build_or_reload", {
+      input: {
+        session_id: 28,
+        options: { gradle_task: ":app:assembleDebug", apk_path: "app/build/outputs/apk/debug/app-debug.apk", install_timeout_seconds: 90 }
+      },
+      parsedResult: {
+        gradle_task: ":app:assembleDebug",
+        installed_apk_path: "app/build/outputs/apk/debug/app-debug.apk",
+        install_output: installOutput
+      }
+    })
+
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("28")).toBeInTheDocument()
+    expect(screen.getAllByText(":app:assembleDebug")).toHaveLength(2)
+    expect(screen.getAllByText("app/build/outputs/apk/debug/app-debug.apk")).toHaveLength(2)
+    expect(screen.getByText("90")).toBeInTheDocument()
+    expect(screen.getByText("Install output")).toBeInTheDocument()
+    expect(screen.getByText(/adb install line 1/, { selector: "code" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["direct", (payload: unknown) => payload],
+    ["structured content", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["text JSON", (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }] })]
+  ])("normalizes and redacts runtime_build_or_reload %s results through the real ToolGroup path", (_label, envelope) => {
+    const payload = {
+      gradle_task: ":app:installDebug",
+      installed_apk_path: "/tmp/app-debug.apk",
+      install_output: "API_TOKEN=secret-value-that-must-not-render"
+    }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime build or reload",
+      calls: [
+        {
+          message_id: 74,
+          tool_name: "Runtime build or reload",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_build_or_reload",
+          detail: "session_id: 74",
+          display_label: "Runtime build or reload",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 74, options: { gradle_task: ":app:installDebug", api_token: "input-secret" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime build or reload")
+    expect(screen.getByText("74")).toBeInTheDocument()
+    expect(screen.getAllByText(":app:installDebug")).toHaveLength(2)
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText("API_TOKEN=[redacted]", { selector: "code" })).toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
   })
 
   it("shows linked browser launch targets, session input, and provider-reported launch errors", () => {
@@ -1143,7 +1241,10 @@ describe("Runtime tool cards", () => {
   it("shows Runtime snapshot preview and page metadata", () => {
     const parsedResult = {
       error: false,
-      content: [{ type: "image", data: "abc123", mimeType: "image/png" }],
+      content: [
+        { type: "image", data: "abc123", mimeType: "image/png" },
+        { type: "text", text: "Browser snapshot captured successfully." }
+      ],
       page_url: "http://127.0.0.1:4173/settings",
       title: "Settings",
       viewport: { width: 1280, height: 720 },
@@ -1151,7 +1252,7 @@ describe("Runtime tool cards", () => {
     }
     const toolContext = context("runtime_snapshot", {
       parsedResult,
-      input: { options: { target: "main" } }
+      input: { session_id: 17, options: { target: "main" } }
     })
 
     expect(runtimeSnapshotToolCard.collapsedSummary?.(toolContext)).toBe("Runtime snapshot captured of main, 1280x720")
@@ -1161,13 +1262,90 @@ describe("Runtime tool cards", () => {
     expect(screen.getAllByText("http://127.0.0.1:4173/settings").length).toBeGreaterThan(0)
     expect(screen.getAllByText("Settings").length).toBeGreaterThan(0)
     expect(screen.getByText("1280x720")).toBeInTheDocument()
+    expect(screen.getByText("17")).toBeInTheDocument()
+    expect(screen.getByText("Browser snapshot captured successfully.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "http://127.0.0.1:4173/settings" })).toHaveAttribute("href", "http://127.0.0.1:4173/settings")
     expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Open Settings" }))
+    expect(within(screen.getByRole("dialog", { name: "Runtime snapshot preview" })).getByRole("link", { name: "Download" })).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      "structured content",
+      {
+        structured_content: {
+          content: [{ type: "image", data: "c25hcHNob3Q=", mimeType: "image/png" }],
+          page_url: "https://example.test/dashboard",
+          title: "Dashboard"
+        },
+        content: []
+      }
+    ],
+    [
+      "text content",
+      {
+        structured_content: null,
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              content: [{ type: "image", data: "c25hcHNob3Q=", mimeType: "image/png" }],
+              page_url: "https://example.test/dashboard",
+              title: "Dashboard"
+            })
+          }
+        ]
+      }
+    ]
+  ])("renders browser snapshots through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime snapshot",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_snapshot",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_snapshot",
+          detail: "Runtime #17",
+          display_label: "Runtime snapshot",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 17 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime snapshot")
+    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "data:image/png;base64,c25hcHNob3Q=")
+    expect(screen.getByText("17")).toBeInTheDocument()
+  })
+
+  it("preserves base64 image data while redacting snapshot result text", () => {
+    const body = JSON.stringify({ content: [{ type: "image", data: "c25hcHNob3QtYmluYXJ5", mimeType: "image/png" }] })
+
+    expect(redactToolCardText(body)).toContain("c25hcHNob3QtYmluYXJ5")
+  })
+
+  it("publishes browser and stale Android snapshot catalog fixtures", () => {
+    expect(runtimeSnapshotExamples.map((example) => example.id)).toEqual(["browser_capture", "android_stale_frame"])
   })
 
   it("renders Latest-frame snapshots with provider metadata", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:12:00Z"))
     const parsedResult = {
       kind: "mobile_screenshot",
       content_type: "image/png",
+      bytes: 48213,
+      file_path: "/tmp/runtime-frame.png",
       document_id: 31,
       preview_url: "/api/v1/app/chats/8/media/chat_images/31/file",
       latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
@@ -1178,12 +1356,21 @@ describe("Runtime tool cards", () => {
 
     expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of mobile_screenshot")
 
-    render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
-    expect(screen.getAllByText("mobile_screenshot").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("31").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
-    expect(screen.getByText("device offline")).toBeInTheDocument()
+    try {
+      render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
+      expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
+      expect(screen.getAllByText("mobile_screenshot").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("31").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("48213").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("/tmp/runtime-frame.png").length).toBeGreaterThan(0)
+      expect(screen.getByText("device offline")).toBeInTheDocument()
+      expect(screen.getAllByText("Stale frame").length).toBeGreaterThan(0)
+      expect(screen.getByText("1 minute ago")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: parsedResult.latest_frame_url })).toHaveAttribute("href", parsedResult.latest_frame_url)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("shows missing Runtime artifacts as an explicit empty state", () => {

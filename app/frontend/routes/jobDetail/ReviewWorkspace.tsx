@@ -165,6 +165,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     headRef: activeDiff?.head_ref,
     includeAllVersions: true,
     jobId,
+    chatFeedback: payload.feedback_history.filter((entry) => entry.kind === "chat_feedback"),
     commentSurfaces: REVIEW_COMMENT_SURFACES,
     onNavigateToFile: setSelectedPath,
     onViewCommentVersion: viewCommentVersion,

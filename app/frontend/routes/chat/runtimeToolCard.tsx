@@ -20,6 +20,9 @@ import {
 } from "./toolCardUi"
 import { MarkdownPreview, TextPreview } from "./toolCardMarkdown"
 
+const SNAPSHOT_STALE_CLASS =
+  "flex flex-wrap items-center gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+
 type RuntimeLease = {
   id: string
   owner: string | null
@@ -93,11 +96,18 @@ type RuntimeInputEvent = {
 }
 
 type RuntimeSnapshot = {
+  sessionId: string | null
   imageUrl: string | null
   imageDataUrl: string | null
   mimeType: string | null
   kind: string | null
   documentId: string | null
+  filePath: string | null
+  bytes: string | null
+  fallback: boolean
+  latestFrameUrl: string | null
+  latestFrameAt: string | null
+  textContent: string[]
   pageUrl: string | null
   title: string | null
   viewport: string | null
@@ -132,6 +142,12 @@ type RuntimeCard =
       url: string | null
       target: string | null
       command: string | null
+      pid: string | null
+      port: string | null
+      workspaceRef: string | null
+      gradleTask: string | null
+      installedApkPath: string | null
+      installOutput: string | null
       error: string | null
       inputProvider: string | null
       inputName: string | null
@@ -318,12 +334,23 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
     status: firstDisplayValue(lifecyclePayload.command_status, lifecyclePayload.build_status, lifecyclePayload.status, lifecyclePayload.state, session?.state),
     url: firstDisplayValue(lifecyclePayload.url, metadata.url),
     target: explicitTarget,
-    command: firstDisplayValue(parsed.command, parsed.build_command, metadata.command, metadata.pid ? `pid ${displayValue(metadata.pid)}` : null),
+    command: firstDisplayValue(
+      parsed.command,
+      parsed.build_command,
+      metadata.command,
+      action === "start" && metadata.pid ? `pid ${displayValue(metadata.pid)}` : null
+    ),
+    pid: firstDisplayValue(parsed.pid, metadata.pid),
+    port: firstDisplayValue(parsed.port, metadata.port),
+    workspaceRef: firstDisplayValue(parsed.workspace_ref, metadata.workspace_ref),
+    gradleTask: firstDisplayValue(parsed.gradle_task, metadata.gradle_task),
+    installedApkPath: firstDisplayValue(parsed.installed_apk_path, metadata.installed_apk_path),
+    installOutput: firstDisplayValue(parsed.install_output, metadata.install_output),
     error,
     inputProvider: action === "start" ? displayValue(context.input?.provider) : null,
     inputName: action === "start" ? displayValue(context.input?.name) : null,
-    inputOptions: action === "start" || action === "launch" ? options : {},
-    launchSessionId: action === "launch" ? displayValue(context.input?.session_id) : null,
+    inputOptions: action === "start" || action === "build/reload" || action === "launch" ? options : {},
+    launchSessionId: action === "launch" || action === "build/reload" ? displayValue(context.input?.session_id) : null,
     launched: action === "launch" && typeof parsed.launched === "boolean" ? parsed.launched : null,
     packageName: action === "launch" ? displayValue(parsed.package) : null,
     activity: action === "launch" ? displayValue(parsed.activity) : null,
@@ -434,6 +461,16 @@ function imageDataUrl(content: unknown): { dataUrl: string | null; mimeType: str
   return { dataUrl: `data:${mimeType};base64,${data}`, mimeType }
 }
 
+function textContentItems(content: unknown): string[] {
+  if (!Array.isArray(content)) return []
+  return content.flatMap((item) => {
+    if (typeof item === "string") return item.trim() ? [item] : []
+    if (!isPlainObject(item) || item.type !== "text") return []
+    const text = displayValue(item.text)
+    return text ? [text] : []
+  })
+}
+
 function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -448,6 +485,7 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
   return {
     kind: "snapshot",
     snapshot: {
+      sessionId: displayValue(context.input?.session_id),
       imageUrl: firstDisplayValue(
         parsed.image_url,
         parsed.preview_url,
@@ -461,6 +499,12 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
       mimeType: firstDisplayValue(parsed.mime_type, parsed.mimeType, parsed.content_type, metadata.mime_type, image.mimeType),
       kind: firstDisplayValue(parsed.kind, metadata.kind),
       documentId: firstDisplayValue(parsed.document_id, parsed.artifact_id, metadata.document_id),
+      filePath: firstDisplayValue(parsed.file_path, metadata.file_path),
+      bytes: firstDisplayValue(parsed.bytes, metadata.bytes),
+      fallback: parsed.fallback === true,
+      latestFrameUrl: firstDisplayValue(parsed.latest_frame_url, metadata.latest_frame_url),
+      latestFrameAt: firstDisplayValue(parsed.latest_frame_at, metadata.latest_frame_at),
+      textContent: textContentItems(parsed.content),
       pageUrl: firstDisplayValue(parsed.page_url, parsed.url, metadata.page_url, metadata.url),
       title: firstDisplayValue(parsed.title, parsed.page_title, metadata.title, parsed.kind),
       viewport: viewportLabel(
@@ -534,6 +578,7 @@ function errorMessage(context: ToolCardContext): string | null {
 
 function parseCard(context: ToolCardContext): RuntimeCard | null {
   if (context.toolName === "runtime_start" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "start")
+  if (context.toolName === "runtime_build_or_reload" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "build/reload")
   if (context.toolName === "runtime_stop" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "stop")
 
   const error = errorMessage(context)
@@ -578,7 +623,6 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
     return session ? { kind: "status", session, raw: parsed } : null
   }
 
-  if (context.toolName === "runtime_build_or_reload") return parseLifecycleCard(context, "build/reload")
   if (context.toolName === "runtime_launch") return parseLifecycleCard(context, "launch")
   if (context.toolName === "runtime_inspect") return parseInspectCard(context)
   if (context.toolName === "runtime_logs") return parseLogsCard(context)
@@ -1027,16 +1071,25 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
               ["Session ID", card.launchSessionId],
               ["State", card.session?.state ?? card.status],
               ["Command", card.command],
+              ["PID", card.pid],
+              ["Port", card.port],
+              ["Gradle task", card.gradleTask],
+              ["Installed APK", card.installedApkPath],
               ["Launched", card.launched == null ? null : String(card.launched)],
               ["Package", card.packageName],
               ["Activity", card.activity],
               ["Launch target", card.target && !safeExternalRuntimeUrl(card.target) ? card.target : null],
               ["Provider", card.session?.providerKey ?? null],
-              ["Workspace", card.session?.workspaceRef ?? null]
+              ["Workspace", card.session?.workspaceRef ?? card.workspaceRef]
             ]}
           />
           <RuntimeUrl url={card.target && safeExternalRuntimeUrl(card.target) ? card.target : card.url} />
-          {card.action === "launch" ? <OptionRows values={card.inputOptions} /> : null}
+          {card.action === "launch" || card.action === "build/reload" ? <OptionRows values={card.inputOptions} /> : null}
+          {card.installOutput ? (
+            <Disclosure label="Install output">
+              <TextPreview maxLines={12} text={card.installOutput} truncate="headTail" />
+            </Disclosure>
+          ) : null}
           {card.output ? (
             <Disclosure label="Output">
               <TextPreview maxLines={12} text={card.output} truncate="headTail" />
@@ -1176,8 +1229,11 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
 }
 
 function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "snapshot" }> }) {
+  const { t } = useT("chat")
   const snapshot = card.snapshot
   const imageUrl = safeImageUrl(snapshot.imageUrl ?? snapshot.imageDataUrl)
+  const pageUrl = snapshot.pageUrl ? safeRuntimeUrl(snapshot.pageUrl) : null
+  const latestFrameUrl = snapshot.latestFrameUrl ? safeRuntimeUrl(snapshot.latestFrameUrl) : null
 
   return (
     <CardShell>
@@ -1191,6 +1247,13 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
           {snapshot.warning}
         </div>
       ) : null}
+      {snapshot.fallback ? (
+        <div className={SNAPSHOT_STALE_CLASS}>
+          <Badge>{t("runtime_snapshot_stale_frame")}</Badge>
+          <span>{t("runtime_snapshot_stale_message")}</span>
+          {snapshot.latestFrameAt ? <RelativeTimestamp value={snapshot.latestFrameAt} /> : null}
+        </div>
+      ) : null}
       {imageUrl ? (
         <MediaPreviewShell
           item={{
@@ -1198,10 +1261,10 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
             subtitle: snapshot.pageUrl ?? snapshot.target,
             src: imageUrl,
             alt: "Runtime snapshot preview",
-            badge: snapshot.mimeType?.split("/").pop()?.toUpperCase() ?? "image",
+            badge: snapshot.fallback ? t("runtime_snapshot_stale_frame") : (snapshot.mimeType?.split("/").pop()?.toUpperCase() ?? "image"),
             actions: [
-              { label: "Open", href: imageUrl },
-              { label: "Copy link", copyValue: imageUrl },
+              { label: "Open", href: imageUrl, dataUrlAsBlob: true },
+              { label: "Download", href: imageUrl, download: true, dataUrlAsBlob: true },
               snapshot.pageUrl ? { label: "Copy page", copyValue: snapshot.pageUrl } : null
             ].filter(Boolean) as MediaPreviewAction[],
             meta: [
@@ -1211,28 +1274,64 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
               { label: "Target", value: snapshot.target },
               { label: "Kind", value: snapshot.kind },
               { label: "Document", value: snapshot.documentId, copyValue: snapshot.documentId },
+              { label: "File path", value: snapshot.filePath, copyValue: snapshot.filePath },
+              { label: "Bytes", value: snapshot.bytes },
               { label: "Type", value: snapshot.mimeType },
               { label: "Captured", value: snapshot.createdAt },
-              { label: "Source", value: imageUrl, copyValue: imageUrl }
+              { label: "Latest frame", value: snapshot.latestFrameUrl, copyValue: snapshot.latestFrameUrl }
             ]
           }}
           modalLabel="Runtime snapshot preview"
+          thumbnailClassName="w-full sm:w-56"
         />
       ) : (
         <EmptyState>No snapshot preview was returned.</EmptyState>
       )}
+      {pageUrl ? (
+        <div>
+          <SectionLabel>{t("runtime_snapshot_page_url")}</SectionLabel>
+          <a
+            className="block min-h-11 break-all font-mono text-sm text-brand hover:underline dark:text-brand-emphasis"
+            href={pageUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {snapshot.pageUrl}
+          </a>
+        </div>
+      ) : null}
       <FieldRows
         rows={[
+          [t("runtime_input_session_id"), snapshot.sessionId],
           ["Page", snapshot.pageUrl],
           ["Title", snapshot.title],
           ["Viewport", snapshot.viewport],
           ["Target", snapshot.target],
           ["Kind", snapshot.kind],
           ["Document", snapshot.documentId],
+          ["File path", snapshot.filePath],
+          ["Bytes", snapshot.bytes],
           ["Type", snapshot.mimeType],
-          ["Captured", snapshot.createdAt]
+          ["Captured", snapshot.createdAt],
+          ["Latest frame at", snapshot.latestFrameAt]
         ]}
       />
+      {latestFrameUrl ? (
+        <div>
+          <SectionLabel>{t("runtime_snapshot_latest_frame_url")}</SectionLabel>
+          <a
+            className="block min-h-11 break-all font-mono text-sm text-brand hover:underline dark:text-brand-emphasis"
+            href={latestFrameUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {snapshot.latestFrameUrl}
+          </a>
+        </div>
+      ) : null}
+      {snapshot.textContent.map((text, index) => (
+        <TextPreview key={`${index}-${text.slice(0, 24)}`} maxLines={8} text={text} title={t("runtime_snapshot_browser_output")} />
+      ))}
       <RawRuntimeDetails value={snapshot.raw} />
     </CardShell>
   )

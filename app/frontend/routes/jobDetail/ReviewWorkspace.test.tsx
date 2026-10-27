@@ -3114,6 +3114,78 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled())
   })
 
+  it("sprinkles chat feedback into the review conversation for the version it produced", async () => {
+    const feedbackVersion = version({
+      id: 200,
+      version_index: 2,
+      label: "Chat feedback #1",
+      workflow_id: 77,
+      trigger_kind: "chat_feedback"
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: feedbackVersion,
+        versions: [version({ id: 100, label: "Initial implementation" }), feedbackVersion]
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 200))
+
+    const payload = jobPayload()
+    payload.feedback_history = [
+      {
+        kind: "chat_feedback",
+        body: "Please keep the **empty state** concise.",
+        created_at: "2026-10-25T10:00:00Z",
+        state: "succeeded",
+        feedback_source: null,
+        workflow_id: 77,
+        workflow_slug: "WF-77",
+        workflow_path: "/jobs/42?tab=workflows#workflow-77"
+      }
+    ]
+
+    renderWorkspace(payload)
+
+    const feedback = await screen.findByTestId("review-chat-feedback")
+    expect(feedback).toHaveTextContent("Chat feedback")
+    expect(feedback).toHaveTextContent("Please keep the empty state concise.")
+    expect(within(feedback).getByText("empty state").tagName).toBe("STRONG")
+    expect(screen.queryByText("No review notes or comments.")).not.toBeInTheDocument()
+    const conversation = feedback.closest("section") as HTMLElement
+    expect(feedback.compareDocumentPosition(within(conversation).getByText("Chat feedback #1"))).toBe(Node.DOCUMENT_POSITION_PRECEDING)
+  })
+
+  it("shows chat feedback without a matching diff version in the currently viewed version", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 100, label: "Initial implementation", workflow_id: 10 }),
+        versions: [version({ id: 100, label: "Initial implementation", workflow_id: 10 })]
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    const payload = jobPayload()
+    payload.feedback_history = [
+      {
+        kind: "chat_feedback",
+        body: "Please handle the no-change outcome.",
+        created_at: "2026-10-25T10:00:00Z",
+        state: "running",
+        feedback_source: null,
+        workflow_id: 88,
+        workflow_slug: "WF-88",
+        workflow_path: "/jobs/42?tab=workflows#workflow-88"
+      }
+    ]
+
+    renderWorkspace(payload)
+
+    const feedback = await screen.findByTestId("review-chat-feedback")
+    expect(feedback).toHaveTextContent("Please handle the no-change outcome.")
+    expect(screen.queryByText("No review notes or comments.")).not.toBeInTheDocument()
+    expect(within(feedback.closest("section") as HTMLElement).getByText("Initial implementation")).toBeInTheDocument()
+  })
+
   it("sends historical comment mutations with the comment's own version id", async () => {
     const oldComment = comment({
       id: 12,

@@ -9,6 +9,7 @@ export type MediaPreviewAction = {
   href?: string | null
   download?: boolean
   copyValue?: string | null
+  dataUrlAsBlob?: boolean
 }
 
 export type MediaPreviewMeta = {
@@ -218,6 +219,7 @@ function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
 function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
   const { t } = useT("chat")
   const { copied, copy } = useCopyToClipboard()
+  const blobHref = useBlobUrl(action.dataUrlAsBlob ? action.href : null)
   if (action.copyValue) {
     return (
       <button
@@ -231,17 +233,50 @@ function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
     )
   }
 
-  if (!action.href) return null
+  const href = blobHref ?? action.href
+  if (!href) return null
 
   return (
     <a
       className={`${MODAL_ACTION_CLASS} ${MODAL_ACTION_TONE_CLASS}`}
       download={action.download ? true : undefined}
-      href={action.href}
+      href={href}
       rel="noreferrer"
       target="_blank"
     >
       {action.label}
     </a>
   )
+}
+
+function useBlobUrl(href: string | null | undefined) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!href?.startsWith("data:")) {
+      setBlobUrl(null)
+      return
+    }
+
+    try {
+      const separator = href.indexOf(",")
+      if (separator < 0) return
+
+      const header = href.slice(5, separator)
+      const encoded = href.slice(separator + 1)
+      const base64 = header.endsWith(";base64")
+      const mimeType = header.replace(/;base64$/, "") || "application/octet-stream"
+      if (base64 && (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))) return
+      const decoded = base64 ? window.atob(encoded) : decodeURIComponent(encoded)
+      const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }))
+      setBlobUrl(url)
+
+      return () => URL.revokeObjectURL(url)
+    } catch (_error) {
+      setBlobUrl(null)
+    }
+  }, [href])
+
+  return blobUrl
 }

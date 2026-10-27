@@ -14,8 +14,13 @@ module DesignDocs
     def call
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, thread.design_doc).review?
 
-      thread.update!(state: "resolved", resolved_at: Time.current, resolved_by_user: user)
-      Result.new(thread: thread)
+      result = DesignDocThread.transaction do
+        thread.update!(state: "resolved", resolved_at: Time.current, resolved_by_user: user)
+        Result.new(thread: thread)
+      end
+
+      CommentBroadcaster.call(design_doc: thread.design_doc, changed: [ "threads" ])
+      result
     end
 
     private

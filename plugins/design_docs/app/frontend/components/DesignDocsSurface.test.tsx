@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "@app/lib/slugReferenceRegistry"
+import { applyAppEvent } from "@app/lib/appEvents"
 import { DesignDocsSurface } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
 
@@ -345,36 +346,39 @@ const openQuestionsDocDetail = {
 
 function renderSurface(path = "/design_docs") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/design_docs" element={<DesignDocsTestRoute />} />
-          <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
-          <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
-          <Route path="/repositories/:id" element={<LocationProbe />} />
-          <Route
-            path="/chats/:id"
-            element={
-              <DesignDocsSurface
-                chatId={237}
-                compact
-                designDocIds={[1]}
-                initialDesignDocId={1}
-                initialDesignDocs={[docDetail as DesignDocSummary]}
-                mode="chat"
-                repositoryId={10}
-              />
-            }
-          />
-          <Route
-            path="/chats/:id/empty"
-            element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>
-  )
+  return {
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/design_docs" element={<DesignDocsTestRoute />} />
+            <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
+            <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
+            <Route path="/repositories/:id" element={<LocationProbe />} />
+            <Route
+              path="/chats/:id"
+              element={
+                <DesignDocsSurface
+                  chatId={237}
+                  compact
+                  designDocIds={[1]}
+                  initialDesignDocId={1}
+                  initialDesignDocs={[docDetail as DesignDocSummary]}
+                  mode="chat"
+                  repositoryId={10}
+                />
+              }
+            />
+            <Route
+              path="/chats/:id/empty"
+              element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    ),
+    client
+  }
 }
 
 function DesignDocsTestRoute() {
@@ -750,6 +754,30 @@ describe("DesignDocsSurface", () => {
     } else {
       Reflect.deleteProperty(window, "matchMedia")
     }
+  })
+
+  it("refetches an open document and renders another actor's suggestion after a live event", async () => {
+    const liveDetail = docWithMarkdown("Alpha beta")
+    mockFetch(liveDetail)
+    const { client } = renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toBeInTheDocument()
+    expect(screen.queryByText("Owner-visible live suggestion")).not.toBeInTheDocument()
+
+    liveDetail.suggestions = [
+      {
+        ...docDetail.suggestions[0],
+        proposed_markdown: "Owner-visible live suggestion",
+        suggested_markdown: "Owner-visible live suggestion"
+      }
+    ]
+    liveDetail.pending_suggestions_count = 1
+
+    await act(async () => {
+      applyAppEvent(client, { type: "design_doc.updated", resource: "design_doc", id: 1, changed: ["suggestions"] })
+    })
+
+    expect(await screen.findByText("Owner-visible live suggestion")).toBeInTheDocument()
   })
 
   it("shows index filters on the list page, then navigates into a focused detail editor", async () => {

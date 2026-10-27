@@ -523,7 +523,9 @@ secret is saved. GitHub PAT tests call GitHub as the user and report the
 authenticated login plus token scopes. Claude, Codex, Antigravity, and Muse
 tests run short CLI auth probes through the same credential paths used by Jobs
 and chats, so expired or mis-shaped agent credentials surface before a
-downstream run fails.
+downstream run fails. Saving or clearing an agent credential also refreshes
+that provider's availability immediately and wakes work paused on it; unchanged
+credentials and unrelated account settings do not probe providers.
 
 Muse keys begin with `LLM|` and are shown only once at creation, with no later
 reveal or rotation. If you signed in with a Muse subscription through `muse

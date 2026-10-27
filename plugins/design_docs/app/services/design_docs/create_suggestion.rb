@@ -16,7 +16,7 @@ module DesignDocs
     def call
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
-      DesignDoc.transaction do
+      result = DesignDoc.transaction do
         base_version = design_doc.current_version
         visible = AnchorMarkers.strip(design_doc.markdown)
         start_offset, end_offset = normalized_offsets(visible.length)
@@ -39,13 +39,13 @@ module DesignDocs
               render_mode: render_mode(visible[start_offset...end_offset].to_s, proposed_markdown)
             )
 
-            return Result.new(design_doc: design_doc.reload, anchor: draft.anchor, suggestion: draft, version: nil)
+            next Result.new(design_doc: design_doc.reload, anchor: draft.anchor, suggestion: draft, version: nil)
           end
         end
 
         validate_range!(visible, start_offset, end_offset) unless autosave?
         validate_pending_overlap!(start_offset, end_offset) unless full_document_suggestion?
-        return create_autosave_suggestion(base_version) if autosave?
+        next create_autosave_suggestion(base_version) if autosave?
 
         anchor_result = CreateAnchor.call(
           design_doc: design_doc,
@@ -72,6 +72,9 @@ module DesignDocs
         NormalizeAnchorMarkers.call(design_doc: design_doc)
         Result.new(design_doc: design_doc.reload, anchor: anchor_result.anchor, suggestion: suggestion.reload, version: anchor_result.version)
       end
+
+      CommentBroadcaster.call(design_doc: result.design_doc, changed: [ "suggestions" ])
+      result
     end
 
     private
