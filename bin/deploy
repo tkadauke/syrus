@@ -151,8 +151,42 @@ reuse_image_from_base() {
   verify_pushed "$repo" "latest"
 }
 
+# Registry-backed build cache, off by default.
+#
+# `--cache-from` against a registry image only works when that image carries
+# inline cache metadata, so the pull, the `--cache-from` and
+# `BUILDKIT_INLINE_CACHE=1` are one feature and are switched together.
+#
+# It is off because exporting it is the single slowest thing in a deploy. Inline
+# cache has to record a *compressed* digest for every layer, so BuildKit gzips
+# any layer whose compressed form it does not already know -- and on this VM
+# (10 GB RAM, a ~3.7 GB /rails layer) one deploy spent 4491 of its 4497 export
+# seconds in "preparing layers for inline cache" and had to be killed. 75
+# minutes of the 75 it appeared to hang for.
+#
+# What it buys here is small. These are plain `docker build` runs, which do not
+# export intermediate build-stage layers, so a registry cache can only ever
+# serve the final stage -- whose layers (`COPY /rails`, the bundle) are exactly
+# the ones that change on every code deploy. The local BuildKit cache is what
+# actually makes rebuilds fast, and it is untouched by this.
+#
+# Set SYRUS_DEPLOY_INLINE_CACHE=1 to turn it back on, which is worth doing when
+# building somewhere with a cold local cache.
+INLINE_CACHE="${SYRUS_DEPLOY_INLINE_CACHE:-0}"
+
+inline_cache_args() {
+  [ "$INLINE_CACHE" = "1" ] || return 0
+
+  printf '%s\n' --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${1:?usage: inline_cache_args IMAGE}"
+}
+
 pull_build_cache() {
   local image="${1:?usage: pull_build_cache IMAGE}"
+
+  if [ "$INLINE_CACHE" != "1" ]; then
+    echo "→ ${image}: registry-backed build cache disabled (SYRUS_DEPLOY_INLINE_CACHE=1 to enable)"
+    return 0
+  fi
 
   echo "→ ${image}: loading registry-backed build cache"
   docker pull "$image" >/dev/null 2>&1 || true
@@ -190,8 +224,7 @@ if [ "$SKIP_BUILD" = false ]; then
     --platform linux/amd64 \
     --provenance=false \
     --sbom=false \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    --cache-from "${REGISTRY}:latest" \
+    $(inline_cache_args "${REGISTRY}:latest") \
     -t "${REGISTRY}:${SHA}" \
     -t "${REGISTRY}:latest" \
     .
@@ -207,8 +240,7 @@ if [ "$SKIP_BUILD" = false ]; then
     --platform linux/amd64 \
     --provenance=false \
     --sbom=false \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    --cache-from "${WORKER_DEV_REGISTRY}:latest" \
+    $(inline_cache_args "${WORKER_DEV_REGISTRY}:latest") \
     -t "${WORKER_DEV_REGISTRY}:${SHA}" \
     -t "${WORKER_DEV_REGISTRY}:latest" \
     .
@@ -228,7 +260,7 @@ if [ "$SKIP_BUILD" = false ]; then
     pull_build_cache "${plugin_registry}:latest"
     echo "→ ${plugin_registry}:${SHA} build (linux/amd64)"
     docker build --platform linux/amd64 --provenance=false --sbom=false \
-      --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${plugin_registry}:latest" \
+      $(inline_cache_args "${plugin_registry}:latest") \
       -t "${plugin_registry}:${SHA}" -t "${plugin_registry}:latest" \
       "${PLUGIN_BUILD_DIRS[$i]}"
     echo "→ ${plugin_registry}:${SHA} push"

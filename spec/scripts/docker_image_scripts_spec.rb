@@ -176,14 +176,42 @@ RSpec.describe "Docker image scripts" do
     expect(deploy).to include("syrus_verify_pushed \"$1\" \"$2\"")
   end
 
-  it "seeds deploy builds from the last published images and exports inline cache metadata" do
+  # Exporting inline cache metadata is off by default. It has to record a
+  # compressed digest for every layer, so BuildKit gzips any layer whose
+  # compressed form it does not already know -- and one deploy spent 4491 of
+  # its 4497 export seconds in "preparing layers for inline cache" and had to
+  # be killed. The pull, the `--cache-from` and the build arg are one feature
+  # and switch together, because `--cache-from` against a registry image does
+  # nothing unless that image carries the metadata.
+  it "still seeds deploy builds from the last published images" do
     expect(deploy).to include('pull_build_cache "${REGISTRY}:latest"')
     expect(deploy).to include('pull_build_cache "${WORKER_DEV_REGISTRY}:latest"')
     expect(deploy).to include('pull_build_cache "${plugin_registry}:latest"')
-    expect(deploy.scan("--build-arg BUILDKIT_INLINE_CACHE=1").size).to eq(3)
-    expect(deploy).to include('--cache-from "${REGISTRY}:latest"')
-    expect(deploy).to include('--cache-from "${WORKER_DEV_REGISTRY}:latest"')
-    expect(deploy).to include('--cache-from "${plugin_registry}:latest"')
+  end
+
+  it "makes registry-backed build cache opt-in for every image it builds" do
+    expect(deploy).to include('INLINE_CACHE="${SYRUS_DEPLOY_INLINE_CACHE:-0}"')
+    expect(deploy.scan(/\$\(inline_cache_args "/).size).to eq(3)
+    expect(deploy).to include('$(inline_cache_args "${REGISTRY}:latest")')
+    expect(deploy).to include('$(inline_cache_args "${WORKER_DEV_REGISTRY}:latest")')
+    expect(deploy).to include('$(inline_cache_args "${plugin_registry}:latest")')
+
+    # The build arg and --cache-from appear only inside the helper, so nothing
+    # can reintroduce them on an individual build and pay the export cost
+    # unconditionally.
+    helper_body = deploy[/inline_cache_args\(\)[\s\S]*?\n}/]
+    expect(helper_body).to include('[ "$INLINE_CACHE" = "1" ] || return 0')
+    expect(helper_body).to include("--build-arg BUILDKIT_INLINE_CACHE=1")
+    expect(deploy.scan("--build-arg BUILDKIT_INLINE_CACHE=1").size).to eq(1)
+    expect(deploy.scan(/^\s*--cache-from /).size).to eq(0)
+  end
+
+  it "skips the registry cache pull when inline cache is disabled" do
+    pull = deploy[/pull_build_cache\(\)[\s\S]*?\n}/]
+
+    expect(pull).to include('if [ "$INLINE_CACHE" != "1" ]; then')
+    expect(pull).to include("SYRUS_DEPLOY_INLINE_CACHE=1 to enable")
+    expect(pull).to include("return 0")
   end
 
   it "smoke-checks native compilation as the worker UID before publishing and after rollout" do
