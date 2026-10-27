@@ -33,10 +33,11 @@ module ChatSearch
       .where(id: paged_chat_ids)
       .preload(repository_attachments: :attachable)
       .index_by(&:id)
+    badges_by_chat_id = ChatResultBadges.for(sessions_by_id.values)
 
     {
       results: paged_chat_ids.filter_map do |chat_session_id|
-        chat_search_result_json(sessions_by_id[chat_session_id], matches_by_chat.fetch(chat_session_id))
+        chat_search_result_json(sessions_by_id[chat_session_id], matches_by_chat.fetch(chat_session_id), badges_by_chat_id: badges_by_chat_id)
       end,
       total: session_page.fetch(:total),
       page: page,
@@ -53,8 +54,9 @@ module ChatSearch
       .offset(search_offset(page))
       .limit(SEARCH_PAGE_SIZE)
 
+    badges_by_chat_id = ChatResultBadges.for(sessions)
     {
-      results: sessions.map { |chat_session| chat_filter_result_json(chat_session) },
+      results: sessions.map { |chat_session| chat_filter_result_json(chat_session, badges_by_chat_id: badges_by_chat_id) },
       total: total,
       page: page,
       per_page: SEARCH_PAGE_SIZE
@@ -125,13 +127,14 @@ module ChatSearch
     )
   end
 
-  def chat_search_result_json(chat_session, rows)
+  def chat_search_result_json(chat_session, rows, badges_by_chat_id: {})
     return unless chat_session
 
     top_matches = rows.first(SEARCH_TOP_MATCHES).map { |row| chat_search_match_json(row) }
     {
       chat_session_id: chat_session.id,
       chat_title: chat_search_title(chat_session),
+      badges: badges_by_chat_id.fetch(chat_session.id, []),
       best_snippet: top_matches.first&.fetch(:snippet),
       best_match_message_id: top_matches.first&.fetch(:message_id),
       top_matches: top_matches,
@@ -140,10 +143,11 @@ module ChatSearch
     }
   end
 
-  def chat_filter_result_json(chat_session)
+  def chat_filter_result_json(chat_session, badges_by_chat_id: {})
     {
       chat_session_id: chat_session.id,
       chat_title: chat_search_title(chat_session),
+      badges: badges_by_chat_id.fetch(chat_session.id, []),
       best_snippet: nil,
       best_match_message_id: nil,
       top_matches: [],

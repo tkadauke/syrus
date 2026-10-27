@@ -9,6 +9,7 @@ import { getJson } from "../api/client"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { FilterBar, type FilterLinkBuilder, type FilterOption, type FilterSchemaField } from "../components/FilterBar"
 import { Page } from "../components/ui"
+import { TonePill } from "../components/StatusPill"
 
 type FilterOptionsPayload = {
   options?: FilterOption[]
@@ -108,6 +109,15 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
             {result.chat_title}
           </Link>
         </SectionHeading>
+        {result.badges.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {result.badges.map((badge) => (
+              <TonePill key={`${badge.kind}-${badge.id}`} tone="gray">
+                {badge.name}
+              </TonePill>
+            ))}
+          </div>
+        ) : null}
         <span className="text-sm text-gray-500 dark:text-gray-400">
           <RelativeTimestamp value={result.top_matches[0]?.created_at} />
         </span>
@@ -179,7 +189,7 @@ function SearchPagination({ page, perPage, total }: { page: number; perPage: num
   const lastItem = Math.min(page * perPage, total)
 
   return (
-    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+    <div className="flex items-center justify-between text-sm text-text-secondary">
       <span>{t("search.showing", { first: firstItem, last: lastItem, total })}</span>
       <div className="flex gap-2">
         {page > 1 ? (
@@ -204,7 +214,7 @@ function SearchPagination({ page, perPage, total }: { page: number; perPage: num
 function PanelMessage({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "error" }) {
   const { t } = useT("chat")
   const color = tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"
-  return <div className={`rounded border border-gray-200 bg-white p-6 text-sm ${color} dark:border-gray-700 dark:bg-gray-900`}>{children}</div>
+  return <div className={`rounded border border-border bg-surface p-6 text-sm ${color}`}>{children}</div>
 }
 
 function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOptions>> | undefined): FilterSchemaField[] {

@@ -167,6 +167,11 @@ function SearchResultRow({ result }: { result: SearchResult }) {
                 {result.repository_slug}
               </Text>
             ) : null}
+            {result.badges?.map((badge) => (
+              <TonePill key={`${badge.kind}-${badge.id}`} tone="gray">
+                {badge.name}
+              </TonePill>
+            ))}
             {result.state ? (
               <Text as="span" className="capitalize" variant="caption" tone="muted">
                 {result.state.replace(/_/g, " ")}
