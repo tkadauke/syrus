@@ -62,14 +62,14 @@ RSpec.describe CodingHandoffRevisionGuard do
 
   context "when the rebase applied cleanly" do
     let(:artifacts) do
-      { described_class::REBASE_RESULT_ARTIFACT => { "succeeded" => true, "reason" => "rebased", "pre_sha" => "a" * 40 } }
+      { "auto_rebase_result" => { "succeeded" => true, "reason" => "rebased", "pre_sha" => "a" * 40 } }
     end
 
     it "passes when the recorded patch id is still on the branch" do
       expect { verify!(fake_git(branch_patch_ids: [ "recorded-patch-id" ])) }.not_to raise_error
 
       expect(workflow.reload.artifact(described_class::PUBLICATION_PROVENANCE_ARTIFACT))
-        .to include("verified" => true, "verified_via" => "patch_id")
+        .to include("verified" => true)
     end
 
     # The conservative half: a clean rebase has no reason to rewrite the fix, so
@@ -80,35 +80,35 @@ RSpec.describe CodingHandoffRevisionGuard do
     end
   end
 
-  # The regression. Resolving a conflict is what changes the content, so the
-  # rebased commit cannot carry the patch id recorded before the rebase. While
-  # the guard demanded identity it could never be satisfied for a branch whose
-  # rebase conflicts -- and a branch far enough behind to need rebasing at all
-  # is exactly the branch that conflicts.
+  # Patch-id identity is required even when the rebase conflicted, and that is
+  # deliberate. A conflict resolution does change content, so a legitimately
+  # rewritten fix cannot match -- but neither can a resolution that dropped the
+  # latest fix and resurrected an older one, and from patch ids alone those two
+  # are indistinguishable. `Steps::ForcePush` has a spec for the second case
+  # (refuses when a rebase resurrects a visual-review-rejected fix), so relaxing
+  # this for the first would publish the second.
+  #
+  # The cost is real: a branch whose conflicting rebase rewrites its tip fix can
+  # never satisfy this guard, and one such pull request filed 64 failed rebase
+  # workflows. That is a throughput bug and it is the lesser one -- publishing a
+  # branch that silently lost its latest fix is a correctness bug. Fixing the
+  # loop has to come from bounding the retries or from operator action, not from
+  # weakening this check.
   context "when the rebase conflicted and the agent resolved it" do
     let(:artifacts) do
-      { described_class::REBASE_RESULT_ARTIFACT => { "succeeded" => false, "reason" => "conflict", "pre_sha" => "a" * 40 } }
+      { "auto_rebase_result" => { "succeeded" => false, "reason" => "conflict", "pre_sha" => "a" * 40 } }
     end
 
-    it "accepts a rewritten fix the pre-rebase head contained" do
-      expect { verify!(fake_git(branch_patch_ids: [ "rewritten-patch-id" ])) }.not_to raise_error
+    it "still refuses a fix whose patch id is absent, however the branch got that way" do
+      expect { verify!(fake_git(branch_patch_ids: [ "rewritten-patch-id" ])) }
+        .to raise_error(described_class::MissingLatestFix, /Run #198842/)
+    end
+
+    it "accepts the fix when its patch id did survive the resolution" do
+      expect { verify!(fake_git(branch_patch_ids: [ "recorded-patch-id" ])) }.not_to raise_error
 
       expect(workflow.reload.artifact(described_class::PUBLICATION_PROVENANCE_ARTIFACT))
-        .to include("verified" => true, "verified_via" => "conflict_resolution")
-    end
-
-    # Attribution has to stay honest in the other direction too: a conflict
-    # does not excuse a fix that was never on the branch being rebased.
-    it "refuses when the pre-rebase head did not contain the fix" do
-      expect { verify!(fake_git(branch_patch_ids: [ "rewritten-patch-id" ], contains: false)) }
-        .to raise_error(described_class::MissingLatestFix)
-    end
-
-    it "refuses when the rebase recorded no pre-rebase head to check against" do
-      workflow.set_artifact!(described_class::REBASE_RESULT_ARTIFACT, { "succeeded" => false, "reason" => "conflict" })
-
-      expect { verify!(fake_git(branch_patch_ids: [ "rewritten-patch-id" ])) }
-        .to raise_error(described_class::MissingLatestFix)
+        .to include("verified" => true)
     end
   end
 
