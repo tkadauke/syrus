@@ -1,4 +1,5 @@
 import type { ToolCardExample } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { runtimeToolCardRenderer } from "../runtimeToolCard"
 
 export default runtimeToolCardRenderer("runtime_snapshot")
@@ -8,8 +9,8 @@ const PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+
 export const examples: ToolCardExample[] = [
   {
     id: "browser_capture",
-    label: "Browser capture",
-    description: "A browser screenshot with page metadata and text output.",
+    label: i18n.t("chat:runtime_snapshot_example_browser"),
+    description: i18n.t("chat:runtime_snapshot_example_browser_description"),
     input: { session_id: 17, options: { target: "main", full_page: true } },
     parsedResult: {
       error: false,
@@ -18,15 +19,15 @@ export const examples: ToolCardExample[] = [
         { type: "text", text: "Browser snapshot captured successfully." }
       ],
       page_url: "https://example.test/settings",
-      title: "Settings",
+      title: i18n.t("chat:runtime_snapshot_example_page_title"),
       viewport: { width: 1280, height: 720 },
       captured_at: "2026-09-10T12:10:00Z"
     }
   },
   {
     id: "android_stale_frame",
-    label: "Android stale frame",
-    description: "The latest available frame is clearly marked stale when a fresh device capture fails.",
+    label: i18n.t("chat:runtime_snapshot_example_stale"),
+    description: i18n.t("chat:runtime_snapshot_example_stale_description"),
     input: { session_id: 7 },
     parsedResult: {
       kind: "android_screenshot",

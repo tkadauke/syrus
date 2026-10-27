@@ -514,7 +514,7 @@ class PollRepositoryJob < ApplicationJob
         state: initial_state_for_issue(issue),
         triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
         pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url),
-        **GithubIssueJobAttributes.for_creation(issue)
+        **GithubIssueJobAttributes.for_creation(issue).merge(investigation: false)
       )
       validate_github_epic_child_chain!(job) if job.epic
       job.advance_after_triage! if job.may_advance_after_triage?

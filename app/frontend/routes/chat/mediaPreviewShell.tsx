@@ -257,19 +257,24 @@ function useBlobUrl(href: string | null | undefined) {
       return
     }
 
-    const separator = href.indexOf(",")
-    if (separator < 0) return
+    try {
+      const separator = href.indexOf(",")
+      if (separator < 0) return
 
-    const header = href.slice(5, separator)
-    const encoded = href.slice(separator + 1)
-    const base64 = header.endsWith(";base64")
-    const mimeType = header.replace(/;base64$/, "") || "application/octet-stream"
-    const decoded = base64 ? window.atob(encoded) : decodeURIComponent(encoded)
-    const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0))
-    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }))
-    setBlobUrl(url)
+      const header = href.slice(5, separator)
+      const encoded = href.slice(separator + 1)
+      const base64 = header.endsWith(";base64")
+      const mimeType = header.replace(/;base64$/, "") || "application/octet-stream"
+      if (base64 && (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))) return
+      const decoded = base64 ? window.atob(encoded) : decodeURIComponent(encoded)
+      const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }))
+      setBlobUrl(url)
 
-    return () => URL.revokeObjectURL(url)
+      return () => URL.revokeObjectURL(url)
+    } catch (_error) {
+      setBlobUrl(null)
+    }
   }, [href])
 
   return blobUrl

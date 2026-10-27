@@ -75,4 +75,19 @@ describe("MediaPreviewShell", () => {
     unmount()
     expect(revokeObjectURL).toHaveBeenCalledTimes(2)
   })
+
+  it("falls back to the original URL when data-backed media is malformed", () => {
+    render(
+      <MediaPreviewShell
+        item={{
+          title: "placeholder.png",
+          src: "data:image/png;base64,abc123",
+          actions: [{ label: "Open", href: "data:image/png;base64,abc123" }]
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Open placeholder.png" }))
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "data:image/png;base64,abc123")
+  })
 })
