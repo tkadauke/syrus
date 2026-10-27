@@ -303,13 +303,34 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).not_to include(deleted_skip_arg)
   end
 
+  # Both mise trees are ~1.6 GB. A `chown -R` over them is a layer that rewrites
+  # every file it touches, so it stored a third full copy of those bytes -- 3.2
+  # GB, the second-largest layer in the published worker image, for ownership
+  # that `COPY --chown` sets for free.
+  it "sets mise ownership during the copy rather than rewriting both trees afterwards" do
+    expect(worker_deps_stage).not_to match(%r{chown -R [^\n]*/opt/mise})
+  end
+
+  # Agent worktrees are full checkouts of this repository, each with its own
+  # node_modules, vendor/bundle and built assets. Three of them were 3.2 GB --
+  # the largest single thing in the worker image. The root-anchored exclusions
+  # for those directories do not match them when they are nested inside a
+  # worktree, so the tree itself has to be excluded.
+  it "keeps agent worktrees out of the build context" do
+    dockerignore = Rails.root.join(".dockerignore").read.lines.map(&:strip)
+
+    expect(dockerignore).to include("/.claude/worktrees/")
+    # The skills and reference docs under .claude are read by agents at runtime
+    # inside the image; excluding all of .claude would take them with it.
+    expect(dockerignore).not_to include("/.claude/", "/.claude")
+  end
+
   it "seeds /opt/mise from /opt/mise-seed on first boot via the entrypoint" do
     worker_deps = worker_deps_stage
     entrypoint = Rails.root.join("bin/docker-entrypoint").read
 
-    expect(worker_deps).to include("COPY --from=runtime-cache /opt/mise /opt/mise-seed")
-    expect(worker_deps).to include("COPY --from=runtime-cache /opt/mise /opt/mise")
-    expect(worker_deps).to include("chown -R 1000:1000 /opt/mise-seed /opt/mise")
+    expect(worker_deps).to include("COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise-seed")
+    expect(worker_deps).to include("COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise")
 
     expect(entrypoint).to include("[ -d /opt/mise-seed ]")
     expect(entrypoint).to include("cp -rn /opt/mise-seed/. /opt/mise/")

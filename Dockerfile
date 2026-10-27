@@ -471,10 +471,14 @@ RUN chmod 0755 /usr/local/bin/syrus-sccache-compiler
 # stage. This is the layer that previously ran `mise install ...` and
 # took ~13 min cold; now it's a fast COPY of artifacts that were
 # compiled once and stay cached.
-COPY --from=runtime-cache /opt/mise /opt/mise-seed
-COPY --from=runtime-cache /opt/mise /opt/mise
+#
+# Ownership is set by the COPY itself. A `chown -R` afterwards would be a
+# separate layer that rewrites every file it touches, and these two trees are
+# 1.6 GB each -- so the chown stored a third full copy of their bytes, 3.2 GB
+# of layer that `--chown` produces for free.
+COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise-seed
+COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise
 COPY --from=runtime-cache /usr/local/bin/mise /usr/local/bin/mise
-RUN chown -R 1000:1000 /opt/mise-seed /opt/mise
 
 # Package managers that don't ship with their default runtime. Python
 # tools live in an isolated venv so `poetry` stays executable without
