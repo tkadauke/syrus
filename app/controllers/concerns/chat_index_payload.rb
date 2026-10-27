@@ -70,6 +70,7 @@ module ChatIndexPayload
   end
 
   def chat_index_param(name, allowed, fallback)
+    allowed = allowed + [ "shared" ] if name == :group_by && action_name == "more"
     value = params[name].to_s.presence || fallback
     return value if allowed.include?(value)
 
@@ -432,6 +433,8 @@ module ChatIndexPayload
   end
 
   def chat_index_group_scope(group_by:, group_key:)
+    return chat_index_shared_scope if group_by == "shared" && group_key == "shared-with-me"
+
     scope = chat_index_base_scope
       .active
       .ordinary_chats
@@ -468,11 +471,7 @@ module ChatIndexPayload
   end
 
   def shared_chat_group_specs
-    scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
-      .where(id: Current.user.received_chat_shares.select(:chat_session_id))
-      .active
-      .ordinary_chats
-      .order(Arel.sql(chat_index_order_sql))
+    scope = chat_index_shared_scope
     chats, has_more = paginated_chat_index_group(scope)
     return [] if chats.empty?
 
@@ -485,6 +484,14 @@ module ChatIndexPayload
       chats: chats,
       has_more: has_more
     } ]
+  end
+
+  def chat_index_shared_scope
+    invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+      .where(id: Current.user.received_chat_shares.select(:chat_session_id))
+      .active
+      .ordinary_chats
+      .order(Arel.sql(chat_index_order_sql))
   end
 
   def chat_index_group_spec_for(group_key, repository_id:, repositories_by_id:)

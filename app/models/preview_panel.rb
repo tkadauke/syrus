@@ -20,6 +20,15 @@ class PreviewPanel < ApplicationRecord
     where(chat_session_id: user.accessible_chat_sessions.select(:id))
   }
 
+  # Read-only chat shares intentionally flow through accessible_to. Actions
+  # that change panel state or mint a bearer token require participation in
+  # the chat, which is the write-capable access boundary.
+  scope :manageable_by, ->(user) {
+    return none if user.nil?
+
+    where(chat_session_id: user.chat_participants.select(:chat_session_id))
+  }
+
   def open? = state == "open"
   def closed? = state == "closed"
 
