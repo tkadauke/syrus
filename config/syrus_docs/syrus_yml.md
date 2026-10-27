@@ -116,7 +116,9 @@ Attempt 1 starts at the first rung, attempt 2 at the second rung, and attempts
 past the end of the list fall back to `restart`. Unknown rung names are
 skipped, so a repository can commit a future ladder before every named rung is
 implemented by the running Syrus instance. The walk is bounded by the same
-automatic retry budget used for workflow repairs.
+automatic retry budget used for workflow repairs, and so is the instance
+default below — past the budget every repository gets `restart`, laddered or
+not.
 
 Currently implemented rungs:
 
@@ -141,10 +143,26 @@ members into the integration branch is a member's fault — and neither is the
 grade loop or `prepare`. An unclassifiable failure stays attributable, so the
 default remains conservative.
 
+Preserving a train is a scheduling decision, not just a verdict. A rung that
+keeps the assembly also schedules the relaunch that continues it: an automatic
+retry attempt, visible on the Job alongside every other retry, that resumes the
+preserved workflow from the step that failed so the integration branch, the
+grades already earned and the member rows are all reused. The attempt is what
+advances the ladder, so a train that keeps failing the same way escalates to the
+next rung and eventually to `restart` instead of preserving itself forever.
+
+If that relaunch cannot be scheduled — the workspace has already been swept,
+there is no failed step left to resume, or the attempt itself cannot be written
+— the train is *not* preserved. It is torn down for its real failure reason, the
+same answer the ladder gave before preservation existed. The same applies when a
+scheduled relaunch then fails to start: the train ends on the cause, not on the
+reconciler's stale-train verdict, which is what an operator needs to read.
+
 Every resolution is recorded on the Job: the rung, the attempt number, the
-classification, the failed step, and both `retryable` and `preservable`. When a
-`multisect` rung declines to start, the reason is logged too rather than
-returning a bare false.
+classification, the failed step, and both `retryable` and `preservable`, plus
+whether the train was preserved, which relaunch owns it, and why preservation
+was refused when it was. When a `multisect` rung declines to start, the reason is
+logged too rather than returning a bare false.
 
 When `merge_train.failure_policy` is confirmed absent, Syrus falls back to the
 instance `AppSetting.merge_train_failure_policy` compatibility default. If

@@ -5,19 +5,31 @@
 class MergeTrainFailureHandler
   class_attribute :multisect_evaluator, default: nil
 
-  def self.call(workflow:, cancelled: false) = new(workflow: workflow, cancelled: cancelled).call
+  # How long a preserved train waits before its relaunch runs. Long enough
+  # that the failing workflow's own terminal bookkeeping (WorkUnit sync,
+  # workspace release) has settled, short enough to stay well inside the
+  # reconciler's stale-train grace.
+  PRESERVED_RELAUNCH_DELAY = 30.seconds
 
-  def initialize(workflow:, cancelled: false)
+  def self.call(workflow:, cancelled: false, allow_preservation: true)
+    new(workflow: workflow, cancelled: cancelled, allow_preservation: allow_preservation).call
+  end
+
+  # `allow_preservation: false` is the teardown entry point: the relaunch a
+  # preservation decision promised could not be delivered, so the train has to
+  # be terminalized for its real failure reason instead of being left active
+  # for the stale-train reaper to blame on missing runtime.
+  def initialize(workflow:, cancelled: false, allow_preservation: true)
     @workflow = workflow
     @cancelled = cancelled
+    @allow_preservation = allow_preservation
   end
 
   def call
     train = merge_train
     return unless train
     return handle_agent_withdrawal!(train) if agent_withdrawn_job_id.present?
-    return if preserve_train_for_continuation_retry?
-    return if preserve_train_for_failure_policy?
+    return if preserve_train!(train)
 
     reason = failure_reason
     return if preserve_train_for_terminal_multisect_result?
@@ -257,6 +269,114 @@ class MergeTrainFailureHandler
 
     detail = classification.reason.presence
     [ "merge_train run failed: #{classification.classification}", detail ].compact.join(" — ")
+  end
+
+  # Preservation is an act of scheduling, not of omission.
+  #
+  # Both preserve paths used to answer "keep this train" by returning early,
+  # and nothing anywhere then asked the preserved train to continue. Nothing
+  # searches for preserved trains; the landing queue will not replace a train
+  # that is still active; and the ladder's own attempt counter only advances
+  # when an AutoRetryAttempt exists, so a preserved train never even escalated
+  # to the next rung. The train sat active with a failed workflow and no
+  # runtime until `WorkEngine::Reconciler`'s stale-train reaper failed it two
+  # minutes later for "no active Workflow or WorkUnit owns it" -- which threw
+  # away the real failure reason and spent the landing lock on nothing.
+  #
+  # So preservation now only stands if a relaunch was actually scheduled. When
+  # it cannot be (no failed step to resume, the workspace is gone, the ladder's
+  # retry budget is spent, or the attempt could not be written), this returns
+  # false and the caller tears the train down for its real reason -- the same
+  # answer as before preservation existed, which is the conservative one.
+  def preserve_train!(train)
+    return false unless @allow_preservation
+    return false unless preserve_train_for_continuation_retry? || preserve_train_for_failure_policy?
+
+    schedule_preserved_train_relaunch!(train)
+  end
+
+  def schedule_preserved_train_relaunch!(train)
+    failed_step = RetryFailedStepEnqueuer.failed_step_for(@workflow)
+    return refuse_preservation("no failed step to resume") unless failed_step
+    return refuse_preservation("the workflow workspace is already cleaned up") unless @workflow.retry_available?
+
+    # The generic reconciler path writes AutoRetryAttempts for this workflow
+    # too (that is also how the ladder counts attempts). A pending one already
+    # owns recovery, so preservation stands on it rather than racing a second
+    # attempt onto the same step.
+    if (pending = @workflow.auto_retry_attempts.pending.order(:scheduled_at, :id).first)
+      job_log(
+        @workflow.job,
+        "merge_train: preserving #{train.label}; #{pending.retry_kind} auto-retry attempt " \
+        "##{pending.id} already owns the relaunch (due #{pending.scheduled_at.iso8601})"
+      )
+      return true
+    end
+
+    attempt = nil
+    scheduled_at = Time.current + PRESERVED_RELAUNCH_DELAY
+    ActiveRecord::Base.transaction do
+      # Tier 1 of the remediation resolution rule (see Remediation::Resolver):
+      # a runtime patch on this one step instance. Without it the merge-train
+      # retry policy answers `rebuild_unit` for every step kind preservation
+      # cares about -- assemble, reconcile, land -- and the rebuild then asks
+      # the dispatcher for a brand-new train, which refuses while this one is
+      # still active. The override is what makes "the retry reuses what was
+      # already assembled" true rather than aspirational; the enqueuer clears
+      # it once consumed, so it never silently governs a later failure.
+      failed_step.update!(details: failed_step.details.to_h.merge("remediation" => "resume_step"))
+
+      attempt = AutoRetryAttempt.create!(
+        job: @workflow.job,
+        workflow: @workflow,
+        run: failed_run,
+        agent_provider: relaunch_agent_provider,
+        failure_classification: failure_policy_retry_classification,
+        retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND,
+        attempt_number: failure_policy_attempt_number,
+        scheduled_at: scheduled_at
+      )
+
+      # Inside the transaction with the attempt it drives, so the two cannot
+      # disagree. A rolled-back attempt leaves at most an enqueued job with no
+      # record, which AutoRetryJob discards; the reverse -- an attempt nothing
+      # ever runs -- would read as a pending relaunch and block the train's
+      # other recovery paths while delivering nothing.
+      AutoRetryJob.set(wait_until: scheduled_at, priority: @workflow.job&.solid_queue_priority).perform_later(attempt.id)
+    end
+
+    record_relaunch_backoff(attempt)
+    job_log(
+      @workflow.job,
+      "merge_train: preserving #{train.label} (#{train.members.size} PR(s)); " \
+      "relaunching #{failed_step.kind} at #{scheduled_at.iso8601} via auto-retry attempt ##{attempt.id}"
+    )
+    true
+  rescue StandardError => e
+    Rails.logger.warn(
+      "[MergeTrainFailureHandler] could not schedule preserved relaunch for MergeTrain ##{train.id}: #{e.class}: #{e.message}"
+    )
+    refuse_preservation("the relaunch could not be scheduled (#{e.class})")
+  end
+
+  # Bookkeeping, not part of the promise: the relaunch is already scheduled by
+  # the time this runs, so a failure here must not be allowed to retract the
+  # preservation decision and tear the train down on top of it.
+  def record_relaunch_backoff(attempt)
+    WorkUnits::AutoRetryBackoff.record!(attempt)
+  rescue StandardError => e
+    Rails.logger.warn("[MergeTrainFailureHandler] could not record relaunch backoff for attempt ##{attempt.id}: #{e.class}: #{e.message}")
+  end
+
+  def refuse_preservation(reason)
+    job_log(@workflow.job, "merge_train: not preserving the train -- #{reason}; tearing it down instead")
+    false
+  end
+
+  def relaunch_agent_provider
+    failed_run&.agent_provider.presence ||
+      @workflow.agent_provider.presence ||
+      @workflow.job&.agent_provider
   end
 
   def preserve_train_for_continuation_retry?

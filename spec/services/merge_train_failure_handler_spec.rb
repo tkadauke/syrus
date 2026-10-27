@@ -20,8 +20,14 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
     train
   end
 
-  def build_workflow(train, owner_job, failure_reason: nil)
-    Workflow.create!(job: owner_job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => train.id },
+  # `failed` is the state the handler always sees in production: it runs from
+  # Workflows::MergeTrain.after_fail, inside the transition to failed. The
+  # preservation path reads it -- a preserved train is relaunched by resuming
+  # this very workflow, which is only possible while it is failed with its
+  # workspace intact.
+  def build_workflow(train, owner_job, failure_reason: nil, state: "failed")
+    Workflow.create!(job: owner_job, trigger_kind: "merge_train", state: state,
+                      artifacts: { "merge_train_id" => train.id },
                       failure_reason: failure_reason)
   end
 
@@ -212,6 +218,93 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
 
       expect(train.reload).not_to be_terminal
       expect(a.reload).to be_landing
+    end
+
+    # Preservation used to be a decision and nothing more: the train stayed
+    # active, its workflow stayed failed, and nothing anywhere asked it to
+    # continue -- so the reconciler's stale-train reaper failed it two minutes
+    # later for "no active Workflow or WorkUnit owns it", throwing away the
+    # real reason and the assembly both.
+    it "schedules the relaunch that keeps a preserved train moving" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+
+      described_class.call(workflow: workflow)
+
+      attempt = workflow.auto_retry_attempts.sole
+      expect(attempt.retry_kind).to eq(AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND)
+      expect(attempt.scheduled_at).to be_within(5.seconds).of(
+        Time.current + described_class::PRESERVED_RELAUNCH_DELAY
+      )
+      expect(train.reload).not_to be_terminal
+    end
+
+    # Without the override the merge-train retry policy answers `rebuild_unit`
+    # for assemble, reconcile and land, and the rebuild asks the dispatcher for
+    # a replacement train -- which refuses while this one is still active. The
+    # relaunch has to resume the preserved workflow instead.
+    it "records a resume-in-place remediation on the step it preserved" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+
+      described_class.call(workflow: workflow)
+
+      expect(run.step.reload.details["remediation"]).to eq("resume_step")
+    end
+
+    # The inverse of the promise: if the relaunch cannot be delivered, the
+    # train must not be preserved. Leaving it active with nothing driving it is
+    # the exact state preservation was supposed to prevent.
+    it "tears the train down when the preserved workspace is already gone" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+      workflow.update_columns(cleaned_up_at: Time.current)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(workflow.auto_retry_attempts).to be_empty
+      logged = JobLog.where(run_id: Run.where(job_id: a.id).select(:id)).map(&:chunk).join("\n")
+      expect(logged).to include("not preserving the train")
+    end
+
+    it "tears the train down when there is no failed step left to resume" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+      run.step.update_columns(state: "succeeded")
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(workflow.auto_retry_attempts).to be_empty
+    end
+
+    # `allow_preservation: false` is how the relaunch reports back that it could
+    # not start: the train has to end on its real reason, not on the reaper's.
+    it "never preserves when preservation is explicitly disallowed" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, failure_reason: "merge_train: assemble lost the landing lock")
+      record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+
+      described_class.call(workflow: workflow, allow_preservation: false)
+
+      expect(train.reload).to be_terminal
+      expect(train.reload.failure_reason).to include("assemble lost the landing lock")
+      expect(workflow.auto_retry_attempts).to be_empty
     end
 
     # The conservative half of the same gate: a member that broke the build

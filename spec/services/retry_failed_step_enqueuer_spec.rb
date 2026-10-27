@@ -830,6 +830,49 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(job.reload.landing_failure_reason).to be_nil
   end
 
+  # Remediation::Resolver tier 1: a runtime patch on one step instance.
+  # MergeTrainFailureHandler writes it when it preserves an assembled train, so
+  # the relaunch resumes that workflow rather than asking the dispatcher for a
+  # replacement train -- which it would refuse to build while this one is still
+  # active.
+  it "honors a step remediation override that resumes a merge-train step the policy would rebuild" do
+    job = Factories.job_record(state: "implemented")
+    workflow = Workflow.create!(job: job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => 999 })
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    failed_step = Step.create!(
+      workflow: workflow, kind: "merge_train_land", position: 5,
+      details: { "remediation" => "resume_step" }
+    )
+    failed_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.workflow).to eq(workflow)
+    expect(result.step).to eq(failed_step)
+    expect(MergeTrain.count).to eq(0)
+  end
+
+  # The override is a patch for one retry, not a standing policy. Reopening a
+  # step does not clear its details, so an override left behind would quietly
+  # govern a later, unrelated failure of the same step -- long after the
+  # assembly it was protecting had gone stale.
+  it "consumes a step remediation override so it governs only that one retry" do
+    job = Factories.job_record(state: "implemented")
+    workflow = Workflow.create!(job: job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => 999 })
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    failed_step = Step.create!(
+      workflow: workflow, kind: "merge_train_land", position: 5,
+      details: { "remediation" => "resume_step", "failure_code" => "something_else" }
+    )
+    failed_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+    described_class.call(workflow: workflow)
+
+    expect(failed_step.reload.details).not_to have_key("remediation")
+    expect(failed_step.details["failure_code"]).to eq("something_else")
+  end
+
   %w[merge_train_build merge_train_land].each do |failed_step_kind|
     it "rebuilds a failed merge-train instead of retrying the old #{failed_step_kind} step in place" do
       user = Factories.user(github_token: "ghp_test")

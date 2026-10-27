@@ -6261,6 +6261,78 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(repair_plan.retry_after).to be > now + AutoRetryAttempt::BACKOFFS.first
   end
 
+  # An active train whose workflow failed has no runtime, and reaping it is the
+  # right answer -- unless a relaunch is already on its way. These three cases
+  # are what tell those apart.
+  describe "a stale active merge train" do
+    def stale_train!(workflow_state: "failed")
+      train = MergeTrain.create!(
+        repository: job.repository, base_branch: job.repository.default_branch,
+        state: "grading", priority: "medium"
+      )
+      MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+      job.update_columns(state: "landing")
+      workflow.update_columns(
+        trigger_kind: "merge_train",
+        state: workflow_state,
+        finished_at: (Time.current if workflow_state == "failed"),
+        artifacts: { "merge_train_id" => train.id }
+      )
+      step.update_columns(kind: "merge_train_assemble", state: "failed", finished_at: Time.current)
+      run.update_columns(state: "failed", agent_provider: "claude", finished_at: Time.current)
+      train.update_columns(updated_at: 5.minutes.ago)
+      train
+    end
+
+    it "is flagged when nothing owns it" do
+      stale_train!
+
+      expect(kind(reconcile(job_id: job.id), :stale_active_merge_train_without_runtime)).to be_present
+    end
+
+    # MergeTrainFailureHandler preserves an assembly it expects to reuse and
+    # schedules the relaunch itself. Reaping the train in the window before that
+    # attempt fires discards both the assembly and the real failure reason, and
+    # replaces it with "no active Workflow or WorkUnit owns it".
+    it "is left alone while its preserved relaunch is still pending" do
+      stale_train!
+      AutoRetryAttempt.create!(
+        job: job, workflow: workflow, run: run, agent_provider: "claude",
+        failure_classification: "application_error",
+        retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND,
+        attempt_number: 1, scheduled_at: 30.seconds.from_now
+      )
+
+      expect(kind(reconcile(job_id: job.id), :stale_active_merge_train_without_runtime)).to be_nil
+    end
+
+    # Bounded on purpose: an attempt whose worker died never performs, and one
+    # parked hours out behind a provider backoff would hold the landing lock
+    # for those hours.
+    it "is flagged again once a pending relaunch is overdue past the grace" do
+      stale_train!
+      AutoRetryAttempt.create!(
+        job: job, workflow: workflow, run: run, agent_provider: "claude",
+        failure_classification: "application_error",
+        retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND,
+        attempt_number: 1,
+        scheduled_at: (described_class::PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE + 1.minute).ago
+      )
+
+      expect(kind(reconcile(job_id: job.id), :stale_active_merge_train_without_runtime)).to be_present
+    end
+
+    # A merge-train workflow waiting on admission -- no capable worker, main
+    # branch health -- still owns its train. `blocked` was missing from the
+    # active states, so the train was reaped out from under an assembly that
+    # was about to start.
+    it "is left alone while its workflow is blocked waiting for admission" do
+      stale_train!(workflow_state: "blocked")
+
+      expect(kind(reconcile(job_id: job.id), :stale_active_merge_train_without_runtime)).to be_nil
+    end
+  end
+
   it "keeps one delayed retry for repeated rate-limited landing reconciler passes" do
     reset_at = 12.minutes.from_now
     job.user.update!(gh_rate_limit_reset_at: reset_at)

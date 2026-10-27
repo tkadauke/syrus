@@ -1,7 +1,16 @@
 class AutoRetryAttempt < ApplicationRecord
   include ValidatesAgentProvider
 
-  RETRY_KINDS = %w[ failed_step resume_failed_step retry_workflow ].freeze
+  # `preserved_merge_train` is a `failed_step` retry with one extra promise:
+  # the merge-train failure handler decided to keep the assembled train and
+  # its integration branch, so this attempt is what makes that decision real.
+  # It is a distinct kind because preservation is granted for failures that
+  # are deliberately *not* retryable -- a lost landing lock, a base that moved,
+  # no capable worker -- and the generic retryability guards would otherwise
+  # skip exactly the attempts the train is now waiting on.
+  PRESERVED_MERGE_TRAIN_RETRY_KIND = "preserved_merge_train".freeze
+
+  RETRY_KINDS = %w[ failed_step resume_failed_step retry_workflow preserved_merge_train ].freeze
 
   WORKER_DIED_CLASSIFICATION = "worker_died"
   MAX_ATTEMPTS = 3
