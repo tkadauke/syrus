@@ -560,12 +560,12 @@ function chatMediaChanged(event: AppEvent) {
 }
 
 function jobQueryKeysFor(event: AppEvent): QueryKey[] {
-  if (event.id == null) return [["dashboard"], ["jobs"], ["job_run_artifacts"]]
+  if (event.id == null) return [["dashboard"], ["jobs"], ["chats", "recent"], ["job_run_artifacts"]]
 
   const id = String(event.id)
   const previewKey: QueryKey = ["jobs", id]
   const detailKey: QueryKey = workflowOnlyJobEvent(event) ? ["jobs", id, "workflows"] : ["jobs", id, "detail"]
-  return [["dashboard"], ["jobs"], previewKey, detailKey, ["job_run_artifacts", id]]
+  return [["dashboard"], ["jobs"], previewKey, detailKey, ["chats", "recent"], ["job_run_artifacts", id]]
 }
 
 function workflowOnlyJobEvent(event: AppEvent) {

@@ -46,7 +46,7 @@ afterEach(() => {
 describe("queryKeysFor", () => {
   it("maps resource events to the query keys they invalidate", () => {
     expect(queryKeysFor(event("user", null))).toEqual([["bootstrap"]])
-    expect(queryKeysFor(event("job", 42))).toEqual([["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"], ["job_run_artifacts", "42"]])
+    expect(queryKeysFor(event("job", 42))).toEqual([["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"], ["chats", "recent"], ["job_run_artifacts", "42"]])
     expect(queryKeysFor(event("workflow", 7))).toEqual([["dashboard"], ["workflows"], ["workflows", "7"]])
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
     expect(queryKeysFor(event("repository", 3))).toEqual([["dashboard"], ["repositories"], ["repositories", "3"]])
@@ -249,6 +249,7 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["job_run_artifacts", "42"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
     expect(queryClient.getQueryState(detailQueryKey)?.isInvalidated).toBe(false)
@@ -257,6 +258,24 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
     expect(queryClient.getQueryState(detailQueryKey)?.isInvalidated).toBe(true)
+  })
+
+  it("refreshes every recent-chat sidebar variant when a linked job changes", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const filteredSidebarKey = recentChatsQueryKey({ chat_types: ["agent", "group"] })
+    queryClient.setQueryData(["chats", "recent"], { groups: [] })
+    queryClient.setQueryData(filteredSidebarKey, { groups: [] })
+
+    applyAppEvent(queryClient, {
+      ...event("job", 42),
+      changed: ["state"],
+      payload: { fields: { state: "approved" } }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(queryClient.getQueryState(["chats", "recent"])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(filteredSidebarKey)?.isInvalidated).toBe(true)
   })
 
   it("does not fan out a job event to source diff or review comment queries under the jobs prefix", () => {
