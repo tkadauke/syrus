@@ -7648,6 +7648,30 @@ describe("group chat participants and composer hint", () => {
   })
 })
 
+describe("shared chat recipient view", () => {
+  it("marks the desktop chat as read-only without issuing mark_read", async () => {
+    mockDesktopViewport()
+    const fetchMock = mockChatRouteFetch(chatPayload({ chat: { read_only: true } }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Read-only")).toBeInTheDocument()
+    expect(screen.getByText("This live chat was shared with you. You can read new messages but cannot post.")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("Ask about this repository...")).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith("/mark_read") && init?.method === "PATCH")).toBe(false)
+  })
+
+  it("keeps the shared chat title and read-only context visible on mobile", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch(chatPayload({ chat: { read_only: true, title: "Shared release plan" } }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Shared release plan")).toBeInTheDocument()
+    expect(screen.getByText("Read-only")).toBeInTheDocument()
+  })
+})
+
 function renderRoute(initialEntry = "/app-shell/chats/8") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
