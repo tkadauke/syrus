@@ -24,6 +24,7 @@ export type ChatRecord = {
   entity_revision?: number
   current_user_id?: number
   user_id?: number
+  read_only?: boolean
   title: string | null
   title_pending: boolean
   system_kind?: string | null
@@ -1024,6 +1025,31 @@ export type SharedChatPayload = {
 
 export type ShareChatPayload = {
   share_url: string
+}
+
+export type ChatSharePerson = {
+  id?: number
+  user_id: number
+  name: string
+  handle: string | null
+  avatar_url: string | null
+  repository_access_warning: boolean
+}
+
+export function fetchChatShares(chatId: number | string) {
+  return getJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares`)
+}
+
+export function fetchChatShareCandidates(chatId: number | string, query: string) {
+  return getJson<{ people: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/share_candidates?q=${encodeURIComponent(query)}`)
+}
+
+export function createChatShare(chatId: number | string, userId: number) {
+  return postJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares`, { user_id: userId })
+}
+
+export function deleteChatShare(chatId: number | string, shareId: number) {
+  return deleteJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares/${shareId}`)
 }
 
 export type ChatSearchMatch = {

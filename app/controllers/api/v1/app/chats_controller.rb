@@ -1853,6 +1853,8 @@ module Api
             id: chat_session.id,
             entity_revision: chat_session.entity_revision,
             current_user_id: Current.user.id,
+            user_id: chat_session.user_id,
+            read_only: chat_session.user_id != Current.user.id && !chat_session.chat_participants.exists?(user_id: Current.user.id),
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
             system_kind: chat_session.system_kind,
