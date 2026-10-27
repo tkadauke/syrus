@@ -303,6 +303,18 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).not_to include(deleted_skip_arg)
   end
 
+  # A build that fails two layers later with a four-deep require chain and no
+  # cause costs more to diagnose than it costs to prevent. The check runs where
+  # the fault actually is, and `import("rolldown")` is what Vite itself does, so
+  # it cannot drift from the thing it is guarding.
+  it "verifies the native bundler binding at the layer that installs it" do
+    build = stage("build", "docker.io/library/golang")
+
+    expect(build).to match(/RUN npm ci &&/)
+    expect(build).to include(%q{node --input-type=module -e 'await import("rolldown")'})
+    expect(build.index("npm ci")).to be < build.index("npm run build")
+  end
+
   # Both mise trees are ~1.6 GB. A `chown -R` over them is a layer that rewrites
   # every file it touches, so it stored a third full copy of those bytes -- 3.2
   # GB, the second-largest layer in the published worker image, for ownership

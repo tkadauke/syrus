@@ -125,7 +125,24 @@ RUN bundle install && \
 # is removed before the final image copy; the runtime image only needs
 # the compiled assets in app/assets/builds.
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm's optional-dependency resolution (npm/cli#4828) intermittently leaves the
+# platform-specific native binding uninstalled, and nothing notices: the tree
+# looks complete, and the failure only surfaces two layers later when
+# `vite build` dereferences rolldown's binding and dies in a four-deep require
+# chain that names a dozen files and no cause. A cached layer carries that
+# state forward invisibly, so a build can fail on a tree that was poisoned by
+# some earlier run.
+#
+# Importing rolldown is exactly what Vite does, so it is the authoritative
+# check, and it belongs here -- at the layer that is actually wrong, where the
+# message says so. One reinstall is allowed, because a fresh `npm ci` resolves
+# the binding correctly; a second failure is real and stops the build.
+RUN npm ci && \
+    if ! node --input-type=module -e 'await import("rolldown")' >/dev/null 2>&1; then \
+      echo "npm ci left rolldown's native binding uninstalled (npm/cli#4828); reinstalling node_modules" >&2; \
+      rm -rf node_modules && npm ci; \
+      node --input-type=module -e 'await import("rolldown")'; \
+    fi
 
 # Copy application code
 COPY . .
