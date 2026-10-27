@@ -102,9 +102,21 @@ RSpec.describe TestInsights::PruneJob do
     stub_const("TestInsights::PruneJob::DELETE_BATCH_SIZE", 1)
     stub_const("TestInsights::PruneJob::MAX_DELETE_BATCHES", 2)
 
-    described_class.perform_now
+    expect { described_class.perform_now }.to have_enqueued_job(described_class).once
 
     expect(TestInsights::TestCase.where(id: old_cases.map(&:id)).count).to eq(1)
+  end
+
+  it "does not enqueue another pass after the eligible backlog is drained" do
+    test_run = create_test_run
+    old_case = create_case(test_run)
+    old_case.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago)
+    stub_const("TestInsights::PruneJob::DELETE_BATCH_SIZE", 1)
+    stub_const("TestInsights::PruneJob::MAX_DELETE_BATCHES", 1)
+
+    expect { described_class.perform_now }.not_to have_enqueued_job(described_class)
+
+    expect(TestInsights::TestCase.exists?(old_case.id)).to be false
   end
 
   it "does not delete old runs whose cases remain after the bounded case pass" do

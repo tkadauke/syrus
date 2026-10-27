@@ -10,6 +10,7 @@ module TestInsights
 
     DELETE_BATCH_SIZE = 1_000
     MAX_DELETE_BATCHES = 100
+    CONTINUATION_DELAY = 1.minute
 
     def perform
       cases_deleted = prune(TestCase)
@@ -22,6 +23,8 @@ module TestInsights
       if attempts_deleted.positive?
         Rails.logger.info("[TestInsights::PruneJob] deleted #{attempts_deleted} test_insight_isolated_repro_attempts")
       end
+
+      enqueue_continuation if eligible_backlog?
     end
 
     private
@@ -50,6 +53,20 @@ module TestInsights
         deleted += TestRun.where(id: empty_ids).delete_all
       end
       deleted
+    end
+
+    def eligible_backlog?
+      TestCase.prunable.exists? ||
+        IsolatedReproAttempt.prunable.exists? ||
+        TestRun.prunable.where.not(id: TestCase.select(:test_run_id)).exists?
+    end
+
+    def enqueue_continuation
+      # ConfiguredJob#perform_later intentionally bypasses SkipIfPending's
+      # class-method guard. The currently running job is itself the overlap
+      # lock and enqueues exactly one successor; normal daily ticks still see
+      # either the running or scheduled no-argument job and are deduplicated.
+      self.class.set(wait: CONTINUATION_DELAY).perform_later
     end
   end
 end
