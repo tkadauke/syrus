@@ -1269,9 +1269,9 @@ deployment_stages:
   - name: ios_testflight
     label: "TestFlight"
     tag: ios-testflight
-  - name: android_internal
-    label: "Android Internal"
-    tag: android-internal
+  - name: mobile_internal
+    label: "Mobile Internal"
+    tag: mobile-internal
   - name: desktop_public
     label: "Desktop Public Release"
     tag_pattern: "desktop-v*"

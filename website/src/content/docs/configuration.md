@@ -28,7 +28,7 @@ out a Syrus branch.
 Small repositories can keep a single root file. Monorepos can add nested
 `.syrus.yml` files and explicit targets deliberately; use
 [Monorepo Adoption](/docs/monorepo-adoption) for examples across app, CLI,
-desktop, iOS, Android, shared API/client code, and mixed-product layouts.
+desktop, iOS, shared API/client code, and mixed-product layouts.
 
 Each `.syrus.yml` file is limited to 1 MiB. YAML aliases and anchors are not
 supported, so repeat shared values explicitly. Quote dates, timestamps, and
@@ -171,10 +171,8 @@ advertises cannot start at all.
 Workers advertise their available host capabilities separately from repository
 requirements. Each worker heartbeat includes normalized capabilities plus
 diagnostics about host architecture and optional probes for Docker, Xcode, and
-iOS simulator runtimes. Android work runs on Linux workers, not an `os:android`
-placement class. The published worker image includes the Android SDK
-command-line baseline used by the Android plugin, while Java/JDK and Gradle
-behavior stay with the JVM plugins and repository wrappers. Set
+iOS simulator runtimes. Java/JDK and Gradle behavior stays with the JVM
+plugins and repository wrappers. Set
 `SYRUS_WORKER_CAPABILITIES` on a worker to make its placement class explicit:
 
 ```dotenv
@@ -186,16 +184,6 @@ Use comma or space separated `dimension:value` pairs if needed, but only
 unsupported OS values are ignored for worker advertisements. Linux k3s and
 Docker Compose workers normally get `os:linux` and host architecture without
 configuration.
-
-Android emulator-backed graders and Runtime Sessions need more than the SDK.
-The Linux host must expose CPU virtualization and KVM, and the worker container
-or pod must be allowed to read and write `/dev/kvm`. On Docker Compose that is
-typically a worker device mapping such as `/dev/kvm:/dev/kvm`; on Kubernetes it
-usually means scheduling onto KVM-capable nodes and exposing the device through
-your runtime class, device plugin, or pod security policy. If this is missing,
-non-emulator Android builds can still pass, but emulator launches fail with
-messages like `/dev/kvm: Permission denied`, `KVM is required to run this AVD`,
-or `x86 emulation currently requires hardware acceleration`.
 
 After implementation, Syrus compares the actual changed files against the
 target graph as a safety net. If the diff affects a more constrained target
@@ -765,7 +753,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | No | SMTP credentials, when required by the server |
 | `SMTP_AUTHENTICATION` | No | SMTP authentication mode; defaults to `plain` |
 | `SMTP_ENABLE_STARTTLS_AUTO` | No | Whether Action Mailer should auto-enable STARTTLS; defaults to `true` |
-| `JOB_CONCURRENCY` | No | Solid Queue worker thread count for the `runs` queue; defaults to `3` |
+| `JOB_CONCURRENCY` | No | Solid Queue worker thread count for the `runs` queue; defaults to the pod's CPU budget (80% of its cgroup CPU limit, rounded down, minimum 1) |
 | `RAILS_MAX_THREADS` | No | Rails and database pool sizing |
 | `RAILS_LOG_LEVEL` | No | Production log level; defaults to `info` |
 | `PORT` | Web only | Rails server port; defaults to `3000` |

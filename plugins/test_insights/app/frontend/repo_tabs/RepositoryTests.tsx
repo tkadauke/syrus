@@ -1,24 +1,32 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { Button } from "@app/components/Button"
-import { DataTableColumnCells, DataTableColumnHeaderRow, DataTableColumnMenu, useLocalStorageColumnPreferences, type DataTableColumnDef } from "@app/components/dataTable"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "@app/components/dataTable"
 import { FilterBar, filterTreeFromPayload, topFilterChildren } from "@app/components/FilterBar"
 import { withRoutePrefix } from "@app/lib/routing"
-import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../api/tests"
+import {
+  fetchRepositoryTestDetail,
+  fetchRepositoryTests,
+  type RepositoryTestDetailPayload,
+  type RepositoryTestDurationPoint,
+  type RepositoryTestHistoryItem,
+  type RepositoryTestHistoryPagination,
+  type RepositoryTestIdentity,
+  type RepositoryTestsPayload
+} from "../api/tests"
 import { errorMessage } from "@app/lib/errorMessage"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { useT } from "@app/hooks/useT"
 import type { TFunction } from "i18next"
-import {
-  DataTable,
-  Notice,
-  PageHeading,
-  Section,
-  SectionHeading,
-  Text
-} from "@app/components/ui"
+import { DataTable, Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { TonePill } from "@app/components/StatusPill"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
@@ -49,11 +57,15 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
   return (
     <RepositoryPageShell
       activeTab="test_insights.tests"
-      heading={shell ? (
-        <PageHeading mono>
-          <a className="hover:underline" href={shell.repository.github_url} rel="noopener" target="_blank">{shell.repository.slug}</a>
-        </PageHeading>
-      ) : null}
+      heading={
+        shell ? (
+          <PageHeading mono>
+            <a className="hover:underline" href={shell.repository.github_url} rel="noopener" target="_blank">
+              {shell.repository.slug}
+            </a>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={shell?.tabs ?? []}
     >
@@ -63,17 +75,22 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
         <section className="space-y-4">
           {selectedTestId ? (
             <div className="flex flex-wrap items-end gap-3">
-              <Button
-                onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))}
-                variant="secondary"
-              >
+              <Button onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))} variant="secondary">
                 {t("repo_back_to_tests")}
               </Button>
             </div>
           ) : null}
 
           {selectedTestId ? (
-            <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} t={t} />
+            <TestDetailPanel
+              detail={testDetail.data}
+              error={testDetail.error}
+              isError={testDetail.isError}
+              isPending={testDetail.isPending}
+              onPageChange={setHistoryPage}
+              prefix={prefix}
+              t={t}
+            />
           ) : (
             <TestList
               error={tests.error}
@@ -126,15 +143,24 @@ function buildColumns({ prefix, repositoryId, t }: CellContext): RepositoryTestC
       sortValue: (test) => test.name,
       renderCell: (test) => (
         <>
-          <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${repositoryId}/plugin/tests?test_id=${test.id}`, prefix)}>
+          <Link
+            className="font-medium text-brand-emphasis hover:underline"
+            to={withRoutePrefix(`/repositories/${repositoryId}/plugin/tests?test_id=${test.id}`, prefix)}
+          >
             {test.name}
           </Link>
           {test.interesting_reasons.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
-              {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} label={t(`reason_${reason}`, { defaultValue: reason })} reason={reason} />)}
+              {test.interesting_reasons.map((reason) => (
+                <ReasonBadge key={reason} label={t(`reason_${reason}`, { defaultValue: reason })} reason={reason} />
+              ))}
             </div>
           ) : null}
-          {test.file_path ? <Text className="mt-1 truncate" variant="caption" tone="muted">{test.file_path}</Text> : null}
+          {test.file_path ? (
+            <Text className="mt-1 truncate" variant="caption" tone="muted">
+              {test.file_path}
+            </Text>
+          ) : null}
         </>
       )
     },
@@ -153,7 +179,11 @@ function buildColumns({ prefix, repositoryId, t }: CellContext): RepositoryTestC
       cellClassName: "whitespace-nowrap",
       sortKey: "recent_failures",
       sortValue: (test) => test.failed_count,
-      renderCell: (test) => <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>{test.failed_count}/{test.total_count}</TonePill>
+      renderCell: (test) => (
+        <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>
+          {test.failed_count}/{test.total_count}
+        </TonePill>
+      )
     },
     {
       key: "duration",
@@ -170,8 +200,8 @@ function buildColumns({ prefix, repositoryId, t }: CellContext): RepositoryTestC
       cellClassName: "whitespace-nowrap text-text-muted",
       responsiveClassName: "hidden sm:table-cell",
       sortKey: "last_seen",
-      sortValue: (test) => test.last_seen_at ? new Date(test.last_seen_at).getTime() : null,
-      renderCell: (test) => test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "-"
+      sortValue: (test) => (test.last_seen_at ? new Date(test.last_seen_at).getTime() : null),
+      renderCell: (test) => (test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "-")
     }
   ]
 }
@@ -186,7 +216,33 @@ function compareSortValues(a: string | number | null, b: string | number | null,
   return ((a as number) - (b as number)) * direction
 }
 
-function TestList({ error, filter, filterActive, filterSchema = [], isError, isFetching, payload, pathname, prefix, repositoryId, search, t }: { error: unknown; filter: RepositoryTestsPayload["filter"]; filterActive: boolean; filterSchema: RepositoryTestsPayload["filter_schema"]; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; pathname: string; prefix: string; repositoryId: string; search: string; t: TFunction<"test_insights"> }) {
+function TestList({
+  error,
+  filter,
+  filterActive,
+  filterSchema = [],
+  isError,
+  isFetching,
+  payload,
+  pathname,
+  prefix,
+  repositoryId,
+  search,
+  t
+}: {
+  error: unknown
+  filter: RepositoryTestsPayload["filter"]
+  filterActive: boolean
+  filterSchema: RepositoryTestsPayload["filter_schema"]
+  isError: boolean
+  isFetching: boolean
+  payload?: RepositoryTestsPayload
+  pathname: string
+  prefix: string
+  repositoryId: string
+  search: string
+  t: TFunction<"test_insights">
+}) {
   const columns = useMemo(() => buildColumns({ prefix, repositoryId, t }), [prefix, repositoryId, t])
   const columnPreferences = useLocalStorageColumnPreferences({ columns, storageKey: COLUMNS_STORAGE_KEY })
   const [sort, setSort] = useState<SortState>(null)
@@ -265,16 +321,33 @@ function TestList({ error, filter, filterActive, filterSchema = [], isError, isF
 }
 
 function ReasonBadge({ label, reason }: { label?: string; reason: string }) {
-  const classes = reason === "failing"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-    : reason === "flaky"
-      ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
-      : "border-info/30 bg-info/10 text-info"
+  const classes =
+    reason === "failing"
+      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+      : reason === "flaky"
+        ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
+        : "border-info/30 bg-info/10 text-info"
 
   return <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${classes}`}>{label ?? reason}</span>
 }
 
-function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix, t }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string; t: TFunction<"test_insights"> }) {
+function TestDetailPanel({
+  detail,
+  error,
+  isError,
+  isPending,
+  onPageChange,
+  prefix,
+  t
+}: {
+  detail?: RepositoryTestDetailPayload
+  error: unknown
+  isError: boolean
+  isPending: boolean
+  onPageChange: (page: number) => void
+  prefix: string
+  t: TFunction<"test_insights">
+}) {
   if (isPending) return <Notice>{t("repo_loading_history")}</Notice>
   if (isError) return <Notice tone="danger">{errorMessage(error, t("repo_error_load_history"))}</Notice>
   if (!detail) return null
@@ -285,8 +358,14 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <SectionHeading>{detail.test.name}</SectionHeading>
-            <Text className="mt-1" tone="muted">{detail.test.suite_name}</Text>
-            {detail.test.file_path ? <Text className="mt-1 font-mono" variant="caption" tone="muted">{detail.test.file_path}</Text> : null}
+            <Text className="mt-1" tone="muted">
+              {detail.test.suite_name}
+            </Text>
+            {detail.test.file_path ? (
+              <Text className="mt-1 font-mono" variant="caption" tone="muted">
+                {detail.test.file_path}
+              </Text>
+            ) : null}
           </div>
           <TonePill tone="gray">{detail.test.fingerprint.slice(0, 12)}</TonePill>
         </div>
@@ -305,7 +384,9 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
             </DataTable.Row>
           </DataTable.Header>
           <DataTable.Body>
-            {detail.history.map((item) => <HistoryRow item={item} key={item.id} prefix={prefix} />)}
+            {detail.history.map((item) => (
+              <HistoryRow item={item} key={item.id} prefix={prefix} />
+            ))}
           </DataTable.Body>
         </DataTable.Root>
         <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} t={t} />
@@ -314,7 +395,15 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
   )
 }
 
-function HistoryPagination({ onPageChange, pagination, t }: { onPageChange: (page: number) => void; pagination: RepositoryTestHistoryPagination; t: TFunction<"test_insights"> }) {
+function HistoryPagination({
+  onPageChange,
+  pagination,
+  t
+}: {
+  onPageChange: (page: number) => void
+  pagination: RepositoryTestHistoryPagination
+  t: TFunction<"test_insights">
+}) {
   if (pagination.total_pages <= 1) return null
 
   const firstItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.per_page + 1
@@ -325,11 +414,27 @@ function HistoryPagination({ onPageChange, pagination, t }: { onPageChange: (pag
       <span>{t("repo_showing", { first: firstItem, last: lastItem, total: pagination.total })}</span>
       <div className="flex gap-2">
         {pagination.page > 1 ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page - 1)} type="button">{t("repo_previous")}</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("repo_previous")}</span>}
+          <button
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            onClick={() => onPageChange(pagination.page - 1)}
+            type="button"
+          >
+            {t("repo_previous")}
+          </button>
+        ) : (
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("repo_previous")}</span>
+        )}
         {pagination.page < pagination.total_pages ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page + 1)} type="button">{t("repo_next")}</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("repo_next")}</span>}
+          <button
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            onClick={() => onPageChange(pagination.page + 1)}
+            type="button"
+          >
+            {t("repo_next")}
+          </button>
+        ) : (
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("repo_next")}</span>
+        )}
       </div>
     </div>
   )
@@ -339,13 +444,21 @@ function HistoryRow({ item, prefix }: { item: RepositoryTestHistoryItem; prefix:
   return (
     <DataTable.Row>
       <DataTable.Cell className="whitespace-nowrap">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</DataTable.Cell>
-      <DataTable.Cell><StatusBadge status={item.status} /></DataTable.Cell>
+      <DataTable.Cell>
+        <StatusBadge status={item.status} />
+      </DataTable.Cell>
       <DataTable.Cell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(item.duration_ms)}</DataTable.Cell>
       <DataTable.Cell>
-        <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>{item.run.slug}</Link>
-        <Text className="mt-1" variant="caption" tone="muted">{item.job.slug} · {item.grader_name}</Text>
+        <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>
+          {item.run.slug}
+        </Link>
+        <Text className="mt-1" variant="caption" tone="muted">
+          {item.job.slug} · {item.grader_name}
+        </Text>
       </DataTable.Cell>
-      <DataTable.Cell className="hidden max-w-md truncate text-text-muted lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</DataTable.Cell>
+      <DataTable.Cell className="hidden max-w-md truncate text-text-muted lg:table-cell" title={item.failure_message || ""}>
+        {item.failure_message || "—"}
+      </DataTable.Cell>
     </DataTable.Row>
   )
 }
@@ -357,24 +470,38 @@ const CHART_RIGHT = 8
 const CHART_TOP = 10
 const CHART_BOTTOM = 10
 
-const STATUS_STYLE: Record<string, { dot: string; text: string; label: string; emphasize: boolean }> = {
-  passed: { dot: "fill-green-500 dark:fill-green-400", text: "text-green-700 dark:text-green-300", label: "Passed", emphasize: false },
-  skipped: { dot: "fill-yellow-500 dark:fill-yellow-400", text: "text-yellow-700 dark:text-yellow-300", label: "Inconclusive", emphasize: false },
-  failed: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", label: "Failed", emphasize: true },
-  error: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", label: "Error", emphasize: true }
+const STATUS_STYLE: Record<string, { dot: string; text: string; labelKey: string; emphasize: boolean }> = {
+  passed: { dot: "fill-green-500 dark:fill-green-400", text: "text-green-700 dark:text-green-300", labelKey: "repo_status_passed", emphasize: false },
+  skipped: { dot: "fill-yellow-500 dark:fill-yellow-400", text: "text-yellow-700 dark:text-yellow-300", labelKey: "repo_status_skipped", emphasize: false },
+  failed: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", labelKey: "repo_status_failed", emphasize: true },
+  error: { dot: "fill-red-500 dark:fill-red-400", text: "text-red-700 dark:text-red-300", labelKey: "repo_status_error", emphasize: true }
 }
 
 type ChartDot = { key: number; x: number; y: number; status: RepositoryTestDurationPoint["status"]; source: RepositoryTestDurationPoint }
 type ActiveDot = { point: RepositoryTestDurationPoint; x: number; y: number }
 
-function DurationChart({ history, points, prefix, t }: { history: RepositoryTestHistoryItem[]; points: RepositoryTestDurationPoint[]; prefix: string; t: TFunction<"test_insights"> }) {
+function DurationChart({
+  history,
+  points,
+  prefix,
+  t
+}: {
+  history: RepositoryTestHistoryItem[]
+  points: RepositoryTestDurationPoint[]
+  prefix: string
+  t: TFunction<"test_insights">
+}) {
   const navigate = useNavigate()
   const historyById = useMemo(() => new Map(history.map((item) => [item.id, item])), [history])
   const chart = useMemo(() => buildChart(points), [points])
   const [active, setActive] = useState<ActiveDot | null>(null)
 
   if (!chart) {
-    return <div className="mt-4 rounded border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t("repo_no_duration_samples")}</div>
+    return (
+      <div className="mt-4 rounded border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        {t("repo_no_duration_samples")}
+      </div>
+    )
   }
 
   const latest = points.at(-1)
@@ -387,7 +514,9 @@ function DurationChart({ history, points, prefix, t }: { history: RepositoryTest
     <div className="mt-4">
       <div className="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>{t("repo_duration_over_time")}</span>
-        {latest ? <span className="font-medium text-gray-700 dark:text-gray-300">{t("repo_latest_duration", { duration: formatDuration(latest.duration_ms) })}</span> : null}
+        {latest ? (
+          <span className="font-medium text-gray-700 dark:text-gray-300">{t("repo_latest_duration", { duration: formatDuration(latest.duration_ms) })}</span>
+        ) : null}
       </div>
       <div className="relative">
         <svg className="h-44 w-full overflow-visible" onMouseLeave={() => setActive(null)} role="img" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
@@ -406,7 +535,7 @@ function DurationChart({ history, points, prefix, t }: { history: RepositoryTest
             return (
               <g key={dot.key}>
                 <circle
-                  aria-label={t(`repo_status_${dot.status}`, { defaultValue: style.label }) + `, ${formatDuration(dot.source.duration_ms)}`}
+                  aria-label={`${t(style.labelKey)}, ${formatDuration(dot.source.duration_ms)}`}
                   className="cursor-pointer fill-transparent"
                   cx={dot.x}
                   cy={dot.y}
@@ -424,7 +553,13 @@ function DurationChart({ history, points, prefix, t }: { history: RepositoryTest
                   }}
                   onMouseEnter={() => setActive({ point: dot.source, x: dot.x, y: dot.y })}
                 />
-                <circle className={`pointer-events-none stroke-white dark:stroke-gray-900 ${style.dot}`} cx={dot.x} cy={dot.y} r={style.emphasize ? 4.5 : 3} strokeWidth="1" />
+                <circle
+                  className={`pointer-events-none stroke-white dark:stroke-gray-900 ${style.dot}`}
+                  cx={dot.x}
+                  cy={dot.y}
+                  r={style.emphasize ? 4.5 : 3}
+                  strokeWidth="1"
+                />
               </g>
             )
           })}
@@ -453,7 +588,19 @@ function LegendKey({ className, label }: { className: string; label: string }) {
   )
 }
 
-function DurationTooltip({ historyItem, point, t, x, y }: { historyItem?: RepositoryTestHistoryItem; point: RepositoryTestDurationPoint; t: TFunction<"test_insights">; x: number; y: number }) {
+function DurationTooltip({
+  historyItem,
+  point,
+  t,
+  x,
+  y
+}: {
+  historyItem?: RepositoryTestHistoryItem
+  point: RepositoryTestDurationPoint
+  t: TFunction<"test_insights">
+  x: number
+  y: number
+}) {
   const style = STATUS_STYLE[point.status] ?? STATUS_STYLE.skipped
 
   return (
@@ -463,15 +610,19 @@ function DurationTooltip({ historyItem, point, t, x, y }: { historyItem?: Reposi
       style={{ left: `${(x / CHART_WIDTH) * 100}%`, marginTop: -10, top: `${(y / CHART_HEIGHT) * 100}%` }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className={`font-medium ${style.text}`}>{t(`repo_status_${point.status}`, { defaultValue: style.label })}</span>
+        <span className={`font-medium ${style.text}`}>{t(style.labelKey)}</span>
         <span className="font-mono text-gray-700 dark:text-gray-300">{formatExactDuration(point.duration_ms)}</span>
       </div>
       <div className="mt-1 text-gray-500 dark:text-gray-400">{point.created_at ? new Date(point.created_at).toLocaleString() : t("repo_unknown_time")}</div>
       {historyItem ? (
         <div className="mt-1.5 border-t border-gray-100 pt-1.5 dark:border-gray-800">
-          <div className="text-gray-500 dark:text-gray-400">{historyItem.job.slug} · {historyItem.grader_name}</div>
+          <div className="text-gray-500 dark:text-gray-400">
+            {historyItem.job.slug} · {historyItem.grader_name}
+          </div>
           {historyItem.failure_message ? (
-            <div className="mt-1 truncate text-red-600 dark:text-red-300" title={historyItem.failure_message}>{historyItem.failure_message}</div>
+            <div className="mt-1 truncate text-red-600 dark:text-red-300" title={historyItem.failure_message}>
+              {historyItem.failure_message}
+            </div>
           ) : null}
           <div className="mt-1 font-medium text-brand-emphasis">{t("repo_click_to_open", { slug: historyItem.run.slug })}</div>
         </div>
@@ -535,11 +686,12 @@ function niceTicks(minValue: number, maxValue: number, count: number) {
 }
 
 function StatusBadge({ status }: { status: RepositoryTestHistoryItem["status"] }) {
-  const classes = status === "passed"
-    ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
-    : status === "skipped"
-      ? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-      : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+  const classes =
+    status === "passed"
+      ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
+      : status === "skipped"
+        ? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
   return <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${classes}`}>{status}</span>
 }
 
@@ -562,11 +714,5 @@ export default function RepositoryTestsTab() {
   const [searchParams] = useSearchParams()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
 
-  return (
-    <RepositoryTestsRoute
-      repositoryId={params.repositoryId || ""}
-      prefix={prefix}
-      selectedTestId={searchParams.get("test_id")}
-    />
-  )
+  return <RepositoryTestsRoute repositoryId={params.repositoryId || ""} prefix={prefix} selectedTestId={searchParams.get("test_id")} />
 }

@@ -199,6 +199,18 @@ RSpec.describe SyrusRails::McpToolSet do
   # explain_migration
   # ------------------------------------------------------------------
   describe "#handle explain_migration" do
+    let(:generated_payload) do
+      {
+        migration_name: "AddNameToUsers", status: "success",
+        before: { tables: [ { name: "users", columns: [ { name: "email", type: "string" } ] } ] },
+        after: { tables: [ { name: "users", columns: [ { name: "email", type: "string" }, { name: "name", type: "string" } ] } ] }
+      }
+    end
+
+    before do
+      generator = instance_double(SyrusRails::MigrationArtifactGenerator, generate: generated_payload)
+      allow(SyrusRails::MigrationArtifactGenerator).to receive(:new).and_return(generator)
+    end
     let(:schema_rb) { <<~RUBY }
       ActiveRecord::Schema[8.1].define(version: 2024_01_01_000000) do
         create_table "users", force: :cascade do |t|
@@ -216,7 +228,7 @@ RSpec.describe SyrusRails::McpToolSet do
       end
     RUBY
 
-    it "reports the added column in the change summary" do
+    it "returns the database-generated catalog" do
       with_workspace do |ctx, ws|
         ws.join("db").mkpath
         ws.join("db/schema.rb").write(schema_rb)
@@ -231,12 +243,8 @@ RSpec.describe SyrusRails::McpToolSet do
         expect(response).not_to be_error
         data = JSON.parse(response.content.first[:text])
 
-        types = data["changes"].map { |c| c["type"] }
-        expect(types).to include("added")
-
-        add_change = data["changes"].find { |c| c["type"] == "added" }
-        expect(add_change["column"]["name"]).to eq("name")
-        expect(add_change["column"]["type"]).to eq("string")
+        expect(data["status"]).to eq("success")
+        expect(data.dig("after", "tables", 0, "columns").map { |column| column["name"] }).to include("name")
       end
     end
 
@@ -258,13 +266,7 @@ RSpec.describe SyrusRails::McpToolSet do
       end
     end
 
-    # Regression test: before/after used to be a hash keyed by every schema
-    # table name (e.g. data["before"]["users"]) instead of a single
-    # { table_name, columns } object. The frontend's MigrationDiffRenderer
-    # reads payload.before.columns directly, so the old shape crashed the
-    # Job detail page with "undefined is not an object (evaluating 'n.map')"
-    # whenever a migration artifact was rendered.
-    it "shows the column absent in before state and present in after state, in the single-table shape the frontend expects" do
+    it "shows the column absent before and present after" do
       with_workspace do |ctx, ws|
         ws.join("db").mkpath
         ws.join("db/schema.rb").write(schema_rb)
@@ -278,11 +280,8 @@ RSpec.describe SyrusRails::McpToolSet do
         )
         data = JSON.parse(response.content.first[:text])
 
-        expect(data["before"]["table_name"]).to eq("users")
-        expect(data["after"]["table_name"]).to eq("users")
-
-        before_cols = data["before"]["columns"].map { |c| c["name"] }
-        after_cols  = data["after"]["columns"].map { |c| c["name"] }
+        before_cols = data.dig("before", "tables", 0, "columns").map { |c| c["name"] }
+        after_cols  = data.dig("after", "tables", 0, "columns").map { |c| c["name"] }
         expect(before_cols).not_to include("name")
         expect(after_cols).to include("name")
       end

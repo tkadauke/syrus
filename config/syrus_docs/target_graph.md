@@ -1277,7 +1277,7 @@ This compiles one `//backend:generate/0` target; `packages/api-client/`
 never becomes its own project or gets its own `.syrus.yml`, even though its
 generated output lives outside `backend/`.
 
-### iOS and Android as separate projects, sharing an API
+### iOS and a Gradle app as separate projects, sharing an API
 
 Two platform-specific apps that both consume the same API surface: give each
 its own nested `.syrus.yml` — its own operator boundary, its own future
@@ -1295,10 +1295,10 @@ grade:
 ```
 
 ```yaml
-# /android/.syrus.yml
+# /mobile/.syrus.yml
 project:
-  id: android
-  kind: android_app
+  id: mobile
+  kind: mobile_app
 grade:
   - name: gradle-tests
     run: ./gradlew test
@@ -1314,7 +1314,7 @@ grade:
 ```
 
 This layout can express dependency edges with explicit target labels, for
-example `deps: ["//api:client-contract"]` from an iOS or Android grader to an
+example `deps: ["//api:client-contract"]` from an iOS or mobile grader to an
 API target. A project that does not declare those dependency nodes yet can
 still react to a shared directory's changes by widening its own
 `when_files_changed`:
@@ -1344,7 +1344,7 @@ Declare `project:` when:
   (frontend+backend, a desktop app's renderer/main/packaging/updater, a
   plugin ecosystem) and need a stable id/label independent of the file's own
   path
-- recording a `kind` (`desktop_app`, `ios_app`, `android_app`) is useful for
+- recording a `kind` (`desktop_app`, `ios_app`, `mobile_app`) is useful for
   later project-aware features, even though nothing reads it yet
 
 Don't reach for `project:` just to "declare structure" preemptively — an

@@ -1,7 +1,6 @@
 {
   "app_name": "Syrus",
-  "test_channel_badge": {
-    "label": "Test",
+  "test_channel_dot": {
     "tooltip": "This is a side-by-side test build, isolated from your production Syrus."
   },
   "loading": "Loading...",
@@ -18,14 +17,6 @@
     "lines_omitted_one": "… {{count}} line omitted",
     "lines_omitted_other": "… {{count}} lines omitted",
     "text_omitted": "… text omitted"
-  },
-  "ssh_exec_card": {
-    "succeeded": "SSH command succeeded (exit {{status}})",
-    "failed": "SSH command failed (exit {{status}})",
-    "target": "Target",
-    "command": "Command",
-    "stdout": "stdout",
-    "stderr": "stderr"
   },
   "markdown_preview": {
     "empty": "No text provided.",
@@ -70,6 +61,8 @@
     "ready_description": "Your first Epic has landed — Syrus is set up. The Setup tab will drop off the nav.",
     "open_dashboard": "Open dashboard",
     "readiness_label": "Repository readiness",
+    "readiness_status": "Readiness: {{status}}",
+    "readiness_close": "Close",
     "readiness_loading": "Inspecting repository readiness…",
     "readiness_prepare": "Proposed prepare commands",
     "readiness_graders": "Proposed grader commands",

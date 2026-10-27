@@ -516,7 +516,13 @@ Two things are specific to multi-worker:
 ## Global agent-concurrency cap
 
 `JOB_CONCURRENCY` caps agent Runs **per pod**, so total agent concurrency scales
-with pod count. `AppSetting.max_concurrent_agent_runs` (admin-configurable,
+with pod count. It defaults to the pod's own CPU budget -- 80% of its cgroup
+CPU limit, rounded down, minimum 1 -- which is the same figure
+`RunHostAdmission` rations against. Set it explicitly only to override that.
+Give every worker pod a `resources.limits.cpu` (or set
+`SYRUS_WORKER_CPU_LIMIT`): with no readable quota, `RunProcessParallelism`
+deliberately assumes a small share rather than the node's core count, so an
+unlimited pod runs *fewer* threads, not more. `AppSetting.max_concurrent_agent_runs` (admin-configurable,
 `0` = unlimited) is a **cluster-wide** cap enforced by `RunJob`: if too many
 agent (`:runs`-queue) Runs are already executing across all pods, a new one is
 deferred and re-enqueued. Main-branch grader Runs are on `:runs` and are counted

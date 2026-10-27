@@ -317,6 +317,27 @@ describe("MainBranchHealthSection blocking repair job", () => {
     })
   })
 
+  it.each([
+    [1, "Auto-fix is paused because 1 failed repair job remains open."],
+    [2, "Auto-fix is paused because 2 failed repair jobs remain open."]
+  ])("uses count-driven repair-cap copy for %i failed jobs", (count, expected) => {
+    const history = buildHistory()
+    history.main_branch_repair = {
+      enabled: true,
+      failed_open_jobs_count: count,
+      max_open_failed_jobs: 3,
+      blocked_reason: "failed_open_cap",
+      can_request: false,
+      can_spawn: false,
+      blocking_job: null,
+      failed_jobs: []
+    }
+
+    renderSection(history)
+
+    expect(screen.getByText(new RegExp(expected))).toBeInTheDocument()
+  })
+
   it("renders the blocking job slug as a copyable button", () => {
     const history = buildHistory()
     history.main_branch_repair = {

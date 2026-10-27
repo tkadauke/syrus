@@ -35,12 +35,6 @@ PATH
       rails (>= 8.1)
 
 PATH
-  remote: plugins/android
-  specs:
-    android (0.1.0)
-      rails (>= 8.1)
-
-PATH
   remote: plugins/attention_report
   specs:
     attention_report (0.1.0)
@@ -891,7 +885,6 @@ DEPENDENCIES
   agent_memory!
   agy_agent!
   alertmanager_investigations!
-  android!
   attention_report!
   aws-sdk-s3
   bcrypt (~> 3.1.7)
@@ -1006,7 +999,6 @@ CHECKSUMS
   agent_memory (0.1.0)
   agy_agent (0.1.0)
   alertmanager_investigations (0.1.0)
-  android (0.1.0)
   android_key_attestation (0.3.0) sha256=467eb01a99d2bb48ef9cf24cc13712669d7056cba5a52d009554ff037560570b
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
   attention_report (0.1.0)

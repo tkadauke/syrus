@@ -28,6 +28,7 @@ RSpec.describe App::DeliveryTracksPayload do
     clone_path = RepositoryBareClone.path_for(repository)
     FileUtils.mkdir_p(clone_path.dirname)
     system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+    system("git", "--git-dir", clone_path.to_s, "remote", "set-url", "origin", repository.remote_url, exception: true)
   ensure
     FileUtils.rm_rf(work_dir) if work_dir
   end

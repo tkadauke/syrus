@@ -1,12 +1,14 @@
 import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
+import { TextPreview } from "../toolCardMarkdown"
 
 type UsageWindow = { start: string | null; end: string | null }
 type Totals = { calls: number; errors: number }
 type ToolRow = { key: string; toolName: string; serverName: string | null; calls: number; errors: number; errorRate: number }
 type BreakdownRow = { key: string; label: string; calls: number; errors: number; errorRate: number }
+type StartupTimingRow = { key: string; phase: string; count: number; avgMs: number | null; p50Ms: number | null; p95Ms: number | null; maxMs: number | null }
 type CardGapRow = {
   key: string
   toolName: string
@@ -35,14 +37,21 @@ type RecentCall = {
   status: string
   error: boolean
   errorSummary: string | null
-  links: Array<{ key: string; label: string; href: string }>
+  repositoryId: string | null
+  userId: string | null
+  inputBytes: number | null
+  resultBytes: number | null
+  startedAt: string | null
+  completedAt: string | null
+  links: Array<{ key: "job" | "workflow" | "run" | "chat"; id: string; href: string }>
 }
 
 type UsageCard = {
   unavailableMessage: string | null
   window: UsageWindow
   surface: string | null
-  filters: { toolName: string | null; serverName: string | null }
+  filters: Array<{ key: string; value: string }>
+  input: Array<{ key: string; value: string }>
   totals: Totals
   topTools: ToolRow[]
   errorRates: ToolRow[]
@@ -51,6 +60,13 @@ type UsageCard = {
   serverBreakdown: BreakdownRow[]
   sidecarModeBreakdown: BreakdownRow[]
   authorityBreakdown: BreakdownRow[]
+  startupTiming: {
+    window: UsageWindow
+    filters: { provider: string | null; serverName: string | null }
+    turnsObserved: number
+    stalledTurns: number
+    rows: StartupTimingRow[]
+  }
   unusedAdvertisedTools: string[]
   customCardGaps: {
     rankedGaps: CardGapRow[]
@@ -141,8 +157,8 @@ function linkFor(row: Record<string, unknown>, key: "job" | "workflow" | "run" |
   if (!href) return null
 
   const id = displayValue(row[`${key}_id`])
-  const label = key === "job" && id ? `JOB-${id}` : key === "workflow" && id ? `WF-${id}` : key === "run" && id ? `RUN-${id}` : i18n.t("chat:ops_chat_2ced57")
-  return { key, label, href }
+  if (!id) return null
+  return { key: key === "chat_session" ? "chat" as const : key, id, href }
 }
 
 function parseRecentCall(value: unknown, index: number): RecentCall | null {
@@ -169,13 +185,52 @@ function parseRecentCall(value: unknown, index: number): RecentCall | null {
     status,
     error: value.error === true,
     errorSummary: [displayValue(value.error_class), displayValue(value.error_message_summary)].filter(Boolean).join(": ") || null,
+    repositoryId: displayValue(value.repository_id),
+    userId: displayValue(value.user_id),
+    inputBytes: numberValue(value.input_bytes),
+    resultBytes: numberValue(value.result_bytes),
+    startedAt: displayValue(value.started_at),
+    completedAt: displayValue(value.completed_at),
     links
   }
 }
 
+function parseStartupTiming(value: unknown) {
+  const section = isPlainObject(value) ? value : {}
+  const window = isPlainObject(section.window) ? section.window : {}
+  const filters = isPlainObject(section.filters) ? section.filters : {}
+  const rows = Array.isArray(section.phase_latency) ? section.phase_latency.flatMap((value, index) => {
+    if (!isPlainObject(value)) return []
+    const phase = displayValue(value.phase)
+    const count = numberValue(value.count)
+    if (!phase || count == null) return []
+    return [{ key: `${phase}-${index}`, phase, count, avgMs: numberValue(value.avg_ms), p50Ms: numberValue(value.p50_ms), p95Ms: numberValue(value.p95_ms), maxMs: numberValue(value.max_ms) }]
+  }) : []
+  return {
+    window: { start: displayValue(window.start), end: displayValue(window.end) },
+    filters: { provider: displayValue(filters.provider), serverName: displayValue(filters.server_name) },
+    turnsObserved: numberValue(section.turns_observed) ?? 0,
+    stalledTurns: numberValue(section.stalled_turns) ?? 0,
+    rows
+  }
+}
+
+const INPUT_KEYS = ["surface", "window", "since", "start", "end", "limit", "recent_limit", "tool", "tool_name", "server", "server_name"] as const
+
+function parseInput(input: Record<string, unknown> | undefined) {
+  if (!input) return []
+  return INPUT_KEYS.flatMap((key) => {
+    const value = displayValue(input[key])
+    return value ? [{ key, value }] : []
+  })
+}
+
 function parseFilters(value: unknown) {
-  if (!isPlainObject(value)) return { toolName: null, serverName: null }
-  return { toolName: displayValue(value.tool_name), serverName: displayValue(value.server_name) }
+  if (!isPlainObject(value)) return []
+  return Object.entries(value).flatMap(([key, rawValue]) => {
+    const value = displayValue(rawValue)
+    return value ? [{ key, value }] : []
+  })
 }
 
 function parseCustomCardGaps(value: unknown) {
@@ -208,6 +263,7 @@ function parseUsage(context: ToolCardContext): UsageCard | null {
     window: { start: displayValue(window.start), end: displayValue(window.end) },
     surface: displayValue(parsed.surface),
     filters: parseFilters(parsed.filters),
+    input: parseInput(context.input),
     totals: { calls: calls ?? 0, errors: errors ?? 0 },
     topTools: Array.isArray(parsed.top_tools)
       ? parsed.top_tools.flatMap((row, index) => {
@@ -257,6 +313,7 @@ function parseUsage(context: ToolCardContext): UsageCard | null {
           return name ? [name] : []
         })
       : [],
+    startupTiming: parseStartupTiming(parsed.startup_timing),
     customCardGaps: parseCustomCardGaps(parsed.custom_card_gaps),
     recentCalls: Array.isArray(parsed.recent_calls)
       ? parsed.recent_calls.flatMap((row, index) => {
@@ -312,7 +369,7 @@ function ToolRows({ heading, intent, rows }: { heading: string; intent: "volume"
           {intent === "error" ? i18n.t("chat:ops_no_high_error_tools_in_this_window_48b31a") : i18n.t("chat:ops_no_tool_volume_in_this_window_91e593")}
         </EmptyState>
       ) : (
-        <Table>
+        <Table responsive>
           <THead columns={["tool", "calls", "errors", "rate"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
           <TBody>
             {rows.map((row) => (
@@ -338,7 +395,7 @@ function BreakdownRows({ label, rows }: { label: string; rows: BreakdownRow[] })
   return (
     <div>
       <SectionLabel>{label}</SectionLabel>
-      <Table>
+      <Table responsive>
         <THead columns={[label, ...["calls", "errors", "rate"].map((key) => i18n.t(`chat:admin_column_${key}`))]} />
         <TBody>
           {rows.map((row) => (
@@ -398,7 +455,7 @@ function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
       {rows.length === 0 ? (
         <EmptyState>{i18n.t("chat:ops_no_missing_or_weak_card_gaps_in_this_window_51b2cb")}</EmptyState>
       ) : (
-        <Table>
+        <Table responsive>
           <THead columns={["tool", "usage", "owner", "last_used"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
           <TBody>
             {rows.map((row) => (
@@ -435,39 +492,82 @@ function RecentCalls({ calls }: { calls: RecentCall[] }) {
   if (calls.length === 0) return <EmptyState>{i18n.t("chat:ops_no_recent_calls_found_e21be6")}</EmptyState>
 
   return (
-    <Table>
-      <THead columns={["when", "call", "status", "links"].map((key) => i18n.t(`chat:admin_column_${key}`))} />
+    <Table responsive>
+      <THead columns={["Timing", "Call", "Status / error", "Size", "Entities"]} />
       <TBody>
         {calls.map((call) => (
           <tr key={call.key}>
-            <Td mono>{call.occurredAt || "-"}</Td>
-            <Td maxWidth title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
+            <Td mono wrap>
+              <div>{i18n.t("chat:admin_mcp_occurred")}: {call.occurredAt || "-"}</div>
+              <div>{i18n.t("chat:admin_mcp_started")}: {call.startedAt || "-"}</div>
+              <div>{i18n.t("chat:admin_mcp_completed")}: {call.completedAt || "-"}</div>
+            </Td>
+            <Td maxWidth wrap title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
               <div className="font-medium text-gray-900 dark:text-gray-100">{call.toolName}</div>
               <div className="text-2xs text-gray-500 dark:text-gray-400">
                 {[call.serverName || "-", call.surface, call.provider, call.sidecarMode, call.daemonWorkerId, call.authority].filter(Boolean).join(" / ")}
               </div>
             </Td>
-            <Td maxWidth title={call.errorSummary || undefined}>
+            <Td maxWidth wrap>
               <StatePill state={call.status} tone={call.error ? "failure" : "success"} />
-              {call.errorSummary ? <div className="mt-1 truncate text-2xs text-gray-500 dark:text-gray-400">{call.errorSummary}</div> : null}
+              {call.errorSummary ? <div className="mt-1"><TextPreview maxLines={3} modalLabel="Full error preview" text={call.errorSummary} /></div> : null}
             </Td>
-            <Td>
-              {call.links.length === 0 ? (
-                "—"
-              ) : (
-                <div className="flex flex-wrap gap-1">
-                  {call.links.map((link) => (
-                    <InternalLink href={link.href} key={link.key}>
-                      {link.label}
-                    </InternalLink>
-                  ))}
-                </div>
-              )}
+            <Td mono>
+              <div>{i18n.t("chat:admin_mcp_input")}: {formatBytes(call.inputBytes)}</div>
+              <div>{i18n.t("chat:admin_mcp_result")}: {formatBytes(call.resultBytes)}</div>
+            </Td>
+            <Td wrap>
+              <div className="flex flex-wrap gap-2">
+                {call.links.map((link) => <EntityReference href={link.href} id={link.id} key={link.key} kind={link.key} />)}
+                {call.repositoryId ? <EntityReference id={call.repositoryId} kind="repository" label={i18n.t("chat:admin_mcp_repository", { id: call.repositoryId })} repositoryId={call.repositoryId} /> : null}
+              </div>
+              {call.userId ? <div className="mt-1 font-mono text-2xs text-gray-500 dark:text-gray-400">{i18n.t("chat:admin_mcp_user", { id: call.userId })}</div> : null}
+              {call.links.length === 0 && !call.repositoryId && !call.userId ? "—" : null}
             </Td>
           </tr>
         ))}
       </TBody>
     </Table>
+  )
+}
+
+function formatMs(value: number | null) {
+  return value == null ? "-" : `${Math.round(value)} ms`
+}
+
+function StartupTiming({ section }: { section: UsageCard["startupTiming"] }) {
+  const window = section.window.start && section.window.end
+    ? `${section.window.start} to ${section.window.end}`
+    : section.window.start || section.window.end || "unavailable"
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <SectionLabel>{i18n.t("chat:admin_mcp_startup_timing")}</SectionLabel>
+        <Badge>{i18n.t("chat:admin_mcp_window", { window })}</Badge>
+        <Badge>{i18n.t("chat:admin_mcp_provider", { provider: section.filters.provider || "all" })}</Badge>
+        <Badge>{i18n.t("chat:admin_mcp_server", { server: section.filters.serverName || "all" })}</Badge>
+        <Badge>{i18n.t("chat:admin_mcp_turns_observed", { count: section.turnsObserved })}</Badge>
+        <Badge>{section.stalledTurns} stalled</Badge>
+      </div>
+      {section.rows.length === 0 ? <EmptyState>{i18n.t("chat:admin_mcp_no_startup_phases")}</EmptyState> : (
+        <Table responsive>
+          <THead columns={["Phase", "Count", "Avg since start", "p50", "p95", "Max"]} />
+          <TBody>
+            {section.rows.map((row) => (
+              <tr key={row.key}>
+                <Td wrap>{row.phase.replaceAll("_", " ")}</Td>
+                <Td mono>{row.count}</Td>
+                <Td mono>{formatMs(row.avgMs)}</Td>
+                <Td mono>{formatMs(row.p50Ms)}</Td>
+                <Td mono>{formatMs(row.p95Ms)}</Td>
+                <Td mono>{formatMs(row.maxMs)}</Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
+    </div>
   )
 }
 
@@ -478,11 +578,6 @@ function renderExpanded(context: ToolCardContext) {
   if (card.unavailableMessage) return <EmptyState>{card.unavailableMessage}</EmptyState>
 
   const rate = card.totals.calls > 0 ? card.totals.errors / card.totals.calls : 0
-  const filters = [
-    card.filters.toolName ? `tool: ${card.filters.toolName}` : null,
-    card.filters.serverName ? `server: ${card.filters.serverName}` : null
-  ].filter(Boolean)
-
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
@@ -490,9 +585,8 @@ function renderExpanded(context: ToolCardContext) {
         {card.window.start && card.window.end ? (
           <Badge>{i18n.t("chat:admin_mcp_window_range", { start: card.window.start, end: card.window.end })}</Badge>
         ) : null}
-        {filters.map((filter) => (
-          <Badge key={filter}>{filter}</Badge>
-        ))}
+        {card.filters.map((filter) => <Badge key={`result-${filter.key}`}>{filter.key === "tool_name" ? "tool" : filter.key === "server_name" ? "server" : filter.key.replaceAll("_", " ")}: {filter.value}</Badge>)}
+        {card.input.map((item) => <Badge key={item.key}>{item.key}: {item.value}</Badge>)}
       </div>
       <div className="grid grid-cols-3 gap-2">
         <StatTile label={i18n.t("chat:ops_calls_0a19b7")} value={card.totals.calls} tone="volume" />
@@ -505,7 +599,7 @@ function renderExpanded(context: ToolCardContext) {
         <ToolRows heading={i18n.t("chat:admin_mcp_error_priorities")} intent="error" rows={card.errorRates} />
       </div>
       <RankedCardGaps rows={card.customCardGaps.rankedGaps} />
-      <div className="grid min-w-0 gap-2 lg:grid-cols-4">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <CardGapRows heading={i18n.t("chat:admin_mcp_missing_high_volume_cards")} rows={card.customCardGaps.highVolumeWithoutCustomCard} />
         <CardGapRows heading={i18n.t("chat:admin_mcp_weak_error_cards")} rows={card.customCardGaps.highErrorWithWeakOrNoCustomCard} />
         <CardGapRows heading={i18n.t("chat:ops_unused_advertised_tools_3d0e89")} rows={card.customCardGaps.unusedAdvertisedTools} showVolume={false} />
@@ -532,6 +626,7 @@ function renderExpanded(context: ToolCardContext) {
           </div>
         </div>
       ) : null}
+      <StartupTiming section={card.startupTiming} />
       <div>
         <SectionLabel>{i18n.t("chat:ops_recent_calls_f584cb")}</SectionLabel>
         <RecentCalls calls={card.recentCalls} />

@@ -95,7 +95,7 @@ RSpec.describe "desktop connect flow" do
     expect(form).to include("PROBE_DEBOUNCE_MS")
     expect(form).to include("probeSeq")
     expect(form).to include('t("onboarding.connect.found", { url: probe.url })')
-    expect(desktop_i18n).to include("Syrus found at")
+    expect(read("electron/i18nCatalog.ts")).to include('"onboarding.connect.found": "Syrus found at {{url}}."')
   end
 
   it "rejects partial numeric hosts instead of previewing a mangled address" do

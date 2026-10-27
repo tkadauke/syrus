@@ -347,6 +347,87 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result).not_to be_success
   end
 
+  # mktmpdir cleans up on a normal exit; SIGKILL skips that and leaves the
+  # directory with its FIFOs in the working tree. A stray FIFO is not inert --
+  # anything walking the tree that opens it blocks forever at zero CPU with no
+  # error, which wedged both Tailwind's source detection and `docker build`'s
+  # context transfer. git never lists non-regular files, so the debris does not
+  # even show up as untracked.
+  describe ".sweep_stale_pipe_dirs" do
+    it "removes a killed invocation's leftover FIFO directory" do
+      stale = File.join(@dir, "process-runner-capture20261026-1234-abcdef")
+      FileUtils.mkdir_p(stale)
+      File.mkfifo(File.join(stale, "stdout"))
+      File.mkfifo(File.join(stale, "stderr"))
+      File.utime(Time.now - 3.hours, Time.now - 3.hours, stale)
+
+      described_class.sweep_stale_pipe_dirs(@dir)
+
+      expect(File.exist?(stale)).to be(false)
+    end
+
+    it "removes leftover pipeline directories too" do
+      stale = File.join(@dir, "process-runner-pipeline20261026-1234-abcdef")
+      FileUtils.mkdir_p(stale)
+      File.mkfifo(File.join(stale, "pipe-0"))
+      File.utime(Time.now - 3.hours, Time.now - 3.hours, stale)
+
+      described_class.sweep_stale_pipe_dirs(@dir)
+
+      expect(File.exist?(stale)).to be(false)
+    end
+
+    # The longest capture timeout in this codebase is 30 minutes, so anything
+    # younger than the threshold may still have a live writer attached.
+    it "leaves a recent directory alone, which may belong to a live invocation" do
+      fresh = File.join(@dir, "process-runner-capture20261026-9999-live")
+      FileUtils.mkdir_p(fresh)
+      File.mkfifo(File.join(fresh, "stdout"))
+
+      described_class.sweep_stale_pipe_dirs(@dir)
+
+      expect(File.exist?(fresh)).to be(true)
+    end
+
+    it "ignores unrelated directories" do
+      keep = File.join(@dir, "app")
+      FileUtils.mkdir_p(keep)
+      File.utime(Time.now - 3.hours, Time.now - 3.hours, keep)
+
+      described_class.sweep_stale_pipe_dirs(@dir)
+
+      expect(File.exist?(keep)).to be(true)
+    end
+
+    it "never raises, because debris collection must not fail the command it precedes" do
+      expect { described_class.sweep_stale_pipe_dirs("/nonexistent/#{SecureRandom.hex(4)}") }.not_to raise_error
+      expect { described_class.sweep_stale_pipe_dirs("") }.not_to raise_error
+      expect { described_class.sweep_stale_pipe_dirs(nil) }.not_to raise_error
+    end
+  end
+
+  # A process group that exits while we are signalling it can answer EPERM
+  # rather than ESRCH -- the pgid no longer names our group, and on BSD/macOS
+  # the kernel says "not permitted" instead of "no such process". Letting it
+  # escape replaced a timeout result with `Errno::EPERM`, so a graded command
+  # that had plainly timed out was reported as an opaque error instead. It
+  # surfaced as a roughly one-in-four flake under parallel load.
+  it "still reports a timeout when the dying process group answers EPERM" do
+    allow(Process).to receive(:kill).and_raise(Errno::EPERM)
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 0.05,
+      kill_grace_seconds: 0
+    ).run
+
+    expect(result).to be_timed_out
+    expect(result).not_to be_success
+  end
+
   # mysql2 opens its sockets in a C extension, so they carry no FD_CLOEXEC
   # (production shows flags=02) and survived exec into every graded command:
   # a four-minute-old rspec worker held six live connections to the

@@ -982,7 +982,9 @@ RSpec.describe Run, :ci_only do
 
       clear_enqueued_jobs
       expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
-      expect(run.reload).to be_failed
+      # Not dispatched is the property under test; the Run now waits for a
+      # capable worker rather than being failed terminally.
+      expect(run.reload).not_to be_failed
       expect(workflow.reload.artifact("run_queue_blocked")).to include(
         "queue_name" => "runs-macos-arm64",
         "requirements" => requirements,
@@ -1020,7 +1022,7 @@ RSpec.describe Run, :ci_only do
 
       clear_enqueued_jobs
       expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
-      expect(run.reload).to be_failed
+      expect(run.reload).not_to be_failed
       expect(workflow.reload.artifact("run_queue_blocked")).to include(
         "queue_name" => "runs-macos-arm64",
         "reason" => "no_live_worker_for_capabilities"
@@ -1149,7 +1151,13 @@ RSpec.describe Run, :ci_only do
       expect { backend_run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
     end
 
-    it "fails visibly instead of enqueueing to an unconsumed capability queue" do
+    # These used to assert the Run was FAILED. The visibility they were
+    # protecting is still asserted -- the artifact, the block reason, the
+    # refusal to enqueue onto a queue nobody consumes -- but the Run now waits
+    # instead of dying. Failing it made `no_capable_worker` reach
+    # MergeTrainFailureHandler as a member-attributed grader failure and tear
+    # down whole merge-train assemblies for a capability gap.
+    it "blocks visibly instead of enqueueing to an unconsumed capability queue" do
       workflow.update!(
         planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "explicit"
@@ -1157,15 +1165,15 @@ RSpec.describe Run, :ci_only do
 
       clear_enqueued_jobs
       expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
-      expect(run.reload).to be_failed
-      expect(run.agent_outcome).to eq(RunQueueResolver::BLOCKED_OUTCOME)
+      expect(run.reload).not_to be_failed
       expect(workflow.reload.artifact("run_queue_blocked")).to include(
         "queue_name" => "runs-macos-arm64",
         "reason" => "no_live_worker_for_capabilities"
       )
+      expect(workflow.reload.artifact("start_blocked_reason")).to eq(RunQueueResolver::BLOCKED_OUTCOME)
     end
 
-    it "fails visibly when macOS requirements have no capable worker" do
+    it "blocks visibly when macOS requirements have no capable worker" do
       workflow.update!(
         planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "explicit"
@@ -1177,13 +1185,25 @@ RSpec.describe Run, :ci_only do
 
       clear_enqueued_jobs
       expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
-      expect(run.reload).to be_failed
-      expect(run.agent_outcome).to eq(RunQueueResolver::BLOCKED_OUTCOME)
+      expect(run.reload).not_to be_failed
       expect(workflow.reload.artifact("run_queue_blocked")).to include(
         "queue_name" => "runs-macos-arm64",
         "requirements" => { "os" => [ "macos" ] },
         "reason" => "no_live_worker_for_capabilities"
       )
+    end
+
+    # Blocking is only better than failing if it can end. The recheck is what
+    # makes a capability gap recover on its own the moment a capable worker
+    # joins, instead of parking the step forever.
+    it "schedules a re-check so the step starts when a capable worker appears" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ] },
+        planned_execution_source: "explicit"
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(WorkflowPhaseAdmissionJob)
     end
   end
 

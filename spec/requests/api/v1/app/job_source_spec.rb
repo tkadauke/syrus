@@ -52,11 +52,7 @@ RSpec.describe "App API job source browser", type: :request do
     expect(body["source_error"]).to be_nil
     expect(body["file_error"]).to be_nil
     expect(body["selected_ref"]).to eq("fixture-head")
-    expect(body["tree_items"]).to contain_exactly(include(
-      "path" => "app/frontend/routes/Dashboard.tsx",
-      "name" => "Dashboard.tsx",
-      "language" => "typescript"
-    ))
+    expect(body["tree_items"]).to contain_exactly(include("path" => "app", "name" => "app", "type" => "directory"))
     expect(body["file"]).to include(
       "path" => "app/frontend/routes/Dashboard.tsx",
       "content" => "line 1\nline 2\nline 3\n",
@@ -89,10 +85,10 @@ RSpec.describe "App API job source browser", type: :request do
       "message" => "Change user model",
       "date" => "2026-05-01T12:00:00Z"
     ))
+    expect(body["tree_path"]).to eq("")
     expect(body["tree_items"]).to contain_exactly(
-      include("path" => "app/models/user.rb", "name" => "user.rb", "language" => "ruby", "size" => 15),
-      include("path" => "app/frontend/routes/Chat.tsx", "name" => "Chat.tsx", "language" => "typescript", "size" => 256),
-      include("path" => "README.md", "name" => "README.md", "language" => "markdown", "size" => 128)
+      include("path" => "app", "name" => "app", "type" => "directory"),
+      include("path" => "README.md", "name" => "README.md", "language" => "markdown", "size" => 128, "type" => "file")
     )
     expect(body["tree_truncated"]).to eq(false)
     expect(body["source_error"]).to be_nil
@@ -105,6 +101,16 @@ RSpec.describe "App API job source browser", type: :request do
       "size" => 15,
       "truncated" => false
     )
+
+    get "/api/v1/app/jobs/#{job.id}/source", params: { ref: commit_sha, tree_path: "app/models" }
+
+    directory = parse_body
+    expect(directory["tree_path"]).to eq("app/models")
+    expect(directory["tree_items"]).to contain_exactly(
+      include("path" => "app/models/user.rb", "name" => "user.rb", "language" => "ruby", "size" => 15, "type" => "file")
+    )
+    expect(FakeRepositoryContentProvider.calls.select { |call| call.first == :children }.map(&:last)).to include("", "app/models")
+    expect(FakeRepositoryContentProvider.calls.map(&:first)).not_to include(:tree)
   end
 
   it "reports a missing file without failing the tree" do
@@ -119,7 +125,7 @@ RSpec.describe "App API job source browser", type: :request do
     expect(body["file_error"]).to eq("File not found.")
   end
 
-  it "shows a tree too large to list in full, flagged as truncated" do
+  it "lists root children even when the recursive repository tree is truncated" do
     user.update!(github_token: "ghp_test_token")
     job.update!(branch_name: nil)
     stub_repository_content(repo, files: { "README.md" => "hi" }, truncated_tree: true)
@@ -127,7 +133,7 @@ RSpec.describe "App API job source browser", type: :request do
     get "/api/v1/app/jobs/#{job.id}/source"
 
     body = parse_body
-    expect(body["tree_truncated"]).to be(true)
+    expect(body["tree_truncated"]).to be(false)
     expect(body["tree_items"].map { |item| item["path"] }).to eq([ "README.md" ])
     expect(body["source_error"]).to be_nil
   end

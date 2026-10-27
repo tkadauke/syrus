@@ -311,10 +311,33 @@ class MergeTrainFailureHandler
   # non-retryable AND are nobody's code, so every one of them tore down a sound
   # assembly. Retryable still qualifies on its own; step attribution only adds
   # the non-retryable train-level failures it was missing.
+  # Causes that are never the member's fault, wherever they occur.
+  #
+  # TRAIN_ATTRIBUTED_STEP_KINDS asks *where* a failure happened. That is the
+  # right question for a conflict or a base that moved, and the wrong one for a
+  # run that never executed the member's code at all. `no_capable_worker` is
+  # the clearest case: no live worker advertised the capability the step needs,
+  # so the assembly is sound and rebuilding it changes nothing about the
+  # outcome. It arrives on a `grader` -- a step kind deliberately attributed to
+  # the member, because a failing test *is* the member's fault -- and so it
+  # tore down 14 sound assemblies in a single day, each costing 45-167 minutes
+  # of a landing lock that is already the throughput ceiling.
+  #
+  # Keyed on the run outcome rather than the classification because
+  # RunFailureClassifier files this under the generic `application_error`
+  # fallback with retryable: false, which is exactly why retryability did not
+  # catch it.
+  TRAIN_ATTRIBUTED_RUN_OUTCOMES = %w[ no_capable_worker ].freeze
+
   def preservable_failure?
     return true if retryable_failure?
+    return true if train_attributed_outcome?
 
     TRAIN_ATTRIBUTED_STEP_KINDS.include?(failed_step_kind)
+  end
+
+  def train_attributed_outcome?
+    TRAIN_ATTRIBUTED_RUN_OUTCOMES.include?(failed_run&.agent_outcome.to_s)
   end
 
   def retryable_failure?

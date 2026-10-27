@@ -177,6 +177,11 @@ if [ "$SKIP_BUILD" = false ]; then
   # tag being built -- only other SHAs, which are already in GHCR and
   # re-pullable.
   syrus_docker_prune_old_repo_tags "$SHA" "$REGISTRY" "$WORKER_DEV_REGISTRY" ${PLUGIN_REGISTRIES[@]+"${PLUGIN_REGISTRIES[@]}"}
+  # Before the preflight, not only after a successful build: a failed deploy
+  # leaves its cache behind, so without this each failure tightens the next
+  # preflight until no deploy can start. Bounded by the same target the
+  # preflight demands, so a warm cache survives when there is already room.
+  syrus_docker_reclaim_for_preflight
   syrus_docker_require_free_space
 
   pull_build_cache "${REGISTRY}:latest"

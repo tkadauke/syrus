@@ -7,6 +7,7 @@ module Steps
   class CoverageAnalyze < Base
     def call
       workspace.setup
+      @retained_outputs = RetainedGraderCoverageOutputs.for(workflow)
       diff_text = diff_text_for_coverage
       plan_result = App::CoverageProjects.call(workspace_path: workspace.path, changed_files: changed_files_from_diff(diff_text))
       plans = plan_result.plans
@@ -69,26 +70,50 @@ module Steps
     end
 
     def parse_sources(plan)
-      plan.sources.map do |source|
-        artifact_path = coverage_artifact_path(plan, source)
-        unless artifact_path.exist?
-          log("[coverage_analyze] artifact not found: #{source_status_path(plan, source)}")
-          next CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
-                                          found: false, raw: nil, lines_pct: nil)
-        end
-
-        begin
-          result = try_plugin_parsers(artifact_path, source.format) ||
-                   CoverageAnalysis::Parsers.for(source.format).parse(artifact_path.read)
-          normalized_raw = normalize_hit_map_paths(result.raw, plan)
-          CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
-                                     found: true, raw: normalized_raw, lines_pct: result.lines_pct)
-        rescue => e
-          log("[coverage_analyze] failed to parse #{source_status_path(plan, source)} (#{source.format}): #{e.message}")
-          CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
-                                     found: false, raw: nil, lines_pct: nil)
+      plan.sources.flat_map do |source|
+        retained = retained_outputs_for(plan, source)
+        if retained.any?
+          retained.map { |output| parse_retained_source(plan, source, output) }
+        else
+          [ parse_workspace_source(plan, source) ]
         end
       end
+    end
+
+    def parse_workspace_source(plan, source)
+      artifact_path = coverage_artifact_path(plan, source)
+      unless artifact_path.exist?
+        log("[coverage_analyze] artifact not found: #{source_status_path(plan, source)}")
+        return CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
+                                                  found: false, raw: nil, lines_pct: nil)
+      end
+
+      parse_source_file(artifact_path, plan, source, workspace.path.to_s, source_status_path(plan, source))
+    end
+
+    def parse_retained_source(plan, source, output)
+      output.attachment.blob.open do |file|
+        label = "#{source_status_path(plan, source)} from grader #{output.grader_name} (Run ##{output.run_id})"
+        log("[coverage_analyze] using retained #{label}")
+        return parse_source_file(Pathname.new(file.path), plan, source, output.workspace_path, label)
+      end
+    end
+
+    def parse_source_file(artifact_path, plan, source, workspace_path, label)
+      result = try_plugin_parsers(artifact_path, source.format) ||
+               CoverageAnalysis::Parsers.for(source.format).parse(artifact_path.read)
+      normalized_raw = normalize_hit_map_paths(result.raw, plan, workspace_path:)
+      CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
+                                 found: true, raw: normalized_raw, lines_pct: result.lines_pct)
+    rescue => e
+      log("[coverage_analyze] failed to parse #{label} (#{source.format}): #{e.message}")
+      CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
+                                 found: false, raw: nil, lines_pct: nil)
+    end
+
+    def retained_outputs_for(plan, source)
+      expected = source_status_path(plan, source)
+      @retained_outputs.select { |output| output.artifact == expected && output.format == source.format }
     end
 
     def try_plugin_parsers(artifact_path, format)
@@ -208,8 +233,8 @@ module Steps
       end
     end
 
-    def normalize_hit_map_paths(raw, plan)
-      prefix = workspace.path.to_s + "/"
+    def normalize_hit_map_paths(raw, plan, workspace_path: workspace.path.to_s)
+      prefix = workspace_path.to_s.delete_suffix("/") + "/"
       hit_map    = raw[:hit_map].transform_keys    { |k| normalize_coverage_path(k, prefix, plan) }
       file_stats = raw[:file_stats].transform_keys { |k| normalize_coverage_path(k, prefix, plan) }
       coverage_units = (raw[:coverage_units] || {}).transform_keys { |k| normalize_coverage_path(k, prefix, plan) }

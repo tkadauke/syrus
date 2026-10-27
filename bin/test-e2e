@@ -106,6 +106,21 @@ fi
 # only ever set here. Exported so Playwright's webServer (bin/syrus-preview-dev)
 # inherits it and the app serves the same database the seed just built.
 if [ -z "${E2E_BASE_URL:-}" ]; then
+  # Database ids are local to each database, while clone-cache paths are based
+  # on those ids. Keep every locally hosted run's entire filesystem state away
+  # from an operator/worker data root so an E2E fixture can never replace a
+  # live repository's same-id cache. Remote E2E runs do not start a local app
+  # and therefore keep their existing environment untouched.
+  E2E_DATA_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/syrus-e2e-data.XXXXXX")"
+  cleanup_e2e_data_root() {
+    rm -rf -- "$E2E_DATA_ROOT"
+  }
+  trap cleanup_e2e_data_root EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  export SYRUS_DATA_ROOT="$E2E_DATA_ROOT"
+
   export SYRUS_DEV_DB_PREFIX="${SYRUS_DEV_DB_PREFIX:-e2e}"
   export SEARCH_DATABASE_PATH="${SEARCH_DATABASE_PATH:-storage/${SYRUS_DEV_DB_PREFIX}_search.sqlite3}"
 fi
@@ -128,4 +143,4 @@ if [ -z "${E2E_BASE_URL:-}" ] && [ "${E2E_SKIP_SEED:-0}" != "1" ]; then
   bin/rails db:prepare e2e:seed
 fi
 
-exec npx playwright test "$@"
+npx playwright test "$@"

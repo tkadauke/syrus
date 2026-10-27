@@ -6,8 +6,8 @@ module Syrus
     # against the requirements graders and Jobs declare.
     #
     # Implementations own the knowledge of where their tooling lives. Core only
-    # knows how to run a command and record the answer, which is why the Android
-    # SDK's root and layout live in the Android plugin rather than here.
+    # knows how to run a command and record the answer; where a toolchain lives
+    # and how it is laid out belongs to the plugin that needs it, never here.
     #
     # Two constraints worth knowing before writing one:
     #

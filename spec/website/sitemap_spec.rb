@@ -14,7 +14,7 @@ RSpec.describe "website sitemap" do
       import { sitemapEntries } from #{sitemap_library.to_json};
       console.log(JSON.stringify(sitemapEntries(
         [{ href: "/plugins/terminal" }, { href: "/plugins/terminal/" }],
-        [{ href: "/docs/android" }, { href: "/docs/deployment/macos-workers" }],
+        [{ href: "/docs/configuration" }, { href: "/docs/deployment/macos-workers" }],
         [{ href: "/blog/launch" }],
       )));
     JAVASCRIPT
@@ -35,7 +35,7 @@ RSpec.describe "website sitemap" do
       "https://syrus-ai.dev/download/",
       "https://syrus-ai.dev/plugins/",
       "https://syrus-ai.dev/plugins/terminal/",
-      "https://syrus-ai.dev/docs/android/",
+      "https://syrus-ai.dev/docs/configuration/",
       "https://syrus-ai.dev/docs/deployment/macos-workers/",
       "https://syrus-ai.dev/blog/launch/",
     )

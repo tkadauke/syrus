@@ -28,6 +28,10 @@ with a Source toggle, and other text files get syntax highlighting. Google
 Doc attachments stay a plain external link; binary uploads (images, PDFs,
 Office documents) open the popup but show a "cannot be previewed" state with
 the Raw button still available.
+The Source tab browses every file at the selected revision. It loads the
+repository root first, then fetches each folder's direct children when the
+operator expands it, so large repositories are not cut off by a fixed file
+limit or loaded as one oversized recursive tree.
 Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
 show a Load more control whenever older cards exist beyond the loaded window.
 The Jobs and Epics dashboards also include a desktop-only Dependencies graph
@@ -224,19 +228,20 @@ Runtime Session (`runtime_input`, and the equivalent direct
 first request a short-lived control lease with `runtime_acquire_control` and
 release it with `runtime_release_control` when finished, so agent-driven
 interaction never races an operator who is looking at the same session;
+chat tool cards show input delivery errors and provider event details, while
+typed text is masked by default and can only be revealed with an explicit
+control;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
 and `runtime_stop` tears the session down. Runtime providers include browser
-dev-server sessions and Android emulator sessions. Browser sessions navigate
-and inspect a running web app; Android emulator sessions create or reuse an
-AVD, install APKs through Gradle/ADB, launch apps, capture emulator PNG frames,
-inspect the UI Automator hierarchy, and page `logcat`. Both are watchable from
+dev-server sessions, which navigate and inspect a running web app. They are
+watchable from
 Coding Mode's right sidebar in a Runtime tab (once the chat has started a
 session): session state, a generic visual frame viewer for providers that
 advertise screenshot/frame streams, latest captured screenshots as fallback, a
 scrolling log tail, and provider details. The panel also gives the operator a
 Take Control / Abort Agent Control button that immediately takes over input
 from the agent, lets the operator click, paste, or type into visual providers
-such as Browser or Android emulator while that input lease is active, and
+such as Browser while that input lease is active, and
 includes a button to capture a fresh screenshot on demand. Control leases are
 short-lived by design, but the panel renews an active operator lease
 automatically in the background, so staying on the tab keeps control without it
@@ -769,7 +774,10 @@ canvas after Syrus automatically snapshots it, the transcript card renders the
 saved scene as a thumbnail that opens a full-size preview, shows the canvas
 version and available snapshot details, and links to the chat's Whiteboard and
 Media tabs. Clearing an already-empty canvas is identified without showing a
-snapshot. Every image in the gallery — including Runtime Session
+snapshot. Loading a canvas produces the same expandable, linked preview for
+the restored snapshot and, in replace mode, a second preview of the automatic
+pre-load backup; the card also shows the mode and resulting canvas version.
+Every image in the gallery — including Runtime Session
 screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
@@ -1012,7 +1020,10 @@ so the wakeup and any follow-up action remain part of the transcript. The
 agent can schedule short relative wakeups with `delay_minutes`, or schedule a
 specific absolute UTC time with `fire_at` in ISO 8601 form for calendar dates
 and longer reminders. It can list pending wakeups for the current chat and
-cancel any that are no longer needed.
+cancel any that are no longer needed. Wakeup results use dedicated transcript
+cards: cancelled wakeups link back to their chat and retain the original prompt
+and fire time for context, while missing or already-completed wakeups appear as
+clear cancellation errors.
 
 The chat agent can also send a message to another one of the same operator's
 chat sessions, opening a bounded, visibly-marked message thread and waking the
@@ -1553,7 +1564,7 @@ flow, while Linear can poll a team and optional label filter.
 
 Admins can open **Admin → Plugins** to inspect the plugin registry without
 checking the Gemfile. Each plugin shows its own icon — a real brand mark for
-plugins like Ruby, Rails, JavaScript, Java, Kotlin, Android, Python, Django,
+plugins like Ruby, Rails, JavaScript, Java, Kotlin, Python, Django,
 Go, GitHub, Discord, Linear, and Claude, and a shared SPQR-eagle placeholder
 for plugins with no
 natural mark of their own — the same icons also appear in agent/chat provider
@@ -1970,7 +1981,10 @@ Repository settings control trigger label, polling, default branch,
 provider override, prepare behavior, PR cost footer, auto-merge settings,
 and approval behavior. The repository issues panel can list GitHub issues
 and delegate work by adding the trigger label through the same credential
-path Syrus uses for polling.
+path Syrus uses for polling. Polling keeps a durable local issue index, so
+opening, filtering, and sorting the panel does not wait on GitHub. During a
+GitHub outage the panel continues to show its last synchronized data with a
+stale/error indicator, while mutations remain authoritative GitHub actions.
 
 GitHub issue ingestion is polling-based and runs about every five minutes by
 default. The issue body can declare Epics, attach child Jobs, and express

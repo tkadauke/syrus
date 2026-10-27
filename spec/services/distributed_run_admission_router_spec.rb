@@ -56,6 +56,64 @@ RSpec.describe DistributedRunAdmissionRouter do
     allow(RunQueueResolver).to receive(:resolve).with(run: run).and_return(decision)
   end
 
+  # SolidQueue's tables live on their own connection and are not loaded in the
+  # test environment (it runs single-database), so pending_dispatch_depth's
+  # real query cannot execute here. The depth is stubbed at that boundary; the
+  # rescue inside the method is what covers an unreadable queue in production.
+  def dispatch_depths(depths)
+    allow_any_instance_of(described_class).to receive(:pending_dispatch_depth) do |_router, hostname|
+      depths.fetch(hostname, 0)
+    end
+  end
+
+  # First-fit `find` meant every refusal in a burst picked whichever eligible
+  # host the live-worker list named first.
+  it "routes to the least loaded worker rather than the first one listed" do
+    resolver_with(worker("worker-b", "storage-b"), worker("worker-c", "storage-c"))
+    sample("worker-b")
+    sample("worker-c")
+    dispatch_depths("worker-b" => 3, "worker-c" => 0)
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).to be_reroute
+    expect(decision.queue_name).to eq("worker-worker-c")
+    expect(decision.details["routed_worker"]).to eq("worker-c")
+  end
+
+  # A Run on a `worker-<hostname>` queue can only ever be claimed by that
+  # host, so routing past its capacity traps the work there. Counting only
+  # *running* runs is what let 53 Runs stack behind one host's three threads
+  # while three other hosts sat idle.
+  it "counts work already queued on a host against its headroom" do
+    resolver_with(worker("worker-b", "storage-b"))
+    sample("worker-b")
+    dispatch_depths("worker-b" => 4)
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).not_to be_reroute
+    expect(decision.details["routing_decision"]).to eq("all_eligible_workers_pressured")
+    expect(decision.details["healthy_alternatives_considered"].first)
+      .to include("pending_dispatch_depth" => 4, "committed_load" => 4, "healthy_headroom" => false)
+  end
+
+  # Falling through to defer is not a dead end: RunJob#defer_run re-enqueues
+  # through RunQueueResolver, which puts a placement-agnostic Run back on the
+  # shared capability queue where any host with room can claim it.
+  it "defers with a delay when every eligible host is at its committed capacity" do
+    resolver_with(worker("worker-b", "storage-b"), worker("worker-c", "storage-c"))
+    sample("worker-b")
+    sample("worker-c")
+    dispatch_depths("worker-b" => 4, "worker-c" => 9)
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).not_to be_reroute
+    expect(decision.queue_name).to be_nil
+    expect(decision.delay).to be_present
+  end
+
   it "routes promptly to a healthy compatible worker and excludes the rejecting host" do
     resolver_with(worker("worker-a", "storage-a"), worker("worker-b", "storage-b"))
     sample("worker-a", cpu_pressure_some: 55, cpu_pressure_full: 6)

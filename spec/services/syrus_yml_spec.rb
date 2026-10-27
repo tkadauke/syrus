@@ -1629,10 +1629,10 @@ RSpec.describe SyrusYml do
       expect {
         parse(<<~YAML)
           deployment_stages:
-            - name: android_internal
+            - name: mobile_internal
               scope: repository
-              project_id: android
-              tag: android-internal
+              project_id: mobile
+              tag: mobile-internal
         YAML
       }.to raise_error(described_class::ParseError, /deployment_stages\[0\]\.project_id: is reserved/)
     end

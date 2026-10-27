@@ -21,9 +21,13 @@ class DistributedRunAdmissionRouter
     prior_exclusions = current_exclusions
     rejected_hostname = admission.details["hostname"].presence || SyrusVersion.hostname
     exclusions = (prior_exclusions + [ rejected_hostname ]).compact.uniq
-    alternative = candidates.find do |candidate|
-      !exclusions.include?(candidate.fetch("hostname")) && healthy_with_headroom?(candidate)
-    end
+    # Least-loaded, not first-fit. `find` returned whichever eligible host the
+    # live-worker list happened to name first, so every refusal in a burst
+    # chose the same one.
+    alternative = candidates
+      .reject { |candidate| exclusions.include?(candidate.fetch("hostname")) }
+      .select { |candidate| healthy_with_headroom?(candidate) }
+      .min_by { |candidate| [ committed_load(candidate.fetch("hostname")), candidate.fetch("hostname") ] }
 
     considered = candidates.map { |candidate| candidate_diagnostics(candidate, exclusions:) }
     if alternative
@@ -104,7 +108,36 @@ class DistributedRunAdmissionRouter
     return false unless sample
     return false unless WorkerHealthSampleAnalysis.health_for(sample).fetch(:level).to_s == "ok"
 
-    active_compute_runs(candidate.fetch("hostname")) < RunProcessParallelism.host_capacity
+    committed_load(candidate.fetch("hostname")) < RunProcessParallelism.host_capacity
+  end
+
+  # Everything already committed to a host: what is running on it, plus what
+  # is waiting on its dispatch queue.
+  #
+  # The running count alone is what let a burst stack up. Each refusal was
+  # routed independently, and each one saw a target with one run active and
+  # five threads' worth of room -- so the same host was chosen again and
+  # again. 53 Runs ended up queued behind one host's three threads while
+  # three other hosts sat idle, and a Run on a `worker-<hostname>` queue can
+  # only ever be claimed by that host. Counting the queue closes the loop:
+  # once a host holds capacity's worth of work, it stops looking empty.
+  def committed_load(hostname)
+    @committed_load ||= {}
+    @committed_load[hostname] ||= active_compute_runs(hostname) + pending_dispatch_depth(hostname)
+  end
+
+  # Depth of a host's dispatch queue: work routed to it that no thread has
+  # picked up yet. Claimed executions are deliberately excluded -- those are
+  # already counted by active_compute_runs.
+  def pending_dispatch_depth(hostname)
+    queue = WorkerStorageIdentity.dispatch_queue_name(hostname: hostname)
+    SolidQueue::ReadyExecution.where(queue_name: queue).count +
+      SolidQueue::ScheduledExecution.where(queue_name: queue).count
+  rescue ActiveRecord::ActiveRecordError, NameError
+    # The queue lives on its own connection and its tables are not loaded in
+    # the test environment (single-database). A queue we cannot read must not
+    # fail admission: fall back to the running-only view.
+    0
   end
 
   def active_compute_runs(hostname)
@@ -129,6 +162,8 @@ class DistributedRunAdmissionRouter
       "worker_storage_key" => candidate["worker_storage_key"],
       "health" => health,
       "active_compute_runs" => active_compute_runs(hostname),
+      "pending_dispatch_depth" => pending_dispatch_depth(hostname),
+      "committed_load" => committed_load(hostname),
       "host_compute_capacity" => RunProcessParallelism.host_capacity,
       "excluded" => exclusions.include?(hostname),
       "healthy_headroom" => !exclusions.include?(hostname) && healthy_with_headroom?(candidate)
