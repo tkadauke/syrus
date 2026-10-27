@@ -15,6 +15,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
       next if payload[:cached] || payload[:name] == "SCHEMA"
+      next unless payload[:sql].lstrip.match?(/\A(?:SELECT|WITH)\b/i)
 
       queries << payload[:sql]
     end
