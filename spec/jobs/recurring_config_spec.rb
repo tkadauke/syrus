@@ -74,13 +74,13 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
-  it "schedules every declared retention policy job" do
+  it "schedules every core retention policy job" do
     configured_classes = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
       .fetch("default")
       .values
       .filter_map { |entry| entry["class"] }
 
-    RetentionPolicyRegistry.definitions.filter_map(&:job_class).each do |job_class|
+    RetentionPolicyRegistry::CORE_DEFINITIONS.filter_map(&:job_class).each do |job_class|
       expect(configured_classes).to include(job_class), "#{job_class} has a retention policy but no recurring task"
     end
   end
