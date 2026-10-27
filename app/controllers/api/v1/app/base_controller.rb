@@ -19,6 +19,7 @@ module Api
         before_action :enforce_invocation_context_scope
         before_action :authorize_machine_invocation_context
         before_action :authorize_internal_cli_invocation
+        before_action :prevent_shared_chat_mutations
 
         rescue_from ActiveRecord::RecordNotFound do |e|
           render_error("not_found", e.message, status: :not_found)
@@ -29,6 +30,21 @@ module Api
         end
 
         private
+
+        def prevent_shared_chat_mutations
+          return if request.get? || request.head?
+          return unless Current.user
+
+          chat_id = params[:chat_id].presence
+          chat_id ||= params[:id].presence if request.path.match?(%r{/chats/\d+})
+          return unless chat_id
+
+          chat = Current.user.accessible_chat_sessions.find_by(id: chat_id)
+          return unless chat&.shared_with?(Current.user)
+          return if chat.chat_participants.exists?(user_id: Current.user.id)
+
+          render_error("forbidden", "Shared chats are read-only.", status: :forbidden)
+        end
 
         def resume_session
           resume_api_token_session || super

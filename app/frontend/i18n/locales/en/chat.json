@@ -1,4 +1,12 @@
 {
+  "share_people": "Share",
+  "share_dialog_title": "Share chat",
+  "share_dialog_description": "People you add can read the complete live chat but cannot post.",
+  "share_dialog_search": "Search people or type an exact @handle",
+  "share_repository_warning": "This person cannot access the attached repository.",
+  "share_remove": "Remove",
+  "share_add": "Share",
+  "share_close": "Close",
   "schedule_message_invalid_time": "Enter a time like 30m, 2h, tomorrow 9am, or 14:30.",
   "schedule_message_blank": "Message cannot be blank.",
   "schedule_message_title": "Schedule Message",

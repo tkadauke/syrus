@@ -1,4 +1,12 @@
 {
+  "share_people": "Communicare",
+  "share_dialog_title": "Colloquium communicare",
+  "share_dialog_description": "Personae additae totum colloquium vivum legere possunt, sed scribere non possunt.",
+  "share_dialog_search": "Personas quaere aut exactum @nomen scribe",
+  "share_repository_warning": "Haec persona repositorium adiunctum accedere non potest.",
+  "share_remove": "Removere",
+  "share_add": "Communicare",
+  "share_close": "Claudere",
   "title": "Colloquium",
   "batch_outcome_applied": "Effecta",
   "batch_outcome_skipped": "Praetermissa/inhabilia",

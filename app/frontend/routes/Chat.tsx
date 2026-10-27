@@ -153,6 +153,7 @@ import { keyboardVisualViewport } from "../lib/visualViewport"
 import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
+import { ChatShareDialog } from "./chat/ChatShareDialog"
 import { ChatMessage, SharedMessageRenderer, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle, TurnRetryIndicator } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
@@ -1922,6 +1923,7 @@ function ChatColumn({
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
   const [contextFindOpen, setContextFindOpen] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
   // Reported by Compose's own ResizeObserver on its floating form element —
   // exposed as a CSS variable so the message stream's bottom padding and the
   // "new messages" pill (both siblings, not descendants, of Compose) can
@@ -1973,6 +1975,7 @@ function ChatColumn({
       style={composerHeight != null ? ({ "--chat-composer-height": `${composerHeight}px` } as CSSProperties) : undefined}
     >
       <ChatTour />
+      <ChatShareDialog chatId={payload.chat.id} open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} />
       {!landing && isDesktop ? (
         <header className="flex min-w-0 shrink-0 items-center gap-2 pl-1">
           <button
@@ -1984,6 +1987,11 @@ function ChatColumn({
           >
             <GearIcon className="h-5 w-5" />
           </button>
+          {payload.chat.current_user_id === payload.chat.user_id ? <button
+            className="shrink-0 rounded px-2 py-1 text-sm text-text-secondary hover:bg-surface-raised"
+            onClick={() => setShareDialogOpen(true)}
+            type="button"
+          >{t("share_people")}</button> : null}
           <div className="min-w-0 flex-1">
             <h1
               className={`flex min-w-0 items-center gap-2 text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
@@ -2030,7 +2038,7 @@ function ChatColumn({
           onSelectWorkspaceTab={onSelectWorkspaceTab}
         />
         {showUsageOverlay && !contextFindOpen ? <UsageOverlay payload={payload} /> : null}
-        {!landing ? (
+        {!landing && !payload.chat.read_only ? (
           <Compose
             key={chatId}
             canLoadEarlierMessages={canLoadEarlierMessages}
@@ -2049,7 +2057,7 @@ function ChatColumn({
           />
         ) : null}
       </div>
-      {landing ? (
+      {landing && !payload.chat.read_only ? (
         <div className="w-full max-w-sm sm:max-w-2xl">
           <Compose
             key={chatId}

@@ -576,6 +576,21 @@ curl -X POST https://syrus.example.com/api/v1/app/chats/123/branch \
 
 ## Share a Chat
 
+The chat Share dialog lets the owner grant another person live, read-only
+access. Recipients see the complete history, attachments, tool results, and
+later messages under **Shared with me**, but cannot post or start an agent
+turn. Only the owner can add or remove a recipient, and revocation takes effect
+immediately. The picker suggests people who share a repository or team with
+the owner and also accepts an exact `@handle`; it warns when the recipient
+cannot access the chat's attached repository.
+
+The authenticated API exposes these named shares through
+`GET/POST /api/v1/app/chats/:chat_id/shares`,
+`DELETE /api/v1/app/chats/:chat_id/shares/:id`, and
+`GET /api/v1/app/chats/:chat_id/share_candidates?q=...`.
+
+The older link-sharing endpoint remains available:
+
 `POST /api/v1/app/chats/:id/share` creates a stable same-instance share
 token for one of the authenticated user's chat sessions and returns
 `share_url`. Repeating the request returns the same link.
