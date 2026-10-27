@@ -85,6 +85,36 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_implement.reload).to be_succeeded
   end
 
+  it "retries transient failure-accounting lock conflicts without rerunning the handler" do
+    handler_calls = 0
+    lock_conflict_raised = false
+    failing_handler = Class.new(Steps::Base) do
+      define_method(:call) do
+        handler_calls += 1
+        raise "handler failed"
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(failing_handler)
+    allow(workflow).to receive(:record_run_failure!).and_wrap_original do |original|
+      unless lock_conflict_raised
+        lock_conflict_raised = true
+        raise ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded"
+      end
+
+      original.call
+    end
+
+    run = StepDispatcher.start_workflow(workflow)
+
+    expect {
+      described_class.perform_now(run.id)
+    }.to raise_error(RuntimeError, "handler failed")
+
+    expect(handler_calls).to eq(1)
+    expect(run.reload).to be_failed
+    expect(workflow.reload.failure_count).to eq(1)
+  end
+
   it "marks a cannot-proceed report blocked without failing or enqueueing a retry" do
     blocking_handler = Class.new(Steps::Base) do
       def call
