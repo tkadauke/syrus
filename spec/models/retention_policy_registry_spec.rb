@@ -59,6 +59,18 @@ RSpec.describe RetentionPolicyRegistry do
     expect(app_setting_definition.min).to eq(0)
   end
 
+  it "registers job logs and performance events as admin-editable retention settings" do
+    job_logs = described_class.fetch(:job_log)
+    performance_events = described_class.fetch(:performance_log_event)
+
+    expect(job_logs.as_app_setting_definition).to have_attributes(
+      key: :job_log_retention_days, default: 30, admin_editable: true
+    )
+    expect(performance_events.as_app_setting_definition).to have_attributes(
+      key: :performance_log_event_retention_hours, default: 24, admin_editable: true
+    )
+  end
+
   it "computes the archive_setting_key convention for every core definition" do
     described_class::CORE_DEFINITIONS.each do |definition|
       expect(definition.archive_setting_key).to eq(:"#{definition.key}_archive_before_delete")
@@ -69,6 +81,7 @@ RSpec.describe RetentionPolicyRegistry do
     archivable_keys = described_class::CORE_DEFINITIONS.select(&:archivable).map(&:key)
 
     expect(archivable_keys).to contain_exactly(
+      :job_log,
       :run_diagnostic,
       :work_engine_reconciler_activity,
       :provider_session,

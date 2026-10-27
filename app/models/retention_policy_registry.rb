@@ -99,6 +99,34 @@ class RetentionPolicyRegistry
 
   CORE_DEFINITIONS = [
     Definition.new(
+      key: :job_log,
+      model: "JobLog",
+      table_name: "job_logs",
+      age_column: :created_at,
+      scope_name: :prunable,
+      setting_key: :job_log_retention_days,
+      default_value: 30,
+      unit: :days,
+      job_class: "JobLogPruneJob",
+      description: "User-visible Run output; pruning removes the detailed stdout, stderr, tool-call, and system log history while keeping the Run itself.",
+      category: "Product",
+      archivable: true
+    ),
+    Definition.new(
+      key: :performance_log_event,
+      model: "PerformanceLogEvent",
+      table_name: "performance_log_events",
+      age_column: :occurred_at,
+      scope_name: :prunable,
+      setting_key: :performance_log_event_retention_hours,
+      default_value: 24,
+      unit: :hours,
+      job_class: "PerformanceLogEventPruneJob",
+      description: "High-volume request, SQL, job, and browser performance diagnostics used to investigate recent regressions.",
+      category: "Diagnostics",
+      archivable: false
+    ),
+    Definition.new(
       key: :run_diagnostic,
       model: "RunDiagnostic",
       table_name: "run_diagnostics",

@@ -105,10 +105,11 @@ module App
       ProviderCircuitBreaker.clear_read_cache!
     end
 
-    def initialize(user:, provider:, now: Time.current)
+    def initialize(user:, provider:, now: Time.current, batch: nil)
       @user = user
       @provider = provider.to_s
       @now = now
+      @batch = batch
     end
 
     def status
@@ -145,9 +146,15 @@ module App
 
     def self.all_for_user(user, now: Time.current)
       PerformanceLogging.phase("provider_availability.all_for_user") do
-        User.agent_providers.index_with do |provider|
+        providers = User.agent_providers
+        batch = Batch.new(user: user, providers: providers, now: now)
+        providers.index_with do |provider|
           PerformanceLogging.phase("provider_availability.all_for_user.provider", provider: provider) do
-            for_user(user, provider, now: now)
+            key = cache_key(user, provider)
+            cache = Current.provider_availability_cache ||= {}
+            cache[key] ||= fetch_process_cache(key, now: now) do
+              new(user: user, provider: provider, now: now, batch: batch).status
+            end
           end
         end
       end
@@ -155,7 +162,95 @@ module App
 
     private
 
-    attr_reader :user, :provider, :now
+    attr_reader :user, :provider, :now, :batch
+
+    # Loads the provider-scoped inputs once for the whole bootstrap request.
+    # The individual inspectors still own all interpretation and payload logic;
+    # this object only replaces their repeated, identical database reads.
+    class Batch
+      def initialize(user:, providers:, now:)
+        @user = user
+        @providers = providers.map(&:to_s)
+        @now = now
+      end
+
+      def evidence_for(provider)
+        evidence_by_provider.fetch(provider.to_s, EMPTY)
+      end
+
+      def usage_limit_runs_for(provider)
+        usage_limit_runs_by_provider.fetch(provider.to_s, EMPTY)
+      end
+
+      def latest_terminal_run_for(provider)
+        terminal_runs_by_provider[provider.to_s]
+      end
+
+      private
+
+      EMPTY = [].freeze
+
+      attr_reader :user, :providers, :now
+
+      def evidence_by_provider
+        @evidence_by_provider ||= begin
+          ranked = ProviderAvailabilityEvidence
+          .where(user: user, provider: providers)
+          .select(
+            "provider_availability_evidences.*, " \
+            "ROW_NUMBER() OVER (PARTITION BY provider, status ORDER BY observed_at DESC, id DESC) AS evidence_rank"
+          )
+          ProviderAvailabilityEvidence
+          .from(ranked, :ranked_evidence)
+          .select("ranked_evidence.*")
+          .where("evidence_rank <= ?", USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
+          .includes(:run)
+          .order(observed_at: :desc, id: :desc)
+          .to_a
+          .group_by(&:provider)
+        end
+      end
+
+      def usage_limit_runs_by_provider
+        @usage_limit_runs_by_provider ||= begin
+          ranked = Run
+          .where(user_id: user.id, agent_provider: providers, state: "failed")
+          .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
+          .left_outer_joins(:run_failure_classification)
+          .where(
+            "runs.agent_outcome = ? OR run_failure_classifications.classification = ?",
+            ProviderUsageLimit::OUTCOME,
+            ProviderUsageLimit::CLASSIFICATION
+          )
+          .select(
+            "runs.*, " \
+            "ROW_NUMBER() OVER (PARTITION BY runs.agent_provider ORDER BY runs.finished_at DESC, runs.updated_at DESC, runs.id DESC) AS provider_rank"
+          )
+          Run
+          .from(ranked, :ranked_runs)
+          .select("ranked_runs.*")
+          .where("provider_rank <= 50")
+          .includes(:run_diagnostic, :run_failure_classification, :step)
+          .order(finished_at: :desc, updated_at: :desc)
+          .to_a
+          .group_by(&:agent_provider)
+        end
+      end
+
+      def terminal_runs_by_provider
+        @terminal_runs_by_provider ||= begin
+          ranked = Run
+            .where(user_id: user.id, agent_provider: providers, state: %w[succeeded failed])
+            .where.not(finished_at: nil)
+            .select("runs.*, ROW_NUMBER() OVER (PARTITION BY agent_provider ORDER BY finished_at DESC, updated_at DESC, id DESC) AS provider_rank")
+          Run.from(ranked, :ranked_runs)
+            .select("ranked_runs.*")
+            .where("provider_rank = 1")
+            .includes(:run_diagnostic, :run_failure_classification)
+            .index_by(&:agent_provider)
+        end
+      end
+    end
 
     UsageLimitSignal = Data.define(:run, :model, :reason, :evidence)
     RateLimitSignal = Data.define(:run, :reason, :evidence)
@@ -276,17 +371,28 @@ module App
 
     def current_model_unsupported_evidence
       model_unsupported_evidence_candidates.detect do |evidence|
-        !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
-          user: user,
-          provider: provider,
-          observed_at: evidence.observed_at,
-          account_id: evidence.account_id,
-          model: evidence.model
-        )
+        suppressed = if batch
+          positive_evidence_after?(
+            observed_at: evidence.observed_at,
+            account_id: evidence.account_id,
+            model: evidence.model
+          )
+        else
+          ProviderAvailabilityEvidence.suppressed_by_positive_after?(
+            user: user,
+            provider: provider,
+            observed_at: evidence.observed_at,
+            account_id: evidence.account_id,
+            model: evidence.model
+          )
+        end
+        !suppressed
       end
     end
 
     def model_unsupported_evidence_candidates
+      return batch_evidence(status: "model_unsupported", since: now - MODEL_UNSUPPORTED_WINDOW, unrepaired: true, limit: DISPLAY_EVIDENCE_SCAN_LIMIT) if batch
+
       @model_unsupported_evidence_candidates ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "model_unsupported")
         .unrepaired_for_circuit
@@ -305,6 +411,8 @@ module App
     end
 
     def auth_error_evidence_candidates
+      return batch_evidence(status: "auth_error", since: now - AUTH_ERROR_WINDOW, unrepaired: true, limit: DISPLAY_EVIDENCE_SCAN_LIMIT) if batch
+
       @auth_error_evidence_candidates ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "auth_error")
         .unrepaired_for_circuit
@@ -324,13 +432,19 @@ module App
       @auth_positive_suppression_evidence ||= begin
         oldest_candidate_at = auth_error_evidence_candidates.filter_map(&:observed_at).min
         if oldest_candidate_at
-          ProviderAvailabilityEvidence
-            .where(user: user, provider: provider)
-            .positive
-            .where("observed_at > ?", oldest_candidate_at)
-            .recent
-            .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
-            .to_a
+          if batch
+            batch.evidence_for(provider).select do |evidence|
+              evidence.positive? && evidence.observed_at > oldest_candidate_at
+            end.first(DISPLAY_EVIDENCE_SCAN_LIMIT)
+          else
+            ProviderAvailabilityEvidence
+              .where(user: user, provider: provider)
+              .positive
+              .where("observed_at > ?", oldest_candidate_at)
+              .recent
+              .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
+              .to_a
+          end
         else
           []
         end
@@ -390,6 +504,8 @@ module App
     end
 
     def usage_limit_evidence_candidates
+      return batch_evidence(status: "exhausted", since: now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW, unrepaired: true, limit: USAGE_LIMIT_EVIDENCE_SCAN_LIMIT) if batch
+
       @usage_limit_evidence_candidates ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "exhausted")
         .unrepaired_for_circuit
@@ -404,14 +520,26 @@ module App
     end
 
     def positive_evidence_after?(account_id:, model:, observed_at:)
+      positives = if batch
+        batch.evidence_for(provider).select(&:positive?)
+      else
+        positive_suppression_evidence
+      end
+
+      if provider == "codex" && ProviderUsageLimit.suspicious_model?(model)
+        return positives.any? do |positive|
+          account_matches?(positive, account_id) && positive.observed_at > observed_at
+        end
+      end
+
       if agent_provider_class&.ignore_model_for_positive_evidence?(model)
-        return positive_suppression_evidence.any? do |positive|
+        return positives.any? do |positive|
           account_matches?(positive, account_id) && positive.observed_at > observed_at
         end
       end
 
       normalized_model = model.to_s.strip.presence
-      positive_suppression_evidence.any? do |positive|
+      positives.any? do |positive|
         account_matches?(positive, account_id) &&
           model_matches?(positive, normalized_model) &&
           positive.observed_at > observed_at
@@ -422,13 +550,19 @@ module App
       @positive_suppression_evidence ||= begin
         oldest_candidate_at = usage_limit_evidence_candidates.filter_map(&:observed_at).min
         if oldest_candidate_at
-          ProviderAvailabilityEvidence
-            .where(user: user, provider: provider)
-            .positive
-            .where("observed_at > ?", oldest_candidate_at)
-            .recent
-            .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
-            .to_a
+          if batch
+            batch.evidence_for(provider).select do |evidence|
+              evidence.positive? && evidence.observed_at > oldest_candidate_at
+            end.first(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
+          else
+            ProviderAvailabilityEvidence
+              .where(user: user, provider: provider)
+              .positive
+              .where("observed_at > ?", oldest_candidate_at)
+              .recent
+              .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
+              .to_a
+          end
         else
           []
         end
@@ -463,14 +597,21 @@ module App
     end
 
     def current_rate_limit_evidence
-      ProviderAvailabilityEvidence
+      candidates = if batch
+        batch_evidence(status: "rate_limited", since: now - ProviderCircuitBreaker::WINDOW, unrepaired: true, limit: DISPLAY_EVIDENCE_SCAN_LIMIT)
+      else
+        ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "rate_limited")
         .unrepaired_for_circuit
         .where("observed_at >= ?", now - ProviderCircuitBreaker::WINDOW)
         .recent
         .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
-        .detect do |evidence|
-          !ProviderAvailabilityEvidence.latest_positive_after?(
+      end
+      candidates.detect do |evidence|
+        suppressed = if batch
+          positive_evidence_after?(account_id: evidence.account_id, model: evidence.model, observed_at: evidence.observed_at)
+        else
+          ProviderAvailabilityEvidence.latest_positive_after?(
             user: user,
             provider: provider,
             account_id: evidence.account_id,
@@ -478,6 +619,8 @@ module App
             observed_at: evidence.observed_at
           )
         end
+        !suppressed
+      end
     end
 
     def latest_provider_run_signal
@@ -491,6 +634,8 @@ module App
     end
 
     def latest_terminal_provider_run
+      return batch.latest_terminal_run_for(provider) if batch
+
       run = provider_run_scope_for_latest
         .select(:id, :state, :finished_at, :updated_at, :model)
         .where(state: %w[succeeded failed])
@@ -504,6 +649,8 @@ module App
     end
 
     def usage_limit_failed_runs
+      return batch.usage_limit_runs_for(provider).first(50) if batch
+
       provider_run_scope.left_outer_joins(:run_failure_classification)
          .select(:id, :job_id, :step_id, :user_id, :agent_provider, :state, :agent_outcome, :finished_at, :updated_at, :model)
          .includes(:run_diagnostic, :run_failure_classification, :step)
@@ -655,11 +802,19 @@ module App
     end
 
     def recent_display_evidence
+      return batch.evidence_for(provider).first(DISPLAY_EVIDENCE_SCAN_LIMIT) if batch
+
       @recent_display_evidence ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider)
         .recent
         .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
         .to_a
+    end
+
+    def batch_evidence(status:, since:, unrepaired:, limit:)
+      batch.evidence_for(provider).select do |evidence|
+        evidence.status == status && evidence.observed_at >= since && (!unrepaired || evidence.repair_status.nil?)
+      end.first(limit)
     end
 
     def latest_displayable_evidence(evidence_rows)

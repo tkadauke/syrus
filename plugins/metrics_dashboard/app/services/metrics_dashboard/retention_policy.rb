@@ -14,10 +14,10 @@ module MetricsDashboard
           age_column: :recorded_at,
           scope_name: :prunable,
           setting_key: :metrics_dashboard_sample_retention_days,
-          default_value: 30,
+          default_value: 7,
           unit: :days,
           job_class: "MetricsDashboard::PruneJob",
-          description: "One-minute-resolution metric series samples backing the Metrics Dashboard plugin.",
+          description: "One-minute-resolution metric series samples retained for the dashboard's longest selectable window (7 days).",
           category: "Plugins",
           archivable: false
         )

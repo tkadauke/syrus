@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -208,7 +208,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
     t.integer "max_job_failures", default: 3, null: false
     t.string "merge_train_failure_policy", default: "restart", null: false
     t.integer "merge_train_max_size", default: 20, null: false
-    t.integer "metrics_dashboard_sample_retention_days", default: 30, null: false
+    t.integer "metrics_dashboard_sample_retention_days", default: 7, null: false
     t.integer "notification_retention_days", default: 30, null: false
     t.integer "operational_log_event_retention_hours", default: 6, null: false
     t.boolean "polling_paused", default: false, null: false
@@ -249,6 +249,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
     t.integer "merge_train_multisect_section_width", default: 4, null: false
     t.integer "repository_full_poll_interval_hours", default: 24, null: false
     t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
+    t.integer "job_log_retention_days", default: 30, null: false
+    t.boolean "job_log_archive_before_delete", default: false, null: false
+    t.integer "performance_log_event_retention_hours", default: 24, null: false
+    t.integer "test_insight_case_retention_days", default: 90, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1640,6 +1644,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
     t.integer "run_id", null: false
     t.integer "sequence", null: false
     t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_job_logs_on_created_at"
     t.index ["kind", "run_id"], name: "idx_job_logs_kind_run_id"
     t.index ["run_id", "sequence"], name: "index_job_logs_on_run_id_and_sequence", unique: true
   end

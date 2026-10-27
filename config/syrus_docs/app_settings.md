@@ -434,6 +434,8 @@ stays fixed or on its own settings.
 
 | Setting | Default | Unit | Table | PruneJob | Archivable |
 | --- | --- | --- | --- | --- | --- |
+| `job_log_retention_days` | 30 | days | `job_logs` | `JobLogPruneJob` | yes |
+| `performance_log_event_retention_hours` | 24 | **hours** | `performance_log_events` | `PerformanceLogEventPruneJob` | no |
 | `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` | yes |
 | `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` | no |
 | `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` | no |
@@ -442,7 +444,8 @@ stays fixed or on its own settings.
 | `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` | no |
 | `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` | no |
 | `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` | no |
-| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
+| `metrics_dashboard_sample_retention_days` | 7 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
+| `test_insight_case_retention_days` | 90 | days | `test_insight_cases` | plugin-owned prune job | no |
 | `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` | yes |
 | `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` | yes |
 | `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` | no |
@@ -457,6 +460,28 @@ tables (resource summaries, host health samples, spawned-process inventory,
 notifications, the operational log index, and the resource-prediction
 profile tables) are marked `archivable: false` since archiving them would
 mostly balloon storage for little later value.
+
+`job_log_retention_days` controls the detailed output shown for a Run. After
+the default 30-day window, stdout, stderr, tool-call, and system chunks are
+deleted while the Run and its other history remain. Enable
+`job_log_archive_before_delete` before pruning if that detailed output must be
+preserved outside the live table. `performance_log_event_retention_hours` is a
+short diagnostic window; its default remains the 24 hours used by the
+performance UI.
+
+`provider_sessions` is large primarily because each row can contain a provider
+transcript (`transcript_jsonl` is a 64 MiB-capable text column), not because of
+its metadata. For terminal Runs, the daily prune clears `transcript_jsonl` and
+`normalized_messages` after seven days while retaining lightweight session
+metadata, then deletes the whole row after the configurable window (14 days by
+default). Both phases run in bounded batches and use the
+`(resumable_type, updated_at, resumable_id)` index, so finding candidates does
+not scan payload values. Clearing or deleting payloads frees pages for InnoDB
+reuse, although InnoDB does not necessarily return the physical tablespace
+file to the operating system. Active Run sessions remain protected because
+they can still be resumed. Enabling `provider_session_archive_before_delete`
+also disables the early payload clearing phase so the eventual archive still
+contains the transcript and normalized messages.
 
 Three entries are worth calling out:
 
@@ -484,7 +509,9 @@ Three entries are worth calling out:
   column itself is still added by a core migration and validated/exposed in
   admin settings unconditionally, the same as other plugin-owned settings
   like `discord_bot_token` — only the model's `.prunable` scope and PruneJob
-  go inert while the plugin is disabled.
+  go inert while the plugin is disabled. Its seven-day default matches the
+  dashboard's longest selectable window; `prune_metrics_dashboard_samples`
+  enforces it daily from `config/recurring.yml`.
 
 ### Retention size estimation
 

@@ -179,6 +179,19 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(notification_counts.size).to eq(1)
   end
 
+  it "keeps bootstrap SQL reads bounded across configured providers" do
+    user = Factories.user
+    sign_in_as(user)
+
+    App::ProviderAvailability.clear_cache!
+    queries = capture_sql { get api_v1_app_bootstrap_path }
+
+    expect(response).to have_http_status(:ok)
+    expect(queries.size).to be <= 42
+    expect(queries.grep(/provider_availability_evidences/i).size).to be <= 4
+    expect(queries.grep(/FROM ["`]?runs/i).size).to be <= 8
+  end
+
   it "returns provider availability as user-level bootstrap state" do
     user = Factories.user(
       codex_usage_status: "ok",

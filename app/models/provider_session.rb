@@ -8,6 +8,8 @@ class ProviderSession < ApplicationRecord
   before_save :sync_transcript_pruned
   belongs_to :run, optional: true
 
+  PAYLOAD_RETENTION = 7.days
+
   validates :session_id, presence: true
   validates_agent_provider :provider
   validates :resumable, presence: true
@@ -31,6 +33,17 @@ class ProviderSession < ApplicationRecord
     for_runs
       .where(runs: { state: Run::TERMINAL_STATES })
       .where("provider_sessions.updated_at < ?", cutoff)
+  }
+
+  # Transcript and normalized-message payloads account for nearly all of a
+  # ProviderSession row's size. Once a Run has been terminal for a week, keep
+  # the lightweight session metadata for diagnostics but release both payloads.
+  # Active sessions are protected because they may still be resumed.
+  scope :payload_prunable, -> {
+    for_runs
+      .where(runs: { state: Run::TERMINAL_STATES })
+      .where("provider_sessions.updated_at < ?", PAYLOAD_RETENTION.ago)
+      .where("provider_sessions.transcript_jsonl IS NOT NULL OR provider_sessions.normalized_messages IS NOT NULL")
   }
 
   # Sessions whose Run already succeeded and still carry a transcript. Kept as

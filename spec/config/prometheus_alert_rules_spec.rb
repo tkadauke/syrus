@@ -33,4 +33,15 @@ RSpec.describe "Prometheus alert rules" do
 
     expect(matcher_jobs).to eq(recurring_jobs)
   end
+
+  it "alerts on the new pruners at cadence-appropriate thresholds" do
+    expression = YAML.load_file(Rails.root.join("config/prometheus/syrus-alert-rules.yml"))
+      .fetch("groups")
+      .flat_map { |group| group.fetch("rules") }
+      .find { |rule| rule.fetch("alert") == "SyrusRecurringJobStale" }
+      .fetch("expr")
+
+    expect(expression).to match(/job=~"[^"]*prune_performance_log_events[^"]*"} > 7200/)
+    expect(expression).to match(/job=~"[^"]*prune_job_logs[^"]*"} > 172800/)
+  end
 end

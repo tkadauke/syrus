@@ -455,9 +455,12 @@ recording/validation/adjudication flow.
 ## Retention
 
 `test_insight_cases` is by far the plugin's highest-volume table (one row per
-test example per grader run). `TestInsightsPruneJob` deletes rows older than
-`TestInsights::TestCase::RETAIN_AFTER` (90 days), `TestInsights::TestRun::RETAIN_AFTER`-old
-rows from `test_insight_runs`, and `TestInsights::IsolatedReproAttempt::RETAIN_AFTER`-old
+test example per grader run). `test_insight_case_retention_days` controls how
+long `TestInsights::PruneJob` keeps raw cases and their parent run rows. It
+defaults to 90 days: active tests retain far more executions than the 20-case
+flakiness lookback needs, while the plugin's highest-volume table stays
+bounded. Set it to `0` for infinite retention. The job also deletes
+`TestInsights::IsolatedReproAttempt::RETAIN_AFTER`-old
 rows (30 days -- an isolated repro attempt is only ever useful in the
 immediate aftermath of the grading iteration it backs, unlike `TestCase`'s
 statistical history) from `test_insight_isolated_repro_attempts` — all three
@@ -467,10 +470,13 @@ unaffected: they're rolled up from recent activity, not the raw rows
 themselves, so pruning old raw history doesn't erase live flakiness signal
 for a test that's still running.
 
-The sweep runs on the plugin's own daily tick (`TestInsights::Callbacks.on_tick`,
+The bounded sweep runs on the plugin's own daily tick (`TestInsights::Callbacks.on_tick`,
 `tick_interval 1.day` in the manifest) rather than the host's
 `config/recurring.yml`, so disabling or removing the plugin removes the
 schedule with it, matching `ScheduledTasks::Callbacks` and
-`VideoWalkthroughs::Callbacks`. Ticking (and therefore pruning) only happens
+`VideoWalkthroughs::Callbacks`. Each job deletes at most 100 bounded batches;
+if eligible rows remain, it schedules one successor after a one-minute pause
+and continues until the backlog is drained. `SkipIfPending` keeps the daily
+tick from overlapping that chain. Ticking (and therefore pruning) only happens
 while the plugin is enabled; since ingestion also stops while disabled, no
 new rows accumulate for pruning to catch up on once it's re-enabled.

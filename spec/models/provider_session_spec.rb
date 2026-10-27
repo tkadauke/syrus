@@ -100,6 +100,16 @@ RSpec.describe ProviderSession do
       expect(described_class.prunable).not_to include(new_session)
     end
 
+    it "keeps a terminal session exactly at the retention boundary" do
+      travel_to(Time.zone.parse("2026-10-26 12:00:00")) do
+        terminal_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+        session = described_class.create!(resumable: terminal_run, session_id: "boundary", transcript_jsonl: "large payload")
+        session.update_columns(updated_at: described_class.retention_window.ago)
+
+        expect(described_class.prunable).not_to include(session)
+      end
+    end
+
     it "returns none when retention is set to 0 (infinite)" do
       AppSetting.current.update!(provider_session_retention_days: 0)
       old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
@@ -132,6 +142,33 @@ RSpec.describe ProviderSession do
       session.update_columns(updated_at: 1.year.ago)
 
       expect(described_class.prunable).not_to include(session)
+    end
+  end
+
+  describe ".payload_prunable" do
+    it "includes terminal Run payloads strictly older than one week" do
+      travel_to(Time.zone.parse("2026-10-26 12:00:00")) do
+        stale_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+        boundary_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+        active_run = Factories.job.initial_run
+        stale = described_class.create!(resumable: stale_run, session_id: "stale", transcript_jsonl: "large")
+        boundary = described_class.create!(resumable: boundary_run, session_id: "boundary", transcript_jsonl: "large")
+        active = described_class.create!(resumable: active_run, session_id: "active", transcript_jsonl: "large")
+        stale.update_columns(updated_at: described_class::PAYLOAD_RETENTION.ago - 1.second)
+        boundary.update_columns(updated_at: described_class::PAYLOAD_RETENTION.ago)
+        active.update_columns(updated_at: 1.year.ago)
+
+        expect(described_class.payload_prunable).to contain_exactly(stale)
+        expect(described_class.payload_prunable).not_to include(boundary, active)
+      end
+    end
+
+    it "excludes metadata-only sessions" do
+      terminal_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+      session = described_class.create!(resumable: terminal_run, session_id: "metadata", transcript_jsonl: nil)
+      session.update_columns(updated_at: 1.year.ago)
+
+      expect(described_class.payload_prunable).not_to include(session)
     end
   end
 end

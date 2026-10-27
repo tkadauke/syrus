@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe TestInsightsPruneJob do
+RSpec.describe TestInsights::PruneJob do
   let(:job)  { Factories.job }
   let(:run)  { job.initial_run }
   let(:repo) { job.repository }
@@ -20,21 +20,21 @@ RSpec.describe TestInsightsPruneJob do
     )
   end
 
-  it "deletes TestInsights::TestCase rows older than RETAIN_AFTER" do
+  it "deletes only TestInsights::TestCase rows in the prunable scope" do
     test_run = create_test_run
     old   = create_case(test_run)
     fresh = create_case(test_run)
-    old.update_columns(created_at: (TestInsights::TestCase::RETAIN_AFTER + 1.day).ago)
+    old.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago)
 
     expect { described_class.perform_now }.to change { TestInsights::TestCase.count }.by(-1)
     expect(TestInsights::TestCase.exists?(old.id)).to be false
     expect(TestInsights::TestCase.exists?(fresh.id)).to be true
   end
 
-  it "deletes TestInsights::TestRun rows older than RETAIN_AFTER" do
+  it "deletes old empty TestInsights::TestRun rows on the case retention window" do
     old   = create_test_run(grader_name: "rspec-old")
     fresh = create_test_run(grader_name: "rspec-fresh")
-    old.update_columns(created_at: (TestInsights::TestRun::RETAIN_AFTER + 1.day).ago)
+    old.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago)
 
     expect { described_class.perform_now }.to change { TestInsights::TestRun.count }.by(-1)
     expect(TestInsights::TestRun.exists?(old.id)).to be false
@@ -61,9 +61,9 @@ RSpec.describe TestInsightsPruneJob do
   it "logs a count consistent with RunDiagnosticPruneJob's style" do
     test_run = create_test_run
     old_case = create_case(test_run)
-    old_case.update_columns(created_at: (TestInsights::TestCase::RETAIN_AFTER + 1.day).ago)
+    old_case.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago)
     old_run = create_test_run(grader_name: "rspec-old-run")
-    old_run.update_columns(created_at: (TestInsights::TestRun::RETAIN_AFTER + 1.day).ago)
+    old_run.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago)
     old_attempt = create_isolated_repro_attempt
     old_attempt.update_columns(created_at: (TestInsights::IsolatedReproAttempt::RETAIN_AFTER + 1.day).ago)
 
@@ -72,16 +72,16 @@ RSpec.describe TestInsightsPruneJob do
 
     described_class.perform_now
 
-    expect(messages).to include("[TestInsightsPruneJob] deleted 1 test_insight_cases")
-    expect(messages).to include("[TestInsightsPruneJob] deleted 1 test_insight_runs")
-    expect(messages).to include("[TestInsightsPruneJob] deleted 1 test_insight_isolated_repro_attempts")
+    expect(messages).to include("[TestInsights::PruneJob] deleted 1 test_insight_cases")
+    expect(messages).to include("[TestInsights::PruneJob] deleted 1 test_insight_runs")
+    expect(messages).to include("[TestInsights::PruneJob] deleted 1 test_insight_isolated_repro_attempts")
   end
 
   it "deletes prunable rows in bounded batches" do
     test_run = create_test_run
     old_cases = 3.times.map { create_case(test_run) }
-    old_cases.each { |test_case| test_case.update_columns(created_at: (TestInsights::TestCase::RETAIN_AFTER + 1.day).ago) }
-    stub_const("TestInsightsPruneJob::DELETE_BATCH_SIZE", 2)
+    old_cases.each { |test_case| test_case.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago) }
+    stub_const("TestInsights::PruneJob::DELETE_BATCH_SIZE", 2)
 
     deletes = []
     allow(TestInsights::TestCase).to receive(:where).and_wrap_original do |method, conditions|
@@ -98,26 +98,38 @@ RSpec.describe TestInsightsPruneJob do
   it "bounds each pruning pass" do
     test_run = create_test_run
     old_cases = 3.times.map { create_case(test_run) }
-    old_cases.each { |test_case| test_case.update_columns(created_at: (TestInsights::TestCase::RETAIN_AFTER + 1.day).ago) }
-    stub_const("TestInsightsPruneJob::DELETE_BATCH_SIZE", 1)
-    stub_const("TestInsightsPruneJob::MAX_DELETE_BATCHES", 2)
+    old_cases.each { |test_case| test_case.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago) }
+    stub_const("TestInsights::PruneJob::DELETE_BATCH_SIZE", 1)
+    stub_const("TestInsights::PruneJob::MAX_DELETE_BATCHES", 2)
 
-    described_class.perform_now
+    expect { described_class.perform_now }.to have_enqueued_job(described_class).once
 
     expect(TestInsights::TestCase.where(id: old_cases.map(&:id)).count).to eq(1)
+  end
+
+  it "does not enqueue another pass after the eligible backlog is drained" do
+    test_run = create_test_run
+    old_case = create_case(test_run)
+    old_case.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago)
+    stub_const("TestInsights::PruneJob::DELETE_BATCH_SIZE", 1)
+    stub_const("TestInsights::PruneJob::MAX_DELETE_BATCHES", 1)
+
+    expect { described_class.perform_now }.not_to have_enqueued_job(described_class)
+
+    expect(TestInsights::TestCase.exists?(old_case.id)).to be false
   end
 
   it "does not delete old runs whose cases remain after the bounded case pass" do
     first_run = create_test_run(grader_name: "rspec-first")
     second_run = create_test_run(grader_name: "rspec-second")
-    old_time = (TestInsights::TestRun::RETAIN_AFTER + 1.day).ago
+    old_time = (TestInsights::TestCase.retention_window + 1.day).ago
     first_run.update_columns(created_at: old_time)
     second_run.update_columns(created_at: old_time)
     first_cases = 2.times.map { create_case(first_run) }
     second_cases = 2.times.map { create_case(second_run) }
     (first_cases + second_cases).each { |test_case| test_case.update_columns(created_at: old_time) }
-    stub_const("TestInsightsPruneJob::DELETE_BATCH_SIZE", 2)
-    stub_const("TestInsightsPruneJob::MAX_DELETE_BATCHES", 1)
+    stub_const("TestInsights::PruneJob::DELETE_BATCH_SIZE", 2)
+    stub_const("TestInsights::PruneJob::MAX_DELETE_BATCHES", 1)
 
     described_class.perform_now
 
@@ -135,5 +147,18 @@ RSpec.describe TestInsightsPruneJob do
     expect { described_class.perform_now }.not_to change { TestInsights::TestCase.count }
     expect { described_class.perform_now }.not_to change { TestInsights::TestRun.count }
     expect { described_class.perform_now }.not_to change { TestInsights::IsolatedReproAttempt.count }
+  end
+
+  it "keeps case and run history when retention is infinite" do
+    AppSetting.current.update!(test_insight_case_retention_days: 0)
+    old_run = create_test_run
+    old_case = create_case(old_run)
+    old_run.update_columns(created_at: 10.years.ago)
+    old_case.update_columns(created_at: 10.years.ago)
+
+    described_class.perform_now
+
+    expect(TestInsights::TestRun.exists?(old_run.id)).to be true
+    expect(TestInsights::TestCase.exists?(old_case.id)).to be true
   end
 end

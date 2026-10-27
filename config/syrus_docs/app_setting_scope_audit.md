@@ -63,6 +63,8 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `work_engine_reconciler_activity_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for reconciler events. |
 | `work_engine_reconciler_activity_archive_before_delete` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment archival policy for reconciler events. |
 | `provider_session_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for provider sessions. |
+| `job_log_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for user-visible Run output. |
+| `performance_log_event_retention_hours` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for performance diagnostics. |
 | `provider_session_archive_before_delete` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment archival policy for provider sessions. |
 | `spawned_process_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for subprocess inventory. |
 | `notification_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for notifications. |

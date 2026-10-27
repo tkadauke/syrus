@@ -91,6 +91,8 @@ feature-usage and admission-decision counters combine increments from every web
 and worker process into monotonic shared totals. If that cross-process snapshot
 is unavailable or stale, those charts omit new readings and show an operator
 warning instead of presenting the recorder process's local zero as complete.
+Raw one-minute samples are retained for seven days—the longest window the
+dashboard plots—and a daily recurring task prunes older rows.
 
 MySQL DB Browser connections inherit access from their Credential Store scope:
 user, repository, team, or instance. New connections default to the creating

@@ -1,13 +1,19 @@
 class PerformanceLogEvent < ApplicationRecord
   include ObservabilityEventRecord
+  include HasConfigurableRetention
 
-  RETENTION = 24.hours
+  configurable_retention setting_key: :performance_log_event_retention_hours, unit: :hours
 
   attribute :payload, :json, default: -> { {} }
 
   validates :occurred_at, :event_name, presence: true
 
-  scope :expired, -> { where(occurred_at: ...RETENTION.ago) }
+  scope :prunable, -> {
+    cutoff = retention_cutoff
+    cutoff ? where("occurred_at < ?", cutoff) : none
+  }
+
+  scope :expired, -> { prunable }
 
   def self.persist_observability_events!(rows, batch_size:)
     rows.each_slice(batch_size) do |batch|
