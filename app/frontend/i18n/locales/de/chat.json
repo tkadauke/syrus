@@ -991,6 +991,8 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" },
   "tool_card_examples": {
+    "priority_changed": "Priorität geändert",
+    "invalid_priority": "Ungültige Priorität",
     "pending_reopen_without_input": "Ausstehende Wiedereröffnung ohne Aufrufeingabe",
     "bulk_reopen_confirmation": "Bestätigung für mehrere Wiedereröffnungen",
     "job_cannot_be_reopened": "Job kann nicht wiedereröffnet werden",
