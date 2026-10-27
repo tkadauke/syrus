@@ -40,6 +40,38 @@ RSpec.describe ProviderSessionPruneJob do
     expect(session.reload.transcript_jsonl).to eq("payload")
   end
 
+  it "clears large payload columns after one week while retaining session metadata" do
+    succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+    session = ProviderSession.create!(
+      resumable: succeeded_run,
+      session_id: "payload",
+      transcript_jsonl: "large transcript",
+      normalized_messages: [ { "role" => "assistant", "content" => "large normalized payload" } ]
+    )
+    session.update_columns(updated_at: ProviderSession::PAYLOAD_RETENTION.ago - 1.second)
+
+    expect { described_class.perform_now }.not_to change(ProviderSession, :count)
+
+    expect(session.reload).to have_attributes(
+      session_id: "payload",
+      transcript_jsonl: nil,
+      normalized_messages: nil,
+      transcript_pruned: true
+    )
+    expect { described_class.perform_now }.not_to change { session.reload.updated_at }
+  end
+
+  it "keeps payloads in the live row when archive-before-delete is enabled" do
+    AppSetting.current.update!(provider_session_archive_before_delete: true)
+    succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+    session = ProviderSession.create!(resumable: succeeded_run, session_id: "archive", transcript_jsonl: "preserve me")
+    session.update_columns(updated_at: ProviderSession::PAYLOAD_RETENTION.ago - 1.second)
+
+    described_class.perform_now
+
+    expect(session.reload.transcript_jsonl).to eq("preserve me")
+  end
+
   it "is a no-op when nothing is prunable" do
     expect { described_class.perform_now }.not_to change { ProviderSession.count }
   end

@@ -470,14 +470,17 @@ performance UI.
 
 `provider_sessions` is large primarily because each row can contain a provider
 transcript (`transcript_jsonl` is a 64 MiB-capable text column), not because of
-its metadata. The daily prune deletes the whole expired row—including
-`transcript_jsonl` and `normalized_messages`—for terminal Runs, in bounded
-batches. It therefore frees pages for InnoDB reuse, although InnoDB does not
-necessarily return the physical tablespace file to the operating system. The
-14-day default limits how long these unusually large rows remain, and the
-prune lookup is backed by the `(resumable_type, updated_at, resumable_id)`
-index so finding expired rows does not scan the transcript payloads. Active
-Run sessions remain protected because they can still be resumed.
+its metadata. For terminal Runs, the daily prune clears `transcript_jsonl` and
+`normalized_messages` after seven days while retaining lightweight session
+metadata, then deletes the whole row after the configurable window (14 days by
+default). Both phases run in bounded batches and use the
+`(resumable_type, updated_at, resumable_id)` index, so finding candidates does
+not scan payload values. Clearing or deleting payloads frees pages for InnoDB
+reuse, although InnoDB does not necessarily return the physical tablespace
+file to the operating system. Active Run sessions remain protected because
+they can still be resumed. Enabling `provider_session_archive_before_delete`
+also disables the early payload clearing phase so the eventual archive still
+contains the transcript and normalized messages.
 
 Three entries are worth calling out:
 
