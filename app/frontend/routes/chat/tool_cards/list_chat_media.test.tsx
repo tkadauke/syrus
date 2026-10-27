@@ -82,7 +82,7 @@ describe("list_chat_media tool card", () => {
   })
 
   it("does not render an inline image data URL as modal metadata", () => {
-    const dataUrl = "data:image/png;base64,a-very-long-encoded-image"
+    const dataUrl = "data:image/png;base64,aGVsbG8="
     const parsedResult = {
       snapshots: [],
       chat_images: [{ id: "chat_image:9", filename: "inline.png", content_type: "image/png", file_path: dataUrl }]
@@ -94,8 +94,20 @@ describe("list_chat_media tool card", () => {
     const dialog = screen.getByRole("dialog", { name: "inline.png" })
     expect(within(dialog).queryByText(dataUrl)).not.toBeInTheDocument()
     expect(within(dialog).queryByText("Path")).not.toBeInTheDocument()
-    expect(within(dialog).getByRole("link", { name: "Open image" })).toHaveAttribute("href", dataUrl)
+    expect(within(dialog).getByRole("link", { name: "Open image" })).toHaveAttribute("href", expect.stringMatching(/^blob:/))
     expect(within(dialog).getByRole("button", { name: "Copy path" })).toBeInTheDocument()
+  })
+
+  it("does not expose a malformed inline image URL as an open action", () => {
+    const parsedResult = {
+      snapshots: [],
+      chat_images: [{ id: "chat_image:9", filename: "broken.png", content_type: "image/png", file_path: "data:image/png;base64,not-valid-@" }]
+    }
+
+    render(<>{listChatMediaToolCard.renderExpanded(context({ parsedResult }))}</>)
+    fireEvent.click(screen.getByRole("button", { name: "Open broken.png" }))
+
+    expect(within(screen.getByRole("dialog", { name: "broken.png" })).queryByRole("link", { name: "Open image" })).not.toBeInTheDocument()
   })
 
   it("opens a preview modal with full details on click", () => {
