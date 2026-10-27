@@ -64,6 +64,17 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "prunes job logs daily and performance events hourly" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true).fetch("default")
+
+    expect(config.fetch("prune_job_logs")).to include(
+      "class" => "JobLogPruneJob", "queue" => "cleanup", "schedule" => "every day at 3:05am"
+    )
+    expect(config.fetch("prune_performance_log_events")).to include(
+      "class" => "PerformanceLogEventPruneJob", "queue" => "cleanup", "schedule" => "every hour"
+    )
+  end
+
   it "refreshes workflow step resource profiles hourly" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 

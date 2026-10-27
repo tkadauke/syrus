@@ -1319,8 +1319,12 @@ app revision, and the admin view defaults to the current revision so stale
 pre-deploy timings do not hide whether a new deploy helped; admins can switch
 to all revisions when investigating rolling-deploy overlap. The in-app
 diagnostics buffer uses the observability event sink, defaults to 2,000 recent
-performance events per process, and persists events for 24 hours; structured
-log retention follows the deployment's log sink policy.
+performance events per process, and persists events for 24 hours by default.
+Admins can change that database window with the retention setting; setting it
+to zero keeps events indefinitely. Detailed Run output is likewise retained
+for 30 days by default before its stdout, stderr, tool-call, and system chunks
+are pruned, while the Run itself remains. Structured log retention follows the
+deployment's log sink policy.
 When the bundled `syrus_dev` plugin is enabled, Admin → Performance and the
 admin performance API expose the same diagnostics payload. The slow-request
 table can drill into retained request events and show matching slow phases plus

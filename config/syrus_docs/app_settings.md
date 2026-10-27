@@ -434,6 +434,8 @@ stays fixed or on its own settings.
 
 | Setting | Default | Unit | Table | PruneJob | Archivable |
 | --- | --- | --- | --- | --- | --- |
+| `job_log_retention_days` | 30 | days | `job_logs` | `JobLogPruneJob` | yes |
+| `performance_log_event_retention_hours` | 24 | **hours** | `performance_log_events` | `PerformanceLogEventPruneJob` | no |
 | `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` | yes |
 | `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` | no |
 | `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` | no |
@@ -457,6 +459,25 @@ tables (resource summaries, host health samples, spawned-process inventory,
 notifications, the operational log index, and the resource-prediction
 profile tables) are marked `archivable: false` since archiving them would
 mostly balloon storage for little later value.
+
+`job_log_retention_days` controls the detailed output shown for a Run. After
+the default 30-day window, stdout, stderr, tool-call, and system chunks are
+deleted while the Run and its other history remain. Enable
+`job_log_archive_before_delete` before pruning if that detailed output must be
+preserved outside the live table. `performance_log_event_retention_hours` is a
+short diagnostic window; its default remains the 24 hours used by the
+performance UI.
+
+`provider_sessions` is large primarily because each row can contain a provider
+transcript (`transcript_jsonl` is a 64 MiB-capable text column), not because of
+its metadata. The daily prune deletes the whole expired row—including
+`transcript_jsonl` and `normalized_messages`—for terminal Runs, in bounded
+batches. It therefore frees pages for InnoDB reuse, although InnoDB does not
+necessarily return the physical tablespace file to the operating system. The
+14-day default limits how long these unusually large rows remain, and the
+prune lookup is backed by the `(resumable_type, updated_at, resumable_id)`
+index so finding expired rows does not scan the transcript payloads. Active
+Run sessions remain protected because they can still be resumed.
 
 Three entries are worth calling out:
 

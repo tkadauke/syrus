@@ -100,6 +100,16 @@ RSpec.describe ProviderSession do
       expect(described_class.prunable).not_to include(new_session)
     end
 
+    it "keeps a terminal session exactly at the retention boundary" do
+      travel_to(Time.zone.parse("2026-10-26 12:00:00")) do
+        terminal_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+        session = described_class.create!(resumable: terminal_run, session_id: "boundary", transcript_jsonl: "large payload")
+        session.update_columns(updated_at: described_class.retention_window.ago)
+
+        expect(described_class.prunable).not_to include(session)
+      end
+    end
+
     it "returns none when retention is set to 0 (infinite)" do
       AppSetting.current.update!(provider_session_retention_days: 0)
       old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
