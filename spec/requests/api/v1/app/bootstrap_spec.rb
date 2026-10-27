@@ -15,6 +15,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
       next if payload[:cached] || payload[:name] == "SCHEMA"
+      # See PerformanceBudgetHelpers::QUEUE_TABLE_SQL -- queue-table statements
+      # appear or not depending on what else ran in this process.
+      next if payload[:sql].to_s.match?(PerformanceBudgetHelpers::QUEUE_TABLE_SQL)
 
       queries << payload[:sql]
     end

@@ -1039,7 +1039,9 @@
     "no_dependencies_remain": "Keine Abhängigkeiten verbleiben",
     "validation_error": "Validierungsfehler",
     "job_dependency_removed": "Job-Abhängigkeit entfernt",
-    "epic_dependency_removed_none_remaining": "Epic-Abhängigkeit entfernt; keine verbleiben"
+    "epic_dependency_removed_none_remaining": "Epic-Abhängigkeit entfernt; keine verbleiben",
+    "priority_changed": "Priorität geändert",
+    "invalid_priority": "Ungültige Priorität"
   },
   "restack_epic": {
     "title": "Epic neu stapeln",

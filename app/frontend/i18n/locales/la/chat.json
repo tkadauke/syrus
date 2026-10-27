@@ -1039,7 +1039,9 @@
     "no_dependencies_remain": "Nullae dependentiae restant",
     "validation_error": "Error validationis",
     "job_dependency_removed": "Dependentia Job remota",
-    "epic_dependency_removed_none_remaining": "Dependentia Epic remota; nullae restant"
+    "epic_dependency_removed_none_remaining": "Dependentia Epic remota; nullae restant",
+    "priority_changed": "Prioritas mutata",
+    "invalid_priority": "Prioritas invalida"
   },
   "restack_epic": {
     "title": "Epic reordina",

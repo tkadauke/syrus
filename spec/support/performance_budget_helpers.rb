@@ -1,9 +1,27 @@
 module PerformanceBudgetHelpers
+  # Statements against the queue database are excluded from every SQL budget.
+  #
+  # The test environment runs single-database and does not load the Solid Queue
+  # tables, so a readiness probe like AppApi::ReadinessChecks#worker_queue_check
+  # either errors out before issuing a statement or issues one, depending on
+  # whether something earlier in the same process happened to create those
+  # tables. That made these budgets order-dependent: run alone, the bootstrap
+  # endpoint measured 42 statements; run after its sibling request specs, 43 --
+  # and the extra one was always
+  # `SELECT COUNT(*) FROM solid_queue_processes WHERE kind = ?`. Two budgets
+  # failed by exactly one statement that way, and between them they kept main
+  # red and made every merge train pay to rediscover it.
+  #
+  # A budget on application reads should not move with the schema state of a
+  # queue the endpoint only probes, so it does not count them.
+  QUEUE_TABLE_SQL = /\bsolid_queue_/i
+
   def capture_performance_budget
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
       next if payload[:name] == "SCHEMA"
       next if payload[:cached]
+      next if payload[:sql].to_s.match?(QUEUE_TABLE_SQL)
 
       queries << payload[:sql].to_s.squish
     end
