@@ -50,6 +50,23 @@ RSpec.describe App::RunArtifactsPayload do
     expect(payload[:logs].last[:sequence]).to eq(204)
   end
 
+  it "includes tool pair context when a call and result straddle transcript pages" do
+    job = Factories.job_with_run
+    run = job.runs.last
+    run.job_logs.delete_all
+    JobLog.append!(run: run, chunk: "before", kind: "assistant_text")
+    JobLog.append!(run: run, chunk: "call", kind: "tool_call", tool_name: "Read", tool_input: { "file_path" => "app.rb" }, tool_use_id: "split-call")
+    JobLog.append!(run: run, chunk: "result", kind: "tool_result", tool_use_id: "split-call", tool_result_content: "contents", tool_result_error: false)
+    JobLog.append!(run: run, chunk: "after", kind: "assistant_text")
+
+    newer_page = described_class.build(run: run, artifact: "transcript", page: 1, per: 2)
+    older_page = described_class.build(run: run, artifact: "transcript", page: 2, per: 2)
+
+    expect(newer_page).to include(logs_count: 4, logs_page: 1, logs_per_page: 2, logs_total_pages: 2, logs_has_older: true)
+    expect(newer_page[:logs].map { |log| log[:chunk] }).to eq(%w[call result after])
+    expect(older_page[:logs].map { |log| log[:chunk] }).to eq(%w[before call result])
+  end
+
   it "reads only the requested diff artifact" do
     job = Factories.job_with_run(run_attrs: { agent_diff: "agent diff", step_agent_diff: "step diff" })
     run = job.runs.last
