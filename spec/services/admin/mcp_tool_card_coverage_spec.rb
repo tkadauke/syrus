@@ -134,8 +134,9 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     TS
 
     add_card("app/frontend/routes/chat/tool_cards/core_decorated_factory_tool.tsx", <<~TS)
+      import type { ToolCardRenderer } from "@app/pluginToolCards"
       import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
-      const card = maintenanceToolCard("core_decorated_factory_tool")
+      const card: ToolCardRenderer = maintenanceToolCard("core_decorated_factory_tool")
       export default { ...card, argumentSummary: () => "" }
     TS
 

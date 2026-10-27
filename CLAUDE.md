@@ -45,8 +45,7 @@ comment half of this mechanically; the docs half is on you.
 Rails 8.1.4 · Ruby 3.4.10 · SQLite (dev/test) / MySQL (prod) ·
 Solid Queue + Solid Cache + Solid Cable · React + TypeScript via Vite ·
 TanStack Query · Tailwind via `tailwindcss-rails` · Go CLI under `cli/` ·
-Electron desktop under `desktop/` · Android operator app under `android/` ·
-Octokit for GitHub.
+Electron desktop under `desktop/` · Octokit for GitHub.
 
 ## Architecture in 60 seconds
 

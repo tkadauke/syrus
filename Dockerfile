@@ -125,7 +125,24 @@ RUN bundle install && \
 # is removed before the final image copy; the runtime image only needs
 # the compiled assets in app/assets/builds.
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm's optional-dependency resolution (npm/cli#4828) intermittently leaves the
+# platform-specific native binding uninstalled, and nothing notices: the tree
+# looks complete, and the failure only surfaces two layers later when
+# `vite build` dereferences rolldown's binding and dies in a four-deep require
+# chain that names a dozen files and no cause. A cached layer carries that
+# state forward invisibly, so a build can fail on a tree that was poisoned by
+# some earlier run.
+#
+# Importing rolldown is exactly what Vite does, so it is the authoritative
+# check, and it belongs here -- at the layer that is actually wrong, where the
+# message says so. One reinstall is allowed, because a fresh `npm ci` resolves
+# the binding correctly; a second failure is real and stops the build.
+RUN npm ci && \
+    if ! node --input-type=module -e 'await import("rolldown")' >/dev/null 2>&1; then \
+      echo "npm ci left rolldown's native binding uninstalled (npm/cli#4828); reinstalling node_modules" >&2; \
+      rm -rf node_modules && npm ci; \
+      node --input-type=module -e 'await import("rolldown")'; \
+    fi
 
 # Copy application code
 COPY . .
@@ -357,16 +374,7 @@ ARG PIP_VERSION=26.2.1
 ARG MISE_GO_VERSION="1.26.5"
 ARG MULL_LLVM_VERSION=18
 ARG MULL_APT_GPG_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F
-ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902
-ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
-ARG ANDROID_PLATFORM_VERSION=android-36
-ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0
 
-ENV ANDROID_SDK_ROOT=/opt/android-sdk \
-    ANDROID_HOME=/opt/android-sdk \
-    ANDROID_USER_HOME=/home/rails/.android \
-    ANDROID_PREFS_ROOT=/home/rails/.android \
-    ANDROID_AVD_HOME=/home/rails/.android/avd
 
 # Native build deps + DB clients (no servers) + CLI tooling. Each tool
 # justified by agent use; ripgrep+fd in particular speed
@@ -406,39 +414,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       sqlite3 postgresql-client default-mysql-client \
       wget unzip openssh-client jq ripgrep fd-find less vim \
       python3 python3-pip python3-venv \
-      default-jre-headless \
       cmake ninja-build \
       qt6-base-dev qt6-declarative-dev libgl1-mesa-dev xvfb xauth \
       doxygen graphviz lcov gcovr \
     && ln -sf "/usr/bin/mull-runner-${MULL_LLVM_VERSION}" /usr/local/bin/mull-runner \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# Android SDK command-line baseline for Android plugin graders and emulator
-# runtime sessions. A JDK/Gradle for *building* JVM projects stays owned by the
-# JVM plugins and project wrappers -- but `sdkmanager` is itself a Java program,
-# so a headless JRE has to exist in this image for the step below to run at all.
-# Without one it exits 1 having printed its "no java command could be found"
-# complaint to stdout, which the `>/dev/null` on the --licenses line discards,
-# so the build fails with no output whatsoever.
-# This installs only the Android SDK manager packages shared by
-# Android builds and emulator-backed sessions.
-RUN set -eu; \
-    mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" "${ANDROID_USER_HOME}" "${ANDROID_AVD_HOME}"; \
-    cmdline_zip="/tmp/android-commandlinetools.zip"; \
-    curl -fsSL -o "${cmdline_zip}" \
-      "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip"; \
-    echo "${ANDROID_CMDLINE_TOOLS_SHA256}  ${cmdline_zip}" | sha256sum -c -; \
-    unzip -q "${cmdline_zip}" -d /tmp/android-cmdline-tools; \
-    mv /tmp/android-cmdline-tools/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest"; \
-    rm -f "${cmdline_zip}"; \
-    rm -rf /tmp/android-cmdline-tools; \
-    yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null; \
-    android_packages="platform-tools platforms;${ANDROID_PLATFORM_VERSION} build-tools;${ANDROID_BUILD_TOOLS_VERSION}"; \
-    if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
-      android_packages="${android_packages} emulator"; \
-    fi; \
-    "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ${android_packages}; \
-    chown -R 1000:1000 "${ANDROID_SDK_ROOT}" "${ANDROID_USER_HOME}"
 
 # sccache — transparent remote compiler cache for C/C++ builds .
 # Installed as a real binary, then masqueraded onto PATH under the names
@@ -507,10 +488,14 @@ RUN chmod 0755 /usr/local/bin/syrus-sccache-compiler
 # stage. This is the layer that previously ran `mise install ...` and
 # took ~13 min cold; now it's a fast COPY of artifacts that were
 # compiled once and stay cached.
-COPY --from=runtime-cache /opt/mise /opt/mise-seed
-COPY --from=runtime-cache /opt/mise /opt/mise
+#
+# Ownership is set by the COPY itself. A `chown -R` afterwards would be a
+# separate layer that rewrites every file it touches, and these two trees are
+# 1.6 GB each -- so the chown stored a third full copy of their bytes, 3.2 GB
+# of layer that `--chown` produces for free.
+COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise-seed
+COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise
 COPY --from=runtime-cache /usr/local/bin/mise /usr/local/bin/mise
-RUN chown -R 1000:1000 /opt/mise-seed /opt/mise
 
 # Package managers that don't ship with their default runtime. Python
 # tools live in an isolated venv so `poetry` stays executable without
@@ -524,7 +509,7 @@ RUN npm install -g "yarn@${YARN_VERSION}" "pnpm@${PNPM_VERSION}" && npm cache cl
     ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry && \
     ln -s /opt/python-tools/bin/uv /usr/local/bin/uv
 
-ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator:/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
+ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
     MISE_DATA_DIR=/opt/mise \
     MISE_GLOBAL_CONFIG_FILE=/opt/mise/config.toml \
     SYRUS_MISE_GO_VERSION=${MISE_GO_VERSION}

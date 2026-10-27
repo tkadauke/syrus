@@ -46,13 +46,12 @@ grade:
       - "gradlew"
 ```
 
-## Boundary with Android and Kotlin Multiplatform
+## Boundary with Kotlin Multiplatform
 
 This plugin owns only generic Kotlin/JVM conventions: Kotlin source-layout
 detection, Gradle Kotlin DSL signals, Kotlin JVM plugin detection, and reuse of
-Java's JVM prepare/grader machinery. Kotlin Multiplatform, native/iOS targets,
-Android Gradle Plugin behavior, Android SDK setup, emulator/device
-requirements, and Android runtime concerns are intentionally out of scope.
+Java's JVM prepare/grader machinery. Kotlin Multiplatform and native/iOS
+targets are intentionally out of scope.
 
 ## Loading the plugin
 

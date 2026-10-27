@@ -1,68 +1,118 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { JobRefLink } from "../adminToolCard"
-import { Badge, CardShell, displayValue, SectionLabel, StatePill } from "../toolCardUi"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
+import { MediaPreviewShell } from "../mediaPreviewShell"
+import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard, type PendingActionInputField } from "../pendingActionToolCard"
+import { Badge, displayValue, SectionLabel } from "../toolCardUi"
 import i18n from "@app/i18n"
+import { safeMediaUrl } from "./list_chat_media"
 
-// Core-owned tool card for submit_chat_feedback. The tool result only
-// carries the pending-action confirmation shape (pending_action_id, state,
-// message, and -- for a job that's still running/queued -- a "queued"
-// status), so the job id and media refs are read back from the tool call's
-// own input arguments.
-type SubmitChatFeedbackResult = {
-  jobId: string | null
-  media: string[]
-  pendingActionId: string | null
-  state: string
-  queued: boolean
-  message: string | null
-}
-
-function isUnresolved(state: string) {
-  return state === "queued" || state === "pending" || state === "confirming"
-}
+const inputFields: PendingActionInputField[] = [{ key: "feedback", label: i18n.t("chat:mutation_feedback"), format: "markdown" }]
 
 function mediaRefs(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
-    const ref = displayValue(item)
-    return ref ? [ref] : []
+    const reference = displayValue(item)
+    return reference ? [reference] : []
   })
 }
 
-function parseResult(context: ToolCardContext): SubmitChatFeedbackResult | null {
-  const parsed = context.parsedResult
-  if (!isPlainObject(parsed)) return null
-  const state = displayValue(parsed.state)
-  if (!state) return null
+function pendingActionHref(context: ToolCardContext, pendingActionId: string) {
+  const chatId = context.presentation?.chatId ?? context.chatSessionId
+  return chatId ? `/chats/${encodeURIComponent(String(chatId))}#pending-action-${encodeURIComponent(pendingActionId)}` : null
+}
 
-  const input = isPlainObject(context.input) ? context.input : {}
-  const pendingActionId = displayValue(parsed.pending_action_id) ?? displayValue(parsed.pending_confirmation_id)
+function queuedResult(context: ToolCardContext) {
+  const parsed = normalizedToolCardParsedResult(context.parsedResult)
+  return isPlainObject(parsed) && displayValue(parsed.status) === "queued"
+}
 
-  // The tool result's own state is frozen at call time ("pending"/"queued")
-  // -- it never reflects a later operator confirm/reject. livePendingAction
-  // is re-read from the owning message on every payload fetch, so prefer it
-  // once it exists and still refers to this same pending action.
-  const live = context.livePendingAction
-  const liveState = live && pendingActionId && displayValue(live.id) === pendingActionId ? live.state : null
+function FeedbackMedia({ context, references }: { context: ToolCardContext; references: string[] }) {
+  if (references.length === 0) return null
 
-  return {
-    jobId: displayValue(input.job_id),
-    media: mediaRefs(input.media),
-    pendingActionId,
-    state: liveState ?? state,
-    queued: displayValue(parsed.status) === "queued",
-    message: displayValue(parsed.message)
+  return (
+    <div className="min-w-0">
+      <SectionLabel>{i18n.t("chat:tool_card_media")}</SectionLabel>
+      <div className="mt-1 grid min-w-0 grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
+        {references.map((reference) => (
+          <FeedbackMediaItem context={context} key={reference} reference={reference} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FeedbackMediaItem({ context, reference }: { context: ToolCardContext; reference: string }) {
+  const [kind, rawId] = reference.split(":", 2)
+  const id = Number(rawId)
+  if (!Number.isFinite(id)) return <Badge wrap>{reference}</Badge>
+
+  if (kind === "chat_image") {
+    const image = context.presentation?.chatMedia?.chat_images.find((candidate) => candidate.id === id)
+    const derivedSrc =
+      context.presentation?.chatId != null
+        ? `/api/v1/app/chats/${encodeURIComponent(String(context.presentation.chatId))}/media/chat_images/${encodeURIComponent(String(id))}/file`
+        : null
+    const src = safeMediaUrl(image?.image_url || image?.file_path || derivedSrc || "")
+    if (!src) return <Badge wrap>{reference}</Badge>
+    const title = image?.title || image?.filename || reference
+    return (
+      <MediaPreviewShell
+        item={{
+          title,
+          subtitle: image?.content_type || "Chat image",
+          src,
+          alt: title,
+          badge: "image",
+          fallbackLabel: "Image preview unavailable",
+          actions: [
+            { label: i18n.t("chat:tool_card_list_media_open_image"), href: src },
+            { label: i18n.t("chat:download"), href: src, download: true },
+            { label: i18n.t("chat:tool_card_copy_id"), copyValue: reference }
+          ],
+          meta: [
+            { label: "ID", value: reference, copyValue: reference },
+            { label: i18n.t("chat:content_type"), value: image?.content_type }
+          ]
+        }}
+        modalLabel={title}
+        thumbnailClassName="min-h-11 w-full"
+      />
+    )
   }
+
+  if (kind === "snapshot") {
+    const snapshot = context.presentation?.chatMedia?.snapshots.find((candidate) => candidate.id === id)
+    if (!snapshot) return <Badge wrap>{reference}</Badge>
+    const title = snapshot.name || reference
+    return (
+      <MediaPreviewShell
+        item={{
+          title,
+          subtitle: `${snapshot.element_count} whiteboard element${snapshot.element_count === 1 ? "" : "s"}`,
+          badge: "snapshot",
+          fallbackLabel: "Whiteboard snapshot",
+          actions: [{ label: i18n.t("chat:tool_card_copy_id"), copyValue: reference }],
+          meta: [
+            { label: "ID", value: reference, copyValue: reference },
+            { label: i18n.t("chat:created"), value: snapshot.created_at }
+          ]
+        }}
+        modalLabel={title}
+        thumbnailClassName="min-h-11 w-full"
+      />
+    )
+  }
+
+  return <Badge wrap>{reference}</Badge>
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const result = parseResult(context)
+  const result = parsePendingActionResult(context, true)
   if (!result) return null
-
-  return (
-    result.message ||
-    i18n.t(
-      result.queued
+  if ((result.kind === "standard" || result.kind === "bulk") && !result.message) {
+    const queued = result.state === "queued" || queuedResult(context)
+    return i18n.t(
+      queued
         ? result.jobId
           ? "chat:mutation_chat_feedback_queued_job"
           : "chat:mutation_chat_feedback_queued"
@@ -71,37 +121,39 @@ function collapsedSummary(context: ToolCardContext) {
           : "chat:mutation_chat_feedback_pending",
       { job: result.jobId ? `JOB-${result.jobId}` : "" }
     )
-  )
+  }
+  return result ? pendingActionCollapsedSummary(result) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const result = parseResult(context)
+  const result = parsePendingActionResult(context, true)
   if (!result) return null
 
+  const input = isPlainObject(context.input) ? context.input : {}
+  const media = mediaRefs(input.media)
+  const unresolvedResult = result.kind === "standard" || result.kind === "bulk" ? result : null
+  const queued = Boolean(unresolvedResult && (unresolvedResult.state === "queued" || queuedResult(context)))
+  const linkedResult =
+    result.kind === "standard" || result.kind === "bulk"
+      ? { ...result, resourceUrl: result.resourceUrl || pendingActionHref(context, result.pendingActionId) }
+      : result
+
   return (
-    <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={result.state} />
-        {result.jobId ? <JobRefLink jobId={result.jobId} /> : null}
-        {result.pendingActionId ? <Badge>#{result.pendingActionId}</Badge> : null}
-      </div>
-      {result.message ? <div className="text-gray-700 dark:text-gray-300">{result.message}</div> : null}
-      {isUnresolved(result.state) ? (
-        <div className="text-gray-500 dark:text-gray-400">
-          {result.queued ? i18n.t("chat:mutation_feedback_queued_explanation") : i18n.t("chat:mutation_feedback_confirmation_explanation")}
-        </div>
-      ) : null}
-      {result.media.length > 0 ? (
-        <div>
-          <SectionLabel>{i18n.t("chat:tool_card_media")}</SectionLabel>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {result.media.map((ref) => (
-              <Badge key={ref}>{ref}</Badge>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </CardShell>
+    <PendingActionResultCard
+      details={
+        <>
+          {queued ? (
+            <div className="break-words text-text-muted">{i18n.t("chat:mutation_feedback_queued_explanation")}</div>
+          ) : unresolvedResult && ["pending", "confirming"].includes(unresolvedResult.state) ? (
+            <div className="break-words text-text-muted">{i18n.t("chat:mutation_feedback_confirmation_explanation")}</div>
+          ) : null}
+          <FeedbackMedia context={context} references={media} />
+        </>
+      }
+      input={input}
+      inputFields={inputFields}
+      result={linkedResult}
+    />
   )
 }
 
@@ -110,5 +162,63 @@ const submitChatFeedbackToolCard: ToolCardRenderer = {
   collapsedSummary,
   renderExpanded
 }
+
+const thumbnail =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 180'%3E%3Crect width='320' height='180' fill='%23f1f5f9'/%3E%3Crect x='32' y='28' width='256' height='30' rx='6' fill='%23b6492e'/%3E%3Crect x='32' y='76' width='180' height='12' rx='6' fill='%2394a3b8'/%3E%3Crect x='32' y='100' width='220' height='12' rx='6' fill='%23cbd5e1'/%3E%3C/svg%3E"
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "pending_with_feedback_and_media",
+    label: i18n.t("chat:mutation_feedback_example_pending_media"),
+    description: i18n.t("chat:mutation_feedback_example_pending_media_description"),
+    input: {
+      job_id: 4048,
+      feedback:
+        "Please tighten the **mobile header** and keep the primary action visible.\n\n- Preserve keyboard focus\n- Check the narrow layout\n\n" +
+        "The attached image and whiteboard snapshot show the intended hierarchy. ".repeat(10),
+      media: ["chat_image:7", "snapshot:42", "artifact:unresolved-reference"]
+    },
+    parsedResult: {
+      pending_action_id: 501,
+      state: "pending",
+      message:
+        "Submit this **review feedback** after checking the linked Job and attachments. " +
+        "Confirming creates a dedicated follow-up workflow for the requested revision. ".repeat(10)
+    },
+    presentation: {
+      chatId: 12,
+      chatMedia: {
+        snapshots: [{ id: 42, name: "Header hierarchy", snapshot_kind: "manual", element_count: 6, created_at: "2026-10-20T12:00:00Z" }],
+        chat_images: [{ id: 7, title: i18n.t("chat:mutation_feedback_example_mobile_header"), filename: "mobile-header.svg", content_type: "image/svg+xml", image_url: thumbnail }],
+        typed_artifacts: [],
+        whiteboard_has_unsaved_content: false
+      }
+    },
+    sourceType: "generic"
+  },
+  {
+    id: "queued_feedback",
+    label: i18n.t("chat:mutation_feedback_example_queued"),
+    description: i18n.t("chat:mutation_feedback_example_queued_description"),
+    input: { job_id: 4048, feedback: "Recheck the **responsive spacing** before the next implementation pass." },
+    parsedResult: {
+      pending_action_id: 502,
+      state: "queued",
+      status: "queued",
+      message: i18n.t("chat:mutation_feedback_example_queued_message")
+    },
+    presentation: { chatId: 12 },
+    sourceType: "codex"
+  },
+  {
+    id: "feedback_error",
+    label: i18n.t("chat:mutation_feedback_example_error"),
+    description: i18n.t("chat:mutation_feedback_example_error_description"),
+    input: { job_id: 9999, feedback: "Apply the **header revision** shown in the attachment.", media: ["snapshot:404"] },
+    resultBody: "Error: Job not found",
+    resultError: true,
+    sourceType: "claude"
+  }
+]
 
 export default submitChatFeedbackToolCard

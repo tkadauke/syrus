@@ -46,6 +46,14 @@ Once the integration branch is assembled, `merge_train_build` immediately pushes
 `keep_fixes` is the only rung that preserves the branch for replay; under
 `keep_assembly` or `restart` the branch is deleted as usual.
 
+A rung that keeps the assembly alive also schedules the relaunch that continues
+it, as an ordinary automatic retry attempt on the Job. Until it did, a preserved
+train sat active with a failed workflow and nothing driving it: no replacement
+train could be dispatched while it was active, and the stale-train reaper failed
+it a couple of minutes later as "no active Workflow or WorkUnit owns it", which
+replaced the real cause with a report about missing runtime. Preservation that
+cannot schedule a relaunch now tears the train down for its real reason instead.
+
 When `merge_train_failure_policy` is `keep_fixes`, a rebuilt train may carry a
 `merge_train_keep_fixes_source_train_id` artifact from a previous failed train.
 After member branches have been rebuilt on the current base, `merge_train_build`

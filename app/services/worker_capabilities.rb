@@ -28,8 +28,9 @@ class WorkerCapabilities
     ToolProbe.new(dimension: "runtime", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true),
     ToolProbe.new(dimension: "feature", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true)
   ].freeze
-  # Plugins contribute probes for toolchains core knows nothing about -- the
-  # Android SDK's location and layout belong to the Android plugin, not here.
+  # Plugins contribute probes for toolchains core knows nothing about: where a
+  # toolchain lives and how it is laid out belongs to the plugin that needs it,
+  # never here.
   #
   # Resolved lazily, never at load time: config/queue.yml renders
   # `queue_names_for` through ERB BEFORE Rails and Active Support exist (see

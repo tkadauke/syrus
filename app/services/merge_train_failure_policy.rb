@@ -18,8 +18,15 @@ class MergeTrainFailurePolicy
 
   def resolve
     return Rungs::Restart.new unless config_determined?
-    return instance_default_rung unless configured_ladder?
+    # The budget applies to the instance default too. It used to be checked
+    # only on the configured-ladder path, so a repository with no ladder got
+    # the instance default rung on every attempt forever -- and once
+    # preservation started actually relaunching trains, `keep_assembly` as the
+    # instance default would have meant a train that preserves without end.
+    # Past the budget there is one answer, and it is the same one a configured
+    # ladder gets: restart.
     return Rungs::Restart.new if @attempt_number < 1 || @attempt_number > retry_budget_limit
+    return instance_default_rung unless configured_ladder?
 
     rung_names = ladder.drop(@attempt_number - 1).first(retry_budget_limit - @attempt_number + 1)
     rung_names.each do |name|

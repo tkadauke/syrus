@@ -34,20 +34,12 @@ module Kotlin
       /kotlin\(["']jvm["']\)/
     ].freeze
 
+    # Kotlin/JVM only. Multiplatform and native builds need toolchains this
+    # plugin does not provide, so they stay out of scope.
     OUT_OF_SCOPE_PLUGIN_PATTERNS = [
-      /com\.android\.(?:application|library|test|dynamic-feature|asset-pack)/,
-      /com\.android\.tools\.build:gradle/,
-      /org\.jetbrains\.kotlin\.android/,
-      /kotlin\(["']android["']\)/,
       /org\.jetbrains\.kotlin\.multiplatform/,
       /kotlin\(["']multiplatform["']\)/,
       /org\.jetbrains\.kotlin\.native/
-    ].freeze
-
-    ANDROID_MANIFEST_PATHS = %w[
-      AndroidManifest.xml
-      app/src/main/AndroidManifest.xml
-      src/main/AndroidManifest.xml
     ].freeze
 
     def self.detect?(repo_path)
@@ -103,8 +95,7 @@ module Kotlin
     private_class_method :kotlin_jvm_gradle_plugin?
 
     def self.out_of_scope_project?(path)
-      ANDROID_MANIFEST_PATHS.any? { |entry| path.join(entry).exist? } ||
-        gradle_files(path).any? { |file| out_of_scope_gradle_plugin?(file) }
+      gradle_files(path).any? { |file| out_of_scope_gradle_plugin?(file) }
     end
     private_class_method :out_of_scope_project?
 

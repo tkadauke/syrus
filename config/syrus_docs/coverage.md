@@ -76,10 +76,11 @@ How long the hit-map blob (per-file line hit data) is retained. Default: 7 days.
 
 ## How coverage flows through the workflow
 
-1. Graders run and produce coverage artifacts in the workspace.
-2. `coverage_analyze` (non-agentic) parses them, merges sources per project, annotates the PR diff, evaluates thresholds, and stores results as `workflow.artifacts["coverage"]`.
-3. `coverage_pr_comment` (non-agentic) posts the PR comment if configured.
-4. The `CoverageSnapshot` model stores a per-SHA, per-project summary for trend tracking.
+1. Successful graders retain only their declared `coverage_outputs` as Run attachments before their immutable checkouts can be retired. Each attachment records its grader, project-relative artifact path, format, and source snapshot. Collection accepts only bounded regular files whose filename and content match a supported coverage format (`lcov`, `cobertura`, `go-cover`, or `simplecov`); missing, oversized, unsupported, malformed, symlinked, and path-traversing outputs are logged and rejected.
+2. `coverage_analyze` (non-agentic) reads attachments from the grader iteration that satisfied the final collection barrier, including explicitly carried-forward passing graders. Outputs matching each configured project/source are merged deterministically, so parallel graders cannot overwrite one another. Workflows whose graders still use the shared workspace retain the existing direct-file fallback.
+3. It annotates the PR diff, evaluates thresholds, and stores results as `workflow.artifacts["coverage"]`.
+4. `coverage_pr_comment` (non-agentic) posts the PR comment if configured.
+5. The `CoverageSnapshot` model stores a per-SHA, per-project summary for trend tracking.
 
 ## Cognitive debt queue
 

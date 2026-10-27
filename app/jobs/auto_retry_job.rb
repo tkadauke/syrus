@@ -54,9 +54,10 @@ class AutoRetryJob < ApplicationJob
   end
 
   RETRY_DISPATCH = {
-    "failed_step"        => :retry_failed_step,
-    "resume_failed_step" => :resume_failed_step,
-    "retry_workflow"     => :retry_workflow
+    "failed_step"           => :retry_failed_step,
+    "resume_failed_step"    => :resume_failed_step,
+    "retry_workflow"        => :retry_workflow,
+    "preserved_merge_train" => :relaunch_preserved_merge_train
   }.freeze
   ACTIVE_WORK_UNIT_RETRY_DELAY = 5.minutes
   FAILED_WORKER_RETRY_DELAY = 5.minutes
@@ -128,6 +129,14 @@ class AutoRetryJob < ApplicationJob
   # after the retry has been skipped.
   def skip_if_failure_no_longer_retryable(attempt)
     return false unless attempt.run
+    # A preserved merge train is scheduled *because* its failure is not the
+    # member's fault, and the failures that qualify -- a lost landing lock, a
+    # base that moved, no capable worker -- are all classified non-retryable.
+    # Retryability was already the wrong proxy for "safe to reuse this
+    # assembly" in MergeTrainFailureHandler#preservable_failure?; skipping here
+    # would strand the very trains that decision kept alive. The ladder's
+    # attempt budget, not retryability, is what bounds these.
+    return false if attempt.retry_kind == AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND
 
     fresh = RunFailureClassifier.persist!(attempt.run)
     return false if fresh.retryable
@@ -247,7 +256,9 @@ class AutoRetryJob < ApplicationJob
   end
 
   def reschedule_if_active_work_owns_failed_step_retry(attempt)
-    return false unless attempt.retry_kind.in?(%w[failed_step resume_failed_step])
+    return false unless attempt.retry_kind.in?(
+      [ "failed_step", "resume_failed_step", AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND ]
+    )
     return false unless attempt.job
 
     owner = WorkUnits::Ownership.active_unit_for_lock_key("job:#{attempt.job_id}")
@@ -270,7 +281,13 @@ class AutoRetryJob < ApplicationJob
     # inside the failed one: the failed workflow has the expired provider
     # pinned to it, so resuming a step there would walk straight back into the
     # same refusal. A fresh workflow resolves its provider again.
-    return retry_workflow(attempt) if provider_auth_failure?(attempt)
+    # A preserved merge train is the exception: a whole new workflow for the
+    # Job would leave the train active with nobody driving it, which is the
+    # state preservation exists to prevent. Its own dispatch tears the train
+    # down instead.
+    if provider_auth_failure?(attempt) && attempt.retry_kind != AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND
+      return retry_workflow(attempt)
+    end
 
     send(RETRY_DISPATCH.fetch(attempt.retry_kind, :retry_workflow), attempt)
   end
@@ -328,6 +345,88 @@ class AutoRetryJob < ApplicationJob
     else
       retry_workflow(attempt)
     end
+  end
+
+  # The relaunch MergeTrainFailureHandler promised when it kept the assembled
+  # train alive. It resumes the preserved workflow in place -- the integration
+  # branch, the already-graded tree and the member rows all stay as they were
+  # -- rather than asking the dispatcher for a replacement train, which would
+  # refuse while this train is still active.
+  #
+  # Every exit that is not a started run tears the train down for its real
+  # failure reason. An active train with nothing driving it is the exact state
+  # that used to be reaped two minutes later as "no active Workflow or WorkUnit
+  # owns it", burying the cause; preservation must never be able to produce it.
+  def relaunch_preserved_merge_train(attempt)
+    workflow = attempt.workflow
+    train = merge_train_for(workflow)
+    if train.nil? || train.terminal?
+      return preserved_relaunch_result(attempt, "the merge train is no longer active")
+    end
+    if provider_auth_failure?(attempt)
+      return tear_down_preserved_merge_train(attempt, "the provider that failed is pinned to this workflow")
+    end
+    unless workflow.retry_available?
+      return tear_down_preserved_merge_train(attempt, RetryFailedStepEnqueuer::WORKSPACE_CLEANED_UP_MESSAGE)
+    end
+
+    result = start_preserved_merge_train_relaunch(attempt, workflow)
+    return result if result.success?
+    # A lock conflict or an open provider circuit is a "not yet", not a "no":
+    # `perform` reschedules both, and the train keeps waiting for this attempt.
+    return result if retry_result_active_work_lock?(result) || retry_result_circuit(result)&.open?
+
+    tear_down_preserved_merge_train(attempt, result.error)
+  end
+
+  def start_preserved_merge_train_relaunch(attempt, workflow)
+    session = preserved_merge_train_resume_session(attempt)
+    return RetryFailedStepEnqueuer.call(
+      workflow: workflow,
+      agent_provider: attempt.agent_provider,
+      restart_grade_loop: false,
+      failed_step: attempt.run&.step
+    ) unless session
+
+    RetryFailedStepEnqueuer.call(
+      workflow: workflow,
+      parent_session_id: session.session_id,
+      prompt: Prompts::Resume.new.to_s,
+      agent_provider: session.provider.presence || attempt.agent_provider,
+      restart_grade_loop: false
+    )
+  end
+
+  # An agentic step inside a preserved train (a reconcile, a landing fix) is
+  # worth resuming with its captured session, the same way `resume_failed_step`
+  # would have. A non-agentic one -- assemble, land -- has no session and is
+  # simply re-run.
+  def preserved_merge_train_resume_session(attempt)
+    return nil unless attempt.run&.step&.agentic?
+    return nil if attempt.failure_classification == "agent_resume_unavailable"
+
+    session = attempt.run.provider_session
+    return nil unless session
+    return nil if session.provider.present? && session.provider != attempt.agent_provider
+
+    session
+  end
+
+  def tear_down_preserved_merge_train(attempt, reason)
+    MergeTrainFailureHandler.call(workflow: attempt.workflow, allow_preservation: false)
+    preserved_relaunch_result(
+      attempt,
+      "the preserved merge train could not be relaunched (#{reason.presence || 'unknown reason'}); the train was torn down"
+    )
+  end
+
+  def preserved_relaunch_result(attempt, error)
+    RetryFailedStepEnqueuer::Result.new(run: nil, workflow: attempt.workflow, step: attempt.run&.step, error: error)
+  end
+
+  def merge_train_for(workflow)
+    id = workflow&.artifact("merge_train_id")
+    id.present? ? MergeTrain.find_by(id: id) : nil
   end
 
   def running_worker_died_step_retry?(attempt)

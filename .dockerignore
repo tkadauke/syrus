@@ -11,6 +11,20 @@
 # Ignore local Syrus runtime state.
 /.syrus/
 
+# Ignore agent worktrees. Each one is a full checkout of this repository with
+# its own node_modules, vendor/bundle and built assets, and three of them were
+# 3.2 GB -- the largest single thing in the published worker image, six times
+# the size of the biggest tool it ships.
+#
+# Note how little the exclusions further down help here: every one of them is
+# anchored to the context root (`/node_modules/`, `/vendor/bundle/`,
+# `/website/.next/`), so none of them match the identical directory nested
+# inside a worktree. The whole tree has to be excluded here.
+#
+# `.claude/skills` and `.claude/reference` are deliberately NOT excluded --
+# agents read them at runtime inside the worker image.
+/.claude/worktrees/
+
 # Ignore all environment files.
 /.env*
 

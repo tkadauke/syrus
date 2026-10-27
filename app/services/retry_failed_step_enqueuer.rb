@@ -177,6 +177,7 @@ class RetryFailedStepEnqueuer
       return failure(lock_error)
     end
 
+    consume_step_remediation_override!(failed_step)
     reopen_workflow_for_retry!
     if grade_loop_restart_retry?(failed_step)
       restart_step = restart_grade_loop!(failed_step)
@@ -237,6 +238,20 @@ class RetryFailedStepEnqueuer
       step: failed_step,
       workflow: workflow
     )
+  end
+
+  # A step-instance remediation override (Remediation::Resolver tier 1) is a
+  # runtime patch for one retry, not a standing policy for that step. Reopening
+  # the step does not clear its `details`, so leaving the override behind would
+  # let it quietly govern a later, unrelated failure of the same step -- the
+  # merge-train case would keep resuming in place long after the assembly it
+  # was protecting had become stale. Consumed here, once the override has
+  # actually decided this retry.
+  def consume_step_remediation_override!(failed_step)
+    details = failed_step.details.to_h
+    return if details["remediation"].blank?
+
+    failed_step.update!(details: details.except("remediation"))
   end
 
   def problem_for(failed_step)

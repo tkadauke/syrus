@@ -53,6 +53,23 @@ RSpec.describe MergeTrainFailurePolicy do
     end
   end
 
+  # The budget used to be checked only on the configured-ladder path, so a
+  # repository without a ladder got the instance default on attempt 1 and on
+  # attempt 50 alike. Harmless while preservation did nothing; once a preserved
+  # train is actually relaunched, a `keep_assembly` default with no cap is a
+  # train that preserves itself forever.
+  it "stops using the instance default once the retry budget is spent" do
+    AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+    stub_ladder(nil)
+    limit = AutoRetryAttempt.retry_budget_limit_for("worker_died")
+
+    within_budget = described_class.resolve(repository: repository, attempt_number: limit, retry_classification: "worker_died")
+    past_budget = described_class.resolve(repository: repository, attempt_number: limit + 1, retry_classification: "worker_died")
+
+    expect(within_budget).to be_a(MergeTrainFailurePolicy::Rungs::KeepAssembly)
+    expect(past_budget).to be_a(MergeTrainFailurePolicy::Rungs::Restart)
+  end
+
   it "falls back to the instance default when the repository has no ladder" do
     AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
     stub_ladder(nil)

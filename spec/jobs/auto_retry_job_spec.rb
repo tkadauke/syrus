@@ -724,4 +724,97 @@ RSpec.describe AutoRetryJob do
     expect(attempt.performed_at).to be_nil
     expect(job.workflows.count).to eq(1)
   end
+  # The relaunch MergeTrainFailureHandler schedules when it keeps an assembled
+  # train alive. Every one of these guards exists because an active train with
+  # no runtime is wedged landing: nothing dispatches a replacement while it is
+  # active, and the stale-train reaper's verdict ("no active Workflow or
+  # WorkUnit owns it") buries whatever actually failed.
+  describe "a preserved merge train" do
+    let(:epic) { Factories.epic(user: job.user, repository: job.repository) }
+
+    def preserved_train_attempt!(step_kind: "merge_train_assemble", classification: "application_error", retryable: false)
+      train = MergeTrain.create!(
+        epic: epic, repository: job.repository, base_branch: "main",
+        integration_branch: "syrus/merge-train-epic-#{epic.id}-x"
+      )
+      MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+      # The Job's implementation WorkUnit is done by the time it is a train
+      # member; leaving it active would make the relaunch defer to it as the
+      # owner of `job:<id>`.
+      WorkUnit.joins(:work_unit_locks).where(work_unit_locks: { lock_key: "job:#{job.id}" }).update_all(state: "succeeded")
+      train_workflow = Workflow.create!(
+        job: job, trigger_kind: "merge_train", state: "failed",
+        artifacts: { "merge_train_id" => train.id },
+        failure_reason: "merge_train: assemble lost the landing lock"
+      )
+      train_step = Step.create!(
+        workflow: train_workflow, kind: step_kind, state: "failed", position: 1,
+        details: { "remediation" => "resume_step" }
+      )
+      train_run = Run.create!(
+        job: job, step: train_step, trigger_kind: "merge_train",
+        state: "failed", agent_provider: "claude", finished_at: Time.current
+      )
+      RunFailureClassification.create!(
+        run: train_run, classification: classification, retryable: retryable,
+        confidence: 0.9, reason: "Operator review is required.", classified_at: Time.current
+      )
+      attempt = AutoRetryAttempt.create!(
+        job: job, workflow: train_workflow, run: train_run, agent_provider: "claude",
+        failure_classification: classification,
+        retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND,
+        attempt_number: 1, scheduled_at: Time.current
+      )
+      [ attempt, train, train_workflow, train_step ]
+    end
+
+    it "resumes the preserved workflow in place instead of rebuilding the train" do
+      attempt, train, train_workflow, train_step = preserved_train_attempt!
+
+      expect {
+        described_class.perform_now(attempt.id)
+      }.to change { train_step.runs.count }.by(1)
+
+      expect(attempt.reload.performed_at).to be_present
+      expect(train_workflow.reload).to be_running
+      expect(train_step.reload).to be_queued
+      expect(train.reload).not_to be_terminal
+      expect(MergeTrain.count).to eq(1)
+    end
+
+    # The failures that earn preservation -- a lost landing lock, a base that
+    # moved, no capable worker -- are all classified non-retryable. The generic
+    # guard would skip exactly the attempts the train is waiting on.
+    it "is not skipped for being non-retryable" do
+      attempt, = preserved_train_attempt!
+
+      described_class.perform_now(attempt.id)
+
+      expect(attempt.reload.skipped_reason).to be_nil
+      expect(attempt.performed_at).to be_present
+    end
+
+    it "tears the train down when the preserved workspace has been swept" do
+      attempt, train, train_workflow, = preserved_train_attempt!
+      train_workflow.update_columns(cleaned_up_at: Time.current)
+      client = instance_double(GithubClient, delete_branch: true)
+      allow(GithubClient).to receive(:for).and_return(client)
+
+      described_class.perform_now(attempt.id)
+
+      expect(train.reload).to be_terminal
+      expect(train.failure_reason).to include("assemble lost the landing lock")
+      expect(attempt.reload.skipped_reason).to include("could not be relaunched")
+    end
+
+    it "does nothing to a train that is already terminal" do
+      attempt, train, = preserved_train_attempt!
+      train.update!(state: "failed", finished_at: Time.current)
+
+      described_class.perform_now(attempt.id)
+
+      expect(attempt.reload.skipped_reason).to include("no longer active")
+      expect(train.reload.finished_at).to be_present
+    end
+  end
 end

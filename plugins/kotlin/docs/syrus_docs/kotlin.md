@@ -10,8 +10,8 @@ remains the shared build-tool layer.
 
 | Extension point | What it does |
 |---|---|
-| `:prepare_detector` | Detects `.kt`, `.kts`, `build.gradle.kts`, `settings.gradle.kts`, Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test paths (`src/main/kotlin`, `src/test/kotlin`). It delegates concrete prepare commands to `Java::PrepareDetector`, so Gradle and Maven wrapper behavior stays centralized in the Java plugin. Android, Kotlin Android, Kotlin Multiplatform, and Kotlin native markers are intentionally skipped. |
-| `:prompt_injector` | Adds Kotlin/JVM guidance for implementation agents: prefer project Gradle wrappers, respect repository-declared JDK and Kotlin Gradle plugin versions, and keep Android/KMP/native behavior out of the generic Kotlin path. |
+| `:prepare_detector` | Detects `.kt`, `.kts`, `build.gradle.kts`, `settings.gradle.kts`, Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test paths (`src/main/kotlin`, `src/test/kotlin`). It delegates concrete prepare commands to `Java::PrepareDetector`, so Gradle and Maven wrapper behavior stays centralized in the Java plugin. Kotlin Multiplatform and Kotlin native markers are intentionally skipped. |
+| `:prompt_injector` | Adds Kotlin/JVM guidance for implementation agents: prefer project Gradle wrappers, respect repository-declared JDK and Kotlin Gradle plugin versions, and keep KMP/native behavior out of the generic Kotlin path. |
 | `:review_criteria_provider` | Adds Kotlin/JVM review criteria for swallowed coroutine cancellation and unsafe null assertions at external boundaries. |
 
 ## Prepare behavior
@@ -70,14 +70,12 @@ grade:
       - "gradlew"
 ```
 
-## Boundary with Android and Kotlin Multiplatform
+## Boundary with Kotlin Multiplatform
 
-Kotlin owns generic JVM language conventions only. Kotlin Multiplatform,
-native/iOS targets, Android Gradle Plugin behavior, Kotlin Android plugin
-behavior, Android SDK setup, emulator/device requirements, and Android runtime
-concerns are intentionally out of scope for this first pass. Those projects
-need Android or platform-specific plugins so SDK/device assumptions do not
-leak into generic Kotlin/JVM work.
+Kotlin owns generic JVM language conventions only. Kotlin Multiplatform and
+native/iOS targets stay out of scope: they need toolchains this plugin does not
+provide, and a capability no worker advertises must not be scheduled as though
+it were available.
 
 ## Self-suggestion
 

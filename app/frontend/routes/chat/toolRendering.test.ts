@@ -262,14 +262,14 @@ describe("toolResultPresentation", () => {
     expect(result).toMatchObject({ kind: "text", summary: "" })
   })
 
-  it("summarizes unregistered tool failures from structured error payloads", () => {
+  it("uses the registered card summary for structured tool failures", () => {
     const result = toolResultPresentation(
       "delete_proposal",
       JSON.stringify({ error_class: "ToolTimeout", message: "sidecar timed out while deleting proposal" }),
       true
     )
 
-    expect(result).toMatchObject({ kind: "error", summary: "ToolTimeout: sidecar timed out while deleting proposal" })
+    expect(result).toMatchObject({ kind: "error", summary: "Proposal withdrawal failed: sidecar timed out while deleting proposal" })
   })
 
   it("parses from the explicit parseBody argument instead of the (possibly truncated) display body", () => {

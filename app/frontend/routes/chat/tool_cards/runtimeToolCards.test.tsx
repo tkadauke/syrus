@@ -370,7 +370,6 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("failed preview")).toBeInTheDocument()
     expect(screen.getByText('{"width":390,"height":844}')).toBeInTheDocument()
   })
-
   it.each([
     ["runtime_start", (payload: unknown) => payload],
     ["mcp__syrus-chat-sidecar__runtime_start", (payload: unknown) => ({ structured_content: payload, content: [] })],
@@ -435,20 +434,97 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("failed to build/reload runtime session: port is busy")).toBeInTheDocument()
   })
 
-  it("shows launch targets and provider-reported launch errors", () => {
+  it("shows linked browser launch targets, session input, and provider-reported launch errors", () => {
     const parsedResult = { error: false, content: [{ type: "text", text: "Navigated to http://127.0.0.1:3001/settings" }] }
-    const toolContext = context("runtime_launch", { parsedResult, input: { options: { path: "/settings" } } })
+    const toolContext = context("runtime_launch", { parsedResult, input: { session_id: 19, options: { url: "http://127.0.0.1:3001/settings" } } })
 
-    expect(runtimeLaunchToolCard.collapsedSummary?.(toolContext)).toBe("Runtime launch: succeeded at /settings")
+    expect(runtimeLaunchToolCard.collapsedSummary?.(toolContext)).toBe("Runtime launch: succeeded at http://127.0.0.1:3001/settings")
 
     render(<>{runtimeLaunchToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("Runtime launch")).toBeInTheDocument()
-    expect(screen.getByText("/settings")).toBeInTheDocument()
+    expect(screen.getByText("19")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "http://127.0.0.1:3001/settings" })).toHaveAttribute("target", "_blank")
+    expect(screen.queryByText("Navigated to http://127.0.0.1:3001/settings")).not.toBeInTheDocument()
 
     const failed = { error: true, content: [{ type: "text", text: "page crashed before navigation" }] }
     expect(runtimeLaunchToolCard.collapsedSummary?.(context("runtime_launch", { parsedResult: failed }))).toBe("Runtime launch failed")
     render(<>{runtimeLaunchToolCard.renderExpanded(context("runtime_launch", { parsedResult: failed }))}</>)
+    expect(screen.getByText("Error:")).toBeInTheDocument()
     expect(screen.getAllByText("page crashed before navigation").length).toBeGreaterThan(0)
+  })
+
+  it("renders Android package, activity, launch result, and bounded adb output", () => {
+    const output = Array.from({ length: 20 }, (_, index) => `adb output line ${index + 1}`).join("\n")
+    const toolContext = context("runtime_launch", {
+      input: { session_id: 28, options: { package: "com.example.preview", activity: ".MainActivity" } },
+      parsedResult: { launched: true, package: "com.example.preview", activity: ".MainActivity", output }
+    })
+
+    expect(runtimeLaunchToolCard.collapsedSummary?.(toolContext)).toBe("Runtime launch: succeeded")
+    render(<>{runtimeLaunchToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("28")).toBeInTheDocument()
+    expect(screen.getByText("true")).toBeInTheDocument()
+    expect(screen.getAllByText("com.example.preview").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(".MainActivity").length).toBeGreaterThan(0)
+    expect(screen.getByText("Output")).toBeInTheDocument()
+    expect(screen.getByText(/adb output line 1/, { selector: "code" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      "browser structured content",
+      { error: false, content: [{ type: "text", text: "Navigated to https://preview.example.test/settings" }] },
+      (payload: unknown) => ({ structured_content: payload, content: [] })
+    ],
+    [
+      "browser text JSON",
+      { error: false, content: [{ type: "text", text: "Navigated to https://preview.example.test/settings" }] },
+      (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }] })
+    ],
+    [
+      "Android structured content",
+      { launched: true, package: "com.example.secret", activity: ".MainActivity", output: "API_TOKEN=secret-value-that-must-not-render" },
+      (payload: unknown) => ({ structured_content: payload, content: [] })
+    ],
+    [
+      "Android text JSON",
+      { launched: true, package: "com.example.secret", activity: ".MainActivity", output: "API_TOKEN=secret-value-that-must-not-render" },
+      (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }] })
+    ]
+  ])("normalizes and redacts runtime_launch %s through the real ToolGroup path", (_label, payload, envelope) => {
+    const wrapped = envelope(payload)
+    const browser = "error" in payload
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime launch",
+      calls: [
+        {
+          message_id: 73,
+          tool_name: "Runtime launch",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_launch",
+          detail: "session_id: 73",
+          display_label: "Runtime launch",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 73, options: browser ? { url: "https://preview.example.test/settings" } : { package: "com.example.secret" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime launch")
+    expect(screen.getAllByText("73").length).toBeGreaterThan(0)
+    if (browser) expect(screen.getByRole("link", { name: "https://preview.example.test/settings" })).toBeInTheDocument()
+    else expect(screen.getAllByText("com.example.secret").length).toBeGreaterThan(0)
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+    if (!browser) expect(screen.getByText("API_TOKEN=[redacted]", { selector: "code" })).toBeInTheDocument()
   })
 
   it("keeps runtime_launch ToolGroup summaries compact when the path is nested input", () => {
@@ -503,17 +579,17 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Snapshot: button Open settings")).toBeInTheDocument()
   })
 
-  it("renders Android UIAutomator inspection output without browser-only fields", () => {
+  it("renders UIAutomator inspection output without browser-only fields", () => {
     const parsedResult = {
-      kind: "android_uiautomator",
+      kind: "mobile_uiautomator",
       xml: "<?xml version='1.0'?><hierarchy><node text='Sign in' /></hierarchy>",
       bytes: 67
     }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: android_uiautomator, 67 bytes")
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: mobile_uiautomator, 67 bytes")
 
     render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
-    expect(screen.getByText("android_uiautomator")).toBeInTheDocument()
+    expect(screen.getByText("mobile_uiautomator")).toBeInTheDocument()
     expect(screen.getByText("67")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
     expect(screen.getAllByText(/<hierarchy>/).length).toBeGreaterThan(0)
@@ -1015,16 +1091,16 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Browser connection closed")).toBeInTheDocument()
   })
 
-  it("treats delivered false as a failure and shows Android pointer details", () => {
+  it("treats delivered false as a failure and shows pointer details", () => {
     const toolContext = context("runtime_input", {
       parsedResult: { delivered: false, event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } },
-      input: { session_id: "android-9", event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } }
+      input: { session_id: "device-9", event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } }
     })
 
     expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input failed")
     render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("failed")).toBeInTheDocument()
-    expect(screen.getByText("android-9")).toBeInTheDocument()
+    expect(screen.getByText("device-9")).toBeInTheDocument()
     expect(screen.getAllByText("120").length).toBeGreaterThan(0)
     expect(screen.getAllByText("240").length).toBeGreaterThan(0)
     expect(screen.getAllByText("touch").length).toBeGreaterThan(0)
@@ -1088,9 +1164,9 @@ describe("Runtime tool cards", () => {
     expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument()
   })
 
-  it("renders Android latest-frame snapshots with provider metadata", () => {
+  it("renders Latest-frame snapshots with provider metadata", () => {
     const parsedResult = {
-      kind: "android_screenshot",
+      kind: "mobile_screenshot",
       content_type: "image/png",
       document_id: 31,
       preview_url: "/api/v1/app/chats/8/media/chat_images/31/file",
@@ -1100,11 +1176,11 @@ describe("Runtime tool cards", () => {
       warning: "device offline"
     }
 
-    expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of android_screenshot")
+    expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of mobile_screenshot")
 
     render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
     expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
-    expect(screen.getAllByText("android_screenshot").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("mobile_screenshot").length).toBeGreaterThan(0)
     expect(screen.getAllByText("31").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
     expect(screen.getByText("device offline")).toBeInTheDocument()
@@ -1146,9 +1222,9 @@ describe("Runtime tool cards", () => {
     expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file?download=1")
   })
 
-  it("renders Android screenshot payloads as generic Runtime artifacts", () => {
+  it("renders Device screenshot payloads as generic Runtime artifacts", () => {
     const parsedResult = {
-      kind: "android_screenshot",
+      kind: "mobile_screenshot",
       content_type: "image/png",
       document_id: 44,
       file_path: "/api/v1/app/chats/8/media/chat_images/44/file",
@@ -1157,11 +1233,11 @@ describe("Runtime tool cards", () => {
     }
 
     expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe(
-      "Runtime artifact captured: android_screenshot"
+      "Runtime artifact captured: mobile_screenshot"
     )
 
     render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "android_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
+    expect(screen.getByRole("img", { name: "mobile_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
     expect(screen.getAllByText("44").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
   })

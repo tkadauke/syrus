@@ -197,29 +197,21 @@ RSpec.describe "Dockerfile" do
     expect(app_stage).not_to include("mull-project")
   end
 
-  it "installs a pinned Android SDK baseline only in the worker image" do
-    stage = worker_deps_stage
-    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
-
-    expect(stage).to include("ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902")
-    expect(stage).to include("ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583")
-    expect(stage).to include("ARG ANDROID_PLATFORM_VERSION=android-36")
-    expect(stage).to include("ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0")
-    expect(stage).to include("ANDROID_SDK_ROOT=/opt/android-sdk")
-    expect(stage).to include("ANDROID_HOME=/opt/android-sdk")
-    expect(stage).to include("wget unzip openssh-client")
-    expect(stage).to include("commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip")
-    expect(stage).to include('echo "${ANDROID_CMDLINE_TOOLS_SHA256}  ${cmdline_zip}" | sha256sum -c -')
-    expect(stage).to include('mv /tmp/android-cmdline-tools/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest"')
-    expect(stage).to include('yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses')
-    expect(stage).to include('android_packages="platform-tools platforms;${ANDROID_PLATFORM_VERSION} build-tools;${ANDROID_BUILD_TOOLS_VERSION}"')
-    expect(stage).to include('if [ "$(dpkg --print-architecture)" = "amd64" ]')
-    expect(stage).to include('android_packages="${android_packages} emulator"')
-    expect(stage).to include('sdkmanager" ${android_packages}')
-    expect(stage).to include('${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator')
-
-    expect(app_stage).not_to include("ANDROID_SDK_ROOT")
-    expect(app_stage).not_to include("sdkmanager")
+  # Android support was removed after every Android grader run in production
+  # failed `no_capable_worker` -- 51 runs, zero successes -- because no worker
+  # in the fleet ever had the SDK. The failure was classified non-retryable, so
+  # each one tore down a whole merge-train assembly. This asserts the SDK does
+  # not come back by accident: reinstating it without reinstating a worker that
+  # advertises the capability recreates that exact outage.
+  # Nothing Android remains, not even in prose: the JRE that was installed for
+  # `sdkmanager` is gone too, so there is no longer a reason for the word to
+  # appear anywhere in this file. Reinstating the SDK without also reinstating
+  # a worker that advertises the capability recreates the outage that led to
+  # its removal -- 51 grader runs in a day, every one `no_capable_worker`.
+  it "provisions no Android SDK in any image" do
+    expect(dockerfile).not_to match(/android/i)
+    expect(dockerfile).not_to include("sdkmanager")
+    expect(dockerfile).not_to include("commandlinetools-linux")
   end
 
   it "fails worker image builds when native compilation is unavailable as the rails user" do
@@ -311,13 +303,46 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).not_to include(deleted_skip_arg)
   end
 
+  # A build that fails two layers later with a four-deep require chain and no
+  # cause costs more to diagnose than it costs to prevent. The check runs where
+  # the fault actually is, and `import("rolldown")` is what Vite itself does, so
+  # it cannot drift from the thing it is guarding.
+  it "verifies the native bundler binding at the layer that installs it" do
+    build = stage("build", "docker.io/library/golang")
+
+    expect(build).to match(/RUN npm ci &&/)
+    expect(build).to include(%q{node --input-type=module -e 'await import("rolldown")'})
+    expect(build.index("npm ci")).to be < build.index("npm run build")
+  end
+
+  # Both mise trees are ~1.6 GB. A `chown -R` over them is a layer that rewrites
+  # every file it touches, so it stored a third full copy of those bytes -- 3.2
+  # GB, the second-largest layer in the published worker image, for ownership
+  # that `COPY --chown` sets for free.
+  it "sets mise ownership during the copy rather than rewriting both trees afterwards" do
+    expect(worker_deps_stage).not_to match(%r{chown -R [^\n]*/opt/mise})
+  end
+
+  # Agent worktrees are full checkouts of this repository, each with its own
+  # node_modules, vendor/bundle and built assets. Three of them were 3.2 GB --
+  # the largest single thing in the worker image. The root-anchored exclusions
+  # for those directories do not match them when they are nested inside a
+  # worktree, so the tree itself has to be excluded.
+  it "keeps agent worktrees out of the build context" do
+    dockerignore = Rails.root.join(".dockerignore").read.lines.map(&:strip)
+
+    expect(dockerignore).to include("/.claude/worktrees/")
+    # The skills and reference docs under .claude are read by agents at runtime
+    # inside the image; excluding all of .claude would take them with it.
+    expect(dockerignore).not_to include("/.claude/", "/.claude")
+  end
+
   it "seeds /opt/mise from /opt/mise-seed on first boot via the entrypoint" do
     worker_deps = worker_deps_stage
     entrypoint = Rails.root.join("bin/docker-entrypoint").read
 
-    expect(worker_deps).to include("COPY --from=runtime-cache /opt/mise /opt/mise-seed")
-    expect(worker_deps).to include("COPY --from=runtime-cache /opt/mise /opt/mise")
-    expect(worker_deps).to include("chown -R 1000:1000 /opt/mise-seed /opt/mise")
+    expect(worker_deps).to include("COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise-seed")
+    expect(worker_deps).to include("COPY --chown=1000:1000 --from=runtime-cache /opt/mise /opt/mise")
 
     expect(entrypoint).to include("[ -d /opt/mise-seed ]")
     expect(entrypoint).to include("cp -rn /opt/mise-seed/. /opt/mise/")
