@@ -9,6 +9,7 @@ export type MediaPreviewAction = {
   href?: string | null
   download?: boolean
   copyValue?: string | null
+  dataUrlAsBlob?: boolean
 }
 
 export type MediaPreviewMeta = {
@@ -218,7 +219,7 @@ function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
 function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
   const { t } = useT("chat")
   const { copied, copy } = useCopyToClipboard()
-  const blobHref = useBlobUrl(action.href)
+  const blobHref = useBlobUrl(action.dataUrlAsBlob ? action.href : null)
   if (action.copyValue) {
     return (
       <button

@@ -60,8 +60,8 @@ describe("MediaPreviewShell", () => {
           title: "snapshot.png",
           src: "data:image/png;base64,YWJj",
           actions: [
-            { label: "Open", href: "data:image/png;base64,YWJj" },
-            { label: "Download", href: "data:image/png;base64,YWJj", download: true }
+            { label: "Open", href: "data:image/png;base64,YWJj", dataUrlAsBlob: true },
+            { label: "Download", href: "data:image/png;base64,YWJj", download: true, dataUrlAsBlob: true }
           ]
         }}
       />
@@ -82,7 +82,7 @@ describe("MediaPreviewShell", () => {
         item={{
           title: "placeholder.png",
           src: "data:image/png;base64,abc123",
-          actions: [{ label: "Open", href: "data:image/png;base64,abc123" }]
+          actions: [{ label: "Open", href: "data:image/png;base64,abc123", dataUrlAsBlob: true }]
         }}
       />
     )

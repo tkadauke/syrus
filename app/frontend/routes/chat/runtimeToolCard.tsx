@@ -1263,8 +1263,8 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
             alt: "Runtime snapshot preview",
             badge: snapshot.fallback ? t("runtime_snapshot_stale_frame") : (snapshot.mimeType?.split("/").pop()?.toUpperCase() ?? "image"),
             actions: [
-              { label: "Open", href: imageUrl },
-              { label: "Download", href: imageUrl, download: true },
+              { label: "Open", href: imageUrl, dataUrlAsBlob: true },
+              { label: "Download", href: imageUrl, download: true, dataUrlAsBlob: true },
               snapshot.pageUrl ? { label: "Copy page", copyValue: snapshot.pageUrl } : null
             ].filter(Boolean) as MediaPreviewAction[],
             meta: [
