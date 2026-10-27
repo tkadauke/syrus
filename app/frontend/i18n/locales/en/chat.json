@@ -1258,8 +1258,6 @@
     "job_cannot_be_reopened": "Job cannot be reopened",
     "job_removed_from_epic": "Job removed from Epic",
     "job_not_in_epic": "Job is not in an Epic",
-    "priority_changed": "Priority changed",
-    "invalid_priority": "Invalid priority",
     "epic_started": "Epic started",
     "epic_not_ready": "Epic is not ready",
     "product_owner_cannot_start_epic": "Product owner cannot start Epic",
