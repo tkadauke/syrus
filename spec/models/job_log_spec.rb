@@ -45,6 +45,40 @@ RSpec.describe JobLog do
     expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second])
   end
 
+  it "persists structured tool metadata alongside the readable chunk" do
+    log = described_class.append!(
+      run: run,
+      chunk: "[codex command] bundle exec rspec completed",
+      kind: "tool_result",
+      tool_name: "bash",
+      tool_input: { "command" => "bundle exec rspec" },
+      tool_use_id: "call_123",
+      tool_result_content: { "output" => "2 examples, 0 failures" },
+      tool_result_error: false
+    )
+
+    expect(log.reload.tool_metadata).to eq(
+      "tool_name" => "bash",
+      "tool_input" => { "command" => "bundle exec rspec" },
+      "tool_use_id" => "call_123",
+      "tool_result_content" => { "output" => "2 examples, 0 failures" },
+      "tool_result_error" => false
+    )
+    expect(log.chunk).to include("bundle exec rspec")
+  end
+
+  it "caps oversized tool result content" do
+    stub_const("JobLog::MAX_TOOL_RESULT_BYTES", 32)
+
+    log = described_class.append!(run: run, chunk: "large result", kind: "tool_result",
+                                  tool_result_content: "x" * 100)
+
+    expect(log.tool_metadata.fetch("tool_result_content")).to include(
+      "truncated" => true,
+      "original_bytes" => 102
+    )
+  end
+
   it "reuses the next sequence within the current thread" do
     max_sequence_queries = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|

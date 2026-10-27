@@ -1576,6 +1576,11 @@ export type JobRunArtifactsPayload = {
     sequence: number
     kind: string | null
     chunk: string
+    tool_name?: string | null
+    tool_input?: unknown | null
+    tool_use_id?: string | null
+    tool_result_content?: unknown | null
+    tool_result_error?: boolean | null
     created_at: string | null
   }>
 }
