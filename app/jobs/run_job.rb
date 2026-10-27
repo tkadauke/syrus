@@ -792,7 +792,11 @@ class RunJob < ApplicationJob
     end
 
     record_landing_failure!(exception)
-    @workflow&.record_run_failure! unless workflow_controlled_failure?
+    if @workflow && !workflow_controlled_failure?
+      with_lifecycle_lock_retry("record failure for Workflow ##{@workflow.id}") do
+        @workflow.record_run_failure!
+      end
+    end
   end
 
   def record_landing_failure!(exception)
