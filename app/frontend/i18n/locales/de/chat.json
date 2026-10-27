@@ -1,4 +1,12 @@
 {
+  "share_people": "Teilen",
+  "share_dialog_title": "Chat teilen",
+  "share_dialog_description": "Hinzugefügte Personen können den vollständigen Live-Chat lesen, aber nichts posten.",
+  "share_dialog_search": "Personen suchen oder exakten @Handle eingeben",
+  "share_repository_warning": "Diese Person hat keinen Zugriff auf das angehängte Repository.",
+  "share_remove": "Entfernen",
+  "share_add": "Teilen",
+  "share_close": "Schließen",
   "title": "Chat",
   "batch_outcome_applied": "Angewendet",
   "batch_outcome_skipped": "Übersprungen/nicht zulässig",

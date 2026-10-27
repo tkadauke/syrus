@@ -255,6 +255,10 @@ Rails.application.routes.draw do
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
         post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
         delete "chats/:chat_id/participants/:user_id", to: "chat_participants#destroy", constraints: { chat_id: /\d+/, user_id: /\d+/ }
+        get "chats/:chat_id/shares", to: "chat_shares#index", constraints: { chat_id: /\d+/ }
+        post "chats/:chat_id/shares", to: "chat_shares#create", constraints: { chat_id: /\d+/ }
+        delete "chats/:chat_id/shares/:id", to: "chat_shares#destroy", constraints: { chat_id: /\d+/, id: /\d+/ }
+        get "chats/:chat_id/share_candidates", to: "chat_shares#candidates", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/speech_to_text", to: "speech_to_text#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/speech_to_text/stream", to: "speech_to_text#stream", constraints: { chat_id: /\d+/ }
         get  "chats/:chat_id/local_daemon_session", to: "local_daemon_sessions#show",    constraints: { chat_id: /\d+/ }

@@ -28,9 +28,13 @@ choose "No repository", or clear the current selector value before creating the
 chat. The repository quick-start buttons in the recent-chat sidebar still pass
 their repository (or General/no repository) directly.
 
-Chat access is participant-based. `chat_participants` records every human who
-can open and post to a session, with `role` currently either `owner` or
-`member`; the owner is the convenience `chat.user` for legacy call sites.
+Chat access comes from participation or an explicit read-only share.
+`chat_participants` records every human who can open and post to a session,
+with `role` currently either `owner` or `member`; the owner is the convenience
+`chat.user` for legacy call sites. `chat_shares` grants a person live access to
+the complete transcript without making them a participant: recipients cannot
+post or start a turn, and revocation removes access immediately. Shared chats
+appear under **Shared with me** in the sidebar.
 Per-user read state lives on `chat_participants.last_read_at`, and user-role
 messages store `sender_user_id` so multi-human transcripts can attribute who
 spoke. When a session has more than one human participant, `ChatTurnJob`

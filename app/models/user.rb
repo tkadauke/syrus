@@ -28,7 +28,8 @@ class User < ApplicationRecord
   has_many :ui_engagement_samples, dependent: :delete_all
   has_many :chat_sessions
   has_many :chat_participants, dependent: :destroy
-  has_many :accessible_chat_sessions, through: :chat_participants, source: :chat_session
+  has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
+  has_many :created_chat_shares, class_name: "ChatShare", foreign_key: :shared_by_user_id, dependent: :destroy
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
@@ -274,6 +275,27 @@ class User < ApplicationRecord
 
   def handle
     handle_record&.handle
+  end
+
+  # Keep the current user's participant row joined because chat listing uses
+  # its hidden/read timestamps. A share has no participant row, so its values
+  # naturally remain NULL and the chat is visible and unread until opened.
+  def accessible_chat_sessions
+    quoted_id = self.class.connection.quote(id)
+    ChatSession
+      .joins(<<~SQL.squish)
+        LEFT JOIN chat_participants
+          ON chat_participants.chat_session_id = chat_sessions.id
+          AND chat_participants.user_id = #{quoted_id}
+      SQL
+      .where(<<~SQL.squish)
+        chat_participants.id IS NOT NULL OR EXISTS (
+          SELECT 1 FROM chat_shares
+          WHERE chat_shares.chat_session_id = chat_sessions.id
+            AND chat_shares.target_type = 'User'
+            AND chat_shares.target_id = #{quoted_id}
+        )
+      SQL
   end
 
   def kind = "human"

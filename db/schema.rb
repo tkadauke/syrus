@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_174437) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -779,6 +779,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.index ["user_id", "system_kind"], name: "index_chat_sessions_on_user_id_and_system_kind", unique: true
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"
+  end
+
+  create_table "chat_shares", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.string "target_type", null: false
+    t.integer "target_id", null: false
+    t.integer "shared_by_user_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["chat_session_id", "target_type", "target_id"], name: "idx_on_chat_session_id_target_type_target_id_f9ba71187b", unique: true
+    t.index ["chat_session_id"], name: "index_chat_shares_on_chat_session_id"
+    t.index ["shared_by_user_id"], name: "index_chat_shares_on_shared_by_user_id"
+    t.index ["target_type", "target_id"], name: "index_chat_shares_on_target"
   end
 
   create_table "chat_shell_commands", force: :cascade do |t|

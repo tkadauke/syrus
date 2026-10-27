@@ -16,6 +16,7 @@ class ChatSession < ApplicationRecord
   belongs_to :deleted_by_user, class_name: "User", optional: true
 
   has_many :chat_participants, dependent: :destroy
+  has_many :chat_shares, dependent: :destroy
   has_many :participants, through: :chat_participants, source: :user
   has_one :owner_participant,
           -> { where(role: "owner") },
@@ -164,6 +165,10 @@ class ChatSession < ApplicationRecord
   scope :deleted, -> { where.not(deleted_at: nil) }
   scope :ordinary_chats, -> { where(system_kind: nil) }
 
+  def shared_with?(user)
+    chat_shares.exists?(target: user)
+  end
+
   def self.fallback_title_for(repository)
     return unless repository
 
@@ -212,6 +217,7 @@ class ChatSession < ApplicationRecord
         current_turn_message_id: nil,
         turn_in_flight: false
       )
+      chat_shares.destroy_all
       wakeups.pending.update_all(state: "cancelled", updated_at: now)
     end
   end
