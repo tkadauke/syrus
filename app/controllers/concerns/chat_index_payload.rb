@@ -452,12 +452,12 @@ module ChatIndexPayload
 
   def chat_index_base_scope
     chat_index_filtered_scope
-      .where.not(id: Current.user.received_chat_shares.select(:chat_session_id))
       .where.not(id: plugin_chat_session_ids)
   end
 
   def chat_index_filtered_scope
     scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+      .where.not(id: Current.user.received_chat_shares.select(:chat_session_id))
     scope = case chat_index_settings.fetch(:status)
     when "hidden"
       scope.where.not(chat_participants: { hidden_at: nil })
