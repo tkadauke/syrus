@@ -419,7 +419,13 @@ curl -X POST https://syrus.example.com/api/v1/admin/design_docs \
 ```
 
 `GET /api/v1/admin/design_docs/:id` returns the full detail payload including
-current Markdown. `PATCH /api/v1/admin/design_docs/:id` updates
+`canonical_revision`, a SHA-256 fingerprint covering title, Markdown, state,
+visibility, repositories, and collaborators. Updates may send that fingerprint
+as `base_revision`; if an intervening suggestion review or canonical edit
+changed the document, Syrus returns `409`
+with `error.code: "revision_conflict"` without applying the stale body. Clients
+should fetch the current document, reconcile their draft, and retry with its
+new revision. `PATCH /api/v1/admin/design_docs/:id` updates
 `title`/`markdown`/`state` and, on a canonical edit, records a new version —
 every admin `PATCH` checkpoints by default, so it always produces a version
 row the way an explicit `Save` does in the editor. Archived docs are

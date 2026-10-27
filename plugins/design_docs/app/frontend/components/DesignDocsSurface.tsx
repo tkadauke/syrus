@@ -45,6 +45,7 @@ import {
   type DesignDocThread,
   type DesignDocSummary,
   type DesignDocVersion,
+  type DesignDocWritePayload,
   type RepositoryDesignDocsPayload
 } from "../api/designDocs"
 import {
@@ -648,7 +649,10 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const railStackRef = useRef<HTMLDivElement | null>(null)
   const railContainerRef = useRef<HTMLDivElement | null>(null)
   const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
+  const canonicalRevisionRef = useRef(doc.canonical_revision)
   const autosaveAttemptFingerprintRef = useRef<string | null>(null)
+  const autosavePromiseRef = useRef<Promise<DesignDocWritePayload> | null>(null)
+  const reviewQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const failedAutosaveFingerprintRef = useRef<string | null>(null)
   const [autosaveError, setAutosaveError] = useState<string | null>(null)
   const [writeError, setWriteError] = useState<string | null>(null)
@@ -671,12 +675,9 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       ? updateDesignDoc(doc.id, {
         title,
         markdown: draft,
+        base_revision: canonicalRevisionRef.current,
         change_summary: summary,
-        checkpoint: true,
-        visibility: doc.visibility,
-        state: doc.state,
-        repository_ids: repoIds.map(Number),
-        collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
+        checkpoint: true
       })
       : createDesignDocSuggestion(doc.id, {
         start_offset: 0,
@@ -687,6 +688,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       }),
     onMutate: () => setWriteError(null),
     onSuccess: (payload) => {
+      canonicalRevisionRef.current = payload.design_doc.canonical_revision
       failedAutosaveFingerprintRef.current = null
       setAutosaveError(null)
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
@@ -703,10 +705,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         ? updateDesignDoc(doc.id, {
         title,
         markdown: draft,
-        visibility: doc.visibility,
-        state: doc.state,
-        repository_ids: repoIds.map(Number),
-        collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
+        base_revision: canonicalRevisionRef.current
       })
         : createDesignDocSuggestion(doc.id, {
         start_offset: 0,
@@ -717,6 +716,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         })
     },
     onSuccess: (payload) => {
+      canonicalRevisionRef.current = payload.design_doc.canonical_revision
       failedAutosaveFingerprintRef.current = null
       setAutosaveError(null)
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
@@ -752,7 +752,16 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     onError: handleWriteError
   })
   const reviewMutation = useMutation({
-    mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id),
+    mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => {
+      const operation = reviewQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          await autosavePromiseRef.current?.catch(() => undefined)
+          return decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id)
+        })
+      reviewQueueRef.current = operation.then(() => undefined, () => undefined)
+      return operation
+    },
     onMutate: (): ReviewScrollSnapshot => {
       setWriteError(null)
       return {
@@ -762,6 +771,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       }
     },
     onSuccess: (payload, _variables, scrollSnapshot) => {
+      canonicalRevisionRef.current = payload.design_doc.canonical_revision
       const nextDraft = payload.design_doc.rendered_markdown || payload.design_doc.markdown
       setDraft(nextDraft)
       setTitle(payload.design_doc.title)
@@ -1088,6 +1098,10 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   }, [narrowView, narrowDrawerOpen, focusedThreadId, focusedSuggestionId])
 
   useEffect(() => {
+    canonicalRevisionRef.current = doc.canonical_revision
+  }, [doc.canonical_revision, doc.id])
+
+  useEffect(() => {
     persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown)
   }, [canWriteCanonical, doc.id])
 
@@ -1107,9 +1121,15 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     if (fingerprint === failedAutosaveFingerprintRef.current) return
     if (autosaveMutation.isPending) return
 
-    const timeout = window.setTimeout(() => autosaveMutation.mutate(), 800)
+    const timeout = window.setTimeout(() => {
+      const promise = autosaveMutation.mutateAsync()
+      autosavePromiseRef.current = promise
+      promise.catch(() => undefined).finally(() => {
+        if (autosavePromiseRef.current === promise) autosavePromiseRef.current = null
+      })
+    }, 800)
     return () => window.clearTimeout(timeout)
-  }, [autosaveMutation.isPending, autosaveMutation.mutate, doc.id, draft, effectiveChangeMode, isArchived, title])
+  }, [autosaveMutation.isPending, autosaveMutation.mutateAsync, doc.id, draft, effectiveChangeMode, isArchived, title])
 
   function selectVersion(versionId: string) {
     setVersionsOpen(true)

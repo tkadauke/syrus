@@ -64,7 +64,6 @@ import {
   updateScratchpadItem,
   fetchChat,
   fetchChatMedia,
-  fetchChatBookmarks,
   fetchChatMessages,
   fetchChatSearchMessages,
   fetchSharedChat,
@@ -125,6 +124,7 @@ import { Input } from "../components/Input"
 import { PinIcon } from "../components/PinIcon"
 import { PencilIcon } from "./chat/icons"
 import { newestPins, useChatPins, useHasPins } from "./chat/pins"
+import { useChatBookmarks } from "./chat/bookmarks"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
@@ -1731,12 +1731,7 @@ function BookmarkPickerModal({
   onSelect: (messageId: number) => void
 }) {
   const { t } = useT("chat")
-  const bookmarksPath = payload.paths.app_bookmarks_index_path || payload.paths.app_bookmarks_path
-  const bookmarksQuery = useQuery({
-    queryKey: ["chat-bookmarks", String(payload.chat.id), queryKey[2]],
-    queryFn: ({ signal }) => fetchChatBookmarks(appendSearch(bookmarksPath, queryKey[2]), { signal }),
-    initialData: payload.bookmarks.length > 0 ? { bookmarks: payload.bookmarks } : undefined
-  })
+  const bookmarksQuery = useChatBookmarks(payload.chat.id, queryKey[2])
   const bookmarks = bookmarksQuery.data?.bookmarks ?? []
 
   function selectBookmark(bookmark: ChatBookmark) {

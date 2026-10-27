@@ -142,6 +142,19 @@ title-bar dropdown loads that version's Markdown into the current working copy;
 it is autosaved like any other edit, while `Save` creates a new auditable
 version/checkpoint from the current persisted working copy.
 
+Detail responses include `canonical_revision`, a SHA-256 fingerprint of the
+stored title, canonical Markdown (including private anchor markers), state,
+visibility, repositories, and collaborators. Owner title/Markdown updates send
+that value as `base_revision`; autosaves submit only those editable draft
+fields, not unchanged visibility, state, repository, or collaborator metadata.
+If a suggestion accept or another canonical write changed the document
+meanwhile, the API returns `409` with
+`error.code == "revision_conflict"` and leaves the newer canonical text
+untouched. The editor waits for an already-started autosave before reviewing
+suggestions and applies consecutive reviews in order. On conflict, reload the
+current document, reconcile the local draft, and retry from its new revision.
+Successful autosaves still create no version checkpoint.
+
 Pending suggestions are classified before rendering. Inline-safe suggestions
 appear inline at their anchored range in both editor modes where practical: the
 original Markdown range is struck through in the active theme warning color and
@@ -318,7 +331,9 @@ there are many collaborators.
 Chat agents can read docs with `list_design_docs` and `read_design_doc`, create
 new docs with `propose_design_doc`, add anchored discussion with
 `comment_on_design_doc`, suggest edits with `suggest_design_doc_change`, and
-archive docs with `delete_design_doc`.
+archive one doc with `delete_design_doc`, or archive several docs with one
+confirmation through `archive_design_docs`. Agents should prefer the bulk tool
+for multi-document requests.
 
 `read_design_doc` defaults to `detail: "full"`, preserving the complete payload
 with capped Markdown, rendered Markdown, permissions, threads, comments, and
@@ -344,6 +359,15 @@ suggestion inserts anchor markers and creates a new document version, so agents
 must re-read the Design Doc before creating another suggestion. Stale version
 submissions are rejected before exact selected-text matching or marker
 insertion.
+
+`archive_design_docs` accepts a non-empty list of up to 100 canonical
+`DOC-<id>` references and one shared audit reason. It normalizes and
+deduplicates references in first-seen order, checks visibility and archive
+authorization for every target before creating anything, and skips targets
+that are already archived. Eligible targets become `delete_design_doc` members
+of one pending-action group, so the operator sees one card and can confirm or
+reject the whole request. Confirmation rechecks state and authorization and
+shows per-document applied, skipped, or failed outcomes.
 
 `delete_design_doc` archives by setting `state: archived`; it is intentionally
 not physical deletion. Versions, comments, threads, suggestions, anchors, and

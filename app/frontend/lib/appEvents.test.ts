@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { ChatPayload } from "../api/chats"
+import type { ChatBookmark, ChatPayload } from "../api/chats"
 import {
   applyAppEvent,
   queryKeysFor,
@@ -350,6 +350,39 @@ describe("applyAppEvent", () => {
     expect(queryClient.getQueryState(["chat-pins", "9", ""])?.isInvalidated).toBe(true)
     expect(queryClient.getQueryState(["chat-pins", "9", "?q=needle"])?.isInvalidated).toBe(true)
     expect(queryClient.getQueryState(["chat-pins", "10", ""])?.isInvalidated).toBe(false)
+  })
+
+  it("refetches cached bookmark variants when a chat channel reconnects", async () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chat-bookmarks", "9", ""], {
+      bookmarks: [{ id: 1, label: "Stale", chat_message_id: 1 }]
+    })
+    queryClient.setQueryData(["chat-bookmarks", "10", ""], {
+      bookmarks: [{ id: 2, label: "Other chat", chat_message_id: 2 }]
+    })
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const observer = new QueryObserver(queryClient, {
+      queryKey: ["chat-bookmarks", "9", ""],
+      queryFn: async () => ({ bookmarks: [{ id: 3, label: "Recovered", chat_message_id: 3 }] }),
+      staleTime: Infinity
+    })
+    const unsubscribe = observer.subscribe(() => {})
+
+    try {
+      recoverChatResourceContinuity(queryClient, 9)
+
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat-bookmarks", "9"] })
+      await vi.waitFor(() => {
+        expect(queryClient.getQueryData(["chat-bookmarks", "9", ""])).toEqual({
+          bookmarks: [{ id: 3, label: "Recovered", chat_message_id: 3 }]
+        })
+      })
+      expect(queryClient.getQueryData(["chat-bookmarks", "10", ""])).toEqual({
+        bookmarks: [{ id: 2, label: "Other chat", chat_message_id: 2 }]
+      })
+    } finally {
+      unsubscribe()
+    }
   })
 
   it("coalesces dashboard invalidations from event bursts", () => {
@@ -845,11 +878,10 @@ describe("applyAppEvent", () => {
     expect(updated?.recent_chats).toEqual([])
   })
 
-  it("applies chat bookmark payloads directly to cached chat data", () => {
+  it("applies chat bookmark payloads directly to the dedicated bookmark cache", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "9", ""], {
-      ...chatPayload([message(1, "user", "old")]),
+    queryClient.setQueryData(["chat-bookmarks", "9", ""], {
       bookmarks: [{ id: 4, label: "Opening", chat_message_id: 1, anchor_message_id: 1 }]
     })
 
@@ -862,17 +894,16 @@ describe("applyAppEvent", () => {
     })
 
     expect(invalidate).not.toHaveBeenCalled()
-    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    const updated = queryClient.getQueryData<{ bookmarks: ChatBookmark[] }>(["chat-bookmarks", "9", ""])
     expect(updated?.bookmarks).toEqual([
       { id: 4, label: "Opening", chat_message_id: 1, anchor_message_id: 1 },
       { id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }
     ])
   })
 
-  it("replaces existing cached chat bookmarks by id", () => {
+  it("replaces existing dedicated cached chat bookmarks by id", () => {
     const queryClient = new QueryClient()
-    queryClient.setQueryData(["chats", "9", ""], {
-      ...chatPayload([message(1, "user", "old")]),
+    queryClient.setQueryData(["chat-bookmarks", "9", ""], {
       bookmarks: [{ id: 4, label: "Opening", chat_message_id: 1, anchor_message_id: 1 }]
     })
 
@@ -884,17 +915,16 @@ describe("applyAppEvent", () => {
       }
     })
 
-    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    const updated = queryClient.getQueryData<{ bookmarks: ChatBookmark[] }>(["chat-bookmarks", "9", ""])
     expect(updated?.bookmarks).toEqual([
       { id: 4, label: "Opening revised", chat_message_id: 1, anchor_message_id: 1 }
     ])
   })
 
-  it("applies chat bookmark payloads when the cached bookmark list is missing", () => {
+  it("applies chat bookmark payloads when the dedicated cached bookmark list is missing", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "9", ""], {
-      ...chatPayload([message(1, "user", "old")]),
+    queryClient.setQueryData(["chat-bookmarks", "9", ""], {
       bookmarks: undefined
     })
 
@@ -907,7 +937,7 @@ describe("applyAppEvent", () => {
     })).not.toThrow()
 
     expect(invalidate).not.toHaveBeenCalled()
-    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    const updated = queryClient.getQueryData<{ bookmarks: ChatBookmark[] }>(["chat-bookmarks", "9", ""])
     expect(updated?.bookmarks).toEqual([
       { id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }
     ])

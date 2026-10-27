@@ -7,6 +7,26 @@ RSpec.describe "App API job chats", type: :request do
 
   def parse_body = JSON.parse(response.body)
   def path(job_record) = "/api/v1/app/jobs/#{job_record.id}/start_chat"
+  def diff_draft_context
+    <<~TEXT.strip
+      The operator opened this chat discussion from an unposted diff draft. No review comment was created.
+      Job: JOB-#{job.id}
+      Revision: abc123
+      File: app/models/widget.rb
+      Side: new
+      Selected line: 12
+      Selected source: +validate!
+
+      Surrounding diff hunk:
+      ```diff
+      @@ -11,1 +11,2 @@
+       existing
+      +validate!
+      ```
+    TEXT
+  end
+  def diff_draft_note = "Please check this."
+  def diff_draft_params = { message_context: diff_draft_context, draft_note: diff_draft_note }
 
   before do
     allow(User).to receive(:chat_providers).and_return(%w[claude])
@@ -83,8 +103,9 @@ RSpec.describe "App API job chats", type: :request do
       job.chat_attachments.create!(chat_session: existing_chat)
 
       expect {
-        post path(job), params: { message: "Revision: abc123\nLocation: app/models/widget.rb:12\n\nComment:\nPlease check this." }, as: :json
+        post path(job), params: diff_draft_params, as: :json
       }.to change(ChatMessage, :count).by(1)
+        .and change(DiffReviewComment, :count).by(0)
         .and have_enqueued_job(ChatTurnJob).with(existing_chat.id, kind_of(Integer))
 
       expect(response).to have_http_status(:ok)
@@ -92,28 +113,45 @@ RSpec.describe "App API job chats", type: :request do
       expect(message.content["text"]).to eq(<<~TEXT.strip)
         Context: discuss JOB-#{job.id}.
 
-        Revision: abc123
-        Location: app/models/widget.rb:12
+        #{diff_draft_context}
 
-        Comment:
-        Please check this.
+        Draft note:
+        #{diff_draft_note}
       TEXT
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
     end
 
-    it "adds a supplied prompt to a fresh job chat after the job reference" do
+    it "adds a supplied diff draft to a fresh job chat without creating a review comment" do
       expect {
-        post path(job), params: { message: "Please explain what is blocked." }, as: :json
+        post path(job), params: diff_draft_params, as: :json
       }.to change(ChatSession, :count).by(1)
         .and change(ChatMessage, :count).by(1)
+        .and change(DiffReviewComment, :count).by(0)
         .and have_enqueued_job(ChatTurnJob).with(kind_of(Integer), kind_of(Integer))
 
       message = job.reload.discussion_chat.messages.sole
       expect(message.content["text"]).to eq(<<~TEXT.strip)
         Context: discuss JOB-#{job.id}.
 
-        Please explain what is blocked.
+        #{diff_draft_context}
+
+        Draft note:
+        #{diff_draft_note}
       TEXT
+    end
+
+    it "bounds generated diff context without truncating the operator's draft" do
+      long_context = "Selected source: +#{"x" * 9_000}"
+      draft_note = "Keep every character of this draft: #{"y" * 9_000}"
+
+      post path(job), params: { message_context: long_context, draft_note: draft_note }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      text = job.reload.discussion_chat.messages.sole.content.fetch("text")
+      expect(text).to start_with("Context: discuss JOB-#{job.id}.\n\nSelected source: +")
+      expect(text).to include("...\n\nDraft note:\n")
+      expect(text).to end_with(draft_note)
+      expect(text).not_to include("x" * 4_001)
     end
 
     it "returns 404 for a job in a repository the user cannot access" do

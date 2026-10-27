@@ -5,6 +5,7 @@ import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRec
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
 import { chatPinsQueryPrefix } from "../routes/chat/pins"
+import { chatBookmarksQueryPrefix } from "../routes/chat/bookmarks"
 import { compareRevision, normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
 import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./clientMetrics"
 
@@ -417,6 +418,7 @@ export function recoverJobResourceContinuity(queryClient: QueryClient, jobId: st
 export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: string | number) {
   const id = String(chatId)
   invalidateAppQuery(queryClient, { queryKey: [ "chats", id ] })
+  invalidateAppQuery(queryClient, { queryKey: chatBookmarksQueryPrefix(id) })
   invalidateAppQuery(queryClient, { queryKey: chatPinsQueryPrefix(id) })
 }
 
@@ -923,17 +925,15 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const bookmark = chatBookmarkPayload(event.payload)
   if (bookmark) {
-    let patched = false
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
+    queryClient.setQueriesData<{ bookmarks: ChatBookmark[] }>(
+      { queryKey: chatBookmarksQueryPrefix(event.id) },
       (current) => {
-        if (!current || !Array.isArray(current.messages)) return current
+        if (!current) return current
         const bookmarks = Array.isArray(current.bookmarks) ? current.bookmarks : []
-        patched = true
         return { ...current, bookmarks: upsertBookmark(bookmarks, bookmark.bookmark) }
       }
     )
-    return patched
+    return true
   }
 
   const pin = chatPinPayload(event.payload)

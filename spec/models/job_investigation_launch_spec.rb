@@ -50,6 +50,40 @@ RSpec.describe Job do
       expect(job.errors[:investigation]).to be_empty
     end
 
+    it "rejects an investigation Job that belongs to an Epic" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Job.new(user: user, repository: repository, epic: epic, kind: "direct", investigation: true)
+
+      expect(job).not_to be_valid
+      expect(job.errors[:base]).to include(Job::INVESTIGATION_EPIC_ERROR)
+    end
+
+    it "rejects an investigation Job associated with an unsaved Epic" do
+      epic = Epic.new(user: user, repository: repository, title: "Unsaved Epic")
+      job = Job.new(user: user, repository: repository, epic: epic, kind: "direct", investigation: true)
+
+      expect(job.epic_id).to be_nil
+      expect(job).not_to be_valid
+      expect(job.errors[:base]).to include(Job::INVESTIGATION_EPIC_ERROR)
+    end
+
+    it "rejects converting an Epic child into an investigation Job" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository, epic: epic)
+
+      expect(job.update(investigation: true)).to eq(false)
+      expect(job.errors[:base]).to include(Job::INVESTIGATION_EPIC_ERROR)
+      expect(job.reload).not_to be_investigation
+    end
+
+    it "prevents validation-bypassing writes from combining investigation and Epic membership" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository, epic: epic)
+
+      expect { job.update_columns(investigation: true) }.to raise_error(ActiveRecord::StatementInvalid)
+      expect(job.reload).not_to be_investigation
+    end
+
     it "allows investigation on a cron Job" do
       job = Job.new(user: user, repository: repository, kind: "cron", issue_number: nil, investigation: true)
       job.valid?

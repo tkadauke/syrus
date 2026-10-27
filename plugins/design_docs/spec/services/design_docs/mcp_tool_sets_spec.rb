@@ -112,9 +112,176 @@ RSpec.describe "DesignDocs MCP tool sets" do
       "propose_design_doc",
       "comment_on_design_doc",
       "suggest_design_doc_change",
+      "archive_design_docs",
       "delete_design_doc"
     )
     expect(workflow_names).to contain_exactly("list_design_docs", "read_design_doc", "list_design_doc_sections")
+  end
+
+  describe "archive_design_docs" do
+    it "rejects empty, oversized, non-canonical, and blank-reason requests without side effects" do
+      server = chat_server
+
+      responses = [
+        call_tool(server, "archive_design_docs", doc_refs: [], reason: "Done"),
+        call_tool(server, "archive_design_docs", doc_refs: (1..101).map { |id| "DOC-#{id}" }, reason: "Done"),
+        call_tool(server, "archive_design_docs", doc_refs: [ "42" ], reason: "Done"),
+        call_tool(server, "archive_design_docs", doc_refs: [ "DOC-42" ], reason: "  ")
+      ]
+
+      expect(responses).to all(satisfy { |response| response.dig(:result, :isError) == true })
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.count).to eq(0)
+    end
+
+    it "normalizes and deduplicates refs in operator-visible order into one group" do
+      first = create_design_doc(title: "First")
+      second = create_design_doc(title: "Second")
+      message = chat_session.messages.create!(role: "assistant", content: { "text" => "Archiving" })
+
+      response = call_tool(
+        chat_server(current_message: message),
+        "archive_design_docs",
+        doc_refs: [ " doc-#{second.id} ", first.display_id, "DOC-#{second.id}" ],
+        reason: "Completed designs"
+      )
+      body = response_payload(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(body).to include(
+        requested_refs: [ second.display_id, first.display_id ],
+        eligible_count: 2,
+        skipped_count: 0,
+        state: "pending",
+        confirmation_required: true
+      )
+      expect(body.fetch(:targets)).to eq([
+        { doc_ref: second.display_id, title: "Second" },
+        { doc_ref: first.display_id, title: "First" }
+      ])
+      expect(group.reason).to eq("Completed designs")
+      expect(group.chat_pending_actions.order(:id).map { |action| action.payload.fetch("doc_ref") }).to eq([ second.display_id, first.display_id ])
+      expect(group.chat_pending_actions).to all(have_attributes(action: "delete_design_doc", reason: "Completed designs"))
+      expect(message.reload.pending_action_id).to eq(group.chat_pending_actions.order(:id).first.id)
+    end
+
+    it "batch-loads document visibility and preview associations without per-target selects" do
+      docs = 8.times.map { |index| create_design_doc(title: "Design #{index + 1}") }
+
+      queries = capture_sql do
+        response = call_tool(
+          chat_server,
+          "archive_design_docs",
+          doc_refs: docs.map(&:display_id),
+          reason: "Completed designs"
+        )
+        expect(response.dig(:result, :isError)).to be_falsey
+      end
+      selects = queries.grep(/\ASELECT\b/i)
+
+      %w[
+        design_docs
+        design_doc_versions
+        design_doc_threads
+        design_doc_comments
+        design_doc_suggestions
+        design_doc_repositories
+      ].each do |table|
+        matching = selects.grep(/\ASELECT [`"]?#{table}[`"]?\.\* FROM/i)
+        expect(matching.size).to be <= 1, "expected at most one SELECT from #{table}, got:\n#{matching.join("\n")}"
+      end
+      expect(selects.grep(/COUNT\([^)]*\).*\bFROM [`"]?design_doc_(?:threads|comments|suggestions|repositories)[`"]?/i)).to be_empty
+    end
+
+    it "preflights visibility and authorization for every target before creating a group" do
+      allowed = create_design_doc(title: "Allowed")
+      inaccessible = create_design_doc(user: collaborator, repo: nil, title: "Hidden", visibility: "private")
+
+      expect {
+        response = call_tool(chat_server, "archive_design_docs", doc_refs: [ allowed.display_id, inaccessible.display_id ], reason: "Done")
+        expect(response.dig(:result, :isError)).to be(true)
+        expect(response_text(response)).to include("one or more design docs are unavailable")
+        expect(response_text(response)).not_to include(inaccessible.title, inaccessible.display_id)
+      }.not_to change(PendingActionGroup, :count)
+
+      expect(ChatPendingAction.count).to eq(0)
+    end
+
+    it "reports already archived docs and groups only eligible targets" do
+      archived = create_design_doc(title: "Already done")
+      archived.update!(state: "archived")
+      eligible = create_design_doc(title: "Ready")
+
+      response = call_tool(chat_server, "archive_design_docs", doc_refs: [ archived.display_id, eligible.display_id ], reason: "Complete")
+      body = response_payload(response)
+
+      expect(body).to include(eligible_count: 1, skipped_count: 1, requested_refs: [ archived.display_id, eligible.display_id ])
+      expect(body.fetch(:skipped)).to eq([ { doc_ref: archived.display_id, title: "Already done", reason: "already archived" } ])
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+      expect(group.chat_pending_actions.sole.payload.fetch("doc_ref")).to eq(eligible.display_id)
+    end
+
+    it "returns a stable skipped result without creating a group when all docs are archived" do
+      archived = create_design_doc(title: "Already done")
+      archived.update!(state: "archived")
+
+      expect {
+        body = response_payload(call_tool(chat_server, "archive_design_docs", doc_refs: [ archived.display_id ], reason: "Complete"))
+        expect(body).to include(
+          pending_action_group_id: nil,
+          pending_action_id: nil,
+          requested_refs: [ archived.display_id ],
+          eligible_count: 0,
+          skipped_count: 1,
+          state: "skipped",
+          confirmation_required: false
+        )
+      }.not_to change(PendingActionGroup, :count)
+    end
+
+    it "confirms and rejects the group as one unit" do
+      docs = [ create_design_doc(title: "One"), create_design_doc(title: "Two") ]
+      response = call_tool(chat_server, "archive_design_docs", doc_refs: docs.map(&:display_id), reason: "Complete")
+      group = PendingActionGroup.find(response_payload(response).fetch(:pending_action_group_id))
+
+      result = group.confirm_all!(user: owner)
+
+      expect(result.member_results).to all(be_success)
+      expect(group.reload).to be_confirmed
+      expect(docs.map { |doc| doc.reload.state }).to eq(%w[archived archived])
+
+      rejected_doc = create_design_doc(title: "Rejected")
+      rejected_response = call_tool(chat_server, "archive_design_docs", doc_refs: [ rejected_doc.display_id ], reason: "No longer needed")
+      rejected_group = PendingActionGroup.find(response_payload(rejected_response).fetch(:pending_action_group_id))
+      expect(rejected_group.reject_all!(user: owner)).to be(true)
+      expect(rejected_group.reload).to be_rejected
+      expect(rejected_group.chat_pending_actions.sole).to be_rejected
+      expect(rejected_doc.reload.state).to eq("draft")
+    end
+
+    it "reports a partial outcome when state or authorization changes after preview" do
+      archived_later = create_design_doc(title: "Archived elsewhere")
+      ownership_changed = create_design_doc(title: "Ownership changed")
+      response = call_tool(
+        chat_server,
+        "archive_design_docs",
+        doc_refs: [ archived_later.display_id, ownership_changed.display_id ],
+        reason: "Complete"
+      )
+      group = PendingActionGroup.find(response_payload(response).fetch(:pending_action_group_id))
+      archived_later.update!(state: "archived")
+      ownership_changed.update!(owner_user: collaborator)
+
+      result = group.confirm_all!(user: owner)
+
+      expect(result.member_results.map(&:failure?)).to eq([ true, true ])
+      expect(group.reload).to be_confirmed
+      members = group.chat_pending_actions.order(:id)
+      expect(members.first.group_outcome).to eq("skipped")
+      expect(members.first.execution_error).to include("already archived")
+      expect(members.second.group_outcome).to eq("failed")
+      expect(members.second.execution_error).to include("Pundit::NotAuthorizedError")
+    end
   end
 
   it "archives a fresh empty v1 design doc immediately without physical deletion" do

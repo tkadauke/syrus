@@ -1869,6 +1869,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
     t.index ["user_id", "updated_at", "id"], name: "idx_jobs_user_updated_recent"
     t.index ["user_id"], name: "index_jobs_on_user_id"
     t.index ["validity"], name: "index_jobs_on_validity"
+    t.check_constraint "investigation = FALSE OR epic_id IS NULL", name: "chk_jobs_investigation_without_epic"
   end
 
   create_table "kubernetes_clusters", force: :cascade do |t|

@@ -2,6 +2,10 @@ class ChatMessageSearchIndex < SearchRecord
   include FtsQueryParser
 
   INDEXED_MESSAGE_KEY_PREFIX = "indexed_chat_message:".freeze
+  CONTENT_VERSION_KEY = "chat_message_content_version".freeze
+  CONTENT_VERSION = "2".freeze
+  CONTENT_VERSION_REINDEXING = "#{CONTENT_VERSION}:reindexing".freeze
+  BACKFILL_CURSOR_KEY = "last_backfilled_id".freeze
 
   class << self
     def insert(message)
@@ -243,6 +247,42 @@ class ChatMessageSearchIndex < SearchRecord
       message.role.in?(%w[user assistant]) && message.content.present? && content_for(message).present?
     end
 
+    def content_version_current?
+      metadata_value(CONTENT_VERSION_KEY) == CONTENT_VERSION
+    end
+
+    # Invalidates only assistant messages written by an older content
+    # serializer. The in-progress value makes interruption safe: a retry
+    # resumes the backfill instead of deleting rows it already repaired.
+    def prepare_content_version!
+      return false if metadata_value(CONTENT_VERSION_KEY) == CONTENT_VERSION
+
+      connection.transaction do
+        unless metadata_value(CONTENT_VERSION_KEY) == CONTENT_VERSION_REINDEXING
+          message_ids = connection.select_values("SELECT chat_message_id FROM chat_message_fts WHERE role = 'assistant'")
+          connection.exec_delete(
+            "DELETE FROM chat_message_fts WHERE role = 'assistant'",
+            "ChatMessageSearchIndex Invalidate Assistant Rows"
+          )
+          message_ids.each do |message_id|
+            connection.exec_delete(
+              "DELETE FROM chat_search_metadata WHERE key = ?",
+              "ChatMessageSearchIndex Invalidate Assistant Marker",
+              [ bind(indexed_message_key(message_id)) ]
+            )
+          end
+          write_metadata(CONTENT_VERSION_KEY, CONTENT_VERSION_REINDEXING)
+        end
+        write_metadata(BACKFILL_CURSOR_KEY, "0")
+      end
+
+      true
+    end
+
+    def finish_content_version!
+      write_metadata(CONTENT_VERSION_KEY, CONTENT_VERSION)
+    end
+
     private
 
     def mark_indexed!(message_id)
@@ -261,11 +301,23 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     def content_for(message)
-      content = message.content
-      return content if content.is_a?(String)
-      return content["text"].to_s if content.is_a?(Hash) && content.key?("text")
+      message.extract_text_from_content
+    end
 
-      JSON.generate(content)
+    def metadata_value(key)
+      connection.select_value(
+        "SELECT value FROM chat_search_metadata WHERE key = ?",
+        "ChatMessageSearchIndex Metadata Value",
+        [ bind(key) ]
+      )
+    end
+
+    def write_metadata(key, value)
+      connection.exec_insert(
+        "INSERT OR REPLACE INTO chat_search_metadata (key, value) VALUES (?, ?)",
+        "ChatMessageSearchIndex Write Metadata",
+        [ bind(key), bind(value) ]
+      )
     end
 
     def indexed_content(message)

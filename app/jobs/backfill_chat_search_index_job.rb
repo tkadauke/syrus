@@ -1,12 +1,14 @@
 class BackfillChatSearchIndexJob < ApplicationJob
   BATCH_SIZE = 500
-  LAST_BACKFILLED_ID_KEY = "last_backfilled_id".freeze
+  LAST_BACKFILLED_ID_KEY = ChatMessageSearchIndex::BACKFILL_CURSOR_KEY
   SQLITE_BUSY_RETRY_ATTEMPTS = 3
   SQLITE_BUSY_RETRY_DELAY = 0.05
 
   queue_as :indexing
 
   def perform
+    with_sqlite_busy_retries { ChatMessageSearchIndex.prepare_content_version! }
+
     loop do
       message_ids = next_batch_ids
       break if message_ids.empty?
@@ -22,6 +24,8 @@ class BackfillChatSearchIndexJob < ApplicationJob
 
       with_sqlite_busy_retries { update_last_backfilled_id(message_ids.last) }
     end
+
+    with_sqlite_busy_retries { ChatMessageSearchIndex.finish_content_version! }
   end
 
   private
