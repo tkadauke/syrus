@@ -998,8 +998,6 @@
     "job_cannot_be_reopened": "Job kann nicht wiedereröffnet werden",
     "job_removed_from_epic": "Job aus Epic entfernt",
     "job_not_in_epic": "Job gehört zu keinem Epic",
-    "priority_changed": "Priorität geändert",
-    "invalid_priority": "Ungültige Priorität",
     "epic_started": "Epic gestartet",
     "epic_not_ready": "Epic ist nicht bereit",
     "product_owner_cannot_start_epic": "Product Owner kann Epic nicht starten",
