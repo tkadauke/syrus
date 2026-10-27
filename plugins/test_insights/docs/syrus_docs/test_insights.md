@@ -474,6 +474,9 @@ The bounded sweep runs on the plugin's own daily tick (`TestInsights::Callbacks.
 `tick_interval 1.day` in the manifest) rather than the host's
 `config/recurring.yml`, so disabling or removing the plugin removes the
 schedule with it, matching `ScheduledTasks::Callbacks` and
-`VideoWalkthroughs::Callbacks`. Ticking (and therefore pruning) only happens
+`VideoWalkthroughs::Callbacks`. Each job deletes at most 100 bounded batches;
+if eligible rows remain, it schedules one successor after a one-minute pause
+and continues until the backlog is drained. `SkipIfPending` keeps the daily
+tick from overlapping that chain. Ticking (and therefore pruning) only happens
 while the plugin is enabled; since ingestion also stops while disabled, no
 new rows accumulate for pruning to catch up on once it's re-enabled.
