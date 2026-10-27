@@ -569,6 +569,84 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat_group_selects.size).to be <= 2
   end
 
+  it "groups plugin chats in one batched lookup without exposing inaccessible or shared chats" do
+    sign_in_as(user)
+    user.update!(recent_chats_group_size: 5)
+    newest = ChatSession.create!(user: user, title: "Newest coworker", last_message_at: 1.minute.ago)
+    older = ChatSession.create!(user: user, title: "Older coworker", last_message_at: 2.minutes.ago)
+    ordinary = ChatSession.create!(user: user, title: "Ordinary", last_message_at: 3.minutes.ago)
+    other_user = Factories.user
+    inaccessible = ChatSession.create!(user: other_user, title: "Private coworker", last_message_at: Time.current)
+    shared = ChatSession.create!(user: other_user, title: "Shared coworker", last_message_at: 4.minutes.ago)
+    ChatShare.create!(chat_session: shared, target: user, shared_by_user: other_user)
+
+    calls = []
+    provider = Class.new do
+      include Syrus::Plugin::ChatListGroup
+
+      define_singleton_method(:chat_list_group) do |user:|
+        calls << user.id
+        {
+          key: "test-coworkers",
+          label: "Coworkers",
+          chat_session_ids: [ older.id, newest.id, inaccessible.id, shared.id ]
+        }
+      end
+    end
+    Syrus::PluginRegistry.register(:chat_list_group, provider)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body.fetch("groups")
+    expect(calls).to eq([ user.id ])
+    expect(groups.find { |group| group.fetch("key") == "test-coworkers" }).to include(
+      "label" => "Coworkers",
+      "group_by" => "plugin",
+      "group_value" => "test-coworkers"
+    )
+    expect(groups.find { |group| group.fetch("key") == "test-coworkers" }.fetch("chats").pluck("id")).to eq([ newest.id, older.id ])
+    expect(groups.find { |group| group.fetch("key") == "shared-with-me" }.fetch("chats").pluck("id")).to eq([ shared.id ])
+    expect(groups.reject { |group| %w[test-coworkers shared-with-me].include?(group.fetch("key")) }.flat_map { |group| group.fetch("chats") }.pluck("id")).to eq([ ordinary.id ])
+
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_list_group).and_return([])
+    get "/api/v1/app/chats"
+
+    restored_ids = parse_body.fetch("groups").reject { |group| group.fetch("key") == "shared-with-me" }.flat_map { |group| group.fetch("chats") }.pluck("id")
+    expect(restored_ids).to contain_exactly(newest.id, older.id, ordinary.id)
+  end
+
+  it "paginates a plugin chat group with the ordinary cursor endpoint" do
+    sign_in_as(user)
+    user.update!(recent_chats_group_size: 5)
+    chats = 7.times.map do |index|
+      ChatSession.create!(user: user, title: "Coworker #{index}", last_message_at: (index + 1).minutes.ago)
+    end
+    provider = Class.new do
+      include Syrus::Plugin::ChatListGroup
+      define_singleton_method(:chat_list_group) do |user:|
+        { key: "test-coworkers", label: "Coworkers", chat_session_ids: user.chat_sessions.where(id: chats).pluck(:id) }
+      end
+    end
+    Syrus::PluginRegistry.register(:chat_list_group, provider)
+
+    get "/api/v1/app/chats"
+    group = parse_body.fetch("groups").find { |candidate| candidate.fetch("key") == "test-coworkers" }
+    expect(group.fetch("chats").pluck("id")).to eq(chats.first(5).map(&:id))
+    expect(group.fetch("has_more")).to be(true)
+
+    get "/api/v1/app/chats/more", params: {
+      group_by: "plugin",
+      group_key: "test-coworkers",
+      before_id: group.fetch("chats").last.fetch("id"),
+      per_group: 5
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("chats").pluck("id")).to eq(chats.last(2).map(&:id))
+  end
+
   it "loads more chats for one sidebar group with a cursor" do
     sign_in_as(user)
     user.update!(recent_chats_group_size: 5)
