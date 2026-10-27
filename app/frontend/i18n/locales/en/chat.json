@@ -1263,6 +1263,11 @@
   "tool_card_examples": {
     "priority_changed": "Priority changed",
     "invalid_priority": "Invalid priority",
+    "pending_force_fail_confirmation": "Pending destructive confirmation",
+    "bulk_force_fail_confirmation": "Bulk destructive confirmation",
+    "job_cannot_be_force_failed": "Job cannot be force-failed",
+    "job_assigned_to_epic": "Job assigned to Epic",
+    "archived_epic_error": "Archived Epic error",
     "unapproved_job": "Unapproved Job",
     "bulk_unapproval_confirmation": "Bulk unapproval confirmation",
     "invalid_job_state": "Invalid Job state",

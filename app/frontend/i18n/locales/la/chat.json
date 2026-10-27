@@ -1003,6 +1003,11 @@
   "tool_card_examples": {
     "priority_changed": "Prioritas mutata",
     "invalid_priority": "Prioritas invalida",
+    "pending_force_fail_confirmation": "Confirmatio actionis perniciosae pendet",
+    "bulk_force_fail_confirmation": "Confirmatio plurium defectuum coactorum",
+    "job_cannot_be_force_failed": "Labor cogi ad defectum non potest",
+    "job_assigned_to_epic": "Labor epico attributus",
+    "archived_epic_error": "Error epici archivizzati",
     "unapproved_job": "Approbatio Job revocata",
     "bulk_unapproval_confirmation": "Confirmatio revocationis multiplicis",
     "invalid_job_state": "Status Job invalidus",

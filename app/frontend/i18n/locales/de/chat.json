@@ -1003,6 +1003,11 @@
   "tool_card_examples": {
     "priority_changed": "Priorität geändert",
     "invalid_priority": "Ungültige Priorität",
+    "pending_force_fail_confirmation": "Ausstehende Bestätigung einer destruktiven Aktion",
+    "bulk_force_fail_confirmation": "Bestätigung für mehrere erzwungene Fehlschläge",
+    "job_cannot_be_force_failed": "Job kann nicht erzwungen fehlschlagen",
+    "job_assigned_to_epic": "Job dem Epic zugewiesen",
+    "archived_epic_error": "Fehler bei archiviertem Epic",
     "unapproved_job": "Job-Freigabe aufgehoben",
     "bulk_unapproval_confirmation": "Bestätigung für mehrere Freigabeaufhebungen",
     "invalid_job_state": "Ungültiger Job-Status",
