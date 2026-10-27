@@ -693,11 +693,16 @@ class Workflow < ApplicationRecord
   # bad CiFailure burst doesn't take down a Job whose Initial was
   # clean.
   def record_run_failure!
-    increment!(:failure_count)
-    return if state != "running"
-    if failure_count >= AppSetting.max_job_failures && may_fail?
-      fail!
-      save!
+    with_lock do
+      self.failure_count += 1
+      if state == "running" && failure_count >= AppSetting.max_job_failures && may_fail?
+        # Persist the counter and state transition in the same transaction.
+        # RunJob may retry this method after a transient lock conflict, so the
+        # increment must roll back if the threshold transition cannot commit.
+        fail!
+      else
+        save!
+      end
     end
   end
 
