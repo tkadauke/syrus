@@ -7,6 +7,8 @@
   "share_remove": "Removere",
   "share_add": "Communicare",
   "share_close": "Claudere",
+  "shared_chat_read_only_label": "Sola lectio",
+  "shared_chat_read_only_description": "Hoc colloquium vivum tecum communicatum est. Nova nuntia legere potes, sed scribere non potes.",
   "title": "Colloquium",
   "batch_outcome_applied": "Effecta",
   "batch_outcome_skipped": "Praetermissa/inhabilia",

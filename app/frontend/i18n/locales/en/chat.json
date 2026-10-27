@@ -7,6 +7,8 @@
   "share_remove": "Remove",
   "share_add": "Share",
   "share_close": "Close",
+  "shared_chat_read_only_label": "Read-only",
+  "shared_chat_read_only_description": "This live chat was shared with you. You can read new messages but cannot post.",
   "schedule_message_invalid_time": "Enter a time like 30m, 2h, tomorrow 9am, or 14:30.",
   "schedule_message_blank": "Message cannot be blank.",
   "schedule_message_title": "Schedule Message",
