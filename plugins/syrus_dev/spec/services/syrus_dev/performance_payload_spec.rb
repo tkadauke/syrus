@@ -17,6 +17,27 @@ RSpec.describe SyrusDev::PerformancePayload, requires_plugin: "syrus_dev" do
     PerformanceLogging::Store.clear!
   end
 
+  it "reports and queries within the configured retention window" do
+    AppSetting.current.update!(performance_log_event_retention_hours: 12)
+    PerformanceLogEvent.create!(
+      occurred_at: 13.hours.ago,
+      event_name: PerformanceLogging::SLOW_REQUEST_EVENT,
+      app_revision: "too-old-sha",
+      payload: { "duration_ms" => 1_000.0, "path" => "/too-old" }
+    )
+    PerformanceLogEvent.create!(
+      occurred_at: 11.hours.ago,
+      event_name: PerformanceLogging::SLOW_REQUEST_EVENT,
+      app_revision: "old-sha",
+      payload: { "duration_ms" => 1_000.0, "path" => "/retained" }
+    )
+
+    payload = described_class.new(params: { revision_scope: "all" }).as_json
+
+    expect(payload.dig(:storage, :expires_in_seconds)).to eq(12.hours.to_i)
+    expect(payload.dig(:baseline, :revision)).to eq("old-sha")
+  end
+
   it "summarizes a slow query even when its request stays below request thresholds" do
     fingerprint = "SELECT * FROM jobs WHERE id = ?"
 
