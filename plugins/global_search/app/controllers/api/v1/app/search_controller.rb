@@ -428,6 +428,7 @@ module Api
             path: chat_path(chat_session, message_id: message.id),
             state: nil,
             repository_slug: chat_session.repository&.slug,
+            badges: chat_result_badges.fetch(chat_session.id, []),
             created_at: message.created_at&.iso8601
           }
           if row.key?(:grouped_matches)
@@ -485,6 +486,10 @@ module Api
 
         def repositories_by_id
           @repositories_by_id ||= Repository.accessible_to(Current.user).where(id: result_ids(:repository_id)).index_by(&:id)
+        end
+
+        def chat_result_badges
+          @chat_result_badges ||= ChatResultBadges.for(chat_messages_by_id.values.map(&:chat_session))
         end
 
         def result_ids(key)

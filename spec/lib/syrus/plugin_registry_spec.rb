@@ -90,7 +90,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe "EXTENSION_POINTS" do
     it "includes :chat_provider and :coverage_analyzer" do
-      expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer, :mentionable)
+      expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer, :mentionable, :chat_result_decorator)
     end
 
     it "includes :ci_log_parser" do

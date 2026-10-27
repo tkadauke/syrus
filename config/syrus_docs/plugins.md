@@ -1950,6 +1950,16 @@ provides: { "test_insights:parser" => Ruby::RspecParser }
 
 Core's own points are simply the ones the kernel hosts, and stay unqualified.
 
+Chat search results can be decorated through the core
+`:chat_result_decorator` point. A provider implements
+`chat_result_badges(chat_sessions:)` and returns a hash keyed by chat session
+id, with an array of `{ kind:, id:, name: }` badges for each matching chat.
+Core supplies the whole result page in one call so providers can perform one
+batched lookup; the badges appear in global search, chat search, and the
+`search_chats` agent tool. Use `Filters.register_chips(subject: :chat_message,
+chips: ...)` separately when the plugin also owns a chat-only search filter;
+the returned teardown removes those chips when the plugin is disabled.
+
 A qualified point resolves only while its host is **registered, enabled, and
 actually declares it** — otherwise `"<plugin>:<anything>"` would silently
 resolve and the declared surface would stop meaning anything. A disabled host

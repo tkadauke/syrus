@@ -27,7 +27,8 @@ Plugins can contribute:
 - dependency-audit commands,
 - affected-test analyzers,
 - source integrations such as GitHub or Linear,
-- speech-to-text backends for chat dictation.
+- speech-to-text backends for chat dictation,
+- batched badges and plugin-defined filters for chat search results.
 
 The bundled Rails plugin's migration artifacts are execution-backed: it loads the
 workflow base schema into a disposable database, applies newly added migrations in

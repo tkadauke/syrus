@@ -1062,11 +1062,18 @@ export type ChatSearchMatch = {
 export type ChatSearchResult = {
   chat_session_id: number
   chat_title: string
+  badges: ChatResultBadge[]
   best_snippet: string | null
   best_match_message_id: number | null
   top_matches: ChatSearchMatch[]
   total_match_count: number
   has_more_matches: boolean
+}
+
+export type ChatResultBadge = {
+  kind: string
+  id: number | string
+  name: string
 }
 
 export type ChatSearchPayload = {
