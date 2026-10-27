@@ -167,6 +167,25 @@ describe("RecentChatsSidebar active chat highlighting", () => {
 })
 
 describe("RecentChatsSidebar repository quick-start", () => {
+  it("renders plugin-provided chat groups with their heading and unread state", () => {
+    renderSidebar([], {
+      groups: [
+        chatGroup({
+          key: "test-coworkers",
+          label: "Coworkers",
+          group_by: "plugin",
+          group_value: "test-coworkers",
+          chats: [chatNav({ id: 7, title: "Research partner", unread: true })]
+        })
+      ]
+    })
+
+    expect(screen.getByRole("heading", { name: "Coworkers" })).toBeInTheDocument()
+    const chatLink = screen.getByRole("link", { name: "Research partner" })
+    expect(chatLink).toBeInTheDocument()
+    expect(within(chatLink).getByText("Research partner")).toHaveClass("font-semibold")
+  })
+
   it("starts a new chat attached to the repository group", () => {
     const startChat = vi.fn()
     renderSidebar([], {
