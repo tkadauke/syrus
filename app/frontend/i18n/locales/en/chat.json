@@ -1354,9 +1354,7 @@
     "no_dependencies_remain": "No dependencies remain",
     "validation_error": "Validation error",
     "job_dependency_removed": "Job dependency removed",
-    "epic_dependency_removed_none_remaining": "Epic dependency removed with none remaining",
-    "priority_changed": "Priority changed",
-    "invalid_priority": "Invalid priority"
+    "epic_dependency_removed_none_remaining": "Epic dependency removed with none remaining"
   },
   "restack_epic": {
     "title": "Restack Epic",
