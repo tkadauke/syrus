@@ -27,7 +27,8 @@ Plugins can contribute:
 - dependency-audit commands,
 - affected-test analyzers,
 - source integrations such as GitHub or Linear,
-- speech-to-text backends for chat dictation.
+- speech-to-text backends for chat dictation,
+- batched badges and plugin-defined filters for chat search results.
 
 Plugins can also declare stable credential type names for a
 credential-management plugin to discover. These declarations are intentionally

@@ -23,12 +23,19 @@ export type BaseSearchResult = {
   path: string
   state: string | null
   repository_slug: string | null
+  badges?: ChatResultBadge[]
   created_at: string | null
   updated_at?: string | null
   slug?: string
   visibility?: string | null
   owner?: SearchResultOwner | null
   current_version_number?: number | null
+}
+
+export type ChatResultBadge = {
+  kind: string
+  id: number | string
+  name: string
 }
 
 export type JobSearchResult = BaseSearchResult & {

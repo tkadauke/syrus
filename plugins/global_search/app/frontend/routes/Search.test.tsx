@@ -99,11 +99,13 @@ describe("SearchRoute result rows", () => {
         path: "/chats/9",
         state: null,
         repository_slug: null,
+        badges: [{ kind: "coworker", id: 7, name: "Ada" }],
         created_at: "2026-01-01T00:00:00Z"
       }
     ])
 
     await screen.findByText("Syrus Plugin Architecture Design")
+    expect(screen.getByText("Ada")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument()
   })
 
