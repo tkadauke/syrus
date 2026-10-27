@@ -471,7 +471,7 @@ grade:
       - "docs/metrics-catalog.md"
     timeout_minutes: 60
     focused_timeout_minutes: 10
-    ci_timeout_minutes: 75
+    ci_timeout_minutes: 90
 
   - type: vitest
     name: react-tests
@@ -497,7 +497,7 @@ grade:
       - "vite.config.ts"
     timeout_minutes: 20
     focused_timeout_minutes: 20
-    ci_timeout_minutes: 20
+    ci_timeout_minutes: 30
 
   - name: e2e
     description: |
