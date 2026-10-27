@@ -64,13 +64,15 @@ describe("AttachmentCard", () => {
   })
 
   it("renders an image attachment from the raw file URL without fetching content", async () => {
-    renderCard(attachment({
-      filename: "screenshot.png",
-      content_type: "image/png",
-      byte_size: 1024,
-      file_path: "/api/v1/app/jobs/7/attachments/1/file",
-      content_path: "/api/v1/app/jobs/7/attachments/1/content"
-    }))
+    renderCard(
+      attachment({
+        filename: "screenshot.png",
+        content_type: "image/png",
+        byte_size: 1024,
+        file_path: "/api/v1/app/jobs/7/attachments/1/file",
+        content_path: "/api/v1/app/jobs/7/attachments/1/content"
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "screenshot.png" }))
 
@@ -81,12 +83,14 @@ describe("AttachmentCard", () => {
   })
 
   it("uses a raw link for PDFs even when a content endpoint exists", () => {
-    renderCard(attachment({
-      filename: "report.pdf",
-      content_type: "application/pdf",
-      file_path: "/api/v1/app/jobs/7/attachments/1/file",
-      content_path: "/api/v1/app/jobs/7/attachments/1/content"
-    }))
+    renderCard(
+      attachment({
+        filename: "report.pdf",
+        content_type: "application/pdf",
+        file_path: "/api/v1/app/jobs/7/attachments/1/file",
+        content_path: "/api/v1/app/jobs/7/attachments/1/content"
+      })
+    )
 
     expect(screen.queryByRole("button", { name: "report.pdf" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "report.pdf" })).toHaveAttribute("href", "/api/v1/app/jobs/7/attachments/1/file")
@@ -104,16 +108,18 @@ describe("AttachmentCard", () => {
   })
 
   it("falls back to a plain download link for Google Doc attachments (no content to preview)", () => {
-    renderCard(attachment({
-      kind: "google_doc",
-      attachment_type: "google_doc_link",
-      filename: null,
-      content_type: null,
-      google_doc_url: "https://docs.google.com/document/d/abc/edit",
-      uploaded_file: false,
-      file_path: null,
-      content_path: null
-    }))
+    renderCard(
+      attachment({
+        kind: "google_doc",
+        attachment_type: "google_doc_link",
+        filename: null,
+        content_type: null,
+        google_doc_url: "https://docs.google.com/document/d/abc/edit",
+        uploaded_file: false,
+        file_path: null,
+        content_path: null
+      })
+    )
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument()
     expect(fetchJobAttachmentContent).not.toHaveBeenCalled()
@@ -171,15 +177,35 @@ describe("EpicSummaryLink", () => {
 })
 
 describe("RunTranscriptLogs", () => {
-  it("renders assistant, system, and command output with chat-style wrapping surfaces", () => {
+  it("renders assistant, system, and structured tools with the chat surfaces", () => {
     render(
       <MemoryRouter>
         <RunTranscriptLogs
           logs={[
             { id: 1, sequence: 1, kind: "assistant_text", chunk: "**Done** with JOB-42", created_at: null },
             { id: 2, sequence: 2, kind: "system", chunk: "System notice", created_at: null },
-            { id: 3, sequence: 3, kind: "tool_call", chunk: "\u001b[32mpassed\u001b[0m /tmp/workspaces/some/extremely/long/path/that/must/wrap", created_at: null },
-            { id: 4, sequence: 4, kind: "stdout", chunk: "branch-name-without-natural-breakpoints-abcdefghijklmnopqrstuvwxyz", created_at: null }
+            {
+              id: 3,
+              sequence: 3,
+              kind: "tool_call",
+              chunk: "[codex command] /bin/bash -lc 'bundle exec rspec' in_progress",
+              tool_name: "bash",
+              tool_input: { command: "bundle exec rspec" },
+              tool_use_id: "cmd-1",
+              created_at: null
+            },
+            {
+              id: 4,
+              sequence: 4,
+              kind: "tool_result",
+              chunk: "[codex command] /bin/bash -lc 'bundle exec rspec' completed",
+              tool_name: "bash",
+              tool_use_id: "cmd-1",
+              tool_result_content: "2 examples, 0 failures",
+              tool_result_error: false,
+              created_at: null
+            },
+            { id: 5, sequence: 5, kind: "stdout", chunk: "branch-name-without-natural-breakpoints-abcdefghijklmnopqrstuvwxyz", created_at: null }
           ]}
         />
       </MemoryRouter>
@@ -188,19 +214,19 @@ describe("RunTranscriptLogs", () => {
     const stream = screen.getByTestId("run-transcript-log-stream")
     expect(stream).toHaveClass("min-w-0", "overflow-y-auto", "overflow-x-hidden")
     expect(stream).toHaveClass("space-y-4", "px-3", "pb-3")
-    expect(screen.getByText("Done")).toBeInTheDocument()
-    expect(screen.getByText("Done").closest(".chat-prose")).toHaveClass("[overflow-wrap:anywhere]")
+    const assistantDone = screen.getByText("Done", { selector: "strong" })
+    expect(assistantDone).toBeInTheDocument()
+    expect(assistantDone.closest(".chat-prose")).toHaveClass("[overflow-wrap:anywhere]")
     expect(screen.getByTestId("run-transcript-log-assistant")).toHaveAttribute("data-message-mode", "read-only")
     expect(screen.getByTestId("run-transcript-log-assistant")).not.toHaveTextContent("Agent")
-    expect(screen.getByText("System")).toBeInTheDocument()
-    expect(screen.getByTestId("run-transcript-log-system")).toHaveTextContent("System notice")
-    expect(screen.getByTestId("run-transcript-log-system")).toHaveAttribute("data-message-mode", "read-only")
-    expect(screen.getByText("passed")).toHaveClass("text-emerald-700")
-    expect(stream).not.toHaveTextContent("\u001b[32m")
-    expect(screen.getByText(/extremely\/long\/path/).closest("pre")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
-    expect(screen.getByText("stdout")).toBeInTheDocument()
-    expect(screen.getByTestId("run-transcript-log-tool")).toHaveAttribute("data-message-mode", "read-only")
-    expect(screen.getByTestId("run-transcript-log-log")).toHaveAttribute("data-message-mode", "read-only")
-    expect(screen.getByText(/branch-name-without/).closest("pre")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+    const systemRows = screen.getAllByTestId("run-transcript-log-system")
+    expect(systemRows[0]).toHaveTextContent("System notice")
+    expect(systemRows[0]).toHaveAttribute("data-message-mode", "read-only")
+    expect(screen.getByTestId("run-transcript-tool-group")).toHaveAttribute("data-message-mode", "read-only")
+    expect(screen.getByText("bash")).toBeInTheDocument()
+    expect(screen.getByText("Done", { selector: "span" })).toBeInTheDocument()
+    expect(stream).not.toHaveTextContent("[codex command]")
+    expect(stream).not.toHaveTextContent("/bin/bash -lc")
+    expect(systemRows[1]).toHaveTextContent(/branch-name-without/)
   })
 })

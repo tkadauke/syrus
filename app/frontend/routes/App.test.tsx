@@ -10778,7 +10778,7 @@ describe("App", () => {
     expect(await screen.findByText("WF-5")).toBeInTheDocument()
   })
 
-  it("coalesces adjacent transcript chunks from the same command source", async () => {
+  it("keeps legacy transcript rows separate instead of coalescing tool output", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/runs/9/artifacts?artifact=transcript&page=1") {
@@ -10819,16 +10819,15 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Implement/i }))
     fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
 
-    await screen.findByText("Tool")
+    await screen.findByText("bundle install")
     const systemRows = screen.getAllByTestId("run-transcript-log-system")
-    expect(systemRows).toHaveLength(2)
+    expect(systemRows).toHaveLength(6)
     expect(systemRows[0]).toHaveTextContent("[prepare] (1/2) $ bundle install")
-    expect(systemRows[0]).toHaveTextContent("Fetching rack 3.2.6")
-    expect(systemRows[0]).toHaveTextContent("Fetching rack-session 2.1.2")
-    expect(systemRows[0]).not.toHaveTextContent("[prepare] (2/2) $ npm ci")
-    expect(systemRows[1]).toHaveTextContent("[prepare] (2/2) $ npm ci")
-    expect(systemRows[1]).toHaveTextContent("added 42 packages")
-    expect(screen.getByText("Tool")).toBeInTheDocument()
+    expect(systemRows[1]).toHaveTextContent("Fetching rack 3.2.6")
+    expect(systemRows[2]).toHaveTextContent("Fetching rack-session 2.1.2")
+    expect(systemRows[3]).toHaveTextContent("[prepare] (2/2) $ npm ci")
+    expect(systemRows[4]).toHaveTextContent("added 42 packages")
+    expect(systemRows[5]).toHaveTextContent("bundle install")
   })
 
   it("uses the job name as the Job detail title and moves source metadata below it", async () => {
