@@ -259,6 +259,21 @@ describe("applyAppEvent", () => {
     expect(queryClient.getQueryState(detailQueryKey)?.isInvalidated).toBe(true)
   })
 
+  it("does not refresh recent chats for unrelated high-churn job progress", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], { groups: [] })
+
+    applyAppEvent(queryClient, {
+      ...event("job", 42),
+      changed: ["run.updated", "last_heartbeat_at"],
+      payload: { fields: { state: "running" } }
+    })
+
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(queryClient.getQueryState(["chats", "recent"])?.isInvalidated).toBe(false)
+  })
+
   it("does not fan out a job event to source diff or review comment queries under the jobs prefix", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

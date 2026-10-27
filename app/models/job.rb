@@ -867,6 +867,7 @@ class Job < ApplicationRecord
   # new Jobs unannounced (and unindexed until their first update).
   after_commit :publish_job_upserted_event, on: %i[create update]
   after_update_commit :broadcast_app_job_updated
+  after_update_commit :broadcast_app_chat_job_status_updates, if: :saved_change_to_state?
 
   def solid_queue_priority
     PRIORITY_TO_SQ.fetch(priority.to_s, PRIORITY_TO_SQ["medium"])
@@ -1742,6 +1743,13 @@ class Job < ApplicationRecord
     broadcast_app_job_event("updated")
   end
 
+  def broadcast_app_chat_job_status_updates
+    ChatSession.where(id: chat_session_ids_for_status_updates).find_each do |chat_session|
+      chat_session.broadcast_app_job_status_update(id)
+    end
+  end
+  public :broadcast_app_chat_job_status_updates
+
   def broadcast_app_job_event(action)
     return unless user
 
@@ -1754,6 +1762,13 @@ class Job < ApplicationRecord
       revision: entity_revision,
       payload: { fields: App::JobEventFields.for(self) }
     )
+  end
+
+  def chat_session_ids_for_status_updates
+    session_ids = ChatProposal.confirmed.where(job: self).distinct.pluck(:chat_session_id)
+    session_ids << linked_chat_id if linked_chat_id.present?
+    session_ids << discussion_chat&.id
+    session_ids.compact.uniq
   end
 
   public

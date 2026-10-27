@@ -80,9 +80,7 @@ module BroadcastsJobProgress
       payload: { fields: job_progress_patch_fields }
     )
 
-    ChatSession.where(id: chat_session_ids_for(owner_job)).find_each do |chat_session|
-      chat_session.broadcast_app_job_status_update(owner_job.id)
-    end
+    owner_job.broadcast_app_chat_job_status_updates
   end
 
   def job_progress_patch_fields
@@ -96,13 +94,6 @@ module BroadcastsJobProgress
     when BigDecimal then value.to_f
     else value
     end
-  end
-
-  def chat_session_ids_for(job)
-    session_ids = ChatProposal.confirmed.where(job: job).distinct.pluck(:chat_session_id)
-    session_ids << job.linked_chat_id if job.linked_chat_id.present?
-    session_ids << job.discussion_chat&.id
-    session_ids.compact.uniq
   end
 
   def saved_changes_for_job_progress?
