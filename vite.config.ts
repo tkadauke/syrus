@@ -93,11 +93,7 @@ export default defineConfig(({ mode }) => {
         "@app": `${rootDir}app/frontend`,
         "@plugins": `${rootDir}plugins`,
         "@tanstack/react-query": `${rootDir}node_modules/@tanstack/react-query`,
-        "@tanstack/query-core": `${rootDir}node_modules/@tanstack/query-core`,
-        // The root React suite intentionally does not install the desktop
-        // package tree. Alias the runtime-only dependency to a controllable
-        // test double so locale behavior remains deterministic.
-        electron: `${rootDir}desktop/src/test/electron.ts`
+        "@tanstack/query-core": `${rootDir}node_modules/@tanstack/query-core`
       },
       coverage: {
         provider: "v8",
