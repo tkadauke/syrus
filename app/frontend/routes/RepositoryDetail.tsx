@@ -46,6 +46,8 @@ import {
   type RepositoryFeatureRecommendation
 } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
+import { fetchRepositoryReadiness } from "../api/repositories"
+import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
 
 const MERGE_TRAIN_FAILURE_RUNGS = [
   { value: "restart", labelKey: "repository.syrus_yml_merge_train_rung_restart" },
@@ -143,6 +145,19 @@ function RepositoryDetail({
 
 function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   const { t } = useT("settings")
+  const { t: commonT } = useT("common")
+  const [readinessOpen, setReadinessOpen] = useState(false)
+  const readiness = useQuery({
+    queryKey: ["repository-readiness", payload.repository.id],
+    queryFn: () => fetchRepositoryReadiness(payload.repository.id),
+    staleTime: 60_000,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data || !("readiness" in data) || !data.readiness) return false
+      const status = data.readiness.execution_probe?.status
+      return status === "queued" || status === "running" ? 1_000 : false
+    }
+  })
   const repository = payload.repository
   const pollIssueErrors = repository.poll_issue_errors ?? []
   const nonzeroCounts = [
@@ -156,6 +171,23 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       <TonePill tone={repository.polling_enabled ? "green" : "gray"}>
         {repository.polling_enabled ? t("repository.polling_enabled") : t("repository.polling_paused")}
       </TonePill>
+      {readiness.data?.readiness ? (
+        <>
+          <button
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${repositoryReadinessTriggerClass(readinessTone(readiness.data.readiness.status))}`}
+            onClick={() => setReadinessOpen(true)}
+            type="button"
+          >
+            {commonT("onboarding.readiness_status", { status: readiness.data.readiness.summary })}
+          </button>
+          <RepositoryReadinessModal
+            onClose={() => setReadinessOpen(false)}
+            open={readinessOpen}
+            repositoryId={payload.repository.id}
+            report={readiness.data.readiness}
+          />
+        </>
+      ) : null}
       {pollIssueErrors.length > 0 ? <TonePill tone="amber">{t("repository.poll_quarantined", { count: pollIssueErrors.length })}</TonePill> : null}
       <span>{payload.credential_status.label}</span>
       <span className="text-gray-300 dark:text-gray-600">·</span>
@@ -170,6 +202,12 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       ))}
     </div>
   )
+}
+
+function repositoryReadinessTriggerClass(tone: "green" | "amber" | "red") {
+  if (tone === "green") return "bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-950/40 dark:text-green-300"
+  if (tone === "amber") return "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300"
+  return "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950/40 dark:text-red-300"
 }
 
 export function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {

@@ -243,10 +243,10 @@ coverage:
     lines: 75
 ```
 
-Android example:
+Mobile example:
 
 ```yaml
-# apps/android/.syrus.yml
+# apps/mobile/.syrus.yml
 grade:
   # Graph declarations for this project. Keep executable Gradle wrappers in
   # root validation until nested grader execution lands.
@@ -269,9 +269,9 @@ grade:
   - name: cli-tests
     run: go test ./cli/...
     when_files_changed: ["cli/**"]
-  - name: android-unit-tests
-    run: ./gradlew :apps:android:testDebugUnitTest
-    when_files_changed: ["apps/android/**"]
+  - name: gradle-unit-tests
+    run: ./gradlew :apps:mobile:test
+    when_files_changed: ["apps/mobile/**"]
 ```
 
 Stay at Level 1 when directory scoping and legacy commands are clear enough.
@@ -347,7 +347,7 @@ steps.
 5. **Use root wrapper commands during the transition.** Scope root graders with
    `when_files_changed` and call project commands through package-aware
    wrappers such as `npm --prefix apps/web run typecheck`, `go test ./cli/...`,
-   or `./gradlew :apps:android:testDebugUnitTest`.
+   or `./gradlew :apps:mobile:test`.
 6. **Add explicit targets only when they explain something.** Use `targets:`
    for shared libraries, generated contracts, prepare actions, or dependency
    edges that affect selection, target-health reuse, or graph debugging.
@@ -598,11 +598,11 @@ grade:
 ```
 
 ```yaml
-# apps/android/.syrus.yml
+# apps/mobile/.syrus.yml
 project:
-  id: android
-  label: Android App
-  kind: android_app
+  id: mobile
+  label: Mobile App
+  kind: mobile_app
 
 targets:
   - name: app
@@ -626,7 +626,7 @@ Mixed-product layout example:
 |-- apps
 |   |-- web/.syrus.yml
 |   |-- ios/.syrus.yml
-|   `-- android/.syrus.yml
+|   `-- mobile/.syrus.yml
 |-- desktop/.syrus.yml
 |-- cli/.syrus.yml
 `-- packages

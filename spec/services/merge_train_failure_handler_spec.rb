@@ -49,6 +49,24 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
     run
   end
 
+  # An unplaceable run: the step asked for a capability no live worker
+  # advertises, so the member's code never executed. RunFailureClassifier files
+  # this under the generic `application_error` fallback with retryable: false,
+  # which is why the outcome -- not the classification -- is the discriminator.
+  def record_unplaceable_failure!(workflow, job, step_kind:)
+    step = Step.create!(workflow: workflow, kind: step_kind, state: "failed", position: 1)
+    run = Run.create!(
+      job: job, step: step, trigger_kind: "merge_train", state: "failed",
+      agent_outcome: "no_capable_worker"
+    )
+    RunFailureClassification.create!(
+      run: run, classification: "application_error", retryable: false, confidence: 0.4,
+      reason: "The run failed with an unclassified application error.",
+      classified_at: Time.current
+    )
+    run
+  end
+
   def create_auto_retry_attempt!(workflow:, run:, classification:, attempt_number:, retry_kind: "retry_workflow")
     AutoRetryAttempt.create!(
       job: run.job,
@@ -208,6 +226,34 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       described_class.call(workflow: workflow)
 
       expect(train.reload).to be_terminal
+    end
+
+    # The whole reason this exists. `no_capable_worker` reached a grader -- a
+    # step kind deliberately attributed to the member -- and tore down 14 sound
+    # assemblies in one day, each costing 45-167 minutes of the landing lock,
+    # for a capability no worker in the fleet advertised.
+    it "preserves the assembly when a grader could not be placed on any worker" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_unplaceable_failure!(workflow, a, step_kind: "grader")
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+    end
+
+    it "preserves the assembly for an unplaceable run in any step, not just a grader" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_unplaceable_failure!(workflow, a, step_kind: "merge_train_build")
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
     end
 
     it "still tears the assembly down for a grader failure, which a member can cause" do

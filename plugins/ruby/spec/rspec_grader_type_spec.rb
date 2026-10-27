@@ -161,6 +161,33 @@ RSpec.describe Ruby::RspecGraderType do
     expect(status.exitstatus).to eq(7)
   end
 
+  it "skips a transitively selected focused grader when no changed Ruby files match its scope" do
+    command = described_class.grade_steps(
+      config: { "when_files_changed" => [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ] },
+      default_failures: "strict"
+    ).second.run
+
+    stdout, _stderr, status = run_generated_rspec_command(command, parallel_status: 7, serial_status: 7) do |dir|
+      run_git = ->(*args) { Open3.capture3("git", "-C", dir, *args) }
+      run_git.call("init", "-q", "-b", "main")
+      run_git.call("config", "user.email", "test@example.com")
+      run_git.call("config", "user.name", "Test")
+      run_git.call("config", "commit.gpgsign", "false")
+      FileUtils.mkdir_p(File.join(dir, ".syrus"))
+      File.write(File.join(dir, "README.md"), "base\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "base")
+      run_git.call("checkout", "-q", "-b", "feature")
+      FileUtils.mkdir_p(File.join(dir, "plugins/example/lib"))
+      File.write(File.join(dir, "plugins/example/lib/example.rb"), "module Example; end\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "plugin change")
+    end
+
+    expect(stdout).to include("No changed Ruby files matched this RSpec grader's scope; skipping")
+    expect(status).to be_success
+  end
+
   it "expands to typed focused review, full landing, and ci graders" do
     steps = described_class.grade_steps(config: {}, default_failures: "strict")
 
@@ -868,7 +895,8 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect(step.run).to include("COVERAGE=true")
     expect(step.metadata["coverage_outputs"]).to eq([
-      { "artifact" => "coverage/.resultset.json", "format" => "simplecov" }
+      { "artifact" => "coverage/.resultset.json", "format" => "simplecov" },
+      { "artifact" => "coverage/lcov.info", "format" => "lcov" }
     ])
     expect(step.metadata.dig("filter_capabilities", "coverage")).to be(true)
   end

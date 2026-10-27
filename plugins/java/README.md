@@ -9,7 +9,7 @@ repositories with JVM components.
 
 | Extension point | What it does |
 |---|---|
-| `:prepare_detector` | Detects Gradle files (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and conventional Java source/test paths (`src/main/java`, `src/test/java`). Gradle projects prepare with `./gradlew --no-daemon testClasses` when the wrapper is present, otherwise `gradle --no-daemon testClasses`. Maven projects prepare with `./mvnw -B test-compile` when the wrapper is present, otherwise `mvn -B test-compile`. Source-only Java layouts are detectable but do not add a prepare command. Android Gradle Plugin projects are intentionally not claimed by this generic detector. |
+| `:prepare_detector` | Detects Gradle files (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and conventional Java source/test paths (`src/main/java`, `src/test/java`). Gradle projects prepare with `./gradlew --no-daemon testClasses` when the wrapper is present, otherwise `gradle --no-daemon testClasses`. Maven projects prepare with `./mvnw -B test-compile` when the wrapper is present, otherwise `mvn -B test-compile`. Source-only Java layouts are detectable but do not add a prepare command. |
 | `:grader_type` | Expands `type: gradle` and `type: maven` into wrapper-aware test graders. Gradle defaults to `test`; Maven defaults to `test`. Both aggregate standard JUnit XML report directories into one Syrus `junit_output` file when reports exist. |
 | `:prompt_injector` | Reminds agents to prefer project wrappers and the repository-declared JDK version instead of assuming the system JDK is correct. |
 | `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag swallowed InterruptedException without restoring interrupt status" — when a generic Java/JVM signal is present. |
@@ -52,15 +52,13 @@ grade:
       - "gradlew"
 ```
 
-## Boundary with Android
+## Boundary
 
 This plugin owns generic JVM build/test conventions: JDK selection, Gradle and
-Maven wrapper usage, and conventional Java source layouts. Android support
-owns Android Gradle Plugin behavior, Android SDK installation, emulator/device
-requirements, and Android runtime concerns. Repositories with Android Gradle
-Plugin markers or conventional Android manifest paths are skipped here so an
-Android plugin can handle them without first tripping over generic Gradle
-tasks such as `testClasses`.
+Maven wrapper usage, and conventional Java source layouts. It does not exclude
+mobile-platform Gradle layouts any more -- a Gradle project is just a Gradle
+project. Platform-specific SDK, device, and runtime concerns belong in a plugin
+that also ships a worker advertising the matching capability.
 
 ## Loading the plugin
 

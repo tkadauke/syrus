@@ -18,7 +18,7 @@ module Mcp::Tools
       properties: {
         provider: {
           type: "string",
-          description: "Runtime session provider key (e.g. \"browser\" or \"android_emulator\"). " \
+          description: "Runtime session provider key (e.g. \"browser\" or \"terminal\"). " \
                        "Auto-detected from the repository checkout when omitted."
         },
         name: {

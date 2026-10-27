@@ -153,13 +153,15 @@ function livePayload(overrides: Partial<WorkerTimelineLivePayload> = {}): Worker
       exact_thread_ownership: false,
       strategy: "Slots are inferred from running spawned processes, claimed worker capacity, and active Run/Workflow state."
     },
-    summary: { total_workers: 2, idle: 1, busy: 1, degraded: 0, overloaded: 0, used_slots: 2, total_slots: 3 },
+    summary: { total_workers: 2, idle: 1, busy: 1, degraded: 0, overloaded: 0, capacity_exceeded: 0, health_critical: 0, used_slots: 2, total_slots: 3 },
     workers: [
       {
         key: "storage-a",
         hostname: "worker-a",
         worker_storage_key: "storage-a",
         status: "busy",
+        critical_dimensions: [],
+        capacity_exceeded: false,
         status_reasons: ["2/2 inferred slots occupied"],
         occupancy: { used: 2, total: 2 },
         health: { level: "ok", reasons: [], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 42, memory_used_percent: 64, io_pressure_some: 5 },
@@ -242,6 +244,8 @@ function livePayload(overrides: Partial<WorkerTimelineLivePayload> = {}): Worker
         hostname: "worker-idle",
         worker_storage_key: "storage-idle",
         status: "idle",
+        critical_dimensions: [],
+        capacity_exceeded: false,
         status_reasons: ["0/1 inferred slots occupied"],
         occupancy: { used: 0, total: 1 },
         health: { level: "ok", reasons: [], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 5, memory_used_percent: 12, io_pressure_some: 0 },
@@ -890,12 +894,75 @@ describe("WorkerTimeline macro view", () => {
       {},
       {
         workers: [],
-        summary: { total_workers: 0, idle: 0, busy: 0, degraded: 0, overloaded: 0, used_slots: 0, total_slots: 0 }
+        summary: { total_workers: 0, idle: 0, busy: 0, degraded: 0, overloaded: 0, capacity_exceeded: 0, health_critical: 0, used_slots: 0, total_slots: 0 }
       }
     )
     renderTimeline("/worker_timeline?tab=live")
 
     expect(await screen.findByText("No live workers match these filters.")).toBeInTheDocument()
+  })
+
+  // "Overloaded" covered both a host over its thread capacity and a host whose
+  // health sample was critical. A worker stalled on disk IO at 1% CPU and 8%
+  // memory read as "Overloaded" with one slot busy, and the two figures a
+  // reader checks next both looked fine.
+  it("names the saturated resource rather than calling an IO-stalled host overloaded", async () => {
+    setupFetchMock(
+      {},
+      {},
+      {
+        summary: { total_workers: 1, idle: 0, busy: 0, degraded: 0, overloaded: 1, capacity_exceeded: 0, health_critical: 1, used_slots: 1, total_slots: 8 },
+        workers: [
+          {
+            key: "storage-io",
+            hostname: "worker-io",
+            worker_storage_key: "storage-io",
+            status: "overloaded",
+            critical_dimensions: ["io_pressure"],
+            capacity_exceeded: false,
+            status_reasons: ["1/8 inferred slots occupied", "IO pressure 86.09% >= 50%"],
+            occupancy: { used: 1, total: 8 },
+            health: { level: "critical", reasons: ["IO pressure 86.09% >= 50%"], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 1, memory_used_percent: 8, io_pressure_some: 86.09 },
+            sparklines: { cpu: [], memory: [], io: [] },
+            pools: []
+          }
+        ]
+      }
+    )
+    renderTimeline("/worker_timeline?tab=live")
+
+    expect(await screen.findByText("worker-io")).toBeInTheDocument()
+    expect(screen.getByText("IO saturated")).toBeInTheDocument()
+    expect(screen.queryByText("Overloaded")).not.toBeInTheDocument()
+  })
+
+  it("still says over capacity when a host holds more work than threads", async () => {
+    setupFetchMock(
+      {},
+      {},
+      {
+        summary: { total_workers: 1, idle: 0, busy: 0, degraded: 0, overloaded: 1, capacity_exceeded: 1, health_critical: 0, used_slots: 9, total_slots: 3 },
+        workers: [
+          {
+            key: "storage-full",
+            hostname: "worker-full",
+            worker_storage_key: "storage-full",
+            status: "overloaded",
+            critical_dimensions: [],
+            capacity_exceeded: true,
+            status_reasons: ["9/3 inferred slots occupied", "capacity exceeded"],
+            occupancy: { used: 9, total: 3 },
+            health: { level: "ok", reasons: [], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 70, memory_used_percent: 50, io_pressure_some: 2 },
+            sparklines: { cpu: [], memory: [], io: [] },
+            pools: []
+          }
+        ]
+      }
+    )
+    renderTimeline("/worker_timeline?tab=live")
+
+    expect(await screen.findByText("worker-full")).toBeInTheDocument()
+    expect(screen.getAllByText("Over capacity").length).toBeGreaterThan(0)
   })
 
   it("uses the shared FilterBar on Live Workers and refetches with selected status", async () => {

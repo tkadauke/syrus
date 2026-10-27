@@ -789,8 +789,10 @@ class GithubClient
   # All open or closed issues for a repo (no label filter). Pull requests are
   # excluded — GitHub's issues endpoint returns them too when their state
   # matches. Results are sorted by updated_at desc (GitHub default).
-  def list_all_issues(repo_slug, state: "open")
-    track_rate_limits { @client.list_issues(repo_slug, state: state) }
+  def list_all_issues(repo_slug, state: "open", since: nil)
+    options = { state: state }
+    options[:since] = since.iso8601 if since.present?
+    track_rate_limits { @client.list_issues(repo_slug, **options) }
       .reject { |i| i.respond_to?(:pull_request) && i.pull_request }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing issues on #{repo_slug}: #{e.message}")
@@ -950,6 +952,26 @@ class GithubClient
     tree = track_rate_limits { @client.tree(repo_slug, tree_sha, recursive: 1) }
     entries = Array(tree.tree).map do |item|
       { path: item.path, type: item.type, mode: item.mode, size: item[:size]&.to_i, sha: item.sha }
+    end
+    { entries: entries, truncated: tree.truncated == true }
+  end
+
+  # Direct children of a directory at a commit. Walking non-recursive tree
+  # objects avoids GitHub's cap on recursive tree responses.
+  def commit_tree_children(repo_slug, commit_sha, path)
+    tree_sha = commit_tree_sha(repo_slug, commit_sha)
+    path.to_s.split("/").reject(&:empty?).each do |segment|
+      tree = track_rate_limits { @client.tree(repo_slug, tree_sha) }
+      child = Array(tree.tree).find { |item| item.path == segment && item.type == "tree" }
+      return nil unless child
+
+      tree_sha = child.sha
+    end
+
+    tree = track_rate_limits { @client.tree(repo_slug, tree_sha) }
+    prefix = path.present? ? "#{path}/" : ""
+    entries = Array(tree.tree).map do |item|
+      { path: prefix + item.path, type: item.type, mode: item.mode, size: item[:size]&.to_i, sha: item.sha }
     end
     { entries: entries, truncated: tree.truncated == true }
   end

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
@@ -484,62 +484,166 @@ describe("Runtime tool cards", () => {
     expect(screen.queryByText("Runtime launch: succeeded at Navigated to http://127.0.0.1:3001/settings")).not.toBeInTheDocument()
   })
 
-  it("summarizes inspect health while tolerating missing fields", () => {
+  it("renders browser inspection input and snapshot output", () => {
     const parsedResult = {
-      health: "healthy",
-      detected_framework: "Vite",
-      ports: [{ port: 5173, state: "listening" }],
-      process: { state: "running" },
-      warnings: ["missing alt text"],
+      error: false,
       content: [{ type: "text", text: "Snapshot: button Open settings" }]
     }
+    const input = { session_id: 27, options: { selector: "main", include_hidden: false } }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe(
-      "Runtime inspect: healthy, Vite, ports 5173 listening, running, 1 warning"
-    )
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { input, parsedResult }))).toBe("Runtime inspect complete")
 
-    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
-    expect(screen.getByText("healthy")).toBeInTheDocument()
-    expect(screen.getByText("Vite")).toBeInTheDocument()
-    expect(screen.getByText("5173 listening")).toBeInTheDocument()
-    expect(screen.getByText("missing alt text")).toBeInTheDocument()
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { input, parsedResult }))}</>)
+    expect(screen.getByText("27")).toBeInTheDocument()
+    expect(screen.getByText("selector")).toBeInTheDocument()
+    expect(screen.getByText("main")).toBeInTheDocument()
+    expect(screen.getByText("include_hidden")).toBeInTheDocument()
+    expect(screen.getByText("false")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
-
-    const sparse = { content: [{ type: "text", text: "Terminal scrollback is empty" }] }
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult: sparse }))).toBe("Runtime inspect: no health fields")
-    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult: sparse }))}</>)
-    expect(screen.getByText("Terminal scrollback is empty")).toBeInTheDocument()
+    expect(screen.getByText("Snapshot: button Open settings")).toBeInTheDocument()
   })
 
-  it("renders Android UIAutomator inspection output without browser-only fields", () => {
+  it("renders UIAutomator inspection output without browser-only fields", () => {
     const parsedResult = {
-      kind: "android_uiautomator",
+      kind: "mobile_uiautomator",
       xml: "<?xml version='1.0'?><hierarchy><node text='Sign in' /></hierarchy>",
       bytes: 67
     }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: no health fields")
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: mobile_uiautomator, 67 bytes")
 
     render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("mobile_uiautomator")).toBeInTheDocument()
+    expect(screen.getByText("67")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
     expect(screen.getAllByText(/<hierarchy>/).length).toBeGreaterThan(0)
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 
-  it("renders long Runtime logs as a collapsed preview with truncation details", () => {
+  it.each([
+    ["structured_content", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["content text JSON", (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })]
+  ])("normalizes runtime_inspect %s envelopes and keeps terminal output tail-aware and redacted", (_format, envelope) => {
+    const scrollback = Array.from({ length: 45 }, (_, index) =>
+      index === 44 ? "line 45 API_TOKEN=secret-value-that-must-not-render" : `line ${index + 1}`
+    ).join("\n")
+    const payload = { kind: "terminal_scrollback", scrollback, bytes: 775 }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime inspect",
+      calls: [
+        {
+          message_id: 62,
+          tool_name: "Runtime inspect",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_inspect",
+          detail: "",
+          display_label: "Runtime inspect",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 9, options: { source: "terminal" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText("Runtime inspect: terminal_scrollback, 775 bytes")).toBeInTheDocument()
+    expandToolGroup("Runtime inspect")
+    expect(screen.getByText("9")).toBeInTheDocument()
+    expect(screen.getByText("terminal")).toBeInTheDocument()
+    const preview = screen.getByTestId("text-preview-content")
+    expect(within(preview).getByText(/… 5 earlier lines/)).toBeInTheDocument()
+    expect(preview.textContent).not.toContain("\nline 1\n")
+    expect(within(preview).getByText(/line 45 API_TOKEN=\[redacted\]/)).toBeInTheDocument()
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+  })
+
+  it("renders boolean runtime inspection failures distinctly", () => {
+    const parsedResult = { error: true, content: [{ type: "text", text: "browser inspection timed out" }] }
+
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect failed")
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("browser inspection timed out", { selector: "div" })).toHaveClass("text-danger-text")
+  })
+
+  it("renders long Runtime logs as a tail preview with request details and full-log popup", () => {
     const entries = Array.from({ length: 45 }, (_, index) => `line ${index + 1}`)
     const parsedResult = { entries, cursor: 45 }
 
     expect(runtimeLogsToolCard.collapsedSummary?.(context("runtime_logs", { parsedResult }))).toBe("Runtime logs: 45 lines, cursor 45")
 
-    render(<>{runtimeLogsToolCard.renderExpanded(context("runtime_logs", { parsedResult, input: { cursor: 0 } }))}</>)
+    render(<>{runtimeLogsToolCard.renderExpanded(context("runtime_logs", { parsedResult, input: { session_id: 7, cursor: 0, limit: 45 } }))}</>)
+    expect(screen.getByText("Session ID")).toBeInTheDocument()
+    expect(screen.getByText("Limit")).toBeInTheDocument()
+    expect(screen.getByText("Requested cursor")).toBeInTheDocument()
+    expect(screen.getByText("Next cursor")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
+    expect(screen.getAllByText("45")).toHaveLength(3)
     const preview = screen.getByText("Log preview").closest("details")
     expect(preview).not.toBeNull()
     if (!preview) throw new Error("missing log preview")
     expect(within(preview).getByText(/… 5 earlier lines/)).toBeInTheDocument()
     expect(preview.textContent).not.toContain("\nline 1\n")
     expect(within(preview).getByText(/line 45/)).toBeInTheDocument()
+    fireEvent.click(within(preview).getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full Runtime logs" })
+    expect(within(dialog).getByText(/line 1/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/line 45/)).toBeInTheDocument()
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["direct", "runtime_logs", (payload: unknown) => payload],
+    ["structured content", "mcp__syrus-chat-sidecar__runtime_logs", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    [
+      "content text JSON",
+      "mcp__syrus-chat-sidecar__runtime_logs",
+      (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })
+    ]
+  ])("normalizes and redacts Runtime logs from %s results", (_format, rawName, envelope) => {
+    const payload = {
+      entries: ["starting", "API_TOKEN=secret-value-that-must-not-render", "ready"],
+      cursor: 103
+    }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime logs",
+      calls: [
+        {
+          message_id: 63,
+          tool_name: "Runtime logs",
+          raw_name: rawName,
+          detail: "",
+          display_label: "Runtime logs",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 12, cursor: 100, limit: 50 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText("Runtime logs: 3 lines, cursor 103")).toBeInTheDocument()
+    expandToolGroup("Runtime logs")
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("100")).toBeInTheDocument()
+    expect(screen.getByText("50")).toBeInTheDocument()
+    expect(screen.getByText("103")).toBeInTheDocument()
+    expect(screen.getAllByText(/API_TOKEN=\[redacted\]/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/secret-value-that-must-not-render/)).not.toBeInTheDocument()
   })
 
   it("shows stopped runtimes with their final state", () => {
@@ -630,18 +734,81 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("[redacted]")).toBeInTheDocument()
   })
 
-  it("clearly confirms acquired Runtime control", () => {
+  it("renders acquired Runtime control with request, linked owner, relative times, and Markdown reason", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:00:10Z"))
     const parsedResult = lease()
+    const toolContext = context("runtime_acquire_control", {
+      input: { session_id: 7, mode: "input", duration_seconds: 30 },
+      parsedResult
+    })
 
-    expect(runtimeAcquireControlToolCard.collapsedSummary?.(context("runtime_acquire_control", { parsedResult }))).toBe("Runtime control acquired: input #42")
+    expect(runtimeAcquireControlToolCard.collapsedSummary?.(toolContext)).toBe("Runtime control acquired: input #42")
 
-    render(<>{runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { parsedResult }))}</>)
+    try {
+      render(<>{runtimeAcquireControlToolCard.renderExpanded(toolContext)}</>)
+      expect(screen.getByText("Agent owns Runtime control.")).toBeInTheDocument()
+      expect(screen.getByText("Control #42")).toBeInTheDocument()
+      expect(screen.getByText("7")).toBeInTheDocument()
+      expect(screen.getAllByText("input").length).toBeGreaterThan(0)
+      expect(screen.getByText("30 seconds")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+      expect(screen.getByText("click the preview")).toBeInTheDocument()
+      expect(screen.getByText("10 seconds ago")).toHaveAttribute("datetime", "2026-09-10T12:00:00Z")
+      expect(screen.getByText("in 20 seconds")).toHaveAttribute("datetime", "2026-09-10T12:00:30Z")
+      expect(screen.queryByText("2026-09-10T12:00:00Z")).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ["structured content", { structured_content: lease(), content: [] }],
+    ["text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify(lease()) }] }]
+  ])("renders acquire control through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime acquire control",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_acquire_control",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_acquire_control",
+          detail: "Runtime #7",
+          display_label: "Runtime acquire control",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7, mode: "input", duration_seconds: 30 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime acquire control")
     expect(screen.getByText("Agent owns Runtime control.")).toBeInTheDocument()
-    expect(screen.getByText("Control #42")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
+  })
+
+  it("keeps acquire control payload secrets redacted", () => {
+    const parsedResult = redactToolCardValue(lease({ api_token: "result-secret" }))
+    const input = redactToolCardValue({ session_id: 7, mode: "input", duration_seconds: 30, api_token: "input-secret" }) as Record<string, unknown>
+
+    render(<>{runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { input, parsedResult }))}</>)
+    expect(screen.queryByText("result-secret")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText(/"api_token": "\[redacted\]"/)).toBeInTheDocument()
   })
 
   it("distinguishes denied Runtime control from confirmed ownership", () => {
     const toolContext = context("runtime_acquire_control", {
+      input: { session_id: 7, mode: "input", duration_seconds: 30 },
       resultBody: "runtime session 7 already has an active input lease",
       resultError: true,
       parsedResult: null
@@ -651,10 +818,15 @@ describe("Runtime tool cards", () => {
 
     render(<>{runtimeAcquireControlToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
     expect(screen.queryByText("Agent owns Runtime control.")).not.toBeInTheDocument()
   })
 
-  it("uses the Runtime error card for failed acquire results in the real ToolGroup path", () => {
+  it("extracts failed acquire messages from a real MCP error envelope", () => {
+    const envelope = {
+      content: [{ type: "text", text: "Error: runtime session 7 already has an active input lease" }],
+      isError: true
+    }
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Runtime acquire control",
@@ -662,12 +834,13 @@ describe("Runtime tool cards", () => {
         {
           message_id: 1,
           tool_name: "runtime_acquire_control",
-          raw_name: "runtime_acquire_control",
-          detail: "No arguments",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_acquire_control",
+          detail: "Runtime #7",
           display_label: "Runtime acquire control",
           progress_label: "Thinking",
-          raw_payload: {},
-          result_body: "runtime session 7 already has an active input lease",
+          raw_payload: { session_id: 7, mode: "input", duration_seconds: 30 },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
           result_error: true,
           result_kind: "error",
           result_summary: ""
@@ -679,11 +852,13 @@ describe("Runtime tool cards", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("Runtime acquire control failed")).toBeInTheDocument()
+    expect(screen.getByText(/Runtime acquire control failed/)).toBeInTheDocument()
 
     expandToolGroup("Runtime acquire control")
 
-    expect(screen.getByText("runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("Error: runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
+    expect(screen.queryByText(JSON.stringify(envelope))).not.toBeInTheDocument()
     expect(screen.queryByText("Agent owns Runtime control.")).not.toBeInTheDocument()
   })
 
@@ -699,22 +874,92 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("expired")).toBeInTheDocument()
   })
 
-  it("renders released control leases", () => {
+  it("renders released control leases with their session, linked owner, relative times, mode, reason, and state", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:00:40Z"))
     const parsedResult = { released: [lease({ id: 44, state: "released" })] }
+    const toolContext = context("runtime_release_control", { input: { session_id: 7 }, parsedResult })
 
-    expect(runtimeReleaseControlToolCard.collapsedSummary?.(context("runtime_release_control", { parsedResult }))).toBe("Released 1 Runtime control lease")
+    expect(runtimeReleaseControlToolCard.collapsedSummary?.(toolContext)).toBe("Released 1 Runtime control lease")
 
-    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { parsedResult }))}</>)
-    expect(screen.getByText("Released lease #44")).toBeInTheDocument()
-    expect(screen.getByText("released")).toBeInTheDocument()
+    try {
+      render(<>{runtimeReleaseControlToolCard.renderExpanded(toolContext)}</>)
+      expect(screen.getByText("Released lease #44")).toBeInTheDocument()
+      expect(screen.getByText("7")).toBeInTheDocument()
+      expect(screen.getByText("released")).toBeInTheDocument()
+      expect(screen.getByText("input")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+      expect(screen.getByText("click the preview")).toBeInTheDocument()
+      expect(screen.getByText("40 seconds ago")).toHaveAttribute("datetime", "2026-09-10T12:00:00Z")
+      expect(screen.getByText("10 seconds ago")).toHaveAttribute("datetime", "2026-09-10T12:00:30Z")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
-  it("summarizes delivered text input without exposing a large raw payload by default", () => {
+  it.each([
+    ["structured content", { structured_content: { released: [lease({ state: "released" })] }, content: [] }],
+    ["text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify({ released: [lease({ state: "released" })] }) }] }]
+  ])("renders release control through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime release control",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_release_control",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_release_control",
+          detail: "Runtime #7",
+          display_label: "Runtime release control",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime release control")
+    expect(screen.getByText("Released lease #42")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+    expect(screen.getByText("7")).toBeInTheDocument()
+  })
+
+  it("shows release failures with the requested session", () => {
+    const toolContext = context("runtime_release_control", {
+      input: { session_id: 7 },
+      resultBody: "runtime session is unavailable",
+      resultError: true
+    })
+
+    expect(runtimeReleaseControlToolCard.collapsedSummary?.(toolContext)).toBe("Runtime release control failed")
+    render(<>{runtimeReleaseControlToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("runtime session is unavailable")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
+  })
+
+  it("keeps release control payload secrets redacted", () => {
+    const parsedResult = redactToolCardValue({ released: [lease({ state: "released", api_token: "result-secret" })] })
+    const input = redactToolCardValue({ session_id: 7, api_token: "input-secret" }) as Record<string, unknown>
+
+    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { input, parsedResult }))}</>)
+    expect(screen.queryByText("result-secret")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText(/"api_token": "\[redacted\]"/)).toBeInTheDocument()
+  })
+
+  it("masks typed text everywhere until an explicit reveal", () => {
     const longText = `whoami\n${"x".repeat(140)}`
-    const parsedResult = { delivered: true, echoed_event: { raw: "not shown outside details" } }
+    const parsedResult = { delivered: true, event: { type: "stdin", text: longText } }
     const toolContext = context("runtime_input", {
       parsedResult,
-      input: { event: { type: "stdin", target: "terminal", data: longText, internal_payload: { huge: true } } }
+      input: { session_id: 41, event: { type: "stdin", target: "terminal", text: longText, internal_payload: { huge: true } } }
     })
 
     expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input delivered: stdin on terminal")
@@ -723,11 +968,16 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("delivered")).toBeInTheDocument()
     expect(screen.getAllByText("terminal").length).toBeGreaterThan(0)
     const valueRow = screen.getByText("Value").parentElement
-    const valueSummary = valueRow?.querySelector("[title]")?.getAttribute("title")
-    expect(valueSummary?.startsWith("whoami\n")).toBe(true)
-    expect(valueSummary?.endsWith("...")).toBe(true)
-    expect(valueSummary?.length).toBeLessThan(longText.length)
+    expect(valueRow).toHaveTextContent(`[typed text: ${longText.length} characters]`)
+    expect(screen.queryByText(/whoami/)).not.toBeInTheDocument()
+    expect(screen.getByText("41")).toBeInTheDocument()
     expect(screen.getByText("Input event")).toBeInTheDocument()
+    expect(screen.getByText("Echoed event")).toBeInTheDocument()
+    expect(screen.getAllByText(new RegExp(`typed text: ${longText.length} characters`)).length).toBeGreaterThan(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Reveal typed text" }))
+    expect(screen.getByRole("button", { name: "Hide typed text" })).toBeInTheDocument()
+    expect(screen.getAllByText(/whoami/).length).toBeGreaterThan(0)
     expect(screen.queryByText("Runtime input delivered: stdin on terminal")).not.toBeInTheDocument()
   })
 
@@ -749,7 +999,69 @@ describe("Runtime tool cards", () => {
 
     expect(runtimeInputToolCard.collapsedSummary?.(failed)).toBe("Runtime input failed: lease_required")
     render(<>{runtimeInputToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("lease_required")).toBeInTheDocument()
     expect(screen.getByText("the agent must hold an active input lease before sending input events")).toBeInTheDocument()
+  })
+
+  it("treats the browser boolean error shape as failed and keeps its message separate", () => {
+    const toolContext = context("runtime_input", {
+      parsedResult: { error: true, delivered: false, content: "click dispatch failed", message: "Browser connection closed" },
+      input: { session_id: 12, event: { type: "click", x: 10, y: 20 } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input failed: input_failed")
+    render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("input_failed")).toBeInTheDocument()
+    expect(screen.getByText("Browser connection closed")).toBeInTheDocument()
+  })
+
+  it("treats delivered false as a failure and shows pointer details", () => {
+    const toolContext = context("runtime_input", {
+      parsedResult: { delivered: false, event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } },
+      input: { session_id: "device-9", event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input failed")
+    render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("device-9")).toBeInTheDocument()
+    expect(screen.getAllByText("120").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("240").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("touch").length).toBeGreaterThan(0)
+    expect(screen.getByText("Echoed event")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["structured content", { structured_content: { delivered: true }, content: [] }],
+    ["text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify({ delivered: true }) }] }]
+  ])("normalizes Runtime input from %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime input",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_input",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_input",
+          detail: "click",
+          display_label: "Runtime input",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7, event: { type: "click", target: "button#save" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime input")
+    expect(screen.getByText("delivered")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
   })
 
   it("shows Runtime snapshot preview and page metadata", () => {
@@ -776,9 +1088,9 @@ describe("Runtime tool cards", () => {
     expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument()
   })
 
-  it("renders Android latest-frame snapshots with provider metadata", () => {
+  it("renders Latest-frame snapshots with provider metadata", () => {
     const parsedResult = {
-      kind: "android_screenshot",
+      kind: "mobile_screenshot",
       content_type: "image/png",
       document_id: 31,
       preview_url: "/api/v1/app/chats/8/media/chat_images/31/file",
@@ -788,11 +1100,11 @@ describe("Runtime tool cards", () => {
       warning: "device offline"
     }
 
-    expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of android_screenshot")
+    expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of mobile_screenshot")
 
     render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
     expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
-    expect(screen.getAllByText("android_screenshot").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("mobile_screenshot").length).toBeGreaterThan(0)
     expect(screen.getAllByText("31").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
     expect(screen.getByText("device offline")).toBeInTheDocument()
@@ -834,9 +1146,9 @@ describe("Runtime tool cards", () => {
     expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file?download=1")
   })
 
-  it("renders Android screenshot payloads as generic Runtime artifacts", () => {
+  it("renders Device screenshot payloads as generic Runtime artifacts", () => {
     const parsedResult = {
-      kind: "android_screenshot",
+      kind: "mobile_screenshot",
       content_type: "image/png",
       document_id: 44,
       file_path: "/api/v1/app/chats/8/media/chat_images/44/file",
@@ -845,11 +1157,11 @@ describe("Runtime tool cards", () => {
     }
 
     expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe(
-      "Runtime artifact captured: android_screenshot"
+      "Runtime artifact captured: mobile_screenshot"
     )
 
     render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "android_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
+    expect(screen.getByRole("img", { name: "mobile_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
     expect(screen.getAllByText("44").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
   })
@@ -868,8 +1180,9 @@ describe("Runtime tool cards", () => {
 
     expect(runtimeReleaseControlToolCard.collapsedSummary?.(context("runtime_release_control", { parsedResult }))).toBe("No Runtime control leases released")
 
-    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { parsedResult }))}</>)
+    render(<>{runtimeReleaseControlToolCard.renderExpanded(context("runtime_release_control", { input: { session_id: 527 }, parsedResult }))}</>)
     expect(screen.getByText("No active agent Runtime control leases were held.")).toBeInTheDocument()
+    expect(screen.getByText("527")).toBeInTheDocument()
   })
 
   it("falls back to raw rendering for malformed Runtime payloads", () => {

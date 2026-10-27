@@ -152,6 +152,10 @@ class StepDispatcher
       return if start_blocked_backoff_active?(workflow, reason)
 
       record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF)
+      # Like the Epic-wide and landing-pause gates above. Without it this gate
+      # had nothing scheduled to look again, so a workflow blocked here waited
+      # on a main-health transition rather than on its own backoff.
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
       warn_if_stuck_queued(workflow, reason)
       return
     end

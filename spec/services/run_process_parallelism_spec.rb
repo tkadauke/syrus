@@ -1,4 +1,6 @@
 require "rails_helper"
+require "open3"
+require "rbconfig"
 
 RSpec.describe RunProcessParallelism do
   let(:user) { Factories.user }
@@ -165,6 +167,29 @@ RSpec.describe RunProcessParallelism do
       described_class.effective_cpu_count
 
       expect(Rails.logger).to have_received(:warn).with(/no CPU quota visible/)
+    end
+
+    # config/queue.yml now sizes its run pool from host_capacity, and the
+    # worker renders that ERB before Rails exists. Reaching for Rails.logger
+    # on the warning path raised NameError there and took worker startup with
+    # it, so the warning has to survive without Rails rather than assume it.
+    it "sizes capacity without Rails, because queue.yml renders before Rails loads" do
+      script = <<~RUBY
+        $LOAD_PATH.unshift File.expand_path("app/services", Dir.pwd)
+        require "run_process_parallelism"
+        print RunProcessParallelism.host_capacity
+      RUBY
+
+      stdout, stderr, status = Open3.capture3(
+        { described_class::CPU_LIMIT_ENV => nil },
+        RbConfig.ruby, "-e", script, chdir: Rails.root.to_s
+      )
+
+      # Only that it resolves a usable number without Rails. Whether the
+      # warning fires depends on whether this host exposes a cgroup quota,
+      # which differs between a developer machine and CI.
+      expect(status).to be_success, stderr
+      expect(Integer(stdout)).to be >= 1
     end
   end
 

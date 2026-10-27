@@ -74,6 +74,25 @@ RSpec.describe PollMergeStateJob, :ci_only do
     described_class.perform_now(job.id)
   end
 
+  it "closes a fetched merged PR through the normal merged-PR lifecycle" do
+    active_run = job.initial_run
+    active_run.update_columns(state: "running", started_at: Time.current, finished_at: nil)
+    job.update!(grace_period_expires_at: 2.days.from_now)
+    allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
+      pr(merged: true, state: "closed")
+    )
+    allow_any_instance_of(GithubClient).to receive(:delete_branch).and_return(true)
+
+    described_class.perform_now(job.id)
+
+    expect(job.reload).to be_closed
+    expect(job.closure_reason).to eq("pr_merged")
+    expect(job.finished_at).to be_present
+    expect(job.grace_period_expires_at).to be_nil
+    expect(job.branch_deleted_at).to be_present
+    expect(active_run.reload).to be_cancelled
+  end
+
   it "delays autonomous polling while the persisted rate limit is exhausted" do
     user.update!(
       gh_rate_limit_remaining: 0,

@@ -1,8 +1,9 @@
 class ProcessResourceSampler
   VERSION = 2
   METHOD = "linux_proc_process_group".freeze
+  DEFAULT_PROC_ROOT = "/proc".freeze
 
-  def self.rss_bytes(pid: Process.pid, proc_root: "/proc")
+  def self.rss_bytes(pid: Process.pid, proc_root: DEFAULT_PROC_ROOT)
     raw = File.read(File.join(proc_root, pid.to_s, "stat"))
     after_name = raw[(raw.rindex(")") + 2)..]
     pages = Integer(after_name.split.fetch(21))
@@ -12,7 +13,7 @@ class ProcessResourceSampler
     nil
   end
 
-  def initialize(pid:, pgid: nil, proc_root: "/proc")
+  def initialize(pid:, pgid: nil, proc_root: DEFAULT_PROC_ROOT)
     @pid = pid
     @pgid = pgid
     @proc_root = proc_root
@@ -28,7 +29,7 @@ class ProcessResourceSampler
   end
 
   def sample!
-    return unless linux?
+    return unless proc_filesystem_available?
     return if pid.blank?
 
     metrics_by_process = process_ids.to_h do |process_id|
@@ -66,7 +67,7 @@ class ProcessResourceSampler
   end
 
   def payload
-    return unavailable_payload unless linux?
+    return unavailable_payload unless proc_filesystem_available?
 
     {
       "method" => METHOD,
@@ -201,7 +202,14 @@ class ProcessResourceSampler
     4096
   end
 
-  def linux?
+  # Whether there is a Linux-style /proc to read. For the real /proc that is a
+  # question about the platform, but a caller that supplies its own proc_root
+  # has already answered it -- which is the seam this is exercised through off
+  # Linux, where /proc does not exist and the platform check alone made the
+  # injected root unreachable.
+  def proc_filesystem_available?
+    return true unless proc_root.to_s == DEFAULT_PROC_ROOT
+
     RUBY_PLATFORM.include?("linux")
   end
 end

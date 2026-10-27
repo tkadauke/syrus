@@ -1,12 +1,14 @@
 import type { ChatWhiteboardScene } from "@app/api/chats"
+import { useMemo, useState } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
 import { CompactActionCard, type CompactActionRow } from "@app/routes/chat/compactActionCard"
-import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
+import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row } from "@app/routes/chat/toolCardUi"
 import { normalizeWhiteboardScene } from "@app/routes/chat/whiteboardScene"
+import { redactToolCardText } from "@app/toolCardSecurity"
 import { WhiteboardSnapshotPreview } from "./whiteboardSnapshotPreview"
 
 // Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
@@ -216,17 +218,39 @@ function elementAttempt(context: ToolCardContext, action: string) {
 // read_scene and update_scene both surface the whole scene rather than one
 // element -- concise scene counts (elements/files/version) are the useful
 // summary here, not a dump of every element.
-export type SceneCounts = { elementCount: number; fileCount: number; version: number | null }
+export type SceneCounts = {
+  elementCount: number
+  fileCount: number
+  version: number | null
+  typeCounts?: { type: string; count: number }[]
+  textContents?: string[]
+  previewScene?: ChatWhiteboardScene
+}
 
 export function parseSceneCounts(value: unknown): SceneCounts | null {
+  if (isPlainObject(value) && isPlainObject(value.result)) value = value.result
   if (!isPlainObject(value) || !Array.isArray(value.elements)) return null
 
   const files = isPlainObject(value.files) ? value.files : {}
+  const typeCounts = new Map<string, number>()
+  const textContents: string[] = []
+  for (const element of value.elements) {
+    if (!isPlainObject(element)) continue
+    const type = displayValue(element.type) ?? t("tool_unknown_type")
+    typeCounts.set(type, (typeCounts.get(type) ?? 0) + 1)
+    if (type === "text") {
+      const content = displayValue(element.text) ?? displayValue(element.originalText)
+      if (content) textContents.push(redactToolCardText(content))
+    }
+  }
 
   return {
     elementCount: value.elements.length,
     fileCount: Object.keys(files).length,
-    version: numberValue(value.version)
+    version: numberValue(value.version),
+    typeCounts: [...typeCounts].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
+    textContents,
+    previewScene: normalizeWhiteboardScene(value as Partial<ChatWhiteboardScene>)
   }
 }
 
@@ -236,6 +260,11 @@ export function sceneCountsSummary(counts: SceneCounts): string {
 }
 
 export function SceneCountsCard({ counts, action }: { counts: SceneCounts; action: string }) {
+  const [showAllText, setShowAllText] = useState(false)
+  const textContents = counts.textContents ?? []
+  const visibleText = showAllText ? textContents.slice(0, 50) : textContents.slice(0, 3)
+  const previewScene = useMemo(() => boundedPreviewScene(counts.previewScene), [counts.previewScene])
+
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
@@ -244,10 +273,66 @@ export function SceneCountsCard({ counts, action }: { counts: SceneCounts; actio
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         <Row label={t("tool_elements")} value={String(counts.elementCount)} />
-        <Row label={t("tool_files")} value={String(counts.fileCount)} />
+        <Row label={t("tool_image_files")} value={String(counts.fileCount)} />
       </dl>
+      {counts.elementCount === 0 ? <p className="text-sm text-text-subtle">{t("tool_scene_empty")}</p> : null}
+      {(counts.typeCounts?.length ?? 0) > 0 ? (
+        <div aria-label={t("tool_element_types")} className="flex flex-wrap gap-1.5">
+          {counts.typeCounts?.map(({ type, count }) => (
+            <Badge key={type}>
+              {type} · {count}
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+      {visibleText.length > 0 ? (
+        <div className="min-w-0">
+          <div className="mb-1 text-xs font-semibold uppercase text-text-subtle">{t("tool_text_contents")}</div>
+          <ul className="space-y-1">
+            {visibleText.map((content, index) => (
+              <li className="truncate text-sm text-text-primary" key={`${index}-${content}`} title={content}>
+                {content}
+              </li>
+            ))}
+          </ul>
+          {textContents.length > 3 ? (
+            <button className="mt-1 text-xs font-semibold text-brand hover:underline" onClick={() => setShowAllText((value) => !value)} type="button">
+              {t(showAllText ? "tool_show_less" : "tool_show_more")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {counts.elementCount > 0 && previewScene ? (
+        <WhiteboardSnapshotPreview
+          item={{
+            title: t("tool_scene_preview"),
+            subtitle: sceneCountsSummary(counts),
+            badge: t("tool_scene"),
+            meta: [
+              { label: t("tool_elements"), value: String(counts.elementCount) },
+              { label: t("tool_image_files"), value: String(counts.fileCount) },
+              { label: t("tool_version"), value: counts.version != null ? String(counts.version) : null }
+            ]
+          }}
+          scene={previewScene}
+        />
+      ) : null}
     </CardShell>
   )
+}
+
+function boundedPreviewScene(scene: ChatWhiteboardScene | undefined): ChatWhiteboardScene | undefined {
+  if (!scene) return undefined
+
+  const elements = scene.elements.slice(0, 500)
+  const fileIds = new Set(
+    elements
+      .map((element) => (typeof element.fileId === "string" ? element.fileId : null))
+      .filter((fileId): fileId is string => Boolean(fileId))
+      .slice(0, 100)
+  )
+  const files = Object.fromEntries(Object.entries(scene.files).filter(([fileId]) => fileIds.has(fileId)))
+  return { elements, appState: scene.appState, files }
 }
 
 // save_canvas either records a snapshot or reports the canvas was empty.
@@ -344,6 +429,8 @@ export type LoadCanvasResult = {
   autoSavedSnapshotId: string | null
   snapshotId: string | null
   mode: string | null
+  chatId: string | null
+  version: number | null
 }
 
 export function parseLoadCanvasResult(value: unknown): LoadCanvasResult | null {
@@ -353,37 +440,63 @@ export function parseLoadCanvasResult(value: unknown): LoadCanvasResult | null {
     elementsAdded: numberValue(value.elements_added),
     autoSavedSnapshotId: displayValue(value.auto_saved_snapshot_id),
     snapshotId: displayValue(value.snapshot_id),
-    mode: displayValue(value.mode)
+    mode: displayValue(value.mode),
+    chatId: displayValue(value.chat_session_id),
+    version: numberValue(value.version)
   }
 }
 
 export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
-  const actions: MediaPreviewAction[] = result.snapshotId ? [{ label: "Copy ID", copyValue: result.snapshotId }] : []
-  if (result.autoSavedSnapshotId) actions.push({ label: "Copy auto-save", copyValue: result.autoSavedSnapshotId })
+  const whiteboardHref = result.chatId ? `/chats/${result.chatId}?workspace=plugin%3Awhiteboard.canvas` : null
+  const mediaHref = result.chatId ? `/chats/${result.chatId}?workspace=media` : null
+  const modeLabel = result.mode ? t(`tool_mode_${result.mode}`) : null
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{t("tool_loaded_snapshot")}</Badge>
-        {result.snapshotId ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{result.snapshotId}</span> : null}
-        {result.mode ? <Badge>{result.mode}</Badge> : null}
+        {result.snapshotId ? <EntityReference href={whiteboardHref} id={result.snapshotId} kind="whiteboard_snapshot" /> : null}
+        {modeLabel ? <Badge>{modeLabel}</Badge> : null}
+        {result.version != null ? <Badge>v{result.version}</Badge> : null}
       </div>
-      {result.snapshotId ? (
-        <MediaPreviewShell
+      {result.snapshotId && result.chatId ? (
+        <WhiteboardSnapshotPreview
+          chatId={result.chatId}
           item={{
-            title: `Snapshot #${result.snapshotId}`,
-            subtitle: result.mode,
-            badge: "snapshot",
-            fallbackLabel: "Whiteboard snapshot",
-            actions,
+            title: t("tool_snapshot_title", { id: result.snapshotId }),
+            subtitle: modeLabel,
+            badge: t("tool_loaded_snapshot"),
+            actions: [
+              { label: t("tool_open_whiteboard"), href: whiteboardHref },
+              { label: t("tool_view_in_media"), href: mediaHref },
+              { label: t("tool_copy_id"), copyValue: result.snapshotId }
+            ],
             meta: [
-              { label: "Snapshot ID", value: result.snapshotId, copyValue: result.snapshotId },
-              { label: "Mode", value: result.mode },
-              { label: "Elements added", value: result.elementsAdded != null ? String(result.elementsAdded) : null },
-              { label: "Auto-saved as", value: result.autoSavedSnapshotId, copyValue: result.autoSavedSnapshotId }
+              { label: t("tool_snapshot_id"), value: result.snapshotId, copyValue: result.snapshotId },
+              { label: t("tool_mode"), value: modeLabel },
+              { label: t("tool_elements_added"), value: result.elementsAdded != null ? String(result.elementsAdded) : null },
+              { label: t("tool_version"), value: result.version != null ? String(result.version) : null }
             ]
           }}
-          modalLabel="Whiteboard snapshot"
+          snapshotId={result.snapshotId}
+        />
+      ) : result.snapshotId ? (
+        <Row label={t("tool_snapshot_id")} value={result.snapshotId} />
+      ) : null}
+      {result.autoSavedSnapshotId && result.chatId ? (
+        <WhiteboardSnapshotPreview
+          chatId={result.chatId}
+          item={{
+            title: t("tool_pre_load_backup_title", { id: result.autoSavedSnapshotId }),
+            badge: t("tool_pre_load_backup"),
+            actions: [
+              { label: t("tool_open_whiteboard"), href: whiteboardHref },
+              { label: t("tool_view_in_media"), href: mediaHref },
+              { label: t("tool_copy_id"), copyValue: result.autoSavedSnapshotId }
+            ],
+            meta: [{ label: t("tool_snapshot_id"), value: result.autoSavedSnapshotId, copyValue: result.autoSavedSnapshotId }]
+          }}
+          snapshotId={result.autoSavedSnapshotId}
         />
       ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">

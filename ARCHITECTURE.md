@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-10-19._
+_Last reviewed: 2026-10-26._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -221,8 +221,9 @@ event :reopen # clears closure_reason, finished_at, failure_count
 Epics group related Jobs under one repository and owner. They have their
 own board lifecycle (`backlog`, `ready`, `in_progress`, `done`,
 `archived`), dependency graph, ownership/claim fields, chat-proposal
-source links, and optional merge-train landing behavior for approved
-child Jobs. Starting an Epic unblocks its child Jobs; moving it back or
+source links, and merge-train landing behavior for approved child Jobs.
+Merge trains are the standard Epic landing path rather than an instance
+feature toggle. Starting an Epic unblocks its child Jobs; moving it back or
 archiving it restores the child Epic block. Epics carry an auto-generated
 `slug` (kebab-case from title, max 50 chars, collision-suffixed) accepted
 by CLI and API in place of numeric id or `EPIC-<n>` prefix.
@@ -292,6 +293,12 @@ the Workflow template. Each Step owns one or more Runs. A Run lives in
 diff/head SHA, cost metadata, and provider-specific result for a single
 Step execution.
 
+`Workflow#artifacts` remains the hash-like API for structured data passed
+between Steps. Small values stay in the Workflow JSON column, while known
+large keys are stored in uniquely keyed `WorkflowArtifactValue` rows and
+merged transparently on reads. This keeps frequently loaded Workflow rows
+small without changing Step handlers or artifact consumers.
+
 | Column | Meaning |
 |---|---|
 | `state` | AASM (see diagram below) |
@@ -340,7 +347,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `rebase` | `PollMergeStateJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; pushes with an explicit `--force-with-lease` lease |
 | `stack_rebase` | dependent PR stack needs to be rebased branch-by-branch | force-pushes each updated branch and resumes landing |
 | `auto_merge` | landing queue picked an approved Job | runs final gates, optional repair, push, and GitHub merge |
-| `merge_train` | landing queue picked a ready Epic when merge train is enabled | builds and lands all approved child PRs atomically |
+| `merge_train` | landing queue picked a ready Epic | builds and lands all approved child PRs atomically |
 | `retry` | operator: "Run again" | new Run on the existing branch |
 | `replay` | operator replay of a failed/retryable path | uses the retry Workflow template |
 | `manual_visual_review` | operator or chat: "Run visual review" | one-shot QA pass over the Job's already-implemented diff; runs `visual_review` alone (no implement/respond re-loop) |
@@ -933,9 +940,9 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → optional post_implementation_review` |
-| `pr_comment` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push) → optional post_implementation_review` |
-| `chat_feedback` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push) → optional post_implementation_review` |
+| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(security_review first, then implement ⇄ security_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → optional post_implementation_review` |
+| `pr_comment` | `prepare → respond → optional adversarial, security, and visual review-first repair loops → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push) → optional post_implementation_review` |
+| `chat_feedback` | same shape as `pr_comment`, using confirmed chat feedback as the response context |
 | `ci_failure` | `prepare → retry_until(analyze_and_fix → grader_fanout → grader_collect) → summarize_amend → try(push)` |
 | `retry` / `replay` | Same shape as `initial`: `prepare → implement → ` optional review loops (review-first) `→` optional retry loop (check-first, `repair: implement`) `→` initial's finish steps, reusing the existing branch and PR if present |
 | `manual_visual_review` | `prepare → visual_review` — on-demand QA pass triggered by the operator or chat; records a verdict without looping back into implement/respond |
@@ -944,7 +951,7 @@ Current Workflow chains:
 | `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
 | `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
 | `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land_after_rebase)` |
-| `coding_handoff` | `prepare → optional loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review) → optional loop(visual_review first, then coding_handoff_fix ⇄ visual_review) → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → optional post_implementation_review` |
+| `coding_handoff` | `prepare → optional adversarial, security, and visual review-first repair loops → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → optional post_implementation_review` |
 | `local_mode_handoff` | `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize_amend → try(push)` (PR already open) or `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize → test_plan → pr_open` (no PR yet) |
 | `main_grader` | `prepare → builder_fanout → grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
 | `agent_insight` | `prepare → agent_insight_run → auto_close` (read-only analysis; creates `InsightSuggestion` records; anchor Job auto-closes and is excluded from ordinary work queues) |
@@ -981,7 +988,7 @@ are keyed by worker storage identity and fingerprint, marked ready only after
 complete extraction, and evicted least-recently-used when the configured size
 budget or data-root disk pressure requires it.
 
-Agentic Steps (`implement`, `adversarial_review`, `visual_review`,
+Agentic Steps (`implement`, `adversarial_review`, `security_review`, `visual_review`,
 `respond`, `analyze_and_fix`, rebase repair, landing repair,
 `local_mode_handoff_fix`, summarize, test_plan, and manual)
 invoke the Workflow's
@@ -1002,8 +1009,8 @@ unconfigured, the plan has `pr_comment: false`, or the Job has no PR.
 `initial`, `retry`, `pr_comment`, and `chat_feedback` all materialize a
 bare top-level `implement`/`respond` Step immediately after `prepare`.
 Optional review and grade loops revise that work; they do not decide
-whether implementation/response happens. When configured, both
-`adversarial_review` and `visual_review` are review-first loops: the
+whether implementation/response happens. When configured,
+`adversarial_review`, `security_review`, and `visual_review` are review-first loops: the
 first iteration reviews whatever agent step already ran before the loop
 (the bare top-level step, or the tail of a preceding review loop). A
 `needs_work` verdict always inserts a repair `implement`/`respond` Step,
@@ -1054,10 +1061,27 @@ block in `.syrus.yml`; when present, the reviewer prompt inserts a "pay
 particular attention" section listing each criterion. Criteria are
 additive — the standard review checklist still applies.
 
-The optional `visual_review` loop runs immediately after the
-`adversarial_review` loop, in the same four Workflows (Initial, Retry,
-`pr_comment`, `chat_feedback`). `RepoVisualReviewPlan` resolves whether the
-loop runs the same way
+The optional `security_review` loop follows adversarial review and precedes
+visual review. `RepoSecurityReviewPlan` reads `security_review.rounds` and
+optional `criteria` from `.syrus.yml`, with
+`AppSetting.security_review_rounds` as the instance default. Its isolated
+reviewer calls `submit_security_review`; verdicts and repair behavior use the
+same bounded review-first loop contract as adversarial review. Initial,
+Retry, Coding Handoff, PR/chat feedback, and same-repository external-PR
+feedback workflows can include this loop.
+
+Provider-routing rules can turn adversarial and security review Steps into a
+multi-provider panel. The original review Step expands into one Step per
+available, distinct provider/model/effort candidate plus a non-agentic
+`review_panel_collect` Step. The collector applies unanimous, majority, or
+explicit-threshold consensus, ignores `skipped` votes, and records both the
+aggregate verdict and vote breakdown. Rules also define a minimum member
+count and whether unavailable members are dropped, hold dispatch, or fail the
+review; the Job review UI exposes each member's verdict and the aggregate.
+
+The optional `visual_review` loop runs after the security-review slot in
+Initial, Retry, Coding Handoff, `pr_comment`, and `chat_feedback` Workflows.
+`RepoVisualReviewPlan` resolves whether the loop runs the same way
 `RepoAdversarialReviewPlan` resolves the review loop: it reads a
 `visual_review:` block from `.syrus.yml` on the default branch (`enabled`,
 `rounds`, and an optional `when_files_changed` glob pre-filter evaluated
@@ -1069,7 +1093,7 @@ project-level preview declarations can opt the relevant project back in
 with their own visual-review settings. Like `adversarial_review`, this
 loop is review-first: iteration 1 is `visual_review` alone, reviewing
 whatever `implement`/`respond` step (or the tail of a preceding
-`adversarial_review` loop) already ran before it. That reviewer agent
+preceding review loop) already ran before it. That reviewer agent
 calls `start_preview` (an MCP tool
 that resolves a `preview:` command from `.syrus.yml` or a registered
 `:preview_provider` plugin, runs setup/seed commands, spawns the app in the
@@ -1149,8 +1173,8 @@ requirements (`planned_execution_project_label`,
 source) at creation time. Capability dimensions are normalized through
 `TargetGraph::ExecutionCapabilities` (`os`, `arch`, `toolchain`,
 `runtime`); today `os` is intentionally limited to `linux` or `macos`,
-so Android/iOS are modeled as toolchain/runtime requirements layered on
-ordinary Linux or macOS workers rather than as operating systems. Chat
+so platform targets such as iOS are modeled as toolchain/runtime requirements
+layered on ordinary Linux or macOS workers rather than as operating systems. Chat
 proposal tools must provide explicit `planned_execution.capabilities`
 for every proposed Job, instead of inferring placement from prose.
 `RunQueueResolver` maps each Run to a Solid Queue lane from those
@@ -1165,6 +1189,15 @@ that cannot be claimed. Worker capability maps come from heartbeat
 metadata, local probes (for example Xcode, iOS simulators, and Docker),
 and `SYRUS_WORKER_CAPABILITIES`, with macOS drains excluded from new
 capacity.
+
+Before execution begins, operators can replace a Job's planned placement
+with a named `ExecutionPlacementProfile`. `PlannedExecutionOverrides::Operation`
+permits this only for triaging/backlog Jobs with no execution history or a
+queued, never-started initial Workflow with no workspace affinity. It updates
+the Job and Workflow atomically, records a `PlannedExecutionOverride` audit
+row with before/after requirements and provenance, and re-resolves queued Run
+delivery; once execution or workspace creation starts, changing placement
+requires a fresh attempt.
 
 ### Cleanup and error handling
 
@@ -1312,7 +1345,7 @@ What happens to a single labeled issue, from label to merge:
      control the head → a `rebase` Workflow re-anchors the branch.
    - GitHub approvals can mark the Job `approved`; the landing queue
      creates an `auto_merge` Workflow, or a `merge_train` Workflow for
-     ready Epics when merge trains are enabled.
+     ready Epics.
 7. **PR, issue, or branch work is otherwise finalized.** Syrus closes
    the Job with a terminal `closure_reason` such as `pr_merged`,
    `pr_closed`, `external_pr_merged`, `external_pr_closed`,
@@ -1543,12 +1576,12 @@ called out only where they explain an architectural dependency.
 | Plugin | Gem directory | Selected providers | Default state |
 |---|---|---|---|
 | `admin_mysql` | `plugins/admin_mysql` | `:admin_page`, `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
+| `attention_report` | `plugins/attention_report` | `:sidebar_page` | disabled by default |
 | `agent_activity` | `plugins/agent_activity` | `:sidebar_page`, `:admin_page` | enabled |
 | `agent_insights` | `plugins/agent_insights` | `:workflow_kinds`, `:domain_subscriber` | disabled by default |
 | `agent_memory` | `plugins/agent_memory` | `:memory_store` | enabled |
 | `agy_agent` | `plugins/agy_agent` | `:agent_provider` | disabled by default |
 | `alertmanager_investigations` | `plugins/alertmanager_investigations` | `:callbacks` | disabled by default |
-| `android` | `plugins/android` | `:prepare_detector`, `:prompt_injector`, `:review_criteria_provider`, `:step_environment`, `:runtime_session_provider`, `:grader_type` | beta-gated default-on |
 | `browser` | `plugins/browser` | `:mcp_tool_set`, `:artifact_renderer`, `:runtime_session_provider`, `"plugin_runtime:service"` | enabled |
 | `build_cache` | `plugins/build_cache` | `:admin_page`, `:domain_subscriber`, `:step_environment` | enabled |
 | `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
@@ -1720,6 +1753,10 @@ agent at it over stdio. Today's tool surface:
   `adversarial_review` Step requires this tool call; the stored
   critique is fed into later review-loop iterations, while the verdict
   is retained for audit/future control.
+- `submit_security_review(critique:, verdict:)` — records a security-review
+  iteration for the corresponding bounded review loop. Like adversarial
+  review, the Step requires an explicit verdict and feeds `needs_work`
+  critiques into its repair iteration.
 - `get_coverage_report()` — returns the coverage artifact from the most
   recent `coverage_analyze` step: summary, per-file breakdown, diff
   annotations, and any threshold miss. Returns `coverage_unavailable`
@@ -1767,6 +1804,12 @@ agent at it over stdio. Today's tool surface:
   migration_diff, data_table, before_after_diff); unregistered types fall
   back to a raw JSON display. The Job detail page surfaces typed artifacts
   in an Artifacts panel.
+  The Rails plugin's `explain_migration` path uses
+  `SyrusRails::MigrationArtifactGenerator` to discover the owning Rails app,
+  copy its migration inputs into disposable before/after databases, and
+  generate a `rails_migration_diff` without mutating the workflow's normal
+  development or test database; structure-only apps use a structure-based
+  fallback renderer.
 - `submit_visual_artifact(...)`, `list_artifacts(...)`, and
   `read_artifact(type:)` — store and retrieve image-backed Workflow
   artifacts such as visual-review screenshots and before/after visual
@@ -1888,9 +1931,8 @@ provider (`provider_key` from the `:runtime_session_provider` registry),
 workspace reference, capabilities, current state, and provider metadata.
 The app API exposes session listing, logs, visual frames, snapshots,
 build/reload/lifecycle commands, and input delivery under the chat's
-runtime-session routes. Browser, Android emulator, and Runtime Terminal
-providers all use this common model instead of inventing separate UI
-contracts.
+runtime-session routes. Browser and Runtime Terminal providers both use this
+common model instead of inventing separate UI contracts.
 
 `RuntimeControlLease` serializes control over a runtime session. The
 operator can always observe, but input requires an active `input` lease;
@@ -2096,6 +2138,12 @@ Several layers, each catching different failure modes:
    still snapshots legacy Workflow/Step/Run evidence for repair planning
    and compatibility, but the removed WorkUnit rollout flags no longer
    select between two schedulers.
+   Worker-queue affinity failures are classified in bulk by
+   `DeadWorkerQueueDetector`: the repair pending action captures an audited
+   snapshot of every affected Run, revalidates the group at confirmation,
+   and atomically moves only still-eligible deliveries away from dead
+   worker-specific queues. Incident fan-out actions use the same grouped
+   pending-action mechanism so one confirmation has one coherent outcome.
 5. **`RunJob` execution guards** — two distinct safety rails inside
    `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
    is already `terminal?` (idempotent retry), or calls `fail!` and skips
@@ -2218,6 +2266,13 @@ Several layers, each catching different failure modes:
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs. This page is
   supplied by the default-enabled `spending_insights` sidebar plugin.
+- **`/insights/attention`** — optional per-user estimates of deciding,
+  judging, and avoidable operator attention, supplied by the default-off
+  `attention_report` plugin. It derives classifications from existing records
+  and keeps agent runtime and queue wait separate as machine time. Optional
+  core `UiEngagementSample` telemetry adds active visible-time percentiles for
+  Job, review, and chat pages; collection is disabled by default, scoped to
+  the signed-in user, and pruned after 90 days.
 - **`/credential_store`** and **`/admin/credential_store`** —
   default-enabled credential-store plugin pages for scoped encrypted
   credentials. Operators manage their own/repository/team credentials from
@@ -2254,7 +2309,7 @@ Several layers, each catching different failure modes:
   Non-disableable plugins (e.g. `github_source`) are shown but cannot
   be toggled.
 - **`/settings/edit`** — admin settings toggles (signups open, max job
-  failures, merge-train enablement, etc.); redirects non-admins to
+  failures, review rounds, engagement telemetry, etc.); redirects non-admins to
   credentials.
 - **`/settings`**, **`/profile`**, **`/settings/agent`**, and
   **`/settings/preferences`** — account profile, credentials, agent

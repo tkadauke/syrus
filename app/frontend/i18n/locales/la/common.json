@@ -1,7 +1,6 @@
 {
   "app_name": "Syrus",
-  "test_channel_badge": {
-    "label": "Probatio",
+  "test_channel_dot": {
     "tooltip": "Haec est aedificatio probationis, a Syro tuo vero segregata."
   },
   "loading": "Oneratur...",
@@ -18,14 +17,6 @@
     "lines_omitted_one": "… {{count}} linea omissa",
     "lines_omitted_other": "… {{count}} lineae omissae",
     "text_omitted": "… textus omissus"
-  },
-  "ssh_exec_card": {
-    "succeeded": "Praeceptum SSH successit (exitus {{status}})",
-    "failed": "Praeceptum SSH defecit (exitus {{status}})",
-    "target": "Meta",
-    "command": "Praeceptum",
-    "stdout": "stdout",
-    "stderr": "stderr"
   },
   "markdown_preview": {
     "empty": "Nullus textus praebitus est.",
@@ -70,6 +61,8 @@
     "ready_description": "Primum Epicum terram tetigit — Syrus constitutus est. Tabella Constitutionis ex navigatione cadet.",
     "open_dashboard": "Tabulam Aperire",
     "readiness_label": "Promptitudo repositorii",
+    "readiness_status": "Promptitudo: {{status}}",
+    "readiness_close": "Claudere",
     "readiness_loading": "Promptitudo repositorii examinatur…",
     "readiness_prepare": "Mandata praeparationis proposita",
     "readiness_graders": "Mandata probationis proposita",
@@ -315,7 +308,7 @@
     "main_branch_broken": "Ramus principalis fractus",
     "urgent_job_active": "Opus urgens agitur",
     "workflow_admission_budget": "Admissio cursus dilata",
-    "provider_availability": "Provider availability paused",
+    "provider_availability": "Praebitor indisponibilis",
     "admission_control": "Admissio cursus dilata",
     "manual_pause": "A moderatore suspensum",
     "main_branch_health": "Ramus principalis fractus",
@@ -340,9 +333,9 @@
     "main_branch_broken": "Descensus suspensus est quod ramus principalis receptaculi non sanus est.",
     "urgent_job_active": "Opus non urgens exspectat dum opus urgens in hoc repositorio activum est.",
     "workflow_admission_budget": "Syrus praedixit hunc cursum nunc nimiam vim operariis impositurum esse.",
-    "provider_availability": "This job is paused until its configured agent provider has enough available usage, or an operator resumes it anyway.",
+    "provider_availability": "Hoc opus intermissum est donec praebitori agentis configurato satis usus praesto sit, nisi operator id tamen resumit.",
     "admission_control": "Syrus hunc cursum dilatavit ut intra modum opum operarii maneret.",
-    "manual_pause": "Moderator hoc opus suspendit. Resume ut pergas.",
+    "manual_pause": "Moderator hoc opus suspendit. Resume opus ut pergas.",
     "main_branch_health": "Opus in hoc receptaculo suspensum est quod ramus eius principalis probationes necessarias non superat. Resumetur cum cursus probatoris rami principalis successerit.",
     "epic_wide_workflow_active": "Alius cursus huius Epici seram Epico latam tenet.",
     "resource_safety": "Onus hospitum operariorum nimium est ut hoc opus tuto incipiatur.",
@@ -361,7 +354,7 @@
     "landing_paused": "Landing suspensa",
     "landing_paused_main_broken": "Landing suspensa: ramus principalis fractus",
     "manual_pause": "Manu intermissum",
-    "provider_availability": "Provider availability paused",
+    "provider_availability": "Intermissio ob praebitorem indisponibilem",
     "admission_control": "Admissio cursus",
     "main_branch_health": "Sanitas rami principalis",
     "dependency_failed": "Dependentia defecit",
@@ -370,8 +363,8 @@
     "stack_fan_in_base_unavailable": "Basis confluens deest",
     "job_not_ready_for_execution": "Nondum paratum",
     "epic_wide_workflow_active": "Cursus Epic activus",
-    "resource_safety": "Resource safety pause",
-    "auto_retry_backoff": "Auto-retry backoff",
+    "resource_safety": "Intermissio ad facultates tuendas",
+    "auto_retry_backoff": "Mora ante iterationem automaticam",
     "preempted": "Praeventum",
     "repository_archived": "Repositorium archivatum",
     "waiting_active_epic_merge_train": "In agmine Epici activo exspectat",

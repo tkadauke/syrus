@@ -296,7 +296,10 @@ module Ruby
       <<~BASH
         #{setup_prefix} &&
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
-        if [ ! -s .syrus/rspec-focused-files ]; then
+        if grep -qx '__SYRUS_NO_SCOPED_RUBY_CHANGES__' .syrus/rspec-focused-files; then
+          echo "No changed Ruby files matched this RSpec grader's scope; skipping";
+          : > .syrus/rspec-focused-files;
+        elif [ ! -s .syrus/rspec-focused-files ]; then
           echo "No focused RSpec files matched changed Ruby files; falling back to full RSpec suite";
           #{fallback_command}
         else
@@ -790,7 +793,12 @@ module Ruby
         matches_scope = ->(path) { scope.empty? || scope.any? { |pattern| File.fnmatch?(pattern, path, File::FNM_DOTMATCH) } }
         changed = `git diff --name-only --diff-filter=ACMR #{base}...HEAD -- "*.rb"`.lines.map(&:strip)
         project_matches = ->(path) { project_path.empty? || path.start_with?("#{project_path}/") }
-        specs = changed.select { |path| project_matches.call(path) && matches_scope.call(relative.call(path)) }.flat_map do |path|
+        scoped_changed = changed.select { |path| project_matches.call(path) && matches_scope.call(relative.call(path)) }
+        if scoped_changed.empty?
+          puts "__SYRUS_NO_SCOPED_RUBY_CHANGES__"
+          exit 0
+        end
+        specs = scoped_changed.flat_map do |path|
           rel = relative.call(path)
           if rel.start_with?("spec/") && rel.end_with?("_spec.rb")
             [ path ]
@@ -831,7 +839,10 @@ module Ruby
           "grader_mode" => mode,
           "runtime_profile_destination" => parallel_rspec_enabled_for?(mode) ? parallel_runtime_log(mode) : nil,
           "result_outputs" => [ { "artifact" => junit_output, "format" => "junit" } ],
-          "coverage_outputs" => coverage? ? [ { "artifact" => "coverage/.resultset.json", "format" => "simplecov" } ] : [],
+          "coverage_outputs" => coverage? ? [
+            { "artifact" => "coverage/.resultset.json", "format" => "simplecov" },
+            { "artifact" => "coverage/lcov.info", "format" => "lcov" }
+          ] : [],
           "filter_capabilities" => {
             "changed_files" => mode == "focused",
             "failed_cases" => true,

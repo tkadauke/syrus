@@ -5,8 +5,8 @@ module SyrusRails
     tool_name "explain_migration"
 
     description <<~DESC
-      Parse a specific migration file and return before/after table state plus a change summary.
-      Handles add_column, remove_column, rename_column, change_column, create_table, drop_table.
+      Execute newly added migrations against an isolated disposable database and return the
+      requested migration's normalized before/after catalog. Falls back to a cumulative schema diff.
     DESC
 
     input_schema(
@@ -14,7 +14,7 @@ module SyrusRails
       properties: {
         file_path: {
           type: "string",
-          description: "Relative path to the migration file, e.g. db/migrate/20240101_add_name_to_users.rb"
+          description: "Repository-relative migration path, e.g. db/migrate/20240101_add_name_to_users.rb or apps/shop/db/migrate/20240102_create_orders.rb"
         }
       },
       required: [ "file_path" ]
@@ -28,8 +28,8 @@ module SyrusRails
         migration_path = workspace.join(file_path)
         return McpToolSet.error_response("Migration file not found: #{file_path}") unless migration_path.exist?
 
-        schema_path = workspace.join("db", "schema.rb")
-        result = MigrationParser.parse(migration_path, schema_path: schema_path.exist? ? schema_path : nil)
+        run = SyrusMcp.run_from_context(server_context)
+        result = MigrationArtifactGenerator.new(workspace: workspace, workflow: run.workflow).generate(file_path)
         McpToolSet.ok_response(result)
       rescue StandardError => e
         McpToolSet.error_response("#{e.class}: #{e.message}")

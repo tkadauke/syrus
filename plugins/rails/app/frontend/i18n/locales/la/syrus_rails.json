@@ -7,5 +7,14 @@
   "migration_changes": "Mutationes",
   "change_added": "additum",
   "change_removed": "remotum",
-  "change_modified": "mutatum"
+  "change_modified": "mutatum",
+  "migration_error": "Error artificii generandi",
+  "migration_no_schema_changes": "Nullae mutationes schematis",
+  "migration_cumulative": "Differentia schematis cumulativa",
+  "migration_absent": "Abest",
+  "migration_index": "index",
+  "migration_check": "condicio probationis",
+  "migration_removed_structure": "Structura remota",
+  "migration_added_structure": "Structura addita",
+  "migration_no_structure_statements": "Nullae sententiae structurae"
 }

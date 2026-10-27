@@ -51,6 +51,12 @@ module GitMirror
       end
     end
 
+    def children(revision_id, path)
+      registered { @client.children(mirror_id, revision_id, path) }.map do |entry|
+        RepositoryContent::Entry.new(path: entry.fetch("path"), type: entry.fetch("type"), size: entry["size"], content_id: entry["content_id"])
+      end
+    end
+
     def read(revision_id, path)
       bytes, content_id = registered { @client.blob(mirror_id, revision_id, path) }
       RepositoryContent::Blob.new(path: path, bytes: bytes, content_id: content_id)

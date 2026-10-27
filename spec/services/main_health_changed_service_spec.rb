@@ -1103,6 +1103,62 @@ RSpec.describe MainHealthChangedService, :ci_only do
       expect(repository.reload.landing_paused).to be false
     end
 
+    # The policy is honored when choosing pause-vs-resume landing, and was
+    # then ignored two lines later: the block was stamped onto every queued
+    # workflow whenever main went broken, whatever the policy said.
+    context "stamping queued workflows when main breaks" do
+      def queued_workflow
+        job = Factories.job_record(repository: repository, user: user, state: "queued")
+        WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+      end
+
+      it "does not block queued work under a policy that isolates unrelated failures" do
+        repository.update!(risk_profile: "standard", ci_health: "broken")
+        workflow = queued_workflow
+
+        described_class.on_health_change!(repository)
+
+        expect(repository.reload).not_to be_landing_paused
+        expect(workflow.work_unit.reload.blocked_reason).to be_nil
+        expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+      end
+
+      # Whether main was red while a workflow ran is useful context even when
+      # it gates nothing, so only the block is policy-dependent.
+      it "still records that main was broken, which is context rather than a gate" do
+        repository.update!(risk_profile: "standard", ci_health: "broken")
+        workflow = queued_workflow
+
+        described_class.on_health_change!(repository)
+
+        expect(workflow.reload.artifact("main_broken")).to be(true)
+      end
+
+      it "blocks queued work under a strict policy that halts unrelated work" do
+        repository.update!(risk_profile: "production", main_branch_repair_blocks_work: true, ci_health: "broken")
+        workflow = queued_workflow
+
+        described_class.on_health_change!(repository)
+
+        expect(repository.reload).to be_landing_paused
+        expect(workflow.work_unit.reload.blocked_reason).to eq("main_branch_health")
+      end
+
+      # A legitimate block still has to clear itself. Without a recheck this
+      # waited on a later health transition, which never arrives while main
+      # stays broken -- six workflows sat blocked for over seven days.
+      it "schedules a recheck so even a legitimate block can clear itself" do
+        repository.update!(risk_profile: "production", main_branch_repair_blocks_work: true, ci_health: "broken")
+        workflow = queued_workflow
+        allow(WorkflowPhaseAdmissionJob).to receive(:enqueue_once)
+
+        described_class.on_health_change!(repository)
+
+        expect(WorkflowPhaseAdmissionJob).to have_received(:enqueue_once)
+          .with(workflow.id, hash_including(wait: StepDispatcher::START_BLOCKED_BACKOFF))
+      end
+    end
+
     context "unblocking queued workflows" do
       it "calls start_workflow for WorkUnit-blocked queued workflows with no runs" do
         job = Factories.job_record(repository: repository, state: "queued")

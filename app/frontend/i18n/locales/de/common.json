@@ -1,7 +1,6 @@
 {
   "app_name": "Syrus",
-  "test_channel_badge": {
-    "label": "Test",
+  "test_channel_dot": {
     "tooltip": "Dies ist ein paralleler Test-Build, isoliert von deinem produktiven Syrus."
   },
   "loading": "Laden...",
@@ -19,14 +18,6 @@
     "lines_omitted_other": "… {{count}} Zeilen ausgelassen",
     "text_omitted": "… Text ausgelassen"
   },
-  "ssh_exec_card": {
-    "succeeded": "SSH-Befehl erfolgreich (Exit {{status}})",
-    "failed": "SSH-Befehl fehlgeschlagen (Exit {{status}})",
-    "target": "Ziel",
-    "command": "Befehl",
-    "stdout": "stdout",
-    "stderr": "stderr"
-  },
   "markdown_preview": {
     "empty": "Kein Text vorhanden.",
     "dialog_label": "Vollständige Markdown-Vorschau",
@@ -34,7 +25,7 @@
     "copy": "Kopieren",
     "close": "Vorschau schließen"
   },
-  "workflows": "Arbeitsabläufe",
+  "workflows": "Workflows",
   "file_preview": {
     "dialog_label": "Dateivorschau für {{title}}",
     "line": "Zeile {{line}}",
@@ -67,9 +58,11 @@
     "complete_badge": "Abgeschlossen",
     "edit_label": "Bearbeiten",
     "ready_heading": "Bereit für den Normalbetrieb",
-    "ready_description": "Ihr erstes Epic ist gelandet — Syrus ist eingerichtet. Der Einrichtungs-Tab wird aus der Navigation verschwinden.",
+    "ready_description": "Dein erstes Epic ist gelandet — Syrus ist eingerichtet. Der Einrichtungs-Tab wird aus der Navigation verschwinden.",
     "open_dashboard": "Übersicht öffnen",
     "readiness_label": "Repository-Bereitschaft",
+    "readiness_status": "Bereitschaft: {{status}}",
+    "readiness_close": "Schließen",
     "readiness_loading": "Repository-Bereitschaft wird geprüft…",
     "readiness_prepare": "Vorgeschlagene Vorbereitungsbefehle",
     "readiness_graders": "Vorgeschlagene Prüfungsbefehle",
@@ -91,13 +84,13 @@
   },
   "errors": {
     "not_found_heading": "Hier ist nichts.",
-    "not_found_description": "Diese Adresse führt nirgendwohin. Möglicherweise haben Sie einem defekten Link gefolgt, oder die Seite wurde verschoben.",
+    "not_found_description": "Diese Adresse führt nirgendwohin. Möglicherweise bist du einem defekten Link gefolgt oder die Seite wurde verschoben.",
     "server_error_heading": "Etwas ist schiefgelaufen.",
     "server_error_description": "Auf dem Server ist ein Fehler aufgetreten. Der Anwendungsbesitzer sollte die Protokolle bei Gelegenheit prüfen.",
     "unprocessable_heading": "Diese Anfrage wurde abgelehnt.",
-    "unprocessable_description": "Der Server hat diese Eingabe in der vorliegenden Form als unzulässig befunden. Überprüfen Sie Ihre Eingabe und versuchen Sie es erneut. Falls Sie der Anwendungsbesitzer sind, prüfen Sie die Protokolle.",
+    "unprocessable_description": "Der Server hat diese Eingabe in der vorliegenden Form als unzulässig befunden. Überprüfe deine Eingabe und versuche es erneut. Falls du die Anwendung betreibst, prüfe die Protokolle.",
     "bad_request_heading": "Der Server konnte die Anfrage nicht lesen.",
-    "bad_request_description": "Diese Anfrage war fehlerhaft oder konnte nicht verarbeitet werden. Bitte prüfen Sie die Adresse und versuchen Sie es erneut.",
+    "bad_request_description": "Diese Anfrage war fehlerhaft oder konnte nicht verarbeitet werden. Bitte prüfe die Adresse und versuche es erneut.",
     "return_to_dashboard": "Zurück zur Übersicht"
   },
   "bug_report": {
@@ -106,7 +99,7 @@
     "field_title": "Titel",
     "field_description": "Beschreibung",
     "screenshot": "Bildschirmfoto",
-    "screenshot_failed": "Bildschirmfoto fehlgeschlagen. Sie können den Fehlerbericht auch ohne Bildschirmfoto erstellen.",
+    "screenshot_failed": "Bildschirmfoto fehlgeschlagen. Du kannst den Fehlerbericht auch ohne Bildschirmfoto erstellen.",
     "full_page_failed": "Ganzseitiges Bildschirmfoto fehlgeschlagen. Das Bildschirmfoto des Ansichtsbereichs ist weiterhin verfügbar.",
     "viewport": "Ansichtsbereich",
     "capturing": "Aufnehmen...",
@@ -116,7 +109,7 @@
     "unavailable": "Nicht verfügbar",
     "error": "Fehlerbericht konnte nicht in die Warteschlange gestellt werden.",
     "cancel": "Abbrechen",
-    "submit": "Aufgabe erstellen",
+    "submit": "Job erstellen",
     "submitting": "Wird erstellt...",
     "chat_about_this": "Diskutieren",
     "starting_chat": "Chat wird gestartet...",
@@ -125,14 +118,14 @@
     "queued": "Fehlerbericht in die Warteschlange gestellt.",
     "filed": "Fehlerbericht eingereicht.",
     "view_issue": "Auf GitHub ansehen",
-    "mode_direct_job": "Dieser Bericht wird als Syrus-Aufgabe eingereicht.",
+    "mode_direct_job": "Dieser Bericht wird als Syrus-Job eingereicht.",
     "mode_github_issue": "Dieser Bericht wird als GitHub-Issue bei {{slug}} eingereicht.",
     "attachments": "Zusätzliche Dateien",
     "attachments_add": "Dateien hinzufügen",
     "attachments_hint": "Bis zu 9 zusätzliche Dateien, jeweils max. 20 MB. Akzeptiert: Bilder, PDF, Text, Markdown.",
     "attachments_remove": "{{filename}} entfernen",
     "attachments_too_large": "{{filename}} überschreitet das 20-MB-Limit und wurde nicht hinzugefügt.",
-    "attachments_max_reached": "Sie können maximal 9 zusätzliche Dateien anhängen.",
+    "attachments_max_reached": "Du kannst maximal 9 zusätzliche Dateien anhängen.",
     "drop_to_attach": "Zum Anhängen hier ablegen",
     "whats_included": "Was enthalten ist",
     "context_url": "URL",
@@ -191,7 +184,7 @@
   },
   "epic_start": {
     "in_progress": "In Bearbeitung",
-    "notice": "Epic auf In Bearbeitung verschoben — die Aufgaben werden gestartet.",
+    "notice": "Epic auf In Bearbeitung verschoben — die Jobs werden gestartet.",
     "starting": "Wird gestartet…",
     "start": "Starten",
     "error": "Epic konnte nicht gestartet werden."
@@ -313,7 +306,7 @@
     "stack_fan_in_base_unavailable": "Fan-in-Basis nicht verfügbar",
     "job_not_ready_for_execution": "Noch nicht bereit",
     "main_branch_broken": "Hauptbranch defekt",
-    "urgent_job_active": "Dringende Aufgabe läuft",
+    "urgent_job_active": "Dringender Job läuft",
     "workflow_admission_budget": "Workflow-Zulassung verzögert",
     "provider_availability": "Provider-Verfügbarkeit pausiert",
     "admission_control": "Workflow-Zulassung verzögert",

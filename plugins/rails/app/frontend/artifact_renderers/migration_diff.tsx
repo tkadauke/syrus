@@ -8,10 +8,11 @@ import { MigrationDiffRenderer } from "../components/artifacts/MigrationDiffRend
 // to change how this plugin's artifact renderer is discovered.
 const definition: ArtifactRendererDefinition = {
   rendererType: "migration_diff",
-  artifactTypes: [ "rails_migration_diff" ],
+  artifactTypes: ["rails_migration_diff"],
   displayLabel: "Rails migration diff",
-  description: "Renders a Rails migration as a two-column before/after column table plus a change summary.",
-  supportedPayloadShape: "{ migration_name, before: { table_name, columns }, after: { table_name, columns }, changes?: Array<{ type, column }> }",
+  description: "Renders database-backed Rails migration catalogs, explicit outcomes, and cumulative structure.sql fallbacks.",
+  supportedPayloadShape:
+    "{ migration_name, status?, before: { tables? | structure? }, after: { tables? | structure? }, cumulative?, message? } (legacy table_name/columns/changes also supported)",
   render: (artifact) => <MigrationDiffRenderer payload={artifact.payload as MigrationDiffPayload} />
 }
 
@@ -26,12 +27,48 @@ export const examples: ArtifactRendererExample[] = [
       renderer_type: "migration_diff",
       payload: {
         migration_name: "AddEmailToUsers",
-        before: { table_name: "users", columns: [ { name: "id", type: "integer" }, { name: "legacy_key", type: "string" } ] },
-        after: { table_name: "users", columns: [ { name: "id", type: "integer" }, { name: "email", type: "string" } ] },
+        before: {
+          table_name: "users",
+          columns: [
+            { name: "id", type: "integer" },
+            { name: "legacy_key", type: "string" }
+          ]
+        },
+        after: {
+          table_name: "users",
+          columns: [
+            { name: "id", type: "integer" },
+            { name: "email", type: "string" }
+          ]
+        },
         changes: [
           { type: "removed", column: { name: "legacy_key", type: "string" } },
           { type: "added", column: { name: "email", type: "string" } }
         ]
+      }
+    }
+  },
+  {
+    id: "cumulative_structure_fallback",
+    label: "Cumulative structure.sql fallback",
+    description: "Exercises the cumulative warning, an empty removed side, and long SQL overflow at narrow viewport widths.",
+    artifact: {
+      type: "rails_migration_diff",
+      title: "Cumulative migration diff",
+      created_at: "2026-10-22T12:00:00Z",
+      renderer_type: "migration_diff",
+      payload: {
+        migration_name: "20261022080636_create_workflow_artifact_values",
+        status: "cumulative_fallback",
+        cumulative: true,
+        message: "Cumulative schema diff for 2 migrations; per-migration attribution unavailable because disposable database creation is unavailable.",
+        before: { structure: [] },
+        after: {
+          structure: [
+            "CREATE TABLE workflow_artifact_values (id bigint NOT NULL PRIMARY KEY, workflow_id bigint NOT NULL, name character varying(255) NOT NULL, value text, created_at timestamp(6) NOT NULL, updated_at timestamp(6) NOT NULL, CONSTRAINT fk_workflow_artifact_values_workflow FOREIGN KEY (workflow_id) REFERENCES workflows(id))",
+            "CREATE UNIQUE INDEX index_workflow_artifact_values_on_workflow_id_and_name ON workflow_artifact_values USING btree (workflow_id, name)"
+          ]
+        }
       }
     }
   }

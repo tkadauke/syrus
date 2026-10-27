@@ -1,4 +1,9 @@
 class Run < ApplicationRecord
+  # How long an unplaceable Run waits before the capability is re-checked.
+  # Matches StepDispatcher::START_BLOCKED_BACKOFF so the two paths that can
+  # notice the same gap also recover on the same cadence.
+  CAPABILITY_BLOCK_BACKOFF = 5.minutes
+
   include AASM
   include RecordsStateTransitions
   include Revisionable
@@ -34,6 +39,7 @@ class Run < ApplicationRecord
   has_one :run_diagnostic, dependent: :destroy
   has_one :run_failure_classification, dependent: :destroy
   has_one :run_resource_summary, dependent: :destroy
+  has_many_attached :coverage_outputs
 
   # Convenience walk up to Workflow when step is set.
   def workflow
@@ -379,23 +385,55 @@ class Run < ApplicationRecord
     Workflows.for(trigger_kind: workflow&.trigger_kind || trigger_kind)
   end
 
+  # A capability gap is a wait, not a failure.
+  #
+  # Despite its name this used to fail the Run and its Step and record a
+  # workflow run failure. That is how `no_capable_worker` -- a condition in
+  # which the member's code never executed -- arrived at
+  # MergeTrainFailureHandler looking like a member-attributed grader failure
+  # and tore down whole assemblies: 14 in one day, each costing 45-167 minutes
+  # of the landing lock.
+  #
+  # StepDispatcher.capability_worker_deferred? has always blocked and
+  # rescheduled rather than failed, but it only guards a workflow's FIRST step.
+  # A grader forty positions into a merge train took this path instead, so the
+  # two disagreed about the same condition depending only on where in the chain
+  # it was noticed. This brings a mid-chain step in line.
+  #
+  # Blocking is recoverable in a way failing is not: the moment a worker
+  # advertising the capability joins, the recheck starts the step. A gap that
+  # nothing will ever satisfy still surfaces -- as a `no_capable_worker`
+  # blocked reason on the WorkUnit and in the stuck-items list -- instead of
+  # silently stalling.
   def block_for_missing_capable_worker!(decision)
     message = "no live worker can satisfy Run queue requirements for #{decision.queue_name}: #{decision.requirements.inspect}"
     Rails.logger.warn("[Run##{id}] #{message}")
-    workflow&.set_artifact!(
-      "run_queue_blocked",
-      decision.details.merge(
-        "reason" => decision.blocked_reason,
-        "blocked_at" => Time.current.iso8601
-      )
+    details = decision.details.merge(
+      "reason" => decision.blocked_reason,
+      "blocked_at" => Time.current.iso8601
     )
+    workflow&.set_artifact!("run_queue_blocked", details)
     JobLog.append!(run: self, kind: "system", chunk: message)
-    self.agent_outcome = RunQueueResolver::BLOCKED_OUTCOME
-    fail! if may_fail?
-    save!
-    step&.fail! if step&.may_fail?
-    step&.save!
-    workflow&.record_run_failure!
+
+    return unless workflow
+
+    # Deliberately the dispatcher's own recorder rather than a second
+    # implementation: it writes the start_blocked_* artifacts the admin surfaces
+    # read AND projects the WorkUnit block, so a gap noticed mid-chain is
+    # indistinguishable in state from one noticed at a workflow's first step.
+    # Two recorders drifting apart is how the fail-vs-block split arose.
+    StepDispatcher.record_start_blocked!(
+      workflow,
+      RunQueueResolver::BLOCKED_OUTCOME,
+      backoff: CAPABILITY_BLOCK_BACKOFF,
+      details: details.merge("step_id" => step&.id, "step_kind" => step&.kind)
+    )
+    WorkflowPhaseAdmissionJob.enqueue_once(
+      workflow.id,
+      step&.id,
+      wait: CAPABILITY_BLOCK_BACKOFF,
+      priority: solid_queue_priority
+    )
   end
 
   def record_run_queue_decision!(decision)

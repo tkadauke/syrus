@@ -4,7 +4,7 @@ module Syrus
     #
     # A Runtime Session is a live process, app, device, emulator, or service
     # stack attached to a Coding Mode workspace. Plugins register a provider
-    # per platform (browser, iOS simulator, Android emulator, ...); core owns
+    # per platform (browser, terminal, iOS simulator, ...); core owns
     # the RuntimeSession record, lifecycle, and sidebar rendering.
     #
     # `provider_key`, `display_name`, `detect`, and `capabilities` are class

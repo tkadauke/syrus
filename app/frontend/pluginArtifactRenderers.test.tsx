@@ -29,4 +29,17 @@ describe("pluginArtifactRenderers", () => {
       for (const id of ids) expect(id).toBeTruthy()
     }
   })
+
+  it("exposes the Rails cumulative structure fallback for visual review", () => {
+    const migrationDiff = discoveredArtifactRendererEntries.find((entry) => entry.definition.rendererType === "migration_diff")
+    const example = migrationDiff?.examples.find((candidate) => candidate.id === "cumulative_structure_fallback")
+
+    expect(example?.description).toContain("empty removed side")
+    expect(example?.artifact.payload).toMatchObject({
+      status: "cumulative_fallback",
+      cumulative: true,
+      before: { structure: [] }
+    })
+    expect((example?.artifact.payload as { after?: { structure?: string[] } }).after?.structure?.[0].length).toBeGreaterThan(200)
+  })
 })

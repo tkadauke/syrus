@@ -29,6 +29,13 @@ Plugins can contribute:
 - source integrations such as GitHub or Linear,
 - speech-to-text backends for chat dictation.
 
+The bundled Rails plugin's migration artifacts are execution-backed: it loads the
+workflow base schema into a disposable database, applies newly added migrations in
+order, and shows normalized before/after catalogs. Data-only migrations and artifact
+generation failures are labeled explicitly; environments without disposable-database
+support receive a clearly marked cumulative schema-dump comparison. The sandbox
+redirects every named application database to a distinct sandbox and supports both Ruby and SQL schema dumps.
+
 Plugins can also declare stable credential type names for a
 credential-management plugin to discover. These declarations are intentionally
 metadata-only: a name such as `k8s_cluster.kubeconfig`, plus optional safe label
@@ -51,7 +58,7 @@ snapshot calls out the launch-relevant groups:
 | Agent providers | Claude Agent, Codex Agent, Antigravity Agent, Muse Agent |
 | Work inputs and planning | Walkthrough Videos, Scheduled Tasks, GitHub Source, Linear Source, Design Docs, Operator Briefing |
 | Repository intelligence | Agent Insights, Agent Memory, Git History, Search, Test Insights, Throughput, Metrics Dashboard, Spending Insights, Attention Report |
-| Language and platform support | Android, Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
+| Language and platform support | Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
 | Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache |
 
 Worker Timeline uses the shared composable filter bar and Smart Folders. Saved
