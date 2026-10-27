@@ -4,6 +4,7 @@ module PerformanceBudgetHelpers
     callback = lambda do |_name, _started, _finished, _id, payload|
       next if payload[:name] == "SCHEMA"
       next if payload[:cached]
+      next unless payload[:sql].match?(/\A\s*(?:SELECT|WITH)\b/i)
 
       queries << payload[:sql].to_s.squish
     end

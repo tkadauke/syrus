@@ -2899,7 +2899,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.reload.parent_job).to eq(prerequisite)
     end
 
-    it "starts a dependent queued workflow when a same-Epic dependency is approved, stacking on its branch" do
+    it "keeps a same-Epic dependent blocked for the Epic merge train when its dependency is approved" do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       prerequisite = Job.create!(user: user, repository: repository, epic: epic, issue_number: 42)
       prerequisite.advance_after_triage!
@@ -2917,11 +2917,15 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect {
         prerequisite.approve!(via: "github_review")
         prerequisite.save!
-      }.to change { first_step.runs.reload.count }.by(1)
+      }.not_to change { first_step.runs.reload.count }
       expect(job.reload.parent_job).to eq(prerequisite)
+      expect(job.latest_workflow.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: "epic_sibling_implementation_active"
+      )
     end
 
-    it "eagerly starts a linear same-Epic stack as each parent is implemented" do
+    it "keeps a linear same-Epic stack serialized behind the Epic merge train" do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       first = Job.create!(user: user, repository: repository, epic: epic, issue_number: 41)
       first.advance_after_triage!
@@ -2943,19 +2947,18 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect {
         first.mark_implemented!
         first.save!
-      }.to change { second_first_step.runs.reload.count }.by(1)
+      }.not_to change { second_first_step.runs.reload.count }
       expect(second.reload.parent_job).to eq(first)
       expect(second).not_to be_dependencies_satisfied
-
-      second.update!(branch_name: "syrus/issue-42-#{second.id}", pr_number: 7)
-      second.runs.update_all(head_sha: "b" * 40)
-
-      expect {
-        second.mark_implemented!
-        second.save!
-      }.to change { third_first_step.runs.reload.count }.by(1)
-      expect(third.reload.parent_job).to eq(second)
-      expect(third).not_to be_dependencies_satisfied
+      expect(second.latest_workflow.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: "epic_sibling_implementation_active"
+      )
+      expect(third_first_step.runs.reload.count).to eq(0)
+      expect(third.latest_workflow.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: "epic_sibling_implementation_active"
+      )
     end
 
     it "seeds a same-Epic chain from bare-number dependency lines even when children ingest out of order" do

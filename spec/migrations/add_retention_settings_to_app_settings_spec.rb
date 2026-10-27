@@ -1,5 +1,6 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20260916144445_add_retention_settings_to_app_settings")
+require Rails.root.join("db/migrate/20261026180357_reduce_metrics_dashboard_sample_retention")
 
 RSpec.describe AddRetentionSettingsToAppSettings, :ci_only do
   let(:migration) { described_class.new }
@@ -11,7 +12,10 @@ RSpec.describe AddRetentionSettingsToAppSettings, :ci_only do
     end
 
     setting = AppSetting.new
-    described_class::COLUMNS.each do |column, default|
+    current_defaults = described_class::COLUMNS.merge(
+      metrics_dashboard_sample_retention_days: ReduceMetricsDashboardSampleRetention::NEW_DEFAULT
+    )
+    current_defaults.each do |column, default|
       expect(setting.public_send(column)).to eq(default)
     end
   end

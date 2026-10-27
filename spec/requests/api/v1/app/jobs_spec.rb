@@ -792,10 +792,11 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     # structural guards below are what catch a real regression anyway: the
     # command-span load stays batched and never runs per Run. The planned
     # execution override check adds three more fixed reads (Workflow and Run
-    # history columns, latest audit) that likewise do not scale with history.
+    # history columns, latest audit) that likewise do not scale with history,
+    # and plugin visibility contributes one fixed registry read.
     expect_performance_budget(
       metrics,
-      max_sql: 55,
+      max_sql: 56,
       max_payload_bytes: 90_000,
       forbidden_sql: [
         /SELECT [`"]?command_spans[`"]?\.\*/i,
