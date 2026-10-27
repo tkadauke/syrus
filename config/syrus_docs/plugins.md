@@ -317,7 +317,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `agent_provider` | Agent provider | `agy_agent`, `claude_agent`, `codex_agent`, `muse_agent` |
 | `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory`, `credential_store` |
 | `input_source` | Input source | `github_source`, `linear_source` |
-| `platform_delivery` | Platform delivery | `android`, `discord` |
+| `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
 | `observability` | Observability | `admin_mysql`, `agent_activity`, `agent_insights`, `git_history`, `spending_insights`, `test_insights`, `throughput`, `worker_timeline` |
 | `collaboration` | Collaboration | `design_docs`, `global_search`, `team_directory` |
@@ -2398,16 +2398,13 @@ Gradle projects prepare with `./gradlew --no-daemon testClasses` when the
 wrapper is present, otherwise `gradle --no-daemon testClasses`; Maven
 projects prepare with `./mvnw -B test-compile` when the wrapper is present,
 otherwise `mvn -B test-compile`; conventional source-only Java layouts are
-detectable but do not add a prepare command. Android Gradle Plugin projects
-are intentionally skipped by the generic Java detector so Android-specific
-support can own SDK setup and task selection. The `kotlin` plugin registers a
+detectable but do not add a prepare command. The `kotlin` plugin registers a
 `:prepare_detector` for Kotlin/JVM signals at `prepare_priority: 46`, depends
 on `java`, and delegates concrete Gradle/Maven prepare commands to
 `Java::PrepareDetector` so wrapper-aware JVM setup stays centralized. It
 detects `.kt`, `.kts`, `build.gradle.kts`, Kotlin JVM Gradle plugin
 declarations, and conventional Kotlin source/test paths while intentionally
-skipping Android, Kotlin Android, Kotlin Multiplatform, and Kotlin native
-markers.
+skipping Kotlin Multiplatform and Kotlin native markers.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
 Identical commands from layered plugins are de-duplicated in provider order,
@@ -2507,7 +2504,7 @@ inventing a third mechanism:
 
 - Every enabled `:prepare_detector` plugin's `detect?(repo_path)` (a class
   method — language/platform plugins: `ruby`, `javascript`, `java`,
-  `kotlin`, `android`, `python`, `go`).
+  `kotlin`, `python`, `go`).
 - Every enabled `:preview_provider` plugin's `detect?(repo_path)` (an
   instance method — framework plugins that don't register their own
   `:prepare_detector`, such as `syrus-rails` and `django`).
@@ -3442,12 +3439,9 @@ Bundled plugins:
   wrapper is present, otherwise `gradle --no-daemon testClasses`; Maven
   projects prepare with `./mvnw -B test-compile` when the wrapper is present,
   otherwise `mvn -B test-compile`. Source-only Java layouts are detectable
-  but do not add a prepare command. Android Gradle Plugin projects are skipped
-  here so Android support can own SDK setup and task selection. Also provides
-  `:prompt_injector`
+  but do not add a prepare command. Also provides `:prompt_injector`
   (`Java::PromptContext` — reminds agents to prefer project wrappers and the
-  repository-declared JDK version while keeping Android SDK/device concerns
-  out of generic Java handling) and `:review_criteria_provider`
+  repository-declared JDK version) and `:review_criteria_provider`
   (`Java::ReviewCriteriaProvider` — seeds a default adversarial-review
   criterion flagging swallowed `InterruptedException` handling, gated on the
   same generic Java/JVM signal as `:prepare_detector`).
@@ -3458,50 +3452,15 @@ Bundled plugins:
   (`src/main/kotlin`, `src/test/kotlin`). Concrete Gradle/Maven prepare
   commands, `.java-version`, and JVM span labels are reused from
   `Java::PrepareDetector`; `RepoPrepPlan` de-duplicates identical commands
-  when Java and Kotlin both match the same Gradle/Maven project. Android,
-  Kotlin Android, Kotlin Multiplatform, and Kotlin native markers are skipped
-  so platform-specific plugins can own SDK/device and native target behavior.
+  when Java and Kotlin both match the same Gradle/Maven project. Kotlin
+  Multiplatform and Kotlin native markers are skipped so platform-specific
+  plugins can own native target behavior.
   Also provides `:prompt_injector` (`Kotlin::PromptContext` — reminds agents
   to treat Kotlin source and Gradle Kotlin DSL as JVM signals while respecting
   repository-declared JDK/Kotlin Gradle plugin versions) and
   `:review_criteria_provider` (`Kotlin::ReviewCriteriaProvider` — seeds
   Kotlin/JVM criteria for swallowed coroutine cancellation and unsafe null
   assertions at external boundaries).
-- `android` — experimental and default-disabled, depends on `java` and `kotlin`. Provides
-  `:prepare_detector` for Android repos, detecting Android Gradle Plugin
-  declarations, Kotlin Android plugin declarations, Android Gradle Plugin
-  buildscript classpath entries, conventional `AndroidManifest.xml` paths,
-  Android resource layouts such as `src/main/res`, and instrumented-test
-  layouts such as `src/androidTest`.
-  It returns no prepare command by detection alone, so generic Linux workers
-  do not invent project-specific SDK-heavy Gradle work. The worker image
-  provides the shared Android SDK baseline at `/opt/android-sdk` with
-  command-line tools, platform-tools, emulator, `platforms;android-36`,
-  `build-tools;36.0.0`, and accepted licenses. Android's `:step_environment`
-  provider forwards `ANDROID_HOME`/`ANDROID_SDK_ROOT` from the worker image and
-  scopes mutable Android user/AVD state to `.syrus/android` inside each
-  workflow workspace. `Android::ToolchainDiagnostic.call` reports installed SDK
-  packages, license state, command availability, `adb`/emulator readiness,
-  `/dev/kvm` and acceleration diagnostics, plus Java/Gradle facts read through
-  JVM support. It reuses Java's `.java-version` declaration and adds Android
-  Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager` span labels. It also
-  provides `:grader_type` entries for common Android Gradle workflows:
-  `android-assemble` (`assembleDebug` by default), `android-unit-test`
-  (`testDebugUnitTest`), `android-instrumented-test`
-  (`connectedDebugAndroidTest`), and `android-managed-device`
-  (`allDevicesCheck`, or configured Gradle Managed Device tasks). Generated
-  grader steps prefer `./gradlew`, fall back to `gradle`, declare Linux
-  execution capabilities, aggregate Android/JUnit XML reports when present,
-  and publish Android package, report, managed-device output, and log paths in
-  grader metadata. Also provides `:prompt_injector` (`Android::PromptContext` —
-  documents that Java/Kotlin own generic JVM behavior, Android owns Android
-  Gradle Plugin, SDK, emulator/device, artifact, and mobile runtime behavior,
-  Android work uses Linux capabilities rather than `os: android`, and live
-  emulator viewing/control should use Runtime Sessions' provider-neutral
-  visual frame/input path) and `:review_criteria_provider`
-  (`Android::ReviewCriteriaProvider` — seeds Android-specific criteria for
-  worker capabilities, APK/AAB handling, and Runtime Session visual input
-  boundaries).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,

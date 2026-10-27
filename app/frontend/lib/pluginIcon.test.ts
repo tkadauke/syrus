@@ -7,11 +7,13 @@ describe("pluginIconSrc", () => {
     expect(pluginIconSrc("syrus-rails")).toBe("/plugin-icons/syrus-rails.svg")
     expect(pluginIconSrc("java")).toBe("/plugin-icons/java.svg")
     expect(pluginIconSrc("kotlin")).toBe("/plugin-icons/kotlin.svg")
-    expect(pluginIconSrc("android")).toBe("/plugin-icons/android.svg")
   })
 
   it("falls back to the SPQR eagle for an unrecognized plugin name", () => {
     expect(pluginIconSrc("some-future-plugin")).toBe("/plugin-icons/spqr_eagle.svg")
+    // A plugin that has been removed must fall through too: leaving its entry
+    // behind would point the UI at an asset that no longer ships.
+    expect(pluginIconSrc("android")).toBe("/plugin-icons/spqr_eagle.svg")
   })
 })
 

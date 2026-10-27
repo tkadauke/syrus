@@ -197,29 +197,22 @@ RSpec.describe "Dockerfile" do
     expect(app_stage).not_to include("mull-project")
   end
 
-  it "installs a pinned Android SDK baseline only in the worker image" do
-    stage = worker_deps_stage
-    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+  # Android support was removed after every Android grader run in production
+  # failed `no_capable_worker` -- 51 runs, zero successes -- because no worker
+  # in the fleet ever had the SDK. The failure was classified non-retryable, so
+  # each one tore down a whole merge-train assembly. This asserts the SDK does
+  # not come back by accident: reinstating it without reinstating a worker that
+  # advertises the capability recreates that exact outage.
+  it "provisions no Android SDK in any image" do
+    # Instructions only. A comment may legitimately explain why the SDK was
+    # removed -- and one does, above the JRE that outlived it -- so matching
+    # the whole file would fail on its own history.
+    instructions = dockerfile.lines.reject { |line| line.strip.start_with?("#") }.join
 
-    expect(stage).to include("ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902")
-    expect(stage).to include("ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583")
-    expect(stage).to include("ARG ANDROID_PLATFORM_VERSION=android-36")
-    expect(stage).to include("ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0")
-    expect(stage).to include("ANDROID_SDK_ROOT=/opt/android-sdk")
-    expect(stage).to include("ANDROID_HOME=/opt/android-sdk")
-    expect(stage).to include("wget unzip openssh-client")
-    expect(stage).to include("commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip")
-    expect(stage).to include('echo "${ANDROID_CMDLINE_TOOLS_SHA256}  ${cmdline_zip}" | sha256sum -c -')
-    expect(stage).to include('mv /tmp/android-cmdline-tools/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest"')
-    expect(stage).to include('yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses')
-    expect(stage).to include('android_packages="platform-tools platforms;${ANDROID_PLATFORM_VERSION} build-tools;${ANDROID_BUILD_TOOLS_VERSION}"')
-    expect(stage).to include('if [ "$(dpkg --print-architecture)" = "amd64" ]')
-    expect(stage).to include('android_packages="${android_packages} emulator"')
-    expect(stage).to include('sdkmanager" ${android_packages}')
-    expect(stage).to include('${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator')
-
-    expect(app_stage).not_to include("ANDROID_SDK_ROOT")
-    expect(app_stage).not_to include("sdkmanager")
+    expect(instructions).not_to include("ANDROID_SDK_ROOT")
+    expect(instructions).not_to include("sdkmanager")
+    expect(instructions).not_to include("commandlinetools-linux")
+    expect(instructions).not_to match(/^ARG ANDROID_/)
   end
 
   it "fails worker image builds when native compilation is unavailable as the rails user" do

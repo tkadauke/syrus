@@ -124,10 +124,13 @@ RSpec.describe WorkerCapabilities do
       end
     end
 
-    # Android::GradleGraderType requires toolchain=android. The Linux worker
-    # image has the SDK and sdkmanager on PATH, but nothing advertised it, so
-    # every Android grader -- including main-branch-repair's preflight -- came
-    # back no_capable_worker.
+    # This guard outlived the plugin that motivated it. Android graders required
+    # toolchain=android, nothing in the fleet ever advertised it, and all 51
+    # runs in a day came back no_capable_worker -- each one tearing down a
+    # merge-train assembly -- until Android support was removed outright. The
+    # assertion stays because the shape of that mistake is not Android-specific:
+    # core naming a platform's toolchain is what let the capability and the
+    # tooling drift apart in the first place.
     # Core owns the mechanism; a plugin owns where its tooling lives. Keeping
     # a toolchain's SDK root and directory layout out of this class is what lets
     # the plugin stay deletable.

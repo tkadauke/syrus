@@ -1173,8 +1173,8 @@ requirements (`planned_execution_project_label`,
 source) at creation time. Capability dimensions are normalized through
 `TargetGraph::ExecutionCapabilities` (`os`, `arch`, `toolchain`,
 `runtime`); today `os` is intentionally limited to `linux` or `macos`,
-so Android/iOS are modeled as toolchain/runtime requirements layered on
-ordinary Linux or macOS workers rather than as operating systems. Chat
+so platform targets such as iOS are modeled as toolchain/runtime requirements
+layered on ordinary Linux or macOS workers rather than as operating systems. Chat
 proposal tools must provide explicit `planned_execution.capabilities`
 for every proposed Job, instead of inferring placement from prose.
 `RunQueueResolver` maps each Run to a Solid Queue lane from those
@@ -1582,7 +1582,6 @@ called out only where they explain an architectural dependency.
 | `agent_memory` | `plugins/agent_memory` | `:memory_store` | enabled |
 | `agy_agent` | `plugins/agy_agent` | `:agent_provider` | disabled by default |
 | `alertmanager_investigations` | `plugins/alertmanager_investigations` | `:callbacks` | disabled by default |
-| `android` | `plugins/android` | `:prepare_detector`, `:prompt_injector`, `:review_criteria_provider`, `:step_environment`, `:runtime_session_provider`, `:grader_type` | beta-gated default-on |
 | `browser` | `plugins/browser` | `:mcp_tool_set`, `:artifact_renderer`, `:runtime_session_provider`, `"plugin_runtime:service"` | enabled |
 | `build_cache` | `plugins/build_cache` | `:admin_page`, `:domain_subscriber`, `:step_environment` | enabled |
 | `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
@@ -1932,9 +1931,8 @@ provider (`provider_key` from the `:runtime_session_provider` registry),
 workspace reference, capabilities, current state, and provider metadata.
 The app API exposes session listing, logs, visual frames, snapshots,
 build/reload/lifecycle commands, and input delivery under the chat's
-runtime-session routes. Browser, Android emulator, and Runtime Terminal
-providers all use this common model instead of inventing separate UI
-contracts.
+runtime-session routes. Browser and Runtime Terminal providers both use this
+common model instead of inventing separate UI contracts.
 
 `RuntimeControlLease` serializes control over a runtime session. The
 operator can always observe, but input requires an active `input` lease;

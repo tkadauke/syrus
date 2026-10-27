@@ -150,26 +150,6 @@ RSpec.describe Kotlin::Engine do
       expect(labels.find { |(pattern, _)| pattern.match?("java -version") }.last).to eq("java version")
     end
 
-    it "does not claim Android Gradle Plugin projects" do
-      write("build.gradle.kts", <<~GRADLE)
-        plugins {
-          id("com.android.application") version "8.7.0"
-          kotlin("android") version "2.1.0"
-        }
-      GRADLE
-      write("src/main/kotlin/example/App.kt")
-
-      expect(described_class.detect?(@dir)).to be false
-      expect(described_class.prepare_commands(@dir)).to eq([])
-    end
-
-    it "does not claim projects with conventional Android manifest paths" do
-      write("app/src/main/AndroidManifest.xml", "<manifest />")
-      write("app/src/main/kotlin/example/MainActivity.kt")
-
-      expect(described_class.detect?(@dir)).to be false
-    end
-
     it "does not claim Kotlin Multiplatform projects" do
       write("build.gradle.kts", <<~GRADLE)
         plugins {
@@ -216,17 +196,6 @@ RSpec.describe Kotlin::Engine do
         "Flag swallowed CancellationException or broad coroutine exception handling that prevents cooperative cancellation",
         "Flag unsafe Kotlin null assertions (`!!`) on data from external boundaries"
       ])
-    end
-
-    it "does not contribute review criteria for Android projects" do
-      write("build.gradle.kts", <<~GRADLE)
-        plugins {
-          id("com.android.application") version "8.7.0"
-          kotlin("android") version "2.1.0"
-        }
-      GRADLE
-
-      expect(described_class.criteria(@dir)).to eq([])
     end
   end
 
