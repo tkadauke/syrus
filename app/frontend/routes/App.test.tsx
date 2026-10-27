@@ -6438,7 +6438,7 @@ describe("App", () => {
     expect(within(card!).getByText("acme/widgets")).toBeInTheDocument()
     expect(within(card!).getByText("High")).toBeInTheDocument()
     expect(within(card!).getByText("Direct")).toBeInTheDocument()
-    expect(within(card!).getByText("1/1 deps blocked")).toBeInTheDocument()
+    expect(within(card!).getByText("1/1 dependencies blocked")).toBeInTheDocument()
     expect(card!.querySelector("time")).toHaveAttribute("datetime", "2026-05-30T10:00:00Z")
     expect(within(card!).getByRole("button", { name: "Start" })).toBeInTheDocument()
   })
