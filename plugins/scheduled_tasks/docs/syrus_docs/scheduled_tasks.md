@@ -88,6 +88,31 @@ Fires once at a future datetime (`fire_at`). After firing, the task moves to `fi
 | `pile` | Fire regardless; multiple open PRs accumulate |
 | `replace` | Cancel the old Job and fire a new one |
 
+## Fire handlers for plugin-owned task targets
+
+Plugins can route selected task rows to another Job and workflow without changing
+`ScheduledTasks::Fire`. Register a handler as a reversible `while_enabled` effect:
+
+```ruby
+scope.effect("scheduled task fire handler") do
+  ScheduledTasks::FireHandlers.register(target: :example, handler: Example::FireHandler) do |task|
+    task.respond_to?(:example_id) && task.example_id.present?
+  end
+end
+```
+
+Handlers inherit `ScheduledTasks::FireHandlers::Base`, implement `fire!(now:)`, and
+return the created Job with its `scheduled_task_id` set to the firing task. Their
+`applicable_behaviors` declaration is empty by default;
+include `PR_PILEUP_POLICY` and `PR_BASED_AUTO_APPROVAL` only when those PR-oriented
+scheduled-task policies apply. The built-in default handler declares both and keeps
+the existing `cron` Job plus `initial` or `skill` workflow behavior.
+
+The shared fire service still owns row locking, due-window deduplication, repository
+write authorization, fire timestamps, and one-shot state transitions for every
+handler. Returning the registration's teardown from `scope.effect` removes the
+handler when its plugin is disabled.
+
 ## Auto-pause
 
 When `consecutive_failure_count` reaches `AppSetting.max_job_failures` (default: 3), the task transitions to `auto_paused`. The operator must unpause the task (via admin UI or Rails console: `task.update!(state: 'scheduled', consecutive_failure_count: 0)`) to re-enable it.
