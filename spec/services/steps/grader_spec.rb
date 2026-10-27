@@ -497,6 +497,57 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(error.problem).to be_retryable
   end
 
+  # The production case: the prepared layer was intact and only this step's
+  # private copy came out short, so rebuilding that copy is enough.
+  it "rebuilds an immutable step workspace once when the checkout is short, then runs the grader" do
+    allow(handler).to receive(:validate_workspace_tracked_files!).and_call_original
+    readme = @ws_path.join("README.md")
+    FileUtils.rm_f(readme)
+    immutable = instance_double(ImmutableSourceCheckout, path: @ws_path, setup: nil)
+    allow(immutable).to receive(:rematerialize_step_workspace!) do
+      readme.write("restored\n")
+      true
+    end
+    allow(handler).to receive(:workspace).and_return(immutable)
+
+    expect { handler.call }.not_to raise_error
+
+    expect(immutable).to have_received(:rematerialize_step_workspace!).once
+    expect(readme).to exist
+  end
+
+  it "fails with the unchanged message when rebuilding does not restore the file" do
+    allow(handler).to receive(:validate_workspace_tracked_files!).and_call_original
+    FileUtils.rm_f(@ws_path.join("README.md"))
+    immutable = instance_double(
+      ImmutableSourceCheckout,
+      path: @ws_path, setup: nil, rematerialize_step_workspace!: true
+    )
+    allow(handler).to receive(:workspace).and_return(immutable)
+
+    error = nil
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |raised| error = raised }
+
+    expect(error.message).to include("checkout is missing tracked file: README.md")
+    expect(error.evidence["rematerialized"]).to be(true)
+  end
+
+  # A shared prepared layer must never be rebuilt or deleted to repair one
+  # grader: the other graders on the host are linking against it.
+  it "never asks the workspace to invalidate the shared prepared layer" do
+    allow(handler).to receive(:validate_workspace_tracked_files!).and_call_original
+    FileUtils.rm_f(@ws_path.join("README.md"))
+    immutable = instance_double(
+      ImmutableSourceCheckout,
+      path: @ws_path, setup: nil, rematerialize_step_workspace!: true
+    )
+    allow(handler).to receive(:workspace).and_return(immutable)
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+    expect(ImmutableSourceCheckout.instance_methods).not_to include(:invalidate_prepared_layer!)
+  end
+
   it "does not treat tracked submodule gitlinks as missing files" do
     git_opts = { chdir: @ws_path.to_s, exception: true }
     system(
