@@ -11,7 +11,7 @@ module Java
     experimental true
     default_enabled false
     description "Java/JVM-generic intelligence: Gradle/Maven wrapper-aware prepare and grader detection, JDK prompt guidance, and JVM review criteria"
-    long_description "Java provides language-level support for generic JVM repositories. It detects Maven, Gradle, wrapper scripts, and conventional Java source layouts, prepares Gradle and Maven projects with wrapper-aware commands, expands Gradle/Maven typed graders, and reminds agents to prefer project-owned build tooling.\n\nUse it for Java services, CLIs, libraries, and mixed-language repositories with generic JVM components. Android-specific Gradle Plugin, SDK, emulator, device, and runtime behavior belong in the Android plugin so generic Java support stays portable."
+    long_description "Java provides language-level support for generic JVM repositories. It detects Maven, Gradle, wrapper scripts, and conventional Java source layouts, prepares Gradle and Maven projects with wrapper-aware commands, expands Gradle/Maven typed graders, and reminds agents to prefer project-owned build tooling.\n\nUse it for Java services, CLIs, libraries, and mixed-language repositories with generic JVM components. Platform-specific SDK, emulator, device, and runtime behavior belongs in a plugin that also ships a worker advertising the matching capability, so generic Java support stays portable."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/java.svg"
     author "Thomas Kadauke"

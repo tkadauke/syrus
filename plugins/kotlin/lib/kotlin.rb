@@ -10,7 +10,7 @@ module Kotlin
     experimental true
     default_enabled false
     description "Kotlin/JVM intelligence: Kotlin source and Gradle Kotlin DSL detection, JVM prepare reuse, and Kotlin-aware review guidance"
-    long_description "Kotlin layers Kotlin/JVM language awareness on top of the generic Java plugin. It detects Kotlin source files, Kotlin scripts, Gradle Kotlin DSL files, Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test layouts, while reusing Java's Gradle/JUnit grader machinery and JDK guidance.\n\nUse it for Kotlin/JVM services, CLIs, libraries, and mixed-language repositories with Kotlin components. Kotlin Multiplatform, native/iOS targets, Android Gradle Plugin behavior, Android SDK setup, emulators, and devices are intentionally outside this first pass."
+    long_description "Kotlin layers Kotlin/JVM language awareness on top of the generic Java plugin. It detects Kotlin source files, Kotlin scripts, Gradle Kotlin DSL files, Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test layouts, while reusing Java's Gradle/JUnit grader machinery and JDK guidance.\n\nUse it for Kotlin/JVM services, CLIs, libraries, and mixed-language repositories with Kotlin components. Kotlin Multiplatform and native/iOS targets are intentionally out of scope."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/kotlin.svg"
     author "Thomas Kadauke"

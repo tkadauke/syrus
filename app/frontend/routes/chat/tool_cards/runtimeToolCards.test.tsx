@@ -503,17 +503,17 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Snapshot: button Open settings")).toBeInTheDocument()
   })
 
-  it("renders Android UIAutomator inspection output without browser-only fields", () => {
+  it("renders UIAutomator inspection output without browser-only fields", () => {
     const parsedResult = {
-      kind: "android_uiautomator",
+      kind: "mobile_uiautomator",
       xml: "<?xml version='1.0'?><hierarchy><node text='Sign in' /></hierarchy>",
       bytes: 67
     }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: android_uiautomator, 67 bytes")
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: mobile_uiautomator, 67 bytes")
 
     render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
-    expect(screen.getByText("android_uiautomator")).toBeInTheDocument()
+    expect(screen.getByText("mobile_uiautomator")).toBeInTheDocument()
     expect(screen.getByText("67")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
     expect(screen.getAllByText(/<hierarchy>/).length).toBeGreaterThan(0)
@@ -1015,16 +1015,16 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Browser connection closed")).toBeInTheDocument()
   })
 
-  it("treats delivered false as a failure and shows Android pointer details", () => {
+  it("treats delivered false as a failure and shows pointer details", () => {
     const toolContext = context("runtime_input", {
       parsedResult: { delivered: false, event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } },
-      input: { session_id: "android-9", event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } }
+      input: { session_id: "device-9", event: { type: "tap", x: 120, y: 240, pointer_type: "touch" } }
     })
 
     expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input failed")
     render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("failed")).toBeInTheDocument()
-    expect(screen.getByText("android-9")).toBeInTheDocument()
+    expect(screen.getByText("device-9")).toBeInTheDocument()
     expect(screen.getAllByText("120").length).toBeGreaterThan(0)
     expect(screen.getAllByText("240").length).toBeGreaterThan(0)
     expect(screen.getAllByText("touch").length).toBeGreaterThan(0)
@@ -1088,9 +1088,9 @@ describe("Runtime tool cards", () => {
     expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument()
   })
 
-  it("renders Android latest-frame snapshots with provider metadata", () => {
+  it("renders Latest-frame snapshots with provider metadata", () => {
     const parsedResult = {
-      kind: "android_screenshot",
+      kind: "mobile_screenshot",
       content_type: "image/png",
       document_id: 31,
       preview_url: "/api/v1/app/chats/8/media/chat_images/31/file",
@@ -1100,11 +1100,11 @@ describe("Runtime tool cards", () => {
       warning: "device offline"
     }
 
-    expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of android_screenshot")
+    expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of mobile_screenshot")
 
     render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
     expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
-    expect(screen.getAllByText("android_screenshot").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("mobile_screenshot").length).toBeGreaterThan(0)
     expect(screen.getAllByText("31").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
     expect(screen.getByText("device offline")).toBeInTheDocument()
@@ -1146,9 +1146,9 @@ describe("Runtime tool cards", () => {
     expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file?download=1")
   })
 
-  it("renders Android screenshot payloads as generic Runtime artifacts", () => {
+  it("renders Device screenshot payloads as generic Runtime artifacts", () => {
     const parsedResult = {
-      kind: "android_screenshot",
+      kind: "mobile_screenshot",
       content_type: "image/png",
       document_id: 44,
       file_path: "/api/v1/app/chats/8/media/chat_images/44/file",
@@ -1157,11 +1157,11 @@ describe("Runtime tool cards", () => {
     }
 
     expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe(
-      "Runtime artifact captured: android_screenshot"
+      "Runtime artifact captured: mobile_screenshot"
     )
 
     render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "android_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
+    expect(screen.getByRole("img", { name: "mobile_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
     expect(screen.getAllByText("44").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
   })
