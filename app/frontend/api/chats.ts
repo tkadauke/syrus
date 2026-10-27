@@ -716,7 +716,7 @@ export type ChatGroupRecord = {
   key: string
   label: string
   repository_id: number | null
-  group_by?: ChatSidebarGroupBy
+  group_by?: ChatSidebarGroupBy | "shared"
   group_value?: string | null
   chats: ChatNavRecord[]
   has_more: boolean

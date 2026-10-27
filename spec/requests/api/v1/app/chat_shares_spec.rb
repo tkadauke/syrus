@@ -69,4 +69,31 @@ RSpec.describe "API: chat shares", type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.chat_shares).to be_empty
   end
+
+  it "paginates the Shared with me group with the ordinary cursor endpoint" do
+    recipient.update!(recent_chats_group_size: 5)
+    shared_chats = 7.times.map do |index|
+      session = ChatSession.create!(user: owner, title: "Shared #{index}", last_message_at: (index + 1).hours.ago)
+      session.update_columns(created_at: session.last_message_at, updated_at: session.last_message_at)
+      ChatShare.create!(chat_session: session, target: recipient, shared_by_user: owner)
+      session
+    end
+    sign_in_as(recipient)
+
+    get "/api/v1/app/chats"
+    group = response.parsed_body.fetch("groups").find { |candidate| candidate.fetch("key") == "shared-with-me" }
+    expect(group.fetch("chats").pluck("id")).to eq(shared_chats.first(5).map(&:id))
+    expect(group.fetch("has_more")).to be(true)
+
+    get "/api/v1/app/chats/more", params: {
+      group_by: "shared",
+      group_key: "shared-with-me",
+      before_id: group.fetch("chats").last.fetch("id"),
+      per_group: 5
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("chats").pluck("id")).to eq(shared_chats.last(2).map(&:id))
+    expect(response.parsed_body.fetch("has_more")).to be(false)
+  end
 end
