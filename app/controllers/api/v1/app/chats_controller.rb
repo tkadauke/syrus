@@ -60,6 +60,10 @@ module Api
             render_error("validation_failed", t("api.chats.errors.group_key_required"), status: :unprocessable_content)
             return
           end
+          if group_by == "shared" && group_key != "shared-with-me"
+            render_error("validation_failed", t("api.chats.errors.group_key_required"), status: :unprocessable_content)
+            return
+          end
 
           scope = chat_index_group_scope(group_by: group_by, group_key: group_key)
           cursor = scope.find_by(id: before_id)
