@@ -991,6 +991,8 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
   "tool_card_examples": {
+    "priority_changed": "Prioritas mutata",
+    "invalid_priority": "Prioritas invalida",
     "pending_reopen_without_input": "Reapertura pendens sine argumento",
     "bulk_reopen_confirmation": "Confirmatio reaperturae multiplicis",
     "job_cannot_be_reopened": "Job reaperiri non potest",
