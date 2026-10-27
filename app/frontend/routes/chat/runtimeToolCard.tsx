@@ -596,6 +596,7 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
 
 const ARTIFACT_LABELS: Record<string, string> = {
   screenshot: "Screenshot",
+  mobile_screenshot: "Android screenshot",
   android_screenshot: "Android screenshot"
 }
 

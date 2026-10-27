@@ -1532,7 +1532,7 @@ describe("Runtime tool cards", () => {
     }
 
     render(<ToolGroup item={item} />)
-    expect(screen.getByText(/Runtime capture artifact failed/)).toBeInTheDocument()
+    expect(screen.getByText(/Runtime artifact capture failed/)).toBeInTheDocument()
     expandToolGroup("Runtime capture artifact")
     expect(screen.getByText("capture denied by provider")).toBeInTheDocument()
     expect(screen.getByText("17")).toBeInTheDocument()
