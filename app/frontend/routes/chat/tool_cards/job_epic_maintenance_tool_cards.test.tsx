@@ -8,13 +8,16 @@ import { examples as cancelJobExamples } from "./cancel_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
 import { examples as closeJobSuccessfullyExamples } from "./close_job_successfully"
 import setJobPriorityCard from "./set_job_priority"
+import { examples as setJobPriorityExamples } from "./set_job_priority"
 import updateJobCard from "./update_job"
 import rebaseJobCard from "./rebase_job"
 import { examples as rebaseJobExamples } from "./rebase_job"
 import reopenJobCard from "./reopen_job"
+import { examples as reopenJobExamples } from "./reopen_job"
 import pollJobFeedbackCard from "./poll_job_feedback"
 import { examples as pollJobFeedbackExamples } from "./poll_job_feedback"
 import startEpicCard from "./start_epic"
+import { examples as startEpicExamples } from "./start_epic"
 import moveEpicToBacklogCard from "./move_epic_to_backlog"
 import { examples as moveEpicToBacklogExamples } from "./move_epic_to_backlog"
 import archiveEpicCard from "./archive_epic"
@@ -179,6 +182,72 @@ describe("Job and Epic maintenance tool cards", () => {
     } else {
       expect(screen.queryByText("Job state")).not.toBeInTheDocument()
     }
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(reopenJobExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: reopenJobExamples[0].parsedResult }]
+  ] as const)("recovers and links the reopen target from normalized %s without input", (_label, envelope) => {
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__reopen_job"), {
+      ...reopenJobExamples[0],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(ctx.input).toBeUndefined()
+    expect(reopenJobCard.collapsedSummary?.(ctx)).toBe("Reopen requested · JOB-71 · pending #35")
+    render(<>{reopenJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getAllByRole("link", { name: "JOB-71" }).every((link) => link.getAttribute("href") === "/jobs/71")).toBe(true)
+  })
+
+  it("links every Job in a bulk reopen request", () => {
+    const ctx = toolCardContextForExample("reopen_job", reopenJobExamples[1])
+
+    expect(reopenJobCard.collapsedSummary?.(ctx)).toBe("Reopen requested · 3 JOBs · pending group #12")
+    render(<>{reopenJobCard.renderExpanded(ctx)}</>)
+
+    for (const id of [71, 72, 73]) {
+      expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    }
+  })
+
+  it.each([
+    ["confirmed", "Reopened · JOB-71", "triaging"],
+    ["rejected", "Reopen Job rejected · JOB-71", null]
+  ] as const)("renders the live %s reopen outcome", (state, summary, subjectState) => {
+    const pending = toolCardContextForExample("reopen_job", reopenJobExamples[0])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(35, state, {
+        action: "reopen_job",
+        label: "Reopen JOB-71",
+        resource_title: "Restore the closed work",
+        resource_url: "/jobs/71"
+      })
+    }
+
+    expect(reopenJobCard.collapsedSummary?.(ctx)).toBe(summary)
+    render(<>{reopenJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText(state)).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "JOB-71" }).every((link) => link.getAttribute("href") === "/jobs/71")).toBe(true)
+    if (subjectState) {
+      expect(screen.getByText("Job state")).toBeInTheDocument()
+      expect(screen.getByText(subjectState)).toBeInTheDocument()
+    } else {
+      expect(screen.queryByText("Job state")).not.toBeInTheDocument()
+    }
+  })
+
+  it("renders reopen errors with input context", () => {
+    const ctx = toolCardContextForExample("reopen_job", reopenJobExamples[2])
+
+    expect(reopenJobCard.collapsedSummary?.(ctx)).toBe("Job reopen failed: Error: JOB-74 is not closed.")
+    render(<>{reopenJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Error: JOB-74 is not closed.")).toBeInTheDocument()
+    expect(screen.getByText("Reopen JOB-74")).toBeInTheDocument()
+    expect(screen.getByText("JOB-74")).toBeInTheDocument()
   })
 
   it("renders canceled and rejected pending action acknowledgements", () => {
@@ -502,14 +571,40 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
   })
 
-  it("renders priority changes", () => {
-    const parsedResult = { job_id: 51, previous_priority: "medium", new_priority: "urgent" }
+  it.each([
+    [
+      "content text",
+      { content: [{ type: "text", text: JSON.stringify(setJobPriorityExamples[0].parsedResult) }] },
+      "mcp__syrus-chat-sidecar__set_job_priority"
+    ],
+    ["structured content", { structured_content: setJobPriorityExamples[0].parsedResult }, "set_job_priority"]
+  ] as const)("renders priority changes with linked targets and toned pills from normalized %s", (_label, envelope, toolName) => {
+    const ctx = toolCardContextForExample(normalizedToolName(toolName), {
+      ...setJobPriorityExamples[0],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
 
-    expect(setJobPriorityCard.collapsedSummary?.(context("set_job_priority", { parsedResult }))).toBe("Priority changed · JOB-51")
-    render(<>{setJobPriorityCard.renderExpanded(context("set_job_priority", { parsedResult }))}</>)
+    expect(setJobPriorityCard.collapsedSummary?.(ctx)).toBe("Priority changed · JOB-51")
+    render(<>{setJobPriorityCard.renderExpanded(ctx)}</>)
 
-    expect(screen.getByText("medium")).toBeInTheDocument()
-    expect(screen.getByText("urgent")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-51" })).toHaveAttribute("href", "/jobs/51")
+    expect(screen.getByText("Priority")).toBeInTheDocument()
+    expect(screen.getByLabelText("medium to urgent")).toBeInTheDocument()
+    expect(screen.getByText("→")).toBeInTheDocument()
+    expect(screen.queryByText("Previous priority")).not.toBeInTheDocument()
+    expect(screen.queryByText("New priority")).not.toBeInTheDocument()
+  })
+
+  it("renders the requested priority when validation fails", () => {
+    const ctx = toolCardContextForExample("set_job_priority", setJobPriorityExamples[1])
+
+    expect(setJobPriorityCard.collapsedSummary?.(ctx)).toBe("Set Job Priority failed · JOB-51")
+    render(<>{setJobPriorityCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-51" })).toHaveAttribute("href", "/jobs/51")
+    expect(screen.getByText("Requested priority")).toBeInTheDocument()
+    expect(screen.getByText("immediate")).toBeInTheDocument()
+    expect(screen.getByText("Error: priority must be urgent, high, medium, or low")).toBeInTheDocument()
   })
 
   it("renders approval and unapproval acknowledgements", () => {
@@ -599,13 +694,46 @@ describe("Job and Epic maintenance tool cards", () => {
     )
 
     expect(screen.getByText("EPIC-60")).toBeInTheDocument()
-    expect(screen.getByText("in progress")).toBeInTheDocument()
+    expect(screen.getAllByText("in progress").length).toBeGreaterThan(0)
     expect(screen.getByText("EPIC-61")).toBeInTheDocument()
     expect(screen.getAllByText("backlog").length).toBeGreaterThan(0)
     expect(screen.getAllByRole("link", { name: "EPIC-62" })).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: "EPIC-62" }).every((link) => link.getAttribute("href") === "/epics/62")).toBe(true)
     expect(screen.getByText("pending #17")).toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent("Open child Jobs will be cancelled and closed when confirmed.")
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(startEpicExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: startEpicExamples[0].parsedResult }]
+  ])("renders linked start-Epic transition pills from a normalized %s envelope", (_label, envelope) => {
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__start_epic"), {
+      ...startEpicExamples[0],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(ctx.toolName).toBe("start_epic")
+    expect(startEpicCard.collapsedSummary?.(ctx)).toBe("Started · EPIC-60")
+    render(<>{startEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "EPIC-60" })).toHaveAttribute("href", "/epics/60")
+    expect(screen.getByText("ready").parentElement).toHaveClass("uppercase")
+    expect(screen.getAllByText("in progress").every((node) => node.parentElement?.classList.contains("uppercase"))).toBe(true)
+  })
+
+  it.each([
+    ["epic must be ready to start; current state is backlog", startEpicExamples[1]],
+    ["Product owners cannot advance Epics beyond backlog.", startEpicExamples[2]]
+  ])("renders the full start-Epic error: %s", (error, example) => {
+    const ctx = toolCardContextForExample("start_epic", example)
+
+    expect(startEpicCard.collapsedSummary?.(ctx)).toBe(`Start Epic failed · EPIC-${example.input?.epic_id}`)
+    render(<>{startEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByTestId("markdown-preview-content")).not.toHaveStyle({ overflow: "hidden" })
+    expect(screen.getByText(error)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: `EPIC-${example.input?.epic_id}` })).toHaveAttribute("href", `/epics/${example.input?.epic_id}`)
   })
 
   it.each([

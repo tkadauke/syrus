@@ -15,13 +15,20 @@ test("signed-in admin enables the Terminal plugin and opens a session panel from
   // in workspace" action hides itself when the workspace is not present on
   // this storage root (Terminal::WorkspaceAvailability), and nothing in a
   // preview database ever creates one.
-  execFileSync("bin/rails", ["runner", `
+  execFileSync(
+    "bin/rails",
+    [
+      "runner",
+      `
     PluginRecord.find_or_initialize_by(name: "terminal").update!(enabled: false)
 
     workflow = Job.find_by!(issue_title: "Inspect preview dashboard states").workflows.order(:id).last
     workflow.update_columns(cleaned_up_at: nil, worker_storage_key: nil, worker_hostname: nil)
     FileUtils.mkdir_p(WorkflowWorkspace.path_for(workflow))
-  `], { env: process.env, stdio: "inherit" })
+  `
+    ],
+    { env: process.env, stdio: "inherit" }
+  )
 
   await signInAsDemo(page)
 
