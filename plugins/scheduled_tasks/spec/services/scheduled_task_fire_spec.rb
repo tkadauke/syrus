@@ -20,6 +20,74 @@ RSpec.describe ScheduledTasks::Fire do
   end
 
   describe "#call" do
+    context "with a registered target handler" do
+      let(:handler_class) do
+        Class.new(ScheduledTasks::FireHandlers::Base) do
+          def fire!(now:)
+            Job.create!(
+              user: task.user,
+              repository: task.repository,
+              kind: "direct",
+              scheduled_task_id: task.id,
+              origin: "scheduled_tasks",
+              origin_id: task.id.to_s,
+              issue_title: "Custom scheduled work",
+              issue_body: "Fired at #{now.iso8601}",
+              issue_number: nil
+            )
+          end
+        end
+      end
+
+      it "fires the target through its handler without applying PR-oriented behaviors" do
+        task.update!(auto_approve_mode: "if_graders_pass")
+        make_open_pr_job
+        teardown = ScheduledTasks::FireHandlers.register(target: :test, handler: handler_class) do |candidate|
+          candidate.id == task.id
+        end
+
+        result = described_class.new(task).call
+
+        expect(result).to be_fired
+        expect(result.job.kind).to eq("direct")
+        expect(ScheduledTasks::FireHandlers.behavior_applicable?(task, :pr_pileup_policy)).to be(false)
+        expect(ScheduledTasks::FireHandlers.behavior_applicable?(task, :pr_based_auto_approval)).to be(false)
+        expect(ScheduledTasks::JobOrigin.auto_approve_mode(origin_id: task.id)).to be_nil
+      ensure
+        teardown&.call
+      end
+
+      it "removes the handler when its plugin effect is torn down" do
+        teardown = ScheduledTasks::FireHandlers.register(target: :test, handler: handler_class) do |candidate|
+          candidate.id == task.id
+        end
+        expect(ScheduledTasks::FireHandlers.for(task)).to be_a(handler_class)
+
+        teardown.call
+
+        expect(ScheduledTasks::FireHandlers.for(task)).to be_a(ScheduledTasks::FireHandlers::Default)
+        expect(ScheduledTasks::FireHandlers.behavior_applicable?(task, :pr_pileup_policy)).to be(true)
+      ensure
+        teardown&.call
+      end
+
+      it "requires the handler to link its Job for failure accounting" do
+        unlinked_handler = Class.new(handler_class) do
+          def fire!(now:)
+            super.tap { |job| job.update_column(:scheduled_task_id, nil) }
+          end
+        end
+        teardown = ScheduledTasks::FireHandlers.register(target: :test, handler: unlinked_handler) do |candidate|
+          candidate.id == task.id
+        end
+
+        expect { described_class.new(task).call }
+          .to raise_error(ArgumentError, /linked to its task/)
+      ensure
+        teardown&.call
+      end
+    end
+
     it "spawns a cron Job with an explicit initial Run carrying the rendered prompt" do
       result = described_class.new(task).call
 
