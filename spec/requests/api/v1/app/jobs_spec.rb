@@ -1298,7 +1298,12 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       tool_use_id: "call_1"
     )
     JobLog.append!(run: run, chunk: "tool result", kind: "tool_result",
-                   tool_result_content: "authorization=top-secret-value", tool_result_error: false,
+                   tool_result_content: [
+                     "authorization=top-secret-value",
+                     "Authorization: Bearer abcdefghijklmnop",
+                     "-----BEGIN PRIVATE KEY-----\nprivate-material\n-----END PRIVATE KEY-----",
+                     "sk-abcdefghijklmnopqrstuvwxyz"
+                   ], tool_result_error: false,
                    tool_use_id: "call_1")
     JobLog.create!(run: run, sequence: 2, kind: "system", chunk: "legacy row")
 
@@ -1312,7 +1317,12 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "tool_use_id" => "call_1"
     )
     expect(tool_result).to include(
-      "tool_result_content" => "authorization=[redacted]",
+      "tool_result_content" => [
+        "authorization=[redacted]",
+        "Authorization: Bearer [redacted]",
+        "[redacted]",
+        "[redacted]"
+      ],
       "tool_result_error" => false
     )
     expect(legacy).to include(
