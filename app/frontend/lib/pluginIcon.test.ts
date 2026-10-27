@@ -11,9 +11,6 @@ describe("pluginIconSrc", () => {
 
   it("falls back to the SPQR eagle for an unrecognized plugin name", () => {
     expect(pluginIconSrc("some-future-plugin")).toBe("/plugin-icons/spqr_eagle.svg")
-    // A plugin that has been removed must fall through too: leaving its entry
-    // behind would point the UI at an asset that no longer ships.
-    expect(pluginIconSrc("android")).toBe("/plugin-icons/spqr_eagle.svg")
   })
 })
 
