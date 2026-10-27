@@ -10,6 +10,7 @@ import type { ChatMessageItem } from "../api/chats"
 import html2canvasModule from "html2canvas-pro"
 import { chatTranscriptBugReportAttachment } from "../lib/chatBugReportAttachments"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
+import i18n from "../i18n"
 
 vi.mock("../api/bugReports", () => ({
   createBugReport: vi.fn(),
@@ -69,7 +70,7 @@ function renderButton(
 }
 
 function reportOptions(messages: ChatMessageItem[]) {
-  const attachment = chatTranscriptBugReportAttachment(messages)
+  const attachment = chatTranscriptBugReportAttachment(messages, i18n.getFixedT("en", "chat"))
   return { optionalAttachments: attachment ? [attachment] : [] }
 }
 

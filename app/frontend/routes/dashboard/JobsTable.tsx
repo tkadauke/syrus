@@ -396,14 +396,14 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
             >
               {(
                 controls.priorities ?? [
-                  { value: "urgent", label: "Urgent" },
-                  { value: "high", label: "High" },
-                  { value: "medium", label: "Medium" },
-                  { value: "low", label: "Low" }
+                  { value: "urgent", label: t("priority_values.urgent") },
+                  { value: "high", label: t("priority_values.high") },
+                  { value: "medium", label: t("priority_values.medium") },
+                  { value: "low", label: t("priority_values.low") }
                 ]
               ).map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(`priority_values.${option.value}`, { defaultValue: option.label })}
                 </option>
               ))}
             </Select>
@@ -738,6 +738,7 @@ function LandingQueueBlockerCell({
   attribution: string | null
   prefix: string
 }) {
+  const { t } = useT("dashboard")
   if (column === "checkbox") return <DataTable.Cell className="align-top" />
   if (column === "landing_queue_position") return <DataTable.Cell />
   if (column === "landing_queue_blocked_reason") return <DataTable.Cell />
@@ -786,8 +787,12 @@ function LandingQueueBlockerCell({
   if (column === "latest") {
     if (job.latest_workflow_id == null) return <DataTable.Cell />
     return (
-      <DataTable.Cell aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind ?? ""} ${job.latest_workflow_state ?? ""}`}>
-        <WorkflowBadges state={job.latest_workflow_state ?? ""} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
+      <DataTable.Cell aria-label={t("latest_workflow_aria", { trigger: job.latest_workflow_trigger_kind ?? "", state: job.latest_workflow_state ?? "" })}>
+        <WorkflowBadges
+          state={job.latest_workflow_state ?? ""}
+          triggerAriaPrefix={t("latest_workflow_trigger_aria")}
+          triggerKind={job.latest_workflow_trigger_kind}
+        />
       </DataTable.Cell>
     )
   }
@@ -1124,7 +1129,7 @@ function MobileJobRow({
       <Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} />
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
+          <WorkflowBadges state={job.summary_state} triggerAriaPrefix={t("active_workflow_trigger_aria")} triggerKind={job.active_workflow_trigger_kind} />
           <ProviderAvailabilityWarning availability={job.provider_availability} />
           {job.total_cost_usd == null ? null : (
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd)}</span>
@@ -1506,12 +1511,13 @@ function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {
 }
 
 export function CommitsBehindBadge({ count }: { count: number | null | undefined }) {
+  const { t } = useT("dashboard")
   if (count == null || count === 0) return null
 
   const tone: "red" | "amber" | "gray" = count >= 20 ? "red" : count >= 10 ? "amber" : "gray"
   return (
-    <TonePill ariaLabel={`${count} commits behind base`} tone={tone}>
-      {count} behind
+    <TonePill ariaLabel={t("commits_behind_base_aria", { count })} tone={tone}>
+      {t("commits_behind_base", { count })}
     </TonePill>
   )
 }
@@ -1523,11 +1529,12 @@ export const PRIORITY_TONE: Record<string, "red" | "amber" | "blue"> = {
 }
 
 function PriorityPillCell({ priority }: { priority: string }) {
+  const { t } = useT("dashboard")
   const tone = PRIORITY_TONE[priority]
   if (!tone) return <DataTable.Cell />
   return (
     <DataTable.Cell>
-      <TonePill tone={tone}>{priority}</TonePill>
+      <TonePill tone={tone}>{t(`priority_values.${priority}`, { defaultValue: priority })}</TonePill>
     </DataTable.Cell>
   )
 }
@@ -1562,6 +1569,7 @@ function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJob
 }
 
 function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
+  const { t } = useT("dashboard")
   if (job.latest_workflow_id == null) {
     return <DataTable.Cell />
   }
@@ -1575,9 +1583,9 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
   }
 
   return (
-    <DataTable.Cell aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`}>
+    <DataTable.Cell aria-label={t("latest_workflow_aria", { trigger: job.latest_workflow_trigger_kind, state: job.latest_workflow_state })}>
       <div className="flex flex-col items-start gap-1.5">
-        <WorkflowTriggerPill ariaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
+        <WorkflowTriggerPill ariaPrefix={t("latest_workflow_trigger_aria")} triggerKind={job.latest_workflow_trigger_kind} />
         <StatusPill state={job.latest_workflow_state} />
       </div>
     </DataTable.Cell>
@@ -1714,15 +1722,16 @@ function JobSourceChatLink({ job, prefix }: { job: DashboardJobItem; prefix: str
 }
 
 function RetryStateInline({ job }: { job: DashboardJobItem }) {
+  const { t } = useT("dashboard")
   const retry = job.retry_state
   if (!retry || retry.state_label === "No failure") return null
 
   const details = [
     retry.classification_label,
-    retry.retryable ? "retryable" : "not retryable",
-    `${retry.retry_budget_remaining} left`,
-    retry.next_auto_retry_at ? `next ${formatRelativeDate(new Date(retry.next_auto_retry_at))}` : null,
-    retry.provider_circuit_open ? "provider circuit open" : null
+    retry.retryable ? t("retry_state.retryable") : t("retry_state.not_retryable"),
+    t("retry_state.budget_remaining", { count: retry.retry_budget_remaining }),
+    retry.next_auto_retry_at ? t("retry_state.next", { time: formatRelativeDate(new Date(retry.next_auto_retry_at)) }) : null,
+    retry.provider_circuit_open ? t("retry_state.provider_circuit_open") : null
   ]
     .filter(Boolean)
     .join(" · ")

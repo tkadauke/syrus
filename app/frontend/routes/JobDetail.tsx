@@ -235,6 +235,7 @@ export function JobDetailView({
   initialDiff?: { base: string; head: string } | null
 }) {
   const { t } = useT("jobs")
+  const { t: commonT } = useT("common")
   const { t: tTours } = useT("tours")
   const location = useLocation()
   const navigate = useNavigate()
@@ -391,7 +392,7 @@ export function JobDetailView({
                 ? {
                     node: (
                       <span className="inline-flex items-center gap-1">
-                        <span title={providerFailoverTooltip(payload.job.provider_failover)}>{providerLabel}</span>
+                        <span title={providerFailoverTooltip(payload.job.provider_failover, commonT)}>{providerLabel}</span>
                         <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
                       </span>
                     ),
@@ -839,7 +840,7 @@ function TabNav({
     { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
     { id: "conversation", label: t("tab_conversation") },
     { id: "timeline", label: t("tab_timeline") },
-    { id: "target_graph", label: "Target Graph" },
+    { id: "target_graph", label: t("tab_target_graph") },
     { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
     { id: "source", label: t("tab_source") }
   ]
@@ -855,7 +856,7 @@ function TabNav({
     <UnderlineTabs
       activeKey={active}
       activeClassName="border-brand text-brand"
-      ariaLabel="Job sections"
+      ariaLabel={t("job_sections")}
       className="scroll-fade-x flex overflow-x-auto border-b border-gray-200 dark:border-gray-700"
       inactiveClassName="border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
       itemClassName="px-4 py-3 text-sm"
@@ -1141,15 +1142,16 @@ function JobCostLink({ prefix, value }: { prefix: string; value: number }) {
 }
 
 function EmergencyLandAudit({ job }: { job: JobDetailPayload["job"] }) {
+  const { t } = useT("jobs")
   const user = job.emergency_landed_by_user
-  const userLabel = user?.display_name || user?.email_address || "Unknown user"
+  const userLabel = user?.display_name || user?.email_address || t("unknown_user")
   const tier = job.emergency_landed_by_membership_tier
 
   return (
     <span className="inline-flex flex-col gap-1 text-sm">
-      <span>{job.emergency_landed_at ? <RelativeTimestamp value={job.emergency_landed_at} /> : "Time not recorded"}</span>
+      <span>{job.emergency_landed_at ? <RelativeTimestamp value={job.emergency_landed_at} /> : t("time_not_recorded")}</span>
       <span className="text-xs text-warning-text">
-        Confirmed by {userLabel}
+        {t("emergency_confirmed_by", { user: userLabel })}
         {tier ? ` (${tier})` : ""}
       </span>
     </span>
@@ -1554,7 +1556,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
                 ? replace.error.message
                 : retry.error instanceof Error
                   ? retry.error.message
-                  : "Action failed."}
+                  : t("action_failed")}
         </p>
       ) : null}
       <div className="mt-3 space-y-3">

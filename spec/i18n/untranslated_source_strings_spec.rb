@@ -128,6 +128,101 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
   ].freeze
 
+  NON_CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/components/AdminEventActions.tsx
+    app/frontend/components/AdminEventLogPanel.tsx
+    app/frontend/components/Checkbox.tsx
+    app/frontend/components/ColumnVisibilityMenu.tsx
+    app/frontend/components/ConfirmDialog.tsx
+    app/frontend/components/GeminiSetupSheet.tsx
+    app/frontend/components/Input.tsx
+    app/frontend/components/Modal.tsx
+    app/frontend/components/MutationError.tsx
+    app/frontend/components/NoticeToast.tsx
+    app/frontend/components/PanelMessage.tsx
+    app/frontend/components/PrPreviewCard.tsx
+    app/frontend/components/ProviderAvailabilityWarning.tsx
+    app/frontend/components/ProviderRoutingRulesEditor.tsx
+    app/frontend/components/Select.tsx
+    app/frontend/components/ShortcutsHelpModal.tsx
+    app/frontend/components/Textarea.tsx
+    app/frontend/components/Toggle.tsx
+    app/frontend/components/WalkthroughRecorder.tsx
+    app/frontend/components/WorkflowPreviewCard.tsx
+    app/frontend/components/artifacts/BeforeAfterVisualComparison.tsx
+    app/frontend/components/artifacts/TypedArtifactPanel.tsx
+    app/frontend/components/artifacts/coreArtifactRenderers.tsx
+    app/frontend/components/credentials/ConnectFlowUi.tsx
+    app/frontend/components/credentials/CredentialCard.tsx
+    app/frontend/components/credentials/GithubTokenStep.tsx
+    app/frontend/components/credentials/ValidationStages.tsx
+    app/frontend/components/dataTable/DataTableColumnHeaderRow.tsx
+    app/frontend/components/dataTable/DataTableColumnMenu.tsx
+    app/frontend/components/diff/ImageDiffThumbnails.tsx
+    app/frontend/components/diff/ReviewableDiff.tsx
+    app/frontend/components/filterBar/DateTimeRangeFilterValueEditor.tsx
+    app/frontend/components/mobileChrome.tsx
+    app/frontend/components/timeline/TimeAxis.tsx
+    app/frontend/components/timeline/TimelineBar.tsx
+    app/frontend/components/timeline/TooltipCard.tsx
+    app/frontend/lib/chatBugReportAttachments.ts
+    app/frontend/lib/chatCache.ts
+    app/frontend/lib/nativeNotifications.ts
+    app/frontend/lib/passwordStrength.ts
+    app/frontend/lib/slashCommands.ts
+    app/frontend/routes/AccountSettings.tsx
+    app/frontend/routes/AdminBackendExceptions.tsx
+    app/frontend/routes/AdminBrowserErrors.tsx
+    app/frontend/routes/AdminFeatures.tsx
+    app/frontend/routes/AdminGithubApp.tsx
+    app/frontend/routes/AdminInstallations.tsx
+    app/frontend/routes/AdminInvitations.tsx
+    app/frontend/routes/AdminOverview.tsx
+    app/frontend/routes/AdminReconcilerActivity.tsx
+    app/frontend/routes/AdminStuck.tsx
+    app/frontend/routes/AdminTranscript.tsx
+    app/frontend/routes/AdminWorkUnits.tsx
+    app/frontend/routes/AdminWorkflowActivity.tsx
+    app/frontend/routes/AgentSettings.tsx
+    app/frontend/routes/AppChromeV2.tsx
+    app/frontend/routes/Auth.tsx
+    app/frontend/routes/ChatSearch.tsx
+    app/frontend/routes/ConnectedPlatforms.tsx
+    app/frontend/routes/Credentials.tsx
+    app/frontend/routes/Dashboard.tsx
+    app/frontend/routes/EpicDetail.tsx
+    app/frontend/routes/JobDetail.tsx
+    app/frontend/routes/NotificationsSettings.tsx
+    app/frontend/routes/Onboarding.tsx
+    app/frontend/routes/Preferences.tsx
+    app/frontend/routes/Profile.tsx
+    app/frontend/routes/Repositories.tsx
+    app/frontend/routes/RepositoryDetail.tsx
+    app/frontend/routes/RepositoryDocuments.tsx
+    app/frontend/routes/RepositoryMembers.tsx
+    app/frontend/routes/ThemesSettings.tsx
+    app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx
+    app/frontend/routes/appChromeV2/adminNav.ts
+    app/frontend/routes/appChromeV2/helpers.ts
+    app/frontend/routes/appChromeV2/quotes.ts
+    app/frontend/routes/appChromeV2/sidebarNav.tsx
+    app/frontend/routes/dashboard/EpicWorkflowTables.tsx
+    app/frontend/routes/dashboard/JobsTable.tsx
+    app/frontend/routes/dashboard/KanbanBoard.tsx
+    app/frontend/routes/dashboard/components.tsx
+    app/frontend/routes/dashboard/helpers.ts
+    app/frontend/routes/jobDetail/AgentConversation.tsx
+    app/frontend/routes/jobDetail/Delivery.tsx
+    app/frontend/routes/jobDetail/JobHeader.tsx
+    app/frontend/routes/jobDetail/Report.tsx
+    app/frontend/routes/jobDetail/SourceBrowser.tsx
+    app/frontend/routes/jobDetail/Timeline.tsx
+    app/frontend/routes/jobDetail/components.tsx
+    app/frontend/routes/repositoryDetail/DeliveryTracks.tsx
+    app/frontend/routes/repositoryDetail/MainBranchHealth.tsx
+    app/frontend/routes/repositoryDetail/shared.tsx
+  ].freeze
+
   CHAT_I18N_REVIEWED_FILES = %w[
     app/frontend/routes/chat/Compose.tsx
     app/frontend/routes/chat/AgentQuestions.tsx
@@ -191,10 +286,34 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/CoverageCard.tsx|jsx_text|(threshold: %)
       app/frontend/components/AdminEventActions.tsx|jsx_text|JOB-
       app/frontend/components/Checkbox.tsx|jsx_text|in a
+      app/frontend/components/Checkbox.tsx|ternary|border-danger text-danger accent-danger focus-visible:ring-danger
+      app/frontend/components/Checkbox.tsx|ternary|border-border text-brand accent-brand focus-visible:ring-brand
+      app/frontend/components/Input.tsx|ternary|border-danger focus:border-danger focus:ring-danger
+      app/frontend/components/Input.tsx|ternary|border-border focus:border-brand focus:ring-brand
+      app/frontend/components/Select.tsx|ternary|border-danger focus:border-danger focus:ring-danger
+      app/frontend/components/Select.tsx|ternary|border-border focus:border-brand focus:ring-brand
       app/frontend/components/ShortcutsHelpModal.tsx|jsx_text|(items: T[]): ShortcutGroupSummary
+      app/frontend/components/Textarea.tsx|ternary|border-danger focus:border-danger focus:ring-danger
+      app/frontend/components/Textarea.tsx|ternary|border-border focus:border-brand focus:ring-brand
+      app/frontend/components/Toggle.tsx|ternary|ring-1 ring-danger focus-visible:ring-danger
       app/frontend/components/ui/Text.tsx|jsx_text|, keyof TextOwnProps
       app/frontend/components/FilePreviewModal.tsx|jsx_text|cursor) parts.push(
+      app/frontend/components/PrPreviewCard.tsx|jsx_expression|PR #
+      app/frontend/components/diff/ReviewableDiff.tsx|jsx_expression|(+ -)
+      app/frontend/components/diff/ReviewableDiff.tsx|ternary|w-full table-fixed
+      app/frontend/components/timeline/TimeAxis.tsx|jsx_expression|0 0 24
+      app/frontend/components/ProviderAvailabilityWarning.tsx|ternary|text-red-600 dark:text-red-400
+      app/frontend/components/ProviderAvailabilityWarning.tsx|ternary|text-amber-600 dark:text-amber-400
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|, t: TFunction
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|, lowUsage: boolean, t: TFunction
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|, base: string, t: TFunction
+      app/frontend/components/ProviderAvailabilityWarning.tsx|jsx_text|["current"], t: TFunction
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|⌘⇧A
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|Ctrl+Shift+A
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|hidden sm:inline-flex
+      app/frontend/components/WalkthroughRecorder.tsx|ternary|bg-gray-400 dark:bg-gray-500
       app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|active job
+      app/frontend/routes/AdminBackendExceptions.tsx|user_visible_property|ActiveRecord::...
       app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|· ·
       app/frontend/routes/AdminReconcilerActivity.tsx|jsx_text|Run #
       app/frontend/routes/AdminUsers.tsx|jsx_text|[`#$`, job.state, job.kind,
@@ -203,8 +322,24 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WI-
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WU-
       app/frontend/routes/AppChromeV2.tsx|jsx_text|queryClient.getQueryData
+      app/frontend/routes/AppChromeV2.tsx|ternary|border-red-200 bg-red-50 text-red-700
+      app/frontend/routes/AppChromeV2.tsx|ternary|border-green-200 bg-green-50 text-green-700
+      app/frontend/routes/ChatSearch.tsx|ternary|text-red-700 dark:text-red-300
+      app/frontend/routes/ChatSearch.tsx|ternary|text-gray-500 dark:text-gray-400
+      app/frontend/routes/JobDetail.tsx|jsx_expression|CHAT-
+      app/frontend/routes/JobDetail.tsx|user_visible_property|Claude Code
+      app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, value: T, t: TFunction
+      app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_text|, t: TFunction
+      app/frontend/routes/appChromeV2/RecentChatsSidebar.tsx|jsx_expression|CHAT-
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|h-9 w-9 justify-center p-0
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|min-h-[44px] w-full gap-2 px-2.5 py-2
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|text-brand dark:text-brand-emphasis sm:bg-brand/10 dark:sm:bg-brand/10
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-emphasis
+      app/frontend/routes/appChromeV2/helpers.ts|ternary|bg-brand/10 text-brand dark:bg-brand/10 dark:text-brand-emphasis
       app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/dashboard/jobs", icon:
       app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/repositories", icon:
+      app/frontend/routes/dashboard/JobsTable.tsx|jsx_expression|JOB-
+      app/frontend/routes/dashboard/JobsTable.tsx|jsx_expression|CHAT-
       app/frontend/routes/EpicDetail.tsx|jsx_text|· Goal #
       app/frontend/routes/JobDetail.tsx|jsx_text|( )
       app/frontend/routes/JobDetail.tsx|jsx_text|· Goal #
@@ -290,6 +425,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #
+      app/frontend/routes/jobDetail/SourceBrowser.tsx|jsx_expression|(+ -)
+      app/frontend/routes/jobDetail/Timeline.tsx|jsx_expression|0 0 32
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0 && highlight.start
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0) blocks.push(`
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|offset || highlight.end
@@ -314,6 +451,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/credentials/CredentialCard.tsx|jsx_attr|sk-…
       app/frontend/components/credentials/CredentialCard.tsx|jsx_attr|LLM|…
       app/frontend/components/credentials/GithubTokenStep.tsx|jsx_attr|ghp_…
+      app/frontend/components/credentials/CredentialCard.tsx|user_visible_property|sk-…
+      app/frontend/components/credentials/CredentialCard.tsx|user_visible_property|LLM|…
+      app/frontend/components/credentials/GithubTokenStep.tsx|user_visible_property|ghp_…
       plugins/codex_agent/app/frontend/components/credentials/CodexConnect.tsx|jsx_attr|sk-…
       plugins/muse_agent/app/frontend/components/credentials/MuseConnect.tsx|jsx_attr|LLM|…
     LITERALS
@@ -321,8 +461,27 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
   def internal_diagnostic_literals
     @internal_diagnostic_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
+      app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|` : ""}
+      app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|request
+      app/frontend/routes/AdminBrowserErrors.tsx|jsx_text|trace
+      app/frontend/routes/AdminInstallations.tsx|jsx_text|string): DataTableColumnDef
+      app/frontend/routes/AdminOverview.tsx|jsx_text|) : null, item.decided_at ? formatShortDate(item.decided_at) : null].filter(Boolean).join(" · ")}
+      app/frontend/routes/AdminOverview.tsx|jsx_text|0 ? intersperse(links, " · ") : `event `}
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|back to `}
       app/frontend/routes/AdminTranscript.tsx|jsx_text|job log
-      app/frontend/routes/jobDetail/SourceBrowser.tsx|jsx_attr|not covered
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|result
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|turns=
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|duration=ms
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|subtype=
+      app/frontend/routes/AdminWorkUnits.tsx|jsx_text|(intent.requested_at ?
+      app/frontend/routes/AccountSettings.tsx|ternary|text-red-700 dark:text-red-300
+      app/frontend/routes/AccountSettings.tsx|ternary|text-gray-500 dark:text-gray-400
+      app/frontend/routes/jobDetail/SourceBrowser.tsx|ternary|bg-green-50 dark:bg-green-950/30
+      app/frontend/routes/jobDetail/SourceBrowser.tsx|ternary|bg-red-50 dark:bg-red-950/30
+      app/frontend/routes/jobDetail/components.tsx|ternary|min-h-0 flex-1 max-h-none
+      app/frontend/routes/jobDetail/components.tsx|ternary|max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none
+      app/frontend/routes/repositoryDetail/shared.tsx|ternary|border-brand bg-brand text-on-brand
+      app/frontend/routes/repositoryDetail/shared.tsx|ternary|border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800
     LITERALS
   end
 
@@ -359,13 +518,18 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
   def allowed_literal?(path, kind, text, allow_chat_debt: true)
     relative_path = path.delete_prefix("#{Rails.root}/")
+    strict_admin_path = NON_CHAT_I18N_REVIEWED_FILES.include?(relative_path) && File.basename(relative_path).start_with?("Admin")
     return true if allow_chat_debt && CHAT_I18N_DEBT_FILES.include?(relative_path)
     return true if product_and_provider_names.include?(text)
-    return true if text.match?(code_like_text)
+    return true if text.match?(code_like_text) && !(strict_admin_path && kind == "jsx_text")
     return true if internal_diagnostic_path_patterns.any? { |pattern| path.match?(pattern) }
     return true if code_or_protocol_literals.include?("#{relative_path}|#{kind}|#{text}")
     return true if placeholder_literals.include?("#{relative_path}|#{kind}|#{text}")
     return true if internal_diagnostic_literals.include?("#{relative_path}|#{kind}|#{text}")
+    # Renderer catalog metadata and examples are design-system fixtures, not
+    # shipped artifact-body copy. Runtime fallbacks in this file remain under
+    # the normal audit, so only fixture-shaped properties get this exemption.
+    return true if relative_path == "app/frontend/components/artifacts/coreArtifactRenderers.tsx" && kind == "user_visible_property"
 
     false
   end
@@ -426,7 +590,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
         add_finding(findings, path, line_number, "jsx_attr", match.first, allow_chat_debt: allow_chat_debt)
       end
 
-      if core_chat_path?(path) || path.include?("/tmp/i18n-audit")
+      if core_chat_path?(path) || NON_CHAT_I18N_REVIEWED_FILES.include?(path.delete_prefix("#{Rails.root}/")) || path.include?("/tmp/i18n-audit")
         visible_matches(line, /(?:aria-label|title|placeholder)=\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/).each do |match|
           add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
         end
@@ -478,6 +642,48 @@ RSpec.describe "Untranslated source strings", type: :unit do
       Reviewed chat surfaces contain untranslated user-visible strings:
       #{findings.join("\n")}
     MESSAGE
+  end
+
+  it "keeps reviewed non-chat surfaces free of untranslated copy" do
+    expect(NON_CHAT_I18N_REVIEWED_FILES).to eq(NON_CHAT_I18N_REVIEWED_FILES.sort.uniq)
+    expect(NON_CHAT_I18N_REVIEWED_FILES).to all(satisfy { |path| Rails.root.join(path).file? })
+
+    findings = NON_CHAT_I18N_REVIEWED_FILES.flat_map do |relative_path|
+      findings_for(Rails.root.join(relative_path).to_s, allow_chat_debt: false)
+    end
+
+    expect(findings).to be_empty, <<~MESSAGE
+      Reviewed non-chat surfaces contain untranslated user-visible strings:
+      #{findings.join("\n")}
+    MESSAGE
+  end
+
+  it "keeps representative shared-control copy translated in German and Latin" do
+    locale = ->(language, namespace) { JSON.parse(Rails.root.join("app/frontend/i18n/locales/#{language}/#{namespace}.json").read) }
+    keys = {
+      "common" => [%w[notice_toast dismiss]],
+      "nav" => [%w[shortcuts title], %w[shortcuts empty]],
+      "settings" => [%w[github_token step1_heading], %w[github_token save_continue]]
+    }
+
+    keys.each do |namespace, paths|
+      english = locale.call("en", namespace)
+      %w[de la].each do |language|
+        translation = locale.call(language, namespace)
+        paths.each do |path|
+          english_value = english.dig(*path)
+          translated_value = translation.dig(*path)
+          expect(translated_value).to be_present, "#{language}.#{namespace}.#{path.join('.')} must be present"
+          expect(translated_value).not_to eq(english_value), "#{language}.#{namespace}.#{path.join('.')} must be translated"
+        end
+      end
+    end
+  end
+
+  it "does not mistake one-word admin labels for code tokens" do
+    path = Rails.root.join("app/frontend/routes/AdminReconcilerActivity.tsx").to_s
+
+    expect(allowed_literal?(path, "jsx_text", "details")).to be(false)
   end
 
   it "detects visible JSX text around interpolation" do

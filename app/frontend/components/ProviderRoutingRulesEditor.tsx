@@ -575,7 +575,7 @@ function RuleEditorModal({
             <Form.Field>
               <Form.Label>{t("provider_routing.routing_strategy")}</Form.Label>
               <Form.Select onChange={(event) => onUpdate({ ...currentDraft, actionStrategy: event.target.value })} value={currentDraft.actionStrategy}>
-                {actionStrategyOptions(options).map((option) => (
+                {actionStrategyOptions(options, t).map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -919,12 +919,12 @@ function triggerSelectOptions(options: ProviderRoutingOptions, t: (key: string, 
   return registryOptions
 }
 
-function actionStrategyOptions(options: ProviderRoutingOptions) {
+function actionStrategyOptions(options: ProviderRoutingOptions, t?: (key: string) => string) {
   return options.action_strategies?.length
     ? options.action_strategies
     : [
-        { value: "fallback_order", label: "Fallback order" },
-        { value: "weighted", label: "Weighted" }
+        { value: "fallback_order", label: t?.("provider_routing.action_strategies.fallback_order") || "fallback_order" },
+        { value: "weighted", label: t?.("provider_routing.action_strategies.weighted") || "weighted" }
       ]
 }
 
@@ -1012,7 +1012,7 @@ function optionLabel(options: Array<{ value: string; label: string }> | undefine
 }
 
 function actionStrategyLabel(strategy: string, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
-  return optionLabel(actionStrategyOptions(options), strategy) || t(`provider_routing.action_strategies.${strategy}`, { defaultValue: strategy })
+  return optionLabel(actionStrategyOptions(options, t), strategy) || t(`provider_routing.action_strategies.${strategy}`, { defaultValue: strategy })
 }
 
 function actionLabel(rule: ProviderRoutingRule, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {

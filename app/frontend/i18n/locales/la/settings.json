@@ -229,6 +229,8 @@
     "semantics_label": "Semantica"
   },
   "notifications": {
+    "load_error": "Praeferentiae notificationum onerari non potuerunt.",
+    "update_error": "Praeferentiae notificationum renovari non potuerunt.",
     "heading": "Notificationes",
     "description": "Elige quae eventus Syri notificationes pro tuo computatro creent.",
     "loading": "Praeferentias notificationum onerans...",
@@ -629,6 +631,10 @@
     "health_source_concern_quorum": "Quorum",
     "run_graders_now": "Examinatores nunc agere",
     "check_ci_now": "CI nunc inspicere",
+    "health_unable_to_resume": "Opus continuari non potuit.",
+    "health_graders_failed": "Mandatum examinatorum defecit.",
+    "health_ci_check_failed": "Mandatum CI inspiciendi defecit.",
+    "health_repair_failed": "Mandatum reficiendi defecit.",
     "aria_repository": "Repositorium",
     "aria_repository_health": "Sanitas repositorii",
     "health_tab_empty": "Nulla notitia sanitatis pro hoc repositorio adhuc praesto est.",
@@ -724,7 +730,15 @@
     "placeholder_optional_filename": "Optionale; praedefinitum est nomen fasciculi",
     "placeholder_optional": "Optionale",
     "confirm_delete": "Hoc documentum delere?",
-    "removed": "Documentum remotum."
+    "removed": "Documentum remotum.",
+    "added": "Documentum additum est.",
+    "file_title": "Titulus fasciculi",
+    "file": "Fasciculus",
+    "url": "Inscriptio URL",
+    "document_title": "Titulus documenti",
+    "unable_to_add": "Documentum addi non potuit.",
+    "unable_to_delete": "Documentum deleri non potuit.",
+    "unable_to_load": "Documenta receptaculi onerari non potuerunt."
   },
   "repository_memberships": {
     "loading": "Membra onerantur...",
@@ -767,7 +781,12 @@
     },
     "github_only_collaborators": "Collaboratores tantum GitHub",
     "github_only_collaborators_description": "Collaboratores GitHub accessum scribendi vel admin ad hoc receptaculum habentes, sine accessu Syri correspondente. Tantum monitio — Syrus numquam accessum GitHub concedit vel adimit.",
-    "github_only_on_github": "in GitHub, nullus accessus Syri"
+    "github_only_on_github": "in GitHub, nullus accessus Syri",
+    "unable_to_update_role": "Munus renovari non potuit.",
+    "unable_to_remove_member": "Membrum removeri non potuit.",
+    "unable_to_remove_team": "Accessus societatis removeri non potuit.",
+    "unable_to_add_team": "Accessus societati concedi non potuit.",
+    "unable_to_add_member": "Membrum addi non potuit."
   },
   "document_preview": {
     "aria_label": "Prospectus documenti {{title}}",
@@ -1095,6 +1114,14 @@
     "issues_ingested_other": "{{count}} quaestiones captae"
   },
   "account_settings": {
+    "setup_title": "Constitutionem perficere",
+    "setup_credentials_description": "Documenta GitHub et Agent quae Syrus adhibeat serva, deinde ad constitutionem Repository perge.",
+    "save_error": "Documenta servari non potuerunt.",
+    "load_error": "Documenta onerari non potuerunt.",
+    "api_token_rotate_error": "API token renovari non potuit.",
+    "api_token_revoke_error": "API token revocari non potuit.",
+    "provider_recheck_error": "Disponibilitas provider iterum examinari non potuit.",
+    "provider_override_error": "Disponibilitas provider praeteriri non potuit.",
     "loading_credentials": "Testimonia onerantur...",
     "credentials_description": "Testimonia praestantis et GitHub cryptographice pro cursibus Syri.",
     "profile_description": "Detalia personae tuae publicae gregis.",
@@ -1108,6 +1135,18 @@
     "website": "Pagina Reticularis",
     "github_handle": "Nomen GitHub",
     "role": "Munus",
+    "role_options": {
+      "developer": "Developer",
+      "product_owner": "Product Owner",
+      "operator": "Operator"
+    },
+    "duration_less_than_minute": "minus quam uno minuto",
+    "duration_day_one": "{{count}} dies",
+    "duration_day_other": "{{count}} dies",
+    "duration_hour_one": "{{count}} hora",
+    "duration_hour_other": "{{count}} horae",
+    "duration_minute_one": "{{count}} minutum",
+    "duration_minute_other": "{{count}} minuta",
     "avatar_url": "URL Avatarum",
     "profile_bio": "Vita Personae",
     "agent_provider": "Praebitor Agentis",

@@ -37,13 +37,14 @@ export function NotificationsSettingsRoute() {
   return (
     <main aria-label={t("aria_notification_settings")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <PageHeading>{t('notifications.heading')}</PageHeading>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('notifications.description')}</p>
+        <PageHeading>{t("notifications.heading")}</PageHeading>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("notifications.description")}</p>
         <p className="mt-1 text-sm text-text-secondary">
-          {t('notifications.see_also')}{" "}
+          {t("notifications.see_also")}{" "}
           <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/settings/connected_platforms", prefix)}>
-            {t('nav.connected_platforms')}
-          </Link>.
+            {t("nav.connected_platforms")}
+          </Link>
+          .
         </p>
       </header>
 
@@ -78,16 +79,16 @@ function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || t('notifications.updated'))
+      onNotice(updated.message || t("notifications.updated"))
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey })
   })
 
   return (
     <section className="rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
-      {preferences.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">{t('notifications.loading')}</p> : null}
-      {preferences.isError ? <PanelMessage tone="error">{errorMessage(preferences.error, "Unable to load notification preferences.")}</PanelMessage> : null}
-      {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, "Unable to update notification preferences.")}</PanelMessage> : null}
+      {preferences.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("notifications.loading")}</p> : null}
+      {preferences.isError ? <PanelMessage tone="error">{errorMessage(preferences.error, t("notifications.load_error"))}</PanelMessage> : null}
+      {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, t("notifications.update_error"))}</PanelMessage> : null}
       {preferences.isSuccess ? (
         <NotificationPreferenceToggles
           disabled={update.isPending}
@@ -115,7 +116,7 @@ function NotificationPreferenceToggles({
   return (
     <div className="space-y-6">
       <fieldset className="space-y-3">
-        <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('notifications.section_label')}</legend>
+        <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("notifications.section_label")}</legend>
         {notificationPreferenceKinds.map(({ kind, labelKey }) => (
           <label className="flex items-center justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
             <span className="font-medium text-gray-700 dark:text-gray-300">{t(labelKey)}</span>

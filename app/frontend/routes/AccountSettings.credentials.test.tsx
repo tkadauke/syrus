@@ -7,19 +7,22 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import i18n from "../i18n"
 import type { CredentialsPayload } from "../api/credentials"
 import { APP_EVENT_RECEIVED_EVENT } from "../lib/appEvents"
-import { AgentSettingsRoute, CredentialsRoute } from "./AccountSettings"
+import { AccountProfileRoute, AgentSettingsRoute, CredentialsRoute } from "./AccountSettings"
 
-function makePayload(overrides: {
-  credential_status?: Partial<CredentialsPayload["credential_status"]>
-  chat_providers?: string[]
-  agent_providers?: string[]
-  agent_provider_labels?: Record<string, string>
-  chat_provider_labels?: Record<string, string>
-  admin?: boolean
-  codex_auth_mode?: string
-  provider_routing_rules?: CredentialsPayload["provider_routing_rules"]
-  provider_routing_options?: CredentialsPayload["options"]["provider_routing_options"]
-} = {}): CredentialsPayload {
+function makePayload(
+  overrides: {
+    credential_status?: Partial<CredentialsPayload["credential_status"]>
+    chat_providers?: string[]
+    agent_providers?: string[]
+    agent_provider_labels?: Record<string, string>
+    chat_provider_labels?: Record<string, string>
+    roles?: string[]
+    admin?: boolean
+    codex_auth_mode?: string
+    provider_routing_rules?: CredentialsPayload["provider_routing_rules"]
+    provider_routing_options?: CredentialsPayload["options"]["provider_routing_options"]
+  } = {}
+): CredentialsPayload {
   return {
     user: {
       id: 1,
@@ -66,7 +69,7 @@ function makePayload(overrides: {
       agent_provider_labels: overrides.agent_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       chat_providers: overrides.chat_providers ?? [],
       chat_provider_labels: overrides.chat_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
-      roles: ["developer", "product_owner"],
+      roles: overrides.roles ?? ["developer", "product_owner"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
       agent_max_turns: { min: 0, max: 1000 },
       recent_chats_group_size: { min: 1, max: 50 },
@@ -86,10 +89,7 @@ function withoutMessage(payload: CredentialsPayload): CredentialsPayload {
 
 // Stateful router: card saves/clears cache a snapshot AND invalidate, so the
 // follow-up GET must serve whatever state the last mutation produced.
-function mockRoutes(
-  initialPayload: CredentialsPayload,
-  routes: { clear?: () => Response; patch?: () => Response; test?: () => Response } = {}
-) {
+function mockRoutes(initialPayload: CredentialsPayload, routes: { clear?: () => Response; patch?: () => Response; test?: () => Response } = {}) {
   const state = { payload: initialPayload }
   const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = String(input)
@@ -105,10 +105,22 @@ function mockRoutes(
       if (response.ok) state.payload = withoutMessage(JSON.parse(await response.clone().text()) as CredentialsPayload)
       return response
     }
-    if (url.endsWith("/test_credential")) return routes.test?.() ?? jsonResponse({ credential_test: { credential: "muse_api_key", ok: true, message: "Muse API key is valid.", details: {} }, message: "Muse API key is valid." })
-    if (url.endsWith("/test_claude_cli")) return jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
+    if (url.endsWith("/test_credential"))
+      return (
+        routes.test?.() ??
+        jsonResponse({
+          credential_test: { credential: "muse_api_key", ok: true, message: "Muse API key is valid.", details: {} },
+          message: "Muse API key is valid."
+        })
+      )
+    if (url.endsWith("/test_claude_cli"))
+      return jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
     if (url.endsWith("/codex_oauth_start")) return jsonResponse({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true })
-    if (url.endsWith("/codex_oauth_exchange")) return jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} }, message: "Codex ChatGPT auth.json is valid." })
+    if (url.endsWith("/codex_oauth_exchange"))
+      return jsonResponse({
+        credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} },
+        message: "Codex ChatGPT auth.json is valid."
+      })
     throw new Error(`unexpected fetch: ${method} ${url}`)
   })
   return fetchSpy
@@ -143,6 +155,21 @@ function renderAgentSettings() {
     </I18nextProvider>
   )
   return { client, ...view }
+}
+
+function renderProfileSettings() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/profile"]}>
+          <Routes>
+            <Route path="/profile" element={<AccountProfileRoute />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </I18nextProvider>
+  )
 }
 
 describe("CredentialsRoute (provider cards)", () => {
@@ -183,32 +210,34 @@ describe("CredentialsRoute (provider cards)", () => {
   })
 
   it("shows user default routing rules on the credentials page", async () => {
-    mockRoutes(makePayload({
-      provider_routing_rules: [
-        {
-          id: 41,
-          scope_type: "user",
-          scope_id: 1,
-          user_id: 1,
-          repository_id: null,
-          job_id: null,
-          position: 1,
-          task_key: "default",
-          trigger: { type: "default" },
-          conditions: {},
-          action: {
-            strategy: "fallback_order",
-            name: "Visual user default",
+    mockRoutes(
+      makePayload({
+        provider_routing_rules: [
+          {
+            id: 41,
+            scope_type: "user",
+            scope_id: 1,
+            user_id: 1,
+            repository_id: null,
+            job_id: null,
+            position: 1,
+            task_key: "default",
+            trigger: { type: "default" },
+            conditions: {},
+            action: {
+              strategy: "fallback_order",
+              name: "Visual user default",
+              candidates: [{ provider: "codex" }]
+            },
             candidates: [{ provider: "codex" }]
-          },
-          candidates: [{ provider: "codex" }]
+          }
+        ],
+        provider_routing_options: {
+          agent_providers: [{ value: "codex", label: "Codex", configured: true, models: [] }],
+          effort_levels: []
         }
-      ],
-      provider_routing_options: {
-        agent_providers: [{ value: "codex", label: "Codex", configured: true, models: [] }],
-        effort_levels: []
-      }
-    }))
+      })
+    )
     renderCredentials()
 
     expect(await screen.findByRole("heading", { name: "My default routing" })).toBeInTheDocument()
@@ -287,15 +316,15 @@ describe("CredentialsRoute (provider cards)", () => {
 
     fireEvent.click(within(museCard).getByRole("button", { name: "Where to find your Muse API key" }))
 
-    expect(within(screen.getByTestId("credential-card-muse")).getByTestId("muse-api-key-help"))
-      .toHaveTextContent("ai.meta.dev.credentials")
+    expect(within(screen.getByTestId("credential-card-muse")).getByTestId("muse-api-key-help")).toHaveTextContent("ai.meta.dev.credentials")
   })
 
   it("stops calling a saved Muse key Connected once its probe fails", async () => {
     mockRoutes(makePayload({ credential_status: { muse_api_key: true } }), {
-      test: () => jsonResponse({
-        credential_test: { credential: "muse_api_key", ok: false, message: "Muse probe failed: stopped after no output.", details: {} }
-      })
+      test: () =>
+        jsonResponse({
+          credential_test: { credential: "muse_api_key", ok: false, message: "Muse probe failed: stopped after no output.", details: {} }
+        })
     })
     renderCredentials()
 
@@ -357,10 +386,7 @@ describe("CredentialsRoute (provider cards)", () => {
     // ChatGPT mode with no auth.json saved → the authorize flow is visible.
     const codexCard = await screen.findByTestId("credential-card-codex")
     fireEvent.click(within(codexCard).getByRole("button", { name: "Authorize with ChatGPT" }))
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/credentials/codex_oauth_start",
-      expect.objectContaining({ method: "POST" })
-    ))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/codex_oauth_start", expect.objectContaining({ method: "POST" })))
 
     // Flip the auth mode mid-authorization: the ChatGPT section unmounts,
     // but the card-level app-event listener must survive.
@@ -369,9 +395,11 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(within(screen.getByTestId("credential-card-codex")).queryByRole("button", { name: "Authorize with ChatGPT" })).not.toBeInTheDocument()
 
     // The provider callback arrives late — it must still auto-exchange.
-    window.dispatchEvent(new CustomEvent(APP_EVENT_RECEIVED_EVENT, {
-      detail: { type: "codex_oauth.callback", payload: { code: "auto-code" } }
-    }))
+    window.dispatchEvent(
+      new CustomEvent(APP_EVENT_RECEIVED_EVENT, {
+        detail: { type: "codex_oauth.callback", payload: { code: "auto-code" } }
+      })
+    )
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -509,6 +537,57 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(within(agyPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
   })
 
+  it("localizes role options while preserving a readable fallback for unknown roles", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      mockRoutes(makePayload({ roles: ["developer", "product_owner", "release_manager"] }))
+      renderProfileSettings()
+
+      const role = await screen.findByLabelText("Rolle")
+      expect(within(role).getByRole("option", { name: "Entwickler" })).toBeInTheDocument()
+      expect(within(role).getByRole("option", { name: "Produktverantwortlicher" })).toBeInTheDocument()
+      expect(within(role).getByRole("option", { name: "Release Manager" })).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
+
+  it("localizes provider reset durations and absolute timestamps", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-08-29T11:00:00Z"))
+    await i18n.changeLanguage("de")
+    try {
+      mockRoutes({
+        ...makePayload({ agent_providers: ["claude"] }),
+        provider_availability: {
+          claude: {
+            provider: "claude",
+            label: "Claude Code",
+            model: null,
+            state: "available",
+            open: false,
+            usage_exhausted: false,
+            retry_after: null,
+            reason: null,
+            message: "Claude Code available.",
+            usage: {
+              status: "ok",
+              observed_at: "2026-08-29T11:00:00Z",
+              remaining_percent: 42,
+              windows: { five_hour: { label: "5h", remaining_percent: 42, reset_at: "2026-08-30T12:00:00Z" } }
+            }
+          }
+        }
+      })
+      renderAgentSettings()
+
+      const reset = await screen.findByText("Wird in 1 Tag, 1 Stunde zurückgesetzt.")
+      expect(reset).toHaveAttribute("title", new Date("2026-08-30T12:00:00Z").toLocaleString("de"))
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
+
   it("shows each Claude usage window's own remaining percent and reset separately, never blended", async () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(new Date("2026-08-29T11:00:00Z"))
@@ -582,11 +661,13 @@ describe("CredentialsRoute (provider cards)", () => {
   })
 
   it("uses plugin display names for Muse availability controls", async () => {
-    mockRoutes(makePayload({
-      agent_providers: ["claude", "codex", "muse"],
-      agent_provider_labels: { claude: "Claude Code", codex: "Codex", muse: "Muse Code" },
-      credential_status: { muse_api_key: true }
-    }))
+    mockRoutes(
+      makePayload({
+        agent_providers: ["claude", "codex", "muse"],
+        agent_provider_labels: { claude: "Claude Code", codex: "Codex", muse: "Muse Code" },
+        credential_status: { muse_api_key: true }
+      })
+    )
     renderAgentSettings()
 
     expect(await screen.findByLabelText("Muse Code pause threshold (%)")).toBeInTheDocument()

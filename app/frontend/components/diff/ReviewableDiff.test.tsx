@@ -1515,17 +1515,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("colors hunk snippets with parsed line kinds for --- and +++ content", () => {
-    render(
-      <DiffHunkSnippet
-        hunk={[
-          "@@ -1,3 +1,3 @@",
-          " a",
-          "----",
-          "+++i;",
-          " d"
-        ].join("\n")}
-      />
-    )
+    render(<DiffHunkSnippet hunk={["@@ -1,3 +1,3 @@", " a", "----", "+++i;", " d"].join("\n")} />)
 
     expect(screen.getByText("----")).toHaveClass("bg-red-50")
     expect(screen.getByText("+++i;")).toHaveClass("bg-green-50")
@@ -1895,7 +1885,7 @@ describe("changed-file count cap", () => {
     expect(screen.getByTitle("file3.rb")).toBeInTheDocument()
     expect(screen.queryByTitle("file4.rb")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Load 1 more files (1 remaining)" }))
+    fireEvent.click(screen.getByRole("button", { name: "Load 1 more file (1 remaining)" }))
 
     expect(screen.getByTitle("file4.rb")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Load .* more files/ })).not.toBeInTheDocument()

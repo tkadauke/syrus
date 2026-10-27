@@ -154,6 +154,7 @@
     "col_context": "Kontext",
     "col_decision": "Entscheidung",
     "col_message": "Nachricht",
+    "details": "Einzelheiten",
     "col_source": "Quelle",
     "aria_pagination": "Seitennavigation der Reconciler-Ereignisse",
     "page_of": "Seite {{page}} von {{total}}",
@@ -184,6 +185,7 @@
     "col_state": "Status",
     "col_duration": "Dauer",
     "col_message": "Nachricht",
+    "metadata": "Metadaten",
     "col_source": "Quelle",
     "aria_pagination": "Seitennavigation der Aktivität",
     "page_of": "Seite {{page}} von {{total}}",
@@ -562,7 +564,8 @@
     "revoke_yes": "Ja, widerrufen",
     "cancel": "Abbrechen",
     "invitation_created": "Einladung erstellt.",
-    "link_copied": "Link in die Zwischenablage kopiert."
+    "link_copied": "Link in die Zwischenablage kopiert.",
+    "copy_signup_link": "Anmeldelink für {{email}} kopieren"
   },
   "settings": {
     "heading": "App-Einstellungen",

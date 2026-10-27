@@ -1040,7 +1040,7 @@ export function Compose({
     }
 
     if (command.name === "/report") {
-      const transcriptAttachment = chatTranscriptBugReportAttachment(payload.messages)
+      const transcriptAttachment = chatTranscriptBugReportAttachment(payload.messages, t)
       bugReportTrigger.openBugReport({
         optionalAttachments: transcriptAttachment ? [transcriptAttachment] : []
       })
@@ -3550,7 +3550,7 @@ function SlashCommandPalette({
                 <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{highlightSlashCommand(command.name, query)}</span>
                 {signature.length > 0 ? <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{signature}</span> : null}
               </span>
-              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{slashCommandDescription(command, context)}</span>
+              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{slashCommandDescription(command, context, t)}</span>
             </span>
             <span
               className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold uppercase ${command.kind === "system" ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}

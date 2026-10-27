@@ -229,6 +229,8 @@
     "semantics_label": "Semantics"
   },
   "notifications": {
+    "load_error": "Unable to load notification preferences.",
+    "update_error": "Unable to update notification preferences.",
     "heading": "Notifications",
     "description": "Choose which Syrus events create notifications for your account.",
     "loading": "Loading notification preferences...",
@@ -630,6 +632,10 @@
     "health_source_concern_quorum": "Quorum",
     "run_graders_now": "Run graders now",
     "check_ci_now": "Check CI now",
+    "health_unable_to_resume": "Unable to resume work.",
+    "health_graders_failed": "Run graders command failed.",
+    "health_ci_check_failed": "Check CI command failed.",
+    "health_repair_failed": "Repair command failed.",
     "aria_repository": "Repository",
     "aria_repository_health": "Repository health",
     "health_tab_empty": "Health information is not available for this repository yet.",
@@ -724,7 +730,15 @@
     "placeholder_optional_filename": "Optional; defaults to filename",
     "placeholder_optional": "Optional",
     "confirm_delete": "Delete this document?",
-    "removed": "Document removed."
+    "removed": "Document removed.",
+    "added": "Document added.",
+    "file_title": "File title",
+    "file": "File",
+    "url": "URL",
+    "document_title": "Document title",
+    "unable_to_add": "Unable to add document.",
+    "unable_to_delete": "Unable to delete document.",
+    "unable_to_load": "Unable to load repository documents."
   },
   "repository_memberships": {
     "loading": "Loading members...",
@@ -767,7 +781,12 @@
     },
     "github_only_collaborators": "GitHub-only collaborators",
     "github_only_collaborators_description": "GitHub collaborators with write or admin access on this repository who have no corresponding Syrus access. Warning only — Syrus never grants or revokes GitHub access.",
-    "github_only_on_github": "on GitHub, no Syrus access"
+    "github_only_on_github": "on GitHub, no Syrus access",
+    "unable_to_update_role": "Unable to update role.",
+    "unable_to_remove_member": "Unable to remove member.",
+    "unable_to_remove_team": "Unable to remove team access.",
+    "unable_to_add_team": "Unable to grant team access.",
+    "unable_to_add_member": "Unable to add member."
   },
   "document_preview": {
     "aria_label": "Preview of {{title}}",
@@ -1095,6 +1114,14 @@
     "issues_ingested_other": "{{count}} issues ingested"
   },
   "account_settings": {
+    "setup_title": "Finish setup",
+    "setup_credentials_description": "Save the GitHub and agent credentials Syrus should use, then continue to repository setup.",
+    "save_error": "Unable to save credentials.",
+    "load_error": "Unable to load credentials.",
+    "api_token_rotate_error": "Unable to rotate API token.",
+    "api_token_revoke_error": "Unable to revoke API token.",
+    "provider_recheck_error": "Unable to recheck provider availability.",
+    "provider_override_error": "Unable to override provider availability.",
     "loading_credentials": "Loading credentials...",
     "credentials_description": "Encrypted provider and GitHub credentials for Syrus runs.",
     "profile_description": "Your public team profile details.",
@@ -1108,6 +1135,18 @@
     "website": "Website",
     "github_handle": "GitHub handle",
     "role": "Role",
+    "role_options": {
+      "developer": "Developer",
+      "product_owner": "Product Owner",
+      "operator": "Operator"
+    },
+    "duration_less_than_minute": "less than a minute",
+    "duration_day_one": "{{count}} day",
+    "duration_day_other": "{{count}} days",
+    "duration_hour_one": "{{count}} hour",
+    "duration_hour_other": "{{count}} hours",
+    "duration_minute_one": "{{count}} minute",
+    "duration_minute_other": "{{count}} minutes",
     "avatar_url": "Avatar URL",
     "profile_bio": "Profile bio",
     "agent_provider": "Agent provider",

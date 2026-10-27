@@ -359,7 +359,7 @@ export function ReviewableDiff({
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
-  unavailableState = "Diff not available",
+  unavailableState,
   wordHighlighting
 }: ReviewableDiffProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -376,6 +376,7 @@ export function ReviewableDiff({
   const effectiveReviewSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, ...reviewSettings }
   const wordHighlightingEnabled = wordHighlighting ?? effectiveReviewSettings.intraline_highlighting === "word"
   const { t } = useT("common")
+  unavailableState ??= t("diff_review.unavailable")
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
   // path -- survives a file section unmounting when it scrolls out of the
   // virtualized window. Reset below whenever the diff itself changes.
@@ -583,7 +584,11 @@ export function ReviewableDiff({
               size="sm"
               variant="secondary"
             >
-              Load {Math.min(maxVisibleFiles, remainingFileCount)} more files ({remainingFileCount} remaining)
+              {t("diff_review.load_more_files", {
+                count: Math.min(maxVisibleFiles, remainingFileCount),
+                loadCount: Math.min(maxVisibleFiles, remainingFileCount),
+                remainingCount: remainingFileCount
+              })}
             </Button>
           </div>
         ) : null}
@@ -2728,9 +2733,10 @@ function HunkRow({
 /* eslint-enable design-system/no-raw-table-classes */
 
 function HunkContextButton({ direction, lineCount, loading, onClick }: { direction: "down" | "up"; lineCount: number; loading: boolean; onClick: () => void }) {
+  const { t } = useT("common")
   return (
     <button
-      aria-label={direction === "up" ? `Load ${lineCount} more lines above` : `Load ${lineCount} more lines below`}
+      aria-label={t(direction === "up" ? "diff_review.load_lines_above" : "diff_review.load_lines_below", { count: lineCount })}
       className="inline-flex h-4 w-4 items-center justify-center rounded text-info hover:bg-info/10 disabled:opacity-50"
       disabled={loading}
       onClick={onClick}
@@ -2756,9 +2762,10 @@ function GutterCommentButton({
   reviewSettings: ReviewDiffSettings
   side: "old" | "new"
 }) {
+  const { t } = useT("common")
   return (
     <button
-      aria-label={`Comment on ${file.path}:${side}:${line.newLine ?? line.oldLine}`}
+      aria-label={t("diff_review.comment_on_line", { path: file.path, side, line: line.newLine ?? line.oldLine })}
       className="relative block h-full w-full text-right"
       onClick={() => onCommentLine?.({ file, line, side })}
       type="button"
@@ -2846,7 +2853,11 @@ function DiffFileHeader({
           onClick={onLoadWholeFile}
           type="button"
         >
-          {loadWholeFileState === "loaded" ? "Whole file loaded" : loadWholeFileState === "loading" ? "Loading…" : "Load whole file"}
+          {loadWholeFileState === "loaded"
+            ? t("diff_review.whole_file_loaded")
+            : loadWholeFileState === "loading"
+              ? t("loading")
+              : t("diff_review.load_whole_file")}
         </button>
       ) : null}
       {showFilesPopupTrigger ? (
@@ -2856,7 +2867,7 @@ function DiffFileHeader({
           onClick={onToggleFilesPopup}
           type="button"
         >
-          Files
+          {t("diff_review.files")}
         </button>
       ) : null}
     </div>

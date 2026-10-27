@@ -229,6 +229,7 @@
     "col_context": "Context",
     "col_decision": "Decision",
     "col_message": "Message",
+    "details": "Details",
     "col_source": "Source",
     "aria_pagination": "Reconciler activity pagination",
     "page_of": "Page {{page}} of {{total}}",
@@ -259,6 +260,7 @@
     "col_state": "State",
     "col_duration": "Duration",
     "col_message": "Message",
+    "metadata": "Metadata",
     "col_source": "Source",
     "aria_pagination": "Activity pagination",
     "page_of": "Page {{page}} of {{total}}",
@@ -719,7 +721,8 @@
     "revoke_yes": "Yes, revoke",
     "cancel": "Cancel",
     "invitation_created": "Invitation created.",
-    "link_copied": "Link copied to clipboard."
+    "link_copied": "Link copied to clipboard.",
+    "copy_signup_link": "Copy signup link for {{email}}"
   },
   "settings": {
     "heading": "App settings",

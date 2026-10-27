@@ -18,12 +18,7 @@ import {
   type RepositoryMembershipRole,
   type RepositoryMembershipsPayload
 } from "../api/repositoryMemberships"
-import {
-  createRepositoryTeamGrant,
-  deleteRepositoryTeamGrant,
-  updateRepositoryTeamGrantRole,
-  type TeamRepositoryGrant
-} from "../api/repositoryTeamGrants"
+import { createRepositoryTeamGrant, deleteRepositoryTeamGrant, updateRepositoryTeamGrantRole, type TeamRepositoryGrant } from "../api/repositoryTeamGrants"
 import { useT } from "../hooks/useT"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
@@ -79,8 +74,10 @@ function RepositoryMembersView({ payload }: { payload: RepositoryMembershipsPayl
       <p className="text-sm text-gray-600 dark:text-gray-400">{t("repository_memberships.description")}</p>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {updateRole.isError ? <PanelMessage tone="error">{errorMessage(updateRole.error, "Unable to update role.")}</PanelMessage> : null}
-      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to remove member.")}</PanelMessage> : null}
+      {updateRole.isError ? (
+        <PanelMessage tone="error">{errorMessage(updateRole.error, t("repository_memberships.unable_to_update_role"))}</PanelMessage>
+      ) : null}
+      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("repository_memberships.unable_to_remove_member"))}</PanelMessage> : null}
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
@@ -185,8 +182,7 @@ function TeamGrants({ payload, onNotice }: { payload: RepositoryMembershipsPaylo
   const queryKey = ["repositories", String(payload.repository.id), "memberships"] as const
 
   const updateRole = useMutation({
-    mutationFn: ({ grantId, role }: { grantId: number; role: RepositoryMembershipRole }) =>
-      updateRepositoryTeamGrantRole(payload.repository.id, grantId, role),
+    mutationFn: ({ grantId, role }: { grantId: number; role: RepositoryMembershipRole }) => updateRepositoryTeamGrantRole(payload.repository.id, grantId, role),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || null)
@@ -208,8 +204,16 @@ function TeamGrants({ payload, onNotice }: { payload: RepositoryMembershipsPaylo
       </div>
       <p className="px-4 pt-3 text-sm text-gray-600 dark:text-gray-400">{t("repository_memberships.team_grants_description")}</p>
 
-      {updateRole.isError ? <div className="m-4"><PanelMessage tone="error">{errorMessage(updateRole.error, "Unable to update role.")}</PanelMessage></div> : null}
-      {destroy.isError ? <div className="m-4"><PanelMessage tone="error">{errorMessage(destroy.error, "Unable to remove team grant.")}</PanelMessage></div> : null}
+      {updateRole.isError ? (
+        <div className="m-4">
+          <PanelMessage tone="error">{errorMessage(updateRole.error, t("repository_memberships.unable_to_update_role"))}</PanelMessage>
+        </div>
+      ) : null}
+      {destroy.isError ? (
+        <div className="m-4">
+          <PanelMessage tone="error">{errorMessage(destroy.error, t("repository_memberships.unable_to_remove_team"))}</PanelMessage>
+        </div>
+      ) : null}
 
       {payload.team_grants.length === 0 ? (
         <div className="m-4 rounded border border-dashed border-gray-300 dark:border-gray-600 px-4 py-8 text-center text-sm text-gray-600 dark:text-gray-400">
@@ -225,11 +229,7 @@ function TeamGrants({ payload, onNotice }: { payload: RepositoryMembershipsPaylo
                   {t("repository_memberships.added_at")} <RelativeTimestamp value={grant.created_at} />
                 </div>
               </div>
-              <RoleSelect
-                disabled={updateRole.isPending}
-                onChange={(role) => updateRole.mutate({ grantId: grant.id, role })}
-                value={grant.role}
-              />
+              <RoleSelect disabled={updateRole.isPending} onChange={(role) => updateRole.mutate({ grantId: grant.id, role })} value={grant.role} />
               <button
                 className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
                 disabled={destroy.isPending}
@@ -279,7 +279,11 @@ function AddTeamGrantForm({ payload, onNotice }: { payload: RepositoryMembership
   return (
     <section className="border-t border-gray-100 dark:border-gray-800 p-4">
       <SectionHeading as="h3">{t("repository_memberships.add_team_grant")}</SectionHeading>
-      {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, "Unable to add team grant.")}</PanelMessage></div> : null}
+      {create.isError ? (
+        <div className="mt-2">
+          <PanelMessage tone="error">{errorMessage(create.error, t("repository_memberships.unable_to_add_team"))}</PanelMessage>
+        </div>
+      ) : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("repository_memberships.team_name_label")}
@@ -310,12 +314,7 @@ function AddTeamGrantForm({ payload, onNotice }: { payload: RepositoryMembership
 function RoleSelect({ value, onChange, disabled }: { value: RepositoryMembershipRole; onChange: (role: RepositoryMembershipRole) => void; disabled: boolean }) {
   const { t } = useT("settings")
   return (
-    <Select
-      disabled={disabled}
-      fullWidth={false}
-      onChange={(event) => onChange(event.target.value as RepositoryMembershipRole)}
-      value={value}
-    >
+    <Select disabled={disabled} fullWidth={false} onChange={(event) => onChange(event.target.value as RepositoryMembershipRole)} value={value}>
       {REPOSITORY_MEMBERSHIP_ROLES.map((role) => (
         <option key={role} value={role}>
           {t(`repository_memberships.role_${role}`)}
@@ -351,7 +350,11 @@ function AddMemberForm({ payload, onNotice }: { payload: RepositoryMembershipsPa
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <SectionHeading>{t("repository_memberships.add_member")}</SectionHeading>
-      {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, "Unable to add member.")}</PanelMessage></div> : null}
+      {create.isError ? (
+        <div className="mt-2">
+          <PanelMessage tone="error">{errorMessage(create.error, t("repository_memberships.unable_to_add_member"))}</PanelMessage>
+        </div>
+      ) : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("repository_memberships.email_label")}

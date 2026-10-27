@@ -8,6 +8,7 @@ import { Form, Pill } from "../components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
+import type { TFunction } from "i18next"
 import { Link, useLocation } from "react-router-dom"
 import i18n from "../i18n"
 import { useT } from "../hooks/useT"
@@ -54,22 +55,22 @@ type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences
 
 export function CredentialsRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.credentials_description')} label={t('nav.credentials')} section="credentials" />
+  return <AccountSettingsPage description={t("account_settings.credentials_description")} label={t("nav.credentials")} section="credentials" />
 }
 
 export function AccountProfileRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.profile_description')} label={t('nav.profile')} section="profile" />
+  return <AccountSettingsPage description={t("account_settings.profile_description")} label={t("nav.profile")} section="profile" />
 }
 
 export function AgentSettingsRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.agent_settings_description')} label={t('nav.agent_settings')} section="agent" />
+  return <AccountSettingsPage description={t("account_settings.agent_settings_description")} label={t("nav.agent_settings")} section="agent" />
 }
 
 export function PreferencesRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.preferences_description')} label={t('nav.preferences')} section="preferences" />
+  return <AccountSettingsPage description={t("account_settings.preferences_description")} label={t("nav.preferences")} section="preferences" />
 }
 
 function AccountSettingsPage({ description, label, section }: { description: string; label: string; section: AccountSettingsSection }) {
@@ -103,14 +104,22 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
 
   return (
     <>
-      {credentials.isPending ? <PanelMessage>{t('account_settings.loading_credentials')}</PanelMessage> : null}
+      {credentials.isPending ? <PanelMessage>{t("account_settings.loading_credentials")}</PanelMessage> : null}
       {credentials.isError ? <CredentialsError error={credentials.error} /> : null}
       {credentials.isSuccess ? <CredentialsView onNotice={onNotice} payload={credentials.data} section={section} /> : null}
     </>
   )
 }
 
-function CredentialsView({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
+function CredentialsView({
+  payload,
+  onNotice,
+  section
+}: {
+  payload: CredentialsPayload
+  onNotice: (message: string | null) => void
+  section: AccountSettingsSection
+}) {
   const { t } = useT("settings")
   const location = useLocation()
   const setupStatus = useSetupStatus()
@@ -121,8 +130,8 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
       <>
         {setupStatus && !setupStatus.first_successful_job_completed ? (
           <OnboardingEmptyState
-            fallbackDescription="Save the GitHub and agent credentials Syrus should use, then continue to repository setup."
-            fallbackTitle="Finish setup"
+            fallbackDescription={t("account_settings.setup_credentials_description")}
+            fallbackTitle={t("account_settings.setup_title")}
             prefix={prefix}
             setupStatus={setupStatus}
           />
@@ -168,42 +177,57 @@ function ChatProviderPanel({ payload, onNotice, prefix }: { payload: Credentials
       // overwrite the specific notice below, and refetches to reconcile
       // concurrent partial saves.
       cacheCredentials(queryClient, updated)
-      onNotice(t('credential_cards.chat_provider_saved_notice'))
+      onNotice(t("credential_cards.chat_provider_saved_notice"))
     }
   })
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <SectionHeading>{t('credential_cards.chat_provider_heading')}</SectionHeading>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('credential_cards.chat_provider_desc')}</p>
-      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
+      <SectionHeading>{t("credential_cards.chat_provider_heading")}</SectionHeading>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("credential_cards.chat_provider_desc")}</p>
+      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("account_settings.save_error"))}</PanelMessage> : null}
       <Select
-        aria-label={t('credential_cards.chat_provider_heading')}
+        aria-label={t("credential_cards.chat_provider_heading")}
         className="mt-3"
         disabled={save.isPending}
         onChange={(event) => save.mutate(event.target.value)}
         value={payload.options.chat_providers.includes(chatProvider) ? chatProvider : ""}
       >
-        <option disabled value="">{t('account_settings.select_provider')}</option>
-        {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{providerLabel(payload, provider, "chat")}</option>)}
+        <option disabled value="">
+          {t("account_settings.select_provider")}
+        </option>
+        {payload.options.chat_providers.map((provider) => (
+          <option key={provider} value={provider}>
+            {providerLabel(payload, provider, "chat")}
+          </option>
+        ))}
       </Select>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        {t('credential_cards.chat_provider_see_also')}{" "}
+        {t("credential_cards.chat_provider_see_also")}{" "}
         <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/settings/agent", prefix)}>
-          {t('nav.agent_settings')}
-        </Link>
-        {" "}
-        {t('credential_cards.chat_provider_see_also_middle')}{" "}
+          {t("nav.agent_settings")}
+        </Link>{" "}
+        {t("credential_cards.chat_provider_see_also_middle")}{" "}
         <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/repositories", prefix)}>
-          {t('repositories.heading')}
+          {t("repositories.heading")}
         </Link>
-        {t('credential_cards.chat_provider_see_also_suffix')}
+        {t("credential_cards.chat_provider_see_also_suffix")}
       </p>
     </section>
   )
 }
 
-function CredentialsForm({ payload, onNotice, prefix, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; prefix: string; section: AccountSettingsSection }) {
+function CredentialsForm({
+  payload,
+  onNotice,
+  prefix,
+  section
+}: {
+  payload: CredentialsPayload
+  onNotice: (message: string | null) => void
+  prefix: string
+  section: AccountSettingsSection
+}) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
@@ -212,14 +236,14 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
     mutationFn: () => deleteJson("/api/v1/app/tours/reset"),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-      onNotice(t('account_settings.reset_tours_notice'))
+      onNotice(t("account_settings.reset_tours_notice"))
     }
   })
   const roleOptions = payload.options.roles || ["developer", "product_owner"]
   const sectionNoticeKey: Partial<Record<AccountSettingsSection, string>> = {
     preferences: "account_settings.preferences_saved_notice",
     profile: "account_settings.profile_saved_notice",
-    agent: "account_settings.agent_settings_saved_notice",
+    agent: "account_settings.agent_settings_saved_notice"
   }
   const save = useMutation({
     mutationFn: () => updateCredentials(values),
@@ -246,91 +270,113 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <form className="space-y-5" onSubmit={submit}>
-        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
+        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("account_settings.save_error"))}</PanelMessage> : null}
 
         {section === "profile" ? (
           <>
             <Form.Field>
-              <Form.Label>{t('account_settings.display_name')}</Form.Label>
+              <Form.Label>{t("account_settings.display_name")}</Form.Label>
               <Form.Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
             </Form.Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Form.Field>
-                <Form.Label>{t('account_settings.first_name')}</Form.Label>
-                <Form.Input maxLength={80} onChange={(event) => setValues({ ...values, first_name: event.target.value })} type="text" value={values.first_name} />
+                <Form.Label>{t("account_settings.first_name")}</Form.Label>
+                <Form.Input
+                  maxLength={80}
+                  onChange={(event) => setValues({ ...values, first_name: event.target.value })}
+                  type="text"
+                  value={values.first_name}
+                />
               </Form.Field>
 
               <Form.Field>
-                <Form.Label>{t('account_settings.last_name')}</Form.Label>
+                <Form.Label>{t("account_settings.last_name")}</Form.Label>
                 <Form.Input maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
               </Form.Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Form.Field>
-                <Form.Label>{t('account_settings.company')}</Form.Label>
+                <Form.Label>{t("account_settings.company")}</Form.Label>
                 <Form.Input onChange={(event) => setValues({ ...values, profile_company: event.target.value })} type="text" value={values.profile_company} />
               </Form.Field>
 
               <Form.Field>
-                <Form.Label>{t('account_settings.location')}</Form.Label>
+                <Form.Label>{t("account_settings.location")}</Form.Label>
                 <Form.Input onChange={(event) => setValues({ ...values, profile_location: event.target.value })} type="text" value={values.profile_location} />
               </Form.Field>
             </div>
 
             <Form.Field>
-              <Form.Label>{t('account_settings.website')}</Form.Label>
+              <Form.Label>{t("account_settings.website")}</Form.Label>
               <Form.Input onChange={(event) => setValues({ ...values, profile_website: event.target.value })} type="url" value={values.profile_website} />
             </Form.Field>
 
             <Form.Field>
-              <Form.Label>{t('account_settings.github_handle')}</Form.Label>
-              <Form.Input maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
+              <Form.Label>{t("account_settings.github_handle")}</Form.Label>
+              <Form.Input
+                maxLength={100}
+                onChange={(event) => setValues({ ...values, github_handle: event.target.value })}
+                type="text"
+                value={values.github_handle}
+              />
             </Form.Field>
 
             <Form.Field>
-              <Form.Label>{t('account_settings.role')}</Form.Label>
+              <Form.Label>{t("account_settings.role")}</Form.Label>
               <Form.Select onChange={(event) => setValues({ ...values, role: event.target.value })} value={values.role}>
-                {roleOptions.map((role) => <option key={role} value={role}>{titleize(role)}</option>)}
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {roleLabel(role, t)}
+                  </option>
+                ))}
               </Form.Select>
             </Form.Field>
 
             <Form.Field>
-              <Form.Label>{t('account_settings.avatar_url')}</Form.Label>
+              <Form.Label>{t("account_settings.avatar_url")}</Form.Label>
               <Form.Input maxLength={500} onChange={(event) => setValues({ ...values, avatar_url: event.target.value })} type="url" value={values.avatar_url} />
             </Form.Field>
 
             <Form.Field>
-              <Form.Label>{t('account_settings.profile_bio')}</Form.Label>
-              <Form.Textarea maxLength={1000} onChange={(event) => setValues({ ...values, profile_bio: event.target.value })} rows={4} value={values.profile_bio} />
+              <Form.Label>{t("account_settings.profile_bio")}</Form.Label>
+              <Form.Textarea
+                maxLength={1000}
+                onChange={(event) => setValues({ ...values, profile_bio: event.target.value })}
+                rows={4}
+                value={values.profile_bio}
+              />
             </Form.Field>
           </>
         ) : null}
 
         {section === "agent" ? (
           <Form.Field>
-            <Form.Label>{t('account_settings.agent_provider')}</Form.Label>
+            <Form.Label>{t("account_settings.agent_provider")}</Form.Label>
             <Form.Select onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
-              {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{providerLabel(payload, provider)}</option>)}
+              {payload.options.agent_providers.map((provider) => (
+                <option key={provider} value={provider}>
+                  {providerLabel(payload, provider)}
+                </option>
+              ))}
             </Form.Select>
             <Form.HelpText>
-              {t('account_settings.agent_provider_see_also')}{" "}
+              {t("account_settings.agent_provider_see_also")}{" "}
               <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
-                {t('nav.credentials')}
-              </Link>
-              {" "}
-              {t('account_settings.agent_provider_see_also_middle')}{" "}
+                {t("nav.credentials")}
+              </Link>{" "}
+              {t("account_settings.agent_provider_see_also_middle")}{" "}
               <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/repositories", prefix)}>
-                {t('repositories.heading')}
+                {t("repositories.heading")}
               </Link>
-              {t('account_settings.agent_provider_see_also_suffix')}
+              {t("account_settings.agent_provider_see_also_suffix")}
             </Form.HelpText>
           </Form.Field>
         ) : null}
 
         {section === "agent" ? (
           <Form.Field>
-            <Form.Label>{t('account_settings.max_turns')}</Form.Label>
+            <Form.Label>{t("account_settings.max_turns")}</Form.Label>
             <Form.Input
               max={payload.options.agent_max_turns.max}
               min={payload.options.agent_max_turns.min}
@@ -341,14 +387,7 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
           </Form.Field>
         ) : null}
 
-        {section === "agent" ? (
-          <ProviderAvailabilitySettings
-            onNotice={onNotice}
-            payload={payload}
-            setValues={setValues}
-            values={values}
-          />
-        ) : null}
+        {section === "agent" ? <ProviderAvailabilitySettings onNotice={onNotice} payload={payload} setValues={setValues} values={values} /> : null}
 
         {section === "agent" ? (
           <ProviderRoutingRulesEditor
@@ -364,7 +403,7 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
 
         {section === "preferences" ? (
           <Form.Field>
-            <Form.Label>{t('account_settings.language')}</Form.Label>
+            <Form.Label>{t("account_settings.language")}</Form.Label>
             <Form.Select
               onChange={(event) => {
                 const locale = event.target.value
@@ -373,16 +412,16 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
               }}
               value={values.locale}
             >
-              <option value="en">{t('account_settings.lang_english')}</option>
-              <option value="de">{t('account_settings.lang_deutsch')}</option>
-              <option value="la">{t('account_settings.lang_latina')}</option>
+              <option value="en">{t("account_settings.lang_english")}</option>
+              <option value="de">{t("account_settings.lang_deutsch")}</option>
+              <option value="la">{t("account_settings.lang_latina")}</option>
             </Form.Select>
           </Form.Field>
         ) : null}
 
         {section === "preferences" ? (
           <Form.Field>
-            <Form.Label>{t('account_settings.recent_chats_group_size')}</Form.Label>
+            <Form.Label>{t("account_settings.recent_chats_group_size")}</Form.Label>
             <Form.Input
               max={payload.options.recent_chats_group_size.max}
               min={payload.options.recent_chats_group_size.min}
@@ -390,19 +429,19 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
               type="number"
               value={values.recent_chats_group_size}
             />
-            <Form.HelpText>{t('account_settings.recent_chats_group_size_desc')}</Form.HelpText>
+            <Form.HelpText>{t("account_settings.recent_chats_group_size_desc")}</Form.HelpText>
           </Form.Field>
         ) : null}
 
         {section === "preferences" ? (
           <Checkbox
-            aria-label={t('account_settings.aria_pause_scheduling')}
+            aria-label={t("account_settings.aria_pause_scheduling")}
             checked={values.scheduling_paused}
             className="mt-1"
             label={
               <>
-                <span className="block font-medium text-gray-700 dark:text-gray-300">{t('account_settings.pause_scheduling')}</span>
-                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.pause_scheduling_desc')}</span>
+                <span className="block font-medium text-gray-700 dark:text-gray-300">{t("account_settings.pause_scheduling")}</span>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("account_settings.pause_scheduling_desc")}</span>
               </>
             }
             onChange={(event) => setValues({ ...values, scheduling_paused: event.target.checked })}
@@ -411,13 +450,13 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
 
         {section === "preferences" ? (
           <Checkbox
-            aria-label={t('account_settings.aria_mobile_chat_auto_hide_header')}
+            aria-label={t("account_settings.aria_mobile_chat_auto_hide_header")}
             checked={values.mobile_chat_auto_hide_header}
             className="mt-1"
             label={
               <>
-                <span className="block font-medium text-gray-700 dark:text-gray-300">{t('account_settings.mobile_chat_auto_hide_header')}</span>
-                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.mobile_chat_auto_hide_header_desc')}</span>
+                <span className="block font-medium text-gray-700 dark:text-gray-300">{t("account_settings.mobile_chat_auto_hide_header")}</span>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("account_settings.mobile_chat_auto_hide_header_desc")}</span>
               </>
             }
             onChange={(event) => setValues({ ...values, mobile_chat_auto_hide_header: event.target.checked })}
@@ -426,35 +465,37 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
 
         {section === "preferences" ? (
           <Form.Field>
-            <Form.Label>{t('account_settings.reset_tours')}</Form.Label>
-            <Form.HelpText>{t('account_settings.reset_tours_desc')}</Form.HelpText>
+            <Form.Label>{t("account_settings.reset_tours")}</Form.Label>
+            <Form.HelpText>{t("account_settings.reset_tours_desc")}</Form.HelpText>
             <button
               className="mt-1 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={resetTours.isPending}
               onClick={() => resetTours.mutate()}
               type="button"
             >
-              {t('account_settings.reset_tours_button')}
+              {t("account_settings.reset_tours_button")}
             </button>
           </Form.Field>
         ) : null}
 
-        {section === "preferences" ? (
-          <BrowserPermissionsPanel onNotice={onNotice} />
-        ) : null}
+        {section === "preferences" ? <BrowserPermissionsPanel onNotice={onNotice} /> : null}
 
         {section === "agent" ? (
           <Form.Field>
-            <Form.Label>{t('account_settings.auto_approval_fallback')}</Form.Label>
+            <Form.Label>{t("account_settings.auto_approval_fallback")}</Form.Label>
             <Form.Select onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
-              {payload.options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {payload.options.auto_approve_modes.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </Form.Select>
             {selectedAutoApprove?.preview ? <Form.HelpText>{selectedAutoApprove.preview}</Form.HelpText> : null}
           </Form.Field>
         ) : null}
 
         <Button disabled={save.isPending} type="submit" variant="primary">
-          {save.isPending ? t('account_settings.saving') : t('account_settings.save')}
+          {save.isPending ? t("account_settings.saving") : t("account_settings.save")}
         </Button>
       </form>
     </section>
@@ -465,9 +506,7 @@ function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | nu
   const { t } = useT("settings")
   const [motionPermissionState, setMotionPermissionState] = useState<MotionPermissionStorageState>(() => readPersistedMotionPermissionState())
   const [resetNotice, setResetNotice] = useState<string | null>(null)
-  const statusKey = motionPermissionState.storageAvailable
-    ? motionPermissionState.permission ?? "not_set"
-    : "storage_unavailable"
+  const statusKey = motionPermissionState.storageAvailable ? (motionPermissionState.permission ?? "not_set") : "storage_unavailable"
   const canReset = motionPermissionState.storageAvailable && motionPermissionState.permission != null
 
   useEffect(() => {
@@ -510,20 +549,23 @@ function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | nu
           <p className="mt-1 text-xs text-text-muted">{t("account_settings.motion_permission_desc")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Pill tone={motionPermissionStatusTone(statusKey)}>
-            {t(`account_settings.motion_permission_status.${statusKey}`)}
-          </Pill>
+          <Pill tone={motionPermissionStatusTone(statusKey)}>{t(`account_settings.motion_permission_status.${statusKey}`)}</Pill>
           <Button disabled={!canReset} onClick={resetMotionPermission} size="sm" type="button" variant="secondary">
             {t("account_settings.browser_permissions_reset")}
           </Button>
         </div>
-        {resetNotice ? <p className="text-xs font-medium text-success-text sm:col-span-2" role="status">{resetNotice}</p> : null}
+        {resetNotice ? (
+          <p className="text-xs font-medium text-success-text sm:col-span-2" role="status">
+            {resetNotice}
+          </p>
+        ) : null}
       </div>
     </Form.Field>
   )
 }
 
-const browserPermissionRowClass = "mt-2 grid gap-3 rounded-[var(--radius-panel)] border border-border bg-surface-inset p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+const browserPermissionRowClass =
+  "mt-2 grid gap-3 rounded-[var(--radius-panel)] border border-border bg-surface-inset p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
 
 function motionPermissionStatusTone(status: string) {
   if (status === "granted") return "success"
@@ -596,9 +638,7 @@ function PasskeysPanel() {
           {passkeys.data.map((passkey) => (
             <li className="flex items-center justify-between gap-4 py-2" key={passkey.id}>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                  {passkey.nickname || t("account_settings.passkeys_unnamed")}
-                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{passkey.nickname || t("account_settings.passkeys_unnamed")}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {t("account_settings.passkeys_added")}: {new Date(passkey.created_at).toLocaleDateString()}
                   {passkey.last_used_at ? ` · ${t("account_settings.passkeys_last_used")}: ${new Date(passkey.last_used_at).toLocaleDateString()}` : ""}
@@ -634,7 +674,11 @@ function PasskeysPanel() {
           <button
             className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
             disabled={addPending}
-            onClick={() => { setAdding(false); setNickname(""); setAddError(null) }}
+            onClick={() => {
+              setAdding(false)
+              setNickname("")
+              setAddError(null)
+            }}
             type="button"
           >
             {t("account_settings.passkeys_cancel")}
@@ -643,7 +687,10 @@ function PasskeysPanel() {
       ) : isPasskeySupported() ? (
         <button
           className="mt-3 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-          onClick={() => { setAdding(true); setAddError(null) }}
+          onClick={() => {
+            setAdding(true)
+            setAddError(null)
+          }}
           type="button"
         >
           {t("account_settings.passkeys_add")}
@@ -666,7 +713,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setNewToken(updated.new_api_token || "")
-      onNotice(updated.message || t('account_settings.api_token_rotated'))
+      onNotice(updated.message || t("account_settings.api_token_rotated"))
     }
   })
   const revoke = useMutation({
@@ -674,52 +721,52 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setNewToken("")
-      onNotice(updated.message || t('account_settings.api_token_revoked'))
+      onNotice(updated.message || t("account_settings.api_token_revoked"))
     }
   })
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <SectionHeading>{t('account_settings.api_token_heading')}</SectionHeading>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.api_token_desc')}</p>
+      <SectionHeading>{t("account_settings.api_token_heading")}</SectionHeading>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.api_token_desc")}</p>
 
       {newToken ? (
         <div className="mt-3 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3">
-          <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">{t('account_settings.new_token')}</div>
+          <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">{t("account_settings.new_token")}</div>
           <code className="mt-1 block break-all font-mono text-sm">{newToken}</code>
         </div>
       ) : payload.credential_status.api_token ? (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.token_is_set')}</p>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.token_is_set")}</p>
       ) : (
-        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{t('account_settings.no_token')}</p>
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{t("account_settings.no_token")}</p>
       )}
 
-      {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, "Unable to rotate API token.")}</PanelMessage> : null}
-      {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, "Unable to revoke API token.")}</PanelMessage> : null}
+      {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, t("account_settings.api_token_rotate_error"))}</PanelMessage> : null}
+      {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("account_settings.api_token_revoke_error"))}</PanelMessage> : null}
 
       <div className="mt-3 flex gap-2">
         <button
           className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:bg-gray-100 dark:disabled:bg-gray-800"
           disabled={rotate.isPending}
           onClick={async () => {
-            if (!payload.credential_status.api_token || await confirm({ message: t('account_settings.rotate_confirm') })) {
+            if (!payload.credential_status.api_token || (await confirm({ message: t("account_settings.rotate_confirm") }))) {
               rotate.mutate()
             }
           }}
           type="button"
         >
-          {payload.credential_status.api_token ? t('account_settings.rotate_token') : t('account_settings.generate_token')}
+          {payload.credential_status.api_token ? t("account_settings.rotate_token") : t("account_settings.generate_token")}
         </button>
         {payload.credential_status.api_token ? (
           <button
             className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:text-red-300 dark:disabled:text-red-500"
             disabled={revoke.isPending}
             onClick={async () => {
-              if (await confirm({ message: t('account_settings.revoke_confirm'), destructive: true })) revoke.mutate()
+              if (await confirm({ message: t("account_settings.revoke_confirm"), destructive: true })) revoke.mutate()
             }}
             type="button"
           >
-            {t('account_settings.revoke')}
+            {t("account_settings.revoke")}
           </button>
         ) : null}
       </div>
@@ -729,9 +776,9 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 }
 
 function CredentialsError({ error }: { error: Error }) {
-  return <PanelMessage tone="error">{errorMessage(error, "Unable to load credentials.")}</PanelMessage>
+  const { t } = useT("settings")
+  return <PanelMessage tone="error">{errorMessage(error, t("account_settings.load_error"))}</PanelMessage>
 }
-
 
 function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
   const chatProvider = payload.user.chat_provider || ""
@@ -777,7 +824,7 @@ function ProviderAvailabilitySettings({
   setValues: (values: CredentialsInput) => void
   onNotice: (message: string | null) => void
 }) {
-  const { t } = useT("settings")
+  const { t, i18n } = useT("settings")
   const queryClient = useQueryClient()
   const recheck = useMutation({
     mutationFn: recheckProviderAvailability,
@@ -805,11 +852,9 @@ function ProviderAvailabilitySettings({
       {payload.options.agent_providers.map((provider) => {
         const availability = payload.provider_availability?.[provider]
         const threshold = values.provider_availability_pause_thresholds?.[provider] ?? 10
-        const usageReset = providerUsageReset(availability)
+        const usageReset = providerUsageReset(availability, t, i18n.resolvedLanguage)
         const usageWindows = providerUsageWindowEntries(availability)
-        const usageTextClass = availability?.usage_exhausted
-          ? "text-red-700 dark:text-red-300"
-          : "text-gray-500 dark:text-gray-400"
+        const usageTextClass = availability?.usage_exhausted ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"
         return (
           <div className="grid gap-3 rounded border border-gray-100 p-3 dark:border-gray-800 sm:grid-cols-[1fr_auto] sm:items-center" key={provider}>
             <div className="min-w-0">
@@ -819,13 +864,15 @@ function ProviderAvailabilitySettings({
                   className="max-w-32"
                   max={100}
                   min={0}
-                  onChange={(event) => setValues({
-                    ...values,
-                    provider_availability_pause_thresholds: {
-                      ...values.provider_availability_pause_thresholds,
-                      [provider]: Number(event.target.value)
-                    }
-                  })}
+                  onChange={(event) =>
+                    setValues({
+                      ...values,
+                      provider_availability_pause_thresholds: {
+                        ...values.provider_availability_pause_thresholds,
+                        [provider]: Number(event.target.value)
+                      }
+                    })
+                  }
                   type="number"
                   value={threshold}
                 />
@@ -835,25 +882,19 @@ function ProviderAvailabilitySettings({
                   <p>
                     {availability.message}
                     {usageReset ? (
-                      <span title={usageReset.absolute}>
-                        {" "}
-                        {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}
-                      </span>
+                      <span title={usageReset.absolute}> {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}</span>
                     ) : null}
                   </p>
                 ) : usageWindows.length > 0 ? (
                   usageWindows.map((window, index) => {
-                    const windowReset = providerUsageWindowReset(window)
+                    const windowReset = providerUsageWindowReset(window, t, i18n.resolvedLanguage)
                     return (
                       <p key={window.label || index}>
                         {window.remaining_percent != null
                           ? t("account_settings.provider_availability_window_remaining", { label: window.label, percent: Math.round(window.remaining_percent) })
                           : t("account_settings.provider_availability_no_usage")}
                         {windowReset ? (
-                          <span title={windowReset.absolute}>
-                            {" "}
-                            {t("account_settings.provider_availability_resets_in", { time: windowReset.relative })}
-                          </span>
+                          <span title={windowReset.absolute}> {t("account_settings.provider_availability_resets_in", { time: windowReset.relative })}</span>
                         ) : null}
                       </p>
                     )
@@ -864,10 +905,7 @@ function ProviderAvailabilitySettings({
                       ? t("account_settings.provider_availability_remaining", { percent: Math.round(availability.usage.remaining_percent) })
                       : t("account_settings.provider_availability_no_usage")}
                     {usageReset ? (
-                      <span title={usageReset.absolute}>
-                        {" "}
-                        {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}
-                      </span>
+                      <span title={usageReset.absolute}> {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}</span>
                     ) : null}
                   </p>
                 )}
@@ -895,8 +933,8 @@ function ProviderAvailabilitySettings({
           </div>
         )
       })}
-      {recheck.isError ? <PanelMessage tone="error">{errorMessage(recheck.error, "Unable to recheck provider availability.")}</PanelMessage> : null}
-      {override.isError ? <PanelMessage tone="error">{errorMessage(override.error, "Unable to override provider availability.")}</PanelMessage> : null}
+      {recheck.isError ? <PanelMessage tone="error">{errorMessage(recheck.error, t("account_settings.provider_recheck_error"))}</PanelMessage> : null}
+      {override.isError ? <PanelMessage tone="error">{errorMessage(override.error, t("account_settings.provider_override_error"))}</PanelMessage> : null}
     </div>
   )
 }
@@ -906,21 +944,25 @@ function titleize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
+function roleLabel(role: string, t: TFunction) {
+  return t(`account_settings.role_options.${role}`, { defaultValue: titleize(role) })
+}
+
 function providerLabel(payload: CredentialsPayload, provider: string, kind: "agent" | "chat" = "agent") {
   const labels = kind === "chat" ? payload.options.chat_provider_labels : payload.options.agent_provider_labels
   return labels?.[provider] || titleize(provider)
 }
 
-function providerUsageReset(availability?: ProviderAvailability) {
+function providerUsageReset(availability: ProviderAvailability | undefined, t: TFunction, locale?: string) {
   const now = new Date()
-  const resetAt = futureResetCandidate(providerUsageResetCandidates(availability, now), now) ||
-    futureResetCandidate([parseTimestamp(availability?.retry_after)], now)
+  const resetAt =
+    futureResetCandidate(providerUsageResetCandidates(availability, now), now) || futureResetCandidate([parseTimestamp(availability?.retry_after)], now)
 
   if (!resetAt) return null
 
   return {
-    absolute: resetAt.toLocaleString(),
-    relative: formatRelativeReset(resetAt, now)
+    absolute: resetAt.toLocaleString(locale),
+    relative: formatRelativeReset(resetAt, t, now)
   }
 }
 
@@ -928,15 +970,15 @@ function providerUsageWindowEntries(availability?: ProviderAvailability): Provid
   return Object.values(availability?.usage?.windows || {}).filter((window): window is ProviderUsageWindow => Boolean(window))
 }
 
-function providerUsageWindowReset(window: ProviderUsageWindow) {
+function providerUsageWindowReset(window: ProviderUsageWindow, t: TFunction, locale?: string) {
   const now = new Date()
   const resetAt = futureResetCandidate([parseTimestamp(window.reset_at)], now)
 
   if (!resetAt) return null
 
   return {
-    absolute: resetAt.toLocaleString(),
-    relative: formatRelativeReset(resetAt, now)
+    absolute: resetAt.toLocaleString(locale),
+    relative: formatRelativeReset(resetAt, t, now)
   }
 }
 
@@ -969,7 +1011,7 @@ function usageSnapshotResetCandidates(details: Record<string, unknown> | null | 
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null
 }
 
 function stringValue(value: unknown): string | null {
@@ -990,19 +1032,19 @@ function parseTimestamp(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function formatRelativeReset(resetAt: Date, now = new Date()) {
+function formatRelativeReset(resetAt: Date, t: TFunction, now = new Date()) {
   const remainingMinutes = Math.max(0, Math.ceil((resetAt.getTime() - now.getTime()) / 60_000))
-  if (remainingMinutes <= 0) return "less than a minute"
+  if (remainingMinutes <= 0) return t("account_settings.duration_less_than_minute")
 
   const days = Math.floor(remainingMinutes / (24 * 60))
   const hours = Math.floor((remainingMinutes % (24 * 60)) / 60)
   const minutes = remainingMinutes % 60
 
-  if (days > 0) return [pluralizeTime(days, "day"), hours > 0 ? pluralizeTime(hours, "hour") : null].filter(Boolean).join(", ")
-  if (hours > 0) return [pluralizeTime(hours, "hour"), minutes > 0 ? pluralizeTime(minutes, "minute") : null].filter(Boolean).join(", ")
-  return pluralizeTime(minutes, "minute")
+  if (days > 0) return [durationUnit(days, "day", t), hours > 0 ? durationUnit(hours, "hour", t) : null].filter(Boolean).join(", ")
+  if (hours > 0) return [durationUnit(hours, "hour", t), minutes > 0 ? durationUnit(minutes, "minute", t) : null].filter(Boolean).join(", ")
+  return durationUnit(minutes, "minute", t)
 }
 
-function pluralizeTime(value: number, unit: string) {
-  return `${value} ${unit}${value === 1 ? "" : "s"}`
+function durationUnit(value: number, unit: "day" | "hour" | "minute", t: TFunction) {
+  return t(`account_settings.duration_${unit}`, { count: value })
 }
