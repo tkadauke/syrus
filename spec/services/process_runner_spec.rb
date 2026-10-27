@@ -417,7 +417,10 @@ RSpec.describe ProcessRunner, :ci_only do
 
     result = described_class.new(
       env: {},
-      command: [ ruby, "-e", "sleep 10" ],
+      # Process.kill is stubbed, so the child exits naturally rather than
+      # receiving TERM. Keep that exit short: this example covers preserving
+      # the timeout result after EPERM, not the child's sleep duration.
+      command: [ ruby, "-e", "sleep 0.2" ],
       mounts: described_class.mounts(@dir),
       network: "grader",
       timeout: 0.05,

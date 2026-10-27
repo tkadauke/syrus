@@ -478,12 +478,37 @@ RSpec.describe K8sCluster::Kubectl do
 end
 
 RSpec.describe K8sCluster::KubectlRunner do
-  it "terminates kubectl processes that exceed the timeout" do
-    result = described_class.call(env: {}, argv: [ RbConfig.ruby, "-e", "sleep 5" ], timeout: 0.1)
+  it "reports kubectl processes that exceed the timeout" do
+    process_result = ProcessRunner::Result.new(
+      exit_status: nil,
+      timed_out: true,
+      stopped: false,
+      silent_timed_out: false,
+      operator_killed: false,
+      aliveness_failed: false,
+      duration_s: 0.1,
+      spawned_process_id: nil
+    )
+    capture = ProcessRunner::CaptureResult.new(
+      result: process_result,
+      stdout: "",
+      stderr: "",
+      stdout_truncated: false,
+      stderr_truncated: false
+    )
+    runner = instance_double(ProcessRunner)
+    expect(runner).to receive(:capture).with(limit: K8sCluster::KubectlRunner::DEFAULT_MAX_OUTPUT_BYTES + 1).and_return(capture)
+    allow(ProcessRunner).to receive(:new).and_return(runner)
+
+    result = described_class.call(env: {}, argv: [ "kubectl", "get", "pods" ], timeout: 0.1)
 
     expect(result).not_to be_success
     expect(result.stderr).to include("timed out")
-    expect(SpawnedProcess.order(:id).last).to have_attributes(kind: "chat_shell_command", outcome: "timed_out")
+    expect(ProcessRunner).to have_received(:new).with(hash_including(
+      command: [ "kubectl", "get", "pods" ],
+      timeout: 0.1,
+      kind: "chat_shell_command"
+    ))
   end
 
   it "replaces the inherited environment with the explicit kubectl environment" do
