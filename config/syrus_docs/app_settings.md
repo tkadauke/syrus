@@ -445,6 +445,7 @@ stays fixed or on its own settings.
 | `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` | no |
 | `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` | no |
 | `metrics_dashboard_sample_retention_days` | 7 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
+| `test_insight_case_retention_days` | 90 | days | `test_insight_cases` | `TestInsights::PruneJob` | no |
 | `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` | yes |
 | `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` | yes |
 | `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` | no |

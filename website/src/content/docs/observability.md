@@ -135,6 +135,11 @@ Past sweeps for an archiving-enabled table can be browsed and downloaded from
 the same page — this is a download-only history: there is no built-in way to
 restore an archived batch back into the live table.
 
+Test Insights raw per-example history defaults to 90 days. Operators can tune
+`test_insight_case_retention_days` in Admin Settings (`0` keeps it forever);
+the per-test rollups and recent failure-rate signal remain available as old raw
+case rows expire.
+
 ## Practical Debug Paths
 
 For a slow page:
