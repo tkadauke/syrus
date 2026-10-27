@@ -75,7 +75,16 @@ RSpec.describe "Syrus grader configuration" do
 
     expect(grader).to have_attributes(
       phases: [ "ci" ],
-      timeout_minutes: 75
+      timeout_minutes: 90
+    )
+  end
+
+  it "gives coverage-enabled CI React tests enough time to finish" do
+    grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "react-tests-ci" }
+
+    expect(grader).to have_attributes(
+      phases: [ "ci" ],
+      timeout_minutes: 30
     )
   end
 

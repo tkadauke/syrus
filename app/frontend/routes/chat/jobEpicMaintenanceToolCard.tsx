@@ -28,6 +28,7 @@ type MaintenanceToolDefinition = {
   showsPriorityTransition?: boolean
   showsLiveOutcome?: boolean
   showsUpdate?: boolean
+  showsAssignedEpic?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -39,6 +40,17 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     verb: "Cancelled",
     pendingVerb: "Cancel requested",
     confirmedSubjectState: "cancelled"
+  },
+  force_fail_job: {
+    toolName: "force_fail_job",
+    subjectKind: "job",
+    actionLabel: "Force Fail Job",
+    verb: "Force fail requested",
+    confirmedSubjectState: "failed",
+    warningMessage: true,
+    showsFullErrorMessage: true,
+    showsReasonMarkdown: true,
+    recoversTargetFromMessage: true
   },
   close_job_successfully: {
     toolName: "close_job_successfully",
@@ -95,6 +107,13 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     showsLiveOutcome: true
   },
   remove_job_from_epic: { toolName: "remove_job_from_epic", subjectKind: "job", actionLabel: "Remove Job From Epic", verb: "Removed from Epic" },
+  assign_job_to_epic: {
+    toolName: "assign_job_to_epic",
+    subjectKind: "job",
+    actionLabel: "Assign Job To Epic",
+    verb: "Assigned to Epic",
+    showsAssignedEpic: true
+  },
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
   remove_job_dependency: {
     toolName: "remove_job_dependency",
@@ -282,6 +301,19 @@ function removedFromEpicReference(result: Record<string, unknown>) {
   )
 }
 
+function assignedEpicReference(context: ToolCardContext, result: Record<string, unknown>) {
+  const id = firstValue(result.epic_id, objectValue(context.input, "epic_id"))
+  const title = firstValue(result.epic_title)
+  if (!id) return title
+
+  return (
+    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+      <EntityReference id={id} kind="epic" />
+      {title ? <span>{title}</span> : null}
+    </span>
+  )
+}
+
 function dependency(context: ToolCardContext, value: unknown, kind: SubjectKind): Dependency | null {
   const record = isPlainObject(value) ? value : null
   const id = firstValue(record?.[kind === "epic" ? "depends_on_epic_id" : "depends_on_job_id"], record?.id, value)
@@ -378,6 +410,7 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
   if (!definition.hidesSatisfaction) pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
   pushRow(rows, "Removed from", removedFromEpicReference(result))
+  if (definition.showsAssignedEpic) pushRow(rows, "Epic", assignedEpicReference(context, result))
   if (!definition.showsReasonMarkdown) pushRow(rows, "Reason", result.reason)
   return rows
 }

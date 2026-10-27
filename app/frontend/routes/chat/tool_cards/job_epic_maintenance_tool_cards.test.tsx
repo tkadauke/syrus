@@ -5,6 +5,8 @@ import type { ChatPendingActionInline, ChatPendingActionState } from "@app/api/c
 import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
 import { examples as cancelJobExamples } from "./cancel_job"
+import forceFailJobCard from "./force_fail_job"
+import { examples as forceFailJobExamples } from "./force_fail_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
 import { examples as closeJobSuccessfullyExamples } from "./close_job_successfully"
 import setJobPriorityCard from "./set_job_priority"
@@ -37,6 +39,8 @@ import unapproveJobCard from "./unapprove_job"
 import { examples as unapproveJobExamples } from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
 import { examples as removeJobFromEpicExamples } from "./remove_job_from_epic"
+import assignJobToEpicCard from "./assign_job_to_epic"
+import { examples as assignJobToEpicExamples } from "./assign_job_to_epic"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import i18n from "@app/i18n"
 
@@ -67,6 +71,7 @@ function livePendingAction(id: number, state: ChatPendingActionState, overrides:
 const CARDS: Array<[string, ToolCardRenderer]> = [
   ["approve_job", approveJobCard],
   ["cancel_job", cancelJobCard],
+  ["force_fail_job", forceFailJobCard],
   ["close_job_successfully", closeJobSuccessfullyCard],
   ["set_job_priority", setJobPriorityCard],
   ["update_job", updateJobCard],
@@ -82,22 +87,25 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["add_job_dependency", addJobDependencyCard],
   ["remove_job_dependency", removeJobDependencyCard],
   ["unapprove_job", unapproveJobCard],
-  ["remove_job_from_epic", removeJobFromEpicCard]
+  ["remove_job_from_epic", removeJobFromEpicCard],
+  ["assign_job_to_epic", assignJobToEpicCard]
 ]
 
 describe("Job and Epic maintenance tool cards", () => {
   it("registers under the exact MCP tool names", () => {
-    expect(CARDS).toHaveLength(18)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(18)
+    expect(CARDS).toHaveLength(20)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(20)
   })
 
   it("resolves localized catalog labels at read time", async () => {
     expect(updateJobExamples[0].label).toBe("Title and description updated")
+    expect(updateEpicExamples[0].label).toBe("Title and description updated")
 
     await i18n.changeLanguage("de")
     try {
       expect(updateJobExamples[0].label).toBe("Titel und Beschreibung aktualisiert")
       expect(updateJobExamples[1].label).toBe("Aktualisierung des geschlossenen Jobs fehlgeschlagen")
+      expect(updateEpicExamples[0].label).toBe("Titel und Beschreibung aktualisiert")
     } finally {
       await i18n.changeLanguage("en")
     }
@@ -155,6 +163,74 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("pending #7")).toBeInTheDocument()
     expect(screen.getByText("JOB-44")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(forceFailJobExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: forceFailJobExamples[0].parsedResult }]
+  ] as const)("renders a pending force-fail from normalized %s without claiming the transition executed", (_label, envelope) => {
+    const example = forceFailJobExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__force_fail_job"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(forceFailJobCard.collapsedSummary?.(ctx)).toBe("Force fail requested · JOB-73 · pending #41")
+    render(<>{forceFailJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("alert")).toHaveClass("border-warning-border", "bg-warning-surface")
+    expect(screen.getAllByRole("link", { name: "JOB-73" }).every((link) => link.getAttribute("href") === "/jobs/73")).toBe(true)
+    expect(screen.getByText("Before")).toBeInTheDocument()
+    expect(screen.getByText("running")).toBeInTheDocument()
+    expect(screen.queryByText("After")).not.toBeInTheDocument()
+    expect(screen.getByText("irrecoverably").tagName).toBe("STRONG")
+  })
+
+  it("shows the failed state only after the live pending action is confirmed", () => {
+    const pending = toolCardContextForExample("force_fail_job", forceFailJobExamples[0])
+    const confirmed = { ...pending, livePendingAction: livePendingAction(41, "confirmed", { action: "force_fail_job" }) }
+
+    render(<>{forceFailJobCard.renderExpanded(confirmed)}</>)
+
+    expect(screen.getByText("After")).toBeInTheDocument()
+    expect(screen.getAllByText("failed").length).toBeGreaterThan(0)
+    expect(screen.getByText("Job state")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("links every bulk force-fail target and takes its Markdown reason from input", () => {
+    const ctx = toolCardContextForExample("force_fail_job", forceFailJobExamples[1])
+
+    expect(forceFailJobCard.collapsedSummary?.(ctx)).toBe("Force fail requested · 3 JOBs · pending group #12")
+    render(<>{forceFailJobCard.renderExpanded(ctx)}</>)
+
+    for (const id of [73, 74, 75]) expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    expect(screen.getByText("fatal").tagName).toBe("STRONG")
+  })
+
+  it("renders and links a force-fail validation error", () => {
+    const ctx = toolCardContextForExample("force_fail_job", forceFailJobExamples[2])
+
+    expect(forceFailJobCard.collapsedSummary?.(ctx)).toBe("Force Fail Job failed · JOB-76")
+    render(<>{forceFailJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "JOB-76" }).every((link) => link.getAttribute("href") === "/jobs/76")).toBe(true)
+    expect(screen.getAllByTestId("markdown-preview-content").some((node) => node.textContent === "Error: JOB-76 is closed and cannot be force-failed.")).toBe(
+      true
+    )
+  })
+
+  it("expands a long force-fail reason", () => {
+    const ctx = context("force_fail_job", {
+      input: { job_id: 77, reason: `Force failure after **manual review**. ${"The Job cannot safely continue from its current state. ".repeat(10)}` },
+      parsedResult: { pending_action_id: 43, state: "pending", job_id: 77, previous_state: "running", new_state: "failed", message: "Force fail JOB-77?" }
+    })
+
+    render(<>{forceFailJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("manual review").tagName).toBe("STRONG")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 
   it("recovers the cancellation target from a normalized result when collapsed dispatch omits input", () => {
@@ -1037,6 +1113,36 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("Error: job must currently belong to an epic")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-72" })).toHaveAttribute("href", "/jobs/72")
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(assignJobToEpicExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: assignJobToEpicExamples[0].parsedResult }]
+  ] as const)("renders the assigned Epic and title from a normalized %s envelope", (_label, envelope) => {
+    const example = assignJobToEpicExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__assign_job_to_epic"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(assignJobToEpicCard.collapsedSummary?.(ctx)).toBe("Assigned to Epic · JOB-74")
+    render(<>{assignJobToEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-74" })).toHaveAttribute("href", "/jobs/74")
+    expect(screen.getByText("Epic")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-75" })).toHaveAttribute("href", "/epics/75")
+    expect(screen.getByText("Tool card polish")).toBeInTheDocument()
+  })
+
+  it("renders an assignment error with linked Job and Epic input context", () => {
+    const ctx = toolCardContextForExample("assign_job_to_epic", assignJobToEpicExamples[1])
+
+    expect(assignJobToEpicCard.collapsedSummary?.(ctx)).toBe("Assign Job To Epic failed · JOB-74")
+    render(<>{assignJobToEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Error: epic must not be archived")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-74" })).toHaveAttribute("href", "/jobs/74")
+    expect(screen.getByRole("link", { name: "EPIC-76" })).toHaveAttribute("href", "/epics/76")
   })
 
   it("renders normalized close-success details and expandable Markdown comments", () => {
