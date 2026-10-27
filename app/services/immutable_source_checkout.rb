@@ -65,6 +65,39 @@ class ImmutableSourceCheckout
     record_run_source_snapshot!(snapshot)
   end
 
+  # Rebuild this step's own workspace from the prepared layer it came from.
+  #
+  # A materialized workspace has been observed short of its source: three
+  # concurrent graders on one host produced trees missing the last four entries
+  # in the layer's readdir order, 48 seconds after that layer was complete and
+  # unmodified, while a fourth grader materialized the full tree from the same
+  # layer two minutes later. The mechanism is not yet explained -- the link tree
+  # handles symlinks explicitly and discards the whole destination on any
+  # SystemCallError, so it should not be able to emit a partial tree at all.
+  #
+  # What *is* established is that the layer was intact and only the private copy
+  # was short, so the recovery is to rebuild that copy and nothing else. The
+  # layer is deliberately left alone: every grader on the host links against it,
+  # and rebuilding or deleting it to repair one grader's workspace would pull the
+  # tree out from under the others.
+  def rematerialize_step_workspace!(reason:)
+    snapshot = source_snapshot
+    layer = prepared_layer_for(snapshot)
+    return false unless layer
+
+    log("[immutable_source_checkout] re-materializing step workspace from #{layer.basename}: #{reason}")
+    FileUtils.rm_rf(path.to_s)
+    FileUtils.mkdir_p(path)
+    copy_tree!(layer, path)
+    verify_head!(snapshot)
+    ensure_base_ref!
+    ensure_exclude_entry
+    true
+  rescue StandardError => e
+    log("[immutable_source_checkout] step workspace re-materialization failed: #{e.class}: #{e.message}")
+    false
+  end
+
   def branch_name
     source_snapshot.source_ref.to_s.delete_prefix("refs/heads/").presence || "HEAD"
   end
@@ -462,13 +495,33 @@ class ImmutableSourceCheckout
     FileUtils.rm_f(archive_path.to_s) if archive_path
   end
 
-  def restore_prepare_cache_checkout!(snapshot)
-    cache_parent = WorkflowWorkspace.scratch_path_for(@workflow).join(
+  def prepare_cache_parent(snapshot)
+    WorkflowWorkspace.scratch_path_for(@workflow).join(
       PREPARE_CACHE_ROOT,
       sanitized_worker_storage_key,
       @workflow.id.to_s,
       snapshot.source_sha
     )
+  end
+
+  # The prepared layer this step's workspace is materialized from, or nil when
+  # no layer matches the snapshot. Read-only from here: the layer is shared by
+  # every grader on this host, so nothing in this class may rebuild or delete
+  # it on one grader's behalf.
+  def prepared_layer_for(snapshot)
+    cache_parent = prepare_cache_parent(snapshot)
+    return nil unless cache_parent.directory?
+
+    Dir
+      .glob(cache_parent.join("*", PREPARED_MARKER).to_s, File::FNM_DOTMATCH)
+      .lazy
+      .map { |candidate| Pathname.new(candidate) }
+      .find { |marker| prepared_marker_snapshot_metadata_matches?(marker, snapshot) }
+      &.dirname&.dirname
+  end
+
+  def restore_prepare_cache_checkout!(snapshot)
+    cache_parent = prepare_cache_parent(snapshot)
     return false unless cache_parent.directory?
 
     marker_path = Dir

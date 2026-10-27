@@ -274,9 +274,30 @@ module Steps
       log("[grader:#{name}] grader input materializer warning: #{e.class}: #{e.message}")
     end
 
+    # A short workspace is recoverable, and failing on the first look made it
+    # look like a dead grader instead. Observed in production: three concurrent
+    # graders on one host each materialized a tree missing the last four entries
+    # of the prepared layer's readdir order, while a fourth grader built the
+    # complete tree from that same layer -- intact and unmodified -- two minutes
+    # later. Rebuilding the private copy is what the fourth grader effectively
+    # did, so it is tried once before this fails.
+    #
+    # Only the step's own workspace is rebuilt. The prepared layer is shared by
+    # every grader on the host and was intact in every case examined, so it is
+    # never invalidated here: doing that to repair one workspace would pull the
+    # tree out from under the graders linking against it.
+    #
+    # The failure message is unchanged when the retry does not help, so existing
+    # classification and diagnostics still match it byte-for-byte.
     def validate_workspace_tracked_files!(name:)
       missing_path = first_missing_tracked_file
       return unless missing_path
+
+      rematerialized = rematerialize_workspace_for_missing_file!(name: name, missing_path: missing_path)
+      if rematerialized
+        missing_path = first_missing_tracked_file
+        return unless missing_path
+      end
 
       fail_with!(
         :workspace_checkout_invalid,
@@ -284,9 +305,22 @@ module Steps
         evidence: {
           "grader_name" => name,
           "missing_path" => missing_path,
-          "workspace_path" => workspace.path.to_s
+          "workspace_path" => workspace.path.to_s,
+          "rematerialized" => rematerialized
         }
       )
+    end
+
+    # Pinned workflow workspaces have no prepared layer to rebuild from, so they
+    # keep the original single-look behaviour.
+    def rematerialize_workspace_for_missing_file!(name:, missing_path:)
+      return false unless workspace.respond_to?(:rematerialize_step_workspace!)
+
+      log(
+        "[grader:#{name}] checkout is missing tracked file #{missing_path}; rebuilding this step's workspace from the prepared layer",
+        kind: "system"
+      )
+      workspace.rematerialize_step_workspace!(reason: "checkout was missing tracked file #{missing_path}")
     end
 
     def first_missing_tracked_file
