@@ -1155,6 +1155,26 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(snippet).not_to include("[{", '"type"', "thinking", "needlereasoning", "\\n")
     end
 
+    it "adds plugin badges with one batched decorator call for the page" do
+      chat = ChatSession.create!(user: user, repository: repository, title: "Decorated")
+      create_indexed_message(chat, text: "badgeneedle")
+      decorator = Class.new do
+        include Syrus::Plugin::ChatResultDecorator
+        define_singleton_method(:chat_result_badges) do |chat_sessions:|
+          ChatSession.where(id: chat_sessions.map(&:id)).pluck(:id).to_h do |id|
+            [ id, [ { kind: "coworker", id: 7, name: "Ada" } ] ]
+          end
+        end
+      end
+      allow(decorator).to receive(:chat_result_badges).and_call_original
+      Syrus::PluginRegistry.register(:chat_result_decorator, decorator)
+
+      get "/api/v1/app/chats/search", params: { q: "badgeneedle" }
+
+      expect(parse_body.fetch("results").first.fetch("badges")).to eq([ { "kind" => "coworker", "id" => 7, "name" => "Ada" } ])
+      expect(decorator).to have_received(:chat_result_badges).once
+    end
+
     it "omits hidden chats from search results" do
       visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible")
       hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden", hidden_at: Time.current)

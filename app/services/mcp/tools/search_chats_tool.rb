@@ -36,7 +36,8 @@ module Mcp::Tools
         results = admin? ? results : reject_deleted(results)
 
         sessions_by_id = preload_sessions(results)
-        payload = { results: results.filter_map { |row| result_payload(row, sessions_by_id) } }
+        badges_by_chat_id = ChatResultBadges.for(sessions_by_id.values)
+        payload = { results: results.filter_map { |row| result_payload(row, sessions_by_id, badges_by_chat_id) } }
         payload[:message] = "No matching messages found." if payload[:results].empty?
 
         Mcp::Tools.success(payload)
@@ -89,7 +90,7 @@ module Mcp::Tools
           .index_by(&:id)
       end
 
-      def result_payload(row, sessions_by_id)
+      def result_payload(row, sessions_by_id, badges_by_chat_id)
         chat_session = sessions_by_id[row.fetch(:chat_session_id)]
         return unless chat_session
 
@@ -97,6 +98,7 @@ module Mcp::Tools
           chat_session_id: chat_session.id,
           message_id: row.fetch(:chat_message_id),
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
+          badges: badges_by_chat_id.fetch(chat_session.id, []),
           role: row.fetch(:role),
           snippet: row.fetch(:snippet),
           created_at: row.fetch(:created_at)

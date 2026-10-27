@@ -1407,6 +1407,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("link", { name: "Forum planning" })).toHaveAttribute("href", "/chats/77")
+      expect(screen.getByText("Ada")).toBeInTheDocument()
       expect(screen.getByText((_content, element) => element?.textContent === "Best needle ignored")).toBeInTheDocument()
       expect(screen.getByText(/ago$/)).toBeInTheDocument()
 
@@ -19909,6 +19910,7 @@ function chatSearchPayload() {
         chat_session_id: 77,
         chat_title: "Forum planning",
         best_snippet: "Best <b>needle</b> <i>ignored</i>",
+        badges: [{ kind: "coworker", id: 7, name: "Ada" }],
         best_match_message_id: 11,
         top_matches: [
           chatSearchMatch({ message_id: 11, role: "assistant", snippet: "Best <b>needle</b> <i>ignored</i>", created_at: threeDaysAgo }),
