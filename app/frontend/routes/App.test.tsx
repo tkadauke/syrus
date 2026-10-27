@@ -1954,6 +1954,11 @@ describe("App", () => {
       if (path === "/api/v1/app/chats/10") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
+      if (path === "/api/v1/app/chats/10/bookmarks") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ bookmarks: chatPayload().bookmarks }), { status: 200, headers: { "Content-Type": "application/json" } })
+        )
+      }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -1993,7 +1998,7 @@ describe("App", () => {
       // DOM subtree) so flip/shift can reposition it clear of the sidebar's clipping
       // ancestor; query its content on `screen`, not `within(recentNav)`.
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets active" }))
-      expect(screen.getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(await screen.findByText("Bookmarks")).toHaveClass("font-semibold")
       expect(screen.getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
       fireEvent.click(screen.getByRole("link", { name: "Aqueducts" }))
       expect(screen.queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
