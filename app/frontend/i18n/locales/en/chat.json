@@ -1261,6 +1261,8 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" },
   "tool_card_examples": {
+    "priority_changed": "Priority changed",
+    "invalid_priority": "Invalid priority",
     "unapproved_job": "Unapproved Job",
     "bulk_unapproval_confirmation": "Bulk unapproval confirmation",
     "invalid_job_state": "Invalid Job state",

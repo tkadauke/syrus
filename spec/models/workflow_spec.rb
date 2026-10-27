@@ -1359,6 +1359,26 @@ RSpec.describe Workflow, :ci_only do
       expect(wf.reload).to be_failed
     end
 
+    it "rolls back the increment when the threshold transition hits a lock conflict" do
+      cap = AppSetting.max_job_failures
+      wf.update!(failure_count: cap - 1)
+      transition_attempts = 0
+      allow(wf).to receive(:fail!).and_wrap_original do |original|
+        transition_attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded" if transition_attempts == 1
+
+        original.call
+      end
+
+      expect { wf.record_run_failure! }.to raise_error(ActiveRecord::LockWaitTimeout)
+      expect(wf.reload.failure_count).to eq(cap - 1)
+
+      wf.record_run_failure!
+
+      expect(wf.reload.failure_count).to eq(cap)
+      expect(wf).to be_failed
+    end
+
     it "does not affect other workflows on the same Job (per-Workflow scope)" do
       other_wf = described_class.create!(job: job, trigger_kind: "pr_comment")
       cap = AppSetting.max_job_failures
