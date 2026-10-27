@@ -1050,6 +1050,8 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
   "tool_card_examples": {
+    "priority_changed": "Prioritas mutata",
+    "invalid_priority": "Prioritas invalida",
     "unapproved_job": "Approbatio Job revocata",
     "bulk_unapproval_confirmation": "Confirmatio revocationis multiplicis",
     "invalid_job_state": "Status Job invalidus",

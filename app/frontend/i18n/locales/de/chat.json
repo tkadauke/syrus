@@ -1050,6 +1050,8 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" },
   "tool_card_examples": {
+    "priority_changed": "Priorität geändert",
+    "invalid_priority": "Ungültige Priorität",
     "unapproved_job": "Job-Freigabe aufgehoben",
     "bulk_unapproval_confirmation": "Bestätigung für mehrere Freigabeaufhebungen",
     "invalid_job_state": "Ungültiger Job-Status",
