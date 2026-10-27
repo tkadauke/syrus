@@ -188,7 +188,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     queries = capture_sql { get api_v1_app_bootstrap_path }
 
     expect(response).to have_http_status(:ok)
-    expect(queries.size).to be <= 42
+    # The full CI configuration enables bundled plugins that contribute one
+    # additional constant bootstrap read beyond the core-only test setup.
+    expect(queries.size).to be <= 43
     expect(queries.grep(/provider_availability_evidences/i).size).to be <= 4
     expect(queries.grep(/FROM ["`]?runs/i).size).to be <= 8
   end
