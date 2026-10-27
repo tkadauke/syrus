@@ -512,28 +512,67 @@ class ImmutableSourceCheckout
     cache_parent = prepare_cache_parent(snapshot)
     return nil unless cache_parent.directory?
 
+    published_layer_dir(cache_parent, snapshot)
+  end
+
+  # Only layers that have actually been published.
+  #
+  # `PrepareCache#store_from!` builds a layer under a *dotted* temporary name,
+  # `.<fingerprint>.version-<pid>-<hex>`, and installs the published name as a
+  # symlink to it with a single rename once the copy is complete. That makes
+  # publication atomic -- through the published name a reader sees either
+  # nothing or a finished layer.
+  #
+  # Globbing with `File::FNM_DOTMATCH` threw that away. The flag makes `*` match
+  # dotted entries, so the glob found the in-progress temporary directory too,
+  # and `copy_checkout_tree!` copies a checkout that already contains the
+  # readiness marker -- so the marker appears inside that directory early in the
+  # copy, while most of the tree is still missing. A grader that globbed during
+  # the copy linked its workspace from a half-written layer and failed
+  # validation on whatever had not been copied yet. In production that was the
+  # last four entries in the layer's readdir order, which is how one PR's
+  # `AGENTS.md` -- the only tracked symlink in the repository, and the first
+  # missing path `git ls-files` reports -- came to look like a symlink bug.
+  #
+  # The flag was never needed: `PREPARED_MARKER` begins with a literal `.syrus`,
+  # and a literal dot in the pattern matches without it. A published layer is
+  # named for its prepare fingerprint, a SHA256 hexdigest, so it never starts
+  # with a dot. Dotted candidates are additionally rejected outright, so
+  # restoring the flag cannot quietly reintroduce the race.
+  def published_layer_marker(cache_parent, snapshot)
     Dir
-      .glob(cache_parent.join("*", PREPARED_MARKER).to_s, File::FNM_DOTMATCH)
+      .glob(cache_parent.join("*", PREPARED_MARKER).to_s)
       .lazy
       .map { |candidate| Pathname.new(candidate) }
+      .reject { |marker| marker.dirname.dirname.basename.to_s.start_with?(".") }
       .find { |marker| prepared_marker_snapshot_metadata_matches?(marker, snapshot) }
-      &.dirname&.dirname
+  end
+
+  # The published name is a symlink to the version directory holding the tree.
+  # Consumers need that directory itself, not the pointer: an overlay mount
+  # takes it as its lower directory, and the recorded diagnostics name the
+  # layer a workspace was actually built from.
+  def published_layer_dir(cache_parent, snapshot)
+    layer = published_layer_marker(cache_parent, snapshot)&.dirname&.dirname
+    return nil unless layer
+    return layer unless layer.symlink?
+
+    # Only the pointer is resolved, not the whole path: `realpath` would also
+    # rewrite symlinked ancestors (on macOS, /var -> /private/var), which makes
+    # the recorded lower_path disagree with every other path this class logs.
+    layer.dirname.join(File.readlink(layer.to_s))
   end
 
   def restore_prepare_cache_checkout!(snapshot)
     cache_parent = prepare_cache_parent(snapshot)
     return false unless cache_parent.directory?
 
-    marker_path = Dir
-      .glob(cache_parent.join("*", PREPARED_MARKER).to_s, File::FNM_DOTMATCH)
-      .lazy
-      .map { |candidate| Pathname.new(candidate) }
-      .find { |marker| prepared_marker_snapshot_metadata_matches?(marker, snapshot) }
-    return false unless marker_path
+    layer_path = published_layer_dir(cache_parent, snapshot)
+    return false unless layer_path
 
     FileUtils.rm_rf(path.to_s)
     FileUtils.mkdir_p(path)
-    copy_tree!(marker_path.dirname.dirname, path)
+    copy_tree!(layer_path, path)
     verify_head!(snapshot)
     ensure_base_ref!
     ensure_exclude_entry

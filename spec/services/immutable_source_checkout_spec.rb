@@ -225,6 +225,48 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  # `PrepareCache#store_from!` populates a layer under a dotted temporary name
+  # and installs the published name with one rename when the copy finishes, so
+  # publication is atomic. Discovery has to respect that: globbing with
+  # `File::FNM_DOTMATCH` matched the temporary directory as well, and because
+  # the copied checkout already carries the readiness marker, that directory
+  # advertises itself as ready while most of its tree is still missing. A
+  # grader that restored from it got a partial workspace.
+  it "ignores an in-progress layer that is still being copied under its temporary name" do
+    described_class.new(step).setup
+    published = Pathname.new(step.reload.details.fetch("prepare_cache").fetch("cache_path"))
+    cache_parent = published.dirname
+
+    # A layer mid-copy: the marker is already present, the tree is not.
+    in_progress = cache_parent.join(".#{published.basename}.version-00000-aaaaaaaaaaaa")
+    FileUtils.mkdir_p(in_progress.join(".syrus"))
+    FileUtils.cp(
+      published.join(described_class::PREPARED_MARKER).to_s,
+      in_progress.join(described_class::PREPARED_MARKER).to_s
+    )
+    # Dir.glob returns sorted paths, so with File::FNM_DOTMATCH this decoy is
+    # the first thing discovered -- which is exactly what used to happen to a
+    # layer still being copied.
+    expect(Dir.glob(cache_parent.join("*", described_class::PREPARED_MARKER).to_s, File::FNM_DOTMATCH).first)
+      .to start_with(in_progress.to_s)
+    expect(Dir.glob(cache_parent.join("*", described_class::PREPARED_MARKER).to_s).first)
+      .to start_with(published.to_s)
+
+    second_checkout = described_class.new(second_step)
+    allow(ProcessRunner).to receive(:new).and_call_original
+    second_checkout.setup
+
+    expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(second_checkout.path.join("README.md")).to exist
+    # The decisive assertion. Selecting the decoy does not surface as a broken
+    # workspace: the restore fails InstallArtifactManifest validation, is
+    # rescued, and falls back to a full re-prepare -- which produces a correct
+    # checkout by the slowest route available and hides the bug. A genuine hit
+    # on the published layer runs no prepare command at all.
+    expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+    expect(second_step.reload.details.fetch("prepare_cache")).to include("status" => "hit")
+  end
+
   it "mounts an overlay workspace from a prepared cache when the grader fan-out overlay flag is enabled" do
     enable_grader_fanout_overlay!
     described_class.new(step).setup
