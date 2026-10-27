@@ -203,16 +203,15 @@ RSpec.describe "Dockerfile" do
   # each one tore down a whole merge-train assembly. This asserts the SDK does
   # not come back by accident: reinstating it without reinstating a worker that
   # advertises the capability recreates that exact outage.
+  # Nothing Android remains, not even in prose: the JRE that was installed for
+  # `sdkmanager` is gone too, so there is no longer a reason for the word to
+  # appear anywhere in this file. Reinstating the SDK without also reinstating
+  # a worker that advertises the capability recreates the outage that led to
+  # its removal -- 51 grader runs in a day, every one `no_capable_worker`.
   it "provisions no Android SDK in any image" do
-    # Instructions only. A comment may legitimately explain why the SDK was
-    # removed -- and one does, above the JRE that outlived it -- so matching
-    # the whole file would fail on its own history.
-    instructions = dockerfile.lines.reject { |line| line.strip.start_with?("#") }.join
-
-    expect(instructions).not_to include("ANDROID_SDK_ROOT")
-    expect(instructions).not_to include("sdkmanager")
-    expect(instructions).not_to include("commandlinetools-linux")
-    expect(instructions).not_to match(/^ARG ANDROID_/)
+    expect(dockerfile).not_to match(/android/i)
+    expect(dockerfile).not_to include("sdkmanager")
+    expect(dockerfile).not_to include("commandlinetools-linux")
   end
 
   it "fails worker image builds when native compilation is unavailable as the rails user" do

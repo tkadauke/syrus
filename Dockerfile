@@ -375,11 +375,6 @@ ARG MULL_APT_GPG_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F
 # image because the recurring mutation-testing task is still scheduled on the
 # normal Linux worker pool. Keep the Mull package and clang package on the
 # same LLVM major; mismatches fail when Mull loads the compiler plugin.
-# `default-jre-headless` is retained deliberately: it was originally added so
-# the Android SDK's `sdkmanager` (a Java program) could run during the build.
-# Android support has been removed, but JVM graders reach for a system JRE in
-# some project layouts, so dropping it would trade a few MB for a class of
-# breakage the removal was not meant to cause.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     set -eu; \
@@ -402,7 +397,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       sqlite3 postgresql-client default-mysql-client \
       wget unzip openssh-client jq ripgrep fd-find less vim \
       python3 python3-pip python3-venv \
-      default-jre-headless \
       cmake ninja-build \
       qt6-base-dev qt6-declarative-dev libgl1-mesa-dev xvfb xauth \
       doxygen graphviz lcov gcovr \
