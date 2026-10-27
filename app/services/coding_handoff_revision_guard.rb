@@ -1,6 +1,8 @@
 class CodingHandoffRevisionGuard
   LATEST_FIX_ARTIFACT = "latest_coding_handoff_fix".freeze
   PUBLICATION_PROVENANCE_ARTIFACT = "coding_handoff_publication_provenance".freeze
+  REBASE_RESULT_ARTIFACT = "auto_rebase_result".freeze
+  CONFLICT_REBASE_REASON = "conflict".freeze
 
   class MissingLatestFix < StandardError; end
 
@@ -41,17 +43,28 @@ class CodingHandoffRevisionGuard
 
     current_head = git.run("rev-parse", "HEAD", chdir: workspace_path.to_s).strip
     present = patch_ids_on_branch.include?(fix.fetch("patch_id"))
+    rewritten = !present && rewritten_by_conflict_resolution?(fix)
     provenance = {
       "latest_fix" => fix,
       "branch_head_sha" => current_head,
       "base_ref" => base_ref,
-      "verified" => present,
+      "verified" => present || rewritten,
+      "verified_via" => (present ? "patch_id" : ("conflict_resolution" if rewritten)),
       "visual_review" => visual_review_state_for(fix),
       "checked_at" => Time.current.iso8601
     }.compact
     workflow&.set_artifact!(PUBLICATION_PROVENANCE_ARTIFACT, provenance)
 
     return if present
+    if rewritten
+      log.call(
+        "[coding_handoff] latest coding_handoff_fix Run ##{fix['run_id']} (#{fix['head_sha']}) was rewritten while " \
+        "resolving a rebase conflict, so its patch id cannot match; the pre-rebase head contained it and the rebase " \
+        "ran to completion",
+        kind: "system"
+      )
+      return
+    end
 
     raise MissingLatestFix,
       "latest coding_handoff_fix Run ##{fix['run_id']} (#{fix['head_sha']}) is not present in final branch HEAD #{current_head}"
@@ -73,6 +86,47 @@ class CodingHandoffRevisionGuard
         .select { |entry| entry.is_a?(Hash) && entry["patch_id"].present? }
         .max_by { |entry| [ entry["recorded_at"].to_s, entry["run_id"].to_i ] }
     end
+  end
+
+  # A patch id cannot survive a conflict resolution. Resolving a conflict is
+  # what changes the content, so the rebased commit legitimately carries a
+  # different patch id from the one recorded before the rebase -- and demanding
+  # identity made this guard unsatisfiable for precisely the case it most needed
+  # to handle, a branch far enough behind its base that rebasing it conflicts.
+  # One pull request filed 64 failed rebase workflows over three weeks against
+  # this check, each one spending an agent invocation to arrive at the same
+  # refusal, because the fix it was protecting was the branch tip the rebase had
+  # to rewrite.
+  #
+  # What remains verifiable is that the rebase carried the fix forward rather
+  # than dropping it: the pre-rebase head contained the fix, and the rebase ran
+  # to completion (this runs from the publish step, after the resolution
+  # succeeded). That is the question the guard was always asking; patch-id
+  # identity was only ever a proxy for it, and a proxy that is unavailable here.
+  def rewritten_by_conflict_resolution?(fix)
+    result = workflow&.artifact(REBASE_RESULT_ARTIFACT)
+    return false unless result.is_a?(Hash)
+    return false unless result["reason"].to_s == CONFLICT_REBASE_REASON
+
+    pre_sha = result["pre_sha"].to_s.presence
+    fix_head = fix["head_sha"].to_s.presence
+    return false if pre_sha.blank? || fix_head.blank?
+
+    contained_in?(fix_head, pre_sha)
+  end
+
+  # "Cannot tell" is not "no", but it is also not evidence, so it reads as
+  # false and the refusal stands -- with a log line saying which happened, so
+  # an unverifiable object does not look like a dropped fix.
+  def contained_in?(candidate, descendant)
+    git.run("merge-base", "--is-ancestor", candidate, descendant, chdir: workspace_path.to_s)
+    true
+  rescue GitRunner::GitError => e
+    log.call(
+      "[coding_handoff] could not establish whether #{candidate} is contained in pre-rebase head #{descendant}: #{e.message}",
+      kind: "system"
+    )
+    false
   end
 
   def patch_ids_on_branch
