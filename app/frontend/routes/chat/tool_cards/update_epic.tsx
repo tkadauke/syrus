@@ -12,7 +12,7 @@ export const examples: ToolCardExample[] = [
   {
     id: "title_and_description_updated",
     get label() {
-      return i18n.t("chat:mutation_example_epic_title_and_description_updated")
+      return i18n.t("chat:mutation_example_title_and_description_updated")
     },
     input: { epic_id: 71, title: sampleTitle, description: longDescription },
     parsedResult: { epic_id: 71, title: sampleTitle, description: longDescription, state: "ready" }

@@ -99,11 +99,13 @@ describe("Job and Epic maintenance tool cards", () => {
 
   it("resolves localized catalog labels at read time", async () => {
     expect(updateJobExamples[0].label).toBe("Title and description updated")
+    expect(updateEpicExamples[0].label).toBe("Title and description updated")
 
     await i18n.changeLanguage("de")
     try {
       expect(updateJobExamples[0].label).toBe("Titel und Beschreibung aktualisiert")
       expect(updateJobExamples[1].label).toBe("Aktualisierung des geschlossenen Jobs fehlgeschlagen")
+      expect(updateEpicExamples[0].label).toBe("Titel und Beschreibung aktualisiert")
     } finally {
       await i18n.changeLanguage("en")
     }
