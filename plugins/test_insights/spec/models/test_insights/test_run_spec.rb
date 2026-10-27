@@ -58,13 +58,21 @@ RSpec.describe TestInsights::TestRun do
   end
 
   describe ".prunable" do
-    it "matches rows older than RETAIN_AFTER" do
+    it "matches rows older than the case retention window" do
       old = build_test_run(grader_name: "rspec-old").tap(&:save!)
-      old.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      old.update_columns(created_at: (TestInsights::TestCase.retention_window + 1.day).ago)
       fresh = build_test_run(grader_name: "rspec-fresh").tap(&:save!)
 
       expect(described_class.prunable).to include(old)
       expect(described_class.prunable).not_to include(fresh)
+    end
+
+    it "returns none when case retention is infinite" do
+      AppSetting.current.update!(test_insight_case_retention_days: 0)
+      old = build_test_run(grader_name: "rspec-old").tap(&:save!)
+      old.update_columns(created_at: 10.years.ago)
+
+      expect(described_class.prunable).to be_empty
     end
   end
 end

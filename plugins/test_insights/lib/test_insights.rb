@@ -25,7 +25,8 @@ module TestInsights
              ui_slot: "TestInsights::UiSlots",
              mcp_tool_set: "TestInsights::McpToolSet",
              chat_mcp_tool_set: "TestInsights::ChatToolSet",
-             callbacks: "TestInsights::Callbacks"
+             callbacks: "TestInsights::Callbacks",
+             retention_policy: "TestInsights::RetentionPolicy"
     route :get, "/api/v1/app/jobs/:job_id/test_results", to: "api/v1/app/job_test_results#index"
     route :get, "/api/v1/app/repositories/:repository_id/flaky_tests", to: "api/v1/app/repository_flaky_tests#index"
     route :get, "/api/v1/app/repositories/:repository_id/tests", to: "api/v1/app/repository_tests#index"

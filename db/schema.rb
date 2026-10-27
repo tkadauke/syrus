@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -249,6 +249,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_221719) do
     t.integer "merge_train_multisect_section_width", default: 4, null: false
     t.integer "repository_full_poll_interval_hours", default: 24, null: false
     t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
+    t.integer "test_insight_case_retention_days", default: 90, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"

@@ -7,7 +7,7 @@ module TestInsights
     include Syrus::Plugin::Callbacks
 
     def self.on_tick
-      TestInsightsPruneJob.perform_later
+      PruneJob.perform_later
       nil
     end
   end
