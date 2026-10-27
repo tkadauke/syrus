@@ -1,8 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
-const getLocale = vi.fn()
-
-vi.mock("electron", () => ({ app: { getLocale } }))
+import { getLocale } from "./test/electron"
 
 describe("Electron i18n", () => {
   beforeEach(() => getLocale.mockReset())
