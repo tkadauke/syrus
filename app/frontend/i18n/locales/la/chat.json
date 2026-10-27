@@ -991,6 +991,11 @@
   },
   "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
   "tool_card_examples": {
+    "pending_force_fail_confirmation": "Confirmatio actionis perniciosae pendet",
+    "bulk_force_fail_confirmation": "Confirmatio plurium defectuum coactorum",
+    "job_cannot_be_force_failed": "Labor cogi ad defectum non potest",
+    "job_assigned_to_epic": "Labor epico attributus",
+    "archived_epic_error": "Error epici archivizzati",
     "priority_changed": "Prioritas mutata",
     "invalid_priority": "Prioritas invalida",
     "epic_started": "Epic coeptum",
