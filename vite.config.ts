@@ -92,7 +92,11 @@ export default defineConfig(({ mode }) => {
         "@app": `${rootDir}app/frontend`,
         "@plugins": `${rootDir}plugins`,
         "@tanstack/react-query": `${rootDir}node_modules/@tanstack/react-query`,
-        "@tanstack/query-core": `${rootDir}node_modules/@tanstack/query-core`
+        "@tanstack/query-core": `${rootDir}node_modules/@tanstack/query-core`,
+        // The root React suite intentionally does not install the desktop
+        // package tree. Give Vite a resolvable target so electronI18n.test.ts's
+        // vi.mock factory can replace this runtime-only dependency.
+        electron: `${rootDir}app/frontend/test/electron.ts`
       },
       coverage: {
         provider: "v8",
