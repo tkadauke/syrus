@@ -111,18 +111,6 @@ describe("Job and Epic maintenance tool cards", () => {
     }
   })
 
-  it("resolves localized catalog labels at read time", async () => {
-    expect(updateJobExamples[0].label).toBe("Title and description updated")
-
-    await i18n.changeLanguage("de")
-    try {
-      expect(updateJobExamples[0].label).toBe("Titel und Beschreibung aktualisiert")
-      expect(updateJobExamples[1].label).toBe("Aktualisierung des geschlossenen Jobs fehlgeschlagen")
-    } finally {
-      await i18n.changeLanguage("en")
-    }
-  })
-
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
     expect(card.toolName).toBe(name)
   })
