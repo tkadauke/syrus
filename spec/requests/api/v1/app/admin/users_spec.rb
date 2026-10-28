@@ -290,6 +290,18 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     get "/api/v1/app/admin/users", params: { smart_folder_id: folder.id }
     expect(parse_body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree(folder.builtin_key))
 
+    added = { "and" => [
+      { "field" => "smart_folder_preset", "op" => "is", "value" => folder.builtin_key },
+      { "field" => "email", "op" => "contains", "value" => "example" }
+    ] }
+    edited = { "and" => [ { "field" => "email", "op" => "contains", "value" => "admin" } ] }
+    contradictory = { "and" => [ { "field" => "has_github_token", "op" => "is", "value" => "true" } ] }
+
+    [ added, edited, contradictory ].each do |tree|
+      get "/api/v1/app/admin/users", params: { smart_folder_id: folder.id, q: Filters::QueryParam.encode(tree) }
+      expect(parse_body["filter"]).to eq(tree)
+    end
+
     get "/api/v1/app/admin/users", params: {
       smart_folder_id: folder.id,
       q: Filters::QueryParam.encode("and" => [])
