@@ -384,7 +384,10 @@ export function ReviewableDiff({
 
   const sortedFiles = useMemo(() => sortReviewFiles(files, effectiveReviewSettings.file_sort), [files, effectiveReviewSettings.file_sort])
   const renderFiles = filesForMode(sortedFiles, mode, selectedPath)
-  const filesSignature = renderFiles.map((file) => file.path).join("\n")
+  // Selection/filtering can unmount a file without changing the underlying
+  // diff. Keep its cache in that case; only a new source file list owns a new
+  // cache lifetime.
+  const filesSignature = sortedFiles.map((file) => file.path).join("\n")
 
   // Reset the "how many files are revealed" cap (and the per-file cache)
   // whenever the underlying file list actually changes (not on every
@@ -1504,19 +1507,17 @@ function useHighlightedDiffLines(
     if (missing.length === 0) return
 
     let cancelled = false
-    const marker = startMarker("diff_review.syntax_highlight", { maxPerSession: 300 })
-    Promise.all(
+    const scheduled = scheduleNonUrgentWork(() => Promise.all(
       missing.map(async ([hunkId, indexes]) => {
         const code = indexes.map((index) => lines[index].code).join("\n")
-        const tokens = await tokenizeLines(code, lang)
+        const tokens = await tokenizeLines(code, lang, { performanceMarker: "diff_review.syntax_highlight" })
         return [hunkId, tokens] as const
       })
-    )
+    ))
+    scheduled.promise
       .then((results) => {
         if (cancelled) return
         for (const [hunkId, tokens] of results) tokensByHunk.set(hunkId, tokens)
-        const tokenSpanCount = results.reduce((sum, [, tokens]) => sum + tokens.reduce((lineSum, lineTokens) => lineSum + lineTokens.length, 0), 0)
-        endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, token_span_count: tokenSpanCount } })
         bumpVersion()
       })
       .catch((error: unknown) => {
@@ -1526,12 +1527,12 @@ function useHighlightedDiffLines(
         // renders correctly as plain text without tokens, so this is a
         // silent degrade, not a UI error.
         if (cancelled) return
-        endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, error: true } })
         console.warn("Diff syntax highlighting failed; falling back to plain text.", error)
       })
 
     return () => {
       cancelled = true
+      scheduled.cancel()
     }
   }, [hunkLineIndexes, lang, lines, tokensByHunk])
 
@@ -1549,6 +1550,21 @@ function useHighlightedDiffLines(
     // `version` (not tokensByHunk's identity, which never changes on its own
     // since it's mutated in place) is what signals a completed fetch.
   }, [hunkLineIndexes, lang, tokensByHunk, version])
+}
+
+function scheduleNonUrgentWork<T>(work: () => Promise<T>): { cancel: () => void; promise: Promise<T> } {
+  let cancel = () => {}
+  const promise = new Promise<T>((resolve, reject) => {
+    const run = () => { void work().then(resolve, reject) }
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(run, { timeout: 150 })
+      cancel = () => window.cancelIdleCallback(id)
+    } else {
+      const id = setTimeout(run, 0)
+      cancel = () => clearTimeout(id)
+    }
+  })
+  return { cancel, promise }
 }
 
 function isDiffCodeLine(kind: DiffLine["kind"]) {

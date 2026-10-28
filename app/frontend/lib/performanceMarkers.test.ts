@@ -93,6 +93,23 @@ describe("performanceMarkers", () => {
     })
   })
 
+  it("attaches sanitized API attribution and child spans when a marker ends", () => {
+    const marker = startMarker("diff_review.fetch_source_diff", { enabled: true })
+    endMarker(marker, {
+      apiRequests: [{ name: "source_diff", path: "/api/v1/app/jobs/:id/source_diff", request_id: "request-1", duration_ms: 12, status: 200 }],
+      spans: [
+        { name: "api_transport", duration_ms: 12 },
+        { name: "payload_parse_prepare", duration_ms: 3, started_at_ms: 12 }
+      ]
+    })
+
+    flushPerformanceMarkerQueue()
+    expect(sentBatches(fetchSpy)[0][0]).toEqual(expect.objectContaining({
+      api_requests: [expect.objectContaining({ path: "/api/v1/app/jobs/:id/source_diff" })],
+      spans: expect.arrayContaining([expect.objectContaining({ name: "payload_parse_prepare" })])
+    }))
+  })
+
   describe("thresholding", () => {
     it("drops a span shorter than thresholdMs", () => {
       let clock = 0
