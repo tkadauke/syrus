@@ -401,18 +401,22 @@ repository names or ids, per the cardinality rule below.
 | `syrus_provider_sessions_bytes` | total `transcript_jsonl` bytes across all `provider_sessions` rows |
 | `syrus_provider_sessions_rows` | total `provider_sessions` row count |
 | `syrus_auto_retry_attempts_total{skip_reason}` | auto-retry attempts by settled outcome |
+| `syrus_retention_rows_pruned_total{retention_key}` | rows deleted by each registry policy |
+| `syrus_retention_prune_duration_seconds{retention_key}` | duration of each policy pass |
+| `syrus_retention_prune_backlog{retention_key}` | 1 when a capped pass left eligible rows |
+| `syrus_retention_prune_failures_total{retention_key}` | failed policy passes |
 
 `Metrics::MaintenanceSampler` (`app/services/metrics/maintenance_sampler.rb`)
 owns all four. The failure mode they cover: a recurring pruner stops silently
 and its table grows unbounded. `provider_sessions` can reach several
-gigabytes of month-old rows after `prune_provider_sessions` quietly stops,
+gigabytes of month-old rows after the database retention sweep quietly stops,
 invisible outside a Rails console until someone goes looking by hand -- the
 same shape as every other failure this metrics effort exists to catch.
 
 **`recurring_job_last_success_seconds`** is a generic staleness signal
 covering every job declared in `config/recurring.yml` -- pruners chief among
 them, but every recurring job gets covered without a bespoke gauge per table.
-`job` is the `config/recurring.yml` key (`prune_provider_sessions`,
+`job` is the `config/recurring.yml` key (`database_retention_sweep`,
 `reap_stale_runs`, ...), not the underlying Solid Queue class name.
 `Metrics::QueueSource#recurring_job_last_success_at` reads the most recent
 `solid_queue_jobs.finished_at` per configured job's class. That table alone is
@@ -429,8 +433,7 @@ which would misread as "just succeeded."
 
 **`provider_sessions_bytes`/`provider_sessions_rows`** are `provider_sessions`
 table headline gauges, sampled directly (`SUM(LENGTH(transcript_jsonl))` and
-`COUNT(*)`) given the table's history and its `prune_provider_sessions`
-pruning task.
+`COUNT(*)`) given the table's history and its registry-driven pruning policy.
 
 **`auto_retry_attempts_total`** counts every settled `AutoRetryAttempt` --
 performed (`skip_reason="none"`) or skipped -- the same cursor-over-`updated_at`,

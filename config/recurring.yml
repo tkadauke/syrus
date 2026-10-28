@@ -89,10 +89,6 @@ default: &default
     class: SystemAlertDeliveryJob
     queue: control_plane
     schedule: every minute
-  prune_operational_logs:
-    class: PruneOperationalLogsJob
-    queue: cleanup
-    schedule: every 10 minutes
   sync_enabled_forks:
     class: SyncEnabledForksJob
     queue: low_priority_maintenance
@@ -125,22 +121,14 @@ default: &default
     class: PollingQueueCoverageCheckJob
     queue: cleanup
     schedule: every 5 minutes
-  prune_worker_host_health_samples:
-    class: WorkerHostHealthSamplePruneJob
-    queue: cleanup
-    schedule: every day at 3:15am
   prune_ui_engagement_samples:
     class: UiEngagementSamplePruneJob
     queue: cleanup
     schedule: every day at 3:17am
-  prune_run_resource_summaries:
-    class: RunResourceSummaryPruneJob
+  database_retention_sweep:
+    class: RetentionSweepJob
     queue: cleanup
-    schedule: every day at 3:18am
-  prune_metrics_dashboard_samples:
-    class: MetricsDashboard::PruneJob
-    queue: cleanup
-    schedule: every day at 3:19am
+    schedule: every 10 minutes
   refresh_workflow_step_resource_profiles:
     class: WorkflowStepResourceProfileRefreshJob
     queue: low_priority_maintenance
@@ -157,38 +145,10 @@ default: &default
     class: ReconcileIntegrationBranchesJob
     queue: cleanup
     schedule: every day at 3:45am
-  prune_spawned_processes:
-    class: SpawnedProcessPruneJob
-    queue: cleanup
-    schedule: every day at 3:20am
-  prune_provider_sessions:
-    class: ProviderSessionPruneJob
-    queue: cleanup
-    schedule: every day at 3:00am
-  prune_job_logs:
-    class: JobLogPruneJob
-    queue: cleanup
-    schedule: every day at 3:05am
-  prune_performance_log_events:
-    class: PerformanceLogEventPruneJob
-    queue: cleanup
-    schedule: every hour
-  prune_run_diagnostics:
-    class: RunDiagnosticPruneJob
-    queue: cleanup
-    schedule: every day at 3:10am
-  prune_work_engine_reconciler_activity:
-    class: WorkEngineReconcilerActivityPruneJob
-    queue: cleanup
-    schedule: every day at 3:12am
   prune_auto_retry_attempts:
     class: AutoRetryAttemptPruneJob
     queue: cleanup
     schedule: every 10 minutes
-  prune_old_notifications:
-    class: PruneOldNotificationsJob
-    queue: cleanup
-    schedule: every day at 3:30am
   prune_workflow_workspaces:
     class: WorkflowWorkspacePruneJob
     queue: cleanup
@@ -201,18 +161,6 @@ default: &default
     class: PurgeExpiredPasskeyChallengesJob
     queue: cleanup
     schedule: every day at 3:45am
-  prune_run_health_snapshots:
-    class: RunHealthSnapshotPruneJob
-    queue: cleanup
-    schedule: every day at 3:22am
-  prune_main_branch_health_checks:
-    class: MainBranchHealthCheckPruneJob
-    queue: cleanup
-    schedule: every day at 3:25am
-  prune_workflow_step_resource_profiles:
-    class: WorkflowStepResourceProfilePruneJob
-    queue: cleanup
-    schedule: every day at 3:55am
 development:
   <<: *default
 

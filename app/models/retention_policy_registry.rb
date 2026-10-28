@@ -1,7 +1,7 @@
 # Declarative source of truth for every DB-table row retention window Syrus
 # enforces. Each entry documents one prunable table: which model/scope
 # deletes its expired rows, its stable persistence key and display unit, and
-# which recurring PruneJob runs it. RetentionPolicySetting stores only the
+# which optional executor handles table-specific side effects. RetentionPolicySetting stores only the
 # operator choice in canonical seconds; nil means infinite retention.
 #
 # Core-owned tables are declared inline below. A plugin that owns a prunable
@@ -21,13 +21,17 @@ class RetentionPolicyRegistry
     :setting_key,
     :default_value,
     :unit,
-    :job_class,
+    :executor_class,
     :description,
     :category,
     :archivable
   ) do
     def model_class
       model.constantize
+    end
+
+    def executor
+      (executor_class || "RetentionPolicyExecutors::Default").constantize.new(self)
     end
 
     def default_seconds
@@ -71,7 +75,7 @@ class RetentionPolicyRegistry
         setting_key: setting_key.to_s,
         default_value: default_value,
         unit: unit.to_s,
-        job_class: job_class,
+        executor_class: executor_class,
         description: description,
         category: category,
         archivable: archivable
@@ -88,7 +92,7 @@ class RetentionPolicyRegistry
       setting_key: :job_log_retention_days,
       default_value: 30,
       unit: :days,
-      job_class: "JobLogPruneJob",
+      executor_class: nil,
       description: "User-visible Run output; pruning removes the detailed stdout, stderr, tool-call, and system log history while keeping the Run itself.",
       category: "Product",
       archivable: true
@@ -102,7 +106,7 @@ class RetentionPolicyRegistry
       setting_key: :performance_log_event_retention_hours,
       default_value: 24,
       unit: :hours,
-      job_class: "PerformanceLogEventPruneJob",
+      executor_class: nil,
       description: "High-volume request, SQL, job, and browser performance diagnostics used to investigate recent regressions.",
       category: "Diagnostics",
       archivable: false
@@ -116,7 +120,7 @@ class RetentionPolicyRegistry
       setting_key: :run_diagnostic_retention_days,
       default_value: 30,
       unit: :days,
-      job_class: "RunDiagnosticPruneJob",
+      executor_class: nil,
       description: "Per-failed-Run diagnostic snapshots (exception backtrace, git/environment snapshot) used for incident triage.",
       category: "Diagnostics",
       archivable: true
@@ -130,7 +134,7 @@ class RetentionPolicyRegistry
       setting_key: :run_resource_summary_retention_days,
       default_value: 30,
       unit: :days,
-      job_class: "RunResourceSummaryPruneJob",
+      executor_class: nil,
       description: "Per-Run resource/pressure summaries used for admission control and worker health correlation.",
       category: "Diagnostics",
       archivable: false
@@ -144,7 +148,7 @@ class RetentionPolicyRegistry
       setting_key: :worker_host_health_sample_retention_days,
       default_value: 7,
       unit: :days,
-      job_class: "WorkerHostHealthSamplePruneJob",
+      executor_class: nil,
       description: "Per-host CPU/memory/disk/pressure samples used for live and historical worker health.",
       category: "Diagnostics",
       archivable: false
@@ -158,7 +162,7 @@ class RetentionPolicyRegistry
       setting_key: :work_engine_reconciler_activity_retention_days,
       default_value: 7,
       unit: :days,
-      job_class: "WorkEngineReconcilerActivityPruneJob",
+      executor_class: nil,
       description: "Append-only WorkEngine::Reconciler activity log (repair detection/planning/execution events).",
       category: "Diagnostics",
       archivable: true
@@ -172,7 +176,7 @@ class RetentionPolicyRegistry
       setting_key: :provider_session_retention_days,
       default_value: 14,
       unit: :days,
-      job_class: "ProviderSessionPruneJob",
+      executor_class: "RetentionPolicyExecutors::ProviderSession",
       description: "Captured agent provider sessions for terminal Runs, kept for diagnostics and resume rehydration.",
       category: "Diagnostics",
       archivable: true
@@ -186,7 +190,7 @@ class RetentionPolicyRegistry
       setting_key: :spawned_process_retention_days,
       default_value: 7,
       unit: :days,
-      job_class: "SpawnedProcessPruneJob",
+      executor_class: "RetentionPolicyExecutors::SpawnedProcess",
       description: "Subprocess inventory (agent CLIs, graders, git, prepare) used for the admin Processes list.",
       category: "Diagnostics",
       archivable: false
@@ -200,7 +204,7 @@ class RetentionPolicyRegistry
       setting_key: :notification_retention_days,
       default_value: 30,
       unit: :days,
-      job_class: "PruneOldNotificationsJob",
+      executor_class: nil,
       description: "In-app user notifications (Job failed/implemented/merged, Epic status, etc).",
       category: "Product",
       archivable: false
@@ -214,7 +218,7 @@ class RetentionPolicyRegistry
       setting_key: :operational_log_event_retention_hours,
       default_value: 6,
       unit: :hours,
-      job_class: "PruneOperationalLogsJob",
+      executor_class: "RetentionPolicyExecutors::OperationalLogEvent",
       description: "Syrus's own operational log index (Rails app logs ingested for self-diagnosis).",
       category: "Diagnostics",
       archivable: false
@@ -228,7 +232,7 @@ class RetentionPolicyRegistry
       setting_key: :run_health_snapshot_retention_days,
       default_value: 7,
       unit: :days,
-      job_class: "RunHealthSnapshotPruneJob",
+      executor_class: nil,
       description: "Point-in-time health snapshots recorded during a Run for operator diagnostics.",
       category: "Diagnostics",
       archivable: true
@@ -242,7 +246,7 @@ class RetentionPolicyRegistry
       setting_key: :main_branch_health_check_retention_days,
       default_value: 7,
       unit: :days,
-      job_class: "MainBranchHealthCheckPruneJob",
+      executor_class: nil,
       description: "Recorded CI/grader health checks per repository SHA, used for main-branch breakage detection.",
       category: "Diagnostics",
       archivable: true
@@ -256,7 +260,7 @@ class RetentionPolicyRegistry
       setting_key: :workflow_step_resource_profile_retention_days,
       default_value: 180,
       unit: :days,
-      job_class: "WorkflowStepResourceProfilePruneJob",
+      executor_class: nil,
       description: "Per-step-key resource prediction profiles used for admission control; stale profiles are dropped rather than trusted.",
       category: "Diagnostics",
       archivable: false
@@ -273,6 +277,20 @@ class RetentionPolicyRegistry
 
   def self.fetch(key)
     definitions.index_by(&:key).fetch(key.to_sym)
+  end
+
+  def self.validate!
+    duplicates = definitions.group_by(&:key).select { |_key, entries| entries.many? }.keys
+    raise ArgumentError, "duplicate retention keys: #{duplicates.join(', ')}" if duplicates.any?
+
+    definitions.each do |definition|
+      model = definition.model_class
+      raise ArgumentError, "#{definition.key} table mismatch" unless model.table_name == definition.table_name
+      raise ArgumentError, "#{definition.key} has no #{definition.scope_name} scope" unless model.respond_to?(definition.scope_name)
+      raise ArgumentError, "#{definition.key} has no #{definition.age_column} column" unless model.column_names.include?(definition.age_column.to_s)
+      definition.setting
+      definition.executor
+    end
   end
 
   def self.plugin_definitions

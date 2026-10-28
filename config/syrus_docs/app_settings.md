@@ -402,8 +402,8 @@ Per-table DB row retention windows are declared in `RetentionPolicyRegistry`
 and persisted by stable policy key in `retention_policy_settings`. Effective
 durations are stored as canonical seconds; `NULL` means explicit infinite
 retention. The admin API and UI continue to present the registry's display
-unit and preserve the `0` = infinite convention: a `0` value means the corresponding scope returns
-`.none` and the PruneJob is a no-op. Models include the shared
+unit and preserve the `0` = infinite convention: a `0` value makes the shared
+policy worker a no-op. Models include the shared
 `HasConfigurableRetention` concern and declare `configurable_retention
 setting_key:, unit:` once; the concern exposes `retention_window` (nil when
 infinite), `retention_cutoff` (a `Time`, nil when infinite), and
@@ -418,7 +418,7 @@ enabled providers participate in active discovery. A disabled or removed
 plugin may leave an inert `retention_policy_settings` row, preserving its
 operator choice without loading plugin classes. A plugin that owns a prunable
 table (e.g. `metrics_dashboard`) must never be hand-listed in core's
-`CORE_DEFINITIONS` — a core file naming a plugin's model/job class by string
+`CORE_DEFINITIONS` — a core file naming a plugin's model or executor class by string
 would make that plugin undeletable in practice (see CLAUDE.md's "core specs
 must not enumerate plugin-provided things" rule). See
 `plugins/metrics_dashboard/app/services/metrics_dashboard/retention_policy.rb`
@@ -430,23 +430,32 @@ retention (`WorkflowWorkspacePruneJob`'s workspace-directory constants,
 and the video walkthrough settings documented above) is out of scope and
 stays fixed or on its own settings.
 
-| Setting | Default | Unit | Table | PruneJob | Archivable |
+`RetentionSweepJob` runs every ten minutes and enqueues one `RetentionPolicyPruneJob` per
+active stable key. The worker resolves the current setting, deletes at most 50
+ordered 1,000-row batches, and re-enqueues only that key after one minute when
+eligible rows remain. `SkipIfPending` plus a Solid Queue concurrency key
+deduplicates each policy without coupling failures between policies. A normal
+core or plugin policy needs only a registry definition—no ApplicationJob or
+recurring YAML entry. Definitions may name a small executor strategy when
+dependent-row cleanup or another side effect is required.
+
+| Setting | Default | Unit | Table | Executor | Archivable |
 | --- | --- | --- | --- | --- | --- |
-| `job_log_retention_days` | 30 | days | `job_logs` | `JobLogPruneJob` | yes |
-| `performance_log_event_retention_hours` | 24 | **hours** | `performance_log_events` | `PerformanceLogEventPruneJob` | no |
-| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` | yes |
-| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` | no |
-| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` | no |
-| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | `WorkEngineReconcilerActivityPruneJob` | yes |
-| `provider_session_retention_days` | 14 | days | `provider_sessions` | `ProviderSessionPruneJob` | yes |
-| `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` | no |
-| `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` | no |
-| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` | no |
-| `metrics_dashboard_sample_retention_days` | 7 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
-| `test_insight_case_retention_days` | 90 | days | `test_insight_cases` | plugin-owned prune job | no |
-| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` | yes |
-| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` | yes |
-| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` | no |
+| `job_log_retention_days` | 30 | days | `job_logs` | generic | yes |
+| `performance_log_event_retention_hours` | 24 | **hours** | `performance_log_events` | generic | no |
+| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | generic | yes |
+| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | generic | no |
+| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | generic | no |
+| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | generic | yes |
+| `provider_session_retention_days` | 14 | days | `provider_sessions` | payload cleanup strategy | yes |
+| `spawned_process_retention_days` | 7 | days | `spawned_processes` | dependent-row strategy | no |
+| `notification_retention_days` | 30 | days | `notifications` | generic | no |
+| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | index cleanup strategy | no |
+| `metrics_dashboard_sample_retention_days` | 7 | days | `metrics_dashboard_samples` | generic | no |
+| `test_insight_case_retention_days` | 90 | days | `test_insight_cases` | plugin strategy | no |
+| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | generic | yes |
+| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | generic | yes |
+| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | generic | no |
 
 "Archivable" means the entry's `RetentionPolicyRegistry::Definition#archivable`
 flag is `true` — see "Archive-before-delete storage" below for what that
@@ -489,24 +498,21 @@ Three entries are worth calling out:
   `Admin::OperationalLogsPayload` to the configured window (or the epoch, when
   infinite) instead of assuming data always exists back to a fixed constant.
 - **`workflow_step_resource_profile_input_retention_days`** does not back a
-  deletion scope or PruneJob. It bounds how far back
+  deletion scope or retention policy. It bounds how far back
   `WorkflowStepResourceProfiles::Refresh` looks at `RunResourceSummary` rows
   when rebuilding prediction profiles — a lookback window, not a retention
   window — via `WorkflowStepResourceProfile.input_retention_window`. The
   profile *rows* themselves are governed by the sibling
   `workflow_step_resource_profile_retention_days` setting and the `.stale`
-  scope (already pruned inline by `WorkflowStepResourceProfileRefreshJob`;
-  `WorkflowStepResourceProfilePruneJob` is an independently schedulable
-  safety net on top of that).
+  scope (also pruned inline by `WorkflowStepResourceProfileRefreshJob`).
 - **`metrics_dashboard_sample_retention_days`** is the one plugin-owned
   entry in the table above. It is contributed by the `metrics_dashboard`
   plugin via the `:retention_policy` extension point rather than hand-listed
   in `RetentionPolicyRegistry::CORE_DEFINITIONS`, so the plugin stays
   physically removable (`bin/plugin-boundary-audit metrics_dashboard`). The
   persisted row may remain while the plugin is disabled, but active discovery,
-  its `.prunable` scope, and its PruneJob go inert. Its seven-day default matches the
-  dashboard's longest selectable window; `prune_metrics_dashboard_samples`
-  enforces it daily from `config/recurring.yml`.
+  and its `.prunable` scope go inert. Its seven-day default matches the
+  dashboard's longest selectable window; the shared sweep enforces it.
 
 ### Retention size estimation
 
@@ -585,7 +591,7 @@ existing walkthrough-video retention/budget settings documented above stay on
 
 ### Archive-before-delete storage (`RetentionArchive`)
 
-An opt-in path where a table's PruneJob serializes and archives a pruned
+An opt-in path where the policy worker serializes and archives a pruned
 batch to Active Storage before deleting it, instead of hard-deleting it
 outright. `RetentionArchive` (`app/models/retention_archive.rb`,
 `retention_archives` table) records one archived batch: `retention_key`
@@ -602,12 +608,12 @@ Every one defaults to `false` — archiving is off until an operator explicitly
 enables it — while non-archivable policies always store `NULL` for that field.
 
 **`RetentionPruner`** (`app/services/retention_pruner.rb`) is the shared
-bounded-delete service used by retention PruneJobs. It selects ordered
+bounded-delete service used by retention executors. It selects ordered
 primary-key batches (1,000 rows by default), processes at most 50 batches per
 run, and commits each batch separately. MySQL workers claim rows with
 `FOR UPDATE SKIP LOCKED`, allowing overlapping workers to process distinct
 batches without duplicate archives; SQLite development/test processes
-serialize batch selection in-process. Archivable jobs supply a retention key
+serialize batch selection in-process. Archivable policies supply a retention key
 and cutoff:
 
 ```ruby
@@ -636,10 +642,8 @@ the compressed file attached. Passing a `retention_key` whose definition has
 
 Archiving tables as of this writing: `run_diagnostic`,
 `work_engine_reconciler_activity`, `provider_session`, `run_health_snapshot`,
-and `main_branch_health_check` — see their respective PruneJobs
-(`RunDiagnosticPruneJob`, `WorkEngineReconcilerActivityPruneJob`,
-`ProviderSessionPruneJob`, `RunHealthSnapshotPruneJob`,
-`MainBranchHealthCheckPruneJob`) for the exact call sites.
+and `main_branch_health_check`; the generic executor supplies their keys to
+the shared archive/delete transaction path.
 
 **Admin UI.** `/admin/retention_settings` (`app/frontend/routes/RetentionSettings.tsx`)
 exposes an "Archive before delete" checkbox next to each archivable table's

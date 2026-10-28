@@ -19,7 +19,7 @@ RSpec.describe TestInsights::RetentionPolicy do
     expect(definition.setting_key).to eq(:test_insight_case_retention_days)
     expect(definition.default_value).to eq(90)
     expect(definition.unit).to eq(:days)
-    expect(definition.job_class).to eq("TestInsights::PruneJob")
+    expect(definition.executor_class).to eq("TestInsights::RetentionExecutor")
   end
 
   it "is merged into the registry without becoming a core definition" do
