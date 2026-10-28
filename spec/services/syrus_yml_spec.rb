@@ -856,7 +856,7 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.phases).to eq(%w[promotion])
   end
 
-  it "rejects unknown grader phases" do
+  it "accepts custom grader phases" do
     expect {
       parse(<<~YAML)
         grade:
@@ -864,7 +864,7 @@ RSpec.describe SyrusYml do
             run: bin/rspec
             phases: [review, production]
       YAML
-    }.to raise_error(described_class::ParseError, /phases: must contain only review, landing, ci/)
+    }.not_to raise_error
   end
 
   it "returns nil for when_files_changed when the key is absent" do
@@ -2108,8 +2108,73 @@ RSpec.describe SyrusYml do
     end
 
     describe "tracks" do
+      it "rejects a custom review or landing phase that no grader declares" do
+        expect {
+          parse(<<~YAML)
+            grade:
+              steps:
+                - name: tests
+                  run: bin/test
+                  phases: [review]
+            delivery:
+              tracks:
+                default:
+                  grade_phases:
+                    review: review_minimal
+          YAML
+        }.to raise_error(
+          SyrusYml::ParseError,
+          /delivery\.tracks\.default\.grade_phases\.review.*review_minimal.*not declared/
+        )
+      end
+
+      it "rejects an explicitly selected built-in phase that no grader declares" do
+        expect {
+          parse(<<~YAML)
+            grade:
+              steps:
+                - name: tests
+                  run: bin/test
+                  phases: [review, landing]
+            delivery:
+              tracks:
+                default:
+                  grade_phases:
+                    landing: promotion
+          YAML
+        }.to raise_error(
+          SyrusYml::ParseError,
+          /delivery\.tracks\.default\.grade_phases\.landing.*promotion.*not declared/
+        )
+      end
+
+      it "accepts custom review and landing phases declared by graders" do
+        config = parse(<<~YAML)
+          grade:
+            steps:
+              - name: quick
+                run: bin/quick
+                phases: [review_minimal, landing_minimal]
+          delivery:
+            tracks:
+              default:
+                grade_phases:
+                  review: review_minimal
+                  landing: landing_minimal
+        YAML
+
+        track = config.delivery.tracks.fetch("default")
+        expect(track.review_grade_phase).to eq("review_minimal")
+        expect(track.landing_grade_phase).to eq("landing_minimal")
+      end
+
       it "parses an explicit tracks block, defaulting omitted grade phases" do
         config = parse(<<~YAML)
+          grade:
+            steps:
+              - name: custom-phases
+                run: bin/test
+                phases: [review_minimal, landing_minimal, promotion]
           delivery:
             tracks:
               default:
@@ -2424,6 +2489,11 @@ RSpec.describe SyrusYml do
 
     it "parses the full Story 2 example from the delivery tracks plan" do
       config = parse(<<~YAML)
+        grade:
+          steps:
+            - name: custom-phases
+              run: bin/test
+              phases: [review_minimal, landing_minimal, promotion]
         delivery:
           tracks:
             default:

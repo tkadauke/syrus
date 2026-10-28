@@ -13,13 +13,22 @@ RSpec.describe Steps::MergeTrainRebase do
   # root .syrus.yml.
   describe "#current_landing_grader_fingerprint" do
     let(:path) { Rails.root }
+    let(:repository) { instance_double(Repository) }
+    let(:job) { instance_double(Job) }
+    let(:policy) { instance_double(DeliveryPolicy, landing_grade_phase: "landing") }
+
+    before do
+      allow(DeliveryPolicy).to receive(:for).with(repository: repository, job: job).and_return(policy)
+    end
 
     def writer_fingerprint(trigger_kind:, iteration:)
       graph = TargetGraph::Compiler.compile(path)
       plan = LandingGraderPlan.effective(
         TargetGraph::GradePlan.for(workspace_path: path, graph: graph),
         trigger_kind: trigger_kind,
-        iteration: iteration
+        iteration: iteration,
+        repository: repository,
+        job: job
       )
       GraderConclusionCache.fingerprint_for_plan(plan, target_graph: graph)
     end
@@ -28,6 +37,8 @@ RSpec.describe Steps::MergeTrainRebase do
       step = described_class.allocate
       workspace = instance_double("WorkflowWorkspace", path: path)
       allow(step).to receive(:workspace).and_return(workspace)
+      allow(step).to receive(:repository).and_return(repository)
+      allow(step).to receive(:job).and_return(job)
       step.send(:current_landing_grader_fingerprint)
     end
 

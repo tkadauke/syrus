@@ -23,7 +23,6 @@ class SyrusYml
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
   GRADE_FAILURE_POLICIES = %w[strict allow_inherited].freeze
   DEFAULT_GRADE_FAILURE_POLICY = "strict".freeze
-  GRADE_PHASES = %w[review landing ci promotion].freeze
   # A grader with no explicit `phases:` opts into review/landing/ci by
   # default (unchanged, backward-compatible behavior) but never into
   # promotion — that phase only runs graders that explicitly ask for it
@@ -290,11 +289,13 @@ class SyrusYml
     raw = YAML.safe_load(@contents, aliases: false) || {}
     raise ParseError, ".syrus.yml must be a mapping" unless raw.is_a?(Hash)
 
+    grade = parse_grade(raw["grade"])
     raw_delivery = parse_delivery(raw["delivery"])
+    validate_delivery_grade_phases!(raw["delivery"], raw_delivery, grade)
 
     Config.new(
       prepare: raw["prepare"],
-      grade: parse_grade(raw["grade"]),
+      grade: grade,
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
       security_review: parse_security_review(raw["security_review"]),
@@ -987,10 +988,24 @@ class SyrusYml
     phases = phases.map { |phase| phase.to_s.strip }.reject(&:empty?).uniq
     raise ParseError, "#{label}: must not be empty" if phases.empty?
 
-    invalid = phases - GRADE_PHASES
-    raise ParseError, "#{label}: must contain only #{GRADE_PHASES.join(', ')}" if invalid.any?
-
     phases
+  end
+
+  def validate_delivery_grade_phases!(raw_delivery, delivery, grade)
+    return if raw_delivery.nil? || delivery.tracks.nil?
+
+    declared_phases = Array(grade&.steps).flat_map(&:phases).to_set
+    raw_delivery.fetch("tracks", {}).each do |track_name, raw_track|
+      raw_grade_phases = raw_track.fetch("grade_phases", {})
+      track = delivery.tracks.fetch(track_name.to_s)
+      { "review" => track.review_grade_phase, "landing" => track.landing_grade_phase }.each do |kind, phase|
+        next unless raw_grade_phases.key?(kind)
+        next if declared_phases.include?(phase)
+
+        raise ParseError,
+              "delivery.tracks.#{track.name}.grade_phases.#{kind}: #{phase.inspect} is not declared by any grade.steps[].phases"
+      end
+    end
   end
 
   def parse_timeout_minutes(raw, name)
