@@ -10,7 +10,11 @@ module Filters
     # ordered by Registry::CHIPS' declaration order so the add-filter
     # menu shows fields in the logical grouping the registry uses.
     def for(subject: :job, user: nil)
-      Registry.fields(subject: subject).map { |field| chip_for(field, user: user, subject: subject) }
+      fields = Registry.fields(subject: subject).map { |field| chip_for(field, user: user, subject: subject) }
+      definitions = SmartFolder.builtins_by_subject[subject.to_s]
+      return fields if definitions.blank?
+
+      [ smart_folder_preset_chip(definitions), *fields ]
     end
 
     def for_user(user, subject: :job)
@@ -38,6 +42,17 @@ module Filters
       meta["date_precision"] = chip.date_precision if chip.respond_to?(:date_precision) && chip.date_precision.present?
       meta["expansions"] = chip.expansions if chip.respond_to?(:expansions)
       meta
+    end
+
+    def smart_folder_preset_chip(definitions)
+      chip = Filters::Chips::SmartFolderPreset
+      {
+        "field" => chip.filter_name,
+        "label" => chip.label,
+        "bucket" => chip.bucket.to_s,
+        "operators" => chip.operators.map(&:to_s),
+        "values" => definitions.map { |definition| { "value" => definition.fetch(:key).to_s, "label" => definition.fetch(:name) } }
+      }
     end
 
     # Take an array of static enum values (strings) or pre-labeled
