@@ -6,13 +6,20 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
 
   describe "markdown storage" do
     it "uses MEDIUMTEXT-sized storage for document and suggestion payloads" do
-      expect(described_class.columns_hash.fetch("markdown").limit).to eq(16.megabytes - 1)
-      expect(DesignDocs::DesignDocVersion.columns_hash.fetch("markdown").limit).to eq(16.megabytes - 1)
-      expect(DesignDocs::DesignDocAnchor.columns_hash.fetch("selected_markdown").limit).to eq(16.megabytes - 1)
-      expect(DesignDocs::DesignDocAnchor.columns_hash.fetch("selected_text").limit).to eq(16.megabytes - 1)
-      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("original_markdown").limit).to eq(16.megabytes - 1)
-      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("suggested_markdown").limit).to eq(16.megabytes - 1)
-      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("proposed_markdown").limit).to eq(16.megabytes - 1)
+      expected_columns = {
+        described_class => %w[markdown],
+        DesignDocs::DesignDocVersion => %w[markdown],
+        DesignDocs::DesignDocAnchor => %w[selected_markdown selected_text],
+        DesignDocs::DesignDocSuggestion => %w[original_markdown suggested_markdown proposed_markdown]
+      }
+
+      expected_columns.each do |model, column_names|
+        columns = model.connection.columns(model.table_name).index_by(&:name)
+
+        column_names.each do |column_name|
+          expect(columns.fetch(column_name).limit).to eq(16.megabytes - 1)
+        end
+      end
     end
 
     it "keeps ordinary design doc comments at the default text limit" do
