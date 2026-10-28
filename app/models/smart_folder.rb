@@ -223,7 +223,11 @@ class SmartFolder < ApplicationRecord
   # therefore part of the registration contract; an ambiguous key is not a
   # valid cross-subject fallback.
   def self.builtin_definition(subject:, key:)
-    direct = builtins_by_subject[subject.to_s]&.find { |candidate| candidate.fetch(:key).to_s == key.to_s }
+    direct = begin
+      builtins_for_subject(subject).find { |candidate| candidate.fetch(:key).to_s == key.to_s }
+    rescue KeyError
+      nil
+    end
     return direct if direct
 
     matches = builtins_by_subject.values.flatten.select { |candidate| candidate.fetch(:key).to_s == key.to_s }
