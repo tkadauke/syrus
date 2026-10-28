@@ -7,7 +7,21 @@ module GithubSource
   # format FilterBar's frontend uses everywhere else, so the standard
   # chip-bar UI can drive it without any bespoke search form.
   class IssuesFilter
+    PRESET_FIELD = "preset"
+    PRESETS = {
+      "inbox" => { "state" => "open", "delegated" => false },
+      "delegated" => { "state" => "open", "delegated" => true },
+      "open" => { "state" => "open" },
+      "closed" => { "state" => "closed" }
+    }.freeze
     SCHEMA = [
+      {
+        "field" => PRESET_FIELD,
+        "label" => "Preset",
+        "bucket" => "preset",
+        "operators" => %w[ is ],
+        "values" => PRESETS.keys.map { |value| { "value" => value, "label" => value.capitalize } }
+      },
       {
         "field" => "query",
         "label" => "Search",
@@ -61,6 +75,13 @@ module GithubSource
       new(Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME]))
     end
 
+    def self.for_request(params, folder:)
+      return from_params(params) if params.key?(Filters::QueryParam::PARAM_NAME) || params.key?(Filters::QueryParam::PARAM_NAME.to_s)
+      return new({ "and" => [] }) unless PRESETS.key?(folder)
+
+      new({ "and" => [ { "field" => PRESET_FIELD, "op" => "is", "value" => folder } ] })
+    end
+
     def initialize(tree)
       @ast = Filters::Ast.parse(tree)
     end
@@ -86,13 +107,17 @@ module GithubSource
       return true if value.to_s == "true"
       return false if value.to_s == "false"
 
-      nil
+      preset_constraints["delegated"]
     end
 
     def state
       value = values["state"].to_s
-      %w[open closed].include?(value) ? value : nil
+      return value if %w[open closed].include?(value)
+
+      preset_constraints["state"]
     end
+
+    def preset = values[PRESET_FIELD].presence_in(PRESETS.keys)
 
     private
 
@@ -112,6 +137,10 @@ module GithubSource
         collect.call(@ast)
         collected
       end
+    end
+
+    def preset_constraints
+      PRESETS.fetch(preset, {})
     end
   end
 end
