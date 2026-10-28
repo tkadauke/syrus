@@ -158,6 +158,16 @@ Coverage belongs in the repository's grader command. Syrus can read configured
 coverage artifacts, summarize deltas, and post a PR comment when requested,
 but the command itself should decide when coverage is collected.
 
+Coverage is analyzed in the `review` phase, so that is the phase typed
+framework graders instrument. A typed grader declaring `coverage: true` runs
+uninstrumented in `landing` and `ci`, where nothing reads the result and the
+extra wall clock counts against the grader's timeout. Custom `run:` graders
+decide their own instrumentation.
+
+Because `review` runs the focused variant of a typed grader, its coverage
+covers the tests related to the changed files. `threshold.pr_lines` is the
+threshold that reads correctly from that sample.
+
 When a workflow has PR diff annotations, the Job Review tab can also show a
 `PR coverage` metric gutter for the selected diff version. Covered added lines
 render as passing, uncovered added lines render as attention-needed, and
@@ -172,11 +182,11 @@ When line-specific review evidence comes from a different revision and cannot
 be projected on the repository page, Syrus links it as review context but does
 not count it as covered.
 
-For large suites, a common setup is:
+For large suites with custom `run:` graders, a common setup is:
 
-- no coverage for most review and repair iterations,
-- one coverage run for the final or landing path,
-- CI-only coverage checks for expensive policies.
+- coverage on the review grader, where Syrus analyzes it,
+- no coverage on landing graders, which are racing a merge deadline,
+- CI-only checks for expensive policies that do not need a coverage artifact.
 
 ### C/C++ coverage with shared compiler caches
 

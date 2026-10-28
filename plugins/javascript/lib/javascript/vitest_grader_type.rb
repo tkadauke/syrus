@@ -44,10 +44,14 @@ module JavaScript
     end
 
     def grade_steps
+      landing_coverage = coverage_for_phases?(coverage?, landing_phases)
+      review_coverage = coverage_for_phases?(coverage?, review_phases)
+      ci_coverage = coverage_for_phases?(coverage?, ci_phases)
+
       [
-        grade_step(name: full_name, run: full_command, phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope),
-        grade_step(name: focused_name, run: focused_command, phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope),
-        grade_step(name: ci_name, run: ci_command, phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope)
+        grade_step(name: full_name, run: full_command(coverage: landing_coverage), phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope, coverage: landing_coverage),
+        grade_step(name: focused_name, run: focused_command(coverage: review_coverage), phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope, coverage: review_coverage),
+        grade_step(name: ci_name, run: ci_command(coverage: ci_coverage), phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope, coverage: ci_coverage)
       ]
     end
 
@@ -185,6 +189,21 @@ module JavaScript
       ActiveModel::Type::Boolean.new.cast(config.fetch("coverage", false))
     end
 
+    # Vitest writes its lcov report wherever `coverage.reportsDirectory` in the
+    # Vite config points, which is not always the default. The declared output
+    # has to name the file the run actually produces, or collection reports it
+    # absent and `coverage_analyze` sees no coverage at all. Stays
+    # project-relative: the collector joins the project path itself.
+    DEFAULT_COVERAGE_ARTIFACT = "coverage/lcov.info".freeze
+
+    def coverage_artifact
+      raw = config["coverage_artifact"].to_s.strip
+      return DEFAULT_COVERAGE_ARTIFACT if raw.empty?
+      raise ArgumentError, "coverage_artifact must be a relative path" if raw.start_with?("/") || raw.split("/").include?("..")
+
+      raw
+    end
+
     def typecheck?
       return true unless config.key?("typecheck")
 
@@ -209,19 +228,19 @@ module JavaScript
       "#{project_path.tr('/', '-')}-#{name}"
     end
 
-    def full_command
+    def full_command(coverage:)
       vitest_command(
         junit_output: junit_output(full_name),
-        coverage: coverage?,
+        coverage: coverage,
         include_typecheck: typecheck?,
         args: [ "run", *test_paths ]
       )
     end
 
-    def ci_command
+    def ci_command(coverage:)
       vitest_command(
         junit_output: junit_output(ci_name),
-        coverage: coverage?,
+        coverage: coverage,
         include_typecheck: typecheck?,
         args: [ "run", *test_paths ]
       )
@@ -232,12 +251,12 @@ module JavaScript
       Array(raw).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
-    def focused_command
+    def focused_command(coverage:)
       <<~BASH
         #{setup_prefix} &&
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
         if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&
-        #{vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
+        #{vitest_command(junit_output: junit_output(focused_name), coverage: coverage, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH
     end
 
@@ -309,7 +328,7 @@ module JavaScript
       RUBY
     end
 
-    def grade_step(name:, run:, phases:, mode:, junit_output:, when_files_changed: nil)
+    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil)
       SyrusYml::GradeStep.new(
         name: name,
         display_name: display_name_for(mode),
@@ -330,12 +349,12 @@ module JavaScript
           "grader_mode" => mode,
           "project_path" => project_path,
           "result_outputs" => [ { "artifact" => junit_output, "format" => "junit" } ],
-          "coverage_outputs" => coverage? ? [ { "artifact" => "coverage/lcov.info", "format" => "lcov" } ] : [],
+          "coverage_outputs" => coverage ? [ { "artifact" => coverage_artifact, "format" => "lcov" } ] : [],
           "filter_capabilities" => {
             "changed_files" => mode == "focused",
             "failed_cases" => true,
             "ci" => mode == "ci",
-            "coverage" => coverage?,
+            "coverage" => coverage,
             "typecheck" => typecheck?
           }
         }

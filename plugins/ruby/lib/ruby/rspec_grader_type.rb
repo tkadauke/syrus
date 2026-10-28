@@ -33,10 +33,14 @@ module Ruby
     def grade_steps
       return fixed_full_path_grade_steps if fixed_full_path?
 
+      landing_coverage = coverage_for_phases?(coverage?, landing_phases)
+      review_coverage = coverage_for_phases?(coverage?, review_phases)
+      ci_coverage = coverage_for_phases?(coverage?, ci_phases)
+
       [
-        grade_step(name: full_name, run: full_command, phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope),
-        grade_step(name: focused_name, run: focused_command, phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope),
-        grade_step(name: ci_name, run: ci_command, phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope)
+        grade_step(name: full_name, run: full_command(coverage: landing_coverage), phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope, coverage: landing_coverage),
+        grade_step(name: focused_name, run: focused_command(coverage: review_coverage), phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope, coverage: review_coverage),
+        grade_step(name: ci_name, run: ci_command(coverage: ci_coverage), phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope, coverage: ci_coverage)
       ]
     end
 
@@ -49,14 +53,17 @@ module Ruby
         raise ArgumentError, "fixed_full_path requires paths or spec_paths"
       end
 
+      coverage = coverage_for_phases?(coverage?, configured_phases)
+
       [
         grade_step(
           name: full_name,
-          run: full_command,
+          run: full_command(coverage: coverage),
           phases: configured_phases,
           mode: "full",
           junit_output: junit_output(full_name),
-          when_files_changed: configured_scope
+          when_files_changed: configured_scope,
+          coverage: coverage
         )
       ]
     end
@@ -232,23 +239,23 @@ module Ruby
       "#{project_path.tr('/', '-')}-#{name}"
     end
 
-    def full_command
+    def full_command(coverage:)
       rspec_command(
         mode: "full",
         junit_output: junit_output(full_name),
         json_output: json_output(full_name),
-        coverage: coverage?,
+        coverage: coverage,
         args: [ *tag_args_for("full"), *rspec_paths ]
       )
     end
 
-    def ci_command
+    def ci_command(coverage:)
       if parallel_rspec_enabled_for?("ci") && tag_args_for("ci").any?
         return parallel_rspec_command(
           mode: "ci",
           junit_output: junit_output(ci_name),
           json_output: json_output(ci_name),
-          coverage: coverage?,
+          coverage: coverage,
           env: { "RUN_CI_ONLY_SPECS" => "false" },
           args: [ *tag_args_for("full"), *rspec_paths ],
           extra_serial: {
@@ -264,7 +271,7 @@ module Ruby
         mode: "ci",
         junit_output: junit_output(ci_name),
         json_output: json_output(ci_name),
-        coverage: coverage?,
+        coverage: coverage,
         env: { "RUN_CI_ONLY_SPECS" => "true" },
         args: [ *tag_args_for("ci"), *rspec_paths ]
       )
@@ -275,12 +282,12 @@ module Ruby
       Array(raw).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
-    def focused_command
+    def focused_command(coverage:)
       fallback_command = rspec_command(
         mode: "focused",
         junit_output: junit_output(focused_name),
         json_output: json_output(focused_name),
-        coverage: false,
+        coverage: coverage,
         args: [ *tag_args_for("focused"), *rspec_paths ],
         skip_setup: true
       )
@@ -288,7 +295,7 @@ module Ruby
         mode: "focused",
         junit_output: junit_output(focused_name),
         json_output: json_output(focused_name),
-        coverage: false,
+        coverage: coverage,
         args: [ *tag_args_for("focused"), "$(cat .syrus/rspec-focused-files)" ],
         shell_expand_args: true,
         skip_setup: true
@@ -817,7 +824,7 @@ module Ruby
       RUBY
     end
 
-    def grade_step(name:, run:, phases:, mode:, junit_output:, when_files_changed: nil)
+    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil)
       SyrusYml::GradeStep.new(
         name: name,
         display_name: display_name_for(mode),
@@ -839,7 +846,7 @@ module Ruby
           "grader_mode" => mode,
           "runtime_profile_destination" => parallel_rspec_enabled_for?(mode) ? parallel_runtime_log(mode) : nil,
           "result_outputs" => [ { "artifact" => junit_output, "format" => "junit" } ],
-          "coverage_outputs" => coverage? ? [
+          "coverage_outputs" => coverage ? [
             { "artifact" => "coverage/.resultset.json", "format" => "simplecov" },
             { "artifact" => "coverage/lcov.info", "format" => "lcov" }
           ] : [],
@@ -847,7 +854,7 @@ module Ruby
             "changed_files" => mode == "focused",
             "failed_cases" => true,
             "ci" => mode == "ci",
-            "coverage" => coverage?
+            "coverage" => coverage
           }
         }
       )

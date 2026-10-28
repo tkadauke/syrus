@@ -483,6 +483,9 @@ grade:
       coverage, and base-revision retry.
     failures: allow_inherited
     coverage: true
+    # vite.config.ts sets coverage.reportsDirectory to coverage/js, so the
+    # declared output has to match or collection finds nothing.
+    coverage_artifact: coverage/js/lcov.info
     typecheck: true
     paths:
       - "app/frontend"

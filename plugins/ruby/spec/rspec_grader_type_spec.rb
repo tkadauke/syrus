@@ -888,17 +888,46 @@ RSpec.describe Ruby::RspecGraderType do
   end
 
   it "marks coverage-capable commands when coverage is enabled" do
-    step = described_class.grade_steps(
+    full, focused, ci = described_class.grade_steps(
       config: { "coverage" => true },
       default_failures: "strict"
-    ).first
+    )
 
-    expect(step.run).to include("COVERAGE=true")
-    expect(step.metadata["coverage_outputs"]).to eq([
+    # Coverage instruments the review entry only -- it is the one phase whose
+    # workflows run a coverage_analyze step. Landing and ci would pay for an
+    # artifact nothing reads, and at landing that cost comes out of the
+    # per-grader deadline a merge train has to clear.
+    expect(focused.run).to include("COVERAGE=true")
+    expect(focused.metadata["coverage_outputs"]).to eq([
       { "artifact" => "coverage/.resultset.json", "format" => "simplecov" },
       { "artifact" => "coverage/lcov.info", "format" => "lcov" }
     ])
-    expect(step.metadata.dig("filter_capabilities", "coverage")).to be(true)
+    expect(focused.metadata.dig("filter_capabilities", "coverage")).to be(true)
+
+    [ full, ci ].each do |step|
+      expect(step.run).to include("COVERAGE=false")
+      expect(step.run).not_to include("COVERAGE=true")
+      expect(step.metadata["coverage_outputs"]).to eq([])
+      expect(step.metadata.dig("filter_capabilities", "coverage")).to be(false)
+    end
+  end
+
+  it "leaves a fixed_full_path entry uninstrumented unless it serves the review phase" do
+    landing_only = described_class.grade_steps(
+      config: { "coverage" => true, "fixed_full_path" => true, "paths" => %w[spec/models], "phases" => %w[landing] },
+      default_failures: "strict"
+    ).sole
+
+    expect(landing_only.run).to include("COVERAGE=false")
+    expect(landing_only.metadata["coverage_outputs"]).to eq([])
+
+    with_review = described_class.grade_steps(
+      config: { "coverage" => true, "fixed_full_path" => true, "paths" => %w[spec/models], "phases" => %w[review landing] },
+      default_failures: "strict"
+    ).sole
+
+    expect(with_review.run).to include("COVERAGE=true")
+    expect(with_review.metadata["coverage_outputs"]).not_to be_empty
   end
 
   it "embeds a focused-file selector script that survives shell parsing as valid Ruby" do

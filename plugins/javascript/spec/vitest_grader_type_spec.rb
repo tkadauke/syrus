@@ -158,17 +158,59 @@ RSpec.describe JavaScript::VitestGraderType do
   end
 
   it "can disable typecheck and enable coverage" do
-    step = described_class.grade_steps(
+    full, focused, ci = described_class.grade_steps(
       config: { "typecheck" => false, "coverage" => true },
       default_failures: "strict"
-    ).first
+    )
 
-    expect(step.run).not_to include("run_package_script typecheck")
-    expect(step.run).to include("--coverage")
-    expect(step.metadata["coverage_outputs"]).to eq([
+    expect(full.run).not_to include("run_package_script typecheck")
+    expect(full.metadata.dig("filter_capabilities", "typecheck")).to be(false)
+
+    # Coverage instruments the review entry only -- it is the one phase whose
+    # workflows run a coverage_analyze step. Landing and ci would pay for an
+    # artifact nothing reads, and at landing that cost comes out of the
+    # per-grader deadline a merge train has to clear.
+    expect(focused.run).to include("--coverage")
+    expect(focused.metadata["coverage_outputs"]).to eq([
       { "artifact" => "coverage/lcov.info", "format" => "lcov" }
     ])
-    expect(step.metadata.dig("filter_capabilities", "typecheck")).to be(false)
+    expect(focused.metadata.dig("filter_capabilities", "coverage")).to be(true)
+
+    [ full, ci ].each do |step|
+      expect(step.run).not_to include("--coverage")
+      expect(step.metadata["coverage_outputs"]).to eq([])
+      expect(step.metadata.dig("filter_capabilities", "coverage")).to be(false)
+    end
+  end
+
+  it "declares the coverage artifact the Vite config actually writes" do
+    focused = described_class.grade_steps(
+      config: { "coverage" => true, "coverage_artifact" => "coverage/js/lcov.info" },
+      default_failures: "strict"
+    ).second
+
+    expect(focused.metadata["coverage_outputs"]).to eq([
+      { "artifact" => "coverage/js/lcov.info", "format" => "lcov" }
+    ])
+  end
+
+  it "rejects a coverage artifact that escapes the project" do
+    [ "/etc/passwd", "../../coverage/lcov.info" ].each do |artifact|
+      expect {
+        described_class.grade_steps(config: { "coverage" => true, "coverage_artifact" => artifact }, default_failures: "strict")
+      }.to raise_error(ArgumentError, /coverage_artifact/)
+    end
+  end
+
+  it "leaves every entry uninstrumented when the repository has no review phase" do
+    steps = described_class.grade_steps(
+      config: { "coverage" => true, "phases" => %w[landing ci] },
+      default_failures: "strict"
+    ).reject { |step| step.phases.empty? }
+
+    expect(steps.map(&:phases)).to eq([ %w[landing], %w[ci] ])
+    expect(steps.map(&:run)).to all(satisfy { |run| !run.include?("--coverage") })
+    expect(steps.map { |step| step.metadata["coverage_outputs"] }).to all(be_empty)
   end
 
   it "does not trust a bare node_modules directory when package.json typecheck needs tsc" do

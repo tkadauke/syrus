@@ -1196,6 +1196,22 @@ through the post-implementation review extension point.
 
 Enables coverage reporting. Syrus parses lcov or Cobertura artifacts produced by graders, computes diff annotations, and optionally posts a PR comment.
 
+Typed framework graders instrument their **review**-phase entry only, because
+review is the only phase whose workflows run a `coverage_analyze` step. A typed
+grader with `coverage: true` whose `phases` omit `review` runs uninstrumented.
+See `coverage.md`.
+
+The `vitest` grader declares `coverage/lcov.info` as its output. When the Vite
+config points `coverage.reportsDirectory` somewhere else, name the real file
+with `coverage_artifact:` (project-relative) or collection reports it absent:
+
+```yaml
+grade:
+  - type: vitest
+    coverage: true
+    coverage_artifact: coverage/js/lcov.info
+```
+
 ```yaml
 coverage:
   sources:
