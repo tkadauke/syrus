@@ -21,6 +21,17 @@ API — named spans like `diff_review.parse_diff` or
 specific phase responsible, the same way backend phase events do for
 requests.
 
+Event-loop lag is inferred from a timer callback arriving late; it is not a
+direct CPU measurement. Rows include a page-session identifier and sequence,
+the expected and actual callback intervals, route at sample time, focus and
+standalone/display-mode context, a coarse browser family, and the latest
+lifecycle transition. Repeated integer-multiple cadence is marked as timer
+delivery throttling only after three consecutive samples while the document is
+unfocused. The same cadence while focused remains ambiguous, and isolated
+delays remain plausible main-thread stalls. Hidden and visibility-transition
+intervals are re-baselined rather than reported. Use nearby long-task and slow
+input traces before concluding that a late callback proves main-thread work.
+
 Use it when:
 
 - a page takes seconds to load,

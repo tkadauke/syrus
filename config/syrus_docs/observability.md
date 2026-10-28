@@ -219,6 +219,29 @@ of a parallel stream, so marker events show up in the same
 traces (`browser.long_task`, `browser.slow_input`, `browser.event_loop_lag`)
 already use.
 
+Event-loop rows describe timer delivery, not a direct measurement of CPU work.
+Each row retains the route at sample time plus a stable `page_session_id`,
+monotonic `callback_sequence`, `actual_interval_ms`, `expected_interval_ms`,
+focus and display-mode state, a coarse user-agent family, and only the latest
+lifecycle transition type/age. This bounded context lets one page session be
+followed through SPA navigation without retaining a lifecycle history or a
+high-cardinality user-agent string.
+
+To reproduce the sampler's classification from stored rows, order one
+`page_session_id` by `callback_sequence`. A callback interval within 2% (and
+at least 20 ms) of an integer multiple of the expected interval increments the
+quantized-cadence run; any other interval resets it. The first two delayed
+callbacks remain `plausible_main_thread_stall`. From the third consecutive
+quantized callback, an unfocused document is classified
+`timer_delivery_throttling`; a focused document is
+`ambiguous_quantized_cadence`, because periodic main-thread work can produce
+the same shape. No isolated plausible stall is suppressed. Samples while
+hidden, the interval spanning a visibility transition, and lags above the
+configured plausibility ceiling are omitted and re-baselined. Consequently,
+even `timer_delivery_throttling` is evidence about callback delivery, not proof
+that the browser, operating system, or a particular application mode caused
+it; correlate nearby long-task and slow-input rows before claiming blocking.
+
 SPA startup milestones use the same browser trace ingestion path with
 `startup.*` names. To keep volume bounded, normal Safari tabs keep milestones
 in memory only; milestones are posted when the launch appears to be an iOS/Home
