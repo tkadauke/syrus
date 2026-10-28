@@ -214,6 +214,7 @@ per-user/private:
   - plugins/attention_report/app/controllers/api/v1/app/insights/attention_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb
   - plugins/cognitive_review/app/controllers/api/v1/app/cognitive_review_notes_controller.rb
+  - plugins/coworkers/app/controllers/api/v1/app/coworkers_controller.rb
   - plugins/credential_store/app/controllers/api/v1/app/credential_store/credentials_controller.rb
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
   - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
