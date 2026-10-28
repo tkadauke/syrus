@@ -18,6 +18,10 @@ RSpec.describe ContainerExecution::Backend do
     @docker_socket&.close
   end
 
+  it "publishes its repository configuration name" do
+    expect(described_class.backend_name).to eq("container_execution")
+  end
+
   it "is only available for grader requests with configured Docker and host-visible mounts" do
     ENV.delete("SYRUS_CONTAINER_EXECUTION_IMAGE")
     expect(described_class.available_for?(request(kind: "grader"))).to be(false)
@@ -255,6 +259,7 @@ RSpec.describe ContainerExecution::Backend do
       stop_requested: -> { false },
       on_output_chunk: nil,
       on_output_line: nil,
+      activity_probe: nil,
       kill_grace_seconds: ProcessRunner::TERM_GRACE_SECONDS,
       silent_timeout: nil,
       activity_probe: nil,
