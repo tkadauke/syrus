@@ -88,7 +88,7 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     body = parse_body
     running_folder = SmartFolder.for_subject(:spawned_process).find_by!(name: "Running")
     expect(body["active_smart_folder_id"]).to eq(running_folder.id)
-    expect(body["filter"]).to eq(running_folder.filter)
+    expect(body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree(running_folder.builtin_key))
     expect(body["processes"].map { |process| process["id"] }).to eq([ running.id ])
     expect(body["running_total"]).to eq(SpawnedProcess.running.count)
     expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include(
@@ -240,6 +240,30 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     expect(body["active_smart_folder_id"]).to eq(folder.id)
     expect(body["processes"].map { |process| process["id"] }).to eq([ running.id ])
     expect(body["smart_folders"].find { |row| row["id"] == folder.id }).to include("active" => true, "count" => 1)
+  end
+
+  it "exposes a built-in folder as editable filter state and honors last-chip removal" do
+    sign_in_as(admin)
+    SmartFolder.ensure_spawned_process_builtins!
+    folder = SmartFolder.for_subject(:spawned_process).find_by!(name: "Running")
+
+    get "/api/v1/app/admin/processes", params: { smart_folder_id: folder.id }
+    expect(parse_body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree(folder.builtin_key))
+
+    get "/api/v1/app/admin/processes", params: {
+      smart_folder_id: folder.id,
+      q: Filters::QueryParam.encode("and" => [])
+    }
+    expect(parse_body["filter"]).to eq("and" => [])
+  end
+
+  it "treats an explicit empty q on the bare route as unfiltered instead of defaulting to Running" do
+    sign_in_as(admin)
+    SmartFolder.ensure_spawned_process_builtins!
+
+    get "/api/v1/app/admin/processes", params: { q: Filters::QueryParam.encode("and" => []) }
+
+    expect(parse_body).to include("active_smart_folder_id" => nil, "filter" => { "and" => [] })
   end
 
   it "returns the active user-defined process folder filter when no q is present" do

@@ -136,10 +136,13 @@ module Admin
       end
 
       def display_filter(active_folder)
-        url_filter = ::Admin::Users::Filter.from_params(params, user: actor)
-        return url_filter if url_filter.active?
-
-        ::Admin::Users::Filter.from_params(params, smart_folder: active_folder, user: actor)
+        Filters::SmartFolderResolution.call(
+          filter_class: ::Admin::Users::Filter,
+          subject: :admin_user,
+          params: params,
+          active_smart_folder: active_folder,
+          user: actor
+        ).filter
       end
 
       def smart_folders(base_scope, active_folder)
