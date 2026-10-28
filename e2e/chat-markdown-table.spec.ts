@@ -83,7 +83,7 @@ test.describe("chat markdown table layout", () => {
         ])
         return wrapWidth - tableWidth
       })
-      .toBe(1)
+      .toBe(0)
   })
 
   test("keeps genuinely wide unbreakable tables horizontally scrollable", async ({ page }) => {
