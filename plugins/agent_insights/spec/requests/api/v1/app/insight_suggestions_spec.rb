@@ -76,6 +76,31 @@ RSpec.describe "App API insight suggestions", type: :request do
   end
 
   describe "GET /api/v1/app/repositories/:repository_id/insight_suggestions" do
+    describe "SmartFolder/FilterBar conformance" do
+      let!(:contract_pending) { create_suggestion(title: "Pending") }
+      let!(:contract_accepted) { create_suggestion(title: "Accepted").tap(&:accept!) }
+      let(:smart_folder_contract_subject) { AgentInsights::SmartFolders::SUBJECT }
+      let(:smart_folder_contract_folder) do
+        SmartFolder.ensure_builtins_for_subject!(smart_folder_contract_subject)
+        SmartFolder.builtins(smart_folder_contract_subject).find_by!(name: "Pending")
+      end
+      let(:smart_folder_contract_seed_filter) { Filters::SmartFolderResolution.preset_tree("agent_insights_pending") }
+      let(:smart_folder_contract_seed_ids) { [ contract_pending.id ] }
+      let(:smart_folder_contract_replacement_filter) { { "and" => [ { "field" => "state", "op" => "is", "value" => "accepted" } ] } }
+      let(:smart_folder_contract_replacement_ids) { [ contract_accepted.id ] }
+      let(:smart_folder_contract_unfiltered_ids) { [ contract_pending.id, contract_accepted.id ] }
+      let(:smart_folder_contract_request) { ->(params) { get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: params } }
+      let(:smart_folder_contract_body) { parse_body }
+      let(:smart_folder_contract_result_ids) { smart_folder_contract_body.fetch("suggestions").map { |row| row.fetch("id") } }
+
+      before do
+        enable_feature
+        sign_in_as(user)
+      end
+
+      include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :repository
+    end
+
     before do
       enable_feature
       sign_in_as(user)

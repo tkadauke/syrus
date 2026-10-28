@@ -7,6 +7,20 @@ RSpec.describe SmartFolder do
       .to all(eq(:smart_folder_resolution))
   end
 
+  it "inventories a shared endpoint contract for every registered surface" do
+    inventory = SMART_FOLDER_FILTER_BAR_CONTRACT_INVENTORY
+    expect(described_class.registered_subjects.keys - inventory.keys).to be_empty
+
+    inventory.each_value do |surfaces|
+      surfaces.each do |surface, relative_path|
+        source = Rails.root.join(relative_path).read
+        expect(source).to include(
+          %(include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :#{surface})
+        )
+      end
+    end
+  end
+
   it "rejects registrations that do not declare the shared effective-filter contract" do
     expect {
       described_class.register_subject!(:uncontracted, effective_filter_contract: :custom)
