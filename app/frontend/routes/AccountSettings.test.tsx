@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { AccountProfileRoute, AgentSettingsRoute, CredentialsRoute, PreferencesRoute } from "./AccountSettings"
 import * as useConfirmModule from "../hooks/useConfirm"
+import * as shakeToReportPermission from "../lib/shakeToReportPermission"
 import { MOTION_PERMISSION_STORAGE_KEY, persistMotionPermission } from "../lib/shakeToReportPermission"
 
 function credentialsPayload(overrides: Record<string, unknown> = {}) {
@@ -359,14 +360,9 @@ describe("AccountSettings form primitives", () => {
   })
 
   it("shows unavailable storage without breaking preferences", async () => {
-    const storage = window.localStorage
-    vi.spyOn(window, "localStorage", "get").mockReturnValue({
-      getItem: () => { throw new Error("storage unavailable") },
-      setItem: storage.setItem.bind(storage),
-      removeItem: storage.removeItem.bind(storage),
-      clear: storage.clear.bind(storage),
-      key: storage.key.bind(storage),
-      get length() { return storage.length },
+    vi.spyOn(shakeToReportPermission, "readPersistedMotionPermissionState").mockReturnValue({
+      permission: null,
+      storageAvailable: false,
     })
     renderRoute(credentialsPayload(), <PreferencesRoute />)
 
