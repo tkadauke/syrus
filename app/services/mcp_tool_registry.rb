@@ -9,6 +9,7 @@ class McpToolRegistry
     :required_roles,
     :step_kinds,
     :capability,
+    :interactive_only,
     :mutation
   ) do
     def tool_name
@@ -31,6 +32,7 @@ class McpToolRegistry
         required_roles: required_roles,
         step_kinds: step_kinds,
         capability: capability,
+        interactive_only: interactive_only,
         mutation: mutation,
         read_only: read_only?
       }
@@ -40,6 +42,7 @@ class McpToolRegistry
   class << self
     SURFACE_ENTRY_BUILDERS = {
       chat: :chat_entries,
+      coworker: :coworker_entries,
       workflow: :workflow_entries,
       agent_insight: :agent_insight_entries
     }.freeze
@@ -113,6 +116,7 @@ class McpToolRegistry
     end
 
     def surfaces_for_context(context)
+      return [ :coworker ] if context.chat? && context.role == AgentRole::COWORKER_CHAT
       return [ :chat ] if context.chat?
       return [ :workflow, :agent_insight ] if context.run?
 
@@ -129,6 +133,8 @@ class McpToolRegistry
     def allowed_entry?(entry, context)
       return false unless surface_allowed?(entry, context)
       return false if entry.admin_only && !context.user.admin?
+      return false if entry.surface == :coworker && !context.granted_capabilities.include?(entry.capability.to_s)
+      return false if entry.interactive_only && !context.interactive
       return false unless feature_allowed?(entry, context)
       return false if entry.required_roles.any? && !entry.required_roles.include?(context.role)
       return false if entry.step_kinds.any? && !entry.step_kinds.include?(context.run&.step&.kind.to_s)
@@ -146,7 +152,8 @@ class McpToolRegistry
 
     def surface_allowed?(entry, context)
       if context.chat?
-        entry.surface == :chat && AgentRole::CHAT_ROLES.include?(context.role)
+        entry.surface == :chat && AgentRole::CHAT_ROLES.include?(context.role) ||
+          entry.surface == :coworker && context.role == AgentRole::COWORKER_CHAT
       elsif context.run?
         entry.surface == :workflow && AgentRole::WORKFLOW_ROLES.include?(context.role) ||
           entry.surface == :agent_insight && context.role == AgentRole::AGENT_INSIGHT
@@ -335,6 +342,23 @@ class McpToolRegistry
       ]
     end
 
+    # Coworker chats are deliberately deny-by-default. Every entry here names
+    # the persisted grant required to advertise it; ordinary chat/admin status
+    # never widens this surface.
+    def coworker_entries
+      [
+        coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
+        coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
+        coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
+        coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
+        coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
+        coworker(Mcp::Tools::ProposeJobTool, capability: "syrus.propose_job", mutation: true),
+        coworker(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
+        coworker(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
+        coworker(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared")
+      ]
+    end
+
     def workflow_entries
       workflow_roles = AgentRole::WORKFLOW_ROLES
       summary_roles = [
@@ -439,8 +463,12 @@ class McpToolRegistry
       entry(tool, surface: :workflow, **metadata)
     end
 
+    def coworker(tool, tier: :essential, **metadata)
+      entry(tool, surface: :coworker, tier: tier, **metadata)
+    end
+
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
-              required_roles: [], step_kinds: [], capability: nil, mutation: false)
+              required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false)
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -451,6 +479,7 @@ class McpToolRegistry
         required_roles: Array(required_roles).freeze,
         step_kinds: Array(step_kinds).map(&:to_s).freeze,
         capability: capability&.to_sym,
+        interactive_only: interactive_only,
         mutation: mutation
       )
     end
