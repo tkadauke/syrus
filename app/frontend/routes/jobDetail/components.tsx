@@ -192,6 +192,17 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
   )
 }
 
+function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<typeof useT>["t"]) {
+  const labels: Record<string, string> = {
+    assistant_text: t("transcript_kind_agent"),
+    tool_call: t("transcript_kind_tool"),
+    tool_result: t("transcript_kind_tool"),
+    system: t("transcript_kind_system")
+  }
+
+  return kind ? labels[kind] || kind : t("transcript_kind_system")
+}
+
 export function RunTranscriptLogs({
   logs,
   fillHeight = false
@@ -199,6 +210,7 @@ export function RunTranscriptLogs({
   logs: NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>
   fillHeight?: boolean
 }) {
+  const { t } = useT("jobs")
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
   const logSignature = logs.map((log) => `${log.id}:${log.sequence}:${log.kind || ""}:${log.chunk.length}`).join("|")
@@ -235,7 +247,16 @@ export function RunTranscriptLogs({
           )
         }
 
-        return <TranscriptMessageRow chunk={item.text} kind={item.role} key={item.id} label="System" sequence={item.id} />
+        const sourceLog = logs.find((log) => log.id === item.id)
+        return (
+          <TranscriptMessageRow
+            chunk={item.text}
+            kind={item.role}
+            key={item.id}
+            label={transcriptLogKindLabel(sourceLog?.kind, t)}
+            sequence={item.id}
+          />
+        )
       })}
     </ol>
   )

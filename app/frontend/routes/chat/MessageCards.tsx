@@ -1258,12 +1258,14 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
 export function SystemMessage({
   item,
   prefix,
+  renderAnsi = false,
   retryText,
   retrying = false,
   onRetry
 }: {
   item: ChatSystemMessage
   prefix: string
+  renderAnsi?: boolean
   retryText?: string | null
   retrying?: boolean
   onRetry?: (text: string) => void
@@ -1284,7 +1286,13 @@ export function SystemMessage({
           role={item.tone === "error" ? "alert" : "status"}
         >
           <div className="mb-1 text-xs font-semibold uppercase">{item.label}</div>
-          <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
+          {renderAnsi ? (
+            <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed [overflow-wrap:anywhere]">
+              <AnsiText text={item.body} />
+            </pre>
+          ) : (
+            <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
+          )}
           <div className="mt-2 flex items-center gap-3">
             {item.cta ? (
               <Link className="inline-block font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>

@@ -20,7 +20,7 @@ export function TranscriptMessageRow({ chunk, kind, label, sequence }: Transcrip
 
   return (
     <SharedMessageRenderer as="li" readOnly testId="run-transcript-log-system">
-      <SystemMessage item={{ tone: "neutral", label: displayLabel, body: chunk, prominent: true }} prefix="" />
+      <SystemMessage item={{ tone: "neutral", label: displayLabel, body: chunk, prominent: true }} prefix="" renderAnsi />
     </SharedMessageRenderer>
   )
 }
