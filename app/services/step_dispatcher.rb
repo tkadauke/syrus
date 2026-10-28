@@ -350,9 +350,15 @@ class StepDispatcher
     implementation_workflows = Workflow
       .where(job_id: epic.jobs.select(:id))
       .where(trigger_kind: WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS)
+      .joins(:job)
+      .where(jobs: { state: %w[triaging queued running] })
 
-    return true if implementation_workflows.running.where.not(job_id: workflow.job_id).exists?
-    return false if implementation_workflows.running.where(job_id: workflow.job_id).exists?
+    running_implementations = implementation_workflows
+      .running
+      .where(jobs: { state: "running" })
+
+    return true if running_implementations.where.not(job_id: workflow.job_id).exists?
+    return false if running_implementations.where(job_id: workflow.job_id).exists?
 
     winner = implementation_workflows
       .where(state: "queued")
