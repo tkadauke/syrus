@@ -90,7 +90,11 @@ export async function fetchProfiledSourceDiff(jobId: string, search = "") {
       },
       spans: [
         { name: "api_transport", duration_ms: meta?.durationMs ?? totalDuration },
-        { name: "payload_parse_prepare", duration_ms: Math.max(0, totalDuration - (meta?.durationMs ?? totalDuration)), started_at_ms: meta?.durationMs ?? totalDuration }
+        {
+          name: "payload_parse_prepare",
+          duration_ms: Math.max(0, totalDuration - (meta?.durationMs ?? totalDuration)),
+          started_at_ms: meta?.durationMs ?? totalDuration
+        }
       ]
     })
     return data
