@@ -13,6 +13,8 @@ class RetentionPolicyPruneJob < ApplicationJob
     histogram :retention_prune_duration_seconds, buckets: DURATION_BUCKETS, tags: %i[retention_key],
               comment: "Duration of a database retention policy pass"
     gauge :retention_prune_backlog, tags: %i[retention_key], comment: "Whether eligible rows remain after a retention pass"
+    gauge :retention_prune_last_success_timestamp_seconds, tags: %i[retention_key],
+          comment: "Unix timestamp of the latest successful database retention policy pass"
     counter :retention_prune_failures_total, tags: %i[retention_key], comment: "Failed database retention policy passes"
   end
 
@@ -43,6 +45,7 @@ class RetentionPolicyPruneJob < ApplicationJob
     Syrus::Metrics.counter(:syrus_retention_rows_pruned_total).increment(tags: tags, by: result.deleted_count)
     Syrus::Metrics.histogram(:syrus_retention_prune_duration_seconds).observe(duration, tags: tags)
     Syrus::Metrics.gauge(:syrus_retention_prune_backlog).set(result.backlog ? 1 : 0, tags: tags)
+    Syrus::Metrics.gauge(:syrus_retention_prune_last_success_timestamp_seconds).set(Time.current.to_i, tags: tags)
     Rails.logger.info(
       "[RetentionPolicyPruneJob] key=#{key} pruned=#{result.deleted_count} " \
       "duration_seconds=#{duration.round(3)} backlog=#{result.backlog}"

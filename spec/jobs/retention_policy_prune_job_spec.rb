@@ -55,6 +55,7 @@ RSpec.describe RetentionPolicyPruneJob do
     expect(success_metrics).to include('syrus_retention_rows_pruned_total{retention_key="notification"}')
     expect(success_metrics).to include('syrus_retention_prune_duration_seconds_count{retention_key="notification"}')
     expect(success_metrics).to include('syrus_retention_prune_backlog{retention_key="notification"} 0')
+    expect(success_metrics).to include('syrus_retention_prune_last_success_timestamp_seconds{retention_key="notification"}')
 
     failing = instance_double(RetentionPolicyRegistry::Definition, key: :failing)
     allow(RetentionPolicyRegistry).to receive(:find).with("failing").and_return(failing)
