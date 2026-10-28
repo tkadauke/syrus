@@ -980,6 +980,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_143228) do
     t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
   end
 
+  create_table "coworker_chats", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.integer "coworker_id", null: false
+    t.string "role", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
+    t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
+  end
+
+  create_table "coworker_grants", force: :cascade do |t|
+    t.integer "coworker_id", null: false
+    t.string "capability", null: false
+    t.json "constraints", null: false
+    t.string "approval_policy", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["coworker_id", "capability"], name: "index_coworker_grants_on_coworker_id_and_capability", unique: true
+    t.index ["coworker_id"], name: "index_coworker_grants_on_coworker_id"
+  end
+
+  create_table "coworkers", force: :cascade do |t|
+    t.integer "owner_user_id", null: false
+    t.string "name", null: false
+    t.string "handle", null: false
+    t.string "chat_provider"
+    t.string "chat_model"
+    t.string "chat_effort"
+    t.string "state", default: "active", null: false
+    t.string "workspace_repo", null: false
+    t.string "color_key", null: false
+    t.string "avatar_key"
+    t.string "role_summary"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["handle"], name: "index_coworkers_on_handle", unique: true
+    t.index ["owner_user_id"], name: "index_coworkers_on_owner_user_id"
+  end
+
   create_table "credential_store_credential_access_events", force: :cascade do |t|
     t.integer "credential_id"
     t.integer "user_id"
