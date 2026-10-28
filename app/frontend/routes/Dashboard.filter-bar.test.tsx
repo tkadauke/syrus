@@ -13,7 +13,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-it("keeps built-in SmartFolder navigation when its preset is removed", async () => {
+it("clears built-in SmartFolder navigation when its preset is removed", async () => {
   vi.spyOn(window, "fetch").mockResolvedValue(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }))
   const payload = {
     subject: "job",
@@ -44,6 +44,6 @@ it("keeps built-in SmartFolder navigation when its preset is removed", async () 
   expect(screen.getByRole("button", { name: "Preset is Inbox" })).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Remove Preset filter" }))
 
-  await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("smart_folder_id=7"))
+  await waitFor(() => expect(screen.getByTestId("location")).not.toHaveTextContent("smart_folder_id"))
   expect(screen.getByTestId("location")).toHaveTextContent(/[?&]q=/)
 })
