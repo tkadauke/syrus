@@ -102,6 +102,21 @@ RSpec.describe Coworkers::Create do
     expect(Repository.where(owner: "acme", name: "coworker-homes").count).to eq(1)
   end
 
+  it "grants a different coworker owner write access to a shared repository" do
+    repository_owner = Factories.user
+    repository = Factories.repository(
+      user: repository_owner, owner: "acme", name: "coworker-homes",
+      polling_enabled: true, auto_merge_enabled: true, external_pr_ingestion_enabled: true
+    )
+
+    create_service.call
+
+    expect(repository.repository_memberships.find_by!(user: owner)).to be_at_least("write")
+    expect(repository.reload).to have_attributes(
+      polling_enabled: true, auto_merge_enabled: true, external_pr_ingestion_enabled: true
+    )
+  end
+
   it "uses About for the soul and skips the kickoff" do
     expect(ChatTurnJob).not_to receive(:perform_later)
 
@@ -113,7 +128,7 @@ RSpec.describe Coworkers::Create do
   end
 
   it "opens the placeholder chat with a system kickoff that triggers the first turn" do
-    allow(ChatTurnJob).to receive(:perform_later)
+    allow(ChatTurnJob).to receive(:perform_later).and_call_original
 
     coworker = create_service.call
     chat = coworker.chats.first
@@ -128,6 +143,33 @@ RSpec.describe Coworkers::Create do
 
     expect { create_service.call }.to raise_error(ActiveRecord::RecordInvalid)
     expect(remote.deleted_branches).to eq([ "coworkers/maya" ])
+    expect(Repository.where(owner: "acme", name: "coworker-homes")).to be_empty
+  end
+
+
+  it "rolls back every record and deletes the branch when kickoff persistence fails" do
+    allow_any_instance_of(ChatMessage).to receive(:record_chat_turn_state).and_raise(ActiveRecord::RecordInvalid.new(ChatMessage.new))
+
+    expect { create_service.call }.to raise_error(ActiveRecord::RecordInvalid)
+
+    expect_creation_to_be_absent
+  end
+
+  it "rolls back every record and deletes the branch when kickoff enqueue fails" do
+    allow(ChatTurnJob).to receive(:perform_later).and_return(false)
+
+    expect { create_service.call }.to raise_error(Coworkers::Create::KickoffEnqueueFailed)
+
+    expect_creation_to_be_absent
+  end
+
+  def expect_creation_to_be_absent
+    expect(remote.deleted_branches).to eq([ "coworkers/maya" ])
+    expect(Coworkers::Coworker.where(handle: "maya")).to be_empty
+    expect(Coworkers::Grant.count).to eq(0)
+    expect(Coworkers::Chat.count).to eq(0)
+    expect(ChatSession.where(user: owner, title: "Maya")).to be_empty
+    expect(Handle.where(handle: "maya")).to be_empty
     expect(Repository.where(owner: "acme", name: "coworker-homes")).to be_empty
   end
 end
