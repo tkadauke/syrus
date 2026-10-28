@@ -16,13 +16,15 @@ function inlineStartupScript(): string {
   return layout.slice(bodyStart + 1, bodyEnd)
 }
 
-function installStartupShell(options: {
-  standalone?: boolean
-  displayStandalone?: boolean
-  path?: string
-  visibility?: DocumentVisibilityState
-  performanceEntries?: Record<string, PerformanceEntry[]>
-} = {}) {
+function installStartupShell(
+  options: {
+    standalone?: boolean
+    displayStandalone?: boolean
+    path?: string
+    visibility?: DocumentVisibilityState
+    performanceEntries?: Record<string, PerformanceEntry[]>
+  } = {}
+) {
   document.head.innerHTML = `
     <meta name="csrf-token" content="csrf-token-123">
     <meta name="syrus-app-revision" content="app-sha">
@@ -76,11 +78,15 @@ function postedBodies(fetchSpy: FetchSpy): Array<Record<string, unknown>> {
 }
 
 function postedBrowserErrors(fetchSpy: FetchSpy): Array<Record<string, unknown>> {
-  return postedBodies(fetchSpy).map((body) => body.browser_error).filter(Boolean) as Array<Record<string, unknown>>
+  return postedBodies(fetchSpy)
+    .map((body) => body.browser_error)
+    .filter(Boolean) as Array<Record<string, unknown>>
 }
 
 function postedPerformanceEvents(fetchSpy: FetchSpy): Array<Record<string, unknown>> {
-  return postedBodies(fetchSpy).map((body) => body.performance_event).filter(Boolean) as Array<Record<string, unknown>>
+  return postedBodies(fetchSpy)
+    .map((body) => body.performance_event)
+    .filter(Boolean) as Array<Record<string, unknown>>
 }
 
 function startupStatus() {
@@ -149,23 +155,41 @@ describe("startupDiagnostics", () => {
   })
 
   it("records bounded transfer context including cached and zeroed timing fields", () => {
-    const resource = (index: number, origin = window.location.origin) => ({
-      name: `${origin}/assets/chunk-${index}.js?secret=no`, entryType: "resource",
-      initiatorType: "script", requestStart: index === 0 ? 0 : 10.04,
-      responseStart: index === 0 ? 0 : 12.06, responseEnd: index === 0 ? 0 : 14.08,
-      transferSize: index === 0 ? 0 : 1234, encodedBodySize: index === 0 ? 900 : 1000,
-      decodedBodySize: index === 0 ? 1200 : 1500, nextHopProtocol: index === 0 ? "" : "h2"
-    }) as unknown as PerformanceEntry
-    const fetchSpy = installStartupShell({ standalone: true, performanceEntries: {
-      navigation: [{ requestStart: 1, responseStart: 2, responseEnd: 3, transferSize: 4,
-        encodedBodySize: 5, decodedBodySize: 6, nextHopProtocol: "h3" } as unknown as PerformanceEntry],
-      resource: [
-        resource(0),
-        { name: `${window.location.origin}/assets/missing.js`, entryType: "resource", initiatorType: "script" } as unknown as PerformanceEntry,
-        ...Array.from({ length: 44 }, (_, index) => resource(index + 1)),
-        resource(99, "https://cdn.example.test")
-      ]
-    } })
+    const resource = (index: number, origin = window.location.origin) =>
+      ({
+        name: `${origin}/assets/chunk-${index}.js?secret=no`,
+        entryType: "resource",
+        initiatorType: "script",
+        requestStart: index === 0 ? 0 : 10.04,
+        responseStart: index === 0 ? 0 : 12.06,
+        responseEnd: index === 0 ? 0 : 14.08,
+        transferSize: index === 0 ? 0 : 1234,
+        encodedBodySize: index === 0 ? 900 : 1000,
+        decodedBodySize: index === 0 ? 1200 : 1500,
+        nextHopProtocol: index === 0 ? "" : "h2"
+      }) as unknown as PerformanceEntry
+    const fetchSpy = installStartupShell({
+      standalone: true,
+      performanceEntries: {
+        navigation: [
+          {
+            requestStart: 1,
+            responseStart: 2,
+            responseEnd: 3,
+            transferSize: 4,
+            encodedBodySize: 5,
+            decodedBodySize: 6,
+            nextHopProtocol: "h3"
+          } as unknown as PerformanceEntry
+        ],
+        resource: [
+          resource(0),
+          { name: `${window.location.origin}/assets/missing.js`, entryType: "resource", initiatorType: "script" } as unknown as PerformanceEntry,
+          ...Array.from({ length: 44 }, (_, index) => resource(index + 1)),
+          resource(99, "https://cdn.example.test")
+        ]
+      }
+    })
 
     window.SyrusStartupDiagnostics?.mark("react_module_evaluated")
 
@@ -174,14 +198,28 @@ describe("startupDiagnostics", () => {
     expect(timings.navigation).toMatchObject({ response_end_ms: 3, transfer_size: 4, protocol: "h3" })
     expect(timings.resources).toHaveLength(40)
     expect(timings.resources[0]).toEqual({
-      path: "/assets/chunk-0.js", request_start_ms: 0, response_start_ms: 0,
-      response_end_ms: 0, transfer_size: 0, encoded_body_size: 900,
-      decoded_body_size: 1200, cache_status: "cached", protocol: null, delivery_type: null
+      path: "/assets/chunk-0.js",
+      request_start_ms: 0,
+      response_start_ms: 0,
+      response_end_ms: 0,
+      transfer_size: 0,
+      encoded_body_size: 900,
+      decoded_body_size: 1200,
+      cache_status: "cached",
+      protocol: null,
+      delivery_type: null
     })
     expect(timings.resources[1]).toMatchObject({
-      path: "/assets/missing.js", request_start_ms: null, response_start_ms: null,
-      response_end_ms: null, transfer_size: null, encoded_body_size: null,
-      decoded_body_size: null, cache_status: null, protocol: null, delivery_type: null
+      path: "/assets/missing.js",
+      request_start_ms: null,
+      response_start_ms: null,
+      response_end_ms: null,
+      transfer_size: null,
+      encoded_body_size: null,
+      decoded_body_size: null,
+      cache_status: null,
+      protocol: null,
+      delivery_type: null
     })
     expect(JSON.stringify(timings)).not.toContain("cdn.example.test")
   })
@@ -209,10 +247,7 @@ describe("startupDiagnostics", () => {
 
     window.SyrusStartupDiagnostics?.mark("react_commit")
 
-    expect(postedPerformanceEvents(fetchSpy).map((event) => event.name)).toEqual([
-      "startup.shell_loaded",
-      "startup.react_commit"
-    ])
+    expect(postedPerformanceEvents(fetchSpy).map((event) => event.name)).toEqual(["startup.shell_loaded", "startup.react_commit"])
   })
 
   it("reports script and stylesheet load failures to browser errors without leaking cross-origin URLs", () => {
@@ -284,10 +319,7 @@ describe("startupDiagnostics", () => {
     window.dispatchEvent(rejectionEvent)
 
     const errors = postedBrowserErrors(fetchSpy)
-    expect(errors.map((entry) => entry.name)).toEqual([
-      "StartupWindowError",
-      "StartupUnhandledRejection"
-    ])
+    expect(errors.map((entry) => entry.name)).toEqual(["StartupWindowError", "StartupUnhandledRejection"])
     expect(errors[0].metadata).toMatchObject({
       source: "/assets/chunk.js?v=asset-sha",
       line: 12,
@@ -318,10 +350,7 @@ describe("startupDiagnostics", () => {
     expect(error.metadata).toMatchObject({
       root_present: true,
       root_blank: true,
-      milestones: [
-        { name: "shell_loaded", at_ms: 0, visibility_state: "visible",
-          document_ready_state: "complete", lifecycle_state: "active" }
-      ]
+      milestones: [{ name: "shell_loaded", at_ms: 0, visibility_state: "visible", document_ready_state: "complete", lifecycle_state: "active" }]
     })
     expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
     expect(startupStatus()).toHaveTextContent("Syrus is still loading")
