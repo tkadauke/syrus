@@ -46,7 +46,6 @@ class Coworkers::Coworker < ApplicationRecord
     shared_ids = ChatShare.where(target_type: self.class.polymorphic_name, target_id: id).select(:chat_session_id)
     ChatSession.where(id: own_ids).or(ChatSession.where(id: shared_ids)).active.distinct.ids
   end
-
   private
 
   def assign_default_color = self.color_key = Appearance::ColorPalette.default_key(handle)
