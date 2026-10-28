@@ -418,6 +418,7 @@ function MeasuredMarkdownTable({
   ]
     .filter(Boolean)
     .join(" ")
+  const tableStyle = layout ? ({ "--chat-table-measured-width": `${sum(layout.widths)}px` } as CSSProperties) : undefined
 
   useLayoutEffect(() => {
     const wrapper = wrapperRef.current
@@ -446,7 +447,7 @@ function MeasuredMarkdownTable({
 
   return (
     <div className="chat-prose-table-wrap" ref={wrapperRef}>
-      <table className={tableClassName} ref={tableRef}>
+      <table className={tableClassName} ref={tableRef} style={tableStyle}>
         <colgroup>
           {columnHints.map((hint, cellIndex) => (
             <col
