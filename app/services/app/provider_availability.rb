@@ -194,60 +194,67 @@ module App
 
       def evidence_by_provider
         @evidence_by_provider ||= begin
-          ranked = ProviderAvailabilityEvidence
-          .where(user: user, provider: providers)
-          .select(
-            "provider_availability_evidences.*, " \
-            "ROW_NUMBER() OVER (PARTITION BY provider, status ORDER BY observed_at DESC, id DESC) AS evidence_rank"
-          )
-          ProviderAvailabilityEvidence
-          .from(ranked, :ranked_evidence)
-          .select("ranked_evidence.*")
-          .where("evidence_rank <= ?", USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
-          .includes(:run)
-          .order(observed_at: :desc, id: :desc)
-          .to_a
-          .group_by(&:provider)
+          evidence = providers.flat_map do |provider|
+            ProviderAvailabilityEvidence::STATUSES.flat_map do |status|
+              ProviderAvailabilityEvidence
+                .where(user: user, provider: provider, status: status)
+                .recent
+                .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
+                .to_a
+            end
+          end
+          ActiveRecord::Associations::Preloader.new(records: evidence, associations: :run).call
+          evidence.sort_by { |row| [ row.observed_at, row.id ] }.reverse.group_by(&:provider)
         end
       end
 
       def usage_limit_runs_by_provider
         @usage_limit_runs_by_provider ||= begin
-          ranked = Run
-          .where(user_id: user.id, agent_provider: providers, state: "failed")
-          .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
-          .left_outer_joins(:run_failure_classification)
-          .where(
-            "runs.agent_outcome = ? OR run_failure_classifications.classification = ?",
-            ProviderUsageLimit::OUTCOME,
-            ProviderUsageLimit::CLASSIFICATION
-          )
-          .select(
-            "runs.*, " \
-            "ROW_NUMBER() OVER (PARTITION BY runs.agent_provider ORDER BY runs.finished_at DESC, runs.updated_at DESC, runs.id DESC) AS provider_rank"
-          )
-          Run
-          .from(ranked, :ranked_runs)
-          .select("ranked_runs.*")
-          .where("provider_rank <= 50")
-          .includes(:run_diagnostic, :run_failure_classification, :step)
-          .order(finished_at: :desc, updated_at: :desc)
-          .to_a
-          .group_by(&:agent_provider)
+          runs = providers.flat_map do |provider|
+            Run
+              .where(user_id: user.id, agent_provider: provider, state: "failed")
+              .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
+              .left_outer_joins(:run_failure_classification)
+              .where(
+                "runs.agent_outcome = ? OR run_failure_classifications.classification = ?",
+                ProviderUsageLimit::OUTCOME,
+                ProviderUsageLimit::CLASSIFICATION
+              )
+              .order(finished_at: :desc, updated_at: :desc, id: :desc)
+              .limit(50)
+              .to_a
+          end
+          ActiveRecord::Associations::Preloader.new(
+            records: runs,
+            associations: [ :run_diagnostic, :run_failure_classification, :step ]
+          ).call
+          runs.group_by(&:agent_provider)
         end
       end
 
       def terminal_runs_by_provider
         @terminal_runs_by_provider ||= begin
-          ranked = Run
-            .where(user_id: user.id, agent_provider: providers, state: %w[succeeded failed])
-            .where.not(finished_at: nil)
-            .select("runs.*, ROW_NUMBER() OVER (PARTITION BY agent_provider ORDER BY finished_at DESC, updated_at DESC, id DESC) AS provider_rank")
-          Run.from(ranked, :ranked_runs)
-            .select("ranked_runs.*")
-            .where("provider_rank = 1")
+          run_ids_by_provider = providers.to_h do |provider|
+            scope = Run.where(user_id: user.id, agent_provider: provider)
+            if ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
+              scope = scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (#{LATEST_PROVIDER_RUN_INDEX})"))
+            end
+
+            run_id = scope
+              .where(state: %w[succeeded failed])
+              .where.not(finished_at: nil)
+              .order(finished_at: :desc, updated_at: :desc, id: :desc)
+              .limit(1)
+              .pick(:id)
+            [ provider, run_id ]
+          end
+
+          Run.where(id: run_ids_by_provider.values.compact)
             .includes(:run_diagnostic, :run_failure_classification)
-            .index_by(&:agent_provider)
+            .index_by(&:id)
+            .then do |runs_by_id|
+              run_ids_by_provider.transform_values { |run_id| runs_by_id[run_id] }.compact
+            end
         end
       end
     end
