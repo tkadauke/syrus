@@ -1,20 +1,20 @@
 class CreateRetentionPolicySettings < ActiveRecord::Migration[8.1]
   POLICIES = {
-    job_log: [ :job_log_retention_days, :days, :job_log_archive_before_delete ],
-    performance_log_event: [ :performance_log_event_retention_hours, :hours, nil ],
-    run_diagnostic: [ :run_diagnostic_retention_days, :days, :run_diagnostic_archive_before_delete ],
-    run_resource_summary: [ :run_resource_summary_retention_days, :days, nil ],
-    worker_host_health_sample: [ :worker_host_health_sample_retention_days, :days, nil ],
-    work_engine_reconciler_activity: [ :work_engine_reconciler_activity_retention_days, :days, :work_engine_reconciler_activity_archive_before_delete ],
-    provider_session: [ :provider_session_retention_days, :days, :provider_session_archive_before_delete ],
-    spawned_process: [ :spawned_process_retention_days, :days, nil ],
-    notification: [ :notification_retention_days, :days, nil ],
-    operational_log_event: [ :operational_log_event_retention_hours, :hours, nil ],
-    metrics_dashboard_sample: [ :metrics_dashboard_sample_retention_days, :days, nil ],
-    run_health_snapshot: [ :run_health_snapshot_retention_days, :days, :run_health_snapshot_archive_before_delete ],
-    main_branch_health_check: [ :main_branch_health_check_retention_days, :days, :main_branch_health_check_archive_before_delete ],
-    workflow_step_resource_profile: [ :workflow_step_resource_profile_retention_days, :days, nil ],
-    test_insight_case: [ :test_insight_case_retention_days, :days, nil ]
+    job_log: [ :job_log_retention_days, :days, 30, :job_log_archive_before_delete ],
+    performance_log_event: [ :performance_log_event_retention_hours, :hours, 24, nil ],
+    run_diagnostic: [ :run_diagnostic_retention_days, :days, 30, :run_diagnostic_archive_before_delete ],
+    run_resource_summary: [ :run_resource_summary_retention_days, :days, 30, nil ],
+    worker_host_health_sample: [ :worker_host_health_sample_retention_days, :days, 7, nil ],
+    work_engine_reconciler_activity: [ :work_engine_reconciler_activity_retention_days, :days, 7, :work_engine_reconciler_activity_archive_before_delete ],
+    provider_session: [ :provider_session_retention_days, :days, 14, :provider_session_archive_before_delete ],
+    spawned_process: [ :spawned_process_retention_days, :days, 7, nil ],
+    notification: [ :notification_retention_days, :days, 30, nil ],
+    operational_log_event: [ :operational_log_event_retention_hours, :hours, 6, nil ],
+    metrics_dashboard_sample: [ :metrics_dashboard_sample_retention_days, :days, 7, nil ],
+    run_health_snapshot: [ :run_health_snapshot_retention_days, :days, 7, :run_health_snapshot_archive_before_delete ],
+    main_branch_health_check: [ :main_branch_health_check_retention_days, :days, 7, :main_branch_health_check_archive_before_delete ],
+    workflow_step_resource_profile: [ :workflow_step_resource_profile_retention_days, :days, 180, nil ],
+    test_insight_case: [ :test_insight_case_retention_days, :days, 90, nil ]
   }.freeze
 
   def change
@@ -36,7 +36,7 @@ class CreateRetentionPolicySettings < ActiveRecord::Migration[8.1]
 
   def migrate_from_app_settings
     setting = select_one("SELECT * FROM app_settings ORDER BY id LIMIT 1")
-    POLICIES.each do |key, (column, unit, archive_column)|
+    POLICIES.each do |key, (column, unit, _default, archive_column)|
       next unless column_exists?(:app_settings, column)
 
       value = setting ? setting[column.to_s].to_i : column_default(column).to_i
@@ -55,8 +55,8 @@ class CreateRetentionPolicySettings < ActiveRecord::Migration[8.1]
   end
 
   def restore_to_app_settings
-    POLICIES.each_value do |column, _unit, archive_column|
-      add_column :app_settings, column, :integer, default: 0, null: false unless column_exists?(:app_settings, column)
+    POLICIES.each_value do |column, _unit, default, archive_column|
+      add_column :app_settings, column, :integer, default: default, null: false unless column_exists?(:app_settings, column)
       add_column :app_settings, archive_column, :boolean, default: false, null: false if archive_column && !column_exists?(:app_settings, archive_column)
     end
 
@@ -64,7 +64,7 @@ class CreateRetentionPolicySettings < ActiveRecord::Migration[8.1]
       definition = POLICIES[row["retention_key"].to_sym]
       next unless definition
 
-      column, unit, archive_column = definition
+      column, unit, _default, archive_column = definition
       value = row["retention_seconds"] ? row["retention_seconds"].to_i / unit_seconds(unit) : 0
       assignments = [ "#{connection.quote_column_name(column)} = #{value}" ]
       assignments << "#{connection.quote_column_name(archive_column)} = #{connection.quote(truthy?(row['archive_before_delete']))}" if archive_column
@@ -73,7 +73,7 @@ class CreateRetentionPolicySettings < ActiveRecord::Migration[8.1]
   end
 
   def columns_to_remove
-    POLICIES.values.flat_map { |column, _unit, archive_column| [ column, archive_column ] }.compact.uniq
+    POLICIES.values.flat_map { |column, _unit, _default, archive_column| [ column, archive_column ] }.compact.uniq
   end
 
   def column_default(column)
