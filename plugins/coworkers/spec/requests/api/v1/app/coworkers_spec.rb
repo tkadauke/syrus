@@ -103,6 +103,32 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "applies every coworker operator on the chat search surface" do
+    maya = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
+    ada = Coworkers::Coworker.create!(owner_user: owner, name: "Ada", handle: "ada", workspace_repo: "https://github.com/acme/workspace.git")
+    maya_chat = ChatSession.create!(user: owner, title: "Maya")
+    ada_chat = ChatSession.create!(user: owner, title: "Ada")
+    syrus_chat = ChatSession.create!(user: owner, title: "Syrus")
+    Coworkers::Chat.create!(coworker: maya, chat_session: maya_chat, role: "main")
+    Coworkers::Chat.create!(coworker: ada, chat_session: ada_chat, role: "main")
+    [ maya_chat, ada_chat, syrus_chat ].each { |chat| chat.messages.create!(role: "user", content: { "text" => chat.title }) }
+    sign_in_as(owner)
+
+    expectations = {
+      "is" => [ maya_chat.id ],
+      "is_not" => [ ada_chat.id, syrus_chat.id ],
+      "is_one_of" => [ maya_chat.id, syrus_chat.id ],
+      "is_none_of" => [ ada_chat.id ]
+    }
+    expectations.each do |op, expected_ids|
+      value = op.in?(%w[is_one_of is_none_of]) ? "#{maya.id},syrus" : maya.id
+      get "/api/v1/app/chats/search", params: { coworker_id: value, coworker_op: op }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.fetch("results").pluck("chat_session_id")).to match_array(expected_ids)
+    end
+  end
+
   it "removes the routes and sidebar contribution when the plugin is disabled" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
     sign_in_as(owner)
