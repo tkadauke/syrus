@@ -130,6 +130,9 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
       expect(response).to have_http_status(:ok)
       running_folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "Running")
       expect(parse_body.fetch("active_smart_folder_id")).to eq(running_folder.id)
+      expect(parse_body.fetch("filter")).to eq(
+        Filters::SmartFolderResolution.preset_tree("agent_activity_running")
+      )
       expect(parse_body.fetch("sessions").map { |row| row.dig("job", "id") }).to eq([ running_job.id ])
       folders = parse_body.fetch("smart_folders")
       expect(folders.map { |folder| folder.fetch("name") }).to include("All", "Running", "Failed")
@@ -252,7 +255,7 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(
-        %w[ repository_id job_id step_kind agent_provider status window ]
+        %w[ smart_folder_preset repository_id job_id step_kind agent_provider status window ]
       )
       status_field = parse_body.fetch("filter_schema").find { |field| field.fetch("field") == "status" }
       expect(status_field.fetch("operators")).to include("is", "is_one_of")

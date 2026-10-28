@@ -43,6 +43,7 @@ module AgentInsights
           SUBJECT,
           builtins: BUILTINS,
           label: "Agent Insights",
+          effective_filter_contract: :smart_folder_resolution,
           path: ->(**query) { path(**query) }
         )
       end

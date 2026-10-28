@@ -9,9 +9,9 @@ module Filters
     # Returns an Array<Hash> with one entry per registered chip,
     # ordered by Registry::CHIPS' declaration order so the add-filter
     # menu shows fields in the logical grouping the registry uses.
-    def for(subject: :job, user: nil)
+    def for(subject: :job, user: nil, smart_folder_subject: subject)
       fields = Registry.fields(subject: subject).map { |field| chip_for(field, user: user, subject: subject) }
-      definitions = SmartFolder.builtins_by_subject[subject.to_s]&.select { |definition| definition[:filter_bar_preset] }
+      definitions = SmartFolder.builtins_by_subject[smart_folder_subject.to_s]&.select { |definition| definition[:filter_bar_preset] }
       return fields if definitions.blank?
 
       [ smart_folder_preset_chip(definitions), *fields ]

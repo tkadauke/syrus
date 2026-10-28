@@ -331,10 +331,10 @@ module Api
         end
 
         def current_filter
-          @current_filter ||= begin
-            smart_folder = ::DesignDocs::Filter.smart_folder_floor(params, active_smart_folder, user: Current.user)
-            ::DesignDocs::Filter.from_params(params, smart_folder: smart_folder, user: Current.user)
-          end
+          @current_filter ||= ::Filters::SmartFolderResolution.call(
+            filter_class: ::DesignDocs::Filter, subject: ::DesignDocs::SmartFolders::SUBJECT,
+            params: params, active_smart_folder: active_smart_folder, user: Current.user
+          ).filter
         end
 
         def active_smart_folder
