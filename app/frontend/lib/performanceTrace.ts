@@ -294,7 +294,7 @@ function observeEventLoopLag(options: BrowserObserverOptions): void {
 
     const cadenceMultiple = Math.round(actualIntervalMs / intervalMs)
     const quantizedCadence = cadenceMultiple >= 2 && Math.abs(actualIntervalMs - cadenceMultiple * intervalMs) <= Math.max(20, intervalMs * 0.02)
-    quantizedCadenceCount = quantizedCadence ? quantizedCadenceCount + 1 : 0
+    quantizedCadenceCount = quantizedCadence ? Math.min(quantizedCadenceCount + 1, 3) : 0
 
     if (lagMs < thresholdMs) return
     if (lagMs > maxPlausibleLagMs) return
@@ -322,8 +322,9 @@ function observeEventLoopLag(options: BrowserObserverOptions): void {
           user_agent_family: userAgentFamily(),
           lifecycle_transition_type: latestLifecycleTransition,
           lifecycle_transition_age_ms: roundMs(Math.min(Math.max(0, now - latestLifecycleTransitionAt), 86_400_000)),
-          classification: eventLoopLagClassification(quantizedCadenceCount, focused),
+          classification: eventLoopLagClassification(quantizedCadenceCount),
           cadence_multiple: quantizedCadence ? cadenceMultiple : null,
+          quantized_cadence_run: quantizedCadenceCount,
           source: "event_loop_sampler"
         }
       },
@@ -338,9 +339,9 @@ function observeEventLoopLag(options: BrowserObserverOptions): void {
   })
 }
 
-function eventLoopLagClassification(quantizedCadenceCount: number, focused: boolean): string {
+function eventLoopLagClassification(quantizedCadenceCount: number): string {
   if (quantizedCadenceCount < 3) return "plausible_main_thread_stall"
-  return focused ? "ambiguous_quantized_cadence" : "timer_delivery_throttling"
+  return "ambiguous_quantized_cadence"
 }
 
 function documentFocused(): boolean {

@@ -180,7 +180,7 @@ describe("event loop lag sampling", () => {
     clock = value
   }
 
-  const startSampler = (): ReturnType<typeof vi.spyOn> => {
+  const startSampler = (minReportIntervalMs = 0): ReturnType<typeof vi.spyOn> => {
     clock = 0
     // useFakeTimers installs its own performance.now, so take the spy after it
     // or the hand-driven clock is silently replaced.
@@ -191,7 +191,7 @@ describe("event loop lag sampling", () => {
       enabled: true,
       eventLoopIntervalMs: 1_000,
       eventLoopLagThresholdMs: 150,
-      minEventLoopReportIntervalMs: 0,
+      minEventLoopReportIntervalMs: minReportIntervalMs,
       maxPlausibleEventLoopLagMs: 10_000
     })
     return fetchSpy
@@ -223,6 +223,7 @@ describe("event loop lag sampling", () => {
       callback_sequence: 1,
       actual_interval_ms: 2_500,
       expected_interval_ms: 1_000,
+      quantized_cadence_run: 0,
       classification: "plausible_main_thread_stall",
       lifecycle_transition_type: "sampler_start"
     })
@@ -242,9 +243,26 @@ describe("event loop lag sampling", () => {
     expect(samples.map((body) => (body.metadata as Record<string, unknown>).classification)).toEqual([
       "plausible_main_thread_stall",
       "plausible_main_thread_stall",
-      "timer_delivery_throttling"
+      "ambiguous_quantized_cadence"
     ])
+    expect(samples.map((body) => (body.metadata as Record<string, unknown>).quantized_cadence_run)).toEqual([1, 2, 3])
     expect(samples[2].metadata).toMatchObject({ cadence_multiple: 2, focus_state: "unfocused" })
+  })
+
+  it("retains cadence evidence across callbacks omitted by the production report limiter", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    const fetchSpy = startSampler(10_000)
+
+    for (let callback = 1; callback <= 10; callback += 1) tickAt(callback * 2_000)
+
+    const samples = lagBodies(fetchSpy)
+    expect(samples).toHaveLength(2)
+    expect(samples.map((body) => (body.metadata as Record<string, unknown>).callback_sequence)).toEqual([5, 10])
+    expect(samples.map((body) => (body.metadata as Record<string, unknown>).quantized_cadence_run)).toEqual([3, 3])
+    expect(samples.map((body) => (body.metadata as Record<string, unknown>).classification)).toEqual([
+      "ambiguous_quantized_cadence",
+      "ambiguous_quantized_cadence"
+    ])
   })
 
   it("keeps route-at-sample-time while correlating one page session", () => {
