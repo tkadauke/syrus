@@ -1623,6 +1623,21 @@ enables its dependencies too. Disabling a plugin that other enabled plugins
 still depend on asks for confirmation first, listing exactly which plugins
 would also be disabled, before cascading the disable through all of them.
 
+### Coworkers (experimental)
+
+The bundled Coworkers plugin is an experimental foundation for persistent,
+named agents owned by one user. It stores coworker identity, globally unique
+handles, appearance, workspace remotes, explicit capability grants, and main
+or side chat associations. Existing chats remain chats with Syrus, the
+built-in engineer, unless they have an explicit coworker association.
+
+Coworkers is installed but disabled by default. A self-hosted instance must
+enable beta mode before an administrator can enable it from **Admin →
+Plugins**. The initial foundation does not yet expose coworker creation or
+workspace execution screens; enabling it only activates the underlying chat
+and mention contracts. Disabling it removes those runtime contributions while
+preserving stored records for later re-enablement.
+
 ## Tailscale
 
 The bundled `tailscale` plugin exposes a Syrus installation on the operator's
