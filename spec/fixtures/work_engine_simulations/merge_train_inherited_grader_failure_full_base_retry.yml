@@ -6,7 +6,7 @@ repository:
   name: merge-train-inherited-grader-failure-full-base-retry
   auto_merge_enabled: true
   main_branch_health_enabled: true
-  land_on_inherited_check_failure: true
+  pr_check_gate: own_only
 main_branch_health_checks:
   - sha: base-broken-sha
     checked_at: "2026-09-15 09:00:00"
