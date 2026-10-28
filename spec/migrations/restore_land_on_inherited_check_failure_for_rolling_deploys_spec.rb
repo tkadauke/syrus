@@ -1,5 +1,5 @@
 require "rails_helper"
-require Rails.root.join("db/migrate/20261028100206_restore_land_on_inherited_check_failure_for_rolling_deploys")
+require Rails.root.join("db/migrate/20261028132935_restore_land_on_inherited_check_failure_for_rolling_deploys")
 
 RSpec.describe RestoreLandOnInheritedCheckFailureForRollingDeploys, :ci_only do
   let(:migration) { described_class.new }
