@@ -34,7 +34,7 @@ RSpec.describe RetentionPolicyPruneJob do
   it "re-enqueues only the capped policy when eligible rows remain" do
     executor = instance_double(RetentionPolicyExecutors::Default)
     definition = instance_double(RetentionPolicyRegistry::Definition, key: :notification, executor: executor)
-    allow(RetentionPolicyRegistry).to receive(:fetch).with("notification").and_return(definition)
+    allow(RetentionPolicyRegistry).to receive(:find).with("notification").and_return(definition)
     allow(executor).to receive(:call).and_return(
       RetentionPolicyExecutors::Result.new(deleted_count: 50_000, backlog: true)
     )
@@ -56,15 +56,35 @@ RSpec.describe RetentionPolicyPruneJob do
     expect(success_metrics).to include('syrus_retention_prune_duration_seconds_count{retention_key="notification"}')
     expect(success_metrics).to include('syrus_retention_prune_backlog{retention_key="notification"} 0')
 
-    allow(RetentionPolicyRegistry).to receive(:fetch).with("missing").and_raise(KeyError)
-    expect { described_class.perform_now("missing") }.to raise_error(KeyError)
-    expect(Syrus::Metrics.render).to include('syrus_retention_prune_failures_total{retention_key="missing"} 1')
+    failing = instance_double(RetentionPolicyRegistry::Definition, key: :failing)
+    allow(RetentionPolicyRegistry).to receive(:find).with("failing").and_return(failing)
+    allow(failing).to receive(:executor).and_raise("broken policy")
+    expect { described_class.perform_now("failing") }.to raise_error("broken policy")
+    expect(Syrus::Metrics.render).to include('syrus_retention_prune_failures_total{retention_key="failing"} 1')
+  end
+
+  it "no-ops when a queued plugin policy becomes inactive before execution" do
+    plugin = PluginRecord.find_or_create_by!(name: "metrics_dashboard")
+    plugin.update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    expect(RetentionPolicyRegistry.find("metrics_dashboard_sample")).to be_present
+    described_class.perform_later("metrics_dashboard_sample")
+
+    plugin.update!(enabled: false)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+
+    result = described_class.perform_now("metrics_dashboard_sample")
+
+    expect(result).to eq(0)
+    expect(Syrus::Metrics.render).to include(
+      'syrus_retention_prune_backlog{retention_key="metrics_dashboard_sample"} 0'
+    )
   end
 
   it "propagates one policy failure without consuming another policy's job" do
     failing = instance_double(RetentionPolicyRegistry::Definition, key: :notification)
-    allow(RetentionPolicyRegistry).to receive(:fetch).and_call_original
-    allow(RetentionPolicyRegistry).to receive(:fetch).with("notification").and_return(failing)
+    allow(RetentionPolicyRegistry).to receive(:find).and_call_original
+    allow(RetentionPolicyRegistry).to receive(:find).with("notification").and_return(failing)
     allow(failing).to receive(:executor).and_raise("broken policy")
 
     expect { described_class.perform_now("notification") }.to raise_error("broken policy")

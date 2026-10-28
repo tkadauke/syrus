@@ -401,7 +401,7 @@ repository names or ids, per the cardinality rule below.
 | `syrus_provider_sessions_bytes` | total `transcript_jsonl` bytes across all `provider_sessions` rows |
 | `syrus_provider_sessions_rows` | total `provider_sessions` row count |
 | `syrus_auto_retry_attempts_total{skip_reason}` | auto-retry attempts by settled outcome |
-| `syrus_retention_rows_pruned_total{retention_key}` | rows deleted by each registry policy |
+| `syrus_retention_rows_pruned_total{retention_key}` | rows deleted or payload-cleared by each registry policy |
 | `syrus_retention_prune_duration_seconds{retention_key}` | duration of each policy pass |
 | `syrus_retention_prune_backlog{retention_key}` | 1 when a capped pass left eligible rows |
 | `syrus_retention_prune_failures_total{retention_key}` | failed policy passes |
