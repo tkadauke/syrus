@@ -1,6 +1,44 @@
 require "rails_helper"
 
 RSpec.describe "retention policy executors" do
+  def create_test_insight_run(job, grader_name:)
+    TestInsights::TestRun.create!(
+      run: job.initial_run, repository: job.repository, grader_name:,
+      total_count: 1, passed_count: 1, failed_count: 0, skipped_count: 0, error_count: 0
+    )
+  end
+
+  def create_test_insight_case(test_run, name:)
+    TestInsights::TestCase.create!(
+      test_run:, repository: test_run.repository, suite_name: "Spec", name:, status: "passed"
+    )
+  end
+
+  def create_isolated_repro_attempt(repository, name:)
+    TestInsights::IsolatedReproAttempt.create!(
+      repository:, grader_name: "rspec", suite_name: "Spec", name:,
+      sha: "c" * 40, reproduced: false, command: "bin/rspec", output: "ok"
+    )
+  end
+
+  it "prunes the operational index and database rows under logging suppression" do
+    event = OperationalLogEvent.create!(
+      occurred_at: 7.hours.ago, level: "info", role: "worker", hostname: "host-a",
+      source: "spec", message: "expired event", context: {}
+    )
+    index = Class.new do
+      def self.prune_before(*) = nil
+    end
+    stub_const("OperationalLogIndex", index)
+    allow(OperationalLogging).to receive(:configured_for_instance?).and_return(true)
+    expect(OperationalLogging).to receive(:suppress).and_call_original
+    expect(index).to receive(:prune_before).with(be_within(2.seconds).of(6.hours.ago))
+
+    RetentionPolicyPruneJob.perform_now("operational_log_event")
+
+    expect(OperationalLogEvent.exists?(event.id)).to be(false)
+  end
+
   it "clears old provider payloads before generic row retention" do
     succeeded_run = Factories.job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
     session = ProviderSession.create!(
@@ -111,6 +149,42 @@ RSpec.describe "retention policy executors" do
     RetentionPolicyPruneJob.perform_now("test_insight_case")
 
     expect(TestInsights::TestRun.exists?(test_run.id)).to be(false)
+    expect(TestInsights::IsolatedReproAttempt.exists?(attempt.id)).to be(false)
+  end
+
+  it "deletes expired cases before empty parents and continues a capped backlog safely" do
+    stub_const("RetentionPruner::DEFAULT_BATCH_SIZE", 1)
+    stub_const("RetentionPruner::DEFAULT_MAX_BATCHES", 1)
+    job = Factories.job
+    first_run = create_test_insight_run(job, grader_name: "rspec-first")
+    second_run = create_test_insight_run(job, grader_name: "rspec-second")
+    first_case = create_test_insight_case(first_run, name: "first")
+    second_case = create_test_insight_case(second_run, name: "second")
+    old_time = 91.days.ago
+    [ first_run, second_run, first_case, second_case ].each { |record| record.update_columns(created_at: old_time) }
+
+    expect { RetentionPolicyPruneJob.perform_now("test_insight_case") }
+      .to have_enqueued_job(RetentionPolicyPruneJob).with("test_insight_case").once
+
+    expect(TestInsights::TestCase.exists?(first_case.id)).to be(false)
+    expect(TestInsights::TestRun.exists?(first_run.id)).to be(false)
+    expect(TestInsights::TestCase.exists?(second_case.id)).to be(true)
+    expect(TestInsights::TestRun.exists?(second_run.id)).to be(true)
+  end
+
+  it "keeps case history at infinite retention while pruning isolated reproductions on their fixed window" do
+    set_retention(:test_insight_case, 0)
+    job = Factories.job
+    test_run = create_test_insight_run(job, grader_name: "rspec")
+    test_case = create_test_insight_case(test_run, name: "history")
+    attempt = create_isolated_repro_attempt(job.repository, name: "isolated")
+    [ test_run, test_case ].each { |record| record.update_columns(created_at: 1.year.ago) }
+    attempt.update_columns(created_at: 31.days.ago)
+
+    RetentionPolicyPruneJob.perform_now("test_insight_case")
+
+    expect(TestInsights::TestCase.exists?(test_case.id)).to be(true)
+    expect(TestInsights::TestRun.exists?(test_run.id)).to be(true)
     expect(TestInsights::IsolatedReproAttempt.exists?(attempt.id)).to be(false)
   end
 end
