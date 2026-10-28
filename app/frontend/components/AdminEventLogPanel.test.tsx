@@ -78,7 +78,7 @@ describe("AdminEventFilterBar", () => {
           clearLabel="Löschen"
           fields={[
             { name: "event_name", label: "Ereignis" },
-            { name: "job_class", label: "Job-Klasse", placeholder: "PollRepositoryJob" },
+            { name: "handler_class", label: "Job-Klasse", placeholder: "PollRepositoryJob" },
             {
               name: "revision_scope",
               label: "Revisionsbereich",
@@ -91,7 +91,7 @@ describe("AdminEventFilterBar", () => {
           filter={{ and: [] }}
           filterSchema={[
             { field: "event_name", label: "Event", bucket: "text", operators: ["is"] },
-            { field: "job_class", label: "Job class", bucket: "text", operators: ["is"] },
+            { field: "handler_class", label: "Handler class", bucket: "text", operators: ["is"] },
             {
               field: "revision_scope",
               label: "Revision scope",

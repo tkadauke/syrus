@@ -64,7 +64,7 @@
   "tool_auto_saved_as": "Automatisch gespeichert als",
   "tool_cleared_canvas": "Canvas geleert",
   "tool_clear_canvas": "Canvas leeren",
-  "tool_clear_canvas_recovery": "Prüfen Sie, ob das Canvas verfügbar ist, und versuchen Sie erneut, es zu leeren.",
+  "tool_clear_canvas_recovery": "Prüfe, ob das Canvas verfügbar ist, und versuche erneut, es zu leeren.",
   "tool_auto_saved_snapshot": "Automatisch gespeicherter Canvas-Snapshot",
   "tool_canvas_already_empty": "Canvas war bereits leer.",
   "tool_canvas_not_saved_empty": "Canvas nicht gespeichert (leer)",
@@ -96,7 +96,7 @@
   "tool_replace_scene": "Szene ersetzen",
   "tool_replace_scene_attempt_one": "Szene durch {{count}} Element ersetzen",
   "tool_replace_scene_attempt_other": "Szene durch {{count}} Elemente ersetzen",
-  "tool_replace_scene_recovery": "Korrigieren Sie den Validierungsfehler der Szene, bevor Sie es erneut versuchen.",
+  "tool_replace_scene_recovery": "Korrigiere den Validierungsfehler der Szene, bevor du es erneut versuchst.",
   "tool_replacement_preview": "Ersatzszene",
   "tool_app_state_keys": "App-State-Schlüssel",
   "tool_none": "Keine",
@@ -123,6 +123,6 @@
   "tool_pre_load_backup_title": "Sicherung vor dem Laden Nr. {{id}}",
   "tool_load_snapshot": "Canvas-Snapshot laden",
   "tool_load_snapshot_attempt": "{{snapshot}} im Modus {{mode}} laden",
-  "tool_load_snapshot_recovery": "Prüfen Sie, ob die Snapshot-ID zu diesem Chat gehört und der ausgewählte Modus gültig ist.",
+  "tool_load_snapshot_recovery": "Prüfe, ob die Snapshot-ID zu diesem Chat gehört und der ausgewählte Modus gültig ist.",
   "tool_loaded_canvas_summary": "{{snapshot}} geladen{{mode}}"
 }
