@@ -174,17 +174,14 @@ describe("useShakeToReport", () => {
       configurable: true,
       value: requestPermission,
     })
-    // Spy on the storage object the code actually reads, not Storage.prototype.
-    // Under Node 26 `window.localStorage` is no longer a jsdom Storage instance
-    // -- it is a plain object carrying its own getItem/setItem -- so patching
-    // the prototype silently reaches nothing, the "storage is unavailable"
-    // simulation stops simulating anything, and the assertion below fails for a
-    // reason that has nothing to do with the code under test.
-    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
-      throw new Error("storage unavailable")
-    })
-    vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
-      throw new Error("storage unavailable")
+    const storage = window.localStorage
+    vi.spyOn(window, "localStorage", "get").mockReturnValue({
+      getItem: () => { throw new Error("storage unavailable") },
+      setItem: () => { throw new Error("storage unavailable") },
+      removeItem: storage.removeItem.bind(storage),
+      clear: storage.clear.bind(storage),
+      key: storage.key.bind(storage),
+      get length() { return storage.length },
     })
 
     const { unmount } = renderHook(() => useShakeToReport(vi.fn()))
