@@ -34,6 +34,7 @@ module Admin
     ADMIN_API_PENDING_ACTION_REASON = "This PendingAction requires chat context and cannot be invoked through the generic admin API endpoint.".freeze
     MCP_PENDING_ACTION_REASON = "This PendingAction has no static McpToolRegistry exposure yet; any dynamic or future MCP exposure must be registered explicitly.".freeze
     WORKFLOW_MCP_REASON = "Workflow-agent capability only; no user API, admin API, or CLI invocation contract is registered.".freeze
+    COWORKER_MCP_REASON = "Coworker-chat capability only; no user API, admin API, or CLI invocation contract is registered.".freeze
     MCP_TOOL_CAPABILITY_ALIASES = {
       "admin_maintenance_tasks" => "admin_maintenance_task",
       "spawn_chats" => "spawn_chat",
@@ -99,6 +100,7 @@ module Admin
       clear_provider_circuit
       close_job_successfully
       complete_implement_step
+      coworker_tool_call
       create_repo_document
       delegate_issue
       delete_design_doc
@@ -159,6 +161,13 @@ module Admin
       submit_visual_review
     ].freeze
 
+    COWORKER_MCP_CAPABILITIES = %w[
+      chat.message_owner
+      chats.read_shared
+      syrus.propose_job
+      syrus.read_jobs
+    ].freeze
+
     EXPLICIT_SURFACE_DECISIONS = begin
       decisions = {}
 
@@ -175,6 +184,13 @@ module Admin
         decisions[key] ||= {}
         %i[user_api admin_api cli].each do |surface|
           decisions[key][surface] = { status: "not_exposed", reason: WORKFLOW_MCP_REASON }
+        end
+      end
+
+      COWORKER_MCP_CAPABILITIES.each do |key|
+        decisions[key] ||= {}
+        %i[user_api admin_api cli].each do |surface|
+          decisions[key][surface] = { status: "not_exposed", reason: COWORKER_MCP_REASON }
         end
       end
 
