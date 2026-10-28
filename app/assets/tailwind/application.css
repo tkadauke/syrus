@@ -399,13 +399,14 @@ body {
 .chat-prose .chat-prose-table--balanced {
   table-layout: fixed;
 }
-.chat-prose .chat-prose-table--measured {
-  table-layout: fixed;
-}
 .chat-prose .chat-prose-table--wide {
   width: max-content;
   min-width: 100%;
   max-width: none;
+}
+.chat-prose .chat-prose-table--measured {
+  table-layout: fixed;
+  width: var(--chat-table-measured-width);
 }
 .chat-prose .chat-prose-table__col {
   width: var(--chat-table-column-width);

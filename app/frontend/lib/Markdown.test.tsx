@@ -211,6 +211,7 @@ describe("Markdown", () => {
       expect(columns.map((column) => column.getAttribute("data-chat-table-column"))).toEqual(["label", "prose"])
       expect(columns.map((column) => column.getAttribute("style"))).toEqual(["--chat-table-column-width: 78px;", "--chat-table-column-width: 281px;"])
       expect(columns.reduce((total, column) => total + Number.parseInt(column.style.getPropertyValue("--chat-table-column-width"), 10), 0)).toBe(359)
+      expect(container.querySelector("table")).toHaveStyle({ "--chat-table-measured-width": "359px" })
       expect(container.querySelector("table")).not.toHaveClass("chat-prose-table--wide")
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect
