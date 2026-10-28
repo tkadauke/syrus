@@ -39,6 +39,14 @@ class Coworkers::Coworker < ApplicationRecord
   def addressable_in?(chat) = Coworkers::Chat.exists?(coworker_id: id, chat_session_id: chat.id)
   def schedules = ScheduledTasks::Task.none
 
+  # A coworker sees only its own conversations and chats explicitly shared
+  # with it. The owner's role (including admin) must never widen this scope.
+  def readable_chat_session_ids
+    own_ids = coworker_chats.select(:chat_session_id)
+    shared_ids = ChatShare.where(target_type: self.class.polymorphic_name, target_id: id).select(:chat_session_id)
+    ChatSession.where(id: own_ids).or(ChatSession.where(id: shared_ids)).active.distinct.ids
+  end
+
   private
 
   def assign_default_color = self.color_key = Appearance::ColorPalette.default_key(handle)

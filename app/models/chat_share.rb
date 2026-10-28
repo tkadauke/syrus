@@ -3,7 +3,7 @@ class ChatShare < ApplicationRecord
   belongs_to :target, polymorphic: true
   belongs_to :shared_by_user, class_name: "User"
 
-  validates :target_type, inclusion: { in: [ "User" ] }
+  validate :target_is_shareable
   validate :shared_by_user_owns_chat
   validate :target_is_not_chat_owner
   validate :target_is_not_participant
@@ -11,6 +11,10 @@ class ChatShare < ApplicationRecord
   after_create_commit :notify_recipient
 
   private
+
+  def target_is_shareable
+    errors.add(:target_type, "is not shareable") unless target.is_a?(Mentionable)
+  end
 
   def shared_by_user_owns_chat
     errors.add(:shared_by_user, "must own the chat") unless chat_session&.user_id == shared_by_user_id
@@ -27,6 +31,8 @@ class ChatShare < ApplicationRecord
   end
 
   def notify_recipient
+    return unless target.is_a?(User)
+
     NotificationService.create_for(
       user: target,
       kind: "chat_mention",

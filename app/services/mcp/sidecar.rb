@@ -199,7 +199,8 @@ module Mcp
         grants = McpToolContext.from_chat_session(chat_session).granted_capabilities
         definitions = definitions.select do |definition|
           capability = definition[:capability] || definition["capability"]
-          capability.present? && grants.include?(capability.to_s)
+          grantless = definition[:coworker_grantless] || definition["coworker_grantless"]
+          grantless == true || capability.present? && grants.include?(capability.to_s)
         end
       end
 
