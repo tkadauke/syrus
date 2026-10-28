@@ -1,12 +1,8 @@
 # Declarative source of truth for every DB-table row retention window Syrus
 # enforces. Each entry documents one prunable table: which model/scope
-# deletes its expired rows, which AppSetting column controls the window
-# (0 = infinite retention), and which recurring PruneJob (if any) runs it.
-#
-# AppSettingRegistry merges these entries in as admin-editable integer
-# settings (see app_setting_registry.rb) so validations and admin metadata
-# don't need to be hand-listed per key; a future admin page can read this
-# registry directly for table sizing / retention UI.
+# deletes its expired rows, its stable persistence key and display unit, and
+# which recurring PruneJob runs it. RetentionPolicySetting stores only the
+# operator choice in canonical seconds; nil means infinite retention.
 #
 # Core-owned tables are declared inline below. A plugin that owns a prunable
 # table (e.g. metrics_dashboard) must NOT be hand-listed here — a core file
@@ -34,8 +30,33 @@ class RetentionPolicyRegistry
       model.constantize
     end
 
-    # AppSetting column/accessor name for this entry's archive-before-delete
-    # opt-in. Only meaningful when `archivable` is true.
+    def default_seconds
+      default_value.public_send(unit).to_i
+    end
+
+    def seconds_for(value)
+      numeric = Integer(value)
+      numeric.zero? ? nil : numeric.public_send(unit).to_i
+    end
+
+    def value_for(seconds)
+      return 0 if seconds.nil?
+
+      seconds / (unit == :hours ? 1.hour.to_i : 1.day.to_i)
+    end
+
+    def setting
+      RetentionPolicySetting.for(self)
+    end
+
+    def retention_value
+      value_for(setting.retention_seconds)
+    end
+
+    def retention_window
+      setting.retention_seconds&.seconds
+    end
+
     def archive_setting_key
       :"#{key}_archive_before_delete"
     end
@@ -57,46 +78,7 @@ class RetentionPolicyRegistry
       }
     end
 
-    # Folded into AppSettingRegistry.definitions so the existing generic
-    # numericality-validation and admin-metadata machinery covers these
-    # columns without per-key duplication.
-    def as_app_setting_definition
-      AppSettingRegistry::Definition.new(
-        key: setting_key,
-        type: :integer,
-        default: default_value,
-        category: "Data retention",
-        operational_meaning: description,
-        min: 0,
-        max: nil,
-        zero_means: "Retention is infinite; rows are never pruned by age.",
-        admin_editable: true,
-        secret: false
-      )
-    end
-
-    # Folds the archive-before-delete boolean into AppSettingRegistry.definitions
-    # the same way as_app_setting_definition folds the retention window in.
-    # nil for a non-archivable entry, so RetentionArchiver has nothing to opt
-    # into and no AppSetting column is expected to exist for it.
-    def as_archive_app_setting_definition
-      return nil unless archivable
-
-      AppSettingRegistry::Definition.new(
-        key: archive_setting_key,
-        type: :boolean,
-        default: false,
-        category: "Data retention",
-        operational_meaning: "When enabled, #{table_name} rows are serialized and archived to Active Storage before #{job_class} deletes them.",
-        min: nil,
-        max: nil,
-        zero_means: nil,
-        admin_editable: true,
-        secret: false
-      )
-    end
   end
-
   CORE_DEFINITIONS = [
     Definition.new(
       key: :job_log,
@@ -280,20 +262,6 @@ class RetentionPolicyRegistry
       category: "Diagnostics",
       archivable: false
     ),
-    Definition.new(
-      key: :workflow_step_resource_profile_input,
-      model: "WorkflowStepResourceProfile",
-      table_name: "run_resource_summaries",
-      age_column: :finished_at,
-      scope_name: nil,
-      setting_key: :workflow_step_resource_profile_input_retention_days,
-      default_value: 180,
-      unit: :days,
-      job_class: nil,
-      description: "How far back RunResourceSummary rows are considered as input when rebuilding resource profiles (a lookback window, not a row deletion).",
-      category: "Diagnostics",
-      archivable: false
-    )
   ].freeze
 
   # Recomputed on every call rather than frozen once, so a plugin's
@@ -308,22 +276,7 @@ class RetentionPolicyRegistry
     definitions.index_by(&:key).fetch(key.to_sym)
   end
 
-  # Every archivable entry's archive-before-delete AppSetting definition,
-  # folded into AppSettingRegistry.definitions alongside the retention-window
-  # ones. Non-archivable entries contribute nothing here.
-  def self.archive_app_setting_definitions
-    definitions.filter_map(&:as_archive_app_setting_definition)
-  end
-
-  # Syrus::PluginRegistry.all_plugins (not the enabled-filtered
-  # providers_for) is used deliberately: the AppSetting column, its
-  # validation, and its admin metadata must exist regardless of whether the
-  # contributing plugin is currently enabled — same as every other
-  # plugin-owned AppSetting (video_retention_days, discord_bot_token, etc).
-  # Only the model's own `.prunable`-style scope and PruneJob go inert while
-  # the plugin is disabled.
   def self.plugin_definitions
-    Syrus::PluginRegistry.all_plugins.flat_map { |manifest| Array(manifest.provides[:retention_policy]) }
-      .flat_map(&:retention_definitions)
+    Syrus::PluginRegistry.providers_for(:retention_policy).flat_map(&:retention_definitions)
   end
 end

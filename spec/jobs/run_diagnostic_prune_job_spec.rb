@@ -17,7 +17,7 @@ RSpec.describe RunDiagnosticPruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(run_diagnostic_retention_days: 0)
+    set_retention(:run_diagnostic, 0)
     old = RunDiagnostic.create!(run: Factories.run, error_class: "X")
     old.update_columns(created_at: 10.years.ago)
 
@@ -33,7 +33,7 @@ RSpec.describe RunDiagnosticPruneJob do
   end
 
   it "archives before deleting when archive_before_delete is on" do
-    AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+    set_retention_archive(:run_diagnostic, true)
     old = RunDiagnostic.create!(run: Factories.run, error_class: "X")
     old.update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago)
 

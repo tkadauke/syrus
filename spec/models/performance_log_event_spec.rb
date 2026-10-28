@@ -14,7 +14,7 @@ RSpec.describe PerformanceLogEvent do
     end
 
     it "keeps all events when retention is infinite" do
-      AppSetting.current.update!(performance_log_event_retention_hours: 0)
+      set_retention(:performance_log_event, 0)
       event = described_class.create!(occurred_at: 10.years.ago, event_name: "sql", payload: {})
 
       expect(described_class.prunable).not_to include(event)

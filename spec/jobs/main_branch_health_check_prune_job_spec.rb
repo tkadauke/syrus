@@ -36,7 +36,7 @@ RSpec.describe MainBranchHealthCheckPruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(main_branch_health_check_retention_days: 0)
+    set_retention(:main_branch_health_check, 0)
     old = check(checked_at: 10.years.ago)
 
     expect { described_class.perform_now }.not_to change { MainBranchHealthCheck.count }
@@ -51,7 +51,7 @@ RSpec.describe MainBranchHealthCheckPruneJob do
   end
 
   it "archives before deleting when archive_before_delete is on" do
-    AppSetting.current.update!(main_branch_health_check_archive_before_delete: true)
+    set_retention_archive(:main_branch_health_check, true)
     old = check(checked_at: (MainBranchHealthCheck.retention_window + 1.day).ago)
 
     expect { described_class.perform_now }.to change { RetentionArchive.count }.by(1)

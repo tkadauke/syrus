@@ -59,9 +59,8 @@ RSpec.describe AppSettingRegistry do
       :video_storage_budget_mb,
       :chat_coding_workspace_budget_mb,
       :retention_available_space_override_gb,
-      :main_concern_report_threshold,
-      *RetentionPolicyRegistry.definitions.map(&:setting_key),
-      *RetentionPolicyRegistry.archive_app_setting_definitions.map(&:key)
+      :workflow_step_resource_profile_input_retention_days,
+      :main_concern_report_threshold
     ])
 
     expect(described_class.metadata_for([ :proactive_rebase_commit_threshold ])).to eq([
@@ -88,24 +87,10 @@ RSpec.describe AppSettingRegistry do
     expect(described_class.admin_settings_keys & described_class.admin_console_keys).to be_empty
   end
 
-  it "folds RetentionPolicyRegistry entries in as admin-editable integer settings with a 0=infinite floor" do
-    RetentionPolicyRegistry.definitions.each do |retention_definition|
-      definition = described_class.fetch(retention_definition.setting_key)
-
-      expect(definition.type).to eq(:integer)
-      expect(definition.default).to eq(retention_definition.default_value)
-      expect(definition.admin_editable).to be true
-      expect(definition.numericality_options).to include(greater_than_or_equal_to: 0)
-    end
-  end
-
-  it "folds every archivable RetentionPolicyRegistry entry in as an admin-editable boolean, default false" do
-    RetentionPolicyRegistry.definitions.select(&:archivable).each do |retention_definition|
-      definition = described_class.fetch(retention_definition.archive_setting_key)
-
-      expect(definition.type).to eq(:boolean)
-      expect(definition.default).to eq(false)
-      expect(definition.admin_editable).to be true
-    end
+  it "does not include row-retention policy values" do
+    expect(described_class.definitions.map(&:key)).not_to include(
+      :job_log_retention_days,
+      :job_log_archive_before_delete
+    )
   end
 end

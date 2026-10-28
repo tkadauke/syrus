@@ -31,7 +31,7 @@ RSpec.describe WorkerHostHealthSamplePruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(worker_host_health_sample_retention_days: 0)
+    set_retention(:worker_host_health_sample, 0)
     old = WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc", observed_at: 10.years.ago)
 
     described_class.perform_now

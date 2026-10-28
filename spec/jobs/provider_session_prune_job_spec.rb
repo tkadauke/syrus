@@ -62,7 +62,7 @@ RSpec.describe ProviderSessionPruneJob do
   end
 
   it "keeps payloads in the live row when archive-before-delete is enabled" do
-    AppSetting.current.update!(provider_session_archive_before_delete: true)
+    set_retention_archive(:provider_session, true)
     succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
     session = ProviderSession.create!(resumable: succeeded_run, session_id: "archive", transcript_jsonl: "preserve me")
     session.update_columns(updated_at: ProviderSession::PAYLOAD_RETENTION.ago - 1.second)
@@ -77,7 +77,7 @@ RSpec.describe ProviderSessionPruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(provider_session_retention_days: 0)
+    set_retention(:provider_session, 0)
     old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
     old_session = ProviderSession.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
     old_session.update_columns(updated_at: 10.years.ago)
@@ -95,7 +95,7 @@ RSpec.describe ProviderSessionPruneJob do
   end
 
   it "archives before deleting when archive_before_delete is on" do
-    AppSetting.current.update!(provider_session_archive_before_delete: true)
+    set_retention_archive(:provider_session, true)
     old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
     old_session = ProviderSession.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
     old_session.update_columns(updated_at: (ProviderSession.retention_window + 1.day).ago)

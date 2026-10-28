@@ -27,7 +27,7 @@ class ProviderSessionPruneJob < ApplicationJob
   private
 
   def prune_payloads
-    return 0 if AppSetting.current.provider_session_archive_before_delete?
+    return 0 if RetentionPolicyRegistry.fetch(:provider_session).setting.archive_before_delete?
 
     pruned = 0
 

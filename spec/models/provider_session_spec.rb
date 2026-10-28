@@ -111,7 +111,7 @@ RSpec.describe ProviderSession do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(provider_session_retention_days: 0)
+      set_retention(:provider_session, 0)
       old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
       old_session = described_class.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
       old_session.update_columns(updated_at: 10.years.ago)

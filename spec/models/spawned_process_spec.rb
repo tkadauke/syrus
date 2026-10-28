@@ -129,7 +129,7 @@ RSpec.describe SpawnedProcess do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(spawned_process_retention_days: 0)
+      set_retention(:spawned_process, 0)
       old = described_class.create!(base_attrs.merge(finished_at: 10.years.ago, outcome: "succeeded"))
 
       expect(described_class.prunable).to be_empty

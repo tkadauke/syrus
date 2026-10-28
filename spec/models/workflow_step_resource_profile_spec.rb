@@ -150,7 +150,7 @@ RSpec.describe WorkflowStepResourceProfile do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(workflow_step_resource_profile_retention_days: 0)
+      set_retention(:workflow_step_resource_profile, 0)
       old = persisted_profile(last_observed_at: 10.years.ago)
 
       expect(described_class.stale).to be_empty

@@ -4,8 +4,8 @@ module Api
       module Admin
         # Generic reader/writer over RetentionPolicyRegistry: every row on the
         # admin Retention Settings page comes from iterating the registry
-        # (plus the cached RetentionSizeSnapshotJob sizing data and current
-        # AppSetting values), never a hand-listed table set here.
+        # (plus RetentionPolicySetting values and cached sizing data), never a
+        # hand-listed table set here.
         class RetentionSettingsController < BaseController
           INFINITE_FLAG_SUFFIX = "_infinite".freeze
 
@@ -17,13 +17,14 @@ module Api
             attributes = update_params
             return if performed?
 
-            setting = AppSetting.current
-            if setting.update(attributes)
-              render json: payload.merge(message: I18n.t("api.admin_retention_settings.updated"))
-            else
-              render_error("validation_failed", setting.errors.full_messages.to_sentence,
-                           status: :unprocessable_content)
+            RetentionPolicySetting.transaction do
+              update_retention_settings!(attributes.delete(:policies))
+              AppSetting.current.update!(attributes)
             end
+            render json: payload.merge(message: I18n.t("api.admin_retention_settings.updated"))
+          rescue ActiveRecord::RecordInvalid => error
+            render_error("validation_failed", error.record.errors.full_messages.to_sentence,
+                         status: :unprocessable_content)
           end
 
           private
@@ -31,7 +32,7 @@ module Api
           def payload
             setting = AppSetting.current
             {
-              tables: RetentionPolicyRegistry.definitions.map { |definition| table_payload(definition, setting) },
+              tables: RetentionPolicyRegistry.definitions.map { |definition| table_payload(definition) },
               available_space: RetentionSizeSnapshotJob.available_space&.as_json,
               retention_available_space_override_gb: setting.retention_available_space_override_gb,
               storage_limits: {
@@ -64,8 +65,9 @@ module Api
               end
           end
 
-          def table_payload(definition, setting)
+          def table_payload(definition)
             snapshot = RetentionSizeSnapshotJob.table_snapshot(definition.key)
+            policy_setting = definition.setting
             {
               key: definition.key,
               table_name: definition.table_name,
@@ -74,14 +76,14 @@ module Api
               setting_key: definition.setting_key,
               unit: definition.unit,
               default_value: definition.default_value,
-              retention_value: setting.public_send(definition.setting_key),
+              retention_value: definition.value_for(policy_setting.retention_seconds),
               row_count_estimate: snapshot&.row_count_estimate,
               byte_size_estimate: snapshot&.byte_size_estimate,
               estimated_max_byte_size: snapshot&.estimated_max_byte_size,
               computed_at: snapshot&.computed_at&.iso8601,
               archivable: definition.archivable,
               archive_setting_key: definition.archivable ? definition.archive_setting_key : nil,
-              archive_before_delete: definition.archivable ? setting.public_send(definition.archive_setting_key) : false
+              archive_before_delete: definition.archivable ? policy_setting.archive_before_delete? : false
             }
           end
 
@@ -90,7 +92,7 @@ module Api
             infinite_flag_keys = definitions.map { |definition| infinite_flag_key(definition) }
             permitted_settings = (definitions.map(&:setting_key) +
                                  infinite_flag_keys +
-                                 RetentionPolicyRegistry.archive_app_setting_definitions.map(&:key) +
+                                 definitions.filter(&:archivable).map(&:archive_setting_key) +
                                  [ :retention_available_space_override_gb ]).uniq
 
             submitted = params
@@ -103,9 +105,16 @@ module Api
               return
             end
 
-            submitted
-              .except(*infinite_flag_keys.map(&:to_s))
-              .reject { |_key, value| value.nil? || value == "" }
+            policy_attributes = definitions.filter_map do |definition|
+              value_key = definition.setting_key.to_s
+              archive_key = definition.archive_setting_key.to_s
+              next unless submitted.key?(value_key) || (definition.archivable && submitted.key?(archive_key))
+
+              [ definition, submitted[value_key], submitted.key?(archive_key) ? submitted[archive_key] : :unchanged ]
+            end
+
+            app_setting_attributes = submitted.slice("retention_available_space_override_gb")
+            app_setting_attributes.symbolize_keys.merge(policies: policy_attributes)
           end
 
           def validate_retention_values(submitted, definitions)
@@ -134,6 +143,16 @@ module Api
 
           def infinite_flag_key(definition)
             :"#{definition.setting_key}#{INFINITE_FLAG_SUFFIX}"
+          end
+
+          def update_retention_settings!(policies)
+            Array(policies).each do |definition, value, archive_before_delete|
+              RetentionPolicySetting.write!(
+                definition,
+                retention_value: value.nil? ? :unchanged : value,
+                archive_before_delete: archive_before_delete
+              )
+            end
           end
         end
       end

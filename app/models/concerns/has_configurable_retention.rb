@@ -19,10 +19,10 @@ module HasConfigurableRetention
     def retention_window
       raise NotImplementedError, "#{name} did not call configurable_retention" unless retention_setting_key
 
-      value = AppSetting.current.public_send(retention_setting_key).to_i
-      return nil if value.zero?
+      definition = RetentionPolicyRegistry.definitions.find { |candidate| candidate.setting_key == retention_setting_key }
+      raise KeyError, "no active retention policy for #{retention_setting_key}" unless definition
 
-      value.public_send(retention_unit)
+      definition.retention_window
     end
 
     def retention_cutoff

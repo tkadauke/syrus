@@ -37,7 +37,7 @@ RSpec.describe WorkerHostHealthSample, type: :model do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(worker_host_health_sample_retention_days: 0)
+      set_retention(:worker_host_health_sample, 0)
       old = sample(observed_at: 10.years.ago)
 
       expect(described_class.prunable).to be_empty
@@ -53,7 +53,7 @@ RSpec.describe WorkerHostHealthSample, type: :model do
     end
 
     it "returns the epoch when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(worker_host_health_sample_retention_days: 0)
+      set_retention(:worker_host_health_sample, 0)
 
       expect(described_class.retention_floor(now: Time.current)).to eq(Time.at(0))
     end

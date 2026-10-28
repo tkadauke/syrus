@@ -531,7 +531,7 @@ RSpec.describe TestInsights::TestCase do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(test_insight_case_retention_days: 0)
+      set_retention(:test_insight_case, 0)
       old = create_case
       old.update_columns(created_at: 10.years.ago)
 

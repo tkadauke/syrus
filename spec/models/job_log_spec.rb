@@ -18,7 +18,7 @@ RSpec.describe JobLog do
     end
 
     it "keeps all logs when retention is infinite" do
-      AppSetting.current.update!(job_log_retention_days: 0)
+      set_retention(:job_log, 0)
       log = described_class.create!(run: run, chunk: "old", sequence: 0, created_at: 10.years.ago)
 
       expect(described_class.prunable).not_to include(log)
