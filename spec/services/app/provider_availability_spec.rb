@@ -852,7 +852,32 @@ RSpec.describe App::ProviderAvailability do
     expect(evidence.count { |row| row.status == "exhausted" }).to eq(described_class::USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
   end
 
-  it "uses a constant number of batch queries as provider count grows" do
+  it "uses one index-bounded latest terminal Run lookup per provider" do
+    providers = User.agent_providers
+    jobs = providers.index_with do |provider|
+      Factories.job_record(
+        repository: Factories.repository(user: user),
+        user: user,
+        agent_provider: provider
+      )
+    end
+    rows = providers.flat_map do |provider|
+      250.times.map do |index|
+        {
+          job_id: jobs.fetch(provider).id,
+          user_id: user.id,
+          trigger_kind: "initial",
+          agent_provider: provider,
+          state: index.even? ? "succeeded" : "failed",
+          finished_at: now - index.minutes,
+          effective_at: now - index.minutes,
+          created_at: now - index.minutes,
+          updated_at: now - index.minutes
+        }
+      end
+    end
+    Run.insert_all!(rows)
+
     query_count = lambda do |providers|
       queries = []
       callback = lambda do |_name, _started, _finished, _id, payload|
@@ -867,10 +892,36 @@ RSpec.describe App::ProviderAvailability do
           batch.latest_terminal_run_for(provider)
         end
       end
-      queries.size
+      queries
     end
 
-    expect(query_count.call(%w[codex claude gemini opencode])).to eq(query_count.call([ "codex" ]))
+    instantiated_runs = 0
+    instantiation_callback = lambda do |_name, _started, _finished, _id, payload|
+      instantiated_runs += payload[:record_count] if payload[:class_name] == "Run"
+    end
+    queries = nil
+    ActiveSupport::Notifications.subscribed(instantiation_callback, "instantiation.active_record") do
+      queries = query_count.call(providers)
+    end
+
+    latest_queries = queries.grep(/SELECT ["`]?runs["`]?\.["`]?id["`]? FROM ["`]?runs["`]?.*agent_provider.*ORDER BY.*finished_at.*LIMIT/i)
+    expect(latest_queries.size).to eq(providers.size)
+    expect(latest_queries).to all(match(/LIMIT (?:1|\?)/))
+    expect(queries.join(" ")).not_to match(/ROW_NUMBER|provider_rank/i)
+    expect(instantiated_runs).to eq(providers.size)
+  end
+
+  it "plans the latest terminal Run lookup from the recency index" do
+    availability = described_class.new(user: user, provider: "codex", now: now)
+    relation = availability.send(:provider_run_scope_for_latest)
+      .where(state: %w[succeeded failed])
+      .where.not(finished_at: nil)
+      .order(finished_at: :desc, updated_at: :desc, id: :desc)
+      .limit(1)
+
+    plan = ActiveRecord::Base.connection.execute("EXPLAIN QUERY PLAN #{relation.select(:id).to_sql}").to_a.join(" ")
+
+    expect(plan).to include(described_class::LATEST_PROVIDER_RUN_INDEX)
   end
 
   it "caches provider availability outside the request-local cache" do
