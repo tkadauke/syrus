@@ -1,7 +1,7 @@
 module MetricsDashboard
   # Contributes this plugin's own retention window into core's
   # RetentionPolicyRegistry via the `:retention_policy` extension point,
-  # instead of core hand-listing MetricsDashboard::Sample/PruneJob by name.
+  # instead of core hand-listing the plugin's model or executor by name.
   class RetentionPolicy
     include Syrus::Plugin::RetentionPolicy
 
@@ -16,7 +16,7 @@ module MetricsDashboard
           setting_key: :metrics_dashboard_sample_retention_days,
           default_value: 7,
           unit: :days,
-          job_class: "MetricsDashboard::PruneJob",
+          executor_class: nil,
           description: "One-minute-resolution metric series samples retained for the dashboard's longest selectable window (7 days).",
           category: "Plugins",
           archivable: false

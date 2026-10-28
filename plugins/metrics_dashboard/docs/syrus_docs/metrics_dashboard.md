@@ -55,7 +55,7 @@ the page.
 
 Samples are one row per series per minute, retained seven days because seven
 days is the dashboard's longest selectable window. The
-`prune_metrics_dashboard_samples` recurring task enforces that window daily.
+the registry-driven database retention sweep enforces that window.
 Fixed resolution and fixed retention are what keep this a bounded dashboard
 store rather than a time-series database growing inside the primary database.
 

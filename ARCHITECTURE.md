@@ -542,8 +542,8 @@ other resumable host. Claude sessions resume with
 `claude --resume <session_id>`; Codex continuations replay retained
 transcript JSONL through `CodexInvocation`. Retained for **14 days after
 the parent Run reaches a terminal state**
-(`ProviderSession::RETAIN_AFTER_TERMINAL`), then deleted by
-`ProviderSessionPruneJob` (daily at 3am). Sessions whose parent Run is
+according to the `provider_session` registry policy, then deleted by the
+database retention sweep. Sessions whose parent Run is
 still `queued` or `running` are never pruned, regardless of age.
 
 ### The "preempted" path
@@ -653,14 +653,8 @@ collaborators" list.
 | `ReapClassifierPendingJob` | every 5 min | Re-enqueues classifier work for Jobs stuck in classifier-pending triage |
 | `ReapOrphanedSpawnedProcessesJob` | every 1 min | Finalizes subprocess rows owned by dead hosts |
 | `ReapStaleInstanceVersionsJob` | every 1 min | Finalizes stale web/worker instance rows |
-| `WorkerHostHealthSamplePruneJob` | daily 3:15am | Deletes old worker host health samples |
-| `RunResourceSummaryPruneJob` | daily 3:18am | Deletes old per-Run resource summaries used for admission profiles |
+| `RetentionSweepJob` | every 10 min | Fans out registered database retention policies by stable key |
 | `ReapStaleBranchesJob` | daily 3:40am | Deletes old Syrus-managed branches after terminal cleanup rules allow it |
-| `SpawnedProcessPruneJob` | daily 3:20am | Deletes old finished subprocess rows |
-| `ProviderSessionPruneJob` | daily 3:00am | Deletes expired retained provider sessions (formerly `ClaudeSessionPruneJob`) |
-| `WorkEngineReconcilerActivityPruneJob` | daily 3:12am | Deletes old reconciler activity log entries |
-| `RunDiagnosticPruneJob` | daily 3:10am | Deletes old run diagnostics |
-| `PruneOldNotificationsJob` | daily 3:30am | Deletes app notifications older than 30 days |
 | `PurgeExpiredPasskeyChallengesJob` | daily 3:45am | Deletes expired WebAuthn challenge records |
 | `WorkflowWorkspacePruneJob` | every 2 hours | Removes old terminal Workflow workspaces |
 | `VideoWalkthroughPruneJob` | daily 3:40am | Enforces walkthrough video blob retention and storage budget |

@@ -135,6 +135,12 @@ Past sweeps for an archiving-enabled table can be browsed and downloaded from
 the same page — this is a download-only history: there is no built-in way to
 restore an archived batch back into the live table.
 
+One scheduled sweep discovers active core and plugin retention policies from
+the registry and runs each policy independently in bounded batches. A capped
+policy continues in the background until its eligible backlog is drained;
+one failing table does not prevent unrelated retention policies from running.
+Disabling a plugin also removes its policies from active discovery.
+
 Test Insights raw per-example history defaults to 90 days. Operators can tune
 its table policy in Admin Retention Settings (`0` keeps it forever);
 the per-test rollups and recent failure-rate signal remain available as old raw

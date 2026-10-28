@@ -742,7 +742,7 @@ that updates `InstanceVersion`, reads lightweight Linux files under `/proc`, and
 swallows sampler failures so worker liveness is never destabilized by metrics.
 Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
 `RunHealthSnapshot::RETAIN_AFTER`) and pruned daily by
-`WorkerHostHealthSamplePruneJob`.
+the `worker_host_health_sample` registry policy.
 
 The heartbeat Thread is a single per-process code path: if it never starts
 (role/env misconfigured on that process) or dies, that host's samples go
@@ -833,7 +833,7 @@ command-owned CPU, RSS, or IO usage.
 
 Raw `worker_host_health_samples` keep their short retention window. Durable
 `run_resource_summaries` are detailed operational telemetry and are pruned after
-30 days by `RunResourceSummaryPruneJob`.
+30 days by the `run_resource_summary` registry policy.
 
 ## Workflow Step Resource Profiles
 
