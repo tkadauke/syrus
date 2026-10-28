@@ -11,7 +11,7 @@ module Api
           chat = owned_chat
           user = User.find_by(id: params[:user_id])
           unless user
-            render_error("validation_failed", "Unknown user id.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.chats.errors.unknown_user_id"), status: :unprocessable_content)
             return
           end
 

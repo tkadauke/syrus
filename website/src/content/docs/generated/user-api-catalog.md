@@ -39,6 +39,10 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/chats/:chat_id/runtime_sessions/:id/release_control` | `api/v1/app/runtime_sessions#release_control` |
 | core | POST | `/api/v1/app/chats/:chat_id/runtime_sessions/:id/renew_control` | `api/v1/app/runtime_sessions#renew_control` |
 | core | POST | `/api/v1/app/chats/:chat_id/runtime_sessions/:id/take_control` | `api/v1/app/runtime_sessions#take_control` |
+| core | GET | `/api/v1/app/chats/:chat_id/share_candidates` | `api/v1/app/chat_shares#candidates` |
+| core | GET | `/api/v1/app/chats/:chat_id/shares` | `api/v1/app/chat_shares#index` |
+| core | POST | `/api/v1/app/chats/:chat_id/shares` | `api/v1/app/chat_shares#create` |
+| core | DELETE | `/api/v1/app/chats/:chat_id/shares/:id` | `api/v1/app/chat_shares#destroy` |
 | core | POST | `/api/v1/app/chats/:chat_id/shell_commands` | `api/v1/app/chat_shell_commands#create` |
 | core | POST | `/api/v1/app/chats/:chat_id/shell_commands/:id/cancel` | `api/v1/app/chat_shell_commands#cancel` |
 | core | POST | `/api/v1/app/chats/:chat_id/speech_to_text` | `api/v1/app/speech_to_text#create` |

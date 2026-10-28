@@ -43,7 +43,7 @@ module Api
           return unless chat&.shared_with?(Current.user)
           return if chat.chat_participants.exists?(user_id: Current.user.id)
 
-          render_error("forbidden", "Shared chats are read-only.", status: :forbidden)
+          render_error("forbidden", I18n.t("api.chats.errors.shared_read_only"), status: :forbidden)
         end
 
         def resume_session

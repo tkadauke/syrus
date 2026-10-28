@@ -488,7 +488,7 @@ module ChatIndexPayload
 
     [ {
       key: "shared-with-me",
-      label: "Shared with me",
+      label: I18n.t("api.chats.groups.shared_with_me"),
       repository_id: nil,
       group_by: "shared",
       group_value: "shared-with-me",

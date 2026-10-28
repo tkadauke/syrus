@@ -54,4 +54,11 @@ RSpec.describe HandleRegistry do
     expect(described_class.claim_generated!(owner: owner, source: "racer").handle).to eq("winner")
     expect(Handle).to have_received(:create!).once
   end
+
+  it "returns an owner's existing handle when generation is retried" do
+    owner = Factories.user
+
+    expect(described_class.claim_generated!(owner: owner)).to eq(owner.handle_record)
+    expect(Handle.where(owner: owner).count).to eq(1)
+  end
 end

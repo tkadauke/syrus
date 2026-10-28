@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_132935) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1089,13 +1089,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.integer "design_doc_version_id"
     t.integer "start_offset", null: false
     t.integer "end_offset", null: false
-    t.text "selected_markdown"
+    t.text "selected_markdown", limit: 16777215
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "marker_id", null: false
     t.string "anchor_kind", default: "range", null: false
     t.string "status", default: "active", null: false
-    t.text "selected_text"
+    t.text "selected_text", limit: 16777215
     t.text "prefix_context"
     t.text "suffix_context"
     t.integer "last_known_start_offset"
@@ -1152,14 +1152,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.integer "suggested_by_user_id"
     t.string "suggested_by_kind", null: false
     t.string "state", default: "pending", null: false
-    t.text "original_markdown", null: false
-    t.text "suggested_markdown", null: false
+    t.text "original_markdown", limit: 16777215, null: false
+    t.text "suggested_markdown", limit: 16777215, null: false
     t.text "change_summary"
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.text "proposed_markdown", null: false
+    t.text "proposed_markdown", limit: 16777215, null: false
     t.string "change_type", default: "replace", null: false
     t.integer "base_version_id"
     t.json "provenance"
@@ -1195,7 +1195,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
 
   create_table "design_doc_versions", force: :cascade do |t|
     t.integer "design_doc_id", null: false
-    t.text "markdown", null: false
+    t.text "markdown", limit: 16777215, null: false
     t.integer "version_number", null: false
     t.integer "actor_user_id"
     t.string "actor_kind", null: false
@@ -1213,7 +1213,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
 
   create_table "design_docs", force: :cascade do |t|
     t.string "title", null: false
-    t.text "markdown", null: false
+    t.text "markdown", limit: 16777215, null: false
     t.integer "owner_user_id", null: false
     t.string "visibility", default: "private", null: false
     t.string "state", default: "draft", null: false
@@ -2900,6 +2900,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.datetime "github_issues_synced_at"
     t.datetime "github_issues_full_synced_at"
     t.string "pr_check_gate", default: "all", null: false
+    t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"

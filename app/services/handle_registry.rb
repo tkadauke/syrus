@@ -7,7 +7,7 @@ class HandleRegistry
     end
 
     def claim_generated!(owner:, source: nil)
-      raise ArgumentError, "owner already has a handle" if Handle.exists?(owner: owner)
+      return claimed_handle(owner) if Handle.exists?(owner: owner)
 
       base = generated_base(source || source_for(owner))
       suffix = nil
@@ -43,6 +43,7 @@ class HandleRegistry
     def claimed_handle(owner)
       Handle.find_by!(owner: owner).tap { owner.association(:handle_record).reset }
     end
+
     def source_for(owner)
       return owner.github_handle if owner.respond_to?(:github_handle) && owner.github_handle.present?
 

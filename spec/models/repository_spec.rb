@@ -3,6 +3,13 @@ require "rails_helper"
 RSpec.describe Repository do
   let(:owner) { Factories.user }
 
+  it "retains the inherited-check flag for workers on the previous revision" do
+    expect(described_class.column_names).to include("land_on_inherited_check_failure")
+
+    repository = Repository.create!(user: owner, owner: "acme", name: "rolling-deploy")
+    expect(repository[:land_on_inherited_check_failure]).to be(false)
+  end
+
   it "creates with valid attributes and applies defaults" do
     repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
     expect(repo).to be_persisted
