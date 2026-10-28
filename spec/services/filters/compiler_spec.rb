@@ -108,6 +108,7 @@ RSpec.describe Filters::Compiler do
       key: "recursive",
       name: "Recursive",
       visibility: :always,
+      filter_bar_preset: true,
       filter: { "and" => [ { "field" => "smart_folder_preset", "op" => "is", "value" => "recursive" } ] }
     }
     allow(SmartFolder).to receive(:builtins_for_subject).with(:job).and_return([ recursive ])

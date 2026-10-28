@@ -113,7 +113,7 @@ class SmartFolder < ApplicationRecord
     { key: "epics_stalled",       name: "Stalled",       visibility: :when_present, filter: epic_attention_with_owner("stalled") },
     { key: "epics_empty",         name: "Empty",         visibility: :on_demand,    filter: epic_attention_with_owner("empty") },
     { key: "epics_recently_done", name: "Recently done", visibility: :on_demand,    filter: epic_attention_with_owner("recently_done") },
-    { key: "epics_archived",      name: "Archived",      visibility: :on_demand,    filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "archived" } ] } }
+    { key: "epics_archived",      name: "Archived",      visibility: :on_demand,    filter_bar_preset: true, filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "archived" } ] } }
   ].freeze
 
   WORKFLOW_BUILTINS = [

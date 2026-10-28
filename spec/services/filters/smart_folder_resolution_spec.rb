@@ -19,14 +19,14 @@ RSpec.describe Filters::SmartFolderResolution do
     include_examples "a SmartFolder-backed FilterBar"
   end
 
-  it "represents Dashboard attention folders by stable built-in key" do
+  it "preserves the Dashboard's expanded, independently editable built-in chips" do
     user = Factories.user
     SmartFolder.ensure_builtins_for_subject!("job")
     folder = SmartFolder.find_builtin_by_attention("inbox")
 
     resolution = described_class.call(filter_class: Jobs::Filter, subject: :job, params: {}, active_smart_folder: folder, user: user)
 
-    expect(resolution.filter.to_h).to eq(described_class.preset_tree("inbox"))
+    expect(resolution.filter.to_h).to eq(folder.filter)
   end
 
   it "preserves persisted user-defined folder filters" do

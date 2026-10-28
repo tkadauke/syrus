@@ -266,15 +266,17 @@ subject, active folder, request params, and user. The returned `filter` is both
 the editable AST sent to the client and the exact predicate applied to the
 result scope; navigation state retains the selected folder independently.
 
-With no explicit `q=`, a built-in folder becomes one named `Preset is …` chip.
-Its wire value is the stable key from the subject's registered built-in
-definition, and the compiler safely expands that definition when applying the
-filter. Existing Dashboard attention macros remain accepted in saved filters
-and explicit URLs for compatibility, while folder-seeded state uses the stable
-built-in key. Unknown or recursive preset keys are rejected. Persisted user-defined
-folders continue to seed their saved AST directly. Any explicit `q=`, including
-an encoded empty AST, is the complete source of truth, so adding, editing, or
-removing the preset cannot silently reapply the selected folder.
+With no explicit `q=`, a built-in folder seeds its registered filter AST.
+Definitions may opt into an opaque named `Preset is …` chip with
+`filter_bar_preset: true`; its wire value is the stable built-in key, and the
+compiler safely expands that definition when applying the filter. Unknown,
+recursive, and non-opted-in preset keys are rejected. Dashboard Job folders
+deliberately remain expanded: their existing `attention` chip (labelled
+`Preset`) and separate `job_type`, `owner_user_id`, or `eligible_approver`
+chips are independent operator controls. Persisted user-defined folders also
+seed their saved AST directly. Any explicit `q=`, including an encoded empty
+AST, is the complete source of truth, so editing or removing a visible chip
+cannot silently reapply the selected folder.
 
 At the lower level, `Filters::BaseFilter.from_params`
 always ANDs a given `smart_folder:` argument with the request's `q=`/legacy

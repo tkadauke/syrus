@@ -5933,7 +5933,13 @@ describe("App", () => {
               active_smart_folder_id: hasSmartFolder ? 1 : null,
               filter: url.searchParams.get("q")
                 ? decodeFilterQueryParam(url.searchParams.get("q")!)
-                : { and: [{ field: "smart_folder_preset", op: "is", value: "inbox" }] },
+                : {
+                    and: [
+                      { field: "attention", op: "is", value: "inbox" },
+                      { field: "job_type", op: "is", value: "user" },
+                      { field: "eligible_approver", op: "is", value: "me" }
+                    ]
+                  },
               smart_folders: [
                 {
                   id: 1,
@@ -5944,7 +5950,13 @@ describe("App", () => {
                   visibility: "primary",
                   count: 1,
                   active: hasSmartFolder,
-                  filter: { and: [{ field: "attention", op: "is", value: "inbox" }] },
+                  filter: {
+                    and: [
+                      { field: "attention", op: "is", value: "inbox" },
+                      { field: "job_type", op: "is", value: "user" },
+                      { field: "eligible_approver", op: "is", value: "me" }
+                    ]
+                  },
                   path: "/dashboard/jobs?view=list&smart_folder_id=1"
                 }
               ],
@@ -5968,7 +5980,7 @@ describe("App", () => {
       )
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
-      expect(within(smartFoldersPanel).getByLabelText("Folder name")).toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
 
       fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
       fireEvent.click(screen.getByRole("button", { name: "Kind list" }))
@@ -5980,7 +5992,9 @@ describe("App", () => {
         expect(url.searchParams.has("q")).toBe(true)
         expect(url.searchParams.get("smart_folder_id")).toBe("1")
         const qTree = decodeFilterQueryParam(url.searchParams.get("q")!)
-        expect(qTree.and.filter((chip) => chip.field === "smart_folder_preset")).toHaveLength(1)
+        expect(qTree.and.filter((chip) => chip.field === "attention")).toHaveLength(1)
+        expect(qTree.and.filter((chip) => chip.field === "job_type")).toHaveLength(1)
+        expect(qTree.and.filter((chip) => chip.field === "eligible_approver")).toHaveLength(1)
         expect(qTree.and.filter((chip) => chip.field === "kind")).toHaveLength(1)
       })
       expect(within(smartFoldersPanel).getByLabelText("Folder name")).toBeInTheDocument()
