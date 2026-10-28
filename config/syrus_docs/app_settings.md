@@ -431,7 +431,9 @@ and the video walkthrough settings documented above) is out of scope and
 stays fixed or on its own settings.
 
 `RetentionSweepJob` runs every ten minutes and enqueues one `RetentionPolicyPruneJob` per
-active stable key. The worker resolves the current setting, deletes at most 50
+active stable key. A plugin provider that fails while declaring its policies is logged
+and skipped, so it cannot prevent core or other plugin policies from being scheduled.
+The worker resolves the current setting, deletes at most 50
 ordered 1,000-row batches, and re-enqueues only that key after one minute when
 eligible rows remain. `SkipIfPending` plus a Solid Queue concurrency key
 deduplicates each policy without coupling failures between policies. A normal
@@ -477,7 +479,7 @@ performance UI.
 
 `provider_sessions` is large primarily because each row can contain a provider
 transcript (`transcript_jsonl` is a 64 MiB-capable text column), not because of
-its metadata. For terminal Runs, the daily prune clears `transcript_jsonl` and
+its metadata. For terminal Runs, the generic retention sweep clears `transcript_jsonl` and
 `normalized_messages` after seven days while retaining lightweight session
 metadata, then deletes the whole row after the configurable window (14 days by
 default). Both phases run in bounded batches and use the

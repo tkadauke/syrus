@@ -296,6 +296,14 @@ class RetentionPolicyRegistry
   end
 
   def self.plugin_definitions
-    Syrus::PluginRegistry.providers_for(:retention_policy).flat_map(&:retention_definitions)
+    Syrus::PluginRegistry.providers_for(:retention_policy).flat_map do |provider|
+      Array(provider.retention_definitions)
+    rescue StandardError => error
+      Rails.logger.error(
+        "[RetentionPolicyRegistry] provider=#{provider.name} " \
+        "error=#{error.class}: #{error.message}"
+      )
+      []
+    end
   end
 end

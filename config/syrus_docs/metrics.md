@@ -404,6 +404,7 @@ repository names or ids, per the cardinality rule below.
 | `syrus_retention_rows_pruned_total{retention_key}` | rows deleted or payload-cleared by each registry policy |
 | `syrus_retention_prune_duration_seconds{retention_key}` | duration of each policy pass |
 | `syrus_retention_prune_backlog{retention_key}` | 1 when a capped pass left eligible rows |
+| `syrus_retention_prune_last_success_timestamp_seconds{retention_key}` | Unix timestamp of the latest successful pass for each active policy |
 | `syrus_retention_prune_failures_total{retention_key}` | failed policy passes |
 
 `Metrics::MaintenanceSampler` (`app/services/metrics/maintenance_sampler.rb`)
