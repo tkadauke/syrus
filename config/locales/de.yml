@@ -712,6 +712,7 @@ de:
       blocked: "Ref-Movement-Aktion blockiert."
 
     repository_ref_movement_actions:
+      invalid_action: "Nicht unterstützte Repository-Ref-Movement-Aktion."
       promotion_dispatched: "Promotion gestartet."
 
     plugins:
