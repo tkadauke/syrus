@@ -107,6 +107,22 @@ RSpec.describe PreparedWorkspaceArchive do
     expect(tail).to end_with("fatal tail")
   end
 
+  it "waits for the archive producer when an upload stops early" do
+    reader, writer = IO.pipe
+    producer = instance_double(Thread)
+    service = instance_double(ActiveStorage::Service::DiskService)
+    allow(archive).to receive(:archive_pipeline).and_return([ reader, [ producer ] ])
+    allow(service).to receive(:upload).and_raise(PreparedWorkspaceArchive::ArchiveTooLargeError)
+    expect(producer).to receive(:join)
+
+    expect {
+      archive.send(:stream_archive!, service: service, key: "oversized")
+    }.to raise_error(PreparedWorkspaceArchive::ArchiveTooLargeError)
+  ensure
+    reader&.close unless reader&.closed?
+    writer&.close unless writer&.closed?
+  end
+
   describe ".prepare_fingerprint_for" do
     it "separates prepared workspaces by worker capability environment" do
       allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata)
