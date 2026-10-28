@@ -28,4 +28,26 @@ RSpec.describe RetentionSweepJob do
 
     expect(RetentionPolicyPruneJob).not_to have_been_enqueued.with("metrics_dashboard_sample")
   end
+
+  it "still schedules core policies when a plugin policy provider is broken" do
+    broken_provider = Class.new do
+      include Syrus::Plugin::RetentionPolicy
+
+      def self.name = "BrokenRetentionSweepPlugin::Policy"
+      def self.retention_definitions = raise("broken provider")
+    end
+    Syrus::PluginRegistry.register(
+      name: "broken-retention-sweep-plugin",
+      version: "1.0.0",
+      default_enabled: true,
+      disableable: true,
+      provides: { retention_policy: broken_provider }
+    )
+    allow(Rails.logger).to receive(:error)
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+
+    described_class.perform_now
+
+    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("notification").once
+  end
 end

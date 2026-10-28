@@ -20,6 +20,41 @@ RSpec.describe "retention policy executors" do
     )
   end
 
+  it "preserves active provider sessions regardless of age" do
+    active_run = Factories.job.initial_run
+    session = ProviderSession.create!(resumable: active_run, session_id: "active", transcript_jsonl: "resume me")
+    session.update_columns(updated_at: 1.year.ago)
+
+    RetentionPolicyPruneJob.perform_now("provider_session")
+
+    expect(session.reload.transcript_jsonl).to eq("resume me")
+  end
+
+  it "keeps provider payloads intact until an archive-enabled row is deleted" do
+    set_retention_archive(:provider_session, true)
+    succeeded_run = Factories.job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+    session = ProviderSession.create!(resumable: succeeded_run, session_id: "archive", transcript_jsonl: "preserve me")
+    session.update_columns(updated_at: ProviderSession::PAYLOAD_RETENTION.ago - 1.second)
+
+    RetentionPolicyPruneJob.perform_now("provider_session")
+
+    expect(session.reload.transcript_jsonl).to eq("preserve me")
+  end
+
+  it "archives the complete provider payload atomically with row deletion" do
+    set_retention_archive(:provider_session, true)
+    failed_run = Factories.job.initial_run.tap { |run| run.start!; run.fail!; run.save! }
+    session = ProviderSession.create!(resumable: failed_run, session_id: "archive", transcript_jsonl: "preserve me")
+    session.update_columns(updated_at: ProviderSession.retention_window.ago - 1.second)
+
+    expect { RetentionPolicyPruneJob.perform_now("provider_session") }.to change(RetentionArchive, :count).by(1)
+
+    archived_rows = Zlib::GzipReader.new(StringIO.new(RetentionArchive.last.archive_file.download))
+      .read.lines.map { |line| JSON.parse(line) }
+    expect(archived_rows).to contain_exactly(include("id" => session.id, "transcript_jsonl" => "preserve me"))
+    expect(ProviderSession.exists?(session.id)).to be(false)
+  end
+
   it "continues when capped provider payload cleanup leaves eligible rows" do
     stub_const("RetentionPolicyExecutors::ProviderSession::PAYLOAD_BATCH_SIZE", 1)
     stub_const("RetentionPolicyExecutors::ProviderSession::MAX_PAYLOAD_BATCHES", 1)

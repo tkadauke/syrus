@@ -145,5 +145,27 @@ RSpec.describe RetentionPolicyRegistry do
       expect(described_class.definitions.map(&:key)).not_to include(:fake_plugin_table)
       expect(RetentionPolicySetting.find_by!(retention_key: "fake_plugin_table").retention_seconds).to eq(5.days.to_i)
     end
+
+    it "isolates a broken plugin provider from core and other plugin definitions" do
+      broken_provider = Class.new do
+        include Syrus::Plugin::RetentionPolicy
+
+        def self.name = "BrokenRetentionPlugin::Policy"
+        def self.retention_definitions = raise("broken provider")
+      end
+      Syrus::PluginRegistry.register(
+        name: "broken-retention-plugin",
+        version: "1.0.0",
+        default_enabled: true,
+        disableable: true,
+        provides: { retention_policy: broken_provider }
+      )
+
+      expect(Rails.logger).to receive(:error).with(/BrokenRetentionPlugin::Policy.*broken provider/)
+
+      keys = described_class.definitions.map(&:key)
+
+      expect(keys).to include(:notification, :fake_plugin_table)
+    end
   end
 end
