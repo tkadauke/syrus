@@ -246,6 +246,10 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('StartupResourceError')
     expect(response.body).to include('navigator.standalone')
     expect(response.body).to include('display-mode: standalone')
+    expect(response.body).to include('MAX_STARTUP_RESOURCES = 40')
+    expect(response.body).to include('react_module_evaluated')
+    expect(response.body).to include('react_commit')
+    expect(response.body).to include('startup_timings')
   end
 
   # Regression: the entry was built as `spa.digested.js`, which Propshaft
