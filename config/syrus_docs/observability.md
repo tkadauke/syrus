@@ -222,25 +222,26 @@ already use.
 Event-loop rows describe timer delivery, not a direct measurement of CPU work.
 Each row retains the route at sample time plus a stable `page_session_id`,
 monotonic `callback_sequence`, `actual_interval_ms`, `expected_interval_ms`,
-focus and display-mode state, a coarse user-agent family, and only the latest
-lifecycle transition type/age. This bounded context lets one page session be
-followed through SPA navigation without retaining a lifecycle history or a
-high-cardinality user-agent string.
+`quantized_cadence_run`, focus and display-mode state, a coarse user-agent
+family, and only the latest lifecycle transition type/age. This bounded
+context lets one page session be followed through SPA navigation without
+retaining a lifecycle history or a high-cardinality user-agent string.
 
-To reproduce the sampler's classification from stored rows, order one
-`page_session_id` by `callback_sequence`. A callback interval within 2% (and
-at least 20 ms) of an integer multiple of the expected interval increments the
-quantized-cadence run; any other interval resets it. The first two delayed
-callbacks remain `plausible_main_thread_stall`. From the third consecutive
-quantized callback, an unfocused document is classified
-`timer_delivery_throttling`; a focused document is
-`ambiguous_quantized_cadence`, because periodic main-thread work can produce
-the same shape. No isolated plausible stall is suppressed. Samples while
-hidden, the interval spanning a visibility transition, and lags above the
-configured plausibility ceiling are omitted and re-baselined. Consequently,
-even `timer_delivery_throttling` is evidence about callback delivery, not proof
-that the browser, operating system, or a particular application mode caused
-it; correlate nearby long-task and slow-input rows before claiming blocking.
+To reproduce the sampler's classification from a stored row, compare
+`actual_interval_ms` with integer multiples of `expected_interval_ms`. A
+callback within the larger of 20 ms or 2% of a multiple increments
+`quantized_cadence_run`; any other callback resets it. The run count includes
+callbacks omitted by the ten-second report limiter, so it is the bounded
+aggregate needed to explain a retained row even when preceding callbacks were
+not retained, and it saturates at three because larger values do not change
+the classification. Counts below three are `plausible_main_thread_stall`; a
+count of three is `ambiguous_quantized_cadence`. Focus, display mode, and the
+latest lifecycle transition remain context only: none proves why a visible
+timer arrived late, because periodic main-thread work can produce the same
+shape. No isolated plausible stall is suppressed. Samples while hidden, the
+interval spanning a visibility transition, and lags above the configured
+plausibility ceiling are omitted and re-baselined. Correlate nearby long-task
+and slow-input rows before claiming either blocking or browser throttling.
 
 SPA startup milestones use the same browser trace ingestion path with
 `startup.*` names. To keep volume bounded, normal Safari tabs keep milestones
