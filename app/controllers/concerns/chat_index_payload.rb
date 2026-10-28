@@ -216,7 +216,7 @@ module ChatIndexPayload
         unread: PerformanceLogging.phase("chat_index.chat.unread", chat_id: chat_session.id) { chat_unread?(chat_session) },
         created_at: chat_session.created_at.iso8601,
         updated_at: chat_session.updated_at.iso8601
-      }
+      }.merge(plugin_chat_metadata.fetch(chat_session.id, {}))
     end
   end
 
@@ -543,8 +543,15 @@ module ChatIndexPayload
         claimed_ids.merge(ids)
         next if ids.empty?
 
-        { key: key, label: label, chat_session_ids: ids }
+        metadata = contribution[:metadata_by_chat_session_id].to_h.transform_keys(&:to_i).slice(*ids)
+        { key: key, label: label, chat_session_ids: ids, metadata_by_chat_session_id: metadata }
       end
+    end
+  end
+
+  def plugin_chat_metadata
+    @plugin_chat_metadata ||= plugin_chat_list_groups.each_with_object({}) do |group, result|
+      result.merge!(group.fetch(:metadata_by_chat_session_id, {}))
     end
   end
 
