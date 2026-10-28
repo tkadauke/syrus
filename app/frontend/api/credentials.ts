@@ -12,6 +12,7 @@ export type CredentialsUser = {
   profile_company: string | null
   profile_website: string | null
   display_name: string
+  handle: string
   github_handle: string | null
   profile_bio: string | null
   avatar_url: string | null
@@ -138,6 +139,7 @@ export type CredentialsInput = {
   name: string
   first_name: string
   last_name: string
+  handle: string
   profile_location: string
   profile_company: string
   profile_website: string

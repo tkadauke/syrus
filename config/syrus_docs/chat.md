@@ -35,6 +35,13 @@ with `role` currently either `owner` or `member`; the owner is the convenience
 the complete transcript without making them a participant: recipients cannot
 post or start a turn, and revocation removes access immediately. Shared chats
 appear under **Shared with me** in the sidebar.
+Typing `@` in the composer opens chat-scoped mention suggestions. The list is
+limited to the chat's human participants and rostered agents, the owner's own
+not-yet-rostered coworkers in the owner's chats, and Syrus; it never searches
+the instance user directory. Suggestions can be filtered by handle, name, or
+role and selected with the arrow keys plus Enter or Tab. User handles are
+editable in Profile, use 3–32 lowercase letters, numbers, underscores, or
+hyphens, and share the same instance-wide registry as coworker handles.
 Per-user read state lives on `chat_participants.last_read_at`, and user-role
 messages store `sender_user_id` so multi-human transcripts can attribute who
 spoke. When a session has more than one human participant, `ChatTurnJob`

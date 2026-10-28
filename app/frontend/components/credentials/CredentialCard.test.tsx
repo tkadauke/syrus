@@ -19,6 +19,7 @@ function makePayload(overrides: {
       first_name: null,
       last_name: null,
       display_name: "user@example.com",
+      handle: "user-example",
       profile_location: null,
       profile_company: null,
       profile_website: null,

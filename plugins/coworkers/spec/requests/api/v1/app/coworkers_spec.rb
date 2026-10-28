@@ -31,6 +31,41 @@ RSpec.describe "API: coworkers", type: :request do
     expect(group.fetch("chats")).to contain_exactly(include("id" => chat.id, "agent_appearance" => include("name" => "Maya", "avatar_key" => "comet")))
   end
 
+  it "scopes mention autocomplete without leaking the user or coworker directory" do
+    rostered = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", role_summary: "Researcher", workspace_repo: "https://github.com/acme/workspace.git")
+    available = Coworkers::Coworker.create!(owner_user: owner, name: "Nora", handle: "nora", workspace_repo: "https://github.com/acme/workspace.git")
+    other_owner = Factories.user(email_address: "outsider@example.com")
+    outsider = Coworkers::Coworker.create!(owner_user: other_owner, name: "Secret", handle: "secret", workspace_repo: "https://github.com/acme/other.git")
+    chat = ChatSession.create!(user: owner, title: "Team chat")
+    Coworkers::Chat.create!(coworker: rostered, chat_session: chat, role: "main")
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/#{chat.id}/mentionables"
+
+    rows = response.parsed_body.fetch("mentionables")
+    expect(rows.pluck("handle")).to eq([ owner.handle, "maya", "nora", "syrus" ])
+    expect(rows.find { |row| row["kind"] == "coworker" && row["id"] == rostered.id }).to include("subtitle" => "Researcher", "add_to_chat" => false)
+    expect(rows.find { |row| row["kind"] == "coworker" && row["id"] == available.id }).to include("add_to_chat" => true)
+    expect(rows.none? { |row| row["kind"] == "coworker" && row["id"] == outsider.id }).to be(true)
+
+    resolved = chat.resolve_mentions("Ask @maya and @syrus, but not @nora")
+    expect(resolved.pluck("kind", "handle")).to eq([ [ "coworker", "maya" ], [ "syrus", "syrus" ] ])
+
+    get "/api/v1/app/chats/#{chat.id}/mentionables", params: { q: outsider.handle }
+    expect(response.parsed_body.fetch("mentionables")).to be_empty
+  end
+
+  it "does not offer a shared-chat reader their own coworkers" do
+    recipient = Factories.user(email_address: "reader@example.com")
+    Coworkers::Coworker.create!(owner_user: recipient, name: "Private", handle: "private", workspace_repo: "https://github.com/acme/private.git")
+    chat = ChatSession.create!(user: owner, title: "Shared")
+    ChatShare.create!(chat_session: chat, target: recipient, shared_by_user: owner)
+    sign_in_as(recipient)
+
+    get "/api/v1/app/chats/#{chat.id}/mentionables"
+    expect(response.parsed_body.fetch("mentionables").pluck("handle")).not_to include("private")
+  end
+
   it "creates side chats in the coworker's Phase 1 home-branch workspace" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(
