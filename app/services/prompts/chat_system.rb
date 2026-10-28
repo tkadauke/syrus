@@ -201,7 +201,7 @@ module Prompts
     end
 
     def elaboration_guidance
-      developer_elaboration_guidance
+      [ developer_elaboration_guidance, plugin_guidance.presence ].compact.join("\n\n")
     end
 
     private
@@ -211,7 +211,15 @@ module Prompts
     end
 
     def role_framing
-      if local_mode_chat?
+      if coworker_chat?
+        <<~TEXT.strip
+          You are #{@chat_session.coworker.name}, a persistent coworker of the
+          chat owner. Your identity and standing instructions are supplied
+          below from your workspace files. Use only the explicitly granted
+          coworker tools and treat the workspace checkout as your persistent
+          home.
+        TEXT
+      elsif local_mode_chat?
         <<~TEXT.strip
           You are Syrus Chat in Local Mode for the #{chat_scope}. Your
           role is to help the operator inspect, implement, and debug code
@@ -236,7 +244,7 @@ module Prompts
     end
 
     def assistant_identity
-      "Syrus Chat"
+      coworker_chat? ? @chat_session.coworker.name : "Syrus Chat"
     end
 
     def proposal_guidance
@@ -856,6 +864,13 @@ module Prompts
 
     def coding_mode_chat?
       Feature.coding_mode_enabled? && @chat_session&.coding? && @repository.present?
+    end
+
+    def coworker_chat?
+      return false unless @chat_session&.respond_to?(:coworker)
+
+      coworker = @chat_session.coworker
+      coworker.respond_to?(:kind) && coworker.kind == "coworker"
     end
 
     def attached_repositories

@@ -174,7 +174,13 @@ class ChatTurnJob < ApplicationJob
 
   def ensure_workspace!
     workspace_path = ChatWorkspace.ensure_root!(@chat)
-    if coding_mode_active?
+    if coworker_chat?
+      # Phase 1 works directly on the coworker's home branch, one chat turn at
+      # a time. Phase 3 replaces this with per-chat branches merged at turn end.
+      workspace_path = ChatWorkspace.ensure_branch_checkout!(
+        @chat, @chat.repository, "coworkers/#{@chat.coworker.handle}"
+      )
+    elsif coding_mode_active?
       ensure_coding_checkout!
     else
       refresh_attached_repository_checkouts!(workspace_path)
@@ -219,6 +225,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def cli_invocation_env(provider)
+    return {} if coworker_chat?
+
     {
       "SYRUS_CLI_URL" => app_api_url,
       "SYRUS_CLI_INVOCATION_CONTEXT" => McpInvocationContext.issue_for_app_chat(
@@ -669,6 +677,8 @@ class ChatTurnJob < ApplicationJob
 
   def with_git_askpass_env
     env = { "GIT_TERMINAL_PROMPT" => "0" }
+    return yield env if coworker_chat?
+
     repository = @chat.repository
     return yield env unless repository
 
@@ -683,6 +693,10 @@ class ChatTurnJob < ApplicationJob
     ensure
       FileUtils.rm_f(askpass_path) if askpass_path
     end
+  end
+
+  def coworker_chat?
+    @chat.respond_to?(:coworker) && @chat.coworker.respond_to?(:kind) && @chat.coworker.kind == "coworker"
   end
 
   def record_agent_event(chunk, kind: nil, tool_name: nil, tool_input: nil,
