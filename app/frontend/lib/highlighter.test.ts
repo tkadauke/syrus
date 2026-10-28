@@ -1,11 +1,32 @@
-import { describe, expect, it } from "vitest"
-import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, tokenizeLines } from "./highlighter"
+import { describe, expect, it, vi } from "vitest"
+import * as performanceMarkers from "./performanceMarkers"
+import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, resetHighlighterCachesForTest, tokenizeLines } from "./highlighter"
 
 function textOf(line: { content: string }[]) {
   return line.map((token) => token.content).join("")
 }
 
 describe("tokenizeLines", () => {
+  it("coalesces concurrent identical tokenization and reuses the stable cached result", async () => {
+    resetHighlighterCachesForTest()
+    const first = tokenizeLines("class Job; end", "ruby")
+    const second = tokenizeLines("class Job; end", "ruby")
+    const [firstResult, secondResult] = await Promise.all([first, second])
+
+    expect(secondResult).toBe(firstResult)
+    expect(await tokenizeLines("class Job; end", "ruby")).toBe(firstResult)
+  })
+
+  it("attributes shared highlighter initialization once across concurrent callers", async () => {
+    resetHighlighterCachesForTest()
+    const startMarker = vi.spyOn(performanceMarkers, "startMarker")
+
+    await Promise.all([tokenizeLines("class Job; end", "ruby"), tokenizeLines("const job = {}", "typescript")])
+
+    expect(startMarker.mock.calls.filter(([name]) => name === "diff_review.highlighter_initialize")).toHaveLength(1)
+    startMarker.mockRestore()
+  })
+
   it("colors tokens with var(--shiki-*) custom properties, not literal colors", async () => {
     const code = "def greeting\n  \"hi\" # comment\nend"
     const lines = await tokenizeLines(code, "ruby")
