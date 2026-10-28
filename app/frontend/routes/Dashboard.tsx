@@ -837,18 +837,11 @@ export function DashboardToolbar({
   )
 }
 
-function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
-  const activeFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
-  const keepSmartFolderOnFilter = activeFolder?.kind === "user_defined"
-
+export function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   return (
     <FilterBar
       buildLink={(path, currentSearch, updates) => {
-        const nextUpdates = { ...updates }
-        if (nextUpdates.smart_folder_id != null && !keepSmartFolderOnFilter) nextUpdates.smart_folder_id = null
-
-        return dashboardLinkFromSearch(path, currentSearch, nextUpdates)
+        return dashboardLinkFromSearch(path, currentSearch, updates)
       }}
       filter={payload.filter}
       filterSchema={payload.controls.filter_schema}
