@@ -28,7 +28,7 @@ module Filters
         filter_class.from_tree(explicit_q_tree, user: user)
       elsif legacy_filter_active?
         filter_class.from_params(params, user: user)
-      elsif active_smart_folder&.builtin? && active_smart_folder.builtin_key.present?
+      elsif preset_definition
         filter_class.from_tree(self.class.preset_tree(active_smart_folder.builtin_key), user: user)
       else
         filter_class.from_params(params, smart_folder: active_smart_folder, user: user)
@@ -59,6 +59,14 @@ module Filters
 
     def legacy_filter_active?
       filter_class.from_params(params, user: user).active?
+    end
+
+    def preset_definition
+      return unless active_smart_folder&.builtin? && active_smart_folder.builtin_key.present?
+
+      SmartFolder.builtins_for_subject(subject).find do |definition|
+        definition[:filter_bar_preset] && definition.fetch(:key).to_s == active_smart_folder.builtin_key
+      end
     end
   end
 end

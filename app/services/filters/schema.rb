@@ -11,7 +11,7 @@ module Filters
     # menu shows fields in the logical grouping the registry uses.
     def for(subject: :job, user: nil)
       fields = Registry.fields(subject: subject).map { |field| chip_for(field, user: user, subject: subject) }
-      definitions = SmartFolder.builtins_by_subject[subject.to_s]
+      definitions = SmartFolder.builtins_by_subject[subject.to_s]&.select { |definition| definition[:filter_bar_preset] }
       return fields if definitions.blank?
 
       [ smart_folder_preset_chip(definitions), *fields ]
