@@ -42,6 +42,7 @@ const MARKDOWN_SAFE_LINE_CHARS = 2_000
 const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*(?:(?!\*\*)[\s\S])+\*\*|\*[^*\n]+\*)/g
 const PLAIN_URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi
 const WIDE_TABLE_COLUMN_COUNT = 5
+const COLLAPSED_TABLE_BORDER_ALLOWANCE = 1
 const MIN_COLUMN_WIDTHS: Record<TableColumnKind, number> = { compact: 44, label: 72, prose: 96 }
 const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   compact: 0.45,
@@ -427,7 +428,11 @@ function MeasuredMarkdownTable({
       const available = wrapper.getBoundingClientRect().width || wrapper.clientWidth
       if (!available) return
 
-      const nextLayout = allocateMarkdownTableColumns(measureMarkdownTableColumns(table, columnHints), available)
+      // Safari can include the collapsed outer border beyond the assigned col
+      // widths, so leave one CSS pixel instead of creating a 1px
+      // horizontal overflow on an otherwise perfectly fitting table.
+      const contentWidth = Math.max(0, available - COLLAPSED_TABLE_BORDER_ALLOWANCE)
+      const nextLayout = allocateMarkdownTableColumns(measureMarkdownTableColumns(table, columnHints), contentWidth)
       setLayout((previous) => (sameTableLayout(previous, nextLayout) ? previous : nextLayout))
     }
 
