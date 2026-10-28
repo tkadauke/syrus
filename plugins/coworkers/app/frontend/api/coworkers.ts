@@ -22,8 +22,14 @@ export type CoworkerDetail = CoworkerSummary & {
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
   grants: { capability: string; approval_policy: string }[]
 }
+export type CoworkerModelOptions = {
+  provider: string
+  provider_label: string
+  models: { id: string; label: string }[]
+}
 
-export const fetchCoworkers = () => getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary }>("/api/v1/app/coworkers")
+export const fetchCoworkers = () =>
+  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")
 export const fetchCoworker = (id: string) => getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
 export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
 export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)

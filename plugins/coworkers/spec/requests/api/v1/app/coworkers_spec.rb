@@ -6,6 +6,7 @@ RSpec.describe "API: coworkers", type: :request do
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
   it "lists only the signed-in owner's coworkers with Syrus pinned separately" do
+    owner.update!(agent_provider: "codex", codex_auth_mode: "api_key", codex_api_key: "secret")
     mine = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
     other = Factories.user(email_address: "other@example.com")
     Coworkers::Coworker.create!(owner_user: other, name: "Hidden", handle: "hidden", workspace_repo: "https://github.com/acme/other.git")
@@ -17,6 +18,9 @@ RSpec.describe "API: coworkers", type: :request do
     body = JSON.parse(response.body)
     expect(body.dig("syrus", "built_in")).to be(true)
     expect(body.fetch("coworkers")).to contain_exactly(include("id" => mine.id, "handle" => "maya"))
+    expect(body.fetch("model_options")).to include(
+      include("provider" => "codex", "models" => include(include("id" => AgentProviders::Codex.available_models.first.id)))
+    )
   end
 
   it "groups coworker chats and includes their appearance in the chat list" do

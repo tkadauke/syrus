@@ -3,9 +3,14 @@ module Api
     module App
       class CoworkersController < BaseController
         include ChatProviderOptions
+        include AgentProviderCatalogOptions
 
         def index
-          render json: { coworkers: scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).map { |coworker| summary_json(coworker) }, syrus: syrus_json }
+          render json: {
+            coworkers: scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).map { |coworker| summary_json(coworker) },
+            syrus: syrus_json,
+            model_options: model_options_json
+          }
         end
 
         def show
@@ -105,6 +110,18 @@ module Api
 
         def syrus_json
           { id: "syrus", name: "Syrus", handle: "syrus", role_summary: "Engineer", state: "active", color_key: "coral-deep", avatar_key: nil, avatar_url: nil, path: "/coworkers/syrus", built_in: true, chat_model: nil }
+        end
+
+        def model_options_json
+          agent_provider_catalog_options(Current.user).fetch(:agent_providers).filter_map do |provider|
+            next unless provider.fetch(:configured)
+
+            {
+              provider: provider.fetch(:value),
+              provider_label: provider.fetch(:label),
+              models: provider.fetch(:models)
+            }
+          end
         end
       end
     end
