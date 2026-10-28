@@ -32,6 +32,7 @@ module ContainerExecution
         on_output_line: request.on_output_line,
         kill_grace_seconds: request.kill_grace_seconds,
         silent_timeout: request.silent_timeout,
+        activity_probe: request.activity_probe,
         kind: request.kind,
         run: request.run,
         workflow: request.workflow,

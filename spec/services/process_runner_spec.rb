@@ -41,6 +41,7 @@ RSpec.describe ProcessRunner, :ci_only do
     on_output_chunk = ->(_chunk) { }
     on_output_line = ->(_line) { }
     on_spawned_process = ->(_process) { }
+    activity_probe = -> { "active" }
     resource_limits = Execution::ResourceLimits.new(
       memory_max: "268435456",
       cpu_max: "100000 100000",
@@ -62,6 +63,7 @@ RSpec.describe ProcessRunner, :ci_only do
       on_output_line: on_output_line,
       kill_grace_seconds: 0,
       silent_timeout: 1,
+      activity_probe: activity_probe,
       kind: "agent",
       display_command: "ruby -e exit",
       on_spawned_process: on_spawned_process,
@@ -84,6 +86,7 @@ RSpec.describe ProcessRunner, :ci_only do
       on_output_line: on_output_line,
       kill_grace_seconds: 0,
       silent_timeout: 1,
+      activity_probe: activity_probe,
       kind: "agent",
       display_command: "ruby -e exit",
       on_spawned_process: on_spawned_process

@@ -55,6 +55,7 @@ RSpec.describe ContainerExecution::Backend do
     runner = instance_double(ProcessRunner, run: success_result)
     nested = File.join(@container_workspace, "app")
     FileUtils.mkdir_p(nested)
+    activity_probe = -> { "active" }
     captured = nil
 
     expect(ProcessRunner).to receive(:new) do |kwargs|
@@ -74,6 +75,7 @@ RSpec.describe ContainerExecution::Backend do
         )
       ),
       env: { "CI" => "true" },
+      activity_probe: activity_probe,
       resource_limits: Execution::ResourceLimits.new(memory_max: "268435456", cpu_max: "50000 100000", io_weight: 200),
       command: [ "bash", "-c", "bin/rspec" ]
     ))
@@ -81,6 +83,7 @@ RSpec.describe ContainerExecution::Backend do
     expect(result).to be_success
     expect(captured[:backend]).to be_a(Execution::Local)
     expect(captured[:network]).to eq("grader")
+    expect(captured[:activity_probe]).to be(activity_probe)
     expect(captured[:command]).to eq([
       fake_docker_path, "run", "--rm",
       "--network", "none",
@@ -149,6 +152,7 @@ RSpec.describe ContainerExecution::Backend do
       on_output_line: nil,
       kill_grace_seconds: ProcessRunner::TERM_GRACE_SECONDS,
       silent_timeout: nil,
+      activity_probe: nil,
       kind: "grader",
       run: nil,
       workflow: nil,

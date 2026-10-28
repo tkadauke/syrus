@@ -87,6 +87,7 @@ RSpec.describe Execution::Router do
       on_output_line: nil,
       kill_grace_seconds: ProcessRunner::TERM_GRACE_SECONDS,
       silent_timeout: nil,
+      activity_probe: nil,
       kind: "grader",
       run: nil,
       workflow: nil,
