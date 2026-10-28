@@ -9,7 +9,9 @@ import type { TypedArtifact } from "../../api/artifacts"
 import type { TFunction } from "i18next"
 import { Markdown } from "../../lib/Markdown"
 import { errorMessage } from "../../lib/errorMessage"
-import { measureAsync, useMarkedRender } from "../../lib/performanceMarkers"
+import { endMarker, startMarker, useMarkedRender } from "../../lib/performanceMarkers"
+import { apiRequestTrace } from "../../lib/performanceTrace"
+import { getRecentApiRequests } from "../../api/client"
 import { useT } from "../../hooks/useT"
 import {
   fetchJobSourceDiff,
@@ -64,6 +66,39 @@ const REVIEW_COMMENTS_SPLITTER_CLASS =
   "group relative z-10 hidden h-screen w-4 shrink-0 cursor-col-resize outline-none transition-colors hover:bg-brand/5 focus-visible:bg-brand/10 lg:sticky lg:top-0 lg:block"
 const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS = "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
 const REVIEW_COMMENTS_RAIL_CLASS = "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
+const SOURCE_DIFF_API_PATH = "/api/v1/app/jobs/:id/source_diff"
+
+async function fetchProfiledSourceDiff(jobId: string, search = "") {
+  const marker = startMarker("diff_review.fetch_source_diff", { metadata: { job_id: Number(jobId), request_kind: search ? "range" : "current" } })
+  const startedAt = performance.now()
+  try {
+    const data = await fetchJobSourceDiff(jobId, search)
+    const requestPath = `/api/v1/app/jobs/${jobId}/source_diff${search}`
+    const recentRequest = [...getRecentApiRequests()].reverse().find((request) => request.path === requestPath)
+    const meta = recentRequest ? { ...recentRequest, path: SOURCE_DIFF_API_PATH } : null
+    const patchCharacters = data.files.reduce((sum, file) => sum + (file.patch?.length ?? 0), 0)
+    const changedLines = data.files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
+    const totalDuration = performance.now() - startedAt
+    const request = apiRequestTrace("source_diff", meta)
+    endMarker(marker, {
+      apiRequests: request ? [request] : [],
+      metadata: {
+        changed_line_count: Math.min(changedLines, 1_000_000),
+        file_count: Math.min(data.files.length, 10_000),
+        patch_character_count: Math.min(patchCharacters, 10_000_000),
+        truncated: data.truncated
+      },
+      spans: [
+        { name: "api_transport", duration_ms: meta?.durationMs ?? totalDuration },
+        { name: "payload_parse_prepare", duration_ms: Math.max(0, totalDuration - (meta?.durationMs ?? totalDuration)), started_at_ms: meta?.durationMs ?? totalDuration }
+      ]
+    })
+    return data
+  } catch (error) {
+    endMarker(marker, { metadata: { error: true } })
+    throw error
+  }
+}
 
 export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLineMetricProviders?: DiffLineMetricProvider[]; payload: JobDetailPayload }) {
   const { t } = useT("jobs")
@@ -71,7 +106,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
   const jobId = payload.job.id
   const sourceDiff = useQuery({
     queryKey: ["jobs", String(jobId), "review_source_diff"],
-    queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId)), { metadata: { job_id: jobId } }),
+    queryFn: () => fetchProfiledSourceDiff(String(jobId)),
     placeholderData: keepPreviousData
   })
   const settingsQuery = useQuery({
@@ -117,7 +152,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
   const rangeDiff = useQuery({
     enabled: sourceDiff.isSuccess && Boolean(selectedRange),
     queryKey: ["jobs", String(jobId), "review_source_diff_range", selectedRange?.baseSha, selectedRange?.headSha],
-    queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId), rangeSearch), { metadata: { job_id: jobId } })
+    queryFn: () => fetchProfiledSourceDiff(String(jobId), rangeSearch)
   })
   const activeVersionId = selectedRange ? (rangeDiff.data?.version?.id ?? null) : (selectedVersionId ?? defaultVersionId)
   const historicalVersionSelected = !selectedRange && activeVersionId != null && activeVersionId !== payloadVersionId

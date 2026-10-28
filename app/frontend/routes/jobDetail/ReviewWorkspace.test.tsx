@@ -2037,15 +2037,21 @@ describe("ReviewWorkspace", () => {
   })
 
   it("marks the source diff fetch as a diff_review.fetch_source_diff span", async () => {
-    const measureAsyncSpy = vi.spyOn(performanceMarkers, "measureAsync")
+    const startMarkerSpy = vi.spyOn(performanceMarkers, "startMarker")
+    const endMarkerSpy = vi.spyOn(performanceMarkers, "endMarker")
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     renderWorkspace()
 
-    await waitFor(() =>
-      expect(measureAsyncSpy).toHaveBeenCalledWith("diff_review.fetch_source_diff", expect.any(Function), expect.objectContaining({ metadata: { job_id: 42 } }))
-    )
+    await waitFor(() => expect(startMarkerSpy).toHaveBeenCalledWith("diff_review.fetch_source_diff", expect.objectContaining({ metadata: { job_id: 42, request_kind: "current" } })))
+    expect(endMarkerSpy).toHaveBeenCalledWith(expect.objectContaining({ name: "diff_review.fetch_source_diff" }), expect.objectContaining({
+      metadata: expect.objectContaining({ file_count: 2, patch_character_count: expect.any(Number) }),
+      spans: expect.arrayContaining([
+        expect.objectContaining({ name: "api_transport" }),
+        expect.objectContaining({ name: "payload_parse_prepare" })
+      ])
+    }))
     vi.restoreAllMocks()
   })
 
