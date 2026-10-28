@@ -664,7 +664,10 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
         <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
           <RelativeTimestamp value={repository.last_poll_started_at || latest.recorded_at} />
         </span>
-        <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-amber-700 dark:text-amber-300" title={`#${latest.issue_number}: ${latest.error_message}`}>
+        <div
+          className="mt-0.5 max-w-xs truncate font-mono text-xs text-amber-700 dark:text-amber-300"
+          title={`#${latest.issue_number}: ${latest.error_message}`}
+        >
           #{latest.issue_number}: {latest.error_message}
         </div>
       </div>
