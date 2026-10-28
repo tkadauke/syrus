@@ -22,7 +22,17 @@ ownership does not add administrator or repair tools. Every core tool on the
 surface names the coworker grant required to advertise it, and interactive
 question/suggestion tools are present only while handling an owner-authored
 turn. Plugin chat tools are excluded unless their tool set and definitions
-explicitly opt into coworker use.
+explicitly opt into coworker use. The Agent Memory plugin opts in only its
+read, search, and list tools. Shared-chat reads are restricted to the
+coworker's own chats and chats explicitly shared with that coworker, even
+when its owner is an administrator.
+
+Grant approval policies are enforced at invocation: `auto` executes directly,
+while `confirm` and `queue` create the standard pending-action card for owner
+approval. Revoking either workspace grant also changes the provider-native
+tool boundary. Claude can deny file and shell tools independently; providers
+without that separation fail closed rather than starting with permissions
+they cannot enforce.
 
 In the Phase 1 workspace model, a turn runs directly in a checkout of the
 coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`, and
