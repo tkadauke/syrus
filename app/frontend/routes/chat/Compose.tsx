@@ -47,6 +47,7 @@ import {
   deleteQueuedChatMessage,
   enqueueChatMessage,
   fetchChatWhiteboard,
+  fetchChatMentionables,
   fetchNewChat,
   patchChatGoal,
   patchChatWhiteboard,
@@ -70,6 +71,7 @@ import {
   type ChatCreatedPayload,
   type ChatDraftMessage,
   type ChatMode,
+  type ChatMentionable,
   type ChatPayload,
   type ChatPayloadUpdate,
   type ChatProposal,
@@ -80,6 +82,7 @@ import {
 } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
+import { Avatar } from "../../components/Avatar"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
@@ -234,6 +237,7 @@ export function Compose({
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [clearConfirmationOpen, setClearConfirmationOpen] = useState(false)
   const [scheduleModal, setScheduleModal] = useState<{ time: string; body: string } | null>(null)
   const bugReportTrigger = useBugReportTrigger()
@@ -687,6 +691,17 @@ export function Compose({
     }
   })
   const canStashDraft = !hideScratchpadControls && (text.trim().length > 0 || attachments.length > 0)
+  const mentionToken = text.match(/(?:^|\s)@([a-z0-9_-]*)$/i)
+  const mentionQuery = mentionToken?.[1] ?? null
+  const mentionables = useQuery({
+    queryKey: ["chat-mentionables", chatId, mentionQuery],
+    queryFn: () => fetchChatMentionables(chatId, mentionQuery || ""),
+    enabled: mentionQuery != null && !send.isPending,
+    staleTime: 15_000
+  })
+  const mentionOptions = mentionables.data?.mentionables ?? []
+  const mentionPaletteOpen = mentionQuery != null && mentionOptions.length > 0 && pendingConfirmation == null
+  useEffect(() => setActiveMentionIndex(0), [mentionQuery])
   const commandPaletteOpen =
     commandQuery != null &&
     matchingCommands.length > 0 &&
@@ -1547,6 +1562,30 @@ export function Compose({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionPaletteOpen && (event.key === "Tab" || event.key === "Enter")) {
+      event.preventDefault()
+      insertMention(mentionOptions[activeMentionIndex] || mentionOptions[0])
+      return
+    }
+
+    if (mentionPaletteOpen && event.key === "ArrowDown") {
+      event.preventDefault()
+      setActiveMentionIndex((current) => (current + 1) % mentionOptions.length)
+      return
+    }
+
+    if (mentionPaletteOpen && event.key === "ArrowUp") {
+      event.preventDefault()
+      setActiveMentionIndex((current) => (current - 1 + mentionOptions.length) % mentionOptions.length)
+      return
+    }
+
+    if (mentionPaletteOpen && event.key === "Escape") {
+      event.preventDefault()
+      updateText(text.slice(0, mentionToken?.index == null ? text.length : mentionToken.index + (mentionToken[0].startsWith(" ") ? 1 : 0)))
+      return
+    }
+
     // Only plain Tab (never Shift+Tab or a modifier chord) accepts the
     // ghost suggestion, and only while the focused composer is empty
     // with the ghost rendered (both implied by `ghostSuggestion` on
@@ -1613,6 +1652,19 @@ export function Compose({
     const leadingWhitespace = text.match(/^\s*/)?.[0] || ""
     setText(`${leadingWhitespace}${command.name} `)
     setPendingConfirmation(null)
+  }
+
+  function insertMention(mentionable: ChatMentionable) {
+    if (!mentionToken || mentionToken.index == null) return
+    const leadingSpace = mentionToken[0].startsWith(" ") ? " " : ""
+    const start = mentionToken.index
+    const nextText = `${text.slice(0, start)}${leadingSpace}@${mentionable.handle} `
+    updateText(nextText)
+    setActiveMentionIndex(0)
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(nextText.length, nextText.length)
+    })
   }
 
   function updateText(nextText: string) {
@@ -2221,8 +2273,8 @@ export function Compose({
           ) : null}
           <div className="relative">
             <textarea
-              aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-              aria-expanded={commandPaletteOpen}
+              aria-controls={mentionPaletteOpen ? "chat-mention-palette" : commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+              aria-expanded={mentionPaletteOpen || commandPaletteOpen}
               aria-haspopup="listbox"
               className={`min-h-11 w-full resize-none overflow-y-hidden rounded border py-2.5 pl-3 pr-3 text-base leading-6 focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 ${
                 bangCommandModeActive
@@ -2252,6 +2304,43 @@ export function Compose({
               rows={1}
               value={text}
             />
+            {mentionPaletteOpen ? (
+              <div
+                className="absolute bottom-full z-30 mb-2 max-h-72 w-full overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-xl"
+                id="chat-mention-palette"
+                role="listbox"
+              >
+                {mentionOptions.map((mentionable, index) => (
+                  <button
+                    aria-selected={index === activeMentionIndex}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left ${index === activeMentionIndex ? "bg-surface-raised" : "hover:bg-surface-raised"}`}
+                    key={`${mentionable.kind}-${mentionable.id}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insertMention(mentionable)}
+                    role="option"
+                    type="button"
+                  >
+                    <Avatar
+                      avatarKey={mentionable.avatar_key}
+                      avatarUrl={mentionable.avatar_url}
+                      colorKey={mentionable.color_key}
+                      name={mentionable.display_name}
+                      size="xs"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline gap-2">
+                        <span className="font-medium text-text-primary">@{mentionable.handle}</span>
+                        <span className="truncate text-sm text-text-secondary">{mentionable.display_name}</span>
+                      </span>
+                      {mentionable.subtitle ? <span className="block truncate text-xs text-text-muted">{mentionable.subtitle}</span> : null}
+                    </span>
+                    <span className="rounded bg-surface-raised px-1.5 py-0.5 text-[10px] uppercase text-text-muted">
+                      {mentionable.add_to_chat ? t("mention_add_to_chat") : t(`mention_kind_${mentionable.kind}`)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {ghostSuggestion ? (
               <div
                 className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-start gap-2 overflow-hidden py-2.5 pl-3 pr-1.5 text-base leading-6 sm:py-2 sm:text-sm sm:leading-5"

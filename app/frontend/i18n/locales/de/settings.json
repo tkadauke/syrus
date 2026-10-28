@@ -1137,6 +1137,8 @@
     "display_name": "Anzeigename",
     "first_name": "Vorname",
     "last_name": "Nachname",
+    "handle": "Handle",
+    "handle_help": "3–32 Kleinbuchstaben, Zahlen, Unterstriche oder Bindestriche. Verwende keine vertraulichen Informationen.",
     "company": "Unternehmen",
     "location": "Standort",
     "website": "Webseite",

@@ -295,6 +295,20 @@ function CredentialsForm({
                 <Form.Input maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
               </Form.Field>
             </div>
+            <Form.Field>
+              <Form.Label>{t("account_settings.handle")}</Form.Label>
+              <Form.Input
+                autoComplete="off"
+                maxLength={32}
+                minLength={3}
+                onChange={(event) => setValues({ ...values, handle: event.target.value.toLowerCase() })}
+                pattern="[a-z0-9_-]{3,32}"
+                required
+                type="text"
+                value={values.handle}
+              />
+              <Form.HelpText>{t("account_settings.handle_help")}</Form.HelpText>
+            </Form.Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Form.Field>
                 <Form.Label>{t("account_settings.company")}</Form.Label>
@@ -787,6 +801,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     name: payload.user.name || "",
     first_name: payload.user.first_name || "",
     last_name: payload.user.last_name || "",
+    handle: payload.user.handle || "",
     profile_location: payload.user.profile_location || "",
     profile_company: payload.user.profile_company || "",
     profile_website: payload.user.profile_website || "",

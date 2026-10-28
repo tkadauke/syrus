@@ -17,8 +17,10 @@ module Api
 
         def update
           attrs = credentials_params.to_h.reject { |key, value| blank_write_only_value?(key, value) }
+          handle_submitted = attrs.key?("handle")
+          requested_handle = attrs.delete("handle")
 
-          if Current.user.update(attrs)
+          if update_user_and_handle(attrs, requested_handle, handle_submitted: handle_submitted)
             refresh_affected_provider_availability(Current.user.saved_changes.keys)
             render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.updated"))
           else
@@ -282,6 +284,7 @@ module Api
             profile_company: user.profile_company,
             profile_website: user.profile_website,
             display_name: user.display_name,
+            handle: user.handle,
             github_handle: user.github_handle,
             profile_bio: user.profile_bio,
             avatar_url: user.avatar_url,
@@ -398,12 +401,26 @@ module Api
         end
 
         def credentials_params
-          params.expect(user: [ :name, :first_name, :last_name, :github_handle, :profile_bio, :avatar_url,
+          params.expect(user: [ :name, :first_name, :last_name, :handle, :github_handle, :profile_bio, :avatar_url,
                                 :profile_company, :profile_website,
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :gemini_api_key, :muse_api_key, :github_token,
                                 :agent_max_turns, :recent_chats_group_size, :scheduling_paused, :mobile_chat_auto_hide_header, :auto_approve_mode, :locale,
                                 { provider_availability_pause_thresholds: User.agent_providers.map(&:to_sym) } ])
+        end
+
+        def update_user_and_handle(attrs, requested_handle, handle_submitted:)
+          Current.user.transaction do
+            Current.user.update!(attrs)
+            HandleRegistry.rename!(owner: Current.user, handle: requested_handle) if handle_submitted && requested_handle != Current.user.handle
+          end
+          true
+        rescue ActiveRecord::RecordInvalid => error
+          error.record.errors.each { |item| Current.user.errors.add(:handle, item.message) } if error.record.is_a?(Handle)
+          false
+        rescue ActiveRecord::RecordNotUnique
+          Current.user.errors.add(:handle, :taken)
+          false
         end
 
         def onboarding_in_progress?

@@ -20,6 +20,7 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
       profile_company: null,
       profile_website: null,
       display_name: "Ada Lovelace",
+      handle: "ada-lovelace",
       github_handle: null,
       profile_bio: null,
       avatar_url: null,
@@ -64,9 +65,7 @@ function renderRoute(payload = credentialsPayload(), route: ReactElement = <Cred
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
-        {route}
-      </MemoryRouter>
+      <MemoryRouter>{route}</MemoryRouter>
     </QueryClientProvider>
   )
   return fetchSpy
@@ -119,10 +118,7 @@ describe("AccountSettings ApiTokenPanel", () => {
     fireEvent.click(rotateButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/credentials/rotate_api_token",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/rotate_api_token", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -141,10 +137,7 @@ describe("AccountSettings ApiTokenPanel", () => {
     fireEvent.click(revokeButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/credentials/revoke_api_token",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/revoke_api_token", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -155,13 +148,14 @@ describe("AccountSettings ApiTokenPanel", () => {
     renderRoute()
 
     const rotateButton = await screen.findByRole("button", { name: "Rotate token" })
-    await act(async () => { fireEvent.click(rotateButton) })
+    await act(async () => {
+      fireEvent.click(rotateButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/credentials/rotate_api_token",
-      expect.anything()
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials/rotate_api_token", expect.anything())
   })
 
   it("does not call the revoke API when the user cancels", async () => {
@@ -171,13 +165,14 @@ describe("AccountSettings ApiTokenPanel", () => {
     renderRoute()
 
     const revokeButton = await screen.findByRole("button", { name: "Revoke" })
-    await act(async () => { fireEvent.click(revokeButton) })
+    await act(async () => {
+      fireEvent.click(revokeButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/credentials/revoke_api_token",
-      expect.anything()
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials/revoke_api_token", expect.anything())
   })
 })
 
@@ -230,17 +225,19 @@ describe("AccountSettings form primitives", () => {
 
     await waitFor(() => {
       const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
-      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
-        name: "Ada Operator",
-        first_name: "Ada",
-        last_name: "Operator",
-        profile_company: "Analytical Engines",
-        profile_location: "London",
-        profile_website: "https://example.com",
-        github_handle: "ada",
-        avatar_url: "https://example.com/avatar.png",
-        profile_bio: "Keeps forms honest."
-      }))
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(
+        expect.objectContaining({
+          name: "Ada Operator",
+          first_name: "Ada",
+          last_name: "Operator",
+          profile_company: "Analytical Engines",
+          profile_location: "London",
+          profile_website: "https://example.com",
+          github_handle: "ada",
+          avatar_url: "https://example.com/avatar.png",
+          profile_bio: "Keeps forms honest."
+        })
+      )
     })
   })
 
@@ -265,13 +262,16 @@ describe("AccountSettings form primitives", () => {
 
   it("cross-links chat credentials to default agent settings and repository overrides", async () => {
     const base = credentialsPayload()
-    renderRoute(credentialsPayload({
-      options: {
-        ...base.options,
-        chat_providers: ["claude"],
-        chat_provider_labels: { claude: "Claude" }
-      }
-    }), <CredentialsRoute />)
+    renderRoute(
+      credentialsPayload({
+        options: {
+          ...base.options,
+          chat_providers: ["claude"],
+          chat_provider_labels: { claude: "Claude" }
+        }
+      }),
+      <CredentialsRoute />
+    )
 
     await screen.findByLabelText("Chat provider")
     expect(screen.getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/settings/agent")
@@ -292,10 +292,14 @@ describe("AccountSettings form primitives", () => {
   it("renders and saves the mobile chat auto-hide header preference", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/credentials" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(credentialsPayload({
-          user: { ...credentialsPayload().user, mobile_chat_auto_hide_header: true },
-          message: "Credentials updated."
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            credentialsPayload({
+              user: { ...credentialsPayload().user, mobile_chat_auto_hide_header: true },
+              message: "Credentials updated."
+            })
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse(credentialsPayload()))
@@ -312,16 +316,20 @@ describe("AccountSettings form primitives", () => {
 
     const checkbox = await screen.findByRole("checkbox", { name: "Auto-hide chat header on mobile" })
     expect(checkbox).not.toBeChecked()
-    expect(screen.getByText("Hides the top app header while you scroll down in a chat and reveals it when you scroll up or tap the chat background.")).toBeInTheDocument()
+    expect(
+      screen.getByText("Hides the top app header while you scroll down in a chat and reveals it when you scroll up or tap the chat background.")
+    ).toBeInTheDocument()
 
     fireEvent.click(checkbox)
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
       const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
-      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
-        mobile_chat_auto_hide_header: true
-      }))
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(
+        expect.objectContaining({
+          mobile_chat_auto_hide_header: true
+        })
+      )
     })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
   })
