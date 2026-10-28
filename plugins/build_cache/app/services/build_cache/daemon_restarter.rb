@@ -29,7 +29,7 @@ module BuildCache
       def restart!(env:)
         current_run = Thread.current[:syrus_current_run]
         capture = ProcessRunner.new(
-          env: env, command: [ "sccache", "--stop-server" ], mounts: ProcessRunner.mounts(Dir.pwd),
+          env: env, command: [ "sccache", "--stop-server" ], mounts: ProcessRunner.probe_mounts,
           network: "grader", timeout: TIMEOUT_SECONDS, kind: "runtime_probe", run: current_run,
           workflow: current_run&.workflow
         ).capture

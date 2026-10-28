@@ -201,7 +201,7 @@ The expected filesystem layout is:
 | `/opt/syrus/current` | symlink to the active release |
 | `/opt/syrus/shared/bundle` | Bundler install path reused by releases |
 | `/usr/local/libexec/syrus/syrus-macos-updater` | root-owned updater executed by launchd, outside the release tree |
-| `/var/lib/syrus` | `SYRUS_DATA_ROOT`: clone cache, workflow workspaces (`workflows/<workflow_id>`), per-workflow grader scratch beside them (`workflow-scratch/<workflow_id>`: grader checkouts, prepare caches, archive staging), search SQLite file if configured there, and `.syrus-worker-storage-id` |
+| `/var/lib/syrus` | `SYRUS_DATA_ROOT`: clone cache, workflow workspaces (`workflows/<workflow_id>`), per-workflow grader scratch beside them (`workflow-scratch/<workflow_id>`: grader checkouts, prepare caches, archive staging), version/capability probe scratch (`runtime-probes/`), search SQLite file if configured there, and `.syrus-worker-storage-id` |
 | `/var/log/syrus/worker.log` / `worker.err.log` | launchd stdout/stderr logs |
 | `/etc/syrus/worker.env` | root-owned env file with app, DB, storage, and worker capability credentials |
 

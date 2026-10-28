@@ -4,6 +4,7 @@ require "ipaddr"
 require "fileutils"
 require "pathname"
 require "tempfile"
+require "tmpdir"
 
 # Small shared wrapper for subprocess lifetime management. Callers still own
 # command construction and output parsing; this class owns the boring parts:
@@ -473,6 +474,31 @@ class ProcessRunner
 
   def self.mounts(workdir, read_write: nil, read_only: [], artifacts: nil)
     Mounts.new(workdir: workdir, read_write: read_write || workdir, read_only: read_only, artifacts: artifacts)
+  end
+
+  # Where a version/capability probe runs.
+  #
+  # `#capture` puts its named pipes in a temporary directory under the
+  # runner's workdir, so the workdir has to be writable. `Dir.pwd` is not: in
+  # the deployed image it is the application root, owned by root and copied in
+  # read-only, so every probe mounted there died on `Errno::EACCES` creating
+  # its pipe directory. A probe has no workspace of its own and no reason to
+  # write into the application root, so it gets a directory under the worker's
+  # data root -- the volume the worker already writes everything else to.
+  PROBE_SCRATCH_DIR = "runtime-probes".freeze
+
+  def self.probe_mounts
+    mounts(probe_workdir.to_s)
+  end
+
+  def self.probe_workdir
+    dir = WorkflowWorkspace.data_root.join(PROBE_SCRATCH_DIR)
+    FileUtils.mkdir_p(dir)
+    dir
+  rescue SystemCallError
+    # A probe that cannot get a scratch directory should report "tool
+    # unavailable" through its own capture, not raise out of whatever asked.
+    Pathname.new(Dir.tmpdir)
   end
 
   def self.normalize_mounts(value)

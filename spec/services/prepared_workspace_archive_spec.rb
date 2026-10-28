@@ -95,6 +95,39 @@ RSpec.describe PreparedWorkspaceArchive do
 
       expect(archive.send(:compressor_command)).to eq([ "gzip", "-1", "-c" ])
     end
+
+    # Regression: the probe ran with the application root as its working
+    # directory, where `ProcessRunner#capture` could not create the directory
+    # for its named pipes. The resulting Errno::EACCES escaped the probe and
+    # aborted every archive publish, so no workflow could ever restore another
+    # workflow's prepared dependency layer and every grader fanout re-ran the
+    # full prepare on every host.
+    it "reports pigz unavailable rather than raising when the probe cannot run" do
+      described_class.remove_instance_variable(:@pigz_available) if described_class.instance_variable_defined?(:@pigz_available)
+      allow(ProcessRunner).to receive(:new).and_raise(Errno::EACCES, "/rails/process-runner-capture")
+
+      expect { described_class.pigz_available? }.not_to raise_error
+      expect(described_class.pigz_available?).to be(false)
+    ensure
+      described_class.remove_instance_variable(:@pigz_available) if described_class.instance_variable_defined?(:@pigz_available)
+    end
+
+    it "probes somewhere writable instead of the application root" do
+      described_class.remove_instance_variable(:@pigz_available) if described_class.instance_variable_defined?(:@pigz_available)
+      captured = nil
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        captured = kwargs[:mounts]
+        instance_double(ProcessRunner, capture: instance_double(ProcessRunner::Result, success?: true))
+      end
+
+      described_class.pigz_available?
+
+      expect(captured.workdir.to_s).to start_with(WorkflowWorkspace.data_root.to_s)
+      expect(captured.workdir.to_s).not_to eq(Dir.pwd)
+      expect(File.writable?(captured.workdir.to_s)).to be(true)
+    ensure
+      described_class.remove_instance_variable(:@pigz_available) if described_class.instance_variable_defined?(:@pigz_available)
+    end
   end
 
   it "reads only the bounded tail of archive diagnostics" do

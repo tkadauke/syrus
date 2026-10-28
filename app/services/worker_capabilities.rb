@@ -480,7 +480,7 @@ class WorkerCapabilities
       capture = ProcessRunner.new(
         # Keep the probe environment scrubbed while exposing tools installed by
         # the worker image in directories outside the sandbox's default PATH.
-        env: { "PATH" => ENV.fetch("PATH", "") }, command: command, mounts: ProcessRunner.mounts(Dir.pwd),
+        env: { "PATH" => ENV.fetch("PATH", "") }, command: command, mounts: ProcessRunner.probe_mounts,
         network: "grader", timeout: PROBE_TIMEOUT_SECONDS, kind: "runtime_probe"
       ).capture
       debug_log { "[WorkerCapabilities] probe timed out #{command.first}" } if capture.result.timed_out?

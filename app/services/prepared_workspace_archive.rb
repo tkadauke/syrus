@@ -56,14 +56,21 @@ class PreparedWorkspaceArchive
 
   # Memoized for the life of the process: re-shelling out to check for
   # pigz on every publish would defeat the point of a cheap compressor.
+  #
+  # Any failure here means "compress with gzip", never "give up on the
+  # archive". This probe is the only thing standing between a worker and
+  # cross-workflow dependency reuse, and when it raised instead of answering,
+  # every publish aborted and every workflow on every host re-ran the full
+  # prepare -- minutes of `bundle install` per grader fanout -- because a
+  # compressor probe could not create a temporary directory.
   def self.pigz_available?
     return @pigz_available if defined?(@pigz_available)
 
     @pigz_available = ProcessRunner.new(
-      env: {}, command: [ "pigz", "--version" ], mounts: ProcessRunner.mounts(Dir.pwd),
+      env: {}, command: [ "pigz", "--version" ], mounts: ProcessRunner.probe_mounts,
       network: "grader", timeout: 10, kind: "runtime_probe"
     ).capture.success?
-  rescue Errno::ENOENT
+  rescue StandardError
     @pigz_available = false
   end
 

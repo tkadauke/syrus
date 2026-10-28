@@ -23,11 +23,11 @@ class ChatTurnJob < ApplicationJob
       return @claude_file_flag_supported unless @claude_file_flag_supported.nil?
 
       capture = ProcessRunner.new(
-        env: {}, command: [ "claude", "--help" ], mounts: ProcessRunner.mounts(Dir.pwd),
+        env: {}, command: [ "claude", "--help" ], mounts: ProcessRunner.probe_mounts,
         network: "grader", timeout: 10, kind: "runtime_probe"
       ).capture
       @claude_file_flag_supported = capture.success? && "#{capture.stdout}#{capture.stderr}".match?(/--file\b/)
-    rescue Errno::ENOENT
+    rescue StandardError
       @claude_file_flag_supported = false
     end
   end
