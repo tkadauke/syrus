@@ -54,6 +54,32 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
   end
 
   describe "GET /sessions" do
+    describe "SmartFolder/FilterBar conformance" do
+      let!(:contract_running) do
+        agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 2.minutes.ago })
+      end
+      let!(:contract_failed) do
+        agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "failed", started_at: 4.minutes.ago, finished_at: 3.minutes.ago })
+      end
+      let(:smart_folder_contract_subject) { AgentActivity::SmartFolders::SUBJECT }
+      let(:smart_folder_contract_folder) do
+        SmartFolder.ensure_builtins_for_subject!(smart_folder_contract_subject)
+        SmartFolder.builtins(smart_folder_contract_subject).find_by!(name: "Running")
+      end
+      let(:smart_folder_contract_seed_filter) { Filters::SmartFolderResolution.preset_tree("agent_activity_running") }
+      let(:smart_folder_contract_seed_ids) { [ contract_running.id ] }
+      let(:smart_folder_contract_replacement_filter) { { "and" => [ { "field" => "status", "op" => "is", "value" => "failed" } ] } }
+      let(:smart_folder_contract_replacement_ids) { [ contract_failed.id ] }
+      let(:smart_folder_contract_unfiltered_ids) { [ contract_running.id, contract_failed.id ] }
+      let(:smart_folder_contract_request) { ->(params) { get "/api/v1/app/admin/agent_activity/sessions", params: params } }
+      let(:smart_folder_contract_body) { parse_body }
+      let(:smart_folder_contract_result_ids) { smart_folder_contract_body.fetch("sessions").map { |row| row.dig("job", "id") } }
+
+      before { sign_in_as(admin) }
+
+      include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :admin
+    end
+
     it "rejects non-admins" do
       sign_in_as(member)
 
