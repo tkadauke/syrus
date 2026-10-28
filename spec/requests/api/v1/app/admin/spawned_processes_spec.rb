@@ -250,6 +250,18 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     get "/api/v1/app/admin/processes", params: { smart_folder_id: folder.id }
     expect(parse_body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree(folder.builtin_key))
 
+    added = { "and" => [
+      { "field" => "smart_folder_preset", "op" => "is", "value" => folder.builtin_key },
+      { "field" => "kind", "op" => "is", "value" => "agent" }
+    ] }
+    edited = { "and" => [ { "field" => "kind", "op" => "is", "value" => "grader" } ] }
+    contradictory = { "and" => [ { "field" => "state", "op" => "is", "value" => "finished" } ] }
+
+    [ added, edited, contradictory ].each do |tree|
+      get "/api/v1/app/admin/processes", params: { smart_folder_id: folder.id, q: Filters::QueryParam.encode(tree) }
+      expect(parse_body["filter"]).to eq(tree)
+    end
+
     get "/api/v1/app/admin/processes", params: {
       smart_folder_id: folder.id,
       q: Filters::QueryParam.encode("and" => [])
