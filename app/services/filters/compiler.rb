@@ -8,10 +8,11 @@ module Filters
       new(scope: scope, user: user, subject: subject).compile(node)
     end
 
-    def initialize(scope:, user: nil, subject: :job)
+    def initialize(scope:, user: nil, subject: :job, preset_stack: [])
       @scope = scope
       @user = user
       @subject = Filters.subject_for(subject)
+      @preset_stack = preset_stack
     end
 
     def compile(node)
@@ -29,7 +30,7 @@ module Filters
 
     def compile_and(node)
       node.children.reduce(@scope) do |scope, child|
-        self.class.new(scope: scope, user: @user, subject: @subject.name).compile(child)
+        child_compiler(scope).compile(child)
       end
     end
 
@@ -37,7 +38,7 @@ module Filters
       return @scope if node.children.empty?
 
       child_scopes = node.children.map do |child|
-        self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(child)
+        child_compiler(@scope).compile(child)
       end
 
       direct_or_scope(child_scopes) || subquery_or_scope(child_scopes)
@@ -60,14 +61,38 @@ module Filters
 
     def compile_not(node)
       primary_key = primary_key_attribute
-      child_scope = self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(node.child)
+      child_scope = child_compiler(@scope).compile(node.child)
 
       @scope.where(primary_key_column.not_in(primary_key_subquery(child_scope, primary_key)))
     end
 
     def compile_chip(node)
+      return compile_smart_folder_preset(node) if node.field == Filters::SmartFolderResolution::PRESET_FIELD
+
       chip_class = @subject.find_chip(node.field)
       chip_class.new(scope: @scope, op: node.op, value: node.value, user: @user).apply
+    end
+
+    def compile_smart_folder_preset(node)
+      raise ArgumentError, "smart_folder_preset: unsupported operator #{node.op.inspect}" unless node.op.to_s == "is"
+
+      key = node.value.to_s
+      raise ArgumentError, "recursive smart folder preset: #{key.inspect}" if @preset_stack.include?(key)
+
+      definition = SmartFolder.builtins_for_subject(@subject.name).find { |candidate| candidate.fetch(:key).to_s == key }
+      raise ArgumentError, "unknown smart folder preset: #{key.inspect}" unless definition
+
+      ast = Filters::Ast.parse(definition.fetch(:filter))
+      self.class.new(
+        scope: @scope,
+        user: @user,
+        subject: @subject.name,
+        preset_stack: @preset_stack + [ key ]
+      ).compile(ast)
+    end
+
+    def child_compiler(scope)
+      self.class.new(scope: scope, user: @user, subject: @subject.name, preset_stack: @preset_stack)
     end
 
     def primary_key_attribute
