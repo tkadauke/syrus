@@ -72,6 +72,57 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(child.reload).to be_approved
   end
 
+  it "reports the Epic merge-train wait for every approved member of a linear Epic" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    first = queue_job(issue_number: 1, approved_at: 3.minutes.ago, epic: epic)
+    second = queue_job(issue_number: 2, approved_at: 2.minutes.ago, parent_job: first, epic: epic)
+    third = queue_job(issue_number: 3, approved_at: 1.minute.ago, parent_job: second, epic: epic)
+
+    entries = described_class.entries(Job.where(id: [ first.id, second.id, third.id ]))
+
+    expect(entries.map(&:blocked_reason)).to all(eq({ key: "waiting_epic_merge_train" }))
+  end
+
+  it "keeps an outside-Epic stack parent as an individual merge blocker" do
+    parent = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    child = queue_job(issue_number: 2, approved_at: 1.minute.ago, parent_job: parent, epic: epic)
+
+    entry = described_class.entries(Job.where(id: child.id)).first
+
+    expect(entry.blocked_reason).to eq({ key: "waiting_to_merge", params: { slug: parent.slug } })
+  end
+
+  it "keeps a same-Epic child blocked while its stack parent is not approved for the train" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    parent = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 1,
+      pr_number: 1,
+      state: "implemented"
+    )
+    child = queue_job(issue_number: 2, approved_at: 1.minute.ago, parent_job: parent, epic: epic)
+
+    entry = described_class.entries(Job.where(id: child.id)).first
+
+    expect(entry.blocked_reason).to eq({ key: "waiting_epic_siblings" })
+    expect(entry.waiting_for_jobs).to contain_exactly(parent)
+  end
+
+  it "treats a landing same-Epic stack parent as ready for the active train" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    parent = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+    parent.start_landing!
+    parent.save!
+    child = queue_job(issue_number: 2, approved_at: 1.minute.ago, parent_job: parent, epic: epic)
+
+    entry = described_class.entries(Job.where(id: child.id)).first
+
+    expect(entry.blocked_reason).to eq({ key: "waiting_epic_merge_train" })
+  end
+
   it "skips a landing-start blocker while its retry backoff is active" do
     blocked = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)

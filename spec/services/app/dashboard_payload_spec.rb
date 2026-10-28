@@ -1088,6 +1088,39 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result.dig(:landing_queue, :status, :summary)).not_to include("should pick it up shortly")
     end
 
+    it "reports merge-train waits instead of sequential blockers for an approved linear Epic" do
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      first = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
+      second = Factories.job_record(user: user, repository: repo, epic: epic, parent_job: first, state: "implemented", pr_number: 102)
+      third = Factories.job_record(user: user, repository: repo, epic: epic, parent_job: second, state: "implemented", pr_number: 103)
+      [ first, second, third ].each { |job| job.approve!(via: "github_review") }
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      items = result[:items].index_by { |item| item[:id] }
+
+      expect(items.values_at(first.id, second.id, third.id).map { |item| item[:landing_queue_blocked_reason] }).to all(be_nil)
+      expect(items.values_at(first.id, second.id, third.id).map { |item| item[:landing_queue_wait_reason] }).to all(
+        eq({ "key" => "waiting_epic_merge_train" })
+      )
+    end
+
+    it "retains the active merge-train reason when the cached snapshot has the generic Epic wait" do
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
+      child.approve!(via: "github_review")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+      MergeTrain.create!(epic: epic, repository: repo, base_branch: repo.default_branch)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      item = result[:items].find { |row| row[:id] == child.id }
+
+      expect(item[:landing_queue_blocked_reason]).to be_nil
+      expect(item[:landing_queue_wait_reason]).to eq({ key: "waiting_active_epic_merge_train" })
+    end
+
     it "reports ordinary epicless job-bundle participation as neutral queue status" do
       Feature.create!(slug: "epicless_job_bundling", category: "Labs", name: "Epicless Job bundling", enabled: true)
       repo.update!(auto_merge_enabled: true)
