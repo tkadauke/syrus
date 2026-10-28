@@ -54,6 +54,12 @@ function folderPaths() {
 }
 
 const ISSUE_FILTER_SCHEMA = [
+  { field: "preset", label: "Preset", bucket: "preset", operators: [ "is" ], values: [
+    { value: "inbox", label: "Inbox" },
+    { value: "delegated", label: "Delegated" },
+    { value: "open", label: "Open" },
+    { value: "closed", label: "Closed" }
+  ] },
   { field: "query", label: "Search", bucket: "string", operators: [ "contains" ], values: [], free_text_search: true }
 ]
 
@@ -81,6 +87,12 @@ function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string;
   const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
   const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
   return JSON.parse(new TextDecoder().decode(bytes))
+}
+
+function encodeFilterTree(tree: Record<string, unknown>): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(tree))
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
 function renderRoute(initialEntry = "/repositories/1/plugin/issues") {
@@ -193,41 +205,63 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("closes an issue from the row action and refreshes the list", async () => {
+    const openPreset = { and: [ { field: "preset", op: "is", value: "open" } ] }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url.includes("/issues/close") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(issuesPayload({ folder: "open", issues: [], issue_count: 0, message: "Issue #7 closed." })))
+        return Promise.resolve(jsonResponse(issuesPayload({ folder: "open", filter: openPreset, issues: [], issue_count: 0, message: "Issue #7 closed." })))
       }
-      return Promise.resolve(jsonResponse(issuesPayload({ folder: "open" })))
+      return Promise.resolve(jsonResponse(issuesPayload({ folder: "open", filter: openPreset })))
     })
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
     fireEvent.click(await screen.findByRole("button", { name: "Close" }))
 
     await screen.findByText("Issue #7 closed.")
+    expect(screen.getByRole("button", { name: "Preset is Open" })).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/close",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "open", q: "", sort: "created_at", direction: "desc" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "open", sort: "created_at", direction: "desc" }) })
     )
   })
 
   it("delegates an issue from the row action", async () => {
+    const inboxPreset = { and: [ { field: "preset", op: "is", value: "inbox" } ] }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url.includes("/issues/delegate") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(issuesPayload({ issues: [ issue({ delegated: true }) ], message: "Issue #7 delegated to Syrus." })))
+        return Promise.resolve(jsonResponse(issuesPayload({ filter: inboxPreset, issues: [ issue({ delegated: true }) ], message: "Issue #7 delegated to Syrus." })))
       }
-      return Promise.resolve(jsonResponse(issuesPayload()))
+      return Promise.resolve(jsonResponse(issuesPayload({ filter: inboxPreset })))
     })
     renderRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "Delegate" }))
 
     await screen.findByText("Issue #7 delegated to Syrus.")
+    expect(screen.getByRole("button", { name: "Preset is Inbox" })).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/delegate",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "inbox", q: "", sort: "created_at", direction: "desc" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "inbox", sort: "created_at", direction: "desc" }) })
     )
+  })
+
+  it("preserves an explicitly encoded empty filter through issue actions", async () => {
+    const explicitEmpty = encodeFilterTree({ and: [] })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).includes("/issues/close") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(issuesPayload({ folder: "all", filter: { and: [] }, issues: [], issue_count: 0, untouched_preset: false })))
+      }
+      return Promise.resolve(jsonResponse(issuesPayload({ folder: "all", filter: { and: [] } })))
+    })
+    renderRoute(`/repositories/1/plugin/issues?folder=all&q=${explicitEmpty}`)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Close" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/repositories/1/issues/close",
+      expect.objectContaining({ body: JSON.stringify({ issue_number: 7, folder: "all", q: explicitEmpty, sort: "created_at", direction: "desc" }) })
+    ))
   })
 
   it("does not render the removed issue comment action", async () => {
@@ -266,7 +300,7 @@ describe("RepositoryIssuesTab", () => {
     await screen.findByText("2 issues delegated to Syrus.")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/bulk",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 7, 8 ], bulk_action: "delegate", folder: "open", q: "", sort: "created_at", direction: "desc" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 7, 8 ], bulk_action: "delegate", folder: "open", sort: "created_at", direction: "desc" }) })
     )
   })
 
@@ -298,7 +332,7 @@ describe("RepositoryIssuesTab", () => {
     await screen.findByText("1 issue delegated to Syrus.")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/bulk",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 8 ], bulk_action: "delegate", folder: "open", q: "", sort: "created_at", direction: "desc" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 8 ], bulk_action: "delegate", folder: "open", sort: "created_at", direction: "desc" }) })
     )
   })
 
