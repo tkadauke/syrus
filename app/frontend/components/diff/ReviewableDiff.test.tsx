@@ -1560,10 +1560,13 @@ describe("ReviewableDiff", () => {
     expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
   })
 
-  it("renders and remains interactive before non-urgent highlighting of a large diff finishes", () => {
-    const tokenizeSpy = vi.spyOn(highlighterLib, "tokenizeLines").mockReturnValue(new Promise(() => {}))
+  it("yields between highlight chunks so a large multi-file diff remains interactive", async () => {
+    vi.useFakeTimers()
+    const tokenizeSpy = vi.spyOn(highlighterLib, "tokenizeLines").mockImplementation(async (code) =>
+      code.split("\n").map((line) => [{ content: line, offset: 0 }])
+    )
     const manyFiles = Array.from({ length: 30 }, (_, index) => ({
-      additions: 1,
+      additions: 2,
       deletions: 0,
       patch: [
         `diff --git a/app/models/job_${index}.rb b/app/models/job_${index}.rb`,
@@ -1571,7 +1574,10 @@ describe("ReviewableDiff", () => {
         `+++ b/app/models/job_${index}.rb`,
         "@@ -1,1 +1,2 @@",
         ` class Job${index}`,
-        `+  def call_${index}; end`
+        `+  def call_${index}; end`,
+        "@@ -20,1 +21,2 @@",
+        ` class LaterJob${index}`,
+        `+  def later_${index}; end`
       ].join("\n"),
       path: `app/models/job_${index}.rb`,
       status: "modified"
@@ -1580,10 +1586,16 @@ describe("ReviewableDiff", () => {
     render(<ReviewableDiff files={manyFiles} mode="continuous" />)
 
     expect(screen.getByText("app/models/job_0.rb")).toBeInTheDocument()
+    expect(tokenizeSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersToNextTimerAsync()
+    const firstChunkCount = tokenizeSpy.mock.calls.length
+    expect(firstChunkCount).toBeGreaterThan(0)
+    expect(firstChunkCount).toBeLessThan(14) // seven mounted files, two hunks each
     const collapseButton = screen.getAllByRole("button", { name: "Collapse file" })[0]
     fireEvent.click(collapseButton)
     expect(collapseButton).toHaveAttribute("aria-expanded", "false")
     tokenizeSpy.mockRestore()
+    vi.useRealTimers()
   })
 
   it("reuses syntax tokens after a file section unmounts and remounts", async () => {

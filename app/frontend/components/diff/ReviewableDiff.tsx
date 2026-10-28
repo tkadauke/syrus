@@ -1507,20 +1507,30 @@ function useHighlightedDiffLines(
     if (missing.length === 0) return
 
     let cancelled = false
-    const scheduled = scheduleNonUrgentWork(() => Promise.all(
-      missing.map(async ([hunkId, indexes]) => {
+    let cancelScheduled = () => {}
+    let nextIndex = 0
+
+    const scheduleNext = () => {
+      if (cancelled || nextIndex >= missing.length) return
+      const [hunkId, indexes] = missing[nextIndex++]
+      const scheduled = scheduleNonUrgentWork(async () => {
         const code = indexes.map((index) => lines[index].code).join("\n")
-        const tokens = await tokenizeLines(code, lang, { performanceMarker: "diff_review.syntax_highlight" })
-        return [hunkId, tokens] as const
+        return tokenizeLines(code, lang, { performanceMarker: "diff_review.syntax_highlight" })
       })
-    ))
-    scheduled.promise
-      .then((results) => {
-        if (cancelled) return
-        for (const [hunkId, tokens] of results) tokensByHunk.set(hunkId, tokens)
-        bumpVersion()
-      })
-      .catch((error: unknown) => {
+      cancelScheduled = scheduled.cancel
+      scheduled.promise
+        .then((tokens) => {
+          if (cancelled) return
+          tokensByHunk.set(hunkId, tokens)
+          bumpVersion()
+          // Each hunk gets a separate browser task. Even when Shiki's token
+          // conversion is synchronous, input can run before the next hunk.
+          scheduleNext()
+        })
+        .catch(handleHighlightError)
+    }
+
+    const handleHighlightError = (error: unknown) => {
         // A blocked/failed highlighter load (e.g. CSP-blocked WASM in a
         // browser that hasn't picked up 'wasm-unsafe-eval' yet) must not
         // surface as an unhandled promise rejection -- the diff already
@@ -1528,11 +1538,13 @@ function useHighlightedDiffLines(
         // silent degrade, not a UI error.
         if (cancelled) return
         console.warn("Diff syntax highlighting failed; falling back to plain text.", error)
-      })
+    }
+
+    scheduleNext()
 
     return () => {
       cancelled = true
-      scheduled.cancel()
+      cancelScheduled()
     }
   }, [hunkLineIndexes, lang, lines, tokensByHunk])
 
