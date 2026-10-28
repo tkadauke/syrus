@@ -7,7 +7,7 @@ import { useT } from "../hooks/useT"
 import { fetchChatSearch, fetchChatSearchMessages, type ChatSearchMatch, type ChatSearchPayload, type ChatSearchResult } from "../api/chats"
 import { getJson } from "../api/client"
 import { ChevronIcon } from "../components/ChevronIcon"
-import { FilterBar, type FilterLinkBuilder, type FilterOption, type FilterSchemaField } from "../components/FilterBar"
+import { FilterBar, type FilterChip, type FilterLinkBuilder, type FilterOption, type FilterSchemaField } from "../components/FilterBar"
 import { Page } from "../components/ui"
 import { TonePill } from "../components/StatusPill"
 
@@ -16,6 +16,7 @@ type FilterOptionsPayload = {
 }
 
 const filterFields = ["q", "repository_id", "epic_id", "job_id", "coworker_id"]
+const coworkerOperators = ["is", "is_not", "is_one_of", "is_none_of"]
 
 export function ChatSearchRoute() {
   const { t } = useT("chat")
@@ -232,20 +233,35 @@ function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOpt
     { field: "job_id", label: t("search.filter_job"), bucket: "select", operators: ["is"], values: options?.job_id || [] }
   ]
   const coworker = options?.pluginFields.find((field) => field.field === "coworker_id")
-  if (coworker) fields.push({ ...coworker, bucket: "select", operators: ["is"] })
+  if (coworker) fields.push({ ...coworker, bucket: "select" })
   return fields
 }
 
-function filterFromSearch(search: string) {
+export function filterFromSearch(search: string) {
   const params = new URLSearchParams(search)
-  const and = filterFields.flatMap((field) => {
-    const value = params.get(field)?.trim()
-    return value ? [{ field, op: field === "q" ? "contains" : "is", value }] : []
-  })
+  const and: FilterChip[] = filterFields
+    .filter((field) => field !== "coworker_id")
+    .flatMap((field) => {
+      const value = params.get(field)?.trim()
+      return value ? [{ field, op: field === "q" ? "contains" : "is", value }] : []
+    })
+  const coworkerValues = params
+    .get("coworker_id")
+    ?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const coworkerOp = params.get("coworker_op") || "is"
+  if (coworkerValues?.length && coworkerOperators.includes(coworkerOp)) {
+    and.push({
+      field: "coworker_id",
+      op: coworkerOp,
+      value: coworkerOp === "is_one_of" || coworkerOp === "is_none_of" ? coworkerValues : coworkerValues[0]
+    })
+  }
   return { and }
 }
 
-const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) => {
+export const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) => {
   const params = new URLSearchParams(search)
   const encodedFilter = updates.q
 
@@ -258,11 +274,18 @@ const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) => {
 
   if (typeof encodedFilter === "string" && encodedFilter.length > 0) {
     for (const field of filterFields) params.delete(field)
+    params.delete("coworker_op")
     for (const chip of decodeFilterChips(encodedFilter)) {
-      if (filterFields.includes(chip.field) && chip.value) params.set(chip.field, chip.value)
+      if (!filterFields.includes(chip.field)) continue
+
+      const values = Array.isArray(chip.value) ? chip.value.map(String).filter(Boolean) : [String(chip.value || "")].filter(Boolean)
+      if (values.length === 0) continue
+      params.set(chip.field, values.join(","))
+      if (chip.field === "coworker_id" && coworkerOperators.includes(chip.op)) params.set("coworker_op", chip.op)
     }
   } else if (encodedFilter == null) {
     for (const field of filterFields) params.delete(field)
+    params.delete("coworker_op")
   }
 
   params.delete("page")
@@ -270,15 +293,16 @@ const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) => {
   return query ? `${path}?${query}` : path
 }
 
-function decodeFilterChips(encoded: string): Array<{ field: string; value: string }> {
+function decodeFilterChips(encoded: string): Array<{ field: string; op: string; value: unknown }> {
   try {
     const standard = encoded.replace(/-/g, "+").replace(/_/g, "/")
     const parsed = JSON.parse(atob(standard)) as { and?: unknown[] }
     return (parsed.and || []).flatMap((node) => {
-      if (!node || typeof node !== "object" || !("field" in node) || !("value" in node)) return []
+      if (!node || typeof node !== "object" || !("field" in node) || !("op" in node) || !("value" in node)) return []
       const field = String((node as { field: unknown }).field)
-      const value = String((node as { value: unknown }).value || "").trim()
-      return value ? [{ field, value }] : []
+      const op = String((node as { op: unknown }).op)
+      const value = (node as { value: unknown }).value
+      return [{ field, op, value }]
     })
   } catch {
     return []
