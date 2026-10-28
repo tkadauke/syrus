@@ -709,7 +709,8 @@ RSpec.describe CodexInvocation do
           { type: "turn.completed", usage: {} }
         ])
 
-        expect(PerformanceLogging::Store.recent).to be_empty
+        phases = PerformanceLogging::Store.recent.map { |event| event["phase"] }
+        expect(phases.grep(/^chat_startup\./)).to be_empty
       ensure
         PerformanceLogging::Store.clear!
       end

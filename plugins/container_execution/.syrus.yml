@@ -1,0 +1,9 @@
+project:
+  id: container_execution
+  label: "container_execution plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
