@@ -40,6 +40,7 @@ module ChatProviders
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
                stop_requested:, process_started:)
+      require_full_coworker_workspace_access!
       if resume_session_id.present? && !wait_for_held_session
         return held_session_result(resume_session_id)
       end

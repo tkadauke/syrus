@@ -2,6 +2,8 @@ require "mcp"
 
 module Mcp::Tools
   class ListChatsTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
     tool_name "list_chats"
 
     description "List the current operator's recent Syrus chat sessions, optionally filtering by chat mode or attached Jobs."
@@ -23,7 +25,7 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         page = Mcp::Pagination.normalize_page(page)
         per_page = normalize_per_page(per_page)
-        scope = chat_session.user.accessible_chat_sessions
+        scope = accessible_chat_sessions_scope
           .where(chat_participants: { hidden_at: nil })
           .active
           .distinct

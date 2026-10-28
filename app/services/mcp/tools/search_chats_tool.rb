@@ -75,9 +75,7 @@ module Mcp::Tools
       end
 
       def searchable_chat_session_ids
-        scope = current_user.accessible_chat_sessions
-        scope = scope.active unless admin?
-        scope.distinct.ids
+        accessible_chat_sessions_scope.distinct.ids
       end
 
       def preload_sessions(results)
