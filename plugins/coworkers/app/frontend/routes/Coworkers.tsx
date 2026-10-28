@@ -161,7 +161,7 @@ function CoworkerPage({ id }: { id: string }) {
   const { t } = useT("coworkers")
   const prefix = usePrefix()
   const navigate = useNavigate()
-  const [tab, setTab] = useState("chat")
+  const [tab, setTab] = useState(id === "syrus" ? "chats" : "chat")
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
   const sideChat = useMutation({ mutationFn: () => createSideChat(Number(id)), onSuccess: (data) => navigate(withRoutePrefix(data.chat_path, prefix)) })
   if (id === "syrus") return <SyrusPage tab={tab} setTab={setTab} />

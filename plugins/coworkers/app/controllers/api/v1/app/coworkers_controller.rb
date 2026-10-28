@@ -33,7 +33,10 @@ module Api
             # branch. Phase 3 replaces this with per-chat branches merged at
             # turn end; keep side chats attached to the workspace Repository
             # until that branch lifecycle exists.
-            session = ChatSession.create!(user: Current.user, repository: repository, title: coworker.name, chat_provider: coworker.chat_provider)
+            session = ChatSession.create!(
+              user: Current.user, repository: repository, title: coworker.name,
+              **coworker.chat_configuration
+            )
             Coworkers::Chat.create!(coworker: coworker, chat_session: session, role: "side")
             session
           end

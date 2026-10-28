@@ -38,6 +38,7 @@ class Coworkers::Coworker < ApplicationRecord
   def avatar_url = avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(avatar, only_path: true) : nil
   def addressable_in?(chat) = Coworkers::Chat.exists?(coworker_id: id, chat_session_id: chat.id)
   def schedules = ScheduledTasks::Task.none
+  def chat_configuration = attributes.symbolize_keys.slice(:chat_provider, :chat_model, :chat_effort).compact
 
   # A coworker sees only its own conversations and chats explicitly shared
   # with it. The owner's role (including admin) must never widen this scope.
