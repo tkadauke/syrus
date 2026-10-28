@@ -1616,7 +1616,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       inbox_folder = SmartFolder.find_builtin_by_attention("inbox")
       expect(body["active_smart_folder_id"]).to eq(inbox_folder.id)
-      expect(body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree("inbox"))
+      expect(body["filter"]).to eq(inbox_folder.filter)
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
       expect(body["items"].map { |item| item.fetch("id") }).not_to include(other_inbox_job.id)
 
@@ -1627,6 +1627,53 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(body["active_smart_folder_id"]).to be_nil
       expect(body["filter"]).to eq("and" => [])
       expect(body["items"].map { |item| item.fetch("id") }).to include(inbox_job.id, closed_job.id)
+    end
+
+    it "lets Inbox eligibility be removed while retaining its other visible constraints" do
+      teammate = Factories.user(email_address: "inbox-teammate@example.com")
+      mine = Factories.job_record(repository: repo, owner_user: user, issue_number: 51, issue_title: "My review", state: "implemented")
+      theirs = Factories.job_record(user: teammate, repository: repo, owner_user: teammate, issue_number: 52, issue_title: "Their review", state: "implemented")
+      SmartFolder.ensure_builtins_for_subject!("job")
+      folder = SmartFolder.find_builtin_by_attention("inbox")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: folder.id }
+
+      body = parse_body
+      expect(body["filter"]).to eq(folder.filter)
+      expect(body["items"].map { |item| item.fetch("id") }).to include(mine.id)
+      expect(body["items"].map { |item| item.fetch("id") }).not_to include(theirs.id)
+
+      without_eligibility = { "and" => folder.filter.fetch("and").reject { |chip| chip.fetch("field") == "eligible_approver" } }
+      get "/api/v1/app/dashboard", params: {
+        subject: "job", view: "list", smart_folder_id: folder.id, q: Filters::QueryParam.encode(without_eligibility)
+      }
+
+      body = parse_body
+      expect(body["filter"]).to eq(without_eligibility)
+      expect(body["items"].map { |item| item.fetch("id") }).to include(mine.id, theirs.id)
+    end
+
+    it "lets an owner-scoped folder include system work when Job type is removed" do
+      user_job = Factories.job_record(repository: repo, owner_user: user, issue_number: 61, issue_title: "Queued user work", state: "queued")
+      system_job = Factories.job_record(repository: repo, owner_user: user, issue_number: nil, issue_title: "Queued system work", state: "queued", kind: "main_grader")
+      SmartFolder.ensure_builtins_for_subject!("job")
+      folder = SmartFolder.find_builtin_by_attention("queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: folder.id }
+
+      body = parse_body
+      expect(body["filter"]).to eq(folder.filter)
+      expect(body["items"].map { |item| item.fetch("id") }).to include(user_job.id)
+      expect(body["items"].map { |item| item.fetch("id") }).not_to include(system_job.id)
+
+      without_job_type = { "and" => folder.filter.fetch("and").reject { |chip| chip.fetch("field") == "job_type" } }
+      get "/api/v1/app/dashboard", params: {
+        subject: "job", view: "list", smart_folder_id: folder.id, q: Filters::QueryParam.encode(without_job_type)
+      }
+
+      body = parse_body
+      expect(body["filter"]).to eq(without_job_type)
+      expect(body["items"].map { |item| item.fetch("id") }).to include(user_job.id, system_job.id)
     end
 
     it "uses a saved jobs smart folder before the Inbox default" do
