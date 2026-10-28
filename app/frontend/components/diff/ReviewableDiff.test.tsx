@@ -1562,9 +1562,9 @@ describe("ReviewableDiff", () => {
 
   it("yields between highlight chunks so a large multi-file diff remains interactive", async () => {
     vi.useFakeTimers()
-    const tokenizeSpy = vi.spyOn(highlighterLib, "tokenizeLines").mockImplementation(async (code) =>
-      code.split("\n").map((line) => [{ content: line, offset: 0 }])
-    )
+    const tokenizeSpy = vi
+      .spyOn(highlighterLib, "tokenizeLines")
+      .mockImplementation(async (code) => code.split("\n").map((line) => [{ content: line, offset: 0 }]))
     const manyFiles = Array.from({ length: 30 }, (_, index) => ({
       additions: 2,
       deletions: 0,
@@ -1599,20 +1599,15 @@ describe("ReviewableDiff", () => {
   })
 
   it("reuses syntax tokens after a file section unmounts and remounts", async () => {
-    const tokenizeSpy = vi.spyOn(highlighterLib, "tokenizeLines").mockImplementation(async (code) =>
-      code.split("\n").map((line) => [{ content: line, color: "var(--shiki-token-keyword)", offset: 0 }])
-    )
+    const tokenizeSpy = vi
+      .spyOn(highlighterLib, "tokenizeLines")
+      .mockImplementation(async (code) => code.split("\n").map((line) => [{ content: line, color: "var(--shiki-token-keyword)", offset: 0 }]))
     const rubyFiles = ["alpha", "beta"].map((name) => ({
       additions: 1,
       deletions: 0,
-      patch: [
-        `diff --git a/${name}.rb b/${name}.rb`,
-        `--- a/${name}.rb`,
-        `+++ b/${name}.rb`,
-        "@@ -1,1 +1,2 @@",
-        ` class ${name}`,
-        `+  def ${name}; end`
-      ].join("\n"),
+      patch: [`diff --git a/${name}.rb b/${name}.rb`, `--- a/${name}.rb`, `+++ b/${name}.rb`, "@@ -1,1 +1,2 @@", ` class ${name}`, `+  def ${name}; end`].join(
+        "\n"
+      ),
       path: `${name}.rb`,
       status: "modified"
     }))

@@ -73,14 +73,22 @@ export function startMarker(name: string, options: PerformanceMarkerOptions = {}
   return { name, options, startedAt: performanceNow(), traceId: browserTraceId(markerPrefix(name)) }
 }
 
-export function endMarker(handle: PerformanceMarkerHandle, extra: { apiRequests?: BrowserTraceApiRequest[]; metadata?: PerformanceMarkerMetadata; spans?: BrowserTraceSpan[] } = {}): void {
+export function endMarker(
+  handle: PerformanceMarkerHandle,
+  extra: { apiRequests?: BrowserTraceApiRequest[]; metadata?: PerformanceMarkerMetadata; spans?: BrowserTraceSpan[] } = {}
+): void {
   const durationMs = roundMs(performanceNow() - handle.startedAt)
-  enqueueMarkerEvent(handle.name, durationMs, {
-    ...handle.options,
-    apiRequests: extra.apiRequests ?? handle.options.apiRequests,
-    metadata: { ...handle.options.metadata, ...extra.metadata },
-    spans: extra.spans ?? handle.options.spans
-  }, handle.traceId)
+  enqueueMarkerEvent(
+    handle.name,
+    durationMs,
+    {
+      ...handle.options,
+      apiRequests: extra.apiRequests ?? handle.options.apiRequests,
+      metadata: { ...handle.options.metadata, ...extra.metadata },
+      spans: extra.spans ?? handle.options.spans
+    },
+    handle.traceId
+  )
 }
 
 // Measures a synchronous named span. Always runs `fn` and returns/throws

@@ -1531,13 +1531,13 @@ function useHighlightedDiffLines(
     }
 
     const handleHighlightError = (error: unknown) => {
-        // A blocked/failed highlighter load (e.g. CSP-blocked WASM in a
-        // browser that hasn't picked up 'wasm-unsafe-eval' yet) must not
-        // surface as an unhandled promise rejection -- the diff already
-        // renders correctly as plain text without tokens, so this is a
-        // silent degrade, not a UI error.
-        if (cancelled) return
-        console.warn("Diff syntax highlighting failed; falling back to plain text.", error)
+      // A blocked/failed highlighter load (e.g. CSP-blocked WASM in a
+      // browser that hasn't picked up 'wasm-unsafe-eval' yet) must not
+      // surface as an unhandled promise rejection -- the diff already
+      // renders correctly as plain text without tokens, so this is a
+      // silent degrade, not a UI error.
+      if (cancelled) return
+      console.warn("Diff syntax highlighting failed; falling back to plain text.", error)
     }
 
     scheduleNext()
@@ -1567,7 +1567,9 @@ function useHighlightedDiffLines(
 function scheduleNonUrgentWork<T>(work: () => Promise<T>): { cancel: () => void; promise: Promise<T> } {
   let cancel = () => {}
   const promise = new Promise<T>((resolve, reject) => {
-    const run = () => { void work().then(resolve, reject) }
+    const run = () => {
+      void work().then(resolve, reject)
+    }
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
       const id = window.requestIdleCallback(run, { timeout: 150 })
       cancel = () => window.cancelIdleCallback(id)
