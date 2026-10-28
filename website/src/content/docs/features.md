@@ -1661,8 +1661,12 @@ enable beta mode before an administrator can enable it from **Admin →
 Plugins**. When enabled, it exposes a Coworkers page for creating named agents,
 choosing their appearance and capabilities, opening their main and side chats,
 and viewing their read-only identity profile. Coworker conversations are kept
-in a separate chat-list group and carry the coworker's avatar and color. It
-does not yet expose workspace execution screens. Disabling it removes its page,
+in a separate chat-list group and carry the coworker's avatar and color. Search
+labels these conversations and offers a coworker filter alongside the built-in
+Syrus option. A chat owner can share a conversation read-only with one of their
+own coworkers; a coworker with the shared-chat grant can list, search, and read
+its own and shared chats, but cannot post to arbitrary chats. It does not yet
+expose workspace execution screens. Disabling it removes its page,
 chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 

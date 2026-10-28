@@ -12,6 +12,7 @@ module Mcp::Tools
     input_schema(
       properties: {
         query: { type: "string", description: "Full-text search query." },
+        coworker_id: { description: "Optional coworker id, or 'syrus' for chats not linked to a coworker.", anyOf: [ { type: "integer" }, { type: "string" } ] },
         limit: { type: "integer", description: "Maximum messages to return. Defaults to 10, capped at 50." }
       },
       required: %w[query]
@@ -20,14 +21,14 @@ module Mcp::Tools
     class << self
       include ChatDiscoveryPayload
 
-      def call(server_context:, query:, limit: 10)
+      def call(server_context:, query:, limit: 10, coworker_id: nil)
         chat_session = server_context.fetch(:chat_session)
         query = query.to_s.strip
         return Mcp::Tools.invalid("query is required") if query.blank?
 
         results = ChatMessageSearchIndex.search(
           query,
-          chat_session_ids: searchable_chat_session_ids,
+          chat_session_ids: searchable_chat_session_ids(coworker_id: coworker_id),
           limit: normalize_limit(limit),
           snippet_start: "<b>",
           snippet_end: "</b>",
@@ -74,8 +75,15 @@ module Mcp::Tools
         value.to_i.clamp(1, 50)
       end
 
-      def searchable_chat_session_ids
-        accessible_chat_sessions_scope.distinct.ids
+      def searchable_chat_session_ids(coworker_id: nil)
+        scope = accessible_chat_sessions_scope
+        return scope.distinct.ids if coworker_id.nil?
+
+        chip = Filters::Registry.find("coworker_id", subject: :chat_message)
+        message_scope = chip.new(scope: ChatMessage.where(chat_session_id: scope.select(:id)), op: :is, value: coworker_id, user: current_user).apply
+        message_scope.distinct.pluck(:chat_session_id)
+      rescue Filters::UnknownFilterField
+        []
       end
 
       def preload_sessions(results)
@@ -97,6 +105,7 @@ module Mcp::Tools
           message_id: row.fetch(:chat_message_id),
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
           badges: badges_by_chat_id.fetch(chat_session.id, []),
+          coworker_name: badges_by_chat_id.fetch(chat_session.id, []).find { |badge| badge[:kind].to_s == "coworker" }&.fetch(:name, nil),
           role: row.fetch(:role),
           snippet: row.fetch(:snippet),
           created_at: row.fetch(:created_at)

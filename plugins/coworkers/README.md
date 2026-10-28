@@ -13,3 +13,8 @@ Existing chats are unchanged. A chat without an explicit coworker association
 continues to resolve to Syrus, the built-in engineer. Disabling the plugin
 removes its runtime chat and mention contributions without deleting its stored
 records.
+
+When enabled, coworker chats are decorated and filterable across Syrus search.
+Chat owners may also grant one of their own coworkers read-only access to a
+chat. The coworker's chat tools remain grant-gated and cannot post to arbitrary
+chats.

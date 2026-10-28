@@ -9,13 +9,13 @@ module Api
 
         def create
           chat = owned_chat
-          user = User.find_by(id: params[:user_id])
-          unless user
+          target = share_target
+          unless target
             render_error("validation_failed", I18n.t("api.chats.errors.unknown_user_id"), status: :unprocessable_content)
             return
           end
 
-          chat.chat_shares.find_or_create_by!(target: user) { |share| share.shared_by_user = Current.user }
+          chat.chat_shares.find_or_create_by!(target: target) { |share| share.shared_by_user = Current.user }
           render json: payload(chat), status: :created
         rescue ActiveRecord::RecordInvalid => error
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
@@ -39,7 +39,11 @@ module Api
           end
           excluded_ids = chat.chat_participants.pluck(:user_id) + chat.chat_shares.where(target_type: "User").pluck(:target_id)
           users = scope.where.not(id: excluded_ids).distinct.limit(20)
-          render json: { people: users.map { |user| person_json(user, chat) } }
+          coworkers = filtered_plugin_share_candidates(query).reject do |candidate|
+            chat.chat_shares.exists?(target_type: candidate.class.polymorphic_name, target_id: candidate.id)
+          end
+          people = users.map { |user| target_json(user, chat) }
+          render json: { people: people, targets: people + coworkers.map { |coworker| target_json(coworker, chat) } }
         end
 
         private
@@ -57,18 +61,48 @@ module Api
         end
 
         def payload(chat)
-          { shares: chat.chat_shares.includes(:target).order(:created_at, :id).map { |share| person_json(share.target, chat).merge(id: share.id) } }
+          { shares: chat.chat_shares.includes(:target).order(:created_at, :id).map { |share| target_json(share.target, chat).merge(id: share.id) } }
         end
 
-        def person_json(user, chat)
+        def target_json(target, chat)
           repository = chat.repository
           {
-            user_id: user.id,
-            name: user.display_name,
-            handle: user.handle,
-            avatar_url: user.avatar_url,
-            repository_access_warning: repository.present? && !Repository.accessible_to(user).exists?(id: repository.id)
+            target_type: target.class.polymorphic_name,
+            target_id: target.id,
+            user_id: (target.id if target.is_a?(User)),
+            kind: target.kind,
+            name: target.display_name,
+            handle: target.handle,
+            avatar_url: target.avatar_url,
+            repository_access_warning: target.is_a?(User) && repository.present? && !Repository.accessible_to(target).exists?(id: repository.id)
           }
+        end
+
+        def share_target
+          return User.find_by(id: params[:user_id]) if params[:user_id].present?
+
+          type = params[:target_type].to_s
+          id = Integer(params[:target_id], exception: false)
+          return unless id
+
+          plugin_share_candidates.find do |target|
+            target.class.polymorphic_name == type && target.id == id
+          end
+        end
+
+        def plugin_share_candidates
+          @plugin_share_candidates ||= Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
+            provider.respond_to?(:share_candidates) ? Array(provider.share_candidates(user: Current.user)) : []
+          end
+        end
+
+        def filtered_plugin_share_candidates(query)
+          return plugin_share_candidates if query.blank?
+
+          needle = query.delete_prefix("@").downcase
+          plugin_share_candidates.select do |target|
+            target.display_name.to_s.downcase.include?(needle) || target.handle.to_s.downcase.include?(needle)
+          end
         end
       end
     end

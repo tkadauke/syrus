@@ -1031,9 +1031,12 @@ export type ShareChatPayload = {
   share_url: string
 }
 
-export type ChatSharePerson = {
+export type ChatShareTarget = {
   id?: number
-  user_id: number
+  target_type: string
+  target_id: number
+  user_id?: number
+  kind: string
   name: string
   handle: string | null
   avatar_url: string | null
@@ -1041,19 +1044,19 @@ export type ChatSharePerson = {
 }
 
 export function fetchChatShares(chatId: number | string) {
-  return getJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares`)
+  return getJson<{ shares: ChatShareTarget[] }>(`/api/v1/app/chats/${chatId}/shares`)
 }
 
 export function fetchChatShareCandidates(chatId: number | string, query: string) {
-  return getJson<{ people: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/share_candidates?q=${encodeURIComponent(query)}`)
+  return getJson<{ targets: ChatShareTarget[] }>(`/api/v1/app/chats/${chatId}/share_candidates?q=${encodeURIComponent(query)}`)
 }
 
-export function createChatShare(chatId: number | string, userId: number) {
-  return postJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares`, { user_id: userId })
+export function createChatShare(chatId: number | string, target: Pick<ChatShareTarget, "target_type" | "target_id">) {
+  return postJson<{ shares: ChatShareTarget[] }>(`/api/v1/app/chats/${chatId}/shares`, target)
 }
 
 export function deleteChatShare(chatId: number | string, shareId: number) {
-  return deleteJson<{ shares: ChatSharePerson[] }>(`/api/v1/app/chats/${chatId}/shares/${shareId}`)
+  return deleteJson<{ shares: ChatShareTarget[] }>(`/api/v1/app/chats/${chatId}/shares/${shareId}`)
 }
 
 export type ChatSearchMatch = {

@@ -47,6 +47,17 @@ color and avatar. The creation form collects the workspace remote, appearance,
 model, grants, and optional About text. Uploaded avatars are size-limited and
 resized before Active Storage saves them. Coworker chats are grouped separately
 in the chat sidebar, and assistant messages use the coworker's avatar and color.
+Coworker chats carry a named badge in global search, chat search, and the
+agent-facing chat search tool. The shared chat filter offers each of the
+current user's coworkers plus Syrus, where Syrus means a chat without a
+coworker link.
+
+Chat owners can share a chat read-only with one of their own coworkers from
+the normal share dialog. A coworker with the `chats.read_shared` grant can
+list, search, and read its own chats plus those shares; revoking a share
+removes access immediately. Coworkers are never offered the arbitrary
+`send_chat_message` tool.
+
 Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
 Workspace, and Activity are visible as coming-later placeholders where their
 full Phase 1 surface has not shipped yet.
