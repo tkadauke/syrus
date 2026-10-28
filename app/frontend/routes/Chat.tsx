@@ -675,8 +675,15 @@ function interactiveTranscriptRange(range: Parameters<typeof defaultRangeExtract
   const indexes = new Set(defaultRangeExtractor(range))
   const activeRow = document.activeElement?.closest<HTMLElement>("[data-virtual-chat-index]")
   const selectedRow = window.getSelection()?.anchorNode?.parentElement?.closest<HTMLElement>("[data-virtual-chat-index]")
+  const expandedRows = [...document.querySelectorAll<HTMLElement>("[data-virtual-chat-index] details[open], [data-virtual-chat-index] [aria-expanded='true']")]
+    .map((element) => element.closest<HTMLElement>("[data-virtual-chat-index]"))
+    .filter((row): row is HTMLElement => row != null)
 
-  for (const row of [activeRow, selectedRow]) {
+  // An expanded card owns state deeper than the transcript row (including
+  // plugin cards and nested tool groups). Retaining only those rows preserves
+  // that state across long scrolls without making every transcript row
+  // permanent. Focus and selection receive the same treatment.
+  for (const row of [activeRow, selectedRow, ...expandedRows]) {
     const index = Number(row?.dataset.virtualChatIndex)
     if (Number.isInteger(index) && index >= 0 && index < range.count) indexes.add(index)
   }
@@ -1207,7 +1214,12 @@ function MessageStream({
 
     const targetIndex = streamItems.findIndex((item) => transcriptItemContainsMessage(item, activeBookmarkTarget.messageId))
     if (targetIndex >= 0 && !findChatMessageAnchor(stream, activeBookmarkTarget.messageId)) {
-      transcriptVirtualizer.scrollToIndex(targetIndex, { align: "start" })
+      // The keyed measurement map can still be empty when a hash/search target
+      // first arrives. Fall back to row estimates instead of resolving an
+      // off-screen index to offset 0; once mounted, scrollIntoView aligns it.
+      const measuredOffset = transcriptVirtualizer.getOffsetForIndex(targetIndex, "start")?.[0] ?? 0
+      const estimatedOffset = streamItems.slice(0, targetIndex).reduce((offset, _item, index) => offset + estimateTranscriptRow(index), 0)
+      transcriptVirtualizer.scrollToOffset(measuredOffset > 0 ? measuredOffset : estimatedOffset, { align: "start" })
       return
     }
 
@@ -1234,6 +1246,7 @@ function MessageStream({
     oldestId,
     payload.chat.id,
     payload.paths.app_messages_path,
+    estimateTranscriptRow,
     streamItems,
     transcriptVirtualizer,
     virtualRows
