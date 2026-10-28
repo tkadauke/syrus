@@ -245,13 +245,13 @@ module Steps
     # Resilient to blank input — see RunJob#log for the same
     # contract; RecordInvalid on empty chunks would crash a step
     # mid-stream.
-    def log(chunk, kind: nil, **)
+    def log(chunk, kind: nil, **metadata)
       text = chunk.to_s
       if text.strip.empty?
         RunHeartbeat.touch(run)
         return
       end
-      JobLog.append!(run: run, chunk: text, kind: kind)
+      JobLog.append!(run: run, chunk: text, kind: kind, **metadata)
       RunHeartbeat.touch(run)
     end
 
@@ -316,6 +316,18 @@ module Steps
                               tool_result_content: tool_result_content,
                               tool_result_error: tool_result_error,
                               tool_use_id: tool_use_id)
+        tool_metadata = {
+          tool_name: tool_name,
+          tool_input: tool_input,
+          tool_result_content: tool_result_content,
+          tool_result_error: tool_result_error,
+          tool_use_id: tool_use_id
+        }.compact
+        if tool_metadata.present?
+          flush.call
+          log(text, kind: kind, **tool_metadata)
+          next
+        end
         flush.call if !buffer.empty? && kind != last_kind
         last_kind = kind
         buffer << text

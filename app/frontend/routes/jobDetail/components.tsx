@@ -27,12 +27,14 @@ import type { HTMLAttributes, ReactNode, UIEvent } from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { TranscriptMessageRow } from "../../components/TranscriptMessageRow"
+import { ChatAssistantMarkdownSurface, SharedMessageRenderer, ToolGroup } from "../chat/MessageCards"
 import type { JobRun, fetchJobRunArtifacts } from "../../api/jobs"
 import { useT } from "../../hooks/useT"
 export { AgentDiff } from "../../components/diff/ReviewableDiff"
 import { withRoutePrefix } from "./formatting"
 import { formatElapsed, humanize } from "./stepModel"
-import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToBottom } from "./transcript"
+import { isRunTranscriptAtBottom, scrollRunTranscriptToBottom } from "./transcript"
+import { transcriptRenderItems } from "./transcriptRenderItems"
 
 // Shared presentational micro-components extracted from JobDetail.tsx: the small
 // pill/panel primitives, the live-elapsed hook, the active/queued Run banner, and
@@ -194,10 +196,11 @@ function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<t
   const labels: Record<string, string> = {
     assistant_text: t("transcript_kind_agent"),
     tool_call: t("transcript_kind_tool"),
+    tool_result: t("transcript_kind_tool"),
     system: t("transcript_kind_system")
   }
 
-  return kind ? labels[kind] || kind : null
+  return kind ? labels[kind] || kind : t("transcript_kind_system")
 }
 
 export function RunTranscriptLogs({
@@ -211,7 +214,7 @@ export function RunTranscriptLogs({
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
   const logSignature = logs.map((log) => `${log.id}:${log.sequence}:${log.kind || ""}:${log.chunk.length}`).join("|")
-  const displayLogs = coalesceTranscriptLogs(logs)
+  const renderItems = transcriptRenderItems(logs)
   const streamClassName = [
     fillHeight ? "min-h-0 flex-1 max-h-none" : "max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none",
     "min-w-0 space-y-4 overflow-y-auto overflow-x-hidden px-3 pb-3"
@@ -227,15 +230,34 @@ export function RunTranscriptLogs({
 
   return (
     <ol className={streamClassName} data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
-      {displayLogs.map((log) => (
-        <TranscriptMessageRow
-          chunk={log.chunk}
-          kind={log.kind}
-          key={log.id}
-          label={transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}
-          sequence={log.sequence}
-        />
-      ))}
+      {renderItems.map((item, index) => {
+        if (item.type === "tool_group") {
+          return (
+            <SharedMessageRenderer as="li" compact key={`tool-${item.calls[0]?.message_id ?? index}`} readOnly testId="run-transcript-tool-group">
+              <ToolGroup item={item} />
+            </SharedMessageRenderer>
+          )
+        }
+
+        if (item.role === "assistant") {
+          return (
+            <SharedMessageRenderer as="li" key={item.id} readOnly testId="run-transcript-log-assistant">
+              <ChatAssistantMarkdownSurface text={item.text} />
+            </SharedMessageRenderer>
+          )
+        }
+
+        const sourceLog = logs.find((log) => log.id === item.id)
+        return (
+          <TranscriptMessageRow
+            chunk={item.text}
+            kind={item.role}
+            key={item.id}
+            label={transcriptLogKindLabel(sourceLog?.kind, t)}
+            sequence={item.id}
+          />
+        )
+      })}
     </ol>
   )
 }
