@@ -5901,7 +5901,7 @@ describe("App", () => {
     }
   })
 
-  it("preserves built-in dashboard folder navigation when applying filters", async () => {
+  it("clears built-in dashboard folder navigation when applying filters", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -5968,6 +5968,7 @@ describe("App", () => {
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
       expect(within(smartFoldersPanel).getByLabelText("Folder name")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "smart_folder_preset is inbox" })).toBeInTheDocument()
 
       fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
       fireEvent.click(screen.getByRole("button", { name: "Kind list" }))
@@ -5977,12 +5978,13 @@ describe("App", () => {
         expect(latestRequest).toBeTruthy()
         const url = new URL(latestRequest!, "http://example.test")
         expect(url.searchParams.has("q")).toBe(true)
-        expect(url.searchParams.get("smart_folder_id")).toBe("1")
+        expect(url.searchParams.has("smart_folder_id")).toBe(false)
         const qTree = decodeFilterQueryParam(url.searchParams.get("q")!)
         expect(qTree.and.filter((chip) => chip.field === "smart_folder_preset")).toHaveLength(1)
         expect(qTree.and.filter((chip) => chip.field === "kind")).toHaveLength(1)
       })
       expect(within(smartFoldersPanel).getByLabelText("Folder name")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "smart_folder_preset is inbox" })).toBeInTheDocument()
     } finally {
       script.remove()
     }
