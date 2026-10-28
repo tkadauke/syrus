@@ -8,6 +8,7 @@ RSpec.describe AgentRole do
       expect(described_class::CHAT_LOCAL).to      eq("chat:local")
       expect(described_class::CHAT_WALKTHROUGH).to eq("chat:walkthrough")
       expect(described_class::CHAT_EVALUATOR).to eq("chat:evaluator")
+      expect(described_class::COWORKER_CHAT).to eq("chat:coworker")
     end
 
     it "defines all workflow roles" do
@@ -54,6 +55,7 @@ RSpec.describe AgentRole do
         described_class::CHAT_WALKTHROUGH,
         described_class::CHAT_EVALUATOR
       )
+      expect(described_class::CHAT_ROLES).not_to include(described_class::COWORKER_CHAT)
     end
 
     it "collects helper roles into HELPER_ROLES" do

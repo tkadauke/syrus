@@ -16,7 +16,8 @@ module Coworkers
     default_enabled false
     disableable true
     depends_on [ "scheduled_tasks" ]
-    provides mentionable: "Coworkers::MentionableProvider"
+    provides mentionable: "Coworkers::MentionableProvider",
+             chat_prompt_injector: "Coworkers::PromptSection"
 
     always { |scope| Coworkers::DataCleanup.install_into(scope) }
     while_enabled { |scope| Coworkers::ChatExtension.install_into(scope) }

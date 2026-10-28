@@ -16,3 +16,17 @@ Existing repository registrations are reused without changing their settings.
 The coworker's owner receives write membership when a shared registration is
 reused, so workspace Jobs remain authorized for every coworker owner.
 The remote's default branch is never modified.
+
+Coworker chats use a separate, deny-by-default MCP surface. Administrator
+ownership does not add administrator or repair tools. Every core tool on the
+surface names the coworker grant required to advertise it, and interactive
+question/suggestion tools are present only while handling an owner-authored
+turn. Plugin chat tools are excluded unless their tool set and definitions
+explicitly opt into coworker use.
+
+In the Phase 1 workspace model, a turn runs directly in a checkout of the
+coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`, and
+`USER.md` are loaded into every fresh or resumed turn under bounded per-file
+and aggregate byte limits. The agent process receives neither the ordinary
+chat CLI invocation token nor a Git askpass token, so the owner's repository
+credentials and integration credentials are not exposed to its shell.
