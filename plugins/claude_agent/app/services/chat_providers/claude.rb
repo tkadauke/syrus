@@ -22,6 +22,8 @@ module ChatProviders
       AskUserQuestion
     ].freeze
 
+    COWORKER_FILE_TOOLS = %w[Read Write Edit MultiEdit Glob Grep NotebookEdit].freeze
+
     def self.provider_key = "claude"
     def self.display_name = "Claude"
     def self.available? = true
@@ -230,6 +232,13 @@ module ChatProviders
     end
 
     def disallowed_tools
+      if (capabilities = coworker_capabilities)
+        denied = [ "AskUserQuestion" ]
+        denied.concat(COWORKER_FILE_TOOLS) unless capabilities.include?("workspace.files")
+        denied << "Bash" unless capabilities.include?("workspace.shell")
+        return denied.uniq
+      end
+
       return CODING_DISALLOWED_TOOLS if Feature.coding_mode_enabled? && chat.coding?
 
       PLANNING_DISALLOWED_TOOLS

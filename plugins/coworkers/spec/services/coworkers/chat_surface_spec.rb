@@ -54,6 +54,76 @@ RSpec.describe "Coworker chat surface" do
     expect(names).to include("ask_user_question", "suggest_next_step")
   end
 
+  it "limits list, search, and read tools to the coworker's own and explicitly shared chats" do
+    coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    private_chat = ChatSession.create!(user: owner, title: "Owner private")
+    shared_chat = ChatSession.create!(user: owner, title: "Shared")
+    ChatShare.create!(chat_session: shared_chat, target: coworker, shared_by_user: owner)
+
+    context = { chat_session: chat }
+    list_response = Mcp::Tools::ListChatsTool.call(server_context: context)
+    listed_ids = JSON.parse(list_response.content.first[:text]).fetch("chats").pluck("id")
+    expect(listed_ids).to contain_exactly(chat.id, shared_chat.id)
+
+    Mcp::Tools::AuthorizationSupport.with_server_context(context) do
+      expect(Mcp::Tools::SearchChatsTool.send(:searchable_chat_session_ids))
+        .to match_array([ chat.id, shared_chat.id ])
+    end
+
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: private_chat.id)).to be_error
+  end
+
+  it "enforces auto, confirm, and queue approval policies" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Hello" })
+    chat.update_columns(current_turn_message_id: message.id, turn_in_flight: true)
+    context = { chat_session: chat, current_message: message }
+    questions = [ { question: "Proceed?" } ]
+
+    grant = coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
+    tool = Mcp::Sidecar.chat_tools(chat).find { |candidate| McpToolRegistry.tool_name_for(candidate) == "ask_user_question" }
+    expect { tool.call(server_context: context, questions: questions) }.to change(chat.agent_questions, :count).by(1)
+
+    grant.update!(approval_policy: "confirm")
+    question_count = chat.agent_questions.count
+    expect { tool.call(server_context: context, questions: questions) }
+      .to change { chat.pending_actions.where(action: "coworker_tool_call").count }.by(1)
+    expect(chat.agent_questions.count).to eq(question_count)
+    pending = chat.pending_actions.where(action: "coworker_tool_call").last
+    expect { pending.confirm!(user: owner) }.to change(chat.agent_questions, :count).by(1)
+    expect(pending.reload).to be_confirmed
+
+    grant.update!(approval_policy: "queue")
+    response = tool.call(server_context: context, questions: questions)
+    expect(JSON.parse(response.content.first[:text])).to include("approval_policy" => "queue")
+    expect(chat.pending_actions.last).to be_pending
+  end
+
+  it "offers only read-only memory tools without a grant" do
+    allow(AgentMemory).to receive(:enabled?).and_return(true)
+
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include("read_memory")
+    deferred_names = Mcp::Sidecar.chat_tool_names(chat, tier: :deferred)
+    expect(deferred_names).to include("search_memories", "list_memories")
+    expect(deferred_names).not_to include("write_memory", "delete_memory", "publish_memory", "unpublish_memory")
+  end
+
+  it "turns revoked workspace grants into provider-native denials" do
+    files = coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
+    shell = coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
+    claude = ChatProviders::Claude.new(chat: chat)
+
+    expect(claude.send(:disallowed_tools)).to eq([ "AskUserQuestion" ])
+    shell.destroy!
+    expect(claude.send(:disallowed_tools)).to include("Bash")
+    files.destroy!
+    expect(claude.send(:disallowed_tools)).to include(*ChatProviders::Claude::COWORKER_FILE_TOOLS)
+
+    codex = ChatProviders::Codex.new(chat: chat)
+    expect { codex.send(:require_full_coworker_workspace_access!) }
+      .to raise_error(ArgumentError, /cannot safely run/)
+  end
+
   it "checks out the home branch and withholds owner invocation credentials" do
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)

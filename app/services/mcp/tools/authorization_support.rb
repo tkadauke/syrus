@@ -18,6 +18,9 @@ module Mcp::Tools
     module ToolDispatch
       def call(*args, server_context: nil, **kwargs, &block)
         Mcp::Tools::AuthorizationSupport.with_server_context(server_context) do
+          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, server_context, kwargs)
+          return pending if pending
+
           super(*args, server_context: server_context, **kwargs, &block)
         end
       rescue Mcp::Tools::AuthorizationSupport::AuthorizationError
@@ -44,9 +47,43 @@ module Mcp::Tools
         Thread.current[:mcp_tools_authorization_server_context] = previous_ctx
         Thread.current[:mcp_tools_tool_context] = previous_mcp_ctx
       end
+
+      def pending_coworker_approval(tool, server_context, arguments)
+        context = McpToolContext.from_server_context(server_context)
+        return unless context.role == AgentRole::COWORKER_CHAT
+
+        entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == tool }
+        return unless entry&.mutation
+        policy = context.capability_approval_policies.fetch(entry.capability.to_s, "queue")
+        return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
+
+        action = context.chat_session.pending_actions.create!(
+          action: "coworker_tool_call",
+          state: "pending",
+          requested_by: "agent",
+          payload: { "tool_name" => entry.tool_name, "arguments" => arguments.stringify_keys }
+        )
+        server_context[:current_message]&.update_columns(pending_action_id: action.id)
+        Mcp::Tools.success(
+          pending_confirmation_id: action.id,
+          pending_action_id: action.id,
+          approval_policy: policy,
+          message: policy == "confirm" ? "Waiting for the owner to confirm this action." : "Queued for owner approval."
+        )
+      end
+
+      def with_coworker_approval_bypass
+        previous = Thread.current[:coworker_tool_approval_bypass]
+        Thread.current[:coworker_tool_approval_bypass] = true
+        yield
+      ensure
+        Thread.current[:coworker_tool_approval_bypass] = previous
+      end
     end
 
-    def admin? = current_user.admin?
+    def admin?
+      current_user.admin? && mcp_context&.role != AgentRole::COWORKER_CHAT
+    end
 
     def current_user = chat_session.user
 
@@ -91,12 +128,17 @@ module Mcp::Tools
     end
 
     def find_chat_session!(id)
-      scope = current_user.accessible_chat_sessions
-      scope = scope.active unless admin?
-      scope = scope.where(id: mcp_context.allowed_chat_session_ids) if mcp_context&.allowed_chat_session_ids
+      scope = accessible_chat_sessions_scope
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
       raise AuthorizationError, "chat session not found or not accessible"
+    end
+
+    def accessible_chat_sessions_scope
+      scope = current_user.accessible_chat_sessions
+      scope = scope.active unless admin?
+      scope = scope.where(id: mcp_context.allowed_chat_session_ids) if mcp_context&.allowed_chat_session_ids
+      scope
     end
 
     def authorize_resource!(resource, action: :read)
