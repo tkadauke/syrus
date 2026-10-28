@@ -13,4 +13,6 @@ Coworker creation validates and tests the GitHub remote before creating any
 records. It registers a previously unknown remote with polling and PR
 automations disabled, then seeds an isolated `coworkers/<handle>` home branch.
 Existing repository registrations are reused without changing their settings.
+The coworker's owner receives write membership when a shared registration is
+reused, so workspace Jobs remain authorized for every coworker owner.
 The remote's default branch is never modified.

@@ -1,6 +1,7 @@
 class Coworkers::Create
   BranchExists = Class.new(StandardError)
   InvalidRemote = Class.new(ArgumentError)
+  KickoffEnqueueFailed = Class.new(ActiveJob::EnqueueError)
 
   DEFAULT_GRANTS = {
     "chat.message_owner" => "auto",
@@ -55,14 +56,15 @@ class Coworkers::Create
       @remote.seed!(branch: branch, files: seed_files, identity: Coworkers::GitIdentity.new(name: @name, handle: @handle))
       pushed = true
       ApplicationRecord.transaction do
-        create_records!(register_repository!)
+        coworker = create_records!(register_repository!)
+        create_kickoff!(coworker) unless @about
+        coworker
       end
     rescue StandardError
       @remote.delete!(branch) if pushed
       raise
     end
 
-    enqueue_kickoff!(coworker) unless @about
     coworker
   end
 
@@ -77,7 +79,10 @@ class Coworkers::Create
 
   def register_repository!
     existing = Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", @remote.repository.owner.downcase, @remote.repository.name.downcase).first
-    return existing if existing
+    if existing
+      grant_repository_access!(existing)
+      return existing
+    end
 
     Repository.create!(
       user: @owner, owner: @remote.repository.owner, name: @remote.repository.name,
@@ -93,15 +98,24 @@ class Coworkers::Create
       workspace_repo: repository.remote_url, role_summary: role_summary
     }.merge(@attributes))
     DEFAULT_GRANTS.each { |capability, policy| coworker.grants.create!(capability: capability, approval_policy: policy) }
+    # Phase 1 attaches the workspace Repository directly to the main chat. The
+    # per-chat coworker branch and merge-at-turn-end flow replaces this in Phase 3.
     chat = ChatSession.create!(user: @owner, repository: repository, title: @name, chat_provider: @attributes[:chat_provider])
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     coworker
   end
 
-  def enqueue_kickoff!(coworker)
+  def create_kickoff!(coworker)
     chat = coworker.coworker_chats.find_by!(role: "main").chat_session
     message = chat.messages.create!(role: "system", content: { "text" => KICKOFF }, skip_turn_trigger: false)
-    ChatTurnJob.perform_later(chat.id, message.id)
+    enqueued = ChatTurnJob.perform_later(chat.id, message.id)
+    raise KickoffEnqueueFailed, "could not enqueue the coworker's kickoff turn" unless enqueued
+  end
+
+  def grant_repository_access!(repository)
+    membership = repository.repository_memberships.find_or_initialize_by(user: @owner)
+    membership.role = "write" unless membership.at_least?("write")
+    membership.save! if membership.new_record? || membership.changed?
   end
 
   def role_summary = @about ? @about.lines.first.strip.delete_prefix("role:").strip : "not set up yet"
