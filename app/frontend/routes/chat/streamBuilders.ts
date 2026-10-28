@@ -59,11 +59,15 @@ type CachedToolResult = {
 export type ChatRenderCache = {
   results: Map<number, CachedToolResult>
   previousItems: ChatRenderItem[]
+  previousRevisions: Map<string, string>
 }
 
 export function createChatRenderCache(): ChatRenderCache {
-  return { results: new Map(), previousItems: [] }
+  return { results: new Map(), previousItems: [], previousRevisions: new Map() }
 }
+
+const legacyMessageIdentities = new WeakMap<ChatMessageItem, number>()
+let nextLegacyMessageIdentity = 1
 
 export function renderChatMessages(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
   const metadata = transcriptMetadata(messages)
@@ -82,8 +86,12 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
   const openCallsByToolUseId = new Map<string, OpenCall>()
   const settledContextCalls: NonNullable<ChatToolGroupCall["context_calls"]> = []
   const priorResults = new Map<string, unknown>()
+  const messageRevisions = new Map<number, string>()
+  const callRevisionParts = new Map<number, string[]>()
 
   for (const message of messages) {
+    const messageRevision = sourceMessageRevision(message)
+    messageRevisions.set(message.id, messageRevision)
     if (groupableToolUse(message)) {
       const toolName = message.tool_name || ""
       const presentation = toolPresentation(toolName, contentInput(message.content))
@@ -115,6 +123,7 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
         pending_action: message.pending_action ?? null,
         nested: []
       }
+      callRevisionParts.set(message.id, [messageRevision])
 
       const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
       let group: ChatToolGroupItem
@@ -149,6 +158,7 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
       }
 
       if (open && open.call.result_settled !== true) {
+        callRevisionParts.get(open.call.message_id)?.push(messageRevision)
         const content = contentRecord(message.content)
         const rawResult = content ? (content.content ?? content.result) : (message.content ?? message.text)
         const cached = cache?.results.get(message.id)
@@ -199,8 +209,10 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
 
   const pruned = pruneBenignDanglingToolGroups(items)
   if (!cache) return pruned
-  const reconciled = reconcileRenderItems(cache.previousItems, pruned)
+  const nextRevisions = new Map(pruned.map((item) => [renderIdentity(item), renderItemRevision(item, messageRevisions, callRevisionParts)]))
+  const reconciled = reconcileRenderItems(cache.previousItems, cache.previousRevisions, pruned, nextRevisions)
   cache.previousItems = reconciled
+  cache.previousRevisions = nextRevisions
   return reconciled
 }
 
@@ -215,11 +227,17 @@ function deriveToolResult(content: unknown, rawResult: unknown, structured: bool
   }
 }
 
-function reconcileRenderItems(previous: ChatRenderItem[], next: ChatRenderItem[]): ChatRenderItem[] {
+function reconcileRenderItems(
+  previous: ChatRenderItem[],
+  previousRevisions: Map<string, string>,
+  next: ChatRenderItem[],
+  nextRevisions: Map<string, string>
+): ChatRenderItem[] {
   const previousByKey = new Map(previous.map((item) => [renderIdentity(item), item]))
   return next.map((item) => {
-    const prior = previousByKey.get(renderIdentity(item))
-    return prior && sameRenderItem(prior, item) ? prior : item
+    const identity = renderIdentity(item)
+    const prior = previousByKey.get(identity)
+    return prior && previousRevisions.get(identity) === nextRevisions.get(identity) ? prior : item
   })
 }
 
@@ -227,46 +245,34 @@ function renderIdentity(item: ChatRenderItem): string {
   return item.type === "tool_group" ? `tool:${item.calls.map((call) => call.message_id).join(",")}` : `message:${item.id}`
 }
 
-function sameRenderItem(left: ChatRenderItem, right: ChatRenderItem): boolean {
-  if (left.type !== right.type) return false
-  if (left.type === "message" && right.type === "message") {
-    return (
-      left.id === right.id &&
-      left.role === right.role &&
-      left.text === right.text &&
-      left.attachments === right.attachments &&
-      left.pending_action === right.pending_action &&
-      left.proposal === right.proposal &&
-      left.system === right.system &&
-      left.tool === right.tool &&
-      left.sender_user === right.sender_user
-    )
+function sourceMessageRevision(message: ChatMessageItem): string {
+  if (message.entity_revision != null) return `${message.id}:${message.entity_revision}:${dynamicMessageRevision(message)}`
+  let identity = legacyMessageIdentities.get(message)
+  if (identity == null) {
+    identity = nextLegacyMessageIdentity++
+    legacyMessageIdentities.set(message, identity)
   }
-  if (left.type !== "tool_group" || right.type !== "tool_group") return false
-  if (
-    left.tool !== right.tool ||
-    left.summary_label !== right.summary_label ||
-    left.outcome_label !== right.outcome_label ||
-    left.calls.length !== right.calls.length
-  )
-    return false
-  return left.calls.every((call, index) => {
-    const other = right.calls[index]
-    return (
-      call.message_id === other.message_id &&
-      call.raw_payload === other.raw_payload &&
-      call.result_body === other.result_body &&
-      call.result_json === other.result_json &&
-      call.pending_action === other.pending_action &&
-      sameNestedGroups(call.nested, other.nested)
-    )
-  })
+  return `${message.id}:legacy:${identity}`
 }
 
-function sameNestedGroups(left: ChatToolGroupItem[] | undefined, right: ChatToolGroupItem[] | undefined): boolean {
-  const a = left || []
-  const b = right || []
-  return a.length === b.length && a.every((group, index) => sameRenderItem(group, b[index]))
+// Some visible fields are hydrated from associated records rather than the
+// ChatMessage row itself, so the message's entity_revision does not move when
+// (for example) a pending action settles or shell-command output arrives.
+// Include those association-backed values in the revision without serializing
+// the potentially multi-megabyte message/tool-result content.
+function dynamicMessageRevision(message: ChatMessageItem): string {
+  return JSON.stringify([message.pending_action, message.proposal, message.chat_shell_command, message.cross_chat_bridge, message.sender_user])
+}
+
+function renderItemRevision(item: ChatRenderItem, messageRevisions: Map<number, string>, callRevisionParts: Map<number, string[]>): string {
+  if (item.type === "message") return messageRevisions.get(item.id) || `missing:${item.id}`
+  return item.calls.map((call) => callRevision(call, callRevisionParts)).join("|")
+}
+
+function callRevision(call: ChatToolGroupCall, callRevisionParts: Map<number, string[]>): string {
+  const own = callRevisionParts.get(call.message_id)?.join("+") || `missing:${call.message_id}`
+  const nested = (call.nested || []).flatMap((group) => group.calls.map((nestedCall) => callRevision(nestedCall, callRevisionParts))).join(",")
+  return nested ? `${own}[${nested}]` : own
 }
 
 function transcriptMetadata(messages: ChatMessageItem[]) {
