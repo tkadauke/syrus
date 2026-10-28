@@ -163,6 +163,37 @@ original plain-text `q=<text>` full-text search (via `Admin::PluginsPayload`'s
 legacy `query:` argument), independent of the chip filter framework, so
 existing external tooling built against it keeps working.
 
+### SmartFolder-backed plugin filters
+
+A plugin that adds predefined folders to a FilterBar surface registers the
+filter subject and the folder subject while enabled. Folder definitions use
+stable, namespaced keys and ordinary filter ASTs:
+
+```ruby
+Filters.register_subject(name: :my_records, model: MyPlugin::Record, chips: CHIPS)
+SmartFolder.register_subject!(
+  :my_records,
+  builtins: [
+    { key: "my_plugin_pending", name: "Pending", visibility: :always,
+      filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "pending" } ] } }
+  ],
+  effective_filter_contract: :smart_folder_resolution,
+  path: ->(**query) { "/my_records?#{query.to_query}" }
+)
+```
+
+The endpoint resolves the selected folder with
+`Filters::SmartFolderResolution` and uses its `filter` both for the returned
+`filter` payload and for the applied relation. A built-in is exposed as one
+editable `smart_folder_preset` chip; an explicit `q=`, including an encoded
+empty tree, replaces it completely. The required
+`effective_filter_contract` registration and its inventory spec prevent new
+SmartFolder subjects from silently implementing different precedence.
+FilterBar surfaces without SmartFolders register only their Filters subject
+and do not opt into this contract. On the frontend, render the returned tree
+with `SmartFolderFilterBar` so editing retains navigation state while clearing
+the final preset sends an explicit empty `q=`.
+
 `GET /api/v1/app/admin/plugins/:name` returns one canonical plugin detail
 payload by manifest name. It reuses the same manifest serialization as the
 index, then adds heavier detail-only fields:

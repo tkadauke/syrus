@@ -136,6 +136,9 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       body = parse_body
       expect(body["suggestions"].map { |suggestion| suggestion["id"] }).to eq([ accepted.id ])
       expect(body["active_smart_folder_id"]).to eq(accepted_folder.id)
+      expect(body["filter"]).to eq(
+        Filters::SmartFolderResolution.preset_tree("agent_insights_accepted")
+      )
       expect(body.dig("meta", "counts")).to include(
         "pending"  => 1,
         "accepted" => 1,

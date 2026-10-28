@@ -183,13 +183,18 @@ class SmartFolder < ApplicationRecord
   # only removes the *definition*; any rows already materialised by
   # ensure_builtins! stay, because disabling a plugin must not delete data
   # (Principle 6 — purge is the separate, explicit step).
-  def self.register_subject!(subject, builtins: [], path: nil, label: nil)
+  def self.register_subject!(subject, builtins: [], path: nil, label: nil, effective_filter_contract:)
+    unless effective_filter_contract == :smart_folder_resolution
+      raise ArgumentError, "SmartFolder subjects must use the smart_folder_resolution effective-filter contract"
+    end
+
     key = subject.to_s
     previous = @registered_subjects[key]
     @registered_subjects[key] = {
       builtins: Array(builtins).freeze,
       path: path,
-      label: label
+      label: label,
+      effective_filter_contract: effective_filter_contract
     }.freeze
 
     -> { previous ? @registered_subjects[key] = previous : @registered_subjects.delete(key) }
@@ -210,6 +215,19 @@ class SmartFolder < ApplicationRecord
 
   def self.builtins_for_subject(subject)
     builtins_by_subject.fetch(subject.to_s)
+  end
+
+  # Filter subjects and persisted-folder subjects normally share a name. A
+  # few older plugin surfaces predate that convention, so preset compilation
+  # may fall back to a globally unique registered key. Stable preset keys are
+  # therefore part of the registration contract; an ambiguous key is not a
+  # valid cross-subject fallback.
+  def self.builtin_definition(subject:, key:)
+    direct = builtins_by_subject[subject.to_s]&.find { |candidate| candidate.fetch(:key).to_s == key.to_s }
+    return direct if direct
+
+    matches = builtins_by_subject.values.flatten.select { |candidate| candidate.fetch(:key).to_s == key.to_s }
+    matches.one? ? matches.first : nil
   end
 
   def self.path_for_subject(subject, **query)

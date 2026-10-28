@@ -35,6 +35,7 @@ module DesignDocs
           SUBJECT,
           builtins: BUILTINS,
           label: "Design Docs",
+          effective_filter_contract: :smart_folder_resolution,
           path: ->(**query) { path(**query) }
         )
       end

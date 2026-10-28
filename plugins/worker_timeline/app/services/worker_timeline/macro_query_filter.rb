@@ -61,17 +61,27 @@ module WorkerTimeline
       end
     end
 
-    def evaluate(node, **context)
+    def evaluate(node, preset_stack: [], **context)
       case node
-      when Filters::Ast::AndNode then node.children.all? { |child| evaluate(child, **context) }
-      when Filters::Ast::OrNode then node.children.any? { |child| evaluate(child, **context) }
-      when Filters::Ast::NotNode then !evaluate(node.child, **context)
-      when Filters::Ast::Chip then evaluate_chip(node, **context)
+      when Filters::Ast::AndNode then node.children.all? { |child| evaluate(child, preset_stack:, **context) }
+      when Filters::Ast::OrNode then node.children.any? { |child| evaluate(child, preset_stack:, **context) }
+      when Filters::Ast::NotNode then !evaluate(node.child, preset_stack:, **context)
+      when Filters::Ast::Chip then evaluate_chip(node, preset_stack:, **context)
       else raise ArgumentError, "unsupported worker timeline filter node: #{node.class}"
       end
     end
 
-    def evaluate_chip(chip, source:, workflow: nil, attribution: {}, instance: nil)
+    def evaluate_chip(chip, source:, workflow: nil, attribution: {}, instance: nil, preset_stack: [])
+      if chip.field == Filters::SmartFolderResolution::PRESET_FIELD
+        key = chip.value.to_s
+        raise ArgumentError, "recursive smart folder preset: #{key.inspect}" if preset_stack.include?(key)
+
+        definition = SmartFolder.builtin_definition(subject: :worker_timeline, key: chip.value)
+        raise ArgumentError, "unknown smart folder preset: #{chip.value.inspect}" unless definition
+
+        return evaluate(Filters::Ast.parse(definition.fetch(:filter)), source:, workflow:, attribution:, instance:, preset_stack: preset_stack + [ key ])
+      end
+
       case chip.field
       when "repository_id" then workflow && workflow.job.repository_id.to_s == chip.value.to_s
       when "epic_id" then workflow && workflow.job.epic_id.to_s == chip.value.to_s
@@ -114,12 +124,22 @@ module WorkerTimeline
       kinds.uniq
     end
 
-    def validate!(node)
+    def validate!(node, preset_stack: [])
       case node
       when Filters::Ast::AndNode, Filters::Ast::OrNode
-        node.children.each { |child| validate!(child) }
-      when Filters::Ast::NotNode then validate!(node.child)
+        node.children.each { |child| validate!(child, preset_stack:) }
+      when Filters::Ast::NotNode then validate!(node.child, preset_stack:)
       when Filters::Ast::Chip
+        if node.field == Filters::SmartFolderResolution::PRESET_FIELD
+          key = node.value.to_s
+          raise ArgumentError, "recursive smart folder preset: #{key.inspect}" if preset_stack.include?(key)
+
+          definition = SmartFolder.builtin_definition(subject: :worker_timeline, key: key)
+          raise ArgumentError, "unknown smart folder preset: #{key.inspect}" unless definition
+
+          return validate!(Filters::Ast.parse(definition.fetch(:filter)), preset_stack: preset_stack + [ key ])
+        end
+
         supported = OPERATORS[node.field] or raise Filters::UnknownFilterField, node.field
         raise ArgumentError, "unsupported operator #{node.op.inspect} for worker timeline field #{node.field.inspect}" unless supported.include?(node.op)
         bounds_for(node) if node.field == "window"

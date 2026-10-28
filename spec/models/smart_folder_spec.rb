@@ -1,6 +1,18 @@
 require "rails_helper"
 
 RSpec.describe SmartFolder do
+  it "requires every registered SmartFolder surface to declare its effective-filter contract" do
+    expect(described_class.registered_subjects).not_to be_empty
+    expect(described_class.registered_subjects.transform_values { |definition| definition[:effective_filter_contract] }.values)
+      .to all(eq(:smart_folder_resolution))
+  end
+
+  it "rejects registrations that do not declare the shared effective-filter contract" do
+    expect {
+      described_class.register_subject!(:uncontracted, effective_filter_contract: :custom)
+    }.to raise_error(ArgumentError, /smart_folder_resolution/)
+  end
+
   it "creates the built-in folders as system-owned rows" do
     # 19 Job built-ins (15 + 3 delivery presets + 1 Investigations)
     # + 9 Epic + 4 Workflow + 4 Admin User + 3 Spawned Process + 11 Admin Queue
@@ -156,6 +168,7 @@ RSpec.describe SmartFolder do
   it "does not reconcile or cache success when the MySQL advisory lock is unavailable" do
     teardown = described_class.register_subject!(
       :lock_timeout_session,
+      effective_filter_contract: :smart_folder_resolution,
       builtins: [
         { key: "running", name: "Running", visibility: :always, filter: { "and" => [] } }
       ]

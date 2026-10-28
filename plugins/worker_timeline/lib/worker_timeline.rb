@@ -47,6 +47,7 @@ module WorkerTimeline
         SmartFolder.register_subject!(
           :worker_timeline,
           label: "Worker Timeline",
+          effective_filter_contract: :smart_folder_resolution,
           path: ->(**query) { query.present? ? "/worker_timeline?#{query.to_query}" : "/worker_timeline" }
         )
       end

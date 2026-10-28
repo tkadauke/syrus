@@ -129,8 +129,10 @@ module Api
         private
 
         def current_filter(active_folder: self.active_smart_folder, raw_params: params)
-          smart_folder = AgentInsights::Filter.smart_folder_floor(raw_params, active_folder, user: Current.user)
-          AgentInsights::Filter.from_params(raw_params, smart_folder: smart_folder, user: Current.user)
+          ::Filters::SmartFolderResolution.call(
+            filter_class: AgentInsights::Filter, subject: AgentInsights::SmartFolders::SUBJECT,
+            params: raw_params, active_smart_folder: active_folder, user: Current.user
+          ).filter
         end
 
         def active_smart_folder
