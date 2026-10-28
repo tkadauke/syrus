@@ -887,7 +887,7 @@ class LandingQueueProcessor
     end
 
     parent = job.parent_job
-    if parent && !merged?(parent)
+    if parent && !stack_parent_satisfied_for_landing?(job, parent)
       check_blocker.call({ key: "waiting_to_merge", params: { slug: parent.slug } }, parent)
     end
 
@@ -1097,7 +1097,13 @@ class LandingQueueProcessor
   def unapproved_epic_siblings(job)
     epic_sibling_jobs(job)
       .reject { |sibling| sibling.id == job.id }
-      .reject { |sibling| sibling.state.in?(%w[ approved closed ]) }
+      .reject { |sibling| sibling.state.in?(%w[ approved landing closed ]) }
+  end
+
+  def stack_parent_satisfied_for_landing?(job, parent)
+    return true if merged?(parent)
+
+    job.epic_id.present? && parent.epic_id == job.epic_id && (parent.approved? || parent.landing?)
   end
 
   def ci_failure_workflow_epic_sibling(job)

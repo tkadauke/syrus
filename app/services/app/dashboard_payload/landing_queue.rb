@@ -67,7 +67,11 @@ module App
         return unless landing_queue_visible?
 
         reason = job.landing_queue_blocked_reason.presence
-        return reason if normal_landing_queue_wait_reason?(reason)
+        if normal_landing_queue_wait_reason?(reason)
+          return { key: "waiting_active_epic_merge_train" } if merge_train_wait_reason?(reason) && merge_train_active_for?(job)
+
+          return reason
+        end
         lock_wait_reason = active_landing_lock_wait_reason_for(job)
         return lock_wait_reason if lock_wait_reason
         return nil if merge_train_start_blocked_reason_for(job)
@@ -145,6 +149,11 @@ module App
 
         hash = reason.to_h
         NORMAL_LANDING_QUEUE_WAIT_REASON_KEYS.include?((hash["key"] || hash[:key]).to_s)
+      end
+
+      def merge_train_wait_reason?(reason)
+        hash = reason.to_h
+        (hash["key"] || hash[:key]).to_s == "waiting_epic_merge_train"
       end
 
       def merge_train_start_blocked_reason_text_for(job)
