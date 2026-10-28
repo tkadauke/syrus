@@ -2,7 +2,15 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, SharedMessageRenderer, shouldRenderUserMarkdown, ToolGroup } from "./MessageCards"
+import {
+  boundedChatMarkdown,
+  ChatMessage,
+  humanMessageBubbleClass,
+  resolveWorkspaceFileLink,
+  SharedMessageRenderer,
+  shouldRenderUserMarkdown,
+  ToolGroup
+} from "./MessageCards"
 import { renderItemKey } from "./messageStreamItems"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
@@ -222,6 +230,21 @@ describe("shared message presentation", () => {
 })
 
 describe("user message markdown heuristic", () => {
+  it("bounds pathological Markdown preparation while keeping the complete message reachable", () => {
+    const text = Array.from({ length: 2_100 }, (_, index) => `**line ${index}** ${"x".repeat(1_000)}`).join("\n")
+    const bounded = boundedChatMarkdown(text)
+
+    expect(bounded.truncated).toBe(true)
+    expect(bounded.preview.length).toBeLessThanOrEqual(100_000)
+    renderMessage(text)
+    const summary = screen.getByText("Show complete message")
+    const details = summary.parentElement as HTMLDetailsElement
+    expect(details.querySelector("pre")).toBeNull()
+    details.open = true
+    fireEvent(details, new Event("toggle"))
+    expect(details.querySelector("pre")?.textContent).toBe(text)
+  })
+
   it("keeps compact ordered-list-looking prose as plain text", () => {
     renderChatMessageItem(userMessage("1. Yes, 2. No, 3. Maybe"))
 
@@ -1046,8 +1069,26 @@ describe("tool result rendering", () => {
 
   it("renders a registered card's pending body before a tool result arrives", () => {
     const item: ChatToolGroupItem = {
-      type: "tool_group", tool: "Publish memory", summary_label: "Publish memory", outcome_label: "Running",
-      calls: [{ message_id: 22, tool_name: "publish_memory", raw_name: "mcp__syrus__publish_memory", detail: "22", display_label: "Publish memory", progress_label: "Thinking", raw_payload: { memory_id: 22 }, result_body: "", result_settled: false, result_error: false, result_kind: "unknown", result_summary: "" }]
+      type: "tool_group",
+      tool: "Publish memory",
+      summary_label: "Publish memory",
+      outcome_label: "Running",
+      calls: [
+        {
+          message_id: 22,
+          tool_name: "publish_memory",
+          raw_name: "mcp__syrus__publish_memory",
+          detail: "22",
+          display_label: "Publish memory",
+          progress_label: "Thinking",
+          raw_payload: { memory_id: 22 },
+          result_body: "",
+          result_settled: false,
+          result_error: false,
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ]
     }
 
     render(<ToolGroup item={item} />)

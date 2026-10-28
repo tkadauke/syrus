@@ -31,6 +31,7 @@ import {
   toolResultPresentation
 } from "./toolRendering"
 import { isReadOnlyToolName } from "../../toolPresentationRegistry"
+import { measureSync } from "../../lib/performanceMarkers"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -47,7 +48,34 @@ type OpenCall = {
   container: ChatRenderItem[]
 }
 
-export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
+type CachedToolResult = {
+  content: unknown
+  rawResult: unknown
+  unboundedBody: string
+  body: string
+  parsed: unknown
+}
+
+export type ChatRenderCache = {
+  results: Map<number, CachedToolResult>
+  previousItems: ChatRenderItem[]
+}
+
+export function createChatRenderCache(): ChatRenderCache {
+  return { results: new Map(), previousItems: [] }
+}
+
+export function renderChatMessages(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
+  const metadata = transcriptMetadata(messages)
+  return measureSync("chat.transcript.derive", () => renderChatMessagesUnmeasured(messages, cache), {
+    metadata,
+    thresholdMs: 8,
+    sampleRate: 0.2,
+    maxPerSession: 20
+  })
+}
+
+function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
   const containerByParentKey = new Map<string, ChatRenderItem[]>([[ROOT_KEY, items]])
   const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([[ROOT_KEY, null]])
@@ -123,9 +151,11 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
       if (open && open.call.result_settled !== true) {
         const content = contentRecord(message.content)
         const rawResult = content ? (content.content ?? content.result) : (message.content ?? message.text)
-        const unboundedBody = content ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
-        open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
-        const parsedResult = parsedToolResult(rawResult, unboundedBody)
+        const cached = cache?.results.get(message.id)
+        const derived = cached && cached.rawResult === rawResult ? cached : deriveToolResult(message.content, rawResult, Boolean(content))
+        cache?.results.set(message.id, derived)
+        const { unboundedBody, body, parsed: parsedResult } = derived
+        open.call.result_body = body
         open.call.result_json = parsedResult
         open.call.result_settled = true
         open.call.result_error = content?.is_error === true
@@ -167,7 +197,100 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
     }
   }
 
-  return pruneBenignDanglingToolGroups(items)
+  const pruned = pruneBenignDanglingToolGroups(items)
+  if (!cache) return pruned
+  const reconciled = reconcileRenderItems(cache.previousItems, pruned)
+  cache.previousItems = reconciled
+  return reconciled
+}
+
+function deriveToolResult(content: unknown, rawResult: unknown, structured: boolean): CachedToolResult {
+  const unboundedBody = structured ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
+  return {
+    content,
+    rawResult,
+    unboundedBody,
+    body: structured ? fullResultBody(rawResult) : unboundedBody,
+    parsed: parsedToolResult(rawResult, unboundedBody)
+  }
+}
+
+function reconcileRenderItems(previous: ChatRenderItem[], next: ChatRenderItem[]): ChatRenderItem[] {
+  const previousByKey = new Map(previous.map((item) => [renderIdentity(item), item]))
+  return next.map((item) => {
+    const prior = previousByKey.get(renderIdentity(item))
+    return prior && sameRenderItem(prior, item) ? prior : item
+  })
+}
+
+function renderIdentity(item: ChatRenderItem): string {
+  return item.type === "tool_group" ? `tool:${item.calls.map((call) => call.message_id).join(",")}` : `message:${item.id}`
+}
+
+function sameRenderItem(left: ChatRenderItem, right: ChatRenderItem): boolean {
+  if (left.type !== right.type) return false
+  if (left.type === "message" && right.type === "message") {
+    return (
+      left.id === right.id &&
+      left.role === right.role &&
+      left.text === right.text &&
+      left.attachments === right.attachments &&
+      left.pending_action === right.pending_action &&
+      left.proposal === right.proposal &&
+      left.system === right.system &&
+      left.tool === right.tool &&
+      left.sender_user === right.sender_user
+    )
+  }
+  if (left.type !== "tool_group" || right.type !== "tool_group") return false
+  if (
+    left.tool !== right.tool ||
+    left.summary_label !== right.summary_label ||
+    left.outcome_label !== right.outcome_label ||
+    left.calls.length !== right.calls.length
+  )
+    return false
+  return left.calls.every((call, index) => {
+    const other = right.calls[index]
+    return (
+      call.message_id === other.message_id &&
+      call.raw_payload === other.raw_payload &&
+      call.result_body === other.result_body &&
+      call.result_json === other.result_json &&
+      call.pending_action === other.pending_action &&
+      sameNestedGroups(call.nested, other.nested)
+    )
+  })
+}
+
+function sameNestedGroups(left: ChatToolGroupItem[] | undefined, right: ChatToolGroupItem[] | undefined): boolean {
+  const a = left || []
+  const b = right || []
+  return a.length === b.length && a.every((group, index) => sameRenderItem(group, b[index]))
+}
+
+function transcriptMetadata(messages: ChatMessageItem[]) {
+  let totalCharacters = 0
+  let largestMessage = 0
+  let largestResult = 0
+  for (const message of messages) {
+    const messageSize = message.text?.length || 0
+    totalCharacters += messageSize
+    largestMessage = Math.max(largestMessage, messageSize)
+    if (message.role === "tool_result") {
+      const content = contentRecord(message.content)
+      const result = content ? (content.content ?? content.result) : message.content
+      const size = typeof result === "string" ? result.length : 0
+      totalCharacters += size
+      largestResult = Math.max(largestResult, size)
+    }
+  }
+  return {
+    loaded_message_count: messages.length,
+    total_character_count: totalCharacters,
+    largest_message_size: largestMessage,
+    largest_result_size: largestResult
+  }
 }
 
 function updateToolGroupState(group: ChatToolGroupItem) {

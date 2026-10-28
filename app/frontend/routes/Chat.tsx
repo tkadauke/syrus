@@ -170,7 +170,8 @@ import {
   replaceProposalInMessages
 } from "./chat/messageStreamItems"
 import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEvents"
-import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
+import { buildMessageStreamItems, createChatRenderCache, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
+import { useMarkedRender } from "../lib/performanceMarkers"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
 import {
@@ -374,7 +375,8 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
 }
 
 function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
-  const items = useMemo(() => renderChatMessages(payload.messages), [payload.messages])
+  const renderCache = useRef(createChatRenderCache())
+  const items = useMemo(() => renderChatMessages(payload.messages, renderCache.current), [payload.messages])
   const placeholderPayload = useMemo(() => sharedChatRenderPayload(payload), [payload])
   const pendingActionIds = useMemo(() => new Set<number>(), [])
   const { t } = useT("chat")
@@ -630,6 +632,35 @@ function toolGroupReferencesMedia(group: ChatToolGroupItem): boolean {
   })
 }
 
+function chatRenderMarkerMetadata(messages: ChatMessageItem[], renderedRows: number, streaming: boolean, loadingOlder: boolean) {
+  let totalCharacters = 0
+  let largestMessageSize = 0
+  let largestResultSize = 0
+
+  for (const message of messages) {
+    const messageSize = message.text?.length || 0
+    totalCharacters += messageSize
+    largestMessageSize = Math.max(largestMessageSize, messageSize)
+    if (message.role !== "tool_result") continue
+    const record =
+      message.content && typeof message.content === "object" && !Array.isArray(message.content) ? (message.content as Record<string, unknown>) : null
+    const result = record?.content ?? record?.result
+    const resultSize = typeof result === "string" ? result.length : 0
+    totalCharacters += resultSize
+    largestResultSize = Math.max(largestResultSize, resultSize)
+  }
+
+  return {
+    loaded_message_count: messages.length,
+    total_character_count: totalCharacters,
+    largest_message_size: largestMessageSize,
+    largest_result_size: largestResultSize,
+    rendered_row_count: renderedRows,
+    streaming,
+    loading_older: loadingOlder
+  }
+}
+
 function MessageStream({
   bookmarkTarget,
   contextFindOpenerRef,
@@ -679,8 +710,9 @@ function MessageStream({
   const [findQuery, setFindQuery] = useState("")
   const [activeFindIndex, setActiveFindIndex] = useState(0)
   const lastAutoSelectedFindSignatureRef = useRef<string | null>(null)
+  const renderCacheRef = useRef(createChatRenderCache())
   const displayedMessages = useMemo(() => mergeChatMessages(olderMessages, payload.messages), [olderMessages, payload.messages])
-  const displayedItems = useMemo(() => renderChatMessages(displayedMessages), [displayedMessages])
+  const displayedItems = useMemo(() => renderChatMessages(displayedMessages, renderCacheRef.current), [displayedMessages])
   const agentQuestions = payload.agent_questions || []
   const hiddenSystemMessageCount = useMemo(() => displayedItems.filter(isLowPrioritySystemMessage).length, [displayedItems])
   const visibleItems = useMemo(
@@ -711,6 +743,25 @@ function MessageStream({
       setOlderMessages((current) => mergeChatMessages(page.messages, current))
       setHasMoreOlder(page.has_more_older)
     }
+  })
+  const renderMarkerMetadata = useMemo(
+    () => chatRenderMarkerMetadata(displayedMessages, streamItems.length, agentActive, loadOlder.isPending),
+    [agentActive, displayedMessages, loadOlder.isPending, streamItems.length]
+  )
+  useMarkedRender("chat.transcript.render_commit", {
+    deps: [visibleItemsSignature, agentActive, loadOlder.isPending],
+    metadata: renderMarkerMetadata,
+    thresholdMs: 16,
+    sampleRate: 0.2,
+    maxPerSession: 20
+  })
+  useMarkedRender("chat.transcript.render_paint", {
+    deps: [visibleItemsSignature, agentActive, loadOlder.isPending],
+    metadata: renderMarkerMetadata,
+    phase: "paint",
+    thresholdMs: 32,
+    sampleRate: 0.1,
+    maxPerSession: 10
   })
   const findSearch = useMemo(() => {
     const params = new URLSearchParams({ chat_session_id: String(payload.chat.id), q: findQuery })
@@ -768,6 +819,7 @@ function MessageStream({
     },
     onError: (error) => onNotice(errorMessage(error, t("retry_failed")))
   })
+  const retryMessage = useCallback((text: string) => retryTurn.mutate(text), [retryTurn.mutate])
 
   const retryScheduledTurn = useMutation({
     mutationFn: () => {
@@ -1159,7 +1211,7 @@ function MessageStream({
                 retryText={retryTextMap.get(item.id) ?? null}
                 retrying={retryTurn.isPending}
                 onNotice={onNotice}
-                onRetry={(text) => retryTurn.mutate(text)}
+                onRetry={retryMessage}
                 onSelectWorkspaceTab={onSelectWorkspaceTab}
               />
             )

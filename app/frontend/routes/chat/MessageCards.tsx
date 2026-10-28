@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { memo, useRef, useState } from "react"
-import type { ReactNode } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -66,6 +66,21 @@ import { ToolErrorCard } from "./toolErrorCard"
 // and ToolGroup are the entry points the message stream renders. Depends only on
 // leaf modules and shared UI imports; unused header imports were pruned.
 
+type ChatMessageProps = {
+  animateIn?: boolean
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  pendingActionIds: Set<number>
+  prefix: string
+  queryKey: ChatQueryKey
+  readOnly?: boolean
+  retryText?: string | null
+  retrying?: boolean
+  onNotice: (message: string | null) => void
+  onRetry?: (text: string) => void
+  onSelectWorkspaceTab?: () => void
+}
+
 export const ChatMessage = memo(function ChatMessage({
   animateIn = false,
   item,
@@ -79,20 +94,7 @@ export const ChatMessage = memo(function ChatMessage({
   onNotice,
   onRetry,
   onSelectWorkspaceTab
-}: {
-  animateIn?: boolean
-  item: Extract<ChatRenderItem, { type: "message" }>
-  payload: ChatPayload
-  pendingActionIds: Set<number>
-  prefix: string
-  queryKey: ChatQueryKey
-  readOnly?: boolean
-  retryText?: string | null
-  retrying?: boolean
-  onNotice: (message: string | null) => void
-  onRetry?: (text: string) => void
-  onSelectWorkspaceTab?: () => void
-}) {
+}: ChatMessageProps) {
   const { t } = useT("chat")
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
@@ -184,7 +186,46 @@ export const ChatMessage = memo(function ChatMessage({
       <StructuredTool tool={item.tool} fallback={item.text} />
     </SharedMessageRenderer>
   )
-})
+}, sameChatMessageProps)
+
+function sameChatMessageProps(previous: ChatMessageProps, next: ChatMessageProps) {
+  return (
+    previous.item === next.item &&
+    previous.animateIn === next.animateIn &&
+    previous.prefix === next.prefix &&
+    previous.readOnly === next.readOnly &&
+    previous.retryText === next.retryText &&
+    previous.retrying === next.retrying &&
+    previous.onNotice === next.onNotice &&
+    previous.onRetry === next.onRetry &&
+    previous.onSelectWorkspaceTab === next.onSelectWorkspaceTab &&
+    previous.payload.chat.id === next.payload.chat.id &&
+    previous.payload.chat.conversation_kind === next.payload.chat.conversation_kind &&
+    sameSerializable(previous.payload.paths, next.payload.paths) &&
+    previous.queryKey.every((value, index) => value === next.queryKey[index]) &&
+    sameNumberSet(previous.pendingActionIds, next.pendingActionIds)
+  )
+}
+
+function sameNumberSet(left: Set<number>, right: Set<number>) {
+  return left.size === right.size && Array.from(left).every((value) => right.has(value))
+}
+
+const serializedRenderProps = new WeakMap<object, string>()
+
+function sameSerializable(left: object | undefined, right: object | undefined) {
+  if (left === right) return true
+  if (!left || !right) return false
+  return serializedValue(left) === serializedValue(right)
+}
+
+function serializedValue(value: object) {
+  const cached = serializedRenderProps.get(value)
+  if (cached !== undefined) return cached
+  const serialized = JSON.stringify(value)
+  serializedRenderProps.set(value, serialized)
+  return serialized
+}
 
 // The common outer message rhythm for both the live chat and read-only Run
 // transcripts. Behavior (actions, retries, navigation) stays with each caller;
@@ -237,7 +278,7 @@ function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { ty
   const slugTone = isCurrentUserBubble(item, payload) ? "inverted" : "default"
 
   if (shouldRenderUserMarkdown(item.text)) {
-    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />
+    return <BoundedChatMarkdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />
   }
 
   return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />
@@ -313,13 +354,51 @@ export function ChatAssistantMarkdownSurface({
 
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${compactClass}`}>
-      <Markdown
+      <BoundedChatMarkdown
         className="chat-prose break-words text-gray-800 [overflow-wrap:anywhere] dark:text-gray-100"
         text={text}
         linkifyUrls
         onLinkClick={onLinkClick}
       />
     </div>
+  )
+}
+
+const CHAT_MARKDOWN_MAX_CHARACTERS = 100_000
+const CHAT_MARKDOWN_MAX_LINES = 2_000
+
+export function boundedChatMarkdown(text: string): { preview: string; truncated: boolean } {
+  let lines = 1
+  let end = Math.min(text.length, CHAT_MARKDOWN_MAX_CHARACTERS)
+  for (let index = 0; index < end; index += 1) {
+    if (text.charCodeAt(index) !== 10) continue
+    lines += 1
+    if (lines > CHAT_MARKDOWN_MAX_LINES) {
+      end = index
+      break
+    }
+  }
+  if (end === text.length) return { preview: text, truncated: false }
+  return { preview: text.slice(0, end), truncated: true }
+}
+
+function BoundedChatMarkdown({ text, ...props }: ComponentProps<typeof Markdown>) {
+  const { t } = useT("chat")
+  const [completeVisible, setCompleteVisible] = useState(false)
+  const bounded = boundedChatMarkdown(text)
+  return (
+    <>
+      <Markdown {...props} text={bounded.preview} />
+      {bounded.truncated ? (
+        <details
+          className="mt-2 rounded border border-gray-200 bg-surface-subtle p-2 text-xs dark:border-gray-700"
+          onToggle={(event) => setCompleteVisible(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer font-medium">{t("show_complete_message")}</summary>
+          {completeVisible ? <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words font-sans">{text}</pre> : null}
+        </details>
+      ) : null}
+    </>
   )
 }
 
@@ -904,19 +983,15 @@ export function ChatCommandOutputSurface({
   )
 }
 
-export const ToolGroup = memo(function ToolGroup({
-  chatSessionId,
-  item,
-  payload,
-  chatMedia,
-  presentation: suppliedPresentation
-}: {
+type ToolGroupProps = {
   chatSessionId?: number | string
   item: ChatToolGroupItem
   payload?: ChatPayload
   chatMedia?: ChatMediaPayload
   presentation?: ToolCardContext["presentation"]
-}) {
+}
+
+export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload, chatMedia, presentation: suppliedPresentation }: ToolGroupProps) {
   const { t } = useT("chat")
   const [open, setOpen] = useState(false)
   const presentation = suppliedPresentation ?? (payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined)
@@ -1009,7 +1084,19 @@ export const ToolGroup = memo(function ToolGroup({
       {sourcePreview && payload ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
     </details>
   )
-})
+}, sameToolGroupProps)
+
+function sameToolGroupProps(previous: ToolGroupProps, next: ToolGroupProps) {
+  return (
+    previous.item === next.item &&
+    previous.chatSessionId === next.chatSessionId &&
+    previous.chatMedia === next.chatMedia &&
+    previous.presentation === next.presentation &&
+    previous.payload?.chat.id === next.payload?.chat.id &&
+    sameSerializable(previous.payload?.preview_panels, next.payload?.preview_panels) &&
+    sameSerializable(previous.payload?.paths, next.payload?.paths)
+  )
+}
 
 // The zero-argument sentinel (see NO_ARGUMENTS_SENTINEL) carries no
 // information, so it never earns space in the collapsed subtitle or the

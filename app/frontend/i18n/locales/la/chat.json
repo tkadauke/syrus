@@ -3261,5 +3261,6 @@
   "admin_pause_maintenance_task_confirmation_other": "{{count}} munera conservationis pausare?",
   "admin_kill_process_confirmation_one": "Processum {{targets}} finire?",
   "admin_kill_process_confirmation_other": "Processus {{targets}} finire?",
-  "admin_kill_process_catalog_targets": "#41, #42 et #43"
+  "admin_kill_process_catalog_targets": "#41, #42 et #43",
+  "show_complete_message": "Nuntium integrum ostendere"
 }
