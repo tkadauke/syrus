@@ -250,8 +250,43 @@ Screen standalone session (`navigator.standalone` or `display-mode:
 standalone`) or when an operator explicitly opens a URL with
 `startup_diagnostics=1`. The milestone metadata mirrors the browser-error
 startup context so operators can compare `startup.shell_loaded`,
-`startup.react_module_loaded`, and `startup.react_first_render` for standalone
-launches without filing browser-error jobs for successful starts.
+`startup.react_module_evaluated`, `startup.react_commit`, and
+`startup.react_post_paint` for standalone launches without filing browser-error
+jobs for successful starts. The definitions are deliberately non-cumulative:
+
+- **transfer** is the Navigation Timing request/response interval plus up to 40
+  same-origin `script` Resource Timing entries observed when the entry module
+  finishes evaluation. Each entry contains request start, response start/end,
+  transfer/encoded/decoded sizes, inferred cache status, delivery type, and
+  connection protocol where the browser exposes them. Asset identifiers are
+  pathnames only; origins and query strings are discarded. Zero and missing
+  values are retained because browsers commonly suppress these fields.
+- **evaluation** ends at `startup.react_module_evaluated`, immediately after
+  the initial static module graph has evaluated. Subtract the latest relevant
+  resource `response_end_ms` from this milestone's `duration_ms`; do not call
+  the entire shell-to-module interval evaluation time.
+- **commit** is `startup.react_commit`, emitted from React's layout-effect
+  boundary after the first commit. It satisfies the existing startup watchdog
+  and hides the loading shell.
+- **paint** is `startup.react_post_paint`, emitted after two animation frames
+  requested from that layout effect, so at least one paint opportunity has
+  passed. Every milestone records `visibility_state`, `document_ready_state`,
+  and the latest lifecycle state; hidden launches must not be interpreted as
+  visible paint latency.
+
+Reproduce a launch from a normal tab by adding `?startup_diagnostics=1`, then
+query the Rails console (within the 24-hour retention window):
+
+```ruby
+events = PerformanceLogEvent.where(
+  event_name: PerformanceLogging::BROWSER_TRACE_EVENT,
+  name: %w[startup.shell_loaded startup.react_module_evaluated startup.react_commit startup.react_post_paint]
+).where("occurred_at >= ?", 30.minutes.ago).order(:trace_id)
+
+events.pluck(:trace_id, :name, :duration_ms, :path)
+evaluated = events.find_by(name: "startup.react_module_evaluated")
+evaluated&.payload&.dig("metadata", "startup_timings")
+```
 
 Helpers: `measureSync`/`measureAsync` (time a block, sync or async),
 `startMarker`/`endMarker` (an explicit span that doesn't fit one function

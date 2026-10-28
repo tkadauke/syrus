@@ -577,6 +577,35 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "retains bounded structured SPA startup timing metadata" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    resources = 45.times.map do |index|
+      {
+        path: "/assets/chunk-#{index}.js", request_start_ms: 1.24,
+        response_end_ms: 3.46, transfer_size: index.zero? ? 0 : 100,
+        cache_status: index.zero? ? "cached" : nil, protocol: "h2"
+      }
+    end
+
+    described_class.record_browser_trace(
+      trace_id: "startup-1-react_module_evaluated", name: "startup.react_module_evaluated",
+      path: "/dashboard?startup_diagnostics=1", duration_ms: 20,
+      metadata: { startup_timings: {
+        navigation: { request_start_ms: 0, response_end_ms: 8.88, protocol: "h3" },
+        resources: resources
+      } }
+    )
+
+    timings = described_class::Store.recent.first.dig("metadata", "startup_timings")
+    expect(timings.dig("navigation", "response_end_ms")).to eq(8.9)
+    expect(timings["resources"]).to have_attributes(size: 40)
+    expect(timings["resources"].first).to include(
+      "path" => "/assets/chunk-0.js", "request_start_ms" => 1.2,
+      "response_end_ms" => 3.5, "transfer_size" => 0, "cache_status" => "cached"
+    )
+  end
+
   it "omits parent/interaction ids when absent instead of storing blank strings" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset

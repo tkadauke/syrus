@@ -573,8 +573,36 @@ module PerformanceLogging
 
   def safe_metadata(metadata)
     metadata.to_h.to_h do |key, value|
-      [ safe_string(key, 100), safe_string(value, 500) ]
+      safe_key = safe_string(key, 100)
+      [ safe_key, safe_key == "startup_timings" ? safe_startup_timings(value) : safe_string(value, 500) ]
     end
+  end
+
+  def safe_startup_timings(value)
+    timings = value.to_h
+    {
+      "navigation" => safe_startup_timing_entry(timings[:navigation] || timings["navigation"], include_path: false),
+      "resources" => Array(timings[:resources] || timings["resources"]).first(40).map do |entry|
+        safe_startup_timing_entry(entry, include_path: true)
+      end
+    }
+  end
+
+  def safe_startup_timing_entry(value, include_path:)
+    entry = value.to_h
+    result = {
+      "request_start_ms" => rounded_duration(entry[:request_start_ms] || entry["request_start_ms"]),
+      "response_start_ms" => rounded_duration(entry[:response_start_ms] || entry["response_start_ms"]),
+      "response_end_ms" => rounded_duration(entry[:response_end_ms] || entry["response_end_ms"]),
+      "transfer_size" => Integer(entry[:transfer_size] || entry["transfer_size"], exception: false),
+      "encoded_body_size" => Integer(entry[:encoded_body_size] || entry["encoded_body_size"], exception: false),
+      "decoded_body_size" => Integer(entry[:decoded_body_size] || entry["decoded_body_size"], exception: false),
+      "cache_status" => safe_string(entry[:cache_status] || entry["cache_status"], 20).presence,
+      "protocol" => safe_string(entry[:protocol] || entry["protocol"], 30).presence,
+      "delivery_type" => safe_string(entry[:delivery_type] || entry["delivery_type"], 30).presence
+    }.compact
+    result["path"] = safe_string(entry[:path] || entry["path"], 300) if include_path
+    result
   end
 
   def safe_api_requests(requests)
