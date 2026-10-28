@@ -282,6 +282,21 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     expect(active_folder).to include("active" => true, "count" => be >= 1)
   end
 
+  it "exposes a built-in folder as editable filter state and honors last-chip removal" do
+    sign_in_as(admin)
+    SmartFolder.ensure_admin_user_builtins!
+    folder = SmartFolder.for_subject(:admin_user).find_by!(name: "Missing GitHub token")
+
+    get "/api/v1/app/admin/users", params: { smart_folder_id: folder.id }
+    expect(parse_body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree(folder.builtin_key))
+
+    get "/api/v1/app/admin/users", params: {
+      smart_folder_id: folder.id,
+      q: Filters::QueryParam.encode("and" => [])
+    }
+    expect(parse_body["filter"]).to eq("and" => [])
+  end
+
   it "returns the active user-defined folder filter when no URL filter is present" do
     sign_in_as(admin)
     folder_tree = {

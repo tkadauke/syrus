@@ -12,8 +12,8 @@ import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { Button } from "../components/Button"
 import { MutationError } from "../components/MutationError"
-import { FilterBar } from "../components/FilterBar"
-import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
+import { SmartFolderFilterBar } from "../components/SmartFolderFilterBar"
+import { linkFromSearch } from "../components/filterBar/helpers"
 import {
   fetchAdminProcess,
   fetchAdminProcesses,
@@ -46,9 +46,6 @@ export function AdminProcessesIndex() {
     queryFn: () => fetchAdminProcesses(location.search),
     refetchInterval: (query) => (query.state.data?.processes.some((process) => !process.finished_at) ? 5_000 : false)
   })
-  const activeUserFolderId = processes.data?.smart_folders.find(
-    (folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined"
-  )?.id
   const activeFolderLabel =
     processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id)?.name ?? t("processes.all_label")
 
@@ -66,13 +63,15 @@ export function AdminProcessesIndex() {
       {processes.isSuccess ? (
         <AdminFiltersLayout
           filterBar={
-            <FilterBar
+            <SmartFolderFilterBar
+              activeSmartFolderId={processes.data.active_smart_folder_id}
               filter={processes.data.filter}
               filterSchema={processes.data.controls.filter_schema}
-              buildLink={adminSmartFolderFilterLinkBuilder(activeUserFolderId)}
+              buildLink={linkFromSearch}
               legacyFilterKeys={adminProcessLegacyFilterKeys}
               pathname={location.pathname}
               search={location.search}
+              smartFolders={processes.data.smart_folders}
             />
           }
           mobileSummaryLabel={activeFolderLabel}

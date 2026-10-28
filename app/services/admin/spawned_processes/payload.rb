@@ -130,7 +130,7 @@ module Admin
         explicit_folder = ::Admin::SmartFolderNavigation.active_folder(subject: :spawned_process, user: user, params: params)
         return explicit_folder if explicit_folder
         return nil unless default_to_running
-        return nil if explicit_smart_folder_requested? || explicit_filter_present?
+        return nil if explicit_smart_folder_requested? || explicit_filter_requested?
 
         default_running_folder
       end
@@ -146,8 +146,9 @@ module Admin
         params.key?(:smart_folder_id) || params.key?("smart_folder_id")
       end
 
-      def explicit_filter_present?
-        ::Admin::SpawnedProcesses::Filter.from_params(params, user: user).active?
+      def explicit_filter_requested?
+        params.key?(Filters::QueryParam::PARAM_NAME) || params.key?(Filters::QueryParam::PARAM_NAME.to_s) ||
+          ::Admin::SpawnedProcesses::Filter.from_params(params, user: user).active?
       end
 
       def default_running_folder
@@ -155,10 +156,13 @@ module Admin
       end
 
       def display_filter(active_folder)
-        url_filter = ::Admin::SpawnedProcesses::Filter.from_params(params, user: user)
-        return url_filter if url_filter.active?
-
-        ::Admin::SpawnedProcesses::Filter.from_params(params, smart_folder: active_folder, user: user)
+        Filters::SmartFolderResolution.call(
+          filter_class: ::Admin::SpawnedProcesses::Filter,
+          subject: :spawned_process,
+          params: params,
+          active_smart_folder: active_folder,
+          user: user
+        ).filter
       end
 
       def smart_folders(base_scope, active_folder)
