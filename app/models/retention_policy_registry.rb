@@ -276,8 +276,10 @@ class RetentionPolicyRegistry
   end
 
   def self.fetch(key)
-    definitions.index_by(&:key).fetch(key.to_sym)
+    find(key) || raise(KeyError, "key not found: #{key}")
   end
+
+  def self.find(key) = definitions.find { |definition| definition.key == key.to_sym }
 
   def self.validate!
     duplicates = definitions.group_by(&:key).select { |_key, entries| entries.many? }.keys
