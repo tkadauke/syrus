@@ -711,6 +711,9 @@
     "action_available": "Available",
     "action_blocked": "Blocked",
     "action_disabled": "Disabled",
+    "promote": "Promote to release",
+    "promoting": "Promoting...",
+    "promotion_failed": "Could not start promotion.",
     "recent_ref_movements_heading": "Recent ref-movement workflows",
     "recent_pr_ingestions_heading": "Recent PR ingestions"
   },

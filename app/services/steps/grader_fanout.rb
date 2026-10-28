@@ -890,7 +890,14 @@ module Steps
     end
 
     def effective_plan(plan)
-      LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
+      LandingGraderPlan.effective(
+        plan,
+        trigger_kind: workflow.trigger_kind,
+        iteration: run.iteration,
+        phase: health_grader_phase,
+        repository: repository,
+        job: job
+      )
     end
 
     def graph_grade_plan
@@ -985,7 +992,19 @@ module Steps
     end
 
     def grader_phase
-      LandingGraderPlan.phase_for(trigger_kind: workflow.trigger_kind, iteration: run.iteration)
+      health_grader_phase || LandingGraderPlan.phase_for(
+        trigger_kind: workflow.trigger_kind,
+        iteration: run.iteration,
+        repository: repository,
+        job: job
+      )
+    end
+
+    def health_grader_phase
+      return unless workflow.trigger_kind == "main_grader"
+
+      branch = workflow.artifact("health_branch").presence || repository.default_branch
+      DeliveryPolicy.for(repository: repository).branch_health_grade_phase(branch).to_sym
     end
   end
 end

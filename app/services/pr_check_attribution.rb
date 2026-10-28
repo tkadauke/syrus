@@ -83,13 +83,13 @@ class PrCheckAttribution
     sha = job.pr_checks_base_sha.presence || job.mergeability_base_sha.presence
     return nil if sha.blank?
 
-    MainBranchHealthCheck.where(repository_id: job.repository_id, sha: sha)
+    MainBranchHealthCheck.where(repository_id: job.repository_id, branch: job.effective_base_branch, sha: sha)
                          .where.not(ci_health: "unknown")
                          .recent.first
   end
 
   def latest_repository_check
-    MainBranchHealthCheck.where(repository_id: job.repository_id, source: "ci_poll")
+    MainBranchHealthCheck.where(repository_id: job.repository_id, branch: job.effective_base_branch, source: "ci_poll")
                          .where(ci_health: MainBranchHealthCheck::SETTLED_CI_HEALTH)
                          .recent.first
   end

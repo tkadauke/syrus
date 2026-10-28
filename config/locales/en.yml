@@ -771,6 +771,10 @@ en:
       sent_upstream: "Sent upstream."
       blocked: "Ref-movement action blocked."
 
+    repository_ref_movement_actions:
+      invalid_action: "Unsupported repository ref-movement action."
+      promotion_dispatched: "Promotion started."
+
     plugins:
       disabled: "The %{plugin} plugin is disabled."
       route_not_found: "Plugin route not found."

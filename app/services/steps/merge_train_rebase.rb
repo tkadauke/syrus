@@ -140,7 +140,11 @@ module Steps
 
     def current_landing_grader_fingerprint
       graph = TargetGraph::Compiler.compile(workspace.path)
-      plan = LandingGraderPlan.landing(TargetGraph::GradePlan.for(workspace_path: workspace.path, graph: graph))
+      plan = LandingGraderPlan.landing(
+        TargetGraph::GradePlan.for(workspace_path: workspace.path, graph: graph),
+        repository: repository,
+        job: job
+      )
       GraderConclusionCache.fingerprint_for_plan(plan, target_graph: graph)
     rescue StandardError => e
       log("merge_train_rebase: could not fingerprint current landing graders for carry-forward: #{e.message}", kind: "system")

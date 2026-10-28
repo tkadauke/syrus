@@ -147,7 +147,8 @@ module Steps
 
     def current_grader_fingerprint
       plan = RepoGradePlan.for(workspace.path)
-      GraderConclusionCache.fingerprint_for_plan(LandingGraderPlan.landing(plan), target_graph: TargetGraph::Compiler.compile(workspace.path))
+      effective_plan = LandingGraderPlan.landing(plan, repository: repository, job: job)
+      GraderConclusionCache.fingerprint_for_plan(effective_plan, target_graph: TargetGraph::Compiler.compile(workspace.path))
     rescue StandardError => e
       log("merge_train_reconcile: could not fingerprint current landing graders: #{e.message}", kind: "system")
       nil

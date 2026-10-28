@@ -602,7 +602,7 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 | Agent provider override | Blank | If set, new Jobs for the repo use this provider instead of the user's default |
 | PR cost footer | `false` | Adds or updates a cost footer on PRs when cost data exists |
 | Automatic pull-request CI repair | `true` | Creates repair Workflows for failing PR checks; manual polls can override this setting |
-| Main branch health monitoring | `false` | Polls and records health for the default branch |
+| Branch health monitoring | `false` | Polls and records health independently for every configured delivery-track branch (or the default branch when delivery tracks are not configured) |
 | Automatic main branch repair | `false` | Creates repair Jobs when monitored main is broken |
 | Block work while main is broken | `false` | Pauses ordinary work and landing while monitored main is broken |
 | Auto-approve main branch repairs | `false` | Approves successful repair Jobs without operator review |

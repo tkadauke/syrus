@@ -1405,6 +1405,10 @@ track); leaving it unset lands the Job on the repository's normal default
 track. A GitHub issue can select a track the same way with a
 `syrus-track-<name>` label (e.g. `syrus-track-hotfix`). See
 `config/syrus_docs/delivery_tracks.md` for the full `.syrus.yml` shape.
+Each track can select custom review, landing, and branch-health grader phases
+for a cheaper development loop or stricter release path. Every explicitly
+selected phase must be listed by at least one `grade.steps[].phases` entry;
+invalid configuration is rejected instead of silently running no graders.
 
 Once a repository configures delivery tracks, its overview page gains a
 **Delivery** section: a table of tracks with branch, grade phases, health,
@@ -1412,7 +1416,14 @@ landing-queue length, and the last promotion/hotfix-sync into that track;
 the repository's configured ref-movement actions and whether each is
 currently available to dispatch; recent promotion/hotfix-sync/upstream-export
 Workflows with their source and target refs; and recent PR ingestions with
-their Syrus-provenance classification. The Dashboard's Jobs table shows a
+their Syrus-provenance classification.
+When promotion is enabled, repository writers can manually start the
+development-to-release promotion from this Delivery section. Syrus records the
+request in the ref-movement audit trail and prevents another promotion while
+one for the same repository is queued or running. Enabling promotion does not
+create a schedule.
+
+The Dashboard's Jobs table shows a
 small delivery-status badge (waiting for upstream approval, waiting for
 promotion, syncing hotfix, and so on) next to any Job whose delivery status
 is more specific than the default "waiting for local approval"/"approved for

@@ -15,7 +15,8 @@ module RefMovementActions
     def self.for(name)
       {
         "send_job_upstream" => RefMovementActions::SendJobUpstream,
-        "submit_branch_upstream" => RefMovementActions::SubmitBranchUpstream
+        "submit_branch_upstream" => RefMovementActions::SubmitBranchUpstream,
+        "promote_development_to_release" => RefMovementActions::PromoteDevelopmentToRelease
       }.fetch(name.to_s, RefMovementActions::Unsupported).new
     end
 
