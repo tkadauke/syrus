@@ -2,9 +2,9 @@ import { getJson, postJson } from "@app/api/client"
 import type { RepositoryDetailRecord, RepositoryTab } from "@app/api/repositories"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
-export type IssueFolder = "inbox" | "delegated" | "open" | "closed"
+export type IssueFolder = "all" | "inbox" | "delegated" | "open" | "closed"
 
-export const ISSUE_FOLDERS: IssueFolder[] = [ "inbox", "delegated", "open", "closed" ]
+export const ISSUE_FOLDERS: IssueFolder[] = [ "all", "inbox", "delegated", "open", "closed" ]
 
 export type RepositoryIssuesPayload = {
   message?: string | null
@@ -15,6 +15,7 @@ export type RepositoryIssuesPayload = {
   query: string | null
   filter: Record<string, unknown>
   filter_schema: FilterSchemaField[]
+  untouched_preset: boolean
   sort: {
     column: string
     direction: "asc" | "desc"

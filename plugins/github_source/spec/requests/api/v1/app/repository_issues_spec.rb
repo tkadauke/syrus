@@ -64,7 +64,8 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
       "delegated" => true,
       "labels" => include({ "name" => "bug", "color" => "0075ca" })
     ))
-    expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 0, "open" => 1, "closed" => 1 })
+    expect(body["folder_counts"]).to eq({ "all" => 2, "inbox" => 1, "delegated" => 0, "open" => 1, "closed" => 1 })
+    expect(body["filter"]).to eq({ "and" => [ { "field" => "preset", "op" => "is", "value" => "closed" } ] })
     expect(body.dig("paths", "app_delegate_issue_path")).to eq("/api/v1/app/repositories/#{repository.id}/issues/delegate")
     expect(body.dig("folder_paths", "open")).to eq("/repositories/#{repository.id}/plugin/issues?folder=open")
   end
@@ -85,7 +86,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
 
     body = parse_body
     expect(body["issues"].map { |issue| issue["number"] }).to eq([ 1 ])
-    expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 1, "open" => 2, "closed" => 0 })
+    expect(body["folder_counts"]).to eq({ "all" => 2, "inbox" => 1, "delegated" => 1, "open" => 2, "closed" => 0 })
   end
 
 
@@ -153,7 +154,24 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     body = parse_body
     expect(body["issues"].map { |issue| issue["number"] }).to eq([ 1 ])
     expect(body["issue_count"]).to eq(1)
-    expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 3, "open" => 4, "closed" => 1 })
+    expect(body["folder_counts"]).to eq({ "all" => 5, "inbox" => 1, "delegated" => 3, "open" => 4, "closed" => 1 })
+  end
+
+
+  it "lets an explicit filter replace the complete delegated preset" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
+    fake_issue(repository: repository, number: 1, title: "Delegated", labels: [ "syrus" ])
+    fake_issue(repository: repository, number: 2, title: "Available", labels: [])
+
+    q = encoded_filter([ { "field" => "delegated", "op" => "is", "value" => "false" } ])
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "delegated", q: q }
+
+    body = parse_body
+    expect(body["folder"]).to eq("all")
+    expect(body["filter"]).to eq({ "and" => [ { "field" => "delegated", "op" => "is", "value" => "false" } ] })
+    expect(body["issues"].map { |issue| issue["number"] }).to eq([ 2 ])
+    expect(body["untouched_preset"]).to be(false)
   end
 
 
