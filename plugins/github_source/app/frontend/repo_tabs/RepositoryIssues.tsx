@@ -33,7 +33,6 @@ import {
 } from "../api/issues"
 import { errorMessage } from "@app/lib/errorMessage"
 
-
 // Repository GitHub-issues tab extracted from RepositoryDetail.tsx: the issue
 // list (RepositoryIssues), its rows, and the issue label chip. Entry point
 // rendered for the github_issues tab. Depends only on leaf/shared modules.
@@ -68,7 +67,7 @@ function folderLink(pathname: string, search: string, folder: IssueFolder) {
 type IssueSort = RepositoryIssuesPayload["sort"]
 
 const ISSUE_COLUMNS_STORAGE_KEY = "syrus.github_source.repository_issues.visible_columns"
-const ISSUE_SORT_COLUMNS = new Set([ "number", "title", "state", "author", "created_at", "delegated" ])
+const ISSUE_SORT_COLUMNS = new Set(["number", "title", "state", "author", "created_at", "delegated"])
 
 function resolveSort(searchParams: URLSearchParams): IssueSort {
   const column = searchParams.get("sort")
@@ -87,7 +86,17 @@ function sortLink(pathname: string, search: string, sort: IssueSort, column: str
   return `${pathname}?${params.toString()}`
 }
 
-export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: { isRefreshing: boolean; onRefresh: () => void; payload: RepositoryIssuesPayload; prefix: string }) {
+export function RepositoryIssues({
+  isRefreshing,
+  onRefresh,
+  payload,
+  prefix
+}: {
+  isRefreshing: boolean
+  onRefresh: () => void
+  payload: RepositoryIssuesPayload
+  prefix: string
+}) {
   const { t } = useT("github_source")
   const { t: tNav } = useT("nav")
   const queryClient = useQueryClient()
@@ -116,7 +125,13 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
         case "delegate":
           return delegateRepositoryIssue(payload.paths.app_delegate_issue_path, { issueNumber: action.issueNumber, folder, filterParam, sort })
         case "bulk":
-          return bulkRepositoryIssues(payload.paths.app_bulk_issues_path, { issueNumbers: action.issueNumbers, bulkAction: action.bulkAction, folder, filterParam, sort })
+          return bulkRepositoryIssues(payload.paths.app_bulk_issues_path, {
+            issueNumbers: action.issueNumbers,
+            bulkAction: action.bulkAction,
+            folder,
+            filterParam,
+            sort
+          })
       }
     },
     onSuccess: (updated) => {
@@ -138,44 +153,45 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: ISSUE_COLUMNS_STORAGE_KEY })
 
   function toggleIssue(number: number) {
-    setSelected((current) => current.includes(number) ? current.filter((value) => value !== number) : [...current, number])
+    setSelected((current) => (current.includes(number) ? current.filter((value) => value !== number) : [...current, number]))
   }
 
   function toggleAll() {
-    setSelected((current) => current.length === payload.issues.length ? [] : payload.issues.map((issue) => issue.number))
+    setSelected((current) => (current.length === payload.issues.length ? [] : payload.issues.map((issue) => issue.number)))
   }
 
-  const folders: SmartFolderNavFolder[] = useMemo(() => ISSUE_FOLDERS.map((folder, index) => ({
-    id: index + 1,
-    name: t(`repository.folder_${folder}`),
-    kind: "builtin",
-    visibility: "default",
-    position: index,
-    count: payload.folder_counts[folder],
-    active: payload.folder === folder,
-    path: folderLink(location.pathname, location.search, folder)
-  })), [t, payload.folder, payload.folder_counts, location.pathname, location.search])
+  const folders: SmartFolderNavFolder[] = useMemo(
+    () =>
+      ISSUE_FOLDERS.map((folder, index) => ({
+        id: index + 1,
+        name: t(`repository.folder_${folder}`),
+        kind: "builtin",
+        visibility: "default",
+        position: index,
+        count: payload.folder_counts[folder],
+        active: payload.folder === folder,
+        path: folderLink(location.pathname, location.search, folder)
+      })),
+    [t, payload.folder, payload.folder_counts, location.pathname, location.search]
+  )
 
   return (
     <>
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
         <span>
-          {t('repository.trigger_label_prefix')} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code>
+          {t("repository.trigger_label_prefix")} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code>
         </span>
         {payload.repository.github_rate_limit ? (
           <span>
-            {t('repository.github_quota_prefix')} <strong>{payload.repository.github_rate_limit.remaining.toLocaleString()}</strong> / {payload.repository.github_rate_limit.limit.toLocaleString()} ({payload.repository.github_rate_limit.resource})
+            {t("repository.github_quota_prefix")} <strong>{payload.repository.github_rate_limit.remaining.toLocaleString()}</strong> /{" "}
+            {payload.repository.github_rate_limit.limit.toLocaleString()} ({payload.repository.github_rate_limit.resource})
           </span>
         ) : null}
-        <a className="text-brand hover:underline dark:text-brand-emphasis" href={payload.paths.github_issues_path} rel="noopener" target="_blank">{t('repository.view_on_github')}</a>
-        <Button
-          className="disabled:text-gray-400 dark:disabled:text-gray-500"
-          disabled={isRefreshing}
-          onClick={onRefresh}
-          size="sm"
-          variant="secondary"
-        >
-          {isRefreshing ? t('repository.refreshing') : t('repository.refresh')}
+        <a className="text-brand hover:underline dark:text-brand-emphasis" href={payload.paths.github_issues_path} rel="noopener" target="_blank">
+          {t("repository.view_on_github")}
+        </a>
+        <Button className="disabled:text-gray-400 dark:disabled:text-gray-500" disabled={isRefreshing} onClick={onRefresh} size="sm" variant="secondary">
+          {isRefreshing ? t("repository.refreshing") : t("repository.refresh")}
         </Button>
       </div>
 
@@ -192,7 +208,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
             search={location.search}
             buildLink={(pathname, search, updates) => {
               const params = new URLSearchParams(search)
-              Object.entries(updates).forEach(([key, value]) => value == null ? params.delete(key) : params.set(key, String(value)))
+              Object.entries(updates).forEach(([key, value]) => (value == null ? params.delete(key) : params.set(key, String(value))))
               if (Object.hasOwn(updates, "q")) params.set("folder", "all")
               const query = params.toString()
               return query ? `${pathname}?${query}` : pathname
@@ -248,7 +264,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
                     size="sm"
                     variant="danger"
                   >
-                    {t('repository.close_selected')}
+                    {t("repository.close_selected")}
                   </Button>
                 ) : null}
                 <Button
@@ -257,7 +273,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
                   size="sm"
                   variant="primary"
                 >
-                  {t('repository.delegate_selected')}
+                  {t("repository.delegate_selected")}
                 </Button>
               </div>
             ) : null}
@@ -286,14 +302,21 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
           <OnboardingEmptyState
             fallbackActionPath={emptyStateActionPath(payload)}
             fallbackActionText={payload.untouched_preset ? t(`repository.empty_${payload.folder}_action`) : t("repository.empty_filtered_action")}
-            fallbackDescription={payload.untouched_preset ? t(`repository.empty_${payload.folder}_description`, { label: payload.repository.trigger_label }) : t("repository.empty_filtered_description")}
-            fallbackTitle={payload.untouched_preset ? t("repository.empty_title", { folder: t(`repository.folder_${payload.folder}`) }) : t("repository.empty_filtered_title")}
+            fallbackDescription={
+              payload.untouched_preset
+                ? t(`repository.empty_${payload.folder}_description`, { label: payload.repository.trigger_label })
+                : t("repository.empty_filtered_description")
+            }
+            fallbackTitle={
+              payload.untouched_preset
+                ? t("repository.empty_title", { folder: t(`repository.folder_${payload.folder}`) })
+                : t("repository.empty_filtered_title")
+            }
             prefix={prefix}
             setupStatus={setupStatus}
           />
         )}
       </AdminFiltersLayout>
-
     </>
   )
 }
@@ -329,7 +352,11 @@ function buildIssueColumns({
       required: true,
       renderHeader: () => <Checkbox aria-label={t("repository.select_all")} checked={allSelected} onChange={onToggleAll} />,
       renderCell: (issue) => (
-        <Checkbox aria-label={t("repository.select_issue", { number: issue.number })} checked={selected.includes(issue.number)} onChange={() => onToggle(issue.number)} />
+        <Checkbox
+          aria-label={t("repository.select_issue", { number: issue.number })}
+          checked={selected.includes(issue.number)}
+          onChange={() => onToggle(issue.number)}
+        />
       ),
       headClassName: "w-10 px-3",
       cellClassName: "w-10 px-3 align-top"
@@ -342,14 +369,28 @@ function buildIssueColumns({
       renderCell: (issue) => (
         <>
           <div className="flex flex-wrap items-baseline gap-2">
-            <a className="font-mono text-gray-500 hover:underline dark:text-gray-400" href={issue.html_url} rel="noopener" target="_blank">#{issue.number}</a>
-            {issue.labels.map((label) => <IssueLabel color={label.color} key={label.name} name={label.name} />)}
-            <a className="font-medium text-gray-900 hover:underline dark:text-gray-100" href={issue.html_url} rel="noopener" target="_blank">{issue.title}</a>
+            <a className="font-mono text-gray-500 hover:underline dark:text-gray-400" href={issue.html_url} rel="noopener" target="_blank">
+              #{issue.number}
+            </a>
+            {issue.labels.map((label) => (
+              <IssueLabel color={label.color} key={label.name} name={label.name} />
+            ))}
+            <a className="font-medium text-gray-900 hover:underline dark:text-gray-100" href={issue.html_url} rel="noopener" target="_blank">
+              {issue.title}
+            </a>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-            <span>{issue.user_login ? `${issue.user_login} · ` : ""}{issue.created_at ? <RelativeTimestamp value={issue.created_at} /> : ""}</span>
+            <span>
+              {issue.user_login ? `${issue.user_login} · ` : ""}
+              {issue.created_at ? <RelativeTimestamp value={issue.created_at} /> : ""}
+            </span>
             {issue.linked_pull_request ? (
-              <a className="font-medium text-brand hover:underline dark:text-brand-emphasis" href={issue.linked_pull_request.url} rel="noopener" target="_blank">
+              <a
+                className="font-medium text-brand hover:underline dark:text-brand-emphasis"
+                href={issue.linked_pull_request.url}
+                rel="noopener"
+                target="_blank"
+              >
                 {t("repository.linked_pull_request", { number: issue.linked_pull_request.number })}
               </a>
             ) : null}
@@ -378,7 +419,8 @@ function buildIssueColumns({
       key: "status",
       label: t("repository.col_status"),
       sortKey: "delegated",
-      renderCell: (issue) => issue.delegated ? <TonePill tone="green">{t("repository.delegated")}</TonePill> : <TonePill tone="gray">{t("repository.not_delegated")}</TonePill>,
+      renderCell: (issue) =>
+        issue.delegated ? <TonePill tone="green">{t("repository.delegated")}</TonePill> : <TonePill tone="gray">{t("repository.not_delegated")}</TonePill>,
       cellClassName: "align-top"
     },
     {
@@ -395,7 +437,7 @@ function buildIssueColumns({
       sortKey: "created_at",
       responsiveClassName: "hidden lg:table-cell",
       cellClassName: "text-gray-500 dark:text-gray-400",
-      renderCell: (issue) => issue.created_at ? <RelativeTimestamp value={issue.created_at} /> : "-"
+      renderCell: (issue) => (issue.created_at ? <RelativeTimestamp value={issue.created_at} /> : "-")
     },
     {
       key: "actions",
@@ -466,24 +508,21 @@ export default function RepositoryIssuesTab() {
   return (
     <RepositoryPageShell
       activeTab="github_source.issues"
-      heading={payload ? (
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
-          <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">{payload.repository.slug}</a>
-        </h1>
-      ) : null}
+      heading={
+        payload ? (
+          <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">
+              {payload.repository.slug}
+            </a>
+          </h1>
+        ) : null
+      }
       prefix={prefix}
       tabs={payload?.tabs ?? []}
     >
       {issues.isPending ? <PanelMessage>{t("repository.loading_issues")}</PanelMessage> : null}
       {!issues.isPending && (issues.isError || !payload) ? <PanelMessage tone="error">{t("repository.load_error")}</PanelMessage> : null}
-      {payload ? (
-        <RepositoryIssues
-          isRefreshing={issues.isFetching}
-          onRefresh={() => issues.refetch()}
-          payload={payload}
-          prefix={prefix}
-        />
-      ) : null}
+      {payload ? <RepositoryIssues isRefreshing={issues.isFetching} onRefresh={() => issues.refetch()} payload={payload} prefix={prefix} /> : null}
     </RepositoryPageShell>
   )
 }
