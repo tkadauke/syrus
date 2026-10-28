@@ -11,7 +11,7 @@ import { Markdown } from "../../lib/Markdown"
 import { errorMessage } from "../../lib/errorMessage"
 import { endMarker, startMarker, useMarkedRender } from "../../lib/performanceMarkers"
 import { apiRequestTrace } from "../../lib/performanceTrace"
-import { getRecentApiRequests } from "../../api/client"
+import { getRecentApiRequests, scrubApiRequestPath } from "../../api/client"
 import { useT } from "../../hooks/useT"
 import {
   fetchJobSourceDiff,
@@ -68,12 +68,12 @@ const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS = "absolute left-1/2 top-1/2 h-10 w-1 
 const REVIEW_COMMENTS_RAIL_CLASS = "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
 const SOURCE_DIFF_API_PATH = "/api/v1/app/jobs/:id/source_diff"
 
-async function fetchProfiledSourceDiff(jobId: string, search = "") {
+export async function fetchProfiledSourceDiff(jobId: string, search = "") {
   const marker = startMarker("diff_review.fetch_source_diff", { metadata: { job_id: Number(jobId), request_kind: search ? "range" : "current" } })
   const startedAt = performance.now()
   try {
     const data = await fetchJobSourceDiff(jobId, search)
-    const requestPath = `/api/v1/app/jobs/${jobId}/source_diff${search}`
+    const requestPath = scrubApiRequestPath(`/api/v1/app/jobs/${jobId}/source_diff${search}`)
     const recentRequest = [...getRecentApiRequests()].reverse().find((request) => request.path === requestPath)
     const meta = recentRequest ? { ...recentRequest, path: SOURCE_DIFF_API_PATH } : null
     const patchCharacters = data.files.reduce((sum, file) => sum + (file.patch?.length ?? 0), 0)

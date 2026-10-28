@@ -276,7 +276,7 @@ function recordApiRequest(path: string, response: Response, durationMs: number |
   if (recentApiRequests.length > MAX_RECENT_API_REQUESTS) recentApiRequests.shift()
 }
 
-function scrubApiRequestPath(path: string): string {
+export function scrubApiRequestPath(path: string): string {
   const [rawPath] = path.split("?", 1)
   const scrubbedPath = scrubSensitivePathSegments(rawPath)
   const queryIndex = path.indexOf("?")
