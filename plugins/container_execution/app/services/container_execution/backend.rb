@@ -4,6 +4,8 @@ module ContainerExecution
 
     MCP_SOCKET_CONTAINER_PATH = "/run/syrus/mcp.sock".freeze
 
+    def self.backend_name = "container_execution"
+
     def self.available_for?(request)
       new.available_for?(request)
     end

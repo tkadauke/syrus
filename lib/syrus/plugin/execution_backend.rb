@@ -4,10 +4,11 @@ module Syrus
     # Execution::Backend contract and the local fallback; plugins can provide
     # alternate enforcement for a request by answering whether they can run it.
     #
-    # Providers implement the same #run(request) contract as Execution::Backend
-    # and may decline a request by returning false from .available_for?(request).
-    # Core tries enabled providers in registry order and falls back to
-    # Execution::Local when none applies.
+    # Providers implement the same #run(request) contract as Execution::Backend,
+    # identify themselves with .backend_name, and may decline a request by
+    # returning false from .available_for?(request). Core only considers the
+    # backend selected by the repository and falls back to Execution::Local
+    # when it is disabled or unavailable.
     module ExecutionBackend
       def self.included(base)
         base.extend(ClassMethods)
@@ -17,7 +18,15 @@ module Syrus
         true
       end
 
+      def backend_name
+        self.class.backend_name
+      end
+
       module ClassMethods
+        def backend_name
+          nil
+        end
+
         def available_for?(_request)
           true
         end
