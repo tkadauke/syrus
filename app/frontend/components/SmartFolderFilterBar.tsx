@@ -46,10 +46,5 @@ export function SmartFolderFilterBar({
   buildLink: FilterLinkBuilder
   smartFolders: SmartFolderIdentity[]
 }) {
-  return (
-    <FilterBar
-      {...filterBarProps}
-      buildLink={smartFolderFilterLinkBuilder({ activeSmartFolderId, buildLink, smartFolders })}
-    />
-  )
+  return <FilterBar {...filterBarProps} buildLink={smartFolderFilterLinkBuilder({ activeSmartFolderId, buildLink, smartFolders })} />
 }

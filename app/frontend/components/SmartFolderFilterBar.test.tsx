@@ -4,13 +4,18 @@ import { describe, expect, it } from "vitest"
 import { linkFromSearch } from "./filterBar/helpers"
 import { SmartFolderFilterBar } from "./SmartFolderFilterBar"
 
-const schema = [{
-  field: "state",
-  label: "State",
-  bucket: "status",
-  operators: ["is"],
-  values: [{ value: "open", label: "Open" }, { value: "closed", label: "Closed" }]
-}]
+const schema = [
+  {
+    field: "state",
+    label: "State",
+    bucket: "status",
+    operators: ["is"],
+    values: [
+      { value: "open", label: "Open" },
+      { value: "closed", label: "Closed" }
+    ]
+  }
+]
 
 function LocationProbe() {
   const location = useLocation()
