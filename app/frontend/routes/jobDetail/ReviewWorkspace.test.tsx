@@ -2045,41 +2045,53 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await waitFor(() => expect(startMarkerSpy).toHaveBeenCalledWith("diff_review.fetch_source_diff", expect.objectContaining({ metadata: { job_id: 42, request_kind: "current" } })))
-    expect(endMarkerSpy).toHaveBeenCalledWith(expect.objectContaining({ name: "diff_review.fetch_source_diff" }), expect.objectContaining({
-      metadata: expect.objectContaining({ file_count: 2, patch_character_count: expect.any(Number) }),
-      spans: expect.arrayContaining([
-        expect.objectContaining({ name: "api_transport" }),
-        expect.objectContaining({ name: "payload_parse_prepare" })
-      ])
-    }))
+    await waitFor(() =>
+      expect(startMarkerSpy).toHaveBeenCalledWith(
+        "diff_review.fetch_source_diff",
+        expect.objectContaining({ metadata: { job_id: 42, request_kind: "current" } })
+      )
+    )
+    expect(endMarkerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "diff_review.fetch_source_diff" }),
+      expect.objectContaining({
+        metadata: expect.objectContaining({ file_count: 2, patch_character_count: expect.any(Number) }),
+        spans: expect.arrayContaining([expect.objectContaining({ name: "api_transport" }), expect.objectContaining({ name: "payload_parse_prepare" })])
+      })
+    )
     vi.restoreAllMocks()
   })
 
   it("attributes a range fetch using the API client's scrubbed request path", async () => {
     const endMarkerSpy = vi.spyOn(performanceMarkers, "endMarker")
-    vi.spyOn(apiClient, "getRecentApiRequests").mockReturnValue([{
-      at: "2026-10-28T00:00:00Z",
-      durationMs: 18,
-      path: "/api/v1/app/jobs/42/source_diff?[FILTERED]",
-      requestId: "range-request",
-      status: 200
-    }])
+    vi.spyOn(apiClient, "getRecentApiRequests").mockReturnValue([
+      {
+        at: "2026-10-28T00:00:00Z",
+        durationMs: 18,
+        path: "/api/v1/app/jobs/42/source_diff?[FILTERED]",
+        requestId: "range-request",
+        status: 200
+      }
+    ])
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
 
     await fetchProfiledSourceDiff("42", "?base=private-base&head=private-head")
 
-    expect(endMarkerSpy).toHaveBeenCalledWith(expect.objectContaining({ name: "diff_review.fetch_source_diff" }), expect.objectContaining({
-      apiRequests: [expect.objectContaining({
-        duration_ms: 18,
-        path: "/api/v1/app/jobs/:id/source_diff",
-        request_id: "range-request"
-      })],
-      spans: expect.arrayContaining([
-        expect.objectContaining({ duration_ms: 18, name: "api_transport" }),
-        expect.objectContaining({ name: "payload_parse_prepare" })
-      ])
-    }))
+    expect(endMarkerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "diff_review.fetch_source_diff" }),
+      expect.objectContaining({
+        apiRequests: [
+          expect.objectContaining({
+            duration_ms: 18,
+            path: "/api/v1/app/jobs/:id/source_diff",
+            request_id: "range-request"
+          })
+        ],
+        spans: expect.arrayContaining([
+          expect.objectContaining({ duration_ms: 18, name: "api_transport" }),
+          expect.objectContaining({ name: "payload_parse_prepare" })
+        ])
+      })
+    )
   })
 
   it("marks the initial diff render once the source diff has loaded", async () => {

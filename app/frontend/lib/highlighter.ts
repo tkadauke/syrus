@@ -202,7 +202,7 @@ function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     const marker = startMarker("diff_review.highlighter_initialize", { maxPerSession: 1 })
     highlighterPromise = createHighlighterCore({
-      themes: [ cssVariablesTheme ],
+      themes: [cssVariablesTheme],
       langs: [],
       engine: createOnigurumaEngine(() => import("@shikijs/engine-oniguruma/wasm-inlined"))
     })
@@ -244,7 +244,19 @@ export async function tokenizeLines(code: string, lang: HighlighterLanguageId, o
   tokenizationPromises.set(key, promise)
   trimTokenizationCache()
   promise.then(
-    (tokens) => marker && endMarker(marker, { metadata: { character_count: Math.min(code.length, 1_000_000), language: lang, line_count: Math.min(tokens.length, 100_000), token_span_count: Math.min(tokens.reduce((sum, line) => sum + line.length, 0), 1_000_000) } }),
+    (tokens) =>
+      marker &&
+      endMarker(marker, {
+        metadata: {
+          character_count: Math.min(code.length, 1_000_000),
+          language: lang,
+          line_count: Math.min(tokens.length, 100_000),
+          token_span_count: Math.min(
+            tokens.reduce((sum, line) => sum + line.length, 0),
+            1_000_000
+          )
+        }
+      }),
     () => {
       tokenizationPromises.delete(key)
       if (marker) endMarker(marker, { metadata: { character_count: Math.min(code.length, 1_000_000), error: true, language: lang } })
