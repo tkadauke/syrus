@@ -157,6 +157,10 @@ class PreparedWorkspaceArchive
       end
     ensure
       stdout.close unless stdout.closed?
+      # Upload can stop consuming the stream early (most notably when the
+      # size cap raises). Wait for the producer before its diagnostic Tempfile
+      # and the surrounding workspace are cleaned up.
+      runner_threads.each(&:join)
     end
 
     verify_pipeline!(runner_threads)
