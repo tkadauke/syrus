@@ -115,11 +115,13 @@ export function AdminDataTablePanel({
 }) {
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      {(config?.summary || config?.meta || config?.pagination || columnSelector) ? (
+      {config?.summary || config?.meta || config?.pagination || columnSelector ? (
         <AdminDataTablePanelHeader columnSelector={columnSelector} config={config} />
       ) : null}
       {children}
-      {config?.footer ? <div className="border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">{config.footer}</div> : null}
+      {config?.footer ? (
+        <div className="border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">{config.footer}</div>
+      ) : null}
       {config?.pagination ? <AdminDataTablePanelFooter pagination={config.pagination} /> : null}
     </section>
   )
@@ -163,7 +165,12 @@ function AdminDataTablePanelPaginationControls({ pagination }: { pagination: Adm
 
   return (
     <div className="flex items-center gap-2">
-      <button className={pageButtonClass()} disabled={!pagination.pagination.has_previous_page} onClick={() => go(pagination.pagination.previous_page)} type="button">
+      <button
+        className={pageButtonClass()}
+        disabled={!pagination.pagination.has_previous_page}
+        onClick={() => go(pagination.pagination.previous_page)}
+        type="button"
+      >
         {pagination.previousLabel}
       </button>
       <button className={pageButtonClass()} disabled={!pagination.pagination.has_next_page} onClick={() => go(pagination.pagination.next_page)} type="button">
@@ -321,42 +328,47 @@ export function AdminEventLogTable<Row>({
   )
 
   const table = (
-      <DataTable.Root className={tableClassName} wrapperClassName={panel ? "rounded-none border-0" : undefined}>
-        <DataTable.Header>
-          <DataTableColumnHeaderRow
-            columns={dataTableColumns}
-            onReorder={preferences.onChange}
-            onSort={onNavigate || localSort ? sortTo : undefined}
-            order={preferences.order}
-            sortColumn={activeSort.column}
-            sortDirection={sortDirection}
-          />
-        </DataTable.Header>
-        <DataTable.Body>
-          {sortedRows.map((row) => {
-            const rowKey = getRowKey(row)
-            const expanded = expandedKey === rowKey
+    <DataTable.Root className={tableClassName} wrapperClassName={panel ? "rounded-none border-0" : undefined}>
+      <DataTable.Header>
+        <DataTableColumnHeaderRow
+          columns={dataTableColumns}
+          onReorder={preferences.onChange}
+          onSort={onNavigate || localSort ? sortTo : undefined}
+          order={preferences.order}
+          sortColumn={activeSort.column}
+          sortDirection={sortDirection}
+        />
+      </DataTable.Header>
+      <DataTable.Body>
+        {sortedRows.map((row) => {
+          const rowKey = getRowKey(row)
+          const expanded = expandedKey === rowKey
 
-            return (
-              <Fragment key={rowKey}>
-                <DataTable.Row>
-                  <DataTableColumnCells columns={dataTableColumns} order={preferences.order} row={row} />
+          return (
+            <Fragment key={rowKey}>
+              <DataTable.Row>
+                <DataTableColumnCells columns={dataTableColumns} order={preferences.order} row={row} />
+              </DataTable.Row>
+              {expanded && renderExpanded ? (
+                <DataTable.Row groupHeader>
+                  <DataTable.Cell className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={colSpan}>
+                    {renderExpanded(row)}
+                  </DataTable.Cell>
                 </DataTable.Row>
-                {expanded && renderExpanded ? (
-                  <DataTable.Row groupHeader>
-                    <DataTable.Cell className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={colSpan}>
-                      {renderExpanded(row)}
-                    </DataTable.Cell>
-                  </DataTable.Row>
-                ) : null}
-              </Fragment>
-            )
-          })}
-        </DataTable.Body>
-      </DataTable.Root>
+              ) : null}
+            </Fragment>
+          )
+        })}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 
-  if (panel) return <AdminDataTablePanel columnSelector={columnMenu} config={panel}>{table}</AdminDataTablePanel>
+  if (panel)
+    return (
+      <AdminDataTablePanel columnSelector={columnMenu} config={panel}>
+        {table}
+      </AdminDataTablePanel>
+    )
 
   return (
     <>
@@ -409,7 +421,10 @@ export function AdminEventFilterBar({
   clearLabel: string
 }) {
   const fallbackFields = fields || []
-  const schema = useMemo(() => filterSchema || adminEventFilterSchema(fallbackFields), [fallbackFields, filterSchema])
+  const schema = useMemo(
+    () => (filterSchema ? localizeAdminEventFilterSchema(filterSchema, fallbackFields) : adminEventFilterSchema(fallbackFields)),
+    [fallbackFields, filterSchema]
+  )
   const activeFilter = useMemo(() => filter || adminEventFilterTree(fallbackFields, search), [fallbackFields, filter, search])
   // Restores the mobile gutter AdminEventPageShell's Page.Root drops for its
   // children, so every consumer's filter bar stays margined like the header
@@ -449,6 +464,25 @@ function adminEventFilterSchema(fields: AdminEventFilterField[]): FilterSchemaFi
     operators: ["is"],
     values: field.options
   }))
+}
+
+// The backend schema owns filtering behavior, but its labels are API metadata
+// and are always English. Preserve that behavior while applying the localized
+// presentation supplied by each admin surface.
+function localizeAdminEventFilterSchema(schema: FilterSchemaField[], fields: AdminEventFilterField[]): FilterSchemaField[] {
+  const fieldsByName = new Map(fields.map((field) => [field.name, field]))
+
+  return schema.map((schemaField) => {
+    const field = fieldsByName.get(schemaField.field)
+    if (!field) return schemaField
+
+    return {
+      ...schemaField,
+      expansions: field.placeholder ? { ...schemaField.expansions, placeholder: field.placeholder } : schemaField.expansions,
+      label: field.label,
+      values: field.options ?? schemaField.values
+    }
+  })
 }
 
 function adminEventFilterTree(fields: AdminEventFilterField[], search: string): FilterTree {
@@ -509,9 +543,7 @@ export function DetailBlock({ title, value }: { title: string; value?: string | 
   return (
     <section className="flex h-full flex-col">
       <h3 className="text-xs font-medium uppercase text-text-muted">{title}</h3>
-      <pre className="mt-2 h-64 overflow-auto rounded border border-border bg-surface p-3 text-xs leading-5 text-text-primary">
-        {value || "-"}
-      </pre>
+      <pre className="mt-2 h-64 overflow-auto rounded border border-border bg-surface p-3 text-xs leading-5 text-text-primary">{value || "-"}</pre>
     </section>
   )
 }

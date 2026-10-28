@@ -12,11 +12,23 @@ describe("MemoriesRoute", () => {
     expect(MemoriesDefaultRoute).toBe(MemoriesRoute)
   })
 
+  it("labels the memories page with the plugin locale", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload()))
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    expect(await screen.findByRole("main", { name: "Memories" })).toBeInTheDocument()
+  })
+
   it("renders filters, admin owner column, rows, and pagination", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
-      current_user: { id: 1, admin: true },
-      pagination: { page: 1, per_page: 20, total: 21, total_pages: 2 }
-    })))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        memoriesPayload({
+          current_user: { id: 1, admin: true },
+          pagination: { page: 1, per_page: 20, total: 21, total_pages: 2 }
+        })
+      )
+    )
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -33,13 +45,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("renders memories with shared sortable and configurable table controls", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
-      memories: [
-        memoryRow({ id: 10, content: "Zeta memory", created_at: "2026-06-20T12:00:00Z" }),
-        memoryRow({ id: 11, content: "Alpha memory", created_at: "2026-06-21T12:00:00Z" })
-      ],
-      pagination: { page: 1, per_page: 20, total: 2, total_pages: 1 }
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        memoriesPayload({
+          memories: [
+            memoryRow({ id: 10, content: "Zeta memory", created_at: "2026-06-20T12:00:00Z" }),
+            memoryRow({ id: 11, content: "Alpha memory", created_at: "2026-06-21T12:00:00Z" })
+          ],
+          pagination: { page: 1, per_page: 20, total: 2, total_pages: 1 }
+        })
+      )
+    )
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -79,13 +95,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("renders memory content as markdown", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
-      memories: [
-        memoryRow({
-          content: "## Setup\n\nUse **Rails** and [Vite](/docs/vite).\n\n- Keep tests green"
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        memoriesPayload({
+          memories: [
+            memoryRow({
+              content: "## Setup\n\nUse **Rails** and [Vite](/docs/vite).\n\n- Keep tests green"
+            })
+          ]
         })
-      ]
-    })))
+      )
+    )
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -97,13 +117,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("opens long memory content in a markdown modal", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
-      memories: [
-        memoryRow({
-          content: "## Long memory\n\nUse **Rails** for the app.\n\n" + "Keep repository setup documented. ".repeat(6)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        memoriesPayload({
+          memories: [
+            memoryRow({
+              content: "## Long memory\n\nUse **Rails** for the app.\n\n" + "Keep repository setup documented. ".repeat(6)
+            })
+          ]
         })
-      ]
-    })))
+      )
+    )
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -119,13 +143,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("opens short memory content in a markdown modal", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
-      memories: [
-        memoryRow({
-          content: "## Short memory\n\nUse **Rails**."
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        memoriesPayload({
+          memories: [
+            memoryRow({
+              content: "## Short memory\n\nUse **Rails**."
+            })
+          ]
         })
-      ]
-    })))
+      )
+    )
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -141,8 +169,10 @@ describe("MemoriesRoute", () => {
       const url = String(input)
       if (url === "/api/v1/app/memories" && init?.method === "POST") return Promise.resolve(jsonResponse(memoriesPayload({ message: "Memory created." })))
       if (url === "/api/v1/app/memories/10" && init?.method === "PATCH") return Promise.resolve(jsonResponse(memoriesPayload({ message: "Memory updated." })))
-      if (url === "/api/v1/app/memories/10/publish" && init?.method === "POST") return Promise.resolve(jsonResponse(memoriesPayload({ message: "Memory published." })))
-      if (url === "/api/v1/app/memories/10" && init?.method === "DELETE") return Promise.resolve(jsonResponse(memoriesPayload({ memories: [], message: "Memory deleted." })))
+      if (url === "/api/v1/app/memories/10/publish" && init?.method === "POST")
+        return Promise.resolve(jsonResponse(memoriesPayload({ message: "Memory published." })))
+      if (url === "/api/v1/app/memories/10" && init?.method === "DELETE")
+        return Promise.resolve(jsonResponse(memoriesPayload({ memories: [], message: "Memory deleted." })))
       return Promise.resolve(jsonResponse(memoriesPayload()))
     })
     const mockConfirm = vi.fn().mockResolvedValue(true)
@@ -186,31 +216,37 @@ describe("MemoriesRoute", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
       if (url === "/api/v1/app/memories/10/audit_events") {
-        return Promise.resolve(jsonResponse({
-          memory_id: 10,
-          audit_events: [
-            {
-              id: 1,
-              event_type: "created",
-              actor: { kind: "system" },
-              previous: { content: null, kind: null, confidence: null },
-              new: { content: "Use Rails for the app.", kind: "project_fact", confidence: null },
-              created_at: "2026-06-20T12:00:00Z"
-            },
-            {
-              id: 2,
-              event_type: "updated",
-              actor: { kind: "user", id: 2, name: "Ada Lovelace" },
-              previous: { content: "Use Rails for the app.", kind: "project_fact", confidence: null },
-              new: { content: "Use Rails and Vite for the app.", kind: "decision", confidence: 0.8 },
-              created_at: "2026-06-23T12:00:00Z"
-            }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            memory_id: 10,
+            audit_events: [
+              {
+                id: 1,
+                event_type: "created",
+                actor: { kind: "system" },
+                previous: { content: null, kind: null, confidence: null },
+                new: { content: "Use Rails for the app.", kind: "project_fact", confidence: null },
+                created_at: "2026-06-20T12:00:00Z"
+              },
+              {
+                id: 2,
+                event_type: "updated",
+                actor: { kind: "user", id: 2, name: "Ada Lovelace" },
+                previous: { content: "Use Rails for the app.", kind: "project_fact", confidence: null },
+                new: { content: "Use Rails and Vite for the app.", kind: "decision", confidence: 0.8 },
+                created_at: "2026-06-23T12:00:00Z"
+              }
+            ]
+          })
+        )
       }
-      return Promise.resolve(jsonResponse(memoriesPayload({
-        memories: [memoryRow({ changed: true })]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          memoriesPayload({
+            memories: [memoryRow({ changed: true })]
+          })
+        )
+      )
     })
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
@@ -226,9 +262,13 @@ describe("MemoriesRoute", () => {
   })
 
   it("does not show a changed badge for unmodified memories", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
-      memories: [memoryRow({ changed: false })]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        memoriesPayload({
+          memories: [memoryRow({ changed: false })]
+        })
+      )
+    )
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -240,16 +280,20 @@ describe("MemoriesRoute", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
       if (url.includes("deleted=true")) {
-        return Promise.resolve(jsonResponse(memoriesPayload({
-          deleted: true,
-          memories: [
-            memoryRow({
-              content: "Old fact.",
-              deleted_at: "2026-06-25T12:00:00Z",
-              deleted_by: { id: 1, name: "Grace Hopper" }
+        return Promise.resolve(
+          jsonResponse(
+            memoriesPayload({
+              deleted: true,
+              memories: [
+                memoryRow({
+                  content: "Old fact.",
+                  deleted_at: "2026-06-25T12:00:00Z",
+                  deleted_by: { id: 1, name: "Grace Hopper" }
+                })
+              ]
             })
-          ]
-        })))
+          )
+        )
       }
       return Promise.resolve(jsonResponse(memoriesPayload()))
     })
@@ -277,9 +321,7 @@ describe("MemoriesRoute", () => {
 function renderRoute(children: ReactNode, path: string) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[path]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -290,9 +332,7 @@ function expectAppearsBefore(first: HTMLElement, second: HTMLElement) {
 
 function memoriesPayload(overrides: Record<string, unknown> = {}) {
   return {
-    memories: [
-      memoryRow()
-    ],
+    memories: [memoryRow()],
     kinds: ["user_pref", "project_fact", "feedback", "reference", "decision"],
     scopes: ["global", "repository"],
     repositories: [{ id: 3, name: "acme/widgets" }],
@@ -301,7 +341,16 @@ function memoriesPayload(overrides: Record<string, unknown> = {}) {
     controls: {
       filter_schema: [
         { field: "content", label: "Content", bucket: "string", operators: ["contains"] },
-        { field: "scope", label: "Scope", bucket: "enum", operators: ["is"], values: [{ value: "global", label: "Global" }, { value: "repository", label: "Repository" }] },
+        {
+          field: "scope",
+          label: "Scope",
+          bucket: "enum",
+          operators: ["is"],
+          values: [
+            { value: "global", label: "Global" },
+            { value: "repository", label: "Repository" }
+          ]
+        },
         { field: "kind", label: "Kind", bucket: "enum", operators: ["is"], values: [{ value: "project_fact", label: "Project fact" }] },
         { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is"], typeahead: true },
         { field: "published", label: "Published", bucket: "boolean", operators: ["is_true", "is_false"] }

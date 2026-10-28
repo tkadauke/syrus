@@ -222,7 +222,7 @@
   },
   "filter_fields": {
     "queue_name": "Nomen agminis",
-    "job_class": "Classis operis",
+    "job_class": "Classis Job",
     "failed_since": "Defecta ab",
     "window": "Tempus"
   },

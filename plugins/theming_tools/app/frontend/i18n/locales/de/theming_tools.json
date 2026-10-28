@@ -5,7 +5,7 @@
   "action_list": "Theme-Liste",
   "action_delete": "Theme-Löschung",
   "action_failed": "{{action}} fehlgeschlagen",
-  "summary_previewed": "Vorschau für {{name}} (THEME-{{id}})",
+  "summary_previewed": "{{name}} als Vorschau angezeigt (THEME-{{id}})",
   "summary_installed": "{{name}} installiert (THEME-{{id}})",
   "summary_updated": "{{name}} aktualisiert (THEME-{{id}})",
   "summary_deleted": "Theme THEME-{{id}} gelöscht",

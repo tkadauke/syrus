@@ -1,5 +1,5 @@
 {
-  "tab_issues": "GitHub Issues",
+  "tab_issues": "GitHub-Vorgänge",
   "nav_github_api_usage": "GitHub-API-Nutzung",
   "nav_api_usage": "GitHub-API-Nutzung",
   "api_usage": {
@@ -83,7 +83,7 @@
     "columns": "Spalten",
     "visible_columns": "Sichtbare Spalten",
     "column_up": "Hoch",
-    "column_down": "Runter",
+    "column_down": "Nach unten",
     "column_move_up": "{{title}} nach oben verschieben",
     "column_move_down": "{{title}} nach unten verschieben",
     "col_select": "Auswahl",
