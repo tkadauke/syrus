@@ -8,7 +8,7 @@ module WorkEngine
       World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner, :runtime, :max_ticks)
       REPOSITORY_UPDATE_KEYS = %w[
         auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
-        main_branch_repair_blocks_work landing_paused land_on_inherited_check_failure
+        main_branch_repair_blocks_work landing_paused pr_check_gate
         distributed_workflow_dag_enabled
       ].freeze
       JOB_UPDATE_KEYS = %w[
