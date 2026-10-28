@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_132935) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -529,6 +529,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.datetime "deleted_at"
     t.integer "deleted_by_user_id"
     t.bigint "entity_revision", default: 0, null: false
+    t.json "mentions"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"
@@ -778,6 +779,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.index ["user_id", "system_kind"], name: "index_chat_sessions_on_user_id_and_system_kind", unique: true
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"
+  end
+
+  create_table "chat_shares", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.string "target_type", null: false
+    t.integer "target_id", null: false
+    t.integer "shared_by_user_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["chat_session_id", "target_type", "target_id"], name: "idx_on_chat_session_id_target_type_target_id_f9ba71187b", unique: true
+    t.index ["chat_session_id"], name: "index_chat_shares_on_chat_session_id"
+    t.index ["shared_by_user_id"], name: "index_chat_shares_on_shared_by_user_id"
+    t.index ["target_type", "target_id"], name: "index_chat_shares_on_target"
   end
 
   create_table "chat_shell_commands", force: :cascade do |t|
@@ -1076,13 +1089,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.integer "design_doc_version_id"
     t.integer "start_offset", null: false
     t.integer "end_offset", null: false
-    t.text "selected_markdown"
+    t.text "selected_markdown", limit: 16777215
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "marker_id", null: false
     t.string "anchor_kind", default: "range", null: false
     t.string "status", default: "active", null: false
-    t.text "selected_text"
+    t.text "selected_text", limit: 16777215
     t.text "prefix_context"
     t.text "suffix_context"
     t.integer "last_known_start_offset"
@@ -1139,14 +1152,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.integer "suggested_by_user_id"
     t.string "suggested_by_kind", null: false
     t.string "state", default: "pending", null: false
-    t.text "original_markdown", null: false
-    t.text "suggested_markdown", null: false
+    t.text "original_markdown", limit: 16777215, null: false
+    t.text "suggested_markdown", limit: 16777215, null: false
     t.text "change_summary"
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.text "proposed_markdown", null: false
+    t.text "proposed_markdown", limit: 16777215, null: false
     t.string "change_type", default: "replace", null: false
     t.integer "base_version_id"
     t.json "provenance"
@@ -1182,7 +1195,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
 
   create_table "design_doc_versions", force: :cascade do |t|
     t.integer "design_doc_id", null: false
-    t.text "markdown", null: false
+    t.text "markdown", limit: 16777215, null: false
     t.integer "version_number", null: false
     t.integer "actor_user_id"
     t.string "actor_kind", null: false
@@ -1200,7 +1213,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
 
   create_table "design_docs", force: :cascade do |t|
     t.string "title", null: false
-    t.text "markdown", null: false
+    t.text "markdown", limit: 16777215, null: false
     t.integer "owner_user_id", null: false
     t.string "visibility", default: "private", null: false
     t.string "state", default: "draft", null: false
@@ -1491,6 +1504,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.index ["repository_id", "grader_name", "status", "created_at"], name: "idx_grader_conclusions_history_lookup"
     t.index ["run_id"], name: "index_grader_conclusions_on_run_id"
     t.index ["workflow_id"], name: "index_grader_conclusions_on_workflow_id"
+  end
+
+  create_table "handles", force: :cascade do |t|
+    t.string "handle", null: false, collation: "NOCASE"
+    t.string "owner_type"
+    t.bigint "owner_id"
+    t.datetime "created_at", null: false
+    t.index ["handle"], name: "index_handles_on_handle", unique: true
+    t.index ["owner_type", "owner_id"], name: "index_handles_on_owner_type_and_owner_id", unique: true
   end
 
   create_table "input_sources", force: :cascade do |t|
@@ -2266,6 +2288,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.datetime "created_at", null: false
     t.integer "repository_id"
     t.string "dedupe_key", limit: 191
+    t.string "target_path"
     t.index ["job_id"], name: "index_notifications_on_job_id"
     t.index ["repository_id"], name: "index_notifications_on_repository_id"
     t.index ["user_id", "kind", "repository_id", "dedupe_key"], name: "idx_notifications_dedupe_identity", unique: true
@@ -2877,6 +2900,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.datetime "github_issues_synced_at"
     t.datetime "github_issues_full_synced_at"
     t.string "pr_check_gate", default: "all", null: false
+    t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"

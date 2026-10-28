@@ -14,6 +14,58 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:content)).to eq({ "text" => "Hello legacy." })
   end
 
+  it "renders a stored mention with the mentionable's current handle" do
+    message = chat.messages.create!(
+      role: "user",
+      content: { "text" => "Hello @old-handle." },
+      sender_user: user,
+      mentions: [ { "kind" => "human", "id" => user.id, "handle" => "old-handle", "start" => 6, "end" => 17 } ],
+      skip_turn_trigger: true
+    )
+    HandleRegistry.rename!(owner: user, handle: "new-handle")
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:text)).to eq("Hello @new-handle.")
+    expect(payload.fetch(:mentions)).to eq([
+      { "kind" => "human", "id" => user.id, "handle" => "new-handle", "start" => 6, "end" => 17 }
+    ])
+  end
+
+  it "renders a mention as plain text when its entity is no longer in the chat" do
+    other_user = Factories.user(email_address: "maya@example.com")
+    message = chat.messages.create!(
+      role: "user",
+      content: { "text" => "Hello @maya." },
+      sender_user: user,
+      mentions: [ { "kind" => "human", "id" => other_user.id, "handle" => "maya", "start" => 6, "end" => 11 } ],
+      skip_turn_trigger: true
+    )
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:text)).to eq("Hello @maya.")
+    expect(payload.fetch(:mentions)).to eq([])
+  end
+
+  it "batch-loads human mentionables and participant membership for a message collection" do
+    mentioned_user = Factories.user(email_address: "maya@example.com")
+    chat.chat_participants.create!(user: mentioned_user, role: "member")
+    messages = 3.times.map do |index|
+      chat.messages.create!(
+        role: "user",
+        sender_user: user,
+        content: { "text" => "Message #{index} for @maya" },
+        skip_turn_trigger: true
+      )
+    end
+    messages.each { |message| message.mentions = nil }
+
+    queries = capture_sql { described_class.messages(messages, repository: repository) }
+    mention_lookup_queries = queries.grep(/FROM ["`]?(?:users|handles|chat_participants)["`]?/i)
+
+    expect(mention_lookup_queries.size).to be <= 5
+  end
   it "includes the message's revision so the frontend entity store can order/dedupe events against this snapshot" do
     message = chat.messages.create!(role: "assistant", content: { "text" => "Hello." })
 

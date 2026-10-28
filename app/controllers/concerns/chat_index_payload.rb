@@ -70,6 +70,7 @@ module ChatIndexPayload
   end
 
   def chat_index_param(name, allowed, fallback)
+    allowed = allowed + [ "shared", "plugin" ] if name == :group_by && action_name == "more"
     value = params[name].to_s.presence || fallback
     return value if allowed.include?(value)
 
@@ -175,6 +176,7 @@ module ChatIndexPayload
         id: chat_session.id,
         current_user_id: Current.user.id,
         user_id: chat_session.user_id,
+        read_only: chat_session.user_id != Current.user.id && !chat_session.chat_participants.any? { |participant| participant.user_id == Current.user.id },
         title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
         title_pending: chat_session.title.blank? && context.fetch(:title_pending_ids).include?(chat_session.id),
         system_kind: chat_session.system_kind,
@@ -299,10 +301,11 @@ module ChatIndexPayload
     group_page = chat_index_group_page
     @chat_index_groups_has_more = group_page.fetch(:has_more)
     page_keys = group_page.fetch(:keys)
+    special_specs = chat_index_group_offset.zero? ? shared_chat_group_specs + plugin_chat_group_specs : []
     if page_keys.empty? && chat_index_settings.fetch(:show_empty_groups) && chat_index_group_offset.zero?
-      return chat_index_empty_group_specs(repositories_by_id: {})
+      return special_specs + chat_index_empty_group_specs(repositories_by_id: {})
     end
-    return [] if page_keys.empty?
+    return special_specs if page_keys.empty?
 
     rows = chat_index_initial_group_rows
     chat_ids = rows.map { |row| row.fetch("chat_session_id").to_i }.uniq
@@ -326,6 +329,7 @@ module ChatIndexPayload
       )
     end
 
+    specs = special_specs + specs
     return specs unless chat_index_settings.fetch(:show_empty_groups) && chat_index_group_offset.zero?
 
     merge_empty_chat_index_group_specs(specs, repositories_by_id: repositories_by_id)
@@ -429,6 +433,14 @@ module ChatIndexPayload
   end
 
   def chat_index_group_scope(group_by:, group_key:)
+    return chat_index_shared_scope if group_by == "shared" && group_key == "shared-with-me"
+    if group_by == "plugin"
+      group = plugin_chat_list_groups.find { |candidate| candidate.fetch(:key) == group_key }
+      return ChatSession.none unless group
+
+      return plugin_chat_group_scope(group)
+    end
+
     scope = chat_index_base_scope
       .active
       .ordinary_chats
@@ -439,7 +451,13 @@ module ChatIndexPayload
   end
 
   def chat_index_base_scope
+    chat_index_filtered_scope
+      .where.not(id: plugin_chat_session_ids)
+  end
+
+  def chat_index_filtered_scope
     scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+      .where.not(id: Current.user.received_chat_shares.select(:chat_session_id))
     scope = case chat_index_settings.fetch(:status)
     when "hidden"
       scope.where.not(chat_participants: { hidden_at: nil })
@@ -461,6 +479,81 @@ module ChatIndexPayload
     return scope unless chat_index_settings.fetch(:apply_chat_type_filter)
 
     scope.where("#{chat_index_chat_type_sql} IN (?)", chat_index_settings.fetch(:chat_types))
+  end
+
+  def shared_chat_group_specs
+    scope = chat_index_shared_scope
+    chats, has_more = paginated_chat_index_group(scope)
+    return [] if chats.empty?
+
+    [ {
+      key: "shared-with-me",
+      label: I18n.t("api.chats.groups.shared_with_me"),
+      repository_id: nil,
+      group_by: "shared",
+      group_value: "shared-with-me",
+      chats: chats,
+      has_more: has_more
+    } ]
+  end
+
+  def plugin_chat_group_specs
+    plugin_chat_list_groups.filter_map do |group|
+      chats, has_more = paginated_chat_index_group(plugin_chat_group_scope(group))
+      next if chats.empty?
+
+      {
+        key: group.fetch(:key),
+        label: group.fetch(:label),
+        repository_id: nil,
+        group_by: "plugin",
+        group_value: group.fetch(:key),
+        chats: chats,
+        has_more: has_more
+      }
+    end
+  end
+
+  def plugin_chat_group_scope(group)
+    chat_index_filtered_scope
+      .where.not(id: Current.user.received_chat_shares.select(:chat_session_id))
+      .where(id: group.fetch(:chat_session_ids))
+      .active
+      .ordinary_chats
+      .order(Arel.sql(chat_index_order_sql))
+  end
+
+  def plugin_chat_session_ids
+    plugin_chat_list_groups.flat_map { |group| group.fetch(:chat_session_ids) }.uniq
+  end
+
+  def plugin_chat_list_groups
+    @plugin_chat_list_groups ||= begin
+      claimed_ids = Set.new
+      Syrus::PluginRegistry.providers_for(:chat_list_group).filter_map do |provider|
+        contribution = provider.chat_list_group(user: Current.user)
+        next if contribution.blank?
+
+        key = contribution.fetch(:key).to_s
+        label = contribution.fetch(:label).to_s
+        ids = Array(contribution.fetch(:chat_session_ids)).filter_map { |id| Integer(id, exception: false) }.uniq
+        next if key.blank? || label.blank? || ids.empty?
+
+        ids.reject! { |id| claimed_ids.include?(id) }
+        claimed_ids.merge(ids)
+        next if ids.empty?
+
+        { key: key, label: label, chat_session_ids: ids }
+      end
+    end
+  end
+
+  def chat_index_shared_scope
+    invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+      .where(id: Current.user.received_chat_shares.select(:chat_session_id))
+      .active
+      .ordinary_chats
+      .order(Arel.sql(chat_index_order_sql))
   end
 
   def chat_index_group_spec_for(group_key, repository_id:, repositories_by_id:)
@@ -559,6 +652,15 @@ module ChatIndexPayload
       groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
     else
       groups.sort_by { |group| group.fetch(:key) }.reverse
+    end
+    sorted = sorted.sort_by do |group|
+      if group.fetch(:key) == "shared-with-me"
+        0
+      elsif group[:group_by] == "plugin"
+        1
+      else
+        2
+      end
     end
     sorted.each { |group| group.delete(:active_at) }
   end

@@ -38,13 +38,17 @@ describe("Notifications", () => {
   })
 
   it("toggles the desktop notifications panel", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(notificationsPayload({
-      notifications: [
-        notificationRecord({ id: 1, kind: "job_failed", body: "Job failed", job_id: 7 }),
-        notificationRecord({ id: 2, kind: "pr_merged", body: "PR merged", read_at: "2026-06-25T12:00:00Z" })
-      ],
-      unread_count: 1
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        notificationsPayload({
+          notifications: [
+            notificationRecord({ id: 1, kind: "job_failed", body: "Job failed", job_id: 7 }),
+            notificationRecord({ id: 2, kind: "pr_merged", body: "PR merged", read_at: "2026-06-25T12:00:00Z" })
+          ],
+          unread_count: 1
+        })
+      )
+    )
 
     renderWithClient(
       <MemoryRouter>
@@ -71,12 +75,14 @@ describe("Notifications", () => {
   })
 
   it("renders the mobile notifications route", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(notificationsPayload({
-      notifications: [
-        notificationRecord({ id: 3, kind: "job_implemented", body: "Implementation ready", job_id: 9 })
-      ],
-      unread_count: 1
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        notificationsPayload({
+          notifications: [notificationRecord({ id: 3, kind: "job_implemented", body: "Implementation ready", job_id: 9 })],
+          unread_count: 1
+        })
+      )
+    )
 
     renderWithClient(
       <MemoryRouter initialEntries={["/app-shell/notifications"]}>
@@ -104,16 +110,22 @@ describe("Notifications", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url.includes("/api/v1/app/notifications/73/mark_read") && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse({
-          notification: { ...notification, read_at: "2026-06-25T12:01:00Z" },
-          unread_count: 0
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            notification: { ...notification, read_at: "2026-06-25T12:01:00Z" },
+            unread_count: 0
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(notificationsPayload({
-        notifications: [ notification ],
-        unread_count: 1
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          notificationsPayload({
+            notifications: [notification],
+            unread_count: 1
+          })
+        )
+      )
     })
     const open = vi.spyOn(window, "open").mockReturnValue(null)
 
@@ -146,10 +158,14 @@ describe("Notifications", () => {
       job_title: "Fix keyboard traps",
       pr_url: "https://github.com/acme/widgets/pull/74"
     })
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(notificationsPayload({
-      notifications: [ notification ],
-      unread_count: 1
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        notificationsPayload({
+          notifications: [notification],
+          unread_count: 1
+        })
+      )
+    )
 
     renderWithClient(
       <MemoryRouter initialEntries={["/app-shell/notifications"]}>
@@ -167,22 +183,50 @@ describe("Notifications", () => {
     expect(fireEvent.keyDown(prLink, { key: " " })).toBe(true)
     expect(screen.queryByText("Job detail")).not.toBeInTheDocument()
   })
+
+  it("opens the mentioned chat message from a chat mention notification", async () => {
+    const notification = notificationRecord({
+      id: 75,
+      kind: "chat_mention",
+      body: "Maya mentioned you in a chat.",
+      target_path: "/chats/12#message-34"
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        notificationsPayload({
+          notifications: [notification],
+          unread_count: 1
+        })
+      )
+    )
+
+    renderWithClient(
+      <MemoryRouter initialEntries={["/app-shell/notifications"]}>
+        <Routes>
+          <Route element={<NotificationsRoute />} path="/app-shell/notifications" />
+          <Route element={<div>Mentioned chat</div>} path="/app-shell/chats/12" />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    fireEvent.click(await screen.findByText("Maya mentioned you in a chat."))
+
+    expect(await screen.findByText("Mentioned chat")).toBeInTheDocument()
+  })
 })
 
 function renderWithClient(children: React.ReactNode) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>)
 }
 
-function notificationsPayload(overrides: Partial<{
-  notifications: ReturnType<typeof notificationRecord>[]
-  unread_count: number
-}> = {}) {
+function notificationsPayload(
+  overrides: Partial<{
+    notifications: ReturnType<typeof notificationRecord>[]
+    unread_count: number
+  }> = {}
+) {
   const notifications = overrides.notifications ?? []
 
   return {
@@ -197,16 +241,19 @@ function notificationsPayload(overrides: Partial<{
   }
 }
 
-function notificationRecord(overrides: Partial<{
-  id: number
-  kind: string
-  body: string
-  read_at: string | null
-  pr_url: string | null
-  job_id: number | null
-  job_title: string | null
-  created_at: string
-}> = {}) {
+function notificationRecord(
+  overrides: Partial<{
+    id: number
+    kind: string
+    body: string
+    read_at: string | null
+    pr_url: string | null
+    job_id: number | null
+    job_title: string | null
+    target_path: string | null
+    created_at: string
+  }> = {}
+) {
   return {
     id: overrides.id ?? 1,
     kind: overrides.kind ?? "job_failed",
@@ -215,6 +262,7 @@ function notificationRecord(overrides: Partial<{
     pr_url: overrides.pr_url ?? null,
     job_id: overrides.job_id ?? null,
     job_title: overrides.job_title ?? null,
+    target_path: overrides.target_path ?? null,
     created_at: overrides.created_at ?? "2026-06-25T12:00:00Z"
   }
 }

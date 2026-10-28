@@ -29,7 +29,11 @@ module ScheduledTasks
     end
 
     def self.auto_approve_mode(origin_id:, repository: nil)
-      task(origin_id)&.auto_approve_mode
+      found = task(origin_id)
+      return nil unless found
+      return nil unless ScheduledTasks::FireHandlers.behavior_applicable?(found, :pr_based_auto_approval)
+
+      found.auto_approve_mode
     end
 
     def self.task(origin_id)

@@ -32,6 +32,15 @@ RSpec.describe JobPolicy do
     it "allows a global admin regardless of ownership" do
       expect(described_class.new(admin, job)).to be_show
     end
+
+    it "does not let ownership bypass an origin visibility restriction" do
+      job.update!(origin: "private_tasks", origin_id: "7")
+
+      with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+        expect(described_class.new(owner, job)).not_to be_show
+        expect(described_class.new(admin, job)).to be_show
+      end
+    end
   end
 
   describe "#write?" do

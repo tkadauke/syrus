@@ -470,14 +470,14 @@ module Api
         end
 
         def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
+          find_job_by_ref(Job.visible_to(Current.user, scope: Current.user.jobs).includes(:repository), params[:job_id])
         end
 
         # Mutations other than the creator-only initial start resolve through
         # the repository-membership-based JobPolicy::Scope. The policy gate
         # below then distinguishes read access from write access.
         def find_mutable_job
-          scope = Current.user.admin? ? Job.all : policy_scope(Job)
+          scope = Current.user.admin? ? Job.visible_to(Current.user, scope: Job.all) : policy_scope(Job)
           scope = restrict_invocation_relation(scope)
           find_job_by_ref(scope.includes(:repository), params[:job_id])
         end

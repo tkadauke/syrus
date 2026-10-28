@@ -1,0 +1,8 @@
+[
+  { "key": "comet", "label": "Comet", "url": "/bundled-avatars/comet.svg" },
+  { "key": "orbit", "label": "Orbit", "url": "/bundled-avatars/orbit.svg" },
+  { "key": "prism", "label": "Prism", "url": "/bundled-avatars/prism.svg" },
+  { "key": "sprout", "label": "Sprout", "url": "/bundled-avatars/sprout.svg" },
+  { "key": "wave", "label": "Wave", "url": "/bundled-avatars/wave.svg" },
+  { "key": "spark", "label": "Spark", "url": "/bundled-avatars/spark.svg" }
+]

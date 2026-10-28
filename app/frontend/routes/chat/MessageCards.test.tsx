@@ -350,6 +350,19 @@ describe("assistant message URL links", () => {
 })
 
 describe("sender attribution", () => {
+  it("highlights structured mentions in human messages", () => {
+    renderChatMessageItem(
+      userMessage("👋 Hello @syrus", {
+        mentions: [{ kind: "syrus", id: "syrus", handle: "syrus", start: 8, end: 14 }]
+      }),
+      makePayload()
+    )
+
+    const mention = screen.getByText("@syrus")
+    expect(mention.tagName).toBe("MARK")
+    expect(mention).toHaveAttribute("data-mention-kind", "syrus")
+  })
+
   it("renders the sender's name above a human message in a group chat", () => {
     const payload = makePayload()
     payload.chat.conversation_kind = "group"
@@ -1046,8 +1059,26 @@ describe("tool result rendering", () => {
 
   it("renders a registered card's pending body before a tool result arrives", () => {
     const item: ChatToolGroupItem = {
-      type: "tool_group", tool: "Publish memory", summary_label: "Publish memory", outcome_label: "Running",
-      calls: [{ message_id: 22, tool_name: "publish_memory", raw_name: "mcp__syrus__publish_memory", detail: "22", display_label: "Publish memory", progress_label: "Thinking", raw_payload: { memory_id: 22 }, result_body: "", result_settled: false, result_error: false, result_kind: "unknown", result_summary: "" }]
+      type: "tool_group",
+      tool: "Publish memory",
+      summary_label: "Publish memory",
+      outcome_label: "Running",
+      calls: [
+        {
+          message_id: 22,
+          tool_name: "publish_memory",
+          raw_name: "mcp__syrus__publish_memory",
+          detail: "22",
+          display_label: "Publish memory",
+          progress_label: "Thinking",
+          raw_payload: { memory_id: 22 },
+          result_body: "",
+          result_settled: false,
+          result_error: false,
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ]
     }
 
     render(<ToolGroup item={item} />)

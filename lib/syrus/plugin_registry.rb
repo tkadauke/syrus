@@ -42,6 +42,10 @@ module Syrus
       step_environment
       workflow_kinds
       job_origin
+      job_visibility_restriction
+      mentionable
+      chat_list_group
+      chat_result_decorator
       preview_panel_viewer
       preview_panel_retention
       repository_recommendation
@@ -101,6 +105,10 @@ module Syrus
       step_environment:        -> { Syrus::Plugin::StepEnvironment },
       workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds },
       job_origin:              -> { Syrus::Plugin::JobOrigin },
+      job_visibility_restriction: -> { Syrus::Plugin::JobVisibilityRestriction },
+      mentionable:              -> { Syrus::Plugin::Mentionable },
+      chat_list_group:           -> { Syrus::Plugin::ChatListGroup },
+      chat_result_decorator:      -> { Syrus::Plugin::ChatResultDecorator },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       preview_panel_retention: -> { Syrus::Plugin::PreviewPanelRetention },
       repository_recommendation: -> { Syrus::Plugin::RepositoryRecommendation },

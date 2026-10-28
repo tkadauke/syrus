@@ -1,6 +1,6 @@
 module AgentActivity
   # One row per Agent with at least one spawned agent process. Workflow-backed
-  # Agents keep Job.accessible_to/effectively_owned_by scoping; chat-backed
+  # Agents keep canonical Job visibility plus effective-ownership scoping; chat-backed
   # Agents are always self-scoped to the requesting user, including on the
   # admin page; design-doc-backed Agents use DesignDoc.visible_to.
   class SessionsQuery
@@ -18,7 +18,10 @@ module AgentActivity
       relation = base_relation
       return relation.where(admin_visibility_sql(user)) if scope == :admin
 
-      visible_job_ids = Job.accessible_to(user).or(Job.effectively_owned_by(user)).select(:id)
+      visible_job_ids = Job.visible_to(
+        user,
+        scope: Job.accessible_to(user).or(Job.effectively_owned_by(user))
+      ).select(:id)
       relation.where(operator_visibility_sql(user, visible_job_ids))
     end
 

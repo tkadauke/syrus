@@ -18,7 +18,7 @@ module Api
         end
 
         def update
-          panel = find_panel
+          panel = find_manageable_panel
           return if performed?
 
           visibility = (params.dig(:preview_panel, :visibility).presence || params[:visibility]).to_s
@@ -70,7 +70,7 @@ module Api
         end
 
         def token
-          panel = find_panel
+          panel = find_manageable_panel
           return if performed?
 
           if panel.public?
@@ -84,6 +84,12 @@ module Api
 
         def find_panel
           panel = PreviewPanel.accessible_to(Current.user).find_by(id: params[:id])
+          render_error("not_found", "Preview panel not found.", status: :not_found) if panel.nil?
+          panel
+        end
+
+        def find_manageable_panel
+          panel = PreviewPanel.manageable_by(Current.user).find_by(id: params[:id])
           render_error("not_found", "Preview panel not found.", status: :not_found) if panel.nil?
           panel
         end

@@ -10,6 +10,7 @@
 
 require_relative "seeds/themes"
 Seeds::Themes.seed!
+Handle.find_or_create_by!(handle: "syrus")
 
 # Default any user still on no color theme (fresh migration, pre-theme
 # accounts) to the built-in Terracotta theme. New users get this via

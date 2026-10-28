@@ -1,3 +1,5 @@
+import { resolveAppearanceColor, resolveBundledAvatar, type AppearanceMode } from "../lib/appearance"
+
 export type AvatarSize = "xs" | "sm" | "normal" | "large"
 
 const DIMENSIONS: Record<AvatarSize, string> = {
@@ -6,21 +8,48 @@ const DIMENSIONS: Record<AvatarSize, string> = {
   normal: "h-12 w-12 text-base",
   large: "h-20 w-20 text-2xl"
 }
-
 // Shared avatar/name display: an image when avatarUrl is set, otherwise a
 // ring-bordered initials fallback. Originally local to Profiles.tsx (team
 // directory); extracted so other surfaces (e.g. group chat participant UI)
 // reuse the same pattern instead of re-implementing it.
-export function Avatar({ avatarUrl, name, size = "normal" }: { avatarUrl: string | null | undefined; name: string; size?: AvatarSize }) {
+export function Avatar({
+  avatarUrl,
+  avatarKey,
+  colorKey,
+  mode = "light",
+  name,
+  size = "normal"
+}: {
+  avatarUrl: string | null | undefined
+  avatarKey?: string | null
+  colorKey?: string | null
+  mode?: AppearanceMode
+  name: string
+  size?: AvatarSize
+}) {
   const dimension = DIMENSIONS[size]
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U"
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U"
+  const bundledAvatar = resolveBundledAvatar(avatarKey)
+  const imageUrl = avatarUrl || bundledAvatar?.url
 
-  if (avatarUrl) {
-    return <img alt="" className={`${dimension} shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700`} src={avatarUrl} />
+  if (imageUrl) {
+    return <img alt="" className={`${dimension} shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700`} src={imageUrl} />
   }
 
+  const fallbackColor = colorKey ? resolveAppearanceColor(colorKey, mode).value : undefined
+
   return (
-    <div aria-hidden="true" className={`${dimension} flex shrink-0 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700`}>
+    <div
+      aria-hidden="true"
+      className={`${dimension} flex shrink-0 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700`}
+      style={fallbackColor ? { backgroundColor: fallbackColor, color: "var(--color-text-primary)" } : undefined}
+    >
       {initials}
     </div>
   )

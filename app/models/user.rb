@@ -2,6 +2,7 @@ class User < ApplicationRecord
   include AutoApproveModes
   include PluginDataCleanup
   include ValidatesAgentProvider
+  include Mentionable
 
   has_secure_password
   has_many :sessions, dependent: :destroy
@@ -27,12 +28,14 @@ class User < ApplicationRecord
   has_many :ui_engagement_samples, dependent: :delete_all
   has_many :chat_sessions
   has_many :chat_participants, dependent: :destroy
-  has_many :accessible_chat_sessions, through: :chat_participants, source: :chat_session
+  has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
+  has_many :created_chat_shares, class_name: "ChatShare", foreign_key: :shared_by_user_id, dependent: :destroy
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
   has_many :passkeys, dependent: :destroy
   has_many :platform_identities, dependent: :destroy
+  has_one :handle_record, as: :owner, class_name: "Handle", dependent: :destroy
   belongs_to :color_theme, class_name: "Theme", optional: true
 
   after_update_commit :wake_default_provider_work_after_agent_provider_change, if: :saved_change_to_agent_provider?
@@ -161,7 +164,8 @@ class User < ApplicationRecord
     "main_inconclusive" => true,
     "main_recovered" => true,
     "external_pr_feedback" => true,
-    "investigation_escalated" => true
+    "investigation_escalated" => true,
+    "chat_mention" => true
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban dependencies].freeze
   # Deliberately not an `enum :global_role` — that macro validates the
@@ -259,14 +263,50 @@ class User < ApplicationRecord
   validates :profile_location, :profile_company, length: { maximum: 100 }
   validates :profile_website, length: { maximum: 255 }
   validate :provider_availability_pause_thresholds_valid
+  validate :handle_registry_entry_present, on: :update
   after_initialize :seed_notification_preferences
   after_initialize :seed_ui_preferences
   after_initialize :seed_locale
   before_create :promote_first_user_to_admin
   before_create :generate_webauthn_id
   before_create :seed_default_color_theme
+  after_create :claim_initial_handle
   after_create :publish_user_created_event
 
+  def handle
+    handle_record&.handle
+  end
+
+  # Keep the current user's participant row joined because chat listing uses
+  # its hidden/read timestamps. A share has no participant row, so its values
+  # naturally remain NULL and the chat is visible and unread until opened.
+  def accessible_chat_sessions
+    quoted_id = self.class.connection.quote(id)
+    ChatSession
+      .joins(<<~SQL.squish)
+        LEFT JOIN chat_participants
+          ON chat_participants.chat_session_id = chat_sessions.id
+          AND chat_participants.user_id = #{quoted_id}
+      SQL
+      .where(<<~SQL.squish)
+        chat_participants.id IS NOT NULL OR EXISTS (
+          SELECT 1 FROM chat_shares
+          WHERE chat_shares.chat_session_id = chat_sessions.id
+            AND chat_shares.target_type = 'User'
+            AND chat_shares.target_id = #{quoted_id}
+        )
+      SQL
+  end
+
+  def kind = "human"
+  def subtitle = role.presence || profile_company
+  def avatar_url = self[:avatar_url]
+  def color_key = nil
+  def addressable_in?(chat)
+    participants = chat.association(:chat_participants)
+    return participants.target.any? { |participant| participant.user_id == id } if participants.loaded?
+    chat.chat_participants.exists?(user_id: id)
+  end
   def admin?
     unless has_attribute?(:global_role)
       return self.class.where(id: id).pick(:global_role) == "admin" if persisted?
@@ -983,6 +1023,15 @@ class User < ApplicationRecord
       @first_user = !User.exists?
       self.global_role = "admin" if @first_user
     end
+  end
+
+  def claim_initial_handle
+    HandleRegistry.claim_generated!(owner: self)
+    association(:handle_record).reset
+  end
+
+  def handle_registry_entry_present
+    errors.add(:handle, "is required") unless Handle.exists?(owner: self)
   end
 
   # A new Syrus installation should start with a useful set of Cron

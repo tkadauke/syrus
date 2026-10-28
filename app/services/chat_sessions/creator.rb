@@ -82,10 +82,12 @@ module ChatSessions
           last_message_at: Time.current,
           conversation_kind: "direct"
         )
-        turn_triggered = chat_session.should_trigger_agent?(prompt)
+        mentions = chat_session.resolve_mentions(prompt)
+        turn_triggered = chat_session.should_trigger_agent?(mentions)
         user_message = chat_session.messages.create!(
           role: "user",
           content: content,
+          mentions: mentions,
           sender_user_id: user.id,
           skip_turn_trigger: !turn_triggered
         )

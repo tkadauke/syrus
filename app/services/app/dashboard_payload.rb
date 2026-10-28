@@ -215,7 +215,7 @@ module App
 
     def jobs_base_scope
       @jobs_base_scope ||= apply_ownership_scope(
-        Job.where(repository_id: active_repo_ids),
+        Job.visible_to(user, scope: Job.where(repository_id: active_repo_ids)),
         :job
       )
     end
@@ -226,7 +226,9 @@ module App
 
     def workflows_base_scope
       @workflows_base_scope ||= apply_ownership_scope(
-        Workflow.joins(:job).where(jobs: { repository_id: active_repo_ids }),
+        Workflow.joins(:job).merge(
+          Job.visible_to(user, scope: Job.where(repository_id: active_repo_ids))
+        ),
         :workflow
       )
     end
@@ -1132,8 +1134,9 @@ module App
       epic_ids = jobs.filter_map(&:epic_id).uniq
       return if epic_ids.empty?
 
-      @epic_job_counts = Job.where(epic_id: epic_ids).group(:epic_id).count
-      @epic_landed_job_counts = Job.where(epic_id: epic_ids, state: "closed")
+      visible_jobs = Job.visible_to(user).where(epic_id: epic_ids)
+      @epic_job_counts = visible_jobs.group(:epic_id).count
+      @epic_landed_job_counts = visible_jobs.where(state: "closed")
                                    .where(closure_reason: Epic::MERGED_JOB_CLOSURE_REASONS)
                                    .group(:epic_id).count
     end
@@ -1143,9 +1146,10 @@ module App
       @epic_dashboard_job_stats_by_epic_id = {}
       return if epic_ids.empty?
 
-      total_counts = Job.where(epic_id: epic_ids).group(:epic_id).count
-      max_commits_behind = Job.where(epic_id: epic_ids, parent_job_id: nil).group(:epic_id).maximum(:commits_behind_base)
-      grouped_counts = Job.where(epic_id: epic_ids).group(:epic_id, :state, :closure_reason).count
+      visible_jobs = Job.visible_to(user).where(epic_id: epic_ids)
+      total_counts = visible_jobs.group(:epic_id).count
+      max_commits_behind = visible_jobs.where(parent_job_id: nil).group(:epic_id).maximum(:commits_behind_base)
+      grouped_counts = visible_jobs.group(:epic_id, :state, :closure_reason).count
       blocked_counts = blocked_epic_child_counts(epic_ids)
       @epic_dependency_counts_by_epic_id = EpicDependency.where(epic_id: epic_ids).group(:epic_id).count
 
@@ -1192,7 +1196,7 @@ module App
     end
 
     def blocked_epic_child_counts(epic_ids)
-      Job
+      Job.visible_to(user)
         .joins(:epic)
         .where(epic_id: epic_ids)
         .where("#{epic_release_blocking_sql} OR (jobs.dependencies_overridden_at IS NULL AND #{job_dependency_blocking_exists_sql('jobs')})")

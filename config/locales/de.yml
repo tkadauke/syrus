@@ -356,7 +356,11 @@ de:
         coding_checkout_not_found: "Für diesen Chat gibt es keinen aktiven Coding-Checkout."
         local_daemon_disconnected: "Der lokale Daemon ist nicht verbunden. Führe `syrus local` in deinem Repository aus, um fortzufahren."
     chats:
+      groups:
+        shared_with_me: "Mit mir geteilt"
       errors:
+        shared_read_only: "Geteilte Chats sind schreibgeschützt."
+        unknown_user_id: "Unbekannte Benutzer-ID."
         before_id_required: "before_id ist erforderlich."
         group_key_required: "group_key ist erforderlich."
         cursor_not_found: "Der Chat-Cursor wurde nicht gefunden."

@@ -237,7 +237,7 @@ module Api
             return
           end
 
-          job = repository.jobs.find(params.require(:job_id))
+          job = visible_repository_jobs(repository).find(params.require(:job_id))
           unless job.needs_triage?
             render_error("validation_failed", I18n.t("api.repositories.not_triage"), status: :unprocessable_content)
             return
@@ -365,7 +365,9 @@ module Api
 
         def repository_detail_payload(repository, page:, message: nil, extra: {})
           PerformanceLogging.phase("repository_detail_payload", repository_id: repository.id, page: page) do
-            total_jobs = PerformanceLogging.phase("repository_detail.total_jobs", repository_id: repository.id) { repository.jobs.count }
+            total_jobs = PerformanceLogging.phase("repository_detail.total_jobs", repository_id: repository.id) do
+              visible_repository_jobs(repository).count
+            end
             total_pages = [ (total_jobs / PER_PAGE.to_f).ceil, 1 ].max
             jobs = PerformanceLogging.phase("repository_detail.jobs_query", repository_id: repository.id, page: page) do
               repository_detail_jobs(repository, page)
@@ -391,7 +393,9 @@ module Api
               needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
               credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
               health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
-              delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) { ::App::DeliveryTracksPayload.for(repository: repository) },
+              delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) do
+                ::App::DeliveryTracksPayload.for(repository: repository, user: Current.user)
+              end,
               recommended_actions: PerformanceLogging.phase("repository_detail.recommended_actions", repository_id: repository.id) do
                 ::App::RepositoryFeatureRecommendations.for(repository: repository, user: Current.user)
               end,
@@ -636,7 +640,7 @@ module Api
         def needs_triage_jobs_json(repository)
           return [] unless can_release_triage_jobs?(repository)
 
-          repository.jobs
+          visible_repository_jobs(repository)
             .needs_triage
             .includes(:owner_user)
             .order(created_at: :asc)
@@ -647,7 +651,7 @@ module Api
         def needs_triage_jobs_count(repository)
           return 0 unless can_release_triage_jobs?(repository)
 
-          repository.jobs.needs_triage.count
+          visible_repository_jobs(repository).needs_triage.count
         end
 
         def needs_triage_job_json(job)
@@ -822,7 +826,7 @@ module Api
             polling_enabled: source.polling_enabled?,
             values: input_source_values(source, provider),
             last_poll_started_at: source.repository.last_poll_started_at&.iso8601,
-            issues_ingested_count: source.respond_to?(:issues_ingested_count) ? source.issues_ingested_count : Job.where(input_source_id: source.id).count
+            issues_ingested_count: source.respond_to?(:issues_ingested_count) ? source.issues_ingested_count : Job.visible_to(Current.user).where(input_source_id: source.id).count
           }
         end
 
@@ -1145,7 +1149,7 @@ module Api
           if defined?(@repository_index_open_job_counts)
             @repository_index_open_job_counts.fetch(repository.id, 0)
           else
-            repository.jobs.open_threads.count
+            visible_repository_jobs(repository).open_threads.count
           end
         end
 
@@ -1153,7 +1157,7 @@ module Api
           if defined?(@repository_index_last_jobs_by_repository_id)
             @repository_index_last_jobs_by_repository_id[repository.id]
           else
-            repository.jobs.order(updated_at: :desc, id: :desc).first
+            visible_repository_jobs(repository).order(updated_at: :desc, id: :desc).first
           end
         end
 
@@ -1193,7 +1197,7 @@ module Api
         end
 
         def repository_detail_jobs(repository, page)
-          job_ids = repository.jobs
+          job_ids = visible_repository_jobs(repository)
             .reorder(updated_at: :desc, id: :desc)
             .limit(PER_PAGE)
             .offset((page - 1) * PER_PAGE)
@@ -1210,7 +1214,7 @@ module Api
         def repository_run_job_counts(repository)
           rows = Run
             .joins(:job)
-            .where(jobs: { repository_id: repository.id })
+            .merge(visible_repository_jobs(repository))
             .where(
               "runs.state IN (:active_states) OR (runs.state = :failed_state AND runs.updated_at >= :failed_since)",
               active_states: %w[ running queued ],
@@ -1231,11 +1235,15 @@ module Api
         def latest_jobs_by_repository_id(repository_ids)
           return {} if repository_ids.empty?
 
-          ranked = Job.where(repository_id: repository_ids)
+          ranked = Job.visible_to(Current.user, scope: Job.where(repository_id: repository_ids))
             .select("jobs.*, ROW_NUMBER() OVER (PARTITION BY repository_id ORDER BY updated_at DESC, id DESC) AS syrus_row_number")
           Job.from("(#{ranked.to_sql}) jobs")
             .where("syrus_row_number = 1")
             .index_by(&:repository_id)
+        end
+
+        def visible_repository_jobs(repository)
+          Job.visible_to(Current.user, scope: repository.jobs)
         end
 
         def latest_runs_by_job_id(job_ids)

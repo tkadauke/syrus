@@ -18,12 +18,13 @@ class ReplaceCheckFailureFlagsWithPrCheckGate < ActiveRecord::Migration[8.1]
       add_column :repositories, GATE, :string, default: "all", null: false
     end
 
-    # Preserve every existing opt-out before the column it lived in goes away.
+    # Preserve every existing opt-out. Keep the legacy column through the
+    # rolling-deploy window: workers running the previous application revision
+    # still read it while the new revision starts against this schema.
     if column_exists?(:repositories, LEGACY)
       execute(<<~SQL.squish)
         UPDATE repositories SET #{GATE} = 'own_only' WHERE #{LEGACY} = #{quoted_true}
       SQL
-      remove_column :repositories, LEGACY
     end
   end
 
@@ -38,7 +39,7 @@ class ReplaceCheckFailureFlagsWithPrCheckGate < ActiveRecord::Migration[8.1]
       execute(<<~SQL.squish)
         UPDATE repositories SET #{LEGACY} = #{quoted_true} WHERE #{GATE} IN ('own_only', 'none')
       SQL
-      remove_column :repositories, GATE
+      remove_column :repositories, GATE if column_exists?(:repositories, GATE)
     end
   end
 

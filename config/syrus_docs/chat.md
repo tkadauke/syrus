@@ -28,9 +28,13 @@ choose "No repository", or clear the current selector value before creating the
 chat. The repository quick-start buttons in the recent-chat sidebar still pass
 their repository (or General/no repository) directly.
 
-Chat access is participant-based. `chat_participants` records every human who
-can open and post to a session, with `role` currently either `owner` or
-`member`; the owner is the convenience `chat.user` for legacy call sites.
+Chat access comes from participation or an explicit read-only share.
+`chat_participants` records every human who can open and post to a session,
+with `role` currently either `owner` or `member`; the owner is the convenience
+`chat.user` for legacy call sites. `chat_shares` grants a person live access to
+the complete transcript without making them a participant: recipients cannot
+post or start a turn, and revocation removes access immediately. Shared chats
+appear under **Shared with me** in the sidebar.
 Per-user read state lives on `chat_participants.last_read_at`, and user-role
 messages store `sender_user_id` so multi-human transcripts can attribute who
 spoke. When a session has more than one human participant, `ChatTurnJob`
@@ -364,16 +368,30 @@ list here. `ChatSession#participants_payload` (returned by the chat show
 payload's `chat.participants`, the two participant endpoints, and the
 `update_participants` broadcast event) includes the same `avatar_url` field.
 
-Mention gating: `ChatSession#should_trigger_agent?(text)` is computed live
+Mention gating: `ChatSession#should_trigger_agent?` is computed live
 from `chat_participants.count`, not a stored setting — chats with 0-1 human
 participants trigger the agent on every message; chats with 2+ require a
-case-insensitive `@syrus` substring (`agent_addressed?`) on that specific
-message. `InboundMessageRouter`, `ChatsController#message`,
+resolved `@syrus` mention on that specific message. Mentions are stored on the
+message as `{ kind, id, handle, start, end }`; exact handle resolution prevents
+prefix collisions, and rendering uses the mentionable's current handle. Human
+mentions are highlighted and create an in-app notification for the mentioned
+participant, but never trigger an agent turn. Users can disable mention
+notifications in their notification preferences.
+
+Every mentionable also exposes `avatar_url` and `color_key`. Humans use their
+uploaded or linked avatar and a neutral highlight. Built-in Syrus uses initials
+on a fixed curated color. The shared appearance palette
+stores stable keys with separately contrast-checked light and dark values;
+frontend callers resolve the key for the active mode rather than persisting a
+hex value. Reusable color and avatar pickers are fixed-choice grids, and the
+shared avatar renderer falls back from an uploaded image to a bundled avatar
+and then to initials on the mentionable color.
+
+`InboundMessageRouter`, `ChatsController#message`,
 `ChatQueuedMessagePromoter`, and `ScheduledChatMessageFireJob` all gate their
 `ChatTurnJob` enqueue on this. Unmentioned scheduled group-chat messages are
 still delivered as visible user messages without marking a turn in flight.
-There is no autocomplete/mention-chip UI — plain-text matching only, kept
-intentionally compatible with a future Telegram-group bridge.
+There is no autocomplete/mention-chip composer UI in this phase.
 
 The web UI's entry point for group chats is a "New group chat" button in the
 chat sidebar (`AppChromeV2`), which opens a participant picker

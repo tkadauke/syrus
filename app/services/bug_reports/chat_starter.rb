@@ -61,10 +61,12 @@ module BugReports
         )
         content = { "text" => prompt_text }
         content["attachments"] = chat_attachments if chat_attachments.any?
-        turn_triggered = chat_session.should_trigger_agent?(prompt_text)
+        mentions = chat_session.resolve_mentions(prompt_text)
+        turn_triggered = chat_session.should_trigger_agent?(mentions)
         user_message = chat_session.messages.create!(
           role: "user",
           content: content,
+          mentions: mentions,
           sender_user_id: user.id,
           skip_turn_trigger: !turn_triggered
         )

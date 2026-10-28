@@ -90,6 +90,22 @@ RSpec.describe "API: /api/v1/app/preview_panels", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "lets a share recipient read a panel without changing it or minting a token" do
+    panel = panel_for(other_user)
+    ChatShare.create!(chat_session: panel.chat_session, target: user, shared_by_user: other_user)
+    sign_in_as(user)
+
+    get "/api/v1/app/preview_panels/#{panel.id}"
+    expect(response).to have_http_status(:ok)
+
+    patch "/api/v1/app/preview_panels/#{panel.id}", params: { visibility: "public" }
+    expect(response).to have_http_status(:not_found)
+    expect(panel.reload.visibility).to eq("private")
+
+    post "/api/v1/app/preview_panels/#{panel.id}/token"
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "404s a missing version rather than serving the current one" do
     panel = panel_for(user)
     sign_in_as(user)

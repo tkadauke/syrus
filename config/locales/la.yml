@@ -356,7 +356,11 @@ la:
         coding_checkout_not_found: "Nullum coding checkout activum huic chat est."
         local_daemon_disconnected: "Daemon localis non conexus est. Exsequere `syrus local` in tuo Repository ut pergas."
     chats:
+      groups:
+        shared_with_me: "Mecum communicata"
       errors:
+        shared_read_only: "Chat communicata solum legi possunt."
+        unknown_user_id: "ID usoris ignota."
         before_id_required: "before_id requiritur."
         group_key_required: "group_key requiritur."
         cursor_not_found: "Cursor Chat non inventus est."

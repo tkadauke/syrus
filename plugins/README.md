@@ -49,6 +49,8 @@ gem "my_plugin", path: "plugins/my_plugin"
 | `:admin_page`     | `Syrus::Plugin::AdminPage`            | `.admin_pages` |
 | `:sidebar_page`   | `Syrus::Plugin::SidebarPage`          | `.sidebar_pages` |
 | `:chat_mcp_tool_set` | `Syrus::Plugin::ChatMcpToolSet`    | `.tool_definitions(tier:)`, `.available_for?(session, tier:)`, `#handle` |
+| `:chat_list_group` | `Syrus::Plugin::ChatListGroup`        | `.chat_list_group(user:)` returning a stable `key`, `label`, and batched `chat_session_ids` |
+| `:chat_result_decorator` | `Syrus::Plugin::ChatResultDecorator` | `.chat_result_badges(chat_sessions:)` returning badge arrays keyed by chat session id |
 | `:source_control_provider` | `Syrus::Plugin::SourceControlProvider` | `.provider_key`, `.display_name`, `.available_for?(repository)`, `.client_for(repository:, user:)` |
 | `:grader_augmentor` | `Syrus::Plugin::GraderAugmentor`    | `.augment_grader_failure(name:, command:, workspace_path:)` → `Array<String>\|nil` |
 | `:speech_to_text_provider` | `Syrus::Plugin::SpeechToTextProvider` | `.provider_key`, `.display_name`, `.available?`, `.build(user:)`; instances inherit the `ChatSpeechToText::Providers::Base` batch/streaming contract |

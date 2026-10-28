@@ -83,6 +83,24 @@ RSpec.describe "Mcp::Tools chat search tools" do
       )
     end
 
+    it "includes badges from one batched decorator call" do
+      indexed_message = message(chat_session, text: "badgeneedle")
+      ChatMessageSearchIndex.insert(indexed_message)
+      decorator = Class.new do
+        include Syrus::Plugin::ChatResultDecorator
+        define_singleton_method(:chat_result_badges) do |chat_sessions:|
+          { chat_sessions.first.id => [ { kind: "coworker", id: 7, name: "Ada" } ] }
+        end
+      end
+      allow(decorator).to receive(:chat_result_badges).and_call_original
+      Syrus::PluginRegistry.register(:chat_result_decorator, decorator)
+
+      result = response_payload(call_tool("search_chats", query: "badgeneedle")).fetch(:results).first
+
+      expect(result[:badges]).to eq([ { kind: "coworker", id: 7, name: "Ada" } ])
+      expect(decorator).to have_received(:chat_result_badges).once
+    end
+
     it "returns matches from chats where the current user is a participant but not the owner" do
       shared_chat = ChatSession.create!(user: other_user, repository: other_repository, title: "Shared search room")
       ChatParticipant.create!(chat_session: shared_chat, user: user, role: "member")

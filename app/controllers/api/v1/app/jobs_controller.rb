@@ -364,7 +364,7 @@ module Api
         end
 
         def current_landing_blocker_key(job)
-          LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
+          LandingQueueProcessor.refresh_snapshot!(Job.visible_to(Current.user, scope: Job.where(id: job.id)))
           job.reload.landing_queue_blocked_reason.to_h["key"].to_s
         end
 

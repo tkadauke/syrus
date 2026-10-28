@@ -35,7 +35,13 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
       read_at: 1.hour.ago,
       created_at: 2.days.ago
     )
-    fresh = notification_for(user, kind: "job_implemented", body: "Opened PR", created_at: 1.hour.ago)
+    fresh = notification_for(
+      user,
+      kind: "chat_mention",
+      body: "Maya mentioned you in a chat.",
+      target_path: "/chats/12#message-34",
+      created_at: 1.hour.ago
+    )
     notification_for(other, body: "Not yours", created_at: Time.current)
 
     get "/api/v1/app/notifications"
@@ -46,12 +52,13 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(body["notifications"].map { |notification| notification["id"] }).to eq([ fresh.id, old.id ])
     expect(body["notifications"].first).to include(
       "id" => fresh.id,
-      "kind" => "job_implemented",
-      "body" => "Opened PR",
+      "kind" => "chat_mention",
+      "body" => "Maya mentioned you in a chat.",
       "read_at" => nil,
       "pr_url" => nil,
       "job_id" => nil,
-      "job_title" => nil
+      "job_title" => nil,
+      "target_path" => "/chats/12#message-34"
     )
     expect(body["notifications"].first["created_at"]).to be_present
     expect(body["notifications"].second).to include(

@@ -517,6 +517,50 @@ RSpec.describe "App API unified search", type: :request do
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
   end
 
+  it "decorates a page of chat results in one batched call" do
+    chat = ChatSession.create!(user: user, repository: repository, title: "Decorated chat")
+    message = ChatMessage.create!(chat_session: chat, role: "user", content: { "text" => "badgeneedle" })
+    ChatMessageSearchIndex.insert(message)
+    decorator = Class.new do
+      include Syrus::Plugin::ChatResultDecorator
+      define_singleton_method(:chat_result_badges) do |chat_sessions:|
+        { chat_sessions.first.id => [ { kind: "coworker", id: 7, name: "Ada" } ] }
+      end
+    end
+    allow(decorator).to receive(:chat_result_badges).and_call_original
+    Syrus::PluginRegistry.register(:chat_result_decorator, decorator)
+
+    get "/api/v1/app/search", params: { query: "badgeneedle", types: [ "chat" ] }
+
+    expect(results).to contain_exactly(include("id" => message.id, "badges" => [ { "kind" => "coworker", "id" => 7, "name" => "Ada" } ]))
+    expect(decorator).to have_received(:chat_result_badges).once
+  end
+
+  it "offers plugin chat chips only for chat-only searches and removes them on teardown" do
+    chip_class = Class.new(Filters::Chips::Base) do
+      filter_name "coworker_id"
+      label "Coworker"
+      bucket :fk
+      operators :is
+    end
+    stub_const("TestCoworkerFilterChip", chip_class)
+    teardown = Filters.register_chips(subject: :chat_message, chips: { "coworker_id" => "TestCoworkerFilterChip" })
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+    expect(parse_body.dig("controls", "filter_schema").pluck("field")).to include("coworker_id")
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "job" ] }
+    expect(parse_body.dig("controls", "filter_schema").pluck("field")).not_to include("coworker_id")
+
+    get "/api/v1/app/search", params: { query: "deploy" }
+    expect(parse_body.dig("controls", "filter_schema").pluck("field")).not_to include("coworker_id")
+
+    teardown.call
+    expect(Filters::Registry.fields(subject: :chat_message)).not_to include("coworker_id")
+  ensure
+    teardown&.call
+  end
+
   it "narrows chat results by provider and mode through the chat session" do
     allow(User).to receive(:chat_providers).and_return(%w[claude codex])
     matching_session = ChatSession.create!(user: user, repository: repository, title: "Codex coding chat", chat_provider: "codex", mode: "coding")
@@ -595,6 +639,26 @@ RSpec.describe "App API unified search", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(results.map { |row| row.fetch("id") }).to eq([ stronger_job.id, weaker_job.id ])
+  end
+
+  it "omits indexed Jobs hidden by an origin visibility restriction" do
+    user.update!(global_role: "user")
+    visible = Factories.job_record(user: user, repository: repository, issue_title: "Deploy visible job")
+    hidden = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Deploy hidden job",
+      origin: "private_tasks",
+      origin_id: "7"
+    )
+    [ visible, hidden ].each { |job| GlobalSearch::JobIndex.upsert(job) }
+
+    with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
+      get "/api/v1/app/search", params: { query: "deploy", types: [ "job" ] }
+
+      expect(response).to have_http_status(:ok)
+      expect(results).to contain_exactly(include("type" => "job", "id" => visible.id))
+    end
   end
 
   def prepare_search_tables

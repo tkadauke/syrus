@@ -9,6 +9,7 @@ class NotificationService
     actor: nil,
     pr_url: nil,
     body:,
+    target_path: nil,
     dedupe_key: nil,
     chat_work_event_dedupe_key: nil
   )
@@ -36,6 +37,7 @@ class NotificationService
       repository: repository,
       pr_url: pr_url,
       body: body,
+      target_path: target_path,
       dedupe_key: dedupe_key
     )
     return nil unless notification
@@ -64,6 +66,7 @@ class NotificationService
       pr_url: notification.pr_url,
       job_id: notification.job_id,
       job_title: notification.job&.title,
+      target_path: notification.target_path,
       created_at: notification.created_at.iso8601
     }
   end
@@ -146,7 +149,7 @@ class NotificationService
   end
   private_class_method :duplicate_notification?
 
-  def self.create_notification!(user:, kind:, job:, repository:, pr_url:, body:, dedupe_key:)
+  def self.create_notification!(user:, kind:, job:, repository:, pr_url:, body:, dedupe_key:, target_path: nil)
     Notification.create!(
       user: user,
       kind: kind,
@@ -154,6 +157,7 @@ class NotificationService
       repository: repository,
       pr_url: pr_url,
       body: body,
+      target_path: target_path,
       dedupe_key: dedupe_key
     )
   rescue ActiveRecord::RecordNotUnique

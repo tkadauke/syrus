@@ -642,11 +642,23 @@ describe("ChatWorkspace panel collapse", () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
     window.history.replaceState({}, "", "/chats/8#walkthrough-42")
     mockChatRouteFetch(
-      chatPayload({}, {
-        video_walkthroughs: [
-          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
-        ]
-      })
+      chatPayload(
+        {},
+        {
+          video_walkthroughs: [
+            {
+              id: 42,
+              title: "Checkout walkthrough",
+              state: "analyzed",
+              duration_seconds: 12,
+              byte_size: 100,
+              error_message: null,
+              has_video: true,
+              created_at: "2026-01-01T00:00:00Z"
+            }
+          ]
+        }
+      )
     )
 
     renderRoute()
@@ -761,11 +773,23 @@ describe("ChatWorkspace split breakpoint", () => {
     mockMobileViewport()
     window.history.replaceState({}, "", "/chats/8#walkthrough-42")
     mockChatRouteFetch(
-      chatPayload({}, {
-        video_walkthroughs: [
-          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
-        ]
-      })
+      chatPayload(
+        {},
+        {
+          video_walkthroughs: [
+            {
+              id: 42,
+              title: "Checkout walkthrough",
+              state: "analyzed",
+              duration_seconds: 12,
+              byte_size: 100,
+              error_message: null,
+              has_video: true,
+              created_at: "2026-01-01T00:00:00Z"
+            }
+          ]
+        }
+      )
     )
 
     renderRoute()
@@ -1869,9 +1893,11 @@ describe("chat composer dictation", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/speech_to_text/stream" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
+          })
+        )
       }
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
       return Promise.resolve(jsonResponse(payload))
@@ -7645,6 +7671,30 @@ describe("group chat participants and composer hint", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
     })
+  })
+})
+
+describe("shared chat recipient view", () => {
+  it("marks the desktop chat as read-only without issuing mark_read", async () => {
+    mockDesktopViewport()
+    const fetchMock = mockChatRouteFetch(chatPayload({ chat: { read_only: true } }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Read-only")).toBeInTheDocument()
+    expect(screen.getByText("This live chat was shared with you. You can read new messages but cannot post.")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("Ask about this repository...")).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith("/mark_read") && init?.method === "PATCH")).toBe(false)
+  })
+
+  it("keeps the shared chat title and read-only context visible on mobile", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch(chatPayload({ chat: { read_only: true, title: "Shared release plan" } }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Shared release plan")).toBeInTheDocument()
+    expect(screen.getByText("Read-only")).toBeInTheDocument()
   })
 })
 

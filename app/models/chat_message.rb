@@ -26,14 +26,17 @@ class ChatMessage < ApplicationRecord
   # that will never run and clear it.
   attr_accessor :skip_turn_trigger
 
+  before_validation :resolve_mentions_once, on: :create
   after_create :record_chat_turn_state
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
   after_create_commit :clear_suggested_next_step, if: -> { role == "user" }
   after_create_commit :deliver_to_platform, if: :platform_delivery_needed?
+  after_create_commit :notify_human_mentions, if: -> { role == "user" }
   after_update :invalidate_context_checkpoints, if: :newly_soft_deleted?
 
   validates :role, presence: true, inclusion: { in: ROLES }
+  validate :mentions_are_structured
   validate :content_is_present
 
   def bookmarkable?
@@ -88,10 +91,64 @@ class ChatMessage < ApplicationRecord
     end
   end
 
+  def resolved_mentions
+    return [] unless role == "user"
+    return mentions unless mentions.nil?
+
+    Mentionables::Resolver.resolve(text: extract_text_from_content, chat: chat_session)
+  end
+
+  def rendered_text_and_mentions(&mentionable_lookup)
+    text = extract_text_from_content.to_s
+    rendered_parts = []
+    rendered_mentions = []
+    cursor = 0
+
+    resolved_mentions.sort_by { |mention| mention.fetch("start") }.each do |mention|
+      mentionable = if mentionable_lookup
+        mentionable_lookup.call(mention["kind"], mention["id"])
+      else
+        Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      end
+      next unless mentionable&.addressable_in?(chat_session)
+
+      start_offset = mention.fetch("start")
+      end_offset = mention.fetch("end")
+      next if start_offset < cursor || end_offset > text.length
+
+      replacement = "@#{mentionable.handle}"
+      prefix = text[cursor...start_offset].to_s
+      rendered_start = rendered_parts.sum(&:length) + prefix.length
+      rendered_parts << prefix << replacement
+      rendered_mentions << mention.merge(
+        "handle" => mentionable.handle,
+        "start" => rendered_start,
+        "end" => rendered_start + replacement.length
+      )
+      cursor = end_offset
+    end
+
+    rendered_parts << text[cursor..].to_s
+    [ rendered_parts.join, rendered_mentions ]
+  end
+
   private
 
   def content_is_present
     errors.add(:content, "can't be blank") if content.nil?
+  end
+
+  def resolve_mentions_once
+    return unless role == "user" && mentions.nil? && chat_session
+
+    self.mentions = Mentionables::Resolver.resolve(text: extract_text_from_content, chat: chat_session)
+  end
+
+  def mentions_are_structured
+    return if mentions.nil?
+    return if mentions.is_a?(Array) && mentions.all? { |mention| mention.is_a?(Hash) && %w[kind id handle start end].all? { |key| mention.key?(key) } }
+
+    errors.add(:mentions, "must contain structured mentions")
   end
 
   def newly_soft_deleted?
@@ -198,6 +255,26 @@ class ChatMessage < ApplicationRecord
 
   def platform_delivery_needed?
     role == "assistant" && chat_session.origin_platform.present?
+  end
+
+  def notify_human_mentions
+    mentioned_user_ids = Array(mentions).filter_map do |mention|
+      mention["id"] if mention["kind"] == "human"
+    end.map(&:to_i).uniq
+    mentioned_user_ids.delete(sender_user_id)
+    return if mentioned_user_ids.empty?
+
+    User.where(id: mentioned_user_ids).find_each do |mentioned_user|
+      NotificationService.create_for(
+        user: mentioned_user,
+        kind: "chat_mention",
+        repository: chat_session.repository,
+        actor: sender_user,
+        body: "#{sender_user&.display_name || "Someone"} mentioned you in a chat.",
+        target_path: "/chats/#{chat_session_id}#message-#{id}",
+        dedupe_key: "chat-mention:message:#{id}:user:#{mentioned_user.id}"
+      )
+    end
   end
 
   def deliver_to_platform

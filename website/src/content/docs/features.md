@@ -657,9 +657,11 @@ members may only remove themselves, which reads as "Leave" and takes them back
 out of the chat. The owner cannot be removed. The message list labels each
 human message with its sender's name so a multi-person transcript stays
 readable, and because the
-agent only replies to a group chat message that explicitly mentions
-`@syrus`, the composer shows a lightweight reminder of that requirement
-whenever more than one human is currently in the chat. Platform-origin
+agent only replies to a group chat message that resolves the exact structured
+mention `@syrus`, the composer shows a lightweight reminder whenever more than
+one human is currently in the chat. Mentions of people are highlighted and send
+the mentioned participant an in-app notification, but do not start an agent
+turn. Saved mentions follow the person's current handle after a rename. Platform-origin
 sessions, such as future
 Telegram or Slack conversations, are found by platform plus participant
 membership and use the current `speak_when_spoken_to` trigger policy. The chat
