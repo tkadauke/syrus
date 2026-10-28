@@ -2927,12 +2927,22 @@ and resource limits it uses for local subprocesses. Core asks enabled
 uses the first provider that accepts; if none do, it runs the request through
 `Execution::Local`.
 
+Repositories select an execution backend for grader Runs explicitly:
+
+```yaml
+execution:
+  grader_backend: container_execution
+```
+
+Core matches that name against enabled providers. With no selection, an unknown
+name, or an unavailable provider, the grader uses `Execution::Local`.
+
 The bundled `container_execution` plugin is the first provider. It only accepts
-grader requests when the plugin is enabled, a container image is configured, a
-Docker CLI/transport is reachable from the worker, and every requested bind
-source has an explicit worker-path to Docker-host-path mapping. It maps the
-declared mounts/network/resource limits to Docker run flags, and otherwise lets
-the core fallback keep local execution working.
+selected grader requests when the plugin is enabled, a container image is
+configured, a Docker CLI/transport is reachable from the worker, and every
+requested bind source has an explicit worker-path to Docker-host-path mapping.
+It maps the declared mounts/network/resource limits to Docker run flags, and
+otherwise lets the core fallback keep local execution working.
 
 ## `workspace_git_transport`
 

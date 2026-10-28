@@ -72,6 +72,9 @@ grade:
       ci:
         include: [ci_only]
 
+execution:
+  grader_backend: container_execution
+
 merge_train:
   failure_rungs: [multisect]
 
@@ -89,6 +92,7 @@ Schema:
 | `prepare` | `false` | Opt out of preparation entirely |
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, `when_files_changed`, and `resources` |
 | grade step `resources` | Mapping | What a grader can productively use: `cpu` (core count or `all`), `cpu_min`, and `memory` |
+| `execution.grader_backend` | String | Optional plugin-provided backend for grader processes; unavailable or unconfigured backends fall back to local execution |
 | `merge_train.failure_policy` | Array of strings | Ordered merge-train failure ladder; supports `restart`, `keep_assembly`, and `keep_fixes` |
 | `merge_train.failure_rungs` | Array of strings | Repository-local merge-train failure rungs; currently supports the visible prepare/evaluate/collect `multisect` rung |
 | `project.capabilities` / target `capabilities` | Mapping | Execution worker constraints: `os`, `arch`, `toolchain`, and `runtime` |

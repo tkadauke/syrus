@@ -9,6 +9,18 @@ Core still owns backend selection and fallback. If the plugin is absent,
 disabled, or cannot prove the worker can launch Docker with host-visible bind
 mounts, `ProcessRunner` uses `Execution::Local`.
 
+Repositories opt their grader Runs into this backend in the root `.syrus.yml`:
+
+```yaml
+execution:
+  grader_backend: container_execution
+```
+
+Without that explicit selection, graders continue to use `Execution::Local`
+even when the plugin is enabled. The setting is read from the grader's source
+checkout, so immutable distributed graders use the configuration captured in
+their source snapshot.
+
 The backend maps the execution request onto the container invocation:
 
 - read/write, read-only, and artifact mounts become Docker bind mounts;
