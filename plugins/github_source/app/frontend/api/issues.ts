@@ -67,7 +67,7 @@ export function closeRepositoryIssue(path: string, values: { issueNumber: number
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.filterParam,
+    ...(values.filterParam ? { q: values.filterParam } : {}),
     sort: values.sort.column,
     direction: values.sort.direction
   })
@@ -77,7 +77,7 @@ export function delegateRepositoryIssue(path: string, values: { issueNumber: num
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.filterParam,
+    ...(values.filterParam ? { q: values.filterParam } : {}),
     sort: values.sort.column,
     direction: values.sort.direction
   })
@@ -88,7 +88,7 @@ export function bulkRepositoryIssues(path: string, values: { issueNumbers: numbe
     issue_numbers: values.issueNumbers,
     bulk_action: values.bulkAction,
     folder: values.folder,
-    q: values.filterParam,
+    ...(values.filterParam ? { q: values.filterParam } : {}),
     sort: values.sort.column,
     direction: values.sort.direction
   })
