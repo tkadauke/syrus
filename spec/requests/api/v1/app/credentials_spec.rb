@@ -413,6 +413,21 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     )
   end
 
+  it "renames the profile handle through the shared registry and reports uniqueness errors" do
+    other = Factories.user(email_address: "claimed@example.com")
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: { user: { handle: "ada-lovelace" } }
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.handle).to eq("ada-lovelace")
+    expect(parse_body.dig("user", "handle")).to eq("ada-lovelace")
+
+    patch "/api/v1/app/credentials", params: { user: { handle: other.handle } }
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Handle has already been taken")
+    expect(user.reload.handle).to eq("ada-lovelace")
+  end
+
   it "clears blank profile fields without clearing blank write-only credentials" do
     sign_in_as(user)
     user.update!(profile_company: "Analytical Engines Ltd", profile_bio: "Notes")

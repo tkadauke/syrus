@@ -141,3 +141,61 @@ describe("Compose attachments", () => {
     expect(screen.queryByTitle("notes.txt")).not.toBeInTheDocument()
   })
 })
+
+describe("Compose mention autocomplete", () => {
+  it("supports keyboard selection and inserts the selected handle", async () => {
+    vi.mocked(useWalkthroughRecorder).mockReturnValue({
+      state: { phase: "idle" },
+      elapsed: 0,
+      start: vi.fn(),
+      stop: vi.fn(),
+      annotationAvailable: false,
+      annotationHold: false,
+      annotationReason: null,
+      displaySurface: null,
+      drawing: false
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        mentionables: [
+          {
+            id: 1,
+            handle: "maya",
+            display_name: "Maya",
+            subtitle: "Researcher",
+            kind: "coworker",
+            avatar_url: null,
+            avatar_key: null,
+            color_key: "rose-soft",
+            add_to_chat: false
+          },
+          {
+            id: "syrus",
+            handle: "syrus",
+            display_name: "Syrus",
+            subtitle: "Engineer",
+            kind: "syrus",
+            avatar_url: null,
+            avatar_key: null,
+            color_key: "coral-deep",
+            add_to_chat: false
+          }
+        ]
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    renderCompose()
+    const composer = screen.getByRole("textbox")
+    fireEvent.change(composer, { target: { value: "Ask @" } })
+    expect(await screen.findByText("@maya")).toBeInTheDocument()
+    expect(screen.getAllByRole("option")).toHaveLength(2)
+    fireEvent.keyDown(composer, { key: "ArrowDown" })
+    fireEvent.keyDown(composer, { key: "Enter" })
+
+    expect(composer).toHaveValue("Ask @syrus ")
+  })
+})

@@ -20,6 +20,7 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
       profile_company: null,
       profile_website: null,
       display_name: "Ada Lovelace",
+      handle: "ada-lovelace",
       github_handle: null,
       profile_bio: null,
       avatar_url: null,

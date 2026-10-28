@@ -1140,6 +1140,8 @@
     "display_name": "Display name",
     "first_name": "First name",
     "last_name": "Last name",
+    "handle": "Handle",
+    "handle_help": "3–32 lowercase letters, numbers, underscores, or hyphens. Do not include sensitive information.",
     "company": "Company",
     "location": "Location",
     "website": "Website",

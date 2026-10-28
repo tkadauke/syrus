@@ -74,6 +74,18 @@ export type ChatRecord = {
 
 export type ChatAgentAppearance = { name: string; color_key: string; avatar_key: string | null; avatar_url: string | null }
 
+export type ChatMentionable = {
+  id: number | string
+  handle: string
+  display_name: string
+  subtitle: string | null
+  kind: "human" | "coworker" | "syrus"
+  avatar_url: string | null
+  avatar_key: string | null
+  color_key: string | null
+  add_to_chat: boolean
+}
+
 export type ChatAgentActivity = {
   label: string
   raw_name: string | null
@@ -1049,6 +1061,10 @@ export function fetchChatShares(chatId: number | string) {
 
 export function fetchChatShareCandidates(chatId: number | string, query: string) {
   return getJson<{ targets: ChatShareTarget[] }>(`/api/v1/app/chats/${chatId}/share_candidates?q=${encodeURIComponent(query)}`)
+}
+
+export function fetchChatMentionables(chatId: number | string, query: string) {
+  return getJson<{ mentionables: ChatMentionable[] }>(`/api/v1/app/chats/${chatId}/mentionables?q=${encodeURIComponent(query)}`)
 }
 
 export function createChatShare(chatId: number | string, target: Pick<ChatShareTarget, "target_type" | "target_id">) {
