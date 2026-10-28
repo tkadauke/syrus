@@ -1665,7 +1665,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_132935) do
     t.string "kind"
     t.integer "run_id", null: false
     t.integer "sequence", null: false
-    t.json "tool_metadata"
     t.datetime "updated_at", null: false
     t.json "tool_metadata"
     t.index ["created_at"], name: "index_job_logs_on_created_at"
