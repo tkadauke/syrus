@@ -12,6 +12,18 @@ RSpec.describe RetentionPolicyRegistry do
     end
   end
 
+  it "keeps keys unique and every registered table, scope, setting, and executor resolvable" do
+    expect(described_class.definitions.map(&:key)).to eq(described_class.definitions.map(&:key).uniq)
+    expect { described_class.validate! }.not_to raise_error
+  end
+
+  it "backs stable policy settings with the required unique index" do
+    index = ActiveRecord::Base.connection.indexes(:retention_policy_settings)
+      .find { |candidate| candidate.columns == [ "retention_key" ] }
+
+    expect(index.unique).to be(true)
+  end
+
   it "provides canonical-second defaults for every core policy" do
     described_class::CORE_DEFINITIONS.each do |definition|
       expect(definition.default_seconds).to eq(definition.default_value.public_send(definition.unit).to_i)
@@ -44,7 +56,7 @@ RSpec.describe RetentionPolicyRegistry do
       model: "OperationalLogEvent",
       unit: "hours",
       default_value: 6,
-      job_class: "PruneOperationalLogsJob"
+      executor_class: "RetentionPolicyExecutors::OperationalLogEvent"
     )
   end
 
@@ -96,7 +108,7 @@ RSpec.describe RetentionPolicyRegistry do
               setting_key: :fake_plugin_table_retention_days,
               default_value: 5,
               unit: :days,
-              job_class: "FakePluginPruneJob",
+              executor_class: nil,
               description: "A fake plugin-owned table, for testing the merge.",
               category: "Plugins",
               archivable: false

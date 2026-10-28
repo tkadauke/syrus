@@ -22,7 +22,7 @@ RSpec.describe MetricsDashboard::RetentionPolicy, requires_plugin: "metrics_dash
     expect(definition.setting_key).to eq(:metrics_dashboard_sample_retention_days)
     expect(definition.default_value).to eq(7)
     expect(definition.unit).to eq(:days)
-    expect(definition.job_class).to eq("MetricsDashboard::PruneJob")
+    expect(definition.executor_class).to be_nil
     expect(definition.description).to include("longest selectable window (7 days)")
   end
 

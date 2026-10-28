@@ -19,7 +19,7 @@ module Metrics
     # (kind, state) pairs, where state is "running" for a process still in
     # flight and its terminal outcome (see SpawnedProcess::OUTCOMES) once it
     # has finished. Windowed rather than all-time, because
-    # SpawnedProcessPruneJob deletes finished rows after 7 days and this is a
+    # The spawned-process retention policy deletes finished rows after 7 days and this is a
     # live-fleet snapshot, not a historical count.
     def spawned_process_counts(window: SPAWNED_PROCESS_WINDOW)
       SpawnedProcess.recent_or_active(window)

@@ -381,7 +381,7 @@ RSpec.describe OperationalLogging do
     OperationalLogIndex.upsert(old_event)
     allow(Rails.logger).to receive(:warn)
 
-    PruneOperationalLogsJob.perform_now(6.hours.ago)
+    RetentionPolicyPruneJob.perform_now("operational_log_event")
 
     expect(OperationalLogEvent.exists?(old_event.id)).to be(false)
     expect(OperationalLogIndex.search(query: "expired", since: 12.hours.ago)).to be_empty
@@ -407,7 +407,7 @@ RSpec.describe OperationalLogging do
     end
 
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
-      PruneOperationalLogsJob.perform_now(6.hours.ago)
+      RetentionPolicyPruneJob.perform_now("operational_log_event")
     end
 
     expect(sql_names).to include("OperationalLogIndex Prune")

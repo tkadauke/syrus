@@ -56,6 +56,7 @@ module Syrus
         problem_code
         unit_type
         resource
+        retention_key
         visibility_state
       ].freeze
 
