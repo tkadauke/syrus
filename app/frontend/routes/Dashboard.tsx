@@ -33,7 +33,7 @@ import { CloseIcon } from "../components/CloseIcon"
 import { ColumnsIcon } from "../components/ColumnsIcon"
 import { PageHeading } from "../components/Heading"
 import { TonePill } from "../components/StatusPill"
-import { FilterBar } from "../components/FilterBar"
+import { SmartFolderFilterBar } from "../components/SmartFolderFilterBar"
 import { Notice, Page, Section, Surface, Text, usePageGutterRestoreClassName } from "../components/ui"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
@@ -839,10 +839,9 @@ export function DashboardToolbar({
 
 export function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   return (
-    <FilterBar
-      buildLink={(path, currentSearch, updates) => {
-        return dashboardLinkFromSearch(path, currentSearch, updates)
-      }}
+    <SmartFolderFilterBar
+      activeSmartFolderId={smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id}
+      buildLink={dashboardLinkFromSearch}
       filter={payload.filter}
       filterSchema={payload.controls.filter_schema}
       legacyFilterKeys={legacyFilterKeys}
@@ -851,6 +850,7 @@ export function DashboardFilterBar({ payload, pathname, search }: { payload: Das
       }}
       pathname={pathname}
       search={search}
+      smartFolders={payload.smart_folders}
       suggestionSearch={{ surface: "dashboard", subject: payload.subject }}
       suggestions={payload.controls.filter_suggestions}
     />
