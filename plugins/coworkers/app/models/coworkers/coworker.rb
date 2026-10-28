@@ -12,6 +12,7 @@ class Coworkers::Coworker < ApplicationRecord
   has_many :grants, class_name: "Coworkers::Grant", dependent: :destroy, inverse_of: :coworker
   has_many :coworker_chats, class_name: "Coworkers::Chat", dependent: :destroy, inverse_of: :coworker
   has_many :chats, through: :coworker_chats, source: :chat_session
+  has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 
   normalizes :handle, with: ->(value) { HandleRegistry.normalize(value) }

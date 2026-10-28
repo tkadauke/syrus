@@ -15,6 +15,7 @@ RSpec.describe "Coworker chat surface" do
   before do
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     Coworkers::ChatExtension.install_into(scope)
+    Coworkers::SearchExtension.install_into(scope)
   end
 
   after { scope.dispose }
@@ -72,6 +73,29 @@ RSpec.describe "Coworker chat surface" do
 
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).not_to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: private_chat.id)).to be_error
+    expect(names(tier: :deferred)).not_to include("send_chat_message")
+
+    shared_chat.chat_shares.destroy_all
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).to be_error
+  end
+
+  it "filters agent chat search by coworker and returns the coworker name" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED, tokenize = 'porter unicode61')
+    SQL
+    SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    indexed = chat.messages.create!(role: "user", content: { "text" => "calendar needle" })
+    ChatMessageSearchIndex.insert(indexed)
+    Syrus::PluginRegistry.register(:chat_result_decorator, Coworkers::ChatResultDecorator)
+    context = { chat_session: chat }
+
+    response = Mcp::Tools::SearchChatsTool.call(server_context: context, query: "calendar", coworker_id: coworker.id)
+    result = JSON.parse(response.content.first[:text]).fetch("results").first
+
+    expect(result).to include("chat_session_id" => chat.id, "coworker_name" => "Maya")
   end
 
   it "enforces auto, confirm, and queue approval policies" do

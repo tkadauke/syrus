@@ -48,6 +48,57 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "offers only the owner's coworkers as typed read-only share targets" do
+    mine = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
+    other_owner = Factories.user(email_address: "other-owner@example.com")
+    hidden = Coworkers::Coworker.create!(owner_user: other_owner, name: "Hidden", handle: "hidden", workspace_repo: "https://github.com/acme/other.git")
+    chat = ChatSession.create!(user: owner, title: "Plans")
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/#{chat.id}/share_candidates"
+    expect(response.parsed_body.fetch("targets")).to include(include("target_type" => "Coworkers::Coworker", "target_id" => mine.id, "kind" => "coworker"))
+    expect(response.parsed_body.fetch("targets")).not_to include(include("target_id" => hidden.id, "kind" => "coworker"))
+
+    post "/api/v1/app/chats/#{chat.id}/shares", params: { target_type: "Coworkers::Coworker", target_id: mine.id }
+    expect(response).to have_http_status(:created)
+    expect(chat.chat_shares.find_by!(target: mine).shared_by_user).to eq(owner)
+
+    post "/api/v1/app/chats/#{chat.id}/shares", params: { target_type: "Coworkers::Coworker", target_id: hidden.id }
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  it "badges and filters coworker chats on chat and global search" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED, tokenize = 'porter unicode61')
+    SQL
+    SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
+    coworker_chat = ChatSession.create!(user: owner, title: "Maya")
+    syrus_chat = ChatSession.create!(user: owner, title: "Syrus")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: coworker_chat, role: "main")
+    message = coworker_chat.messages.create!(role: "user", content: { "text" => "calendar needle" })
+    syrus_chat.messages.create!(role: "user", content: { "text" => "engineering needle" })
+    ChatMessageSearchIndex.insert(message)
+    sign_in_as(owner)
+
+    get "/api/v1/app/filters/schema", params: { subject: "chat_message" }
+    coworker_field = response.parsed_body.fetch("fields").find { |field| field.fetch("field") == "coworker_id" }
+    expect(coworker_field.fetch("values")).to include({ "value" => "syrus", "label" => "Syrus" }, { "value" => coworker.id.to_s, "label" => "Maya" })
+
+    get "/api/v1/app/chats/search", params: { coworker_id: coworker.id }
+    expect(response.parsed_body.fetch("results")).to contain_exactly(
+      include("chat_session_id" => coworker_chat.id, "badges" => [ { "kind" => "coworker", "id" => coworker.id, "name" => "Maya" } ])
+    )
+
+    filter = Filters::QueryParam.encode("and" => [ { "field" => "coworker_id", "op" => "is", "value" => coworker.id } ])
+    get "/api/v1/app/search", params: { query: "calendar", q: filter, types: [ "chat" ] }
+    expect(response.parsed_body.fetch("results")).to contain_exactly(
+      include("id" => message.id, "badges" => [ { "kind" => "coworker", "id" => coworker.id, "name" => "Maya" } ])
+    )
+  end
+
   it "removes the routes and sidebar contribution when the plugin is disabled" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
     sign_in_as(owner)

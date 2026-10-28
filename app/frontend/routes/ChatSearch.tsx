@@ -15,7 +15,7 @@ type FilterOptionsPayload = {
   options?: FilterOption[]
 }
 
-const filterFields = ["q", "repository_id", "epic_id", "job_id"]
+const filterFields = ["q", "repository_id", "epic_id", "job_id", "coworker_id"]
 
 export function ChatSearchRoute() {
   const { t } = useT("chat")
@@ -218,7 +218,7 @@ function PanelMessage({ children, tone = "neutral" }: { children: string; tone?:
 }
 
 function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOptions>> | undefined, t: (key: string) => string): FilterSchemaField[] {
-  return [
+  const fields: FilterSchemaField[] = [
     {
       field: "q",
       label: t("search.filter_query"),
@@ -231,6 +231,9 @@ function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOpt
     { field: "epic_id", label: t("search.filter_epic"), bucket: "select", operators: ["is"], values: options?.epic_id || [] },
     { field: "job_id", label: t("search.filter_job"), bucket: "select", operators: ["is"], values: options?.job_id || [] }
   ]
+  const coworker = options?.pluginFields.find((field) => field.field === "coworker_id")
+  if (coworker) fields.push({ ...coworker, bucket: "select", operators: ["is"] })
+  return fields
 }
 
 function filterFromSearch(search: string) {
@@ -308,16 +311,18 @@ function sanitizeSnippet(html: string) {
 }
 
 async function loadFilterOptions(signal: AbortSignal) {
-  const [repositoryOptions, epicOptions, jobOptions] = await Promise.all([
+  const [repositoryOptions, epicOptions, jobOptions, schema] = await Promise.all([
     loadOptions("repository_id", signal),
     loadOptions("epic_id", signal),
-    loadOptions("job_id", signal)
+    loadOptions("job_id", signal),
+    getJson<{ fields: FilterSchemaField[] }>("/api/v1/app/filters/schema?subject=chat_message", { signal })
   ])
 
   return {
     repository_id: repositoryOptions,
     epic_id: epicOptions,
-    job_id: jobOptions
+    job_id: jobOptions,
+    pluginFields: schema.fields
   }
 }
 

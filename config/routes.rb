@@ -224,6 +224,7 @@ Rails.application.routes.draw do
         post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /[a-zA-Z0-9_-]+/ }
         delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
+        get "filters/schema", to: "filters#schema"
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"

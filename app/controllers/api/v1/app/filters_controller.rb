@@ -41,6 +41,12 @@ module Api
           render_error("unknown_field", I18n.t("api.filters.unknown_field"), status: :bad_request)
         end
 
+        def schema
+          render json: { fields: ::Filters::Schema.for(subject: params[:subject].presence || "job", user: Current.user) }
+        rescue ArgumentError, KeyError
+          render_error("unknown_subject", I18n.t("api.filters.unknown_field"), status: :bad_request)
+        end
+
         private
 
         def usage_tree

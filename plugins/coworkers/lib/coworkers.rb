@@ -1,5 +1,6 @@
 require "coworkers/data_cleanup"
 require "coworkers/chat_extension"
+require "coworkers/search_extension"
 
 module Coworkers
   extend Syrus::PluginApi
@@ -17,6 +18,7 @@ module Coworkers
     disableable true
     depends_on [ "scheduled_tasks" ]
     provides mentionable: "Coworkers::MentionableProvider",
+             chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
@@ -33,6 +35,9 @@ module Coworkers
         i18n: [ "app/frontend/i18n/locales/*/coworkers.json" ]
 
     always { |scope| Coworkers::DataCleanup.install_into(scope) }
-    while_enabled { |scope| Coworkers::ChatExtension.install_into(scope) }
+    while_enabled do |scope|
+      Coworkers::ChatExtension.install_into(scope)
+      Coworkers::SearchExtension.install_into(scope)
+    end
   end
 end
