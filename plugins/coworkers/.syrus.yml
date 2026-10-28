@@ -1,0 +1,10 @@
+project:
+  id: coworkers
+  label: "coworkers plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest
