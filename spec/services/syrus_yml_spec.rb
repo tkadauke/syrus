@@ -2108,7 +2108,7 @@ RSpec.describe SyrusYml do
     end
 
     describe "tracks" do
-      it "rejects a custom review or landing phase that no grader declares" do
+      it "rejects a consumed track phase that no grader declares" do
         expect {
           parse(<<~YAML)
             grade:
@@ -2125,6 +2125,26 @@ RSpec.describe SyrusYml do
         }.to raise_error(
           SyrusYml::ParseError,
           /delivery\.tracks\.default\.grade_phases\.review.*review_minimal.*not declared/
+        )
+      end
+
+      it "rejects an undeclared branch health phase" do
+        expect {
+          parse(<<~YAML)
+            grade:
+              steps:
+                - name: tests
+                  run: bin/test
+                  phases: [review, landing, ci]
+            delivery:
+              tracks:
+                default:
+                  grade_phases:
+                    branch_health: health_minimal
+          YAML
+        }.to raise_error(
+          SyrusYml::ParseError,
+          /delivery\.tracks\.default\.grade_phases\.branch_health.*health_minimal.*not declared/
         )
       end
 
@@ -2148,24 +2168,26 @@ RSpec.describe SyrusYml do
         )
       end
 
-      it "accepts custom review and landing phases declared by graders" do
+      it "accepts custom consumed track phases declared by graders" do
         config = parse(<<~YAML)
           grade:
             steps:
               - name: quick
                 run: bin/quick
-                phases: [review_minimal, landing_minimal]
+                phases: [review_minimal, landing_minimal, health_minimal]
           delivery:
             tracks:
               default:
                 grade_phases:
                   review: review_minimal
                   landing: landing_minimal
+                  branch_health: health_minimal
         YAML
 
         track = config.delivery.tracks.fetch("default")
         expect(track.review_grade_phase).to eq("review_minimal")
         expect(track.landing_grade_phase).to eq("landing_minimal")
+        expect(track.branch_health_grade_phase).to eq("health_minimal")
       end
 
       it "parses an explicit tracks block, defaulting omitted grade phases" do

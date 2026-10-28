@@ -998,7 +998,11 @@ class SyrusYml
     raw_delivery.fetch("tracks", {}).each do |track_name, raw_track|
       raw_grade_phases = raw_track.fetch("grade_phases", {})
       track = delivery.tracks.fetch(track_name.to_s)
-      { "review" => track.review_grade_phase, "landing" => track.landing_grade_phase }.each do |kind, phase|
+      {
+        "review" => track.review_grade_phase,
+        "landing" => track.landing_grade_phase,
+        "branch_health" => track.branch_health_grade_phase
+      }.each do |kind, phase|
         next unless raw_grade_phases.key?(kind)
         next if declared_phases.include?(phase)
 
