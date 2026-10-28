@@ -77,7 +77,6 @@ class RetentionPolicyRegistry
         archivable: archivable
       }
     end
-
   end
   CORE_DEFINITIONS = [
     Definition.new(
@@ -261,7 +260,7 @@ class RetentionPolicyRegistry
       description: "Per-step-key resource prediction profiles used for admission control; stale profiles are dropped rather than trusted.",
       category: "Diagnostics",
       archivable: false
-    ),
+    )
   ].freeze
 
   # Recomputed on every call rather than frozen once, so a plugin's
