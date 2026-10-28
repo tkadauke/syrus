@@ -306,6 +306,23 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }).not_to include(own_doc.title)
   end
 
+  it "returns a selected built-in as the effective editable preset" do
+    owned = create_design_doc(title: "Owned draft")
+    create_design_doc(title: "Someone else's draft", owner_user: collaborator)
+    sign_in_as(owner)
+    SmartFolder.ensure_builtins_for_subject!(DesignDocs::SmartFolders::SUBJECT)
+    folder = SmartFolder.builtins(DesignDocs::SmartFolders::SUBJECT).find_by!(name: "My docs")
+
+    get "/api/v1/app/design_docs", params: { smart_folder_id: folder.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("active_smart_folder_id")).to eq(folder.id)
+    expect(parse_body.fetch("filter")).to eq(
+      Filters::SmartFolderResolution.preset_tree("design_docs_mine")
+    )
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ owned.id ])
+  end
+
   it "adds a chip via the FilterBar without duplicating the active SmartFolder's own chip" do
     # FilterBar seeds its draft chip list from the server's already-merged
     # `filter`, so adding a chip resends the folder's own chip alongside it.

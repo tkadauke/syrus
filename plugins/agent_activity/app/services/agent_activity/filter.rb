@@ -22,7 +22,7 @@ module AgentActivity
     end
 
     def self.schema
-      Filters::Schema.for(subject: :agent_activity)
+      Filters::Schema.for(subject: :agent_activity, smart_folder_subject: AgentActivity::SmartFolders::SUBJECT)
     end
 
     def initialize(tree, user: nil)

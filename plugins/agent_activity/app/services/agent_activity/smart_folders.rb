@@ -16,6 +16,7 @@ module AgentActivity
           SUBJECT,
           builtins: BUILTINS,
           label: "Agent Activity",
+          effective_filter_contract: :smart_folder_resolution,
           path: ->(**query) { path(**query) }
         )
       end

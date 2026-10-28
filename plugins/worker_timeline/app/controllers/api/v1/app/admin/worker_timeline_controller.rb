@@ -14,8 +14,10 @@ module Api
 
           def macro
             folder = active_smart_folder
-            floor = ::WorkerTimeline::MacroQueryFilter.smart_folder_floor(params, folder, user: Current.user)
-            filter = ::WorkerTimeline::MacroQueryFilter.from_params(params, smart_folder: floor, user: Current.user)
+            filter = ::Filters::SmartFolderResolution.call(
+              filter_class: ::WorkerTimeline::MacroQueryFilter, subject: :worker_timeline,
+              params: params, active_smart_folder: folder, user: Current.user
+            ).filter
 
             payload = ::Timeline::MacroQuery.call(
               from: filter.from,

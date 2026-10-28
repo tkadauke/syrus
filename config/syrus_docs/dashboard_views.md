@@ -295,6 +295,13 @@ purposes (breadcrumb/sidebar highlighting) even once its filter floor has
 been dropped. New surfaces should use the resolution object rather than
 assembling this precedence and navigation state independently.
 
+Plugin SmartFolder subjects declare `effective_filter_contract:
+:smart_folder_resolution` when calling `SmartFolder.register_subject!`. The
+registration inventory spec requires that declaration for every installed
+subject, so a new SmartFolder-backed FilterBar surface cannot bypass this
+contract accidentally. FilterBar-only subjects that do not register with
+`SmartFolder` are outside this inventory.
+
 `FilterBar.tsx`'s `applyTree` seeds its editable draft chip list from the
 server's already-merged `filter`, so a chip-bar Add/Edit always resends
 whatever the SmartFolder already contributed alongside the change -- `q=`
