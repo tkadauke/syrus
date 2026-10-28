@@ -19,18 +19,19 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-# Build Tailwind once, synchronously, before starting the watcher. The watcher
-# alone is not reliable here: with its output redirected to a log there is no
-# TTY, and it emits its banner and then nothing, so wait_for_file below times
-# out after two minutes and the server never starts. A one-shot build takes a
-# couple of seconds and guarantees the file exists; the watcher still follows,
-# so a preview that edits CSS still rebuilds.
+# Build assets once, synchronously, before starting the watchers. A watcher is
+# a long-running development process, not a reliable build-completion signal;
+# if its initial pass stalls or exits without writing an asset, Playwright can
+# only report that the web server missed its startup deadline. One-shot builds
+# fail directly with their useful output in the logs and guarantee the files
+# exist. The watchers still follow so a live preview rebuilds on edits.
 bin/rails tailwindcss:build > log/tailwind.log 2>&1
+npm run build > log/vite.log 2>&1
 
 bin/rails tailwindcss:watch >> log/tailwind.log 2>&1 &
 pids+=("$!")
 
-npm run build -- --watch > log/vite.log 2>&1 &
+npm run build -- --watch >> log/vite.log 2>&1 &
 pids+=("$!")
 
 wait_for_file() {
