@@ -34,6 +34,10 @@ module Admin
         }
       end
 
+      def self.legacy_filter_active?(params, user: nil, tab:)
+        build_tree_from_url_params(params, tab: tab).present?
+      end
+
       def self.build_tree_from_url_params(params, tab:)
         return nil unless tab.to_sym == :failed
 

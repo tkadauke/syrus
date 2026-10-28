@@ -12,8 +12,8 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
-import { FilterBar } from "../components/FilterBar"
-import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
+import { SmartFolderFilterBar } from "../components/SmartFolderFilterBar"
+import { linkFromSearch } from "../components/filterBar/helpers"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import {
   fetchAdminQueue,
@@ -180,15 +180,16 @@ function QueueContent({
   const { t } = useT("admin")
   const smartFolders = "smart_folders" in payload ? payload.smart_folders : []
   const activeFolderId = "active_smart_folder_id" in payload ? payload.active_smart_folder_id : null
-  const activeUserFolderId = smartFolders.find((folder) => folder.id === activeFolderId && folder.kind === "user_defined")?.id
   const activeFolderLabel = smartFolders.find((folder) => folder.id === activeFolderId)?.name ?? t("queue.all_queue")
   const filterBar = isFilteredQueuePayload(payload) ? (
-    <FilterBar
+    <SmartFolderFilterBar
+      activeSmartFolderId={activeFolderId}
       filter={payload.filter}
       filterSchema={payload.controls.filter_schema}
-      buildLink={adminSmartFolderFilterLinkBuilder(activeUserFolderId)}
+      buildLink={linkFromSearch}
       pathname={pathname}
       search={search}
+      smartFolders={smartFolders}
     />
   ) : null
 

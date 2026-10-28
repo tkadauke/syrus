@@ -7,11 +7,11 @@ import { ApiError } from "../api/client"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
-import { FilterBar } from "../components/FilterBar"
+import { SmartFolderFilterBar } from "../components/SmartFolderFilterBar"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { Select } from "../components/Select"
 import { MutationError } from "../components/MutationError"
-import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
+import { linkFromSearch } from "../components/filterBar/helpers"
 import { DataTable, Page } from "../components/ui"
 import {
   fetchAdminUser,
@@ -38,7 +38,6 @@ export function AdminUsersIndex() {
     queryKey: ["admin", "users", location.search],
     queryFn: () => fetchAdminUsers(location.search)
   })
-  const activeUserFolderId = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id && folder.kind === "user_defined")?.id
   const activeFolderLabel = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id)?.name ?? t("users.all_users")
 
   return (
@@ -55,13 +54,15 @@ export function AdminUsersIndex() {
       {users.isSuccess ? (
         <AdminFiltersLayout
           filterBar={
-            <FilterBar
+            <SmartFolderFilterBar
+              activeSmartFolderId={users.data.active_smart_folder_id}
               filter={users.data.filter}
               filterSchema={users.data.controls.filter_schema}
-              buildLink={adminSmartFolderFilterLinkBuilder(activeUserFolderId)}
+              buildLink={linkFromSearch}
               legacyFilterKeys={adminUserLegacyFilterKeys}
               pathname={location.pathname}
               search={location.search}
+              smartFolders={users.data.smart_folders}
             />
           }
           mobileSummaryLabel={activeFolderLabel}
