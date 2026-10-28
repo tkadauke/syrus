@@ -938,6 +938,7 @@ class LandingQueueProcessor
 
   def trigger_main_repair_for_inherited_pr_checks(job, attribution)
     repository = job.repository
+    return unless job.effective_base_branch == repository.default_branch
     return unless repository.main_branch_health_enabled?
     return unless repository.main_branch_repair_enabled?
     return if attribution.base_sha.blank?
@@ -968,6 +969,7 @@ class LandingQueueProcessor
 
   def inherited_pr_check_evidence_stale?(job, attribution)
     repository = job.repository
+    return false unless job.effective_base_branch == repository.default_branch
     return false unless repository.main_branch_health_enabled?
     return false unless repository.ci_health_healthy?
     return false if attribution.base_sha.blank?

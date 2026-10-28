@@ -1,6 +1,20 @@
 require "rails_helper"
 
 RSpec.describe LandingGraderPlan do
+  it "uses an explicitly resolved branch-health phase for a health workflow" do
+    health_plan = plan.with(graders: [ grader("fast", phases: [ "development_health" ]) ])
+
+    effective = described_class.effective(
+      health_plan,
+      trigger_kind: "main_grader",
+      iteration: 1,
+      phase: "development_health"
+    )
+
+    expect(effective.graders.map(&:name)).to eq([ "fast" ])
+    expect(effective.graders.first.metadata).to include("phase" => "development_health")
+  end
+
   def grader(name, phases:)
     RepoGradePlan::Grader.new(
       name: name,
