@@ -295,17 +295,17 @@ function RoleOverride({ user }: { user: AdminUserDetail }) {
 
   return (
     <div>
-    <Select
-      aria-label={t("users.aria_role")}
-      disabled={mutation.isPending}
-      fullWidth={false}
-      onChange={(event) => mutation.mutate(event.target.value)}
-      value={mutation.data?.role || user.role}
-    >
-      <option value="developer">{roleLabel("developer")}</option>
-      <option value="product_owner">{roleLabel("product_owner")}</option>
-    </Select>
-    {mutation.isError ? <MutationError error={mutation.error} fallback={t("users.mutation_error")} /> : null}
+      <Select
+        aria-label={t("users.aria_role")}
+        disabled={mutation.isPending}
+        fullWidth={false}
+        onChange={(event) => mutation.mutate(event.target.value)}
+        value={mutation.data?.role || user.role}
+      >
+        <option value="developer">{roleLabel("developer")}</option>
+        <option value="product_owner">{roleLabel("product_owner")}</option>
+      </Select>
+      {mutation.isError ? <MutationError error={mutation.error} fallback={t("users.mutation_error")} /> : null}
     </div>
   )
 }
@@ -317,7 +317,10 @@ function ProviderAvailabilitySummary({ user }: { user: AdminUserRow }) {
   return (
     <span className="flex flex-wrap gap-1">
       {entries.map(([provider, availability]) => (
-        <span className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200" key={provider}>
+        <span
+          className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+          key={provider}
+        >
           <span>{availability?.label || provider}</span>
           <span className="font-mono text-gray-500 dark:text-gray-400">{availability?.state || "unknown"}</span>
           <ProviderAvailabilityWarning availability={availability} />
@@ -361,15 +364,10 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
 
   return (
     <div>
-    <button
-      className={schedulingButtonClassName}
-      disabled={mutation.isPending}
-      onClick={() => mutation.mutate()}
-      type="button"
-    >
-      {mutation.isPending ? t("users.saving") : user.scheduling_paused ? t("users.resume_scheduling") : t("users.pause_scheduling")}
-    </button>
-    {mutation.isError ? <MutationError error={mutation.error} fallback={t("users.mutation_error")} /> : null}
+      <button className={schedulingButtonClassName} disabled={mutation.isPending} onClick={() => mutation.mutate()} type="button">
+        {mutation.isPending ? t("users.saving") : user.scheduling_paused ? t("users.resume_scheduling") : t("users.pause_scheduling")}
+      </button>
+      {mutation.isError ? <MutationError error={mutation.error} fallback={t("users.mutation_error")} /> : null}
     </div>
   )
 }
