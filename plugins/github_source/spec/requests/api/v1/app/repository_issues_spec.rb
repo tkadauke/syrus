@@ -238,11 +238,21 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     post "/api/v1/app/repositories/#{repository.id}/issues/close", params: { issue_number: 12, folder: "open" }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Issue #12 closed.")
+    expect(parse_body).to include(
+      "folder" => "open",
+      "filter" => { "and" => [ { "field" => "preset", "op" => "is", "value" => "open" } ] },
+      "untouched_preset" => true
+    )
     expect(GithubSource::Issue.where(repository: repository).find_by!(number: 12).state).to eq("closed")
 
     post "/api/v1/app/repositories/#{repository.id}/issues/delegate", params: { issue_number: 13, folder: "open" }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Issue #13 delegated to Syrus.")
+    expect(parse_body).to include(
+      "folder" => "open",
+      "filter" => { "and" => [ { "field" => "preset", "op" => "is", "value" => "open" } ] },
+      "untouched_preset" => true
+    )
     expect(GithubSource::Issue.where(repository: repository).find_by!(number: 13)).to be_delegated("syrus")
   end
 
@@ -288,6 +298,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("2 issues delegated to Syrus.")
+    expect(parse_body).to include("folder" => "open", "untouched_preset" => true)
 
     post "/api/v1/app/repositories/#{repository.id}/issues/bulk", params: {
       issue_numbers: %w[4 4 invalid],
@@ -296,6 +307,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("1 issue closed.")
+    expect(parse_body).to include("folder" => "open", "untouched_preset" => true)
   end
 
   it "keeps successful bulk delegates cache-consistent when a later GitHub mutation fails" do
