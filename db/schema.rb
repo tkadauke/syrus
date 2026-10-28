@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_100206) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2877,6 +2877,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
     t.datetime "github_issues_synced_at"
     t.datetime "github_issues_full_synced_at"
     t.string "pr_check_gate", default: "all", null: false
+    t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
