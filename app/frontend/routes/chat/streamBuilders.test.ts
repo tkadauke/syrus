@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatRenderItem, ChatToolGroupItem } from "../../api/chats"
-import { buildMessageStreamItems, pendingActionCardData, renderChatMessages } from "./streamBuilders"
+import { buildMessageStreamItems, createChatRenderCache, pendingActionCardData, renderChatMessages } from "./streamBuilders"
+import * as performanceMarkers from "../../lib/performanceMarkers"
 
 function toolUse(id: number, overrides: Partial<ChatMessageItem> & { toolUseId: string; toolName: string; input?: Record<string, unknown> }): ChatMessageItem {
   const { toolUseId, toolName, input, ...rest } = overrides
@@ -165,6 +166,41 @@ describe("buildMessageStreamItems pending action groups", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("reuses an unchanged multi-megabyte result and its render row across tail updates", () => {
+    const cache = createChatRenderCache()
+    const largeResult = JSON.stringify({ body: "x".repeat(2_100_000) })
+    const messages = [toolUse(1, { toolUseId: "tu_large", toolName: "read_artifact" }), toolResult(2, { toolUseId: "tu_large", content: largeResult })]
+    const first = renderChatMessages(messages, cache)
+    const firstGroup = group(first[0])
+    const firstParsed = firstGroup.calls[0].result_json
+
+    const second = renderChatMessages([...messages, { type: "message", id: 3, role: "assistant", content: {}, text: "tail", bookmarkable: false }], cache)
+
+    expect(second[0]).toBe(firstGroup)
+    expect(group(second[0]).calls[0].result_json).toBe(firstParsed)
+    expect(second[1]).toMatchObject({ id: 3, text: "tail" })
+  })
+
+  it("records sampled derivation cost with bounded numeric transcript metadata", () => {
+    const marker = vi.spyOn(performanceMarkers, "measureSync")
+    const result = "x".repeat(2_100_000)
+
+    renderChatMessages([toolUse(1, { toolUseId: "tu_marker", toolName: "read_artifact" }), toolResult(2, { toolUseId: "tu_marker", content: result })])
+
+    expect(marker).toHaveBeenCalledWith("chat.transcript.derive", expect.any(Function), {
+      metadata: {
+        loaded_message_count: 2,
+        total_character_count: result.length,
+        largest_message_size: 0,
+        largest_result_size: result.length
+      },
+      thresholdMs: 8,
+      sampleRate: 0.2,
+      maxPerSession: 20
+    })
+    marker.mockRestore()
+  })
+
   it("provides normalized list-tags context to later tool cards", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_tags", toolName: "mcp__syrus__list_tags" }),
