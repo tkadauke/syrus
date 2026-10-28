@@ -1,0 +1,43 @@
+{
+  "nav": "Mitarbeiter",
+  "title": "Mitarbeiter",
+  "loading": "Mitarbeiter werden geladen…",
+  "error": "Mitarbeiter konnten nicht geladen werden.",
+  "built_in": "Integriert · Entwickler",
+  "coming_later": "Kommt später",
+  "new": {
+    "action": "Neuer Mitarbeiter",
+    "title": "Neuer Mitarbeiter",
+    "create": "Mitarbeiter erstellen",
+    "test_push": "Push-Zugriff testen",
+    "push_ok": "Push-Zugriff bestätigt"
+  },
+  "fields": {
+    "name": "Name",
+    "handle": "Handle",
+    "model": "Modell",
+    "remote": "Workspace-Remote",
+    "color": "Farbe",
+    "avatar": "Avatar",
+    "grants": "Fähigkeiten",
+    "about": "Über (optional)"
+  },
+  "tabs": {
+    "chat": "Chat",
+    "chats": "Chats",
+    "profile": "Profil",
+    "capabilities": "Fähigkeiten",
+    "schedule": "Zeitplan",
+    "memory": "Gedächtnis",
+    "workspace": "Workspace",
+    "activity": "Aktivität"
+  },
+  "detail": {
+    "new_side_chat": "Neuer Nebenchat",
+    "main_chat": "Hauptchat",
+    "account_default": "Kontostandard",
+    "soul_unavailable": "SOUL.md ist nicht verfügbar.",
+    "engineer_capabilities": "Feste Entwicklerfähigkeiten",
+    "existing_link": "Öffne diese Funktion über ihre bestehende Syrus-Seite."
+  }
+}

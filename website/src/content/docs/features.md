@@ -1658,9 +1658,12 @@ built-in engineer, unless they have an explicit coworker association.
 
 Coworkers is installed but disabled by default. A self-hosted instance must
 enable beta mode before an administrator can enable it from **Admin →
-Plugins**. The initial foundation does not yet expose coworker creation or
-workspace execution screens; enabling it only activates the underlying chat
-and mention contracts. Disabling it removes those runtime contributions while
+Plugins**. When enabled, it exposes a Coworkers page for creating named agents,
+choosing their appearance and capabilities, opening their main and side chats,
+and viewing their read-only identity profile. Coworker conversations are kept
+in a separate chat-list group and carry the coworker's avatar and color. It
+does not yet expose workspace execution screens. Disabling it removes its page,
+chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 
 ## Tailscale
