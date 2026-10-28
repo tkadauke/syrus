@@ -7,9 +7,15 @@ RSpec.describe "Ruby source localization debt", type: :unit do
   let(:audit) { RubyI18nDebtAudit.new }
   let(:manifest) { YAML.load_file(Rails.root.join("config/i18n_ruby_debt.yml")).fetch("maximums") }
 
+  before(:context) do
+    # Parsing every Ruby file is the expensive part of this audit. Both baseline
+    # examples assert against the same immutable checkout, so take one snapshot
+    # for the example group instead of scanning the tree twice.
+    @counts = RubyI18nDebtAudit.new.counts
+  end
+
   it "does not let untranslated server-side copy grow" do
-    actual = audit.counts
-    growth = actual.filter_map do |category, count|
+    growth = @counts.filter_map do |category, count|
       maximum = manifest.fetch(category)
       "#{category}: #{count} (reviewed maximum #{maximum})" if count > maximum
     end
@@ -26,7 +32,7 @@ RSpec.describe "Ruby source localization debt", type: :unit do
   end
 
   it "keeps the serializer-label baseline equal to the remaining reviewed debt" do
-    expect(audit.counts.fetch("serializer_label")).to eq(manifest.fetch("serializer_label"))
+    expect(@counts.fetch("serializer_label")).to eq(manifest.fetch("serializer_label"))
   end
 
   it "detects the user-visible Ruby call shapes without counting internal channels" do
