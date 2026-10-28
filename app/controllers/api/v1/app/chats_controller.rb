@@ -86,6 +86,11 @@ module Api
           render json: chat_payload(find_chat_session)
         end
 
+        def mentionables
+          chat = find_chat_session
+          render json: { mentionables: Mentionables::Suggestions.for(chat: chat, user: Current.user, query: params[:q]) }
+        end
+
         # Lightweight payload for the CHAT-<id> hover preview card — unlike
         # #show, this does not load the transcript/messages/bookmarks/
         # scratchpad via chat_payload, which is far too heavy for a hover

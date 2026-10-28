@@ -651,6 +651,12 @@ flow.
 
 ## Chats
 
+Typing `@` in a message shows only people and agents relevant to that chat,
+plus your own coworkers that can be added and Syrus. Continue typing to filter
+by handle, name, or role, then use the arrow keys and Enter or Tab to insert a
+mention. Your own handle is editable under Profile; handles are public,
+instance-wide identifiers and should not contain sensitive information.
+
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
 when one is available; the new-chat form shows that attachment in a repository

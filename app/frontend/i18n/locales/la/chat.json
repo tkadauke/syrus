@@ -1,5 +1,9 @@
 {
   "share_people": "Communicare",
+  "mention_add_to_chat": "Ad colloquium adde",
+  "mention_kind_human": "Persona",
+  "mention_kind_coworker": "Sodalis",
+  "mention_kind_syrus": "Syrus",
   "share_dialog_title": "Colloquium communicare",
   "share_dialog_description": "Personae additae totum colloquium vivum legere possunt, sed scribere non possunt.",
   "share_dialog_search": "Personas quaere aut exactum @nomen scribe",

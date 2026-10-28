@@ -1140,6 +1140,8 @@
     "display_name": "Nomen Ostentum",
     "first_name": "Praenomen",
     "last_name": "Cognomen",
+    "handle": "Nomen adpellationis",
+    "handle_help": "3–32 litterae minusculae, numeri, lineae infimae aut hyphena. Noli res secretas includere.",
     "company": "Societas",
     "location": "Locus",
     "website": "Pagina Reticularis",
