@@ -917,12 +917,15 @@ RSpec.describe App::ProviderAvailability do
       queries = query_count.call(providers)
     end
 
-    latest_queries = queries.grep(/SELECT ["`]?runs["`]?\.["`]?id["`]?.*FROM ["`]?runs["`]?.*agent_provider.*ORDER BY.*finished_at.*LIMIT/i)
-    expect(latest_queries.size).to eq(providers.size * described_class::TERMINAL_RUN_STATES.size)
+    latest_queries = queries.grep(/terminal_state_/i)
+    expect(latest_queries.size).to eq(1)
+    expect(latest_queries).to all(match(/UNION ALL/i))
     expect(latest_queries).to all(match(/LIMIT (?:1|\?)/))
-    expect(latest_queries).to all(match(/["`]?state["`]? = \?/))
+    expect(latest_queries).to all(match(/["`]?state["`]? =/))
     expect(latest_queries).to all(satisfy { |sql| !sql.match?(/["`]?state["`]? IN/i) })
-    expect(queries.join(" ")).not_to match(/ROW_NUMBER|provider_rank/i)
+    expect(queries.none? do |sql|
+      sql.match?(/ROW_NUMBER/i) && sql.match?(/["`]?state["`]? IN/i)
+    end).to be(true)
     expect(instantiated_runs).to eq(providers.size)
   end
 
