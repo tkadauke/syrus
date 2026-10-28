@@ -192,7 +192,12 @@ class ChatSession < ApplicationRecord
   end
 
   def user
-    owner_participant&.user || super
+    owner = if chat_participants.loaded?
+      chat_participants.target.find { |participant| participant.role == "owner" }
+    else
+      owner_participant
+    end
+    owner&.user || super
   end
 
   def title_pending?
@@ -633,7 +638,10 @@ class ChatSession < ApplicationRecord
   end
 
   def participants_payload
-    chat_participants.includes(:user).order(:joined_at, :id).map do |participant|
+    participants = chat_participants.load_target
+    ActiveRecord::Associations::Preloader.new(records: participants, associations: :user).call
+    participants = participants.sort_by { |participant| [ participant.joined_at, participant.id ] }
+    participants.map do |participant|
       {
         id: participant.user_id,
         name: participant.user.display_name,

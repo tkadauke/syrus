@@ -1,9 +1,9 @@
 class CreateChatShares < ActiveRecord::Migration[8.1]
   def change
     create_table :chat_shares do |t|
-      t.references :chat_session, null: false
+      t.references :chat_session, null: false, foreign_key: false
       t.references :target, polymorphic: true, null: false
-      t.references :shared_by_user, null: false
+      t.references :shared_by_user, null: false, foreign_key: false
       t.datetime :created_at, null: false
     end
 
