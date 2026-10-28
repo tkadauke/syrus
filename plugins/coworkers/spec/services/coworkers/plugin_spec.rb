@@ -77,7 +77,6 @@ RSpec.describe "Coworkers plugin" do
   ensure
     scope&.dispose
   end
-
   it "cleans plugin rows up with their core owners" do
     scope = Syrus::EffectScope.new(label: "spec")
     Coworkers::DataCleanup.install_into(scope)
