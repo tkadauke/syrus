@@ -33,4 +33,13 @@ RSpec.describe "App API repository ref-movement actions", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(JSON.parse(response.body).dig("error", "message")).to include("workflow #{workflow.id}", "queued")
   end
+
+  it "rejects unsupported actions with localized copy" do
+    sign_in_as(user)
+
+    post "/api/v1/app/repositories/#{repository.id}/ref_movement_actions", params: { action_name: "unknown" }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(JSON.parse(response.body).dig("error", "message")).to eq(I18n.t("api.repository_ref_movement_actions.invalid_action"))
+  end
 end

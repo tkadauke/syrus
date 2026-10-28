@@ -65,7 +65,16 @@ RSpec.describe "App API repository delivery payload", type: :request do
       expect(delivery).not_to be_nil
       expect(delivery["tracks"].map { |track| track["name"] }).to contain_exactly("default")
       expect(delivery["tracks"].first["branch"]).to eq("develop")
-      expect(delivery["ref_movement_actions"]).to eq([])
+      expect(delivery["ref_movement_actions"]).to contain_exactly(
+        {
+          "name" => "promote_development_to_release",
+          "enabled" => true,
+          "mode" => "manual_pr",
+          "grade_phases" => [ "promotion" ],
+          "available" => true,
+          "blocked_reason" => nil
+        }
+      )
       expect(delivery["recent_ref_movement_workflows"]).to eq([])
       expect(delivery["recent_pr_ingestions"]).to eq([])
     end

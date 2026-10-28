@@ -712,6 +712,7 @@ la:
       blocked: "Actio motus ref obstructa est."
 
     repository_ref_movement_actions:
+      invalid_action: "Actio motus ref repositorii non sustinetur."
       promotion_dispatched: "Promotio incepta est."
 
     plugins:

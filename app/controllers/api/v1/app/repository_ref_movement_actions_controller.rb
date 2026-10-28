@@ -10,7 +10,11 @@ module Api
 
           action_name = params[:action_name].to_s
           unless ALLOWED_ACTIONS.include?(action_name)
-            render_error("validation_failed", "Unsupported repository ref-movement action", status: :unprocessable_content)
+            render_error(
+              "validation_failed",
+              I18n.t("api.repository_ref_movement_actions.invalid_action"),
+              status: :unprocessable_content
+            )
             return
           end
 
