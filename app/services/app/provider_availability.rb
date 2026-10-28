@@ -163,15 +163,43 @@ module App
 
     def self.latest_terminal_run_id(scope)
       scope = provider_run_scope_for_latest(scope)
+      state_queries = terminal_run_state_queries(scope, columns: [ :id, :finished_at, :updated_at ])
+      sql = <<~SQL.squish
+        SELECT id FROM (#{state_queries.join(" UNION ALL ")}) terminal_candidates
+        ORDER BY finished_at DESC, updated_at DESC, id DESC
+        LIMIT 1
+      SQL
 
-      TERMINAL_RUN_STATES.filter_map do |state|
-        scope
+      Run.connection.select_value(sql)&.to_i
+    end
+
+    def self.latest_terminal_run_ids(scopes_by_provider)
+      state_queries = scopes_by_provider.flat_map do |_provider, scope|
+        terminal_run_state_queries(
+          provider_run_scope_for_latest(scope),
+          columns: [ :id, :agent_provider, :finished_at, :updated_at ]
+        )
+      end
+      return {} if state_queries.empty?
+
+      rows = Run.connection.select_all(state_queries.join(" UNION ALL ")).to_a
+      rows.group_by { |row| row.fetch("agent_provider") }.transform_values do |candidates|
+        candidates.max_by do |row|
+          [ row.fetch("finished_at"), row.fetch("updated_at"), row.fetch("id").to_i ]
+        end.fetch("id").to_i
+      end
+    end
+
+    def self.terminal_run_state_queries(scope, columns:)
+      TERMINAL_RUN_STATES.map.with_index do |state, index|
+        query = scope
           .where(state: state)
           .where.not(finished_at: nil)
           .order(finished_at: :desc, updated_at: :desc, id: :desc)
           .limit(1)
-          .pick(:id, :finished_at, :updated_at)
-      end.max_by { |id, finished_at, updated_at| [ finished_at, updated_at, id ] }&.first
+          .select(*columns)
+        "SELECT * FROM (#{query.to_sql}) terminal_state_#{index}"
+      end
     end
 
     def self.provider_run_scope_for_latest(scope)
@@ -214,50 +242,55 @@ module App
 
       def evidence_by_provider
         @evidence_by_provider ||= begin
-          evidence = providers.flat_map do |provider|
-            ProviderAvailabilityEvidence::STATUSES.flat_map do |status|
-              ProviderAvailabilityEvidence
-                .where(user: user, provider: provider, status: status)
-                .recent
-                .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
-                .to_a
-            end
-          end
-          ActiveRecord::Associations::Preloader.new(records: evidence, associations: :run).call
-          evidence.sort_by { |row| [ row.observed_at, row.id ] }.reverse.group_by(&:provider)
+          ranked = ProviderAvailabilityEvidence
+            .where(user: user, provider: providers)
+            .select(
+              "provider_availability_evidences.*, " \
+              "ROW_NUMBER() OVER (PARTITION BY provider, status ORDER BY observed_at DESC, id DESC) AS evidence_rank"
+            )
+          ProviderAvailabilityEvidence
+            .from(ranked, :ranked_evidence)
+            .select("ranked_evidence.*")
+            .where("evidence_rank <= ?", USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
+            .includes(:run)
+            .order(observed_at: :desc, id: :desc)
+            .to_a
+            .group_by(&:provider)
         end
       end
 
       def usage_limit_runs_by_provider
         @usage_limit_runs_by_provider ||= begin
-          runs = providers.flat_map do |provider|
-            Run
-              .where(user_id: user.id, agent_provider: provider, state: "failed")
-              .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
-              .left_outer_joins(:run_failure_classification)
-              .where(
-                "runs.agent_outcome = ? OR run_failure_classifications.classification = ?",
-                ProviderUsageLimit::OUTCOME,
-                ProviderUsageLimit::CLASSIFICATION
-              )
-              .order(finished_at: :desc, updated_at: :desc, id: :desc)
-              .limit(50)
-              .to_a
-          end
-          ActiveRecord::Associations::Preloader.new(
-            records: runs,
-            associations: [ :run_diagnostic, :run_failure_classification, :step ]
-          ).call
-          runs.group_by(&:agent_provider)
+          ranked = Run
+            .where(user_id: user.id, agent_provider: providers, state: "failed")
+            .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
+            .left_outer_joins(:run_failure_classification)
+            .where(
+              "runs.agent_outcome = ? OR run_failure_classifications.classification = ?",
+              ProviderUsageLimit::OUTCOME,
+              ProviderUsageLimit::CLASSIFICATION
+            )
+            .select(
+              "runs.*, " \
+              "ROW_NUMBER() OVER (PARTITION BY runs.agent_provider ORDER BY runs.finished_at DESC, runs.updated_at DESC, runs.id DESC) AS provider_rank"
+            )
+          Run
+            .from(ranked, :ranked_runs)
+            .select("ranked_runs.*")
+            .where("provider_rank <= 50")
+            .includes(:run_diagnostic, :run_failure_classification, :step)
+            .order(finished_at: :desc, updated_at: :desc)
+            .to_a
+            .group_by(&:agent_provider)
         end
       end
 
       def terminal_runs_by_provider
         @terminal_runs_by_provider ||= begin
-          run_ids_by_provider = providers.to_h do |provider|
-            scope = Run.where(user_id: user.id, agent_provider: provider)
-            [ provider, ProviderAvailability.latest_terminal_run_id(scope) ]
+          scopes_by_provider = providers.to_h do |provider|
+            [ provider, Run.where(user_id: user.id, agent_provider: provider) ]
           end
+          run_ids_by_provider = ProviderAvailability.latest_terminal_run_ids(scopes_by_provider)
 
           Run.where(id: run_ids_by_provider.values.compact)
             .includes(:run_diagnostic, :run_failure_classification)
