@@ -16,11 +16,6 @@ describe("useResizableSplitter", () => {
 
   it("removes active window resize listeners when unmounted mid-drag", () => {
     const clampWidth = vi.fn((width: number) => width)
-    // window.localStorage, not Storage.prototype: under Node 26 the former is a
-    // plain object with its own setItem, so a prototype spy never fires. That
-    // made this assertion vacuous -- it compares the recorded call count to
-    // itself, which holds trivially at zero.
-    const setItem = vi.spyOn(window.localStorage, "setItem")
     const addEventListener = vi.spyOn(window, "addEventListener")
     const removeEventListener = vi.spyOn(window, "removeEventListener")
     const { result, unmount } = renderHook(() => useResizableSplitter({
@@ -43,18 +38,25 @@ describe("useResizableSplitter", () => {
     expect(mouseMoveListener).toBeTypeOf("function")
     expect(mouseUpListener).toBeTypeOf("function")
 
+    act(() => {
+      window.dispatchEvent(new MouseEvent("mousemove", { clientX: 180 }))
+    })
+    expect(clampWidth).toHaveBeenCalled()
+    expect(window.localStorage.getItem("splitter-width")).toBe("240")
+
+    clampWidth.mockClear()
+
     unmount()
 
     expect(removeEventListener).toHaveBeenCalledWith("mousemove", mouseMoveListener)
     expect(removeEventListener).toHaveBeenCalledWith("mouseup", mouseUpListener)
 
-    const preferenceWritesAfterUnmount = setItem.mock.calls.length
     act(() => {
       window.dispatchEvent(new MouseEvent("mousemove", { clientX: 220 }))
     })
 
     expect(clampWidth).not.toHaveBeenCalled()
-    expect(setItem).toHaveBeenCalledTimes(preferenceWritesAfterUnmount)
+    expect(window.localStorage.getItem("splitter-width")).toBe("240")
   })
 
   it("clears the delayed dragged reset timer when unmounted after mouseup", () => {

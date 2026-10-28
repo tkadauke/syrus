@@ -183,8 +183,8 @@ describe("AccountSettings ApiTokenPanel", () => {
 
 describe("AccountSettings form primitives", () => {
   afterEach(() => {
-    window.localStorage.clear()
     vi.restoreAllMocks()
+    window.localStorage.clear()
   })
 
   it("associates profile labels with their controls", async () => {
@@ -359,13 +359,9 @@ describe("AccountSettings form primitives", () => {
   })
 
   it("shows unavailable storage without breaking preferences", async () => {
-    // Spy on the storage object the code actually reads, not Storage.prototype.
-    // Under Node 26 `window.localStorage` is no longer a jsdom Storage instance
-    // -- it is a plain object carrying its own getItem/setItem -- so patching
-    // the prototype silently reaches nothing, the "storage is unavailable"
-    // simulation stops simulating anything, and the assertion below fails for a
-    // reason that has nothing to do with the code under test.
-    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
+    // Mock the accessor so this does not depend on whether the runtime exposes
+    // localStorage as a stable Storage instance or through a wrapper.
+    vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
       throw new Error("storage unavailable")
     })
     renderRoute(credentialsPayload(), <PreferencesRoute />)
