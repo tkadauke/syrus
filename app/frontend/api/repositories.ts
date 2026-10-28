@@ -6,6 +6,11 @@ import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderR
 import type { AdminSmartFolder } from "./adminSmartFolders"
 import type { FilterSchemaField } from "../components/filterBar/types"
 
+// When a pull request's CI checks may hold a Job out of the landing queue.
+// "none" keeps them advisory: still polled and displayed, still feeding target
+// health and main-branch repair, but never a gate.
+export type PrCheckGate = "all" | "own_only" | "none"
+
 export type RepositoryEpicDependencyPolicy = "linear"
 
 export type RepositoryReviewPolicy = "self" | "two_person" | "final_say"
@@ -67,7 +72,7 @@ export type RepositoryFormRecord = {
   pr_cost_footer_enabled: boolean
   auto_merge_enabled: boolean
   trust_clean_rebase_grade: boolean
-  land_on_inherited_check_failure: boolean
+  pr_check_gate: PrCheckGate
   known_flaky_failure_dismissal_enabled: boolean
   known_flaky_failure_min_score: number | null
   isolated_repro_dismissal_enabled: boolean
@@ -149,7 +154,7 @@ export type RepositoryInput = {
   pr_cost_footer_enabled: boolean
   auto_merge_enabled: boolean
   trust_clean_rebase_grade: boolean
-  land_on_inherited_check_failure: boolean
+  pr_check_gate: PrCheckGate
   known_flaky_failure_dismissal_enabled: boolean
   known_flaky_failure_min_score: number | null
   isolated_repro_dismissal_enabled: boolean

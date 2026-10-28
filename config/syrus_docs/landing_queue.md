@@ -56,9 +56,9 @@ silently governed every other one.
   broken main. It does not auto-land PR checks that merely look inherited; that
   is controlled separately by the `pr_checks_failing_inherited` gate in
   `LandingQueueProcessor` and the per-repository
-  `Repository#land_on_inherited_check_failure` setting.
+  `Repository#pr_check_gate` setting.
 
-`land_on_inherited_check_failure` governs the Epic-sibling check gate as well
+`Repository#pr_check_gate` governs the Epic-sibling check gate as well
 as the per-Job one. Both classify through `PrCheckAttribution`, so a member
 whose checks are all failing on the base no longer holds its siblings. A
 member whose failure is its *own* still holds them, whatever the setting:
@@ -146,9 +146,11 @@ downgrades the block to overridable by default rather than landing the Job
 automatically — auto-landing on that signal can let a second breakage through
 while main is already red.
 
-`Repository#land_on_inherited_check_failure` (default `false`, per repository,
-in the repository settings form) opts out of the hold: an `inherited` verdict
-then clears the checks gate outright and the Job keeps moving while main is red.
+`Repository#pr_check_gate` (default `all`, per repository, in the repository
+settings form) decides when a pull request's CI checks may hold a Job. On
+`own_only` an `inherited` verdict clears the checks gate outright and the Job
+keeps moving while main is red. On `none` the checks gate does not apply at
+all — see "Advisory-only CI checks" below.
 Whether that is safe depends on how granular the repository's check names are —
 a repo with one monolithic `tests` check gets very little signal from a name
 match, a repo with per-suite checks gets a lot — which is why it is a
@@ -196,7 +198,7 @@ or a newly introduced failure mode.
 
 Off by default, opted in per repository via
 `Repository#known_flaky_failure_dismissal_enabled` (same shape as
-`trust_clean_rebase_grade` and `land_on_inherited_check_failure` above): a
+`trust_clean_rebase_grade` and `pr_check_gate` above): a
 repository whose flakiness history is not yet trustworthy should not have
 required-grader failures waved off silently.
 `Repository#known_flaky_failure_min_score` optionally raises the minimum
@@ -519,3 +521,32 @@ When a PR is closed without GitHub marking it merged, Syrus inspects the branch 
 - **`pr_closed`** — the branch still carries commits the base does not have.
 
 `no_changes` and `pr_merged` both count as successful resolutions for dependency gates and landing queue wakeups; the distinction matters for attribution, not for gating.
+
+## Advisory-only CI checks (`pr_check_gate: none`)
+
+`Repository#pr_check_gate` has a third value. On `none` a pull request's CI
+checks never gate landing — neither the Job's own cached `pr_checks_state` nor
+its Epic siblings'. Both gates honour the same value, because a single sibling
+with red or pending checks holds an entire Epic; leaving the sibling gate on
+would make the setting a no-op for exactly the Jobs it exists for.
+
+Nothing else about checks changes. `PollPullRequestJob` still polls them, still
+caches `pr_checks_state` for display, still records target health from them, and
+still triggers main-branch repair and main-health polling on an inherited or
+unknown attribution. They remain a signal that something may be broken; they
+stop being a decision about whether work may land.
+
+Choose it when a repository's own graders already cover what its CI runs. The
+gate then adds no coverage and can only disagree, because the two execute in
+different environments — a Node version difference is enough to have a CI job
+red and its equivalent grader green on the same commit, and the gate will
+believe the narrower suite. A deployment that cannot run its full grader set
+itself should stay on `all`; that is what the default is for.
+
+One consequence worth stating: CI repair for an approved Epic child is deferred
+to the merge train (`PollPullRequestJob#ci_repair_deferred_to_epic_merge_train?`),
+on the premise that the train grades the integration branch and repairs it
+there. While the checks gate held those members out of the queue, that premise
+could not hold — repair waited for a train that the gate prevented from
+starting. On `none` the train starts and `landing_fix` is what repairs the
+members, which is what the deferral always assumed.

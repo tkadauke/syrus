@@ -34,7 +34,7 @@ const newFormPayload = {
     pr_cost_footer_enabled: false,
     auto_merge_enabled: false,
     trust_clean_rebase_grade: false,
-    land_on_inherited_check_failure: false,
+    pr_check_gate: "all",
     known_flaky_failure_dismissal_enabled: false,
     known_flaky_failure_min_score: null,
     isolated_repro_dismissal_enabled: false,

@@ -798,55 +798,76 @@ class LandingQueueProcessor
     check_blocker.call({ key: "active_workflow" }) if active_trigger_kinds.any?
     # Block on failing or pending PR check-run state cached by PollPullRequestJob.
     # nil / "unknown" / "passing" allow landing; only "failing" and "pending" hold.
-    if no_effective_ci_repair?(job) && job.pr_checks_state.in?(%w[failing pending])
-      return blocked({ key: "ci_repair_no_effective_change", params: { slug: job.slug } })
-    end
-    case job.pr_checks_state
-    when "failing"
-      # A failing check is only this Job's problem when it is not already
-      # failing on the base. An inherited failure still holds the Job -- name
-      # matching is too coarse to prove innocence (one "rspec" check can be red
-      # on main for spec A and red here for A *and* B) -- but it is a different
-      # situation and says so, and unlike an own failure the operator can
-      # override it. Blocking both identically is what left 33 Jobs looking
-      # equally guilty while main was broken.
-      attribution = PrCheckAttribution.for(job)
-      if attribution.inherited?
-        if inherited_pr_check_evidence_stale?(job, attribution)
-          trigger_pr_check_consistency_refresh(job, attribution)
-          check_blocker.call(
-            {
-              key: "pr_checks_failing_base_stale",
-              params: { slug: job.slug, checks: attribution.failing_names.join(", "), base_sha: attribution.base_sha }
-            }
-          )
-        end
-
-        trigger_main_repair_for_inherited_pr_checks(job, attribution)
-        # Repositories whose check names are granular enough that "same check
-        # name" really does mean "same failure" can opt out of this hold and keep
-        # landing while main is red. Note this only clears the *checks* gate --
-        # execution falls through to the remaining ones (mergeability, rebase
-        # cap, epic siblings, parent, dependencies) rather than declaring the Job
-        # landable, which returning an empty blockage here would wrongly do.
-        unless job.repository.land_on_inherited_check_failure?
-          check_blocker.call({ key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: attribution.failing_names.join(", ") } })
-        end
-      else
-        if attribution.unknown? && attribution.failing_names.any?
-          trigger_main_health_poll_for_unknown_pr_check_attribution(job, attribution)
-          check_blocker.call(
-            {
-              key: "pr_checks_failing_base_unknown",
-              params: { slug: job.slug, checks: attribution.failing_names.join(", "), reason: attribution.reason }
-            }
-          )
-        end
-
-        return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
+    #
+    # pr_check_gate = "none" opts out of the whole PR-check gate. The signal keeps
+    # flowing -- PollPullRequestJob still caches the state and still feeds
+    # target health and main-branch repair -- it just stops deciding whether a
+    # Job may land.
+    #
+    # Worth opting out when a repository's own graders already cover what its CI
+    # runs: the gate then adds no coverage and can only disagree. The two run in
+    # different environments, and a difference as small as a Node version is
+    # enough to have a CI job red and its equivalent grader green on the same
+    # commit -- at which point the gate is a second opinion from a narrower
+    # suite, deciding whether work may land. A deployment whose graders cannot
+    # run everything locally should leave it on; that is what it is for.
+    #
+    # It is also what deadlocked Epic children: CI repair for an approved Epic
+    # child is deferred to the merge train (see
+    # PollPullRequestJob#ci_repair_deferred_to_epic_merge_train?), while the
+    # train could not start because the member was held here. Repair waited for
+    # the train, the train waited for the repair.
+    if job.repository.pr_checks_gate_landing?
+      if no_effective_ci_repair?(job) && job.pr_checks_state.in?(%w[failing pending])
+        return blocked({ key: "ci_repair_no_effective_change", params: { slug: job.slug } })
       end
-    when "pending"
-      return blocked({ key: "pr_checks_pending", params: { slug: job.slug } })
+      case job.pr_checks_state
+      when "failing"
+        # A failing check is only this Job's problem when it is not already
+        # failing on the base. An inherited failure still holds the Job -- name
+        # matching is too coarse to prove innocence (one "rspec" check can be red
+        # on main for spec A and red here for A *and* B) -- but it is a different
+        # situation and says so, and unlike an own failure the operator can
+        # override it. Blocking both identically is what left 33 Jobs looking
+        # equally guilty while main was broken.
+        attribution = PrCheckAttribution.for(job)
+        if attribution.inherited?
+          if inherited_pr_check_evidence_stale?(job, attribution)
+            trigger_pr_check_consistency_refresh(job, attribution)
+            check_blocker.call(
+              {
+                key: "pr_checks_failing_base_stale",
+                params: { slug: job.slug, checks: attribution.failing_names.join(", "), base_sha: attribution.base_sha }
+              }
+            )
+          end
+
+          trigger_main_repair_for_inherited_pr_checks(job, attribution)
+          # Repositories whose check names are granular enough that "same check
+          # name" really does mean "same failure" can opt out of this hold and keep
+          # landing while main is red. Note this only clears the *checks* gate --
+          # execution falls through to the remaining ones (mergeability, rebase
+          # cap, epic siblings, parent, dependencies) rather than declaring the Job
+          # landable, which returning an empty blockage here would wrongly do.
+          unless job.repository.land_on_inherited_check_failure?
+            check_blocker.call({ key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: attribution.failing_names.join(", ") } })
+          end
+        else
+          if attribution.unknown? && attribution.failing_names.any?
+            trigger_main_health_poll_for_unknown_pr_check_attribution(job, attribution)
+            check_blocker.call(
+              {
+                key: "pr_checks_failing_base_unknown",
+                params: { slug: job.slug, checks: attribution.failing_names.join(", "), reason: attribution.reason }
+              }
+            )
+          end
+
+          return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
+        end
+      when "pending"
+        return blocked({ key: "pr_checks_pending", params: { slug: job.slug } })
+      end
     end
     check_blocker.call(MERGEABILITY_WAIT_REASON) if waiting_for_github_mergeability?(job)
     check_blocker.call({ key: "waiting_github_mergeability_noop" }) if RebaseLoopGuard.waiting_after_noop?(job)
@@ -855,7 +876,10 @@ class LandingQueueProcessor
       if (blocker = ci_failure_workflow_epic_sibling(job))
         check_blocker.call({ key: "ci_failure_in_progress", params: { slug: blocker.slug } }, waiting_for_jobs: [blocker])
       end
-      if (check_issue = pr_checks_unclean_epic_sibling(job))
+      # Honours the same switch as the Job's own checks above: a single sibling
+      # with red or pending checks holds the entire Epic, so leaving this gate
+      # on would make opting out a no-op for exactly the Jobs it matters for.
+      if job.repository.pr_checks_gate_landing? && (check_issue = pr_checks_unclean_epic_sibling(job))
         check_key = no_effective_ci_repair?(check_issue[:sibling]) ? "ci_repair_no_effective_change" :
           (check_issue[:label] == "failing" ? "pr_checks_failing" : "pr_checks_pending")
         return blocked({ key: check_key, params: { slug: check_issue[:sibling].slug } }, waiting_for_jobs: [check_issue[:sibling]])

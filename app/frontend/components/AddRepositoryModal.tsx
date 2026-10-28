@@ -69,7 +69,7 @@ export function AddRepositoryModal({
       pr_cost_footer_enabled: r.pr_cost_footer_enabled,
       auto_merge_enabled: true,
       trust_clean_rebase_grade: r.trust_clean_rebase_grade,
-      land_on_inherited_check_failure: r.land_on_inherited_check_failure,
+      pr_check_gate: r.pr_check_gate,
       known_flaky_failure_dismissal_enabled: r.known_flaky_failure_dismissal_enabled,
       known_flaky_failure_min_score: r.known_flaky_failure_min_score,
       isolated_repro_dismissal_enabled: r.isolated_repro_dismissal_enabled,

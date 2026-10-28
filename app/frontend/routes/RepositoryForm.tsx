@@ -20,6 +20,7 @@ import {
   type InsightScheduleConfigInput,
   type InputSourceType,
   type LinearTeam,
+  type PrCheckGate,
   type RepositoryFormPayload,
   type RepositoryInput,
   type RepositoryReviewPolicy,
@@ -37,6 +38,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { Button } from "../components/Button"
 import { Checkbox as CheckboxPrimitive } from "../components/Checkbox"
+import { Select } from "../components/Select"
 import { DataTable, Form, Surface, Text } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
@@ -501,11 +503,20 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             value={values.distributed_workflow_dag_enabled}
           />
           <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.distributed_workflow_dag_hint")}</p>
-          <Checkbox
-            label={t("repository_form.check_land_inherited_failure")}
-            onChange={(checked) => setValues({ ...values, land_on_inherited_check_failure: checked })}
-            value={values.land_on_inherited_check_failure}
-          />
+          <Field label={t("repository_form.label_pr_check_gate")}>
+            <Select
+              // Field renders its label without a `for`, so the control carries
+              // its own accessible name rather than relying on proximity.
+              aria-label={t("repository_form.label_pr_check_gate")}
+              onChange={(event) => setValues({ ...values, pr_check_gate: event.target.value as PrCheckGate })}
+              value={values.pr_check_gate}
+            >
+              <option value="all">{t("repository_form.pr_check_gate_all")}</option>
+              <option value="own_only">{t("repository_form.pr_check_gate_own_only")}</option>
+              <option value="none">{t("repository_form.pr_check_gate_none")}</option>
+            </Select>
+          </Field>
+          <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">{t(`repository_form.pr_check_gate_hint_${values.pr_check_gate}`)}</p>
           <Checkbox
             label={t("repository_form.check_known_flaky_dismissal")}
             onChange={(checked) => setValues({ ...values, known_flaky_failure_dismissal_enabled: checked })}
@@ -959,7 +970,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     pr_cost_footer_enabled: payload.repository.pr_cost_footer_enabled,
     auto_merge_enabled: payload.repository.auto_merge_enabled,
     trust_clean_rebase_grade: payload.repository.trust_clean_rebase_grade,
-    land_on_inherited_check_failure: payload.repository.land_on_inherited_check_failure,
+    pr_check_gate: payload.repository.pr_check_gate,
     known_flaky_failure_dismissal_enabled: payload.repository.known_flaky_failure_dismissal_enabled,
     known_flaky_failure_min_score: payload.repository.known_flaky_failure_min_score,
     isolated_repro_dismissal_enabled: payload.repository.isolated_repro_dismissal_enabled,

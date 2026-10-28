@@ -31,15 +31,32 @@ class Repository < ApplicationRecord
   # logical-conflict risk for landing throughput. See Steps::ForcePush.
   attribute :trust_clean_rebase_grade, :boolean, default: false
   # Opt-in: land a Job whose failing checks are ALL already failing on its base
-  # instead of holding it for an operator override. Off by default because
-  # check-run names are coarse -- one "rspec" check can be red on main for spec A
-  # and red on a PR for specs A *and* B -- so how safe this is depends on how
-  # granular a repository's check names are. See PrCheckAttribution.
-  attribute :land_on_inherited_check_failure, :boolean, default: false
+  # instead of holding it for an operator override.
+  #
+  # When a pull request's CI checks may hold a Job out of the landing queue,
+  # as one ordered value rather than a pair of booleans that did not compose:
+  #
+  #   "all"      every failing or pending check holds the Job. The default.
+  #   "own_only" only failures absent from the base hold it. Check-run names are
+  #              coarse -- one "rspec" check can be red on main for spec A and
+  #              red on a PR for specs A *and* B -- so how safe this is depends
+  #              on how granular a repository's check names are. See
+  #              PrCheckAttribution.
+  #   "none"     checks never gate landing. They are still polled, still cached
+  #              for display, and still feed target health and main-branch
+  #              repair -- they just stop deciding whether work may land.
+  #
+  # "none" is for a repository whose own graders already cover what its CI runs:
+  # the gate then adds no coverage and can only disagree, since the two execute
+  # in different environments. A deployment that cannot run its graders itself
+  # should stay on "all" -- that is what it is for.
+  PR_CHECK_GATES = %w[ all own_only none ].freeze
+  attribute :pr_check_gate, :string, default: "all"
+  validates :pr_check_gate, inclusion: { in: PR_CHECK_GATES }
   # Opt-in: dismiss a required-grader failure at rung 0 (Adjudicators::KnownFlakyFailure)
   # when every one of its failing tests already has a confirmed-flaky history in
   # Test Insights. Off by default -- same shape as trust_clean_rebase_grade and
-  # land_on_inherited_check_failure -- since acting on it silently lets a red
+  # pr_check_gate's non-default values -- since acting on it silently lets a red
   # required grader land. known_flaky_failure_min_score overrides the adjudicator's
   # default minimum flakiness score floor; nil means use that default.
   attribute :known_flaky_failure_dismissal_enabled, :boolean, default: false
@@ -278,6 +295,16 @@ class Repository < ApplicationRecord
   # "standard" profile, whose own policy is to keep work moving, had its
   # landing queue paused anyway because the global default was "strict".
   def strict_breakage_policy? = breakage_policy == "strict"
+
+  # Whether a pull request's CI checks may hold a Job out of the landing queue.
+  # False only on "none", where checks are advisory: polled, cached, and fed to
+  # target health and main-branch repair, but never a gate.
+  def pr_checks_gate_landing? = pr_check_gate != "none"
+
+  # A failure that is also failing on the base lands under both "own_only" and
+  # "none"; only "all" holds the Job for someone else's breakage. Kept under its
+  # original name because every existing caller asks exactly this question.
+  def land_on_inherited_check_failure? = pr_check_gate != "all"
 
   def escalates_landing_failures? = risk_posture.escalates_landing_failures
 

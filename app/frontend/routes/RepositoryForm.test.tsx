@@ -23,7 +23,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       pr_cost_footer_enabled: true,
       auto_merge_enabled: false,
       trust_clean_rebase_grade: false,
-      land_on_inherited_check_failure: false,
+      pr_check_gate: "all",
       known_flaky_failure_dismissal_enabled: false,
       known_flaky_failure_min_score: null,
       ci_repair_enabled: true,
@@ -461,7 +461,10 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     fireEvent.change(screen.getByLabelText("Trigger label"), { target: { value: "delegate" } })
     fireEvent.change(screen.getByLabelText("Auto-approval fallback"), { target: { value: "manual" } })
     fireEvent.click(screen.getAllByLabelText("Polling enabled")[0])
-    fireEvent.click(screen.getByLabelText("Land when failing checks are already failing on the base branch"))
+    fireEvent.change(
+      screen.getByLabelText("When pull request CI checks hold a Job out of the landing queue"),
+      { target: { value: "own_only" } }
+    )
     fireEvent.click(screen.getByLabelText("Ingest externally-filed pull requests as Jobs"))
     fireEvent.click(screen.getByRole("button", { name: "Save Repository" }))
 
@@ -481,7 +484,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           pr_cost_footer_enabled: true,
           auto_merge_enabled: false,
           trust_clean_rebase_grade: false,
-          land_on_inherited_check_failure: true,
+          pr_check_gate: "own_only",
           known_flaky_failure_dismissal_enabled: false,
           known_flaky_failure_min_score: null,
           ci_repair_enabled: true,

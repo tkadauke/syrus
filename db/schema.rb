@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_022539) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -51,55 +51,55 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "agent_insight_audit_events", force: :cascade do |t|
-    t.string "actor_kind", null: false
-    t.integer "actor_run_id"
-    t.integer "actor_user_id"
-    t.datetime "created_at", null: false
-    t.string "event_type", null: false
     t.integer "insight_suggestion_id", null: false
-    t.json "new_values"
+    t.string "event_type", null: false
+    t.string "actor_kind", null: false
+    t.integer "actor_user_id"
+    t.integer "actor_run_id"
     t.json "previous_values"
+    t.json "new_values"
     t.text "reason"
+    t.datetime "created_at", null: false
     t.index ["actor_run_id"], name: "index_agent_insight_audit_events_on_actor_run_id"
     t.index ["actor_user_id"], name: "index_agent_insight_audit_events_on_actor_user_id"
     t.index ["insight_suggestion_id"], name: "index_agent_insight_audit_events_on_insight_suggestion_id"
   end
 
   create_table "agent_insight_schedule_configs", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.boolean "enabled", default: false, null: false
-    t.integer "max_jobs_since_last_run", default: 10, null: false
-    t.integer "min_jobs_since_last_run", default: 5, null: false
     t.integer "repository_id", null: false
+    t.boolean "enabled", default: false, null: false
+    t.integer "min_jobs_since_last_run", default: 5, null: false
+    t.integer "max_jobs_since_last_run", default: 10, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["repository_id"], name: "index_agent_insight_schedule_configs_on_repository_id", unique: true
   end
 
   create_table "agent_insight_suggestions", force: :cascade do |t|
-    t.datetime "accepted_at"
-    t.string "category", null: false
-    t.float "confidence", default: 0.5, null: false
-    t.datetime "created_at", null: false
-    t.integer "created_job_id"
-    t.datetime "dismissed_at"
-    t.json "evidence"
     t.integer "job_id", null: false
-    t.text "memory_suggestion"
-    t.string "proposal_type", default: "informational", null: false
     t.integer "repository_id", null: false
-    t.datetime "retired_at"
-    t.text "retired_reason"
+    t.integer "created_job_id"
+    t.string "title", null: false
+    t.string "category", null: false
     t.string "severity", default: "medium", null: false
-    t.text "stale_memory_evidence"
-    t.text "stale_memory_text"
+    t.float "confidence", default: 0.5, null: false
     t.string "state", default: "pending", null: false
     t.text "suggested_prompt"
+    t.text "memory_suggestion"
+    t.datetime "accepted_at"
+    t.datetime "dismissed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.json "evidence"
+    t.string "proposal_type", default: "informational", null: false
+    t.integer "target_memory_id"
+    t.integer "target_insight_id"
+    t.text "stale_memory_text"
+    t.text "stale_memory_evidence"
+    t.datetime "retired_at"
+    t.text "retired_reason"
     t.integer "superseded_by_insight_id"
     t.integer "superseded_by_job_id"
-    t.integer "target_insight_id"
-    t.integer "target_memory_id"
-    t.string "title", null: false
-    t.datetime "updated_at", null: false
     t.index ["created_job_id"], name: "index_agent_insight_suggestions_on_created_job_id"
     t.index ["job_id"], name: "index_agent_insight_suggestions_on_job_id"
     t.index ["proposal_type"], name: "index_agent_insight_suggestions_on_proposal_type"
@@ -114,40 +114,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "agent_memory_audit_events", force: :cascade do |t|
-    t.string "actor_kind", null: false
-    t.integer "actor_run_id"
-    t.integer "actor_user_id"
-    t.datetime "created_at", null: false
     t.integer "entry_id", null: false
     t.string "event_type", null: false
-    t.float "new_confidence"
+    t.string "actor_kind", null: false
+    t.integer "actor_user_id"
+    t.integer "actor_run_id"
+    t.text "previous_content"
     t.text "new_content"
+    t.string "previous_kind"
     t.string "new_kind"
     t.float "previous_confidence"
-    t.text "previous_content"
-    t.string "previous_kind"
+    t.float "new_confidence"
+    t.datetime "created_at", null: false
     t.index ["actor_run_id"], name: "index_agent_memory_audit_events_on_actor_run_id"
     t.index ["actor_user_id"], name: "index_agent_memory_audit_events_on_actor_user_id"
     t.index ["entry_id"], name: "index_agent_memory_audit_events_on_entry_id"
   end
 
   create_table "agent_memory_entries", force: :cascade do |t|
-    t.string "author"
-    t.float "confidence"
-    t.text "content", null: false
-    t.datetime "created_at", null: false
-    t.datetime "deleted_at"
-    t.integer "deleted_by_user_id"
-    t.datetime "expires_at"
+    t.integer "user_id", null: false
     t.string "kind", null: false
-    t.datetime "last_verified_at"
-    t.boolean "published", default: false, null: false
     t.string "scope", null: false
     t.bigint "scope_id"
-    t.bigint "source_id"
-    t.string "source_type"
+    t.text "content", null: false
+    t.boolean "published", default: false, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.datetime "deleted_at"
+    t.integer "deleted_by_user_id"
+    t.string "source_type"
+    t.bigint "source_id"
+    t.string "author"
+    t.float "confidence"
+    t.datetime "last_verified_at"
+    t.datetime "expires_at"
     t.string "visibility"
     t.index ["deleted_at"], name: "index_agent_memory_entries_on_deleted_at"
     t.index ["deleted_by_user_id"], name: "index_agent_memory_entries_on_deleted_by_user_id"
@@ -156,9 +156,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "agents", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.bigint "resumable_id", null: false
     t.string "resumable_type", null: false
+    t.bigint "resumable_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["resumable_type", "resumable_id"], name: "index_agents_on_resumable", unique: true
   end
@@ -184,71 +184,71 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "app_settings", force: :cascade do |t|
-    t.integer "adversarial_review_rounds", default: 0, null: false
-    t.integer "security_review_rounds", default: 0, null: false
-    t.integer "chat_coding_workspace_budget_mb", default: 10240, null: false
     t.datetime "created_at", null: false
-    t.text "discord_bot_token"
     t.bigint "github_app_id"
-    t.integer "github_app_installation_sync_duration_ms"
-    t.string "github_app_installation_sync_error_class"
-    t.text "github_app_installation_sync_error_message"
-    t.integer "github_app_installation_sync_records_seen"
-    t.datetime "github_app_installation_sync_started_at"
-    t.datetime "github_app_installation_sync_succeeded_at"
     t.text "github_app_private_key_pem"
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"
     t.integer "grade_max_iterations", default: 5, null: false
-    t.boolean "main_branch_health_check_archive_before_delete", default: false, null: false
-    t.integer "main_branch_health_check_retention_days", default: 7, null: false
+    t.integer "max_job_failures", default: 3, null: false
+    t.integer "merge_train_max_size", default: 20, null: false
+    t.boolean "polling_paused", default: false, null: false
+    t.boolean "runs_paused", default: false, null: false
+    t.boolean "signups_open", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.integer "adversarial_review_rounds", default: 0, null: false
+    t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
+    t.integer "video_retention_days", default: 7, null: false
+    t.integer "video_storage_budget_mb", default: 2048, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 3, null: false
-    t.integer "max_in_flight_workflows", default: 0, null: false
-    t.integer "max_job_failures", default: 3, null: false
-    t.string "merge_train_failure_policy", default: "restart", null: false
-    t.integer "merge_train_max_size", default: 20, null: false
-    t.integer "metrics_dashboard_sample_retention_days", default: 7, null: false
-    t.integer "notification_retention_days", default: 30, null: false
-    t.integer "operational_log_event_retention_hours", default: 6, null: false
-    t.boolean "polling_paused", default: false, null: false
-    t.integer "prepared_layer_cache_gb", default: 10, null: false
+    t.integer "chat_coding_workspace_budget_mb", default: 10240, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
-    t.boolean "provider_session_archive_before_delete", default: false, null: false
-    t.integer "provider_session_retention_days", default: 14, null: false
+    t.datetime "github_app_installation_sync_started_at"
+    t.datetime "github_app_installation_sync_succeeded_at"
+    t.integer "github_app_installation_sync_duration_ms"
+    t.integer "github_app_installation_sync_records_seen"
+    t.string "github_app_installation_sync_error_class"
+    t.text "github_app_installation_sync_error_message"
     t.integer "rebase_failure_cooldown_minutes", default: 60, null: false
-    t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
-    t.integer "retention_available_space_override_gb", default: 0, null: false
-    t.boolean "run_diagnostic_archive_before_delete", default: false, null: false
-    t.integer "run_diagnostic_retention_days", default: 30, null: false
-    t.boolean "run_health_snapshot_archive_before_delete", default: false, null: false
-    t.integer "run_health_snapshot_retention_days", default: 7, null: false
-    t.integer "run_resource_summary_retention_days", default: 30, null: false
-    t.boolean "runs_paused", default: false, null: false
-    t.boolean "show_work_unit_debug", default: false, null: false
-    t.boolean "signups_open", default: false, null: false
-    t.integer "singleton_key", default: 1, null: false
-    t.integer "spawned_process_retention_days", default: 7, null: false
+    t.boolean "workflow_admission_control_enabled", default: false, null: false
+    t.datetime "workflow_admission_control_changed_at"
+    t.integer "workflow_admission_control_changed_by_user_id"
+    t.string "workflow_admission_policy", default: "whole_workflow", null: false
     t.string "telegram_bot_handle"
     t.text "telegram_bot_token"
     t.integer "telegram_update_offset", default: 0
-    t.datetime "updated_at", null: false
-    t.integer "video_retention_days", default: 7, null: false
-    t.integer "video_storage_budget_mb", default: 2048, null: false
-    t.boolean "work_engine_reconciler_activity_archive_before_delete", default: false, null: false
-    t.integer "work_engine_reconciler_activity_retention_days", default: 7, null: false
+    t.text "discord_bot_token"
+    t.boolean "show_work_unit_debug", default: false, null: false
+    t.integer "run_diagnostic_retention_days", default: 30, null: false
+    t.integer "run_resource_summary_retention_days", default: 30, null: false
     t.integer "worker_host_health_sample_retention_days", default: 7, null: false
-    t.datetime "workflow_admission_control_changed_at"
-    t.integer "workflow_admission_control_changed_by_user_id"
-    t.boolean "workflow_admission_control_enabled", default: false, null: false
-    t.string "workflow_admission_policy", default: "whole_workflow", null: false
-    t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
+    t.integer "work_engine_reconciler_activity_retention_days", default: 7, null: false
+    t.integer "provider_session_retention_days", default: 14, null: false
+    t.integer "spawned_process_retention_days", default: 7, null: false
+    t.integer "notification_retention_days", default: 30, null: false
+    t.integer "operational_log_event_retention_hours", default: 6, null: false
+    t.integer "metrics_dashboard_sample_retention_days", default: 7, null: false
+    t.integer "run_health_snapshot_retention_days", default: 7, null: false
+    t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
+    t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
+    t.integer "retention_available_space_override_gb", default: 0, null: false
+    t.boolean "run_diagnostic_archive_before_delete", default: false, null: false
+    t.boolean "work_engine_reconciler_activity_archive_before_delete", default: false, null: false
+    t.boolean "provider_session_archive_before_delete", default: false, null: false
+    t.boolean "run_health_snapshot_archive_before_delete", default: false, null: false
+    t.boolean "main_branch_health_check_archive_before_delete", default: false, null: false
+    t.integer "singleton_key", default: 1, null: false
     t.json "macos_worker_desired_release"
+    t.string "merge_train_failure_policy", default: "restart", null: false
     t.boolean "beta_mode_enabled", default: false, null: false
     t.integer "merge_train_multisect_section_width", default: 4, null: false
     t.integer "repository_full_poll_interval_hours", default: 24, null: false
+    t.integer "max_in_flight_workflows", default: 0, null: false
+    t.integer "prepared_layer_cache_gb", default: 10, null: false
     t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
+    t.integer "security_review_rounds", default: 0, null: false
     t.integer "job_log_retention_days", default: 30, null: false
     t.boolean "job_log_archive_before_delete", default: false, null: false
     t.integer "performance_log_event_retention_hours", default: 24, null: false
@@ -263,22 +263,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "agent_provider", null: false
     t.integer "attempt_number", null: false
     t.datetime "created_at", null: false
-    t.string "failed_worker_health_level"
-    t.json "failed_worker_health_reasons"
-    t.string "failed_worker_hostname"
-    t.json "failed_worker_retry_context"
-    t.datetime "failed_worker_retry_deferred_until"
-    t.datetime "failed_worker_sample_observed_at"
     t.string "failure_classification", null: false
     t.integer "job_id", null: false
     t.datetime "performed_at"
     t.string "retry_kind", null: false
-    t.string "retry_workflow_uniqueness_key"
     t.integer "run_id"
     t.datetime "scheduled_at", null: false
     t.string "skipped_reason"
     t.datetime "updated_at", null: false
     t.integer "workflow_id", null: false
+    t.string "failed_worker_hostname"
+    t.string "failed_worker_health_level"
+    t.json "failed_worker_health_reasons"
+    t.datetime "failed_worker_sample_observed_at"
+    t.datetime "failed_worker_retry_deferred_until"
+    t.json "failed_worker_retry_context"
+    t.string "retry_workflow_uniqueness_key"
     t.index ["failed_worker_hostname", "failed_worker_retry_deferred_until"], name: "idx_auto_retry_attempts_failed_worker_retry"
     t.index ["job_id", "agent_provider", "failure_classification", "skipped_reason"], name: "idx_auto_retry_attempts_budget_skipped"
     t.index ["job_id", "agent_provider", "failure_classification"], name: "index_auto_retry_attempts_on_budget"
@@ -293,32 +293,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "backend_exception_events", force: :cascade do |t|
-    t.string "action"
-    t.string "active_job_id"
+    t.datetime "occurred_at", null: false
     t.string "app_revision"
+    t.string "fingerprint", null: false
+    t.string "source", null: false
+    t.string "role"
+    t.string "hostname"
+    t.integer "pid"
+    t.string "request_id"
+    t.string "exception_class", null: false
+    t.text "message", null: false
     t.text "backtrace"
     t.string "controller"
-    t.datetime "created_at", null: false
-    t.string "exception_class", null: false
-    t.integer "executions"
-    t.string "fingerprint", null: false
-    t.string "hostname"
-    t.string "job_class"
-    t.integer "job_id"
-    t.text "message", null: false
-    t.json "metadata", null: false
+    t.string "action"
     t.string "method"
-    t.datetime "occurred_at", null: false
     t.text "path"
-    t.integer "pid"
-    t.string "queue_name"
-    t.string "request_id"
-    t.string "role"
-    t.integer "run_id"
-    t.string "source", null: false
     t.integer "status"
-    t.datetime "updated_at", null: false
+    t.string "job_class"
+    t.string "active_job_id"
+    t.string "queue_name"
+    t.integer "executions"
+    t.integer "job_id"
     t.integer "workflow_id"
+    t.integer "run_id"
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["app_revision", "occurred_at"], name: "index_backend_exception_events_on_revision_time"
     t.index ["exception_class", "occurred_at"], name: "index_backend_exception_events_on_class_time"
     t.index ["fingerprint", "occurred_at"], name: "index_backend_exception_events_on_fingerprint_time"
@@ -331,23 +331,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "bootstrap_locks", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.string "name", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_bootstrap_locks_on_name", unique: true
   end
 
   create_table "browser_error_auto_reports", force: :cascade do |t|
-    t.string "app_revision", null: false
     t.integer "browser_error_event_id", null: false
-    t.datetime "created_at", null: false
-    t.text "error_message"
-    t.string "fingerprint", null: false
-    t.text "issue_url"
-    t.integer "job_id"
-    t.string "status", default: "pending", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.integer "job_id"
+    t.string "app_revision", null: false
+    t.string "fingerprint", null: false
+    t.string "status", default: "pending", null: false
+    t.text "issue_url"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["browser_error_event_id"], name: "index_browser_error_auto_reports_on_browser_error_event_id"
     t.index ["fingerprint", "app_revision"], name: "index_browser_error_auto_reports_on_fingerprint_revision", unique: true
     t.index ["job_id"], name: "index_browser_error_auto_reports_on_job_id"
@@ -356,27 +356,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "browser_error_events", force: :cascade do |t|
-    t.string "app_revision"
-    t.text "component_stack"
-    t.datetime "created_at", null: false
-    t.json "feature_flags", null: false
-    t.string "fingerprint", null: false
-    t.text "message", null: false
-    t.json "metadata", null: false
-    t.string "name"
+    t.integer "user_id", null: false
     t.datetime "occurred_at", null: false
+    t.string "app_revision"
+    t.string "fingerprint", null: false
+    t.string "name"
+    t.text "message", null: false
+    t.text "stack"
+    t.text "component_stack"
+    t.text "url"
     t.string "path"
-    t.json "recent_api_requests", null: false
-    t.json "recent_errors", null: false
     t.string "route_id"
     t.json "route_params", null: false
-    t.text "stack"
     t.string "trace_id"
-    t.datetime "updated_at", null: false
-    t.text "url"
     t.text "user_agent"
-    t.integer "user_id", null: false
     t.json "viewport", null: false
+    t.json "feature_flags", null: false
+    t.json "recent_api_requests", null: false
+    t.json "recent_errors", null: false
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["app_revision", "occurred_at"], name: "index_browser_error_events_on_revision_time"
     t.index ["fingerprint", "occurred_at"], name: "index_browser_error_events_on_fingerprint_time"
     t.index ["occurred_at", "id"], name: "index_browser_error_events_on_occurred_id"
@@ -385,16 +385,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "build_cache_clear_requests", force: :cascade do |t|
-    t.datetime "cancelled_at"
-    t.datetime "confirmed_at"
-    t.datetime "created_at", null: false
+    t.integer "user_id", null: false
+    t.string "scope", null: false
     t.integer "older_than_days"
     t.text "reason", null: false
-    t.json "result"
-    t.string "scope", null: false
     t.string "state", default: "pending", null: false
+    t.json "result"
+    t.datetime "confirmed_at"
+    t.datetime "cancelled_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.string "pending_uniqueness_key"
     t.index ["pending_uniqueness_key"], name: "idx_build_cache_clear_requests_one_pending", unique: true
     t.index ["state"], name: "index_build_cache_clear_requests_on_state"
@@ -402,22 +402,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "build_cache_repository_settings", force: :cascade do |t|
+    t.integer "repository_id", null: false
     t.boolean "basedirs_safe", default: false, null: false
     t.datetime "created_at", null: false
-    t.integer "repository_id", null: false
     t.datetime "updated_at", null: false
     t.index ["repository_id"], name: "index_build_cache_repository_settings_on_repository_id", unique: true
   end
 
   create_table "chat_agent_questions", force: :cascade do |t|
-    t.datetime "answered_at"
-    t.json "answers"
-    t.datetime "asked_at", null: false
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
+    t.datetime "asked_at", null: false
+    t.datetime "answered_at"
     t.datetime "expired_at"
-    t.json "questions"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "questions"
+    t.json "answers"
     t.index ["chat_session_id", "answered_at", "expired_at"], name: "idx_chat_agent_questions_active"
     t.index ["chat_session_id"], name: "index_chat_agent_questions_on_chat_session_id"
   end
@@ -447,13 +447,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "chat_bridge_threads", force: :cascade do |t|
-    t.datetime "created_at", null: false
+    t.integer "origin_chat_session_id", null: false
+    t.integer "target_chat_session_id", null: false
+    t.integer "opened_by_user_id", null: false
+    t.string "state", default: "open", null: false
     t.integer "hop_count", default: 0, null: false
     t.integer "max_hops", default: 100, null: false
-    t.integer "opened_by_user_id", null: false
-    t.integer "origin_chat_session_id", null: false
-    t.string "state", default: "open", null: false
-    t.integer "target_chat_session_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["opened_by_user_id"], name: "index_chat_bridge_threads_on_opened_by_user_id"
     t.index ["origin_chat_session_id", "state"], name: "idx_chat_bridge_threads_origin_state"
@@ -465,10 +465,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "chat_context_checkpoints", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.bigint "compacted_through_message_id", null: false
-    t.datetime "created_at", null: false
     t.integer "source_message_count", null: false
-    t.text "summary", null: false
     t.integer "summary_version", default: 1, null: false
+    t.text "summary", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_session_id", "compacted_through_message_id"], name: "idx_chat_context_checkpoints_session_message", unique: true
     t.index ["chat_session_id", "created_at"], name: "idx_chat_context_checkpoints_session_created"
@@ -476,27 +476,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "chat_goals", force: :cascade do |t|
-    t.string "active_slot"
+    t.integer "chat_session_id", null: false
+    t.integer "user_id", null: false
+    t.integer "repository_id"
+    t.text "prompt", null: false
+    t.text "completion_condition"
+    t.json "mode_snapshot", null: false
+    t.string "status", default: "active", null: false
     t.string "approval_policy", default: "manual", null: false
     t.boolean "auto_file_proposals", default: false, null: false
     t.boolean "auto_submit_jobs", default: false, null: false
-    t.integer "chat_session_id", null: false
-    t.text "completion_condition"
-    t.integer "consecutive_blocked_events", default: 0, null: false
-    t.integer "consecutive_no_op_iterations", default: 0, null: false
-    t.datetime "created_at", null: false
     t.integer "iteration_count", default: 0, null: false
+    t.datetime "terminal_at"
+    t.string "terminal_reason"
+    t.json "terminal_details"
+    t.string "active_slot"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "consecutive_no_op_iterations", default: 0, null: false
+    t.integer "consecutive_blocked_events", default: 0, null: false
     t.string "last_blocked_signature"
     t.string "last_iteration_signature"
-    t.json "mode_snapshot", null: false
-    t.text "prompt", null: false
-    t.integer "repository_id"
-    t.string "status", default: "active", null: false
-    t.datetime "terminal_at"
-    t.json "terminal_details"
-    t.string "terminal_reason"
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.index ["chat_session_id", "active_slot"], name: "index_chat_goals_on_chat_session_id_and_active_slot", unique: true
     t.index ["chat_session_id", "status"], name: "index_chat_goals_on_chat_session_id_and_status"
     t.index ["chat_session_id"], name: "index_chat_goals_on_chat_session_id"
@@ -517,18 +517,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.integer "chat_session_id", null: false
     t.json "content", null: false
     t.datetime "created_at", null: false
-    t.datetime "deleted_at"
-    t.integer "deleted_by_user_id"
-    t.bigint "entity_revision", default: 0, null: false
-    t.string "parent_tool_use_id"
-    t.bigint "pending_action_id"
     t.integer "proposal_id"
     t.string "role", null: false
-    t.bigint "sender_user_id"
-    t.boolean "sidechain", default: false, null: false
     t.string "tool_name"
     t.string "tool_use_id"
     t.datetime "updated_at", null: false
+    t.bigint "pending_action_id"
+    t.bigint "sender_user_id"
+    t.boolean "sidechain", default: false, null: false
+    t.string "parent_tool_use_id"
+    t.datetime "deleted_at"
+    t.integer "deleted_by_user_id"
+    t.bigint "entity_revision", default: 0, null: false
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"
@@ -549,12 +549,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "chat_participants", force: :cascade do |t|
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
+    t.integer "user_id", null: false
+    t.string "role", default: "member", null: false
     t.datetime "joined_at", null: false
     t.datetime "last_read_at"
-    t.string "role", default: "member", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.datetime "hidden_at"
     t.index ["chat_session_id", "user_id"], name: "index_chat_participants_on_chat_session_id_and_user_id", unique: true
     t.index ["chat_session_id"], name: "index_chat_participants_on_chat_session_id"
@@ -566,30 +566,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "chat_pending_actions", force: :cascade do |t|
     t.string "action"
     t.string "action_type"
-    t.json "after_snapshot", null: false
-    t.json "before_snapshot", null: false
     t.datetime "cancelled_at"
-    t.bigint "chat_message_id"
     t.integer "chat_session_id", null: false
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
-    t.text "execution_error"
-    t.datetime "execution_finished_at"
-    t.datetime "execution_started_at"
-    t.string "execution_status"
-    t.string "execution_step"
     t.json "payload", null: false
-    t.bigint "pending_action_group_id"
-    t.text "reason"
     t.datetime "rejected_at"
     t.integer "repository_id"
     t.string "requested_by", default: "agent", null: false
     t.bigint "result_id"
     t.string "result_type"
     t.string "state", default: "pending", null: false
-    t.string "tool_use_id"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.bigint "chat_message_id"
+    t.string "tool_use_id"
+    t.text "reason"
+    t.json "before_snapshot", null: false
+    t.json "after_snapshot", null: false
+    t.string "execution_status"
+    t.string "execution_step"
+    t.text "execution_error"
+    t.datetime "execution_started_at"
+    t.datetime "execution_finished_at"
+    t.bigint "pending_action_group_id"
     t.index ["chat_message_id"], name: "index_chat_pending_actions_on_chat_message_id"
     t.index ["chat_session_id", "state", "confirmed_at"], name: "idx_chat_pending_actions_payload_confirmed"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
@@ -614,36 +614,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "chat_proposals", force: :cascade do |t|
     t.text "body", null: false
-    t.integer "chat_goal_id"
     t.integer "chat_session_id", null: false
     t.integer "child_position"
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
-    t.json "depends_on_epic_ids"
-    t.json "depends_on_job_ids"
     t.datetime "discarded_at"
     t.datetime "edited_at"
-    t.text "epic_depends_on_tokens"
     t.integer "epic_id"
     t.datetime "filed_at"
     t.integer "github_issue_number"
-    t.json "goal_prompt_snapshot"
-    t.boolean "investigation", default: false, null: false
     t.integer "job_id"
     t.string "kind", default: "syrus_issue", null: false
     t.string "labels"
-    t.json "media_ids", null: false
     t.integer "parent_proposal_id"
-    t.string "provider_setting", default: "default", null: false
     t.datetime "rejected_at"
     t.integer "repository_id"
-    t.boolean "route_to_backlog", default: false, null: false
     t.string "slug", null: false
     t.string "state", default: "proposed", null: false
     t.integer "target_epic_id"
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.datetime "withdrawn_at"
+    t.json "depends_on_epic_ids"
+    t.json "depends_on_job_ids"
+    t.text "epic_depends_on_tokens"
+    t.json "media_ids", null: false
+    t.integer "chat_goal_id"
+    t.json "goal_prompt_snapshot"
+    t.boolean "route_to_backlog", default: false, null: false
+    t.boolean "investigation", default: false, null: false
+    t.string "provider_setting", default: "default", null: false
     t.string "planned_execution_project_label"
     t.string "planned_execution_target_label"
     t.json "planned_execution_capabilities"
@@ -673,24 +673,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "chat_scoped_events", force: :cascade do |t|
-    t.integer "chat_message_id"
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.string "dedupe_key"
-    t.datetime "delivered_at"
-    t.string "delivery_state", default: "pending", null: false
+    t.integer "repository_id"
+    t.integer "job_id"
     t.integer "epic_id"
-    t.datetime "evaluated_at"
-    t.text "evaluator_error"
+    t.integer "proposal_id"
+    t.integer "chat_message_id"
+    t.string "source_kind", null: false
+    t.string "delivery_state", default: "pending", null: false
+    t.string "dedupe_key"
+    t.json "payload", null: false
+    t.datetime "delivered_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "evaluator_state", default: "pending", null: false
     t.json "evaluator_result"
     t.string "evaluator_session_id"
-    t.string "evaluator_state", default: "pending", null: false
-    t.integer "job_id"
-    t.json "payload", null: false
-    t.integer "proposal_id"
-    t.integer "repository_id"
-    t.string "source_kind", null: false
-    t.datetime "updated_at", null: false
+    t.text "evaluator_error"
+    t.datetime "evaluated_at"
     t.index ["chat_message_id"], name: "index_chat_scoped_events_on_chat_message_id"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_scoped_events_session_created_id"
     t.index ["chat_session_id", "dedupe_key"], name: "idx_chat_scoped_events_dedupe", unique: true
@@ -707,63 +707,63 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "chat_scratchpad_items", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.text "content", null: false
-    t.datetime "created_at", null: false
     t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_session_id", "position", "id"], name: "index_chat_scratchpad_items_on_session_position"
     t.index ["chat_session_id"], name: "index_chat_scratchpad_items_on_chat_session_id"
   end
 
   create_table "chat_sessions", force: :cascade do |t|
-    t.json "artifacts", null: false
-    t.string "chat_effort"
-    t.string "chat_model"
-    t.string "chat_provider", null: false
-    t.string "coding_checkout_branch"
-    t.text "coding_checkout_prepare_failure"
-    t.datetime "coding_checkout_prepare_finished_at"
-    t.datetime "coding_checkout_prepare_started_at"
-    t.string "coding_checkout_prepare_status"
-    t.boolean "coding_checkout_uncommitted", default: false, null: false
-    t.string "coding_relay_address"
-    t.string "coding_relay_token"
-    t.string "conversation_kind", default: "direct", null: false
     t.datetime "created_at", null: false
     t.decimal "cumulative_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.bigint "cumulative_input_tokens", default: 0, null: false
     t.bigint "cumulative_output_tokens", default: 0, null: false
-    t.bigint "current_turn_message_id"
-    t.string "daemon_branch"
-    t.boolean "daemon_connected", default: false, null: false
-    t.string "daemon_repo"
-    t.date "daily_cost_date"
-    t.decimal "daily_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
-    t.datetime "deleted_at"
-    t.integer "deleted_by_user_id"
-    t.bigint "entity_revision", default: 0, null: false
-    t.datetime "hidden_at"
     t.datetime "last_message_at"
-    t.datetime "last_read_at"
-    t.string "local_daemon_branch"
-    t.string "local_daemon_repo"
-    t.string "local_daemon_state"
-    t.string "mode"
     t.boolean "onboarding", default: false, null: false
-    t.string "origin_platform"
-    t.boolean "pinned", default: false, null: false
-    t.text "pinned_context"
-    t.string "share_token"
     t.datetime "stop_requested_at"
-    t.string "suggested_next_step"
-    t.string "system_kind"
     t.string "title"
-    t.boolean "title_auto_fallback", default: false, null: false
-    t.string "trigger_policy", default: "speak_when_spoken_to", null: false
-    t.boolean "turn_in_flight", default: false, null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.string "workspace_path"
+    t.datetime "last_read_at"
+    t.text "pinned_context"
+    t.datetime "hidden_at"
+    t.string "chat_provider", null: false
+    t.boolean "pinned", default: false, null: false
+    t.string "share_token"
+    t.string "suggested_next_step"
+    t.string "mode"
+    t.string "coding_checkout_branch"
+    t.boolean "coding_checkout_uncommitted", default: false, null: false
+    t.boolean "daemon_connected", default: false, null: false
+    t.string "daemon_repo"
+    t.string "daemon_branch"
+    t.string "local_daemon_state"
+    t.string "local_daemon_repo"
+    t.string "local_daemon_branch"
+    t.string "chat_model"
+    t.string "chat_effort"
+    t.string "coding_relay_address"
+    t.string "coding_relay_token"
+    t.boolean "turn_in_flight", default: false, null: false
+    t.string "coding_checkout_prepare_status"
+    t.datetime "coding_checkout_prepare_started_at"
+    t.datetime "coding_checkout_prepare_finished_at"
+    t.text "coding_checkout_prepare_failure"
+    t.string "system_kind"
+    t.string "trigger_policy", default: "speak_when_spoken_to", null: false
+    t.string "origin_platform"
+    t.json "artifacts", null: false
+    t.string "conversation_kind", default: "direct", null: false
+    t.boolean "title_auto_fallback", default: false, null: false
+    t.datetime "deleted_at"
+    t.integer "deleted_by_user_id"
     t.string "workspace_storage_key"
+    t.decimal "daily_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
+    t.date "daily_cost_date"
+    t.bigint "entity_revision", default: 0, null: false
+    t.bigint "current_turn_message_id"
     t.index ["cumulative_cost_usd"], name: "idx_chat_sessions_spending_cost"
     t.index ["deleted_at"], name: "index_chat_sessions_on_deleted_at"
     t.index ["deleted_by_user_id"], name: "index_chat_sessions_on_deleted_by_user_id"
@@ -782,17 +782,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "chat_shell_commands", force: :cascade do |t|
     t.integer "chat_session_id", null: false
-    t.text "command", null: false
-    t.datetime "created_at", null: false
-    t.integer "exit_status"
-    t.datetime "finished_at"
-    t.integer "local_tool_call_id"
-    t.string "outcome", limit: 32
-    t.text "output"
-    t.integer "spawned_process_id"
-    t.datetime "started_at", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.integer "spawned_process_id"
+    t.text "command", null: false
+    t.text "output"
+    t.string "outcome", limit: 32
+    t.integer "exit_status"
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "local_tool_call_id"
     t.index ["chat_session_id", "finished_at"], name: "idx_chat_shell_commands_session_in_flight"
     t.index ["local_tool_call_id"], name: "index_chat_shell_commands_on_local_tool_call_id"
     t.index ["spawned_process_id"], name: "index_chat_shell_commands_on_spawned_process_id"
@@ -814,17 +814,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "chat_turn_auto_retry_attempts", force: :cascade do |t|
-    t.integer "attempt_number", null: false
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "exhausted_at"
-    t.datetime "performed_at"
-    t.integer "retry_message_id"
     t.integer "root_user_message_id", null: false
-    t.datetime "scheduled_at", null: false
-    t.string "skipped_reason"
-    t.datetime "updated_at", null: false
     t.integer "user_message_id", null: false
+    t.integer "retry_message_id"
+    t.integer "attempt_number", null: false
+    t.datetime "scheduled_at", null: false
+    t.datetime "performed_at"
+    t.datetime "exhausted_at"
+    t.string "skipped_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["chat_session_id", "root_user_message_id", "attempt_number"], name: "idx_chat_turn_auto_retries_budget", unique: true
     t.index ["chat_session_id"], name: "index_chat_turn_auto_retry_attempts_on_chat_session_id"
     t.index ["retry_message_id"], name: "index_chat_turn_auto_retry_attempts_on_retry_message_id"
@@ -835,44 +835,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "chat_wakeups", force: :cascade do |t|
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "fire_at", null: false
-    t.json "metadata"
-    t.text "prompt", null: false
-    t.string "state", default: "pending", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.text "prompt", null: false
+    t.datetime "fire_at", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.json "metadata"
     t.index ["chat_session_id"], name: "index_chat_wakeups_on_chat_session_id"
     t.index ["state", "fire_at"], name: "index_chat_wakeups_on_state_and_fire_at"
     t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
   end
 
   create_table "cognitive_engagement_events", force: :cascade do |t|
-    t.string "anchor_key", null: false
-    t.string "anchor_kind", limit: 32, null: false
-    t.string "base_sha"
-    t.string "commit_sha"
-    t.decimal "confidence", precision: 4, scale: 3
-    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.integer "user_id", null: false
     t.integer "diff_review_version_id"
-    t.integer "end_line"
+    t.string "source_type", limit: 64, null: false
     t.string "engagement_kind", limit: 32, null: false
+    t.string "evidence_type", limit: 64, null: false
     t.bigint "evidence_id"
     t.string "evidence_key", null: false
-    t.string "evidence_type", limit: 64, null: false
-    t.string "head_sha"
-    t.string "idempotency_key", limit: 64, null: false
-    t.json "metadata", null: false
     t.datetime "occurred_at", null: false
+    t.string "commit_sha"
+    t.string "base_sha"
+    t.string "head_sha"
+    t.string "anchor_kind", limit: 32, null: false
+    t.string "anchor_key", null: false
+    t.string "idempotency_key", limit: 64, null: false
     t.string "path"
-    t.string "quality", limit: 64
-    t.integer "repository_id", null: false
     t.string "side", limit: 16
-    t.string "source_type", limit: 64, null: false
     t.integer "start_line"
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.integer "end_line"
     t.decimal "weight", precision: 4, scale: 3, null: false
+    t.decimal "confidence", precision: 4, scale: 3
+    t.string "quality", limit: 64
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["diff_review_version_id"], name: "index_cognitive_engagement_events_on_diff_review_version_id"
     t.index ["repository_id", "base_sha", "head_sha", "path"], name: "idx_cognitive_engagement_events_diff_identity"
     t.index ["repository_id", "path", "occurred_at", "id"], name: "idx_cognitive_engagement_events_repo_path_time"
@@ -937,24 +937,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "command_spans", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "workflow_id", null: false
+    t.bigint "step_id", null: false
+    t.bigint "run_id", null: false
+    t.bigint "spawned_process_id"
+    t.integer "sequence", null: false
+    t.string "name", limit: 128, null: false
     t.string "command_excerpt", limit: 1024, null: false
-    t.datetime "created_at", null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
     t.integer "duration_ms"
     t.integer "exit_status"
-    t.datetime "finished_at"
-    t.string "hostname", limit: 255
-    t.bigint "job_id", null: false
-    t.json "metadata", null: false
-    t.string "name", limit: 128, null: false
     t.string "outcome", limit: 32
-    t.json "resource_attribution"
-    t.bigint "run_id", null: false
-    t.integer "sequence", null: false
-    t.bigint "spawned_process_id"
-    t.datetime "started_at", null: false
-    t.bigint "step_id", null: false
+    t.string "hostname", limit: 255
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "workflow_id", null: false
+    t.json "resource_attribution"
     t.index ["hostname", "started_at"], name: "index_command_spans_on_hostname_and_started_at"
     t.index ["run_id", "sequence"], name: "index_command_spans_on_run_id_and_sequence", unique: true
     t.index ["spawned_process_id"], name: "index_command_spans_on_spawned_process_id"
@@ -962,22 +962,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "coverage_snapshots", force: :cascade do |t|
-    t.string "branch", null: false
-    t.decimal "branches_pct", precision: 5, scale: 2
-    t.datetime "created_at", null: false
-    t.json "data"
-    t.integer "file_count"
-    t.decimal "functions_pct", precision: 5, scale: 2
+    t.integer "repository_id", null: false
+    t.integer "workflow_id", null: false
     t.integer "job_id"
+    t.string "sha", null: false
+    t.string "branch", null: false
     t.decimal "lines_pct", precision: 5, scale: 2
+    t.decimal "branches_pct", precision: 5, scale: 2
+    t.decimal "functions_pct", precision: 5, scale: 2
     t.decimal "pr_delta_pct", precision: 5, scale: 2
+    t.integer "file_count"
+    t.json "data"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.string "project_id"
     t.string "project_label"
-    t.integer "repository_id", null: false
-    t.string "sha", null: false
     t.string "target_label"
-    t.datetime "updated_at", null: false
-    t.integer "workflow_id", null: false
     t.index ["job_id"], name: "index_coverage_snapshots_on_job_id"
     t.index ["repository_id", "branch", "created_at", "lines_pct", "branches_pct", "functions_pct"], name: "idx_coverage_snapshots_repo_branch_trend"
     t.index ["repository_id", "branch", "created_at"], name: "idx_coverage_snapshots_repo_branch_created"
@@ -1047,20 +1047,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_agent_runs", force: :cascade do |t|
-    t.string "agent_provider", null: false
-    t.bigint "base_version_id"
-    t.json "context_snapshot"
-    t.datetime "created_at", null: false
     t.integer "design_doc_id", null: false
     t.integer "design_doc_thread_id", null: false
-    t.text "error_message"
-    t.datetime "finished_at"
-    t.json "output_payload"
-    t.bigint "requested_by_user_id", null: false
-    t.text "result_summary"
-    t.datetime "started_at"
-    t.string "status", default: "queued", null: false
     t.bigint "triggering_comment_id", null: false
+    t.bigint "requested_by_user_id", null: false
+    t.bigint "base_version_id"
+    t.string "agent_provider", null: false
+    t.string "status", default: "queued", null: false
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.text "result_summary"
+    t.text "error_message"
+    t.json "context_snapshot"
+    t.json "output_payload"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["base_version_id"], name: "index_design_doc_agent_runs_on_base_version_id"
     t.index ["design_doc_id"], name: "index_design_doc_agent_runs_on_design_doc_id"
@@ -1071,23 +1071,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_anchors", force: :cascade do |t|
-    t.string "anchor_key", null: false
-    t.string "anchor_kind", default: "range", null: false
-    t.datetime "created_at", null: false
     t.integer "design_doc_id", null: false
+    t.string "anchor_key", null: false
     t.integer "design_doc_version_id"
-    t.integer "end_offset", null: false
-    t.integer "last_known_end_offset"
-    t.integer "last_known_start_offset"
-    t.string "marker_id", null: false
-    t.text "prefix_context"
-    t.text "selected_markdown", limit: 16777215
-    t.text "selected_text", limit: 16777215
-    t.bigint "stale_as_of_version_id"
     t.integer "start_offset", null: false
-    t.string "status", default: "active", null: false
-    t.text "suffix_context"
+    t.integer "end_offset", null: false
+    t.text "selected_markdown"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "marker_id", null: false
+    t.string "anchor_kind", default: "range", null: false
+    t.string "status", default: "active", null: false
+    t.text "selected_text"
+    t.text "prefix_context"
+    t.text "suffix_context"
+    t.integer "last_known_start_offset"
+    t.integer "last_known_end_offset"
+    t.bigint "stale_as_of_version_id"
     t.index ["design_doc_id", "anchor_key"], name: "index_design_doc_anchors_on_doc_and_key", unique: true
     t.index ["design_doc_id", "marker_id"], name: "index_design_doc_anchors_on_doc_and_marker_id", unique: true
     t.index ["design_doc_id"], name: "index_design_doc_anchors_on_design_doc_id"
@@ -1096,12 +1096,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_collaborators", force: :cascade do |t|
+    t.integer "design_doc_id", null: false
+    t.integer "user_id", null: false
+    t.string "role", default: "editor", null: false
     t.integer "added_by_user_id"
     t.datetime "created_at", null: false
-    t.integer "design_doc_id", null: false
-    t.string "role", default: "editor", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.index ["added_by_user_id"], name: "index_design_doc_collaborators_on_added_by_user_id"
     t.index ["design_doc_id", "user_id"], name: "index_design_doc_collaborators_on_doc_and_user", unique: true
     t.index ["design_doc_id"], name: "index_design_doc_collaborators_on_design_doc_id"
@@ -1109,13 +1109,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_comments", force: :cascade do |t|
-    t.string "author_kind", null: false
+    t.integer "design_doc_thread_id", null: false
     t.integer "author_user_id"
+    t.string "author_kind", null: false
     t.text "body", null: false
     t.datetime "created_at", null: false
-    t.bigint "design_doc_agent_run_id"
-    t.integer "design_doc_thread_id", null: false
     t.datetime "updated_at", null: false
+    t.bigint "design_doc_agent_run_id"
     t.index ["author_user_id"], name: "index_design_doc_comments_on_author_user_id"
     t.index ["design_doc_agent_run_id"], name: "index_design_doc_comments_on_design_doc_agent_run_id"
     t.index ["design_doc_thread_id", "created_at"], name: "index_design_doc_comments_on_thread_and_created_at"
@@ -1123,9 +1123,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_repositories", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.integer "design_doc_id", null: false
     t.integer "repository_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["design_doc_id", "repository_id"], name: "index_design_doc_repositories_on_doc_and_repository", unique: true
     t.index ["design_doc_id"], name: "index_design_doc_repositories_on_design_doc_id"
@@ -1133,26 +1133,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_suggestions", force: :cascade do |t|
-    t.integer "base_version_id"
-    t.text "change_summary"
-    t.string "change_type", default: "replace", null: false
-    t.text "conflict_reason"
-    t.datetime "created_at", null: false
-    t.bigint "design_doc_agent_run_id"
-    t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_id", null: false
+    t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_thread_id"
-    t.text "original_markdown", limit: 16777215, null: false
-    t.text "proposed_markdown", limit: 16777215, null: false
-    t.json "provenance"
-    t.string "render_mode", default: "inline", null: false
+    t.integer "suggested_by_user_id"
+    t.string "suggested_by_kind", null: false
+    t.string "state", default: "pending", null: false
+    t.text "original_markdown", null: false
+    t.text "suggested_markdown", null: false
+    t.text "change_summary"
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
-    t.string "state", default: "pending", null: false
-    t.string "suggested_by_kind", null: false
-    t.integer "suggested_by_user_id"
-    t.text "suggested_markdown", limit: 16777215, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "proposed_markdown", null: false
+    t.string "change_type", default: "replace", null: false
+    t.integer "base_version_id"
+    t.json "provenance"
+    t.text "conflict_reason"
+    t.bigint "design_doc_agent_run_id"
+    t.string "render_mode", default: "inline", null: false
     t.index ["base_version_id"], name: "index_design_doc_suggestions_on_base_version_id"
     t.index ["design_doc_agent_run_id"], name: "index_design_doc_suggestions_on_design_doc_agent_run_id"
     t.index ["design_doc_anchor_id", "state"], name: "index_design_doc_suggestions_on_anchor_and_state"
@@ -1165,13 +1165,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_threads", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_id", null: false
+    t.integer "design_doc_anchor_id", null: false
     t.integer "opened_by_user_id"
+    t.string "state", default: "open", null: false
     t.datetime "resolved_at"
     t.integer "resolved_by_user_id"
-    t.string "state", default: "open", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["design_doc_anchor_id"], name: "index_design_doc_threads_on_design_doc_anchor_id"
     t.index ["design_doc_id", "state"], name: "index_design_doc_threads_on_doc_and_state"
@@ -1181,17 +1181,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_doc_versions", force: :cascade do |t|
-    t.string "actor_kind", null: false
-    t.integer "actor_user_id"
-    t.text "change_summary"
-    t.datetime "created_at", null: false
     t.integer "design_doc_id", null: false
-    t.text "markdown", limit: 16777215, null: false
-    t.json "metadata"
-    t.integer "provenance_id"
-    t.string "provenance_type"
-    t.datetime "updated_at", null: false
+    t.text "markdown", null: false
     t.integer "version_number", null: false
+    t.integer "actor_user_id"
+    t.string "actor_kind", null: false
+    t.string "provenance_type"
+    t.integer "provenance_id"
+    t.text "change_summary"
+    t.json "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["actor_user_id"], name: "index_design_doc_versions_on_actor_user_id"
     t.index ["design_doc_id", "version_number"], name: "index_design_doc_versions_on_doc_and_number", unique: true
     t.index ["design_doc_id"], name: "index_design_doc_versions_on_design_doc_id"
@@ -1199,15 +1199,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "design_docs", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "current_version_id"
-    t.text "markdown", limit: 16777215, null: false
-    t.integer "origin_chat_session_id"
-    t.integer "owner_user_id", null: false
-    t.string "state", default: "draft", null: false
     t.string "title", null: false
-    t.datetime "updated_at", null: false
+    t.text "markdown", null: false
+    t.integer "owner_user_id", null: false
     t.string "visibility", default: "private", null: false
+    t.string "state", default: "draft", null: false
+    t.integer "origin_chat_session_id"
+    t.integer "current_version_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["current_version_id"], name: "index_design_docs_on_current_version_id"
     t.index ["origin_chat_session_id"], name: "index_design_docs_on_origin_chat_session_id"
     t.index ["owner_user_id"], name: "index_design_docs_on_owner_user_id"
@@ -1215,29 +1215,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "diff_review_comments", force: :cascade do |t|
-    t.string "anchor_kind", default: "line", null: false
-    t.string "base_ref"
-    t.text "body", null: false
-    t.json "context", null: false
-    t.datetime "created_at", null: false
-    t.text "diff_hunk"
-    t.integer "diff_review_version_id", null: false
-    t.string "head_ref"
     t.integer "job_id", null: false
-    t.integer "new_line"
-    t.integer "old_line"
-    t.integer "parent_id"
-    t.string "path"
-    t.datetime "resolved_at"
-    t.integer "run_id"
-    t.string "side"
-    t.string "state", default: "draft", null: false
-    t.datetime "submitted_at"
-    t.datetime "superseded_at"
-    t.string "surface", default: "job_diff", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.integer "workflow_id"
+    t.integer "run_id"
+    t.string "surface", default: "job_diff", null: false
+    t.string "base_ref"
+    t.string "head_ref"
+    t.string "path"
+    t.string "side"
+    t.integer "old_line"
+    t.integer "new_line"
+    t.text "diff_hunk"
+    t.json "context", null: false
+    t.text "body", null: false
+    t.string "state", default: "draft", null: false
+    t.datetime "submitted_at"
+    t.datetime "resolved_at"
+    t.datetime "superseded_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "anchor_kind", default: "line", null: false
+    t.integer "parent_id"
+    t.integer "diff_review_version_id", null: false
     t.index ["diff_review_version_id"], name: "index_diff_review_comments_on_diff_review_version_id"
     t.index ["job_id", "diff_review_version_id", "surface", "path", "state", "id"], name: "idx_diff_review_comments_version_surface_path_state"
     t.index ["job_id", "path", "side", "old_line", "new_line"], name: "idx_diff_review_comments_line_anchor"
@@ -1250,23 +1250,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "diff_review_versions", force: :cascade do |t|
-    t.string "base_ref"
-    t.string "base_sha", null: false
-    t.datetime "created_at", null: false
-    t.json "files_snapshot", null: false
-    t.string "head_ref"
-    t.string "head_sha", null: false
     t.integer "job_id", null: false
-    t.string "label"
-    t.json "metadata", null: false
-    t.string "reason"
+    t.integer "workflow_id"
     t.integer "run_id"
+    t.integer "version_index", null: false
+    t.string "base_sha", null: false
+    t.string "head_sha", null: false
+    t.string "base_ref"
+    t.string "head_ref"
     t.string "source_key", null: false
     t.string "trigger_kind"
+    t.string "label"
+    t.string "reason"
     t.boolean "truncated", default: false, null: false
+    t.json "files_snapshot", null: false
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "version_index", null: false
-    t.integer "workflow_id"
     t.index ["job_id", "base_sha", "head_sha", "source_key"], name: "idx_diff_review_versions_identity", unique: true
     t.index ["job_id", "created_at", "id"], name: "index_diff_review_versions_on_job_id_and_created_at_and_id"
     t.index ["job_id", "reason", "version_index", "id"], name: "idx_diff_review_versions_job_reason_latest"
@@ -1298,11 +1298,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "epic_dependencies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "depends_on_epic_id"
-    t.integer "depends_on_job_id"
     t.boolean "derived", default: false, null: false
     t.integer "epic_id", null: false
-    t.bigint "unresolved_chat_proposal_id"
     t.datetime "updated_at", null: false
+    t.integer "depends_on_job_id"
+    t.bigint "unresolved_chat_proposal_id"
     t.index ["depends_on_epic_id"], name: "index_epic_dependencies_on_depends_on_epic_id"
     t.index ["depends_on_job_id"], name: "index_epic_dependencies_on_depends_on_job_id"
     t.index ["epic_id", "depends_on_epic_id", "derived"], name: "index_epic_deps_on_epic_and_depends_on_and_derived", unique: true
@@ -1314,13 +1314,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "epic_versions", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.text "description_after"
-    t.text "description_before"
     t.integer "epic_id", null: false
-    t.text "title_after"
-    t.text "title_before"
     t.integer "user_id"
+    t.text "title_before"
+    t.text "title_after"
+    t.text "description_before"
+    t.text "description_after"
+    t.datetime "created_at", null: false
     t.index ["epic_id"], name: "index_epic_versions_on_epic_id"
     t.index ["user_id"], name: "index_epic_versions_on_user_id"
   end
@@ -1328,24 +1328,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
-    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.datetime "done_at"
-    t.string "epic_dependency_policy", default: "linear", null: false
     t.string "github_issue_url"
-    t.json "goal_prompt_snapshot"
     t.integer "number", null: false
     t.integer "owner_id"
     t.integer "owner_user_id"
     t.json "pending_epic_dependency_refs", null: false
     t.integer "repository_id", null: false
-    t.string "slug"
     t.string "state", default: "backlog", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "slug"
+    t.string "epic_dependency_policy", default: "linear", null: false
+    t.integer "chat_goal_id"
+    t.json "goal_prompt_snapshot"
     t.index ["chat_goal_id", "created_at"], name: "index_epics_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_epics_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
@@ -1359,15 +1359,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "features", force: :cascade do |t|
-    t.string "category", null: false
-    t.datetime "created_at", null: false
-    t.boolean "default_enabled", default: false, null: false
-    t.text "description"
-    t.boolean "enabled", default: false, null: false
-    t.boolean "experimental", default: false, null: false
-    t.string "name", null: false
     t.string "slug", null: false
+    t.string "category", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "default_enabled", default: false, null: false
+    t.boolean "enabled", default: false, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "experimental", default: false, null: false
     t.index ["slug"], name: "index_features_on_slug", unique: true
   end
 
@@ -1388,25 +1388,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "github_api_usage_rollups", force: :cascade do |t|
-    t.string "auth_source", limit: 32, null: false
     t.datetime "bucket_started_at", null: false
-    t.datetime "created_at", null: false
+    t.string "auth_source", limit: 32, null: false
     t.string "credential_key", limit: 64, null: false
-    t.bigint "installation_id"
-    t.integer "last_limit"
+    t.integer "installation_id"
+    t.integer "user_id"
+    t.integer "repository_id"
+    t.string "repository_key", limit: 96, null: false
+    t.string "repo_slug"
+    t.string "operation", limit: 96, null: false
+    t.string "resource", limit: 32, null: false
+    t.integer "request_count", default: 0, null: false
+    t.integer "rate_limited_count", default: 0, null: false
+    t.integer "last_status"
     t.integer "last_remaining"
+    t.integer "last_limit"
     t.datetime "last_reset_at"
     t.datetime "last_seen_at", null: false
-    t.integer "last_status"
-    t.string "operation", limit: 96, null: false
-    t.integer "rate_limited_count", default: 0, null: false
-    t.string "repo_slug"
-    t.bigint "repository_id"
-    t.string "repository_key", limit: 96, null: false
-    t.integer "request_count", default: 0, null: false
-    t.string "resource", limit: 32, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "user_id"
     t.index ["bucket_started_at", "auth_source", "credential_key", "repository_key", "operation", "resource"], name: "idx_github_api_usage_rollups_unique_bucket", unique: true
     t.index ["installation_id"], name: "index_github_api_usage_rollups_on_installation_id"
     t.index ["repository_id"], name: "index_github_api_usage_rollups_on_repository_id"
@@ -1414,17 +1414,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "github_auth_fallback_diagnostics", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "error_class", null: false
-    t.text "error_message"
-    t.integer "error_status"
-    t.bigint "github_installation_id"
+    t.integer "repository_id", null: false
     t.integer "installation_id"
+    t.integer "run_id"
+    t.bigint "github_installation_id"
     t.string "operation_type", null: false
+    t.string "error_class", null: false
+    t.integer "error_status"
+    t.text "error_message"
     t.boolean "refresh_attempted", default: false, null: false
     t.boolean "refresh_succeeded", default: false, null: false
-    t.integer "repository_id", null: false
-    t.integer "run_id"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["installation_id", "created_at"], name: "index_github_auth_fallbacks_on_installation_and_created_at"
     t.index ["installation_id"], name: "index_github_auth_fallback_diagnostics_on_installation_id"
@@ -1434,11 +1434,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "github_collaborator_discrepancies", force: :cascade do |t|
-    t.datetime "checked_at", null: false
-    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
     t.string "github_login", null: false
     t.string "github_permission", null: false
-    t.integer "repository_id", null: false
+    t.datetime "checked_at", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["repository_id", "github_login"], name: "index_github_collab_discrepancies_on_repo_id_and_login", unique: true
     t.index ["repository_id"], name: "index_github_collaborator_discrepancies_on_repository_id"
@@ -1468,25 +1468,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "grader_conclusions", force: :cascade do |t|
-    t.datetime "checked_at", null: false
+    t.bigint "repository_id", null: false
+    t.bigint "job_id"
+    t.bigint "workflow_id"
+    t.bigint "step_id"
+    t.bigint "run_id"
     t.string "commit_sha", limit: 64, null: false
-    t.datetime "created_at", null: false
-    t.float "duration_s"
-    t.integer "exit_code"
     t.string "grader_fingerprint", limit: 64, null: false
     t.string "grader_name", limit: 128, null: false
-    t.bigint "job_id"
-    t.bigint "log_bytes"
-    t.string "log_path", limit: 1024
-    t.json "metadata"
-    t.bigint "repository_id", null: false
     t.boolean "required"
-    t.bigint "run_id"
     t.string "status", limit: 32, null: false
-    t.bigint "step_id"
+    t.integer "exit_code"
+    t.float "duration_s"
     t.boolean "timed_out", default: false, null: false
+    t.string "log_path", limit: 1024
+    t.bigint "log_bytes"
+    t.datetime "checked_at", null: false
+    t.json "metadata"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "workflow_id"
     t.index ["repository_id", "commit_sha", "grader_fingerprint", "status"], name: "idx_grader_conclusions_success_lookup"
     t.index ["repository_id", "grader_name", "status", "created_at"], name: "idx_grader_conclusions_history_lookup"
     t.index ["run_id"], name: "index_grader_conclusions_on_run_id"
@@ -1494,14 +1494,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "input_sources", force: :cascade do |t|
-    t.json "config", null: false
-    t.datetime "created_at", null: false
-    t.text "credentials"
-    t.boolean "polling_enabled", default: true, null: false
-    t.integer "repository_id", null: false
     t.string "type", null: false
-    t.datetime "updated_at", null: false
+    t.integer "repository_id", null: false
     t.integer "user_id", null: false
+    t.boolean "polling_enabled", default: true, null: false
+    t.json "config", null: false
+    t.text "credentials"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["repository_id", "type"], name: "index_input_sources_on_repository_and_type", unique: true
     t.index ["repository_id"], name: "index_input_sources_on_repository_id"
     t.index ["user_id"], name: "index_input_sources_on_user_id"
@@ -1514,18 +1514,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.text "cached_token"
     t.datetime "cached_token_expires_at"
     t.datetime "created_at", null: false
-    t.datetime "gh_api_blocked_at"
-    t.text "gh_api_blocked_reason"
-    t.integer "gh_rate_limit_limit"
-    t.datetime "gh_rate_limit_observed_at"
-    t.integer "gh_rate_limit_remaining"
-    t.datetime "gh_rate_limit_reset_at"
-    t.string "gh_rate_limit_resource", limit: 32
     t.bigint "github_installation_id", null: false
     t.datetime "installed_at", null: false
     t.datetime "removed_at"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.datetime "gh_api_blocked_at"
+    t.text "gh_api_blocked_reason"
+    t.integer "gh_rate_limit_remaining"
+    t.integer "gh_rate_limit_limit"
+    t.datetime "gh_rate_limit_reset_at"
+    t.string "gh_rate_limit_resource", limit: 32
+    t.datetime "gh_rate_limit_observed_at"
     t.string "repository_selection", default: "all", null: false
     t.json "selected_repository_ids"
     t.index ["github_installation_id"], name: "index_installations_on_github_installation_id", unique: true
@@ -1534,10 +1534,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "instance_versions", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.bigint "data_root_available_bytes"
-    t.string "data_root_path"
-    t.bigint "data_root_total_bytes"
-    t.integer "data_root_used_percent"
     t.datetime "finished_at"
     t.string "hostname", null: false
     t.datetime "last_heartbeat_at"
@@ -1546,6 +1542,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.datetime "started_at", null: false
     t.datetime "updated_at", null: false
     t.string "version", null: false
+    t.integer "data_root_used_percent"
+    t.bigint "data_root_available_bytes"
+    t.bigint "data_root_total_bytes"
+    t.string "data_root_path"
     t.json "capabilities"
     t.json "capability_diagnostics"
     t.json "desired_version"
@@ -1570,11 +1570,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "job_approvals", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "user_id", null: false
     t.datetime "approved_at", null: false
     t.datetime "created_at", null: false
-    t.integer "job_id", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.index ["approved_at"], name: "idx_job_approvals_approved_at"
     t.index ["job_id", "user_id"], name: "index_job_approvals_on_job_id_and_user_id", unique: true
     t.index ["job_id"], name: "index_job_approvals_on_job_id"
@@ -1602,16 +1602,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "job_dependencies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "created_by_user_id"
-    t.integer "depends_on_epic_id"
     t.integer "depends_on_job_id"
     t.integer "job_id", null: false
-    t.string "satisfaction_mode", default: "success", null: false
     t.string "source", null: false
-    t.integer "unresolved_chat_proposal_id"
     t.integer "unresolved_number"
     t.string "unresolved_owner"
     t.string "unresolved_repo"
     t.datetime "updated_at", null: false
+    t.integer "depends_on_epic_id"
+    t.integer "unresolved_chat_proposal_id"
+    t.string "satisfaction_mode", default: "success", null: false
     t.string "required_deployment_stage_name"
     t.index ["created_by_user_id"], name: "index_job_dependencies_on_created_by_user_id"
     t.index ["depends_on_epic_id"], name: "index_job_dependencies_on_depends_on_epic_id"
@@ -1627,11 +1627,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "job_deployment_stage_statuses", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.integer "job_id", null: false
-    t.datetime "reached_at", null: false
     t.string "stage_name", null: false
+    t.datetime "reached_at", null: false
     t.string "tag_sha"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["job_id", "stage_name"], name: "index_job_deployment_stage_statuses_on_job_id_and_stage_name", unique: true
     t.index ["job_id"], name: "index_job_deployment_stage_statuses_on_job_id"
@@ -1661,15 +1661,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "job_pr_links", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.integer "job_id", null: false
-    t.json "metadata"
-    t.integer "pr_number"
     t.string "role", limit: 32, null: false
-    t.string "source_ref"
     t.bigint "source_repository_id"
-    t.string "target_ref"
+    t.string "source_ref"
     t.bigint "target_repository_id"
+    t.string "target_ref"
+    t.integer "pr_number"
+    t.json "metadata"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["job_id", "role"], name: "index_job_pr_links_on_job_id_and_role", unique: true
     t.index ["job_id"], name: "index_job_pr_links_on_job_id"
@@ -1689,126 +1689,126 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.json "approval_evidence", null: false
+    t.json "approval_evidence", default: {}, null: false
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
-    t.boolean "auto_merge_enabled", default: false, null: false
-    t.datetime "branch_deleted_at"
     t.string "branch_name"
-    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
-    t.integer "classifier_attempts", default: 0, null: false
     t.string "closure_reason"
-    t.integer "commits_behind_base"
     t.datetime "created_at", null: false
     t.string "credential_mode", default: "pat", null: false
-    t.string "delivery_track"
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
-    t.json "diff_fixture"
-    t.string "effort_level"
-    t.datetime "emergency_landed_at"
-    t.string "emergency_landed_by_membership_tier"
-    t.bigint "emergency_landed_by_user_id"
-    t.bigint "entity_revision", default: 0, null: false
     t.integer "epic_id"
-    t.string "epic_title"
-    t.string "external_pr_author"
-    t.boolean "external_pr_fork", default: false
     t.integer "external_pr_number"
-    t.string "external_ref"
     t.integer "failure_count", default: 0, null: false
     t.datetime "finished_at"
-    t.integer "fork_review_pr_number"
     t.boolean "github_mergeable"
     t.string "github_mergeable_state"
-    t.json "goal_prompt_snapshot"
-    t.datetime "grace_period_expires_at"
-    t.integer "input_source_id"
     t.json "invalidation_evidence", null: false
     t.text "invalidation_reason"
-    t.boolean "investigation", default: false, null: false
     t.text "issue_body"
     t.integer "issue_number"
     t.string "issue_title"
-    t.string "job_provider_setting", default: "default", null: false
     t.string "kind", default: "issue", null: false
-    t.string "landed_sha"
-    t.string "landing_blocker_override_key"
-    t.text "landing_blocker_override_reason"
-    t.datetime "landing_blocker_override_requested_at"
-    t.bigint "landing_blocker_override_requested_by_user_id"
-    t.datetime "landing_blocker_override_used_at"
     t.text "landing_failure_reason"
-    t.json "landing_queue_blocked_reason"
-    t.json "landing_queue_blocker_job_ids"
-    t.datetime "landing_queue_cached_at"
-    t.json "landing_queue_dependency_edges"
-    t.string "landing_queue_entry_key"
-    t.integer "landing_queue_entry_position"
-    t.integer "landing_queue_position"
-    t.json "landing_queue_waiting_job_ids"
     t.string "last_ci_handled_sha"
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
-    t.datetime "last_seen_fork_review_comment_at"
-    t.integer "linked_chat_id"
-    t.datetime "linked_open_pr_checked_at"
     t.string "local_mergeability_base_sha"
     t.datetime "local_mergeability_checked_at"
     t.string "local_mergeability_head_sha"
     t.boolean "local_mergeable"
     t.string "local_mergeable_state"
-    t.boolean "manual_paused", default: false, null: false
-    t.datetime "manual_paused_at"
-    t.integer "manual_paused_by_user_id"
     t.string "mergeability_base_ref"
     t.string "mergeability_base_sha"
     t.datetime "mergeability_checked_at"
     t.string "mergeability_head_sha"
-    t.string "model"
-    t.boolean "needs_attention", default: false, null: false
-    t.string "needs_attention_reason"
-    t.datetime "needs_attention_since"
-    t.string "origin", limit: 64, null: false
-    t.string "origin_id", limit: 191
     t.integer "owner_user_id"
     t.integer "parent_job_id"
     t.json "pending_epic_reference", null: false
-    t.string "pr_checks_base_sha"
-    t.datetime "pr_checks_checked_at"
-    t.json "pr_checks_failing_names"
-    t.string "pr_checks_sha"
-    t.string "pr_checks_state"
     t.boolean "pr_mergeable"
     t.datetime "pr_mergeable_checked_at"
     t.integer "pr_number"
-    t.bigint "pr_repository_id"
     t.string "priority", default: "medium", null: false
-    t.datetime "reopened_at"
     t.integer "repository_id", null: false
-    t.string "runaway_protection"
-    t.datetime "runaway_protection_at"
     t.integer "scheduled_task_id"
-    t.json "skill_args"
-    t.string "skill_name"
     t.boolean "skip_prepare", default: false, null: false
-    t.string "slug"
-    t.string "source_ref"
     t.string "stack_base", default: "auto", null: false
     t.datetime "started_at"
     t.string "state", default: "triaging", null: false
-    t.string "system_kind"
-    t.string "target_branch"
-    t.bigint "target_repository_id"
-    t.boolean "title_pending", default: false, null: false
     t.string "triaging_reason", default: "classifier_pending", null: false
-    t.text "triaging_uncertainty_reason"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.string "validity", default: "valid", null: false
+    t.string "epic_title"
+    t.boolean "title_pending", default: false, null: false
+    t.datetime "branch_deleted_at"
+    t.bigint "target_repository_id"
+    t.bigint "pr_repository_id"
+    t.integer "fork_review_pr_number"
+    t.datetime "last_seen_fork_review_comment_at"
+    t.boolean "needs_attention", default: false, null: false
+    t.string "needs_attention_reason"
+    t.datetime "needs_attention_since"
+    t.datetime "grace_period_expires_at"
+    t.string "slug"
+    t.integer "input_source_id"
+    t.string "external_ref"
+    t.integer "linked_chat_id"
+    t.string "pr_checks_sha"
+    t.string "pr_checks_state"
+    t.datetime "pr_checks_checked_at"
+    t.integer "landing_queue_position"
+    t.string "landing_queue_entry_key"
+    t.json "landing_queue_blocker_job_ids"
+    t.json "landing_queue_waiting_job_ids"
+    t.json "landing_queue_dependency_edges"
+    t.datetime "landing_queue_cached_at"
+    t.integer "landing_queue_entry_position"
+    t.string "system_kind"
+    t.integer "commits_behind_base"
+    t.string "landed_sha"
+    t.boolean "auto_merge_enabled", default: false, null: false
+    t.string "job_provider_setting", default: "default", null: false
+    t.json "landing_queue_blocked_reason"
+    t.string "external_pr_author"
+    t.boolean "external_pr_fork", default: false
+    t.string "landing_blocker_override_key"
+    t.text "landing_blocker_override_reason"
+    t.datetime "landing_blocker_override_requested_at"
+    t.bigint "landing_blocker_override_requested_by_user_id"
+    t.datetime "landing_blocker_override_used_at"
+    t.boolean "manual_paused", default: false, null: false
+    t.datetime "manual_paused_at"
+    t.integer "manual_paused_by_user_id"
+    t.datetime "reopened_at"
+    t.string "runaway_protection"
+    t.datetime "runaway_protection_at"
+    t.string "target_branch"
+    t.string "skill_name"
+    t.json "skill_args"
+    t.string "delivery_track"
+    t.integer "chat_goal_id"
+    t.json "goal_prompt_snapshot"
+    t.string "source_ref"
+    t.string "origin", limit: 64, null: false
+    t.string "origin_id", limit: 191
+    t.json "diff_fixture"
+    t.text "triaging_uncertainty_reason"
+    t.integer "classifier_attempts", default: 0, null: false
+    t.json "pr_checks_failing_names"
+    t.string "pr_checks_base_sha"
+    t.boolean "investigation", default: false, null: false
+    t.string "model"
+    t.string "effort_level"
+    t.datetime "emergency_landed_at"
+    t.bigint "emergency_landed_by_user_id"
+    t.string "emergency_landed_by_membership_tier"
+    t.bigint "entity_revision", default: 0, null: false
+    t.datetime "linked_open_pr_checked_at"
     t.string "planned_execution_project_label"
     t.string "planned_execution_target_label"
     t.json "planned_execution_capabilities"
@@ -1816,10 +1816,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.datetime "approval_withdrawn_at"
     t.string "landing_failure_code"
     t.datetime "branch_cleanup_attempted_at"
-    t.string "emergency_land_source_sha"
-    t.json "emergency_land_skipped_controls"
     t.json "placement_recommendation"
     t.string "placement_recommendation_status"
+    t.string "emergency_land_source_sha"
+    t.json "emergency_land_skipped_controls"
     t.datetime "pr_feedback_poll_selected_at"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
@@ -1878,13 +1878,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "kubernetes_clusters", force: :cascade do |t|
+    t.string "label", null: false
+    t.string "api_server_url", null: false
+    t.text "credentials"
     t.boolean "agentic_access_enabled", default: false, null: false
     t.boolean "allow_writes", default: false, null: false
-    t.string "api_server_url", null: false
-    t.datetime "created_at", null: false
-    t.text "credentials"
     t.boolean "insecure_skip_tls_verify", default: false, null: false
-    t.string "label", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "credential_store_credential_id"
     t.string "credential_kind"
@@ -1895,12 +1895,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "landed_commits", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "kind", null: false
-    t.integer "landable_id", null: false
     t.string "landable_type", null: false
-    t.integer "position", default: 0, null: false
+    t.integer "landable_id", null: false
     t.string "sha", null: false
+    t.string "kind", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["landable_type", "landable_id", "position"], name: "idx_on_landable_type_landable_id_position_4087ee989f"
     t.index ["landable_type", "landable_id"], name: "index_landed_commits_on_landable"
@@ -1908,15 +1908,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "local_daemon_sessions", force: :cascade do |t|
-    t.string "auth_token", null: false
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.string "daemon_branch"
-    t.string "daemon_repo"
-    t.datetime "disconnected_at"
-    t.datetime "last_heartbeat_at"
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "auth_token", null: false
+    t.string "daemon_repo"
+    t.string "daemon_branch"
+    t.datetime "last_heartbeat_at"
+    t.datetime "disconnected_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.string "connection_id"
     t.index ["auth_token"], name: "index_local_daemon_sessions_on_auth_token", unique: true
     t.index ["chat_session_id"], name: "index_local_daemon_sessions_on_chat_session_id"
@@ -1924,17 +1924,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "local_tool_calls", force: :cascade do |t|
-    t.integer "chat_session_id", null: false
-    t.datetime "completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "dispatched_at"
-    t.string "error"
     t.integer "local_daemon_session_id", null: false
+    t.integer "chat_session_id", null: false
+    t.string "tool_use_id", null: false
+    t.string "tool_name", null: false
+    t.json "tool_input"
     t.json "result"
     t.string "state", null: false
-    t.json "tool_input"
-    t.string "tool_name", null: false
-    t.string "tool_use_id", null: false
+    t.string "error"
+    t.datetime "dispatched_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_session_id"], name: "index_local_tool_calls_on_chat_session_id"
     t.index ["local_daemon_session_id", "state"], name: "index_local_tool_calls_on_local_daemon_session_id_and_state"
@@ -1943,15 +1943,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "local_tunnel_sessions", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "repo_slug"
     t.string "branch"
+    t.string "status", default: "connected", null: false
     t.integer "chat_session_id"
     t.datetime "connected_at"
-    t.datetime "created_at", null: false
     t.datetime "disconnected_at"
-    t.string "repo_slug"
-    t.string "status", default: "connected", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.index ["user_id", "status"], name: "index_local_tunnel_sessions_on_user_id_and_status"
     t.index ["user_id"], name: "index_local_tunnel_sessions_on_user_id"
   end
@@ -1977,15 +1977,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "main_branch_health_checks", force: :cascade do |t|
-    t.datetime "checked_at", null: false
-    t.json "ci_failed_checks"
-    t.string "ci_health", default: "unknown", null: false
-    t.datetime "created_at", null: false
-    t.json "grader_failed_names"
-    t.string "grader_health", default: "unknown", null: false
     t.integer "repository_id", null: false
     t.string "sha", null: false
+    t.datetime "checked_at", null: false
+    t.string "ci_health", default: "unknown", null: false
+    t.string "grader_health", default: "unknown", null: false
+    t.json "ci_failed_checks"
+    t.json "grader_failed_names"
     t.string "source", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "workflow_id"
     t.index ["repository_id", "checked_at"], name: "idx_mbhc_repo_checked_at"
@@ -1997,15 +1997,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "main_concern_reports", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.json "failing_tests"
-    t.integer "job_id", null: false
-    t.string "observed_sha"
-    t.text "reason", null: false
     t.integer "repository_id", null: false
-    t.integer "run_id", null: false
-    t.datetime "updated_at", null: false
+    t.integer "job_id", null: false
     t.integer "workflow_id", null: false
+    t.integer "run_id", null: false
+    t.text "reason", null: false
+    t.json "failing_tests"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "observed_sha"
     t.index ["job_id"], name: "index_main_concern_reports_on_job_id"
     t.index ["repository_id", "created_at"], name: "index_main_concern_reports_on_repository_id_and_created_at"
     t.index ["repository_id"], name: "index_main_concern_reports_on_repository_id"
@@ -2014,51 +2014,51 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "maintenance_task_events", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "level", default: "info", null: false
     t.integer "maintenance_task_id", null: false
-    t.text "message", null: false
-    t.json "metadata", null: false
+    t.string "level", default: "info", null: false
     t.string "step_key"
     t.string "step_title"
+    t.text "message", null: false
     t.bigint "units_done"
     t.bigint "units_total"
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["maintenance_task_id", "created_at", "id"], name: "idx_maintenance_task_events_task_created"
     t.index ["maintenance_task_id"], name: "index_maintenance_task_events_on_maintenance_task_id"
   end
 
   create_table "maintenance_tasks", force: :cascade do |t|
-    t.integer "batch_size", default: 250, null: false
-    t.datetime "cancelled_at"
+    t.string "definition_key", null: false
+    t.string "task_key", null: false
+    t.string "state", default: "pending", null: false
+    t.string "recurrence", null: false
     t.string "category", null: false
-    t.json "checkpoint", null: false
-    t.bigint "completed_units", default: 0, null: false
+    t.string "title", null: false
+    t.string "summary", null: false
+    t.string "trigger_kind", null: false
+    t.string "trigger_key", null: false
+    t.string "required_role", default: "admin", null: false
     t.string "concurrency_key"
-    t.datetime "created_at", null: false
     t.string "current_step_key"
     t.string "current_step_title"
-    t.string "definition_key", null: false
-    t.datetime "dismissed_at"
-    t.bigint "dismissed_by_user_id"
-    t.integer "eta_seconds"
-    t.bigint "failed_units", default: 0, null: false
-    t.datetime "finished_at"
-    t.text "last_error"
-    t.integer "max_parallelism", default: 1, null: false
-    t.json "metadata", null: false
-    t.datetime "paused_at"
-    t.string "recurrence", null: false
-    t.bigint "requested_by_user_id"
-    t.string "required_role", default: "admin", null: false
-    t.datetime "started_at"
-    t.string "state", default: "pending", null: false
-    t.string "summary", null: false
-    t.string "task_key", null: false
-    t.string "title", null: false
     t.bigint "total_units", default: 0, null: false
-    t.string "trigger_key", null: false
-    t.string "trigger_kind", null: false
+    t.bigint "completed_units", default: 0, null: false
+    t.bigint "failed_units", default: 0, null: false
+    t.integer "batch_size", default: 250, null: false
+    t.integer "max_parallelism", default: 1, null: false
+    t.integer "eta_seconds"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "paused_at"
+    t.datetime "cancelled_at"
+    t.datetime "dismissed_at"
+    t.bigint "requested_by_user_id"
+    t.bigint "dismissed_by_user_id"
+    t.text "last_error"
+    t.json "checkpoint", null: false
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["definition_key"], name: "index_maintenance_tasks_on_definition_key"
     t.index ["state", "updated_at"], name: "idx_maintenance_tasks_state_updated"
@@ -2068,20 +2068,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "mcp_startup_phase_events", force: :cascade do |t|
-    t.string "app_revision"
-    t.integer "chat_message_id"
-    t.integer "chat_session_id"
-    t.datetime "created_at", null: false
-    t.string "hostname"
-    t.json "metadata", null: false
     t.datetime "occurred_at", null: false
     t.string "phase", null: false
-    t.integer "pid"
-    t.string "provider"
-    t.integer "run_id"
-    t.string "server_name"
     t.string "source", null: false
+    t.string "provider"
+    t.string "server_name"
     t.string "tier"
+    t.integer "chat_session_id"
+    t.integer "chat_message_id"
+    t.integer "run_id"
+    t.string "hostname"
+    t.integer "pid"
+    t.string "app_revision"
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_message_id"], name: "index_mcp_startup_phase_events_on_chat_message_id"
     t.index ["chat_session_id", "chat_message_id", "occurred_at"], name: "idx_mcp_startup_phase_chat_message_occurred"
@@ -2093,33 +2093,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "mcp_tool_usages", force: :cascade do |t|
-    t.text "backtrace_excerpt"
-    t.integer "chat_session_id"
-    t.datetime "completed_at"
-    t.datetime "created_at", null: false
-    t.string "daemon_worker_id"
+    t.string "surface", null: false
+    t.string "provider"
+    t.string "session_id"
+    t.string "tool_use_id"
+    t.string "raw_tool_name", null: false
+    t.string "server_name"
+    t.string "tool_name", null: false
+    t.string "normalized_tool_name", null: false
+    t.string "status", null: false
     t.boolean "error", default: false, null: false
     t.string "error_class"
     t.string "error_message_summary", limit: 512
     t.integer "input_bytes"
-    t.integer "job_id"
-    t.string "normalized_tool_name", null: false
-    t.string "provider"
-    t.string "raw_tool_name", null: false
-    t.integer "repository_id"
     t.integer "result_bytes"
-    t.integer "run_id"
-    t.string "server_name"
-    t.string "session_id"
-    t.string "sidecar_mode"
     t.datetime "started_at"
-    t.string "status", null: false
-    t.string "surface", null: false
-    t.string "tool_name", null: false
-    t.string "tool_use_id"
-    t.datetime "updated_at", null: false
+    t.datetime "completed_at"
     t.integer "user_id"
+    t.integer "repository_id"
+    t.integer "job_id"
     t.integer "workflow_id"
+    t.integer "run_id"
+    t.integer "chat_session_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "sidecar_mode"
+    t.string "daemon_worker_id"
+    t.text "backtrace_excerpt"
     t.string "authority"
     t.index ["authority", "created_at"], name: "idx_mcp_tool_usages_authority_window"
     t.index ["chat_session_id", "tool_use_id"], name: "index_mcp_tool_usages_on_chat_session_id_and_tool_use_id"
@@ -2164,10 +2164,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.datetime "finished_at"
     t.string "integration_branch"
     t.string "integration_sha"
-    t.string "priority"
     t.integer "repository_id", null: false
     t.string "state", default: "building", null: false
     t.datetime "updated_at", null: false
+    t.string "priority"
     t.string "failure_code"
     t.datetime "branch_cleanup_attempted_at"
     t.datetime "branch_deleted_at"
@@ -2192,33 +2192,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "metric_counter_totals", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.json "labels"
-    t.string "labels_digest", limit: 64, null: false
     t.string "name", limit: 191, null: false
-    t.datetime "updated_at", null: false
+    t.string "labels_digest", limit: 64, null: false
+    t.json "labels"
     t.decimal "value", precision: 30, scale: 6, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["name", "labels_digest"], name: "index_metric_counter_totals_on_name_and_labels_digest", unique: true
   end
 
   create_table "metrics_dashboard_samples", force: :cascade do |t|
-    t.json "labels"
     t.string "metric", limit: 190, null: false
-    t.datetime "recorded_at", null: false
+    t.json "labels"
     t.string "series_key", limit: 190, null: false
     t.float "value", null: false
+    t.datetime "recorded_at", null: false
     t.index ["metric", "series_key", "recorded_at"], name: "idx_metrics_dashboard_series_minute", unique: true
     t.index ["recorded_at"], name: "index_metrics_dashboard_samples_on_recorded_at"
   end
 
   create_table "mockups", force: :cascade do |t|
-    t.integer "chat_session_id"
-    t.datetime "created_at", null: false
     t.integer "preview_panel_id", null: false
-    t.datetime "published_at"
-    t.string "title", limit: 200, null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.integer "chat_session_id"
+    t.string "title", limit: 200, null: false
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["chat_session_id"], name: "index_mockups_on_chat_session_id"
     t.index ["preview_panel_id"], name: "index_mockups_on_preview_panel_id", unique: true
     t.index ["user_id", "updated_at"], name: "index_mockups_on_user_recent"
@@ -2226,44 +2226,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "mysql_connections", force: :cascade do |t|
-    t.boolean "agentic_access_enabled", default: false, null: false
-    t.boolean "allow_writes", default: false, null: false
-    t.datetime "created_at", null: false
-    t.text "credentials"
-    t.string "default_database"
-    t.string "host", null: false
     t.string "label", null: false
+    t.string "host", null: false
     t.integer "port", default: 3306, null: false
-    t.datetime "updated_at", null: false
     t.string "username", null: false
+    t.string "default_database"
+    t.text "credentials"
+    t.boolean "agentic_access_enabled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "allow_writes", default: false, null: false
     t.bigint "credential_store_credential_id"
     t.index ["credential_store_credential_id"], name: "index_mysql_connections_on_credential_store_credential_id"
   end
 
   create_table "mysql_query_audits", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "duration_ms"
-    t.text "error_message"
     t.integer "mysql_connection_id", null: false
-    t.boolean "read_only", default: true, null: false
-    t.integer "row_count"
-    t.text "statement", null: false
-    t.boolean "success", default: true, null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.text "statement", null: false
+    t.boolean "read_only", default: true, null: false
+    t.boolean "success", default: true, null: false
+    t.integer "row_count"
+    t.text "error_message"
+    t.integer "duration_ms"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["mysql_connection_id", "created_at"], name: "index_mysql_query_audits_on_mysql_connection_id_and_created_at"
     t.index ["mysql_connection_id"], name: "index_mysql_query_audits_on_mysql_connection_id"
     t.index ["user_id"], name: "index_mysql_query_audits_on_user_id"
   end
 
   create_table "notifications", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "kind", null: false
+    t.datetime "read_at"
+    t.integer "job_id"
+    t.string "pr_url"
     t.string "body", null: false
     t.datetime "created_at", null: false
-    t.integer "job_id"
-    t.string "kind", null: false
-    t.string "pr_url"
-    t.datetime "read_at"
-    t.integer "user_id", null: false
     t.integer "repository_id"
     t.string "dedupe_key", limit: 191
     t.index ["job_id"], name: "index_notifications_on_job_id"
@@ -2288,22 +2288,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "operational_log_events", force: :cascade do |t|
+    t.datetime "occurred_at", null: false
+    t.string "level", null: false
+    t.string "role", null: false
+    t.string "hostname", null: false
     t.string "app_revision"
+    t.integer "pid"
+    t.string "source", null: false
+    t.string "request_id"
+    t.integer "job_id"
+    t.integer "workflow_id"
+    t.integer "run_id"
+    t.text "message", null: false
     t.json "context", null: false
     t.datetime "created_at", null: false
-    t.string "event_uid", limit: 64
-    t.string "hostname", null: false
-    t.integer "job_id"
-    t.string "level", null: false
-    t.text "message", null: false
-    t.datetime "occurred_at", null: false
-    t.integer "pid"
-    t.string "request_id"
-    t.string "role", null: false
-    t.integer "run_id"
-    t.string "source", null: false
     t.datetime "updated_at", null: false
-    t.integer "workflow_id"
+    t.string "event_uid", limit: 64
     t.index ["event_uid"], name: "idx_operational_log_events_event_uid", unique: true
     t.index ["hostname"], name: "index_operational_log_events_on_hostname"
     t.index ["job_id"], name: "index_operational_log_events_on_job_id"
@@ -2316,13 +2316,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "operator_briefing_briefings", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.integer "job_id", null: false
-    t.integer "owner_user_id", null: false
     t.integer "repository_id", null: false
-    t.datetime "updated_at", null: false
-    t.datetime "window_end"
+    t.integer "owner_user_id", null: false
     t.datetime "window_start"
+    t.datetime "window_end"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["job_id"], name: "index_operator_briefing_briefings_on_job_id", unique: true
     t.index ["owner_user_id", "repository_id", "created_at"], name: "idx_operator_briefings_owner_repo_created"
     t.index ["owner_user_id"], name: "index_operator_briefing_briefings_on_owner_user_id"
@@ -2332,13 +2332,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "operator_briefing_feedbacks", force: :cascade do |t|
     t.integer "briefing_id"
     t.integer "briefing_item_id"
-    t.datetime "created_at", null: false
-    t.integer "memory_entry_id"
-    t.text "note"
-    t.string "sentiment"
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "sentiment"
+    t.text "note"
     t.float "weight", default: 0.65, null: false
+    t.integer "memory_entry_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["briefing_id"], name: "index_operator_briefing_feedbacks_on_briefing_id"
     t.index ["briefing_item_id"], name: "index_operator_briefing_feedbacks_on_briefing_item_id"
     t.index ["created_at"], name: "index_operator_briefing_feedbacks_on_created_at"
@@ -2348,12 +2348,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "operator_briefing_items", force: :cascade do |t|
     t.bigint "briefing_id"
-    t.datetime "created_at", null: false
-    t.json "evidence"
-    t.text "narrative", null: false
     t.string "severity", null: false
-    t.bigint "source_id"
     t.string "source_type"
+    t.bigint "source_id"
+    t.text "narrative", null: false
+    t.json "evidence"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["briefing_id"], name: "index_operator_briefing_items_on_briefing_id"
     t.index ["severity", "created_at"], name: "idx_operator_briefing_items_severity"
@@ -2361,20 +2361,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "operator_briefing_review_findings", force: :cascade do |t|
-    t.json "artifacts"
-    t.datetime "created_at", null: false
-    t.text "critique", null: false
+    t.integer "workflow_id", null: false
+    t.integer "step_id"
+    t.integer "run_id"
+    t.string "review_kind", null: false
     t.integer "iteration", null: false
+    t.string "verdict", null: false
+    t.text "critique", null: false
+    t.json "artifacts"
     t.boolean "overridden", default: false, null: false
     t.datetime "overridden_at"
-    t.string "review_kind", null: false
-    t.integer "run_id"
-    t.string "skip_reason"
-    t.boolean "skipped", default: false, null: false
-    t.integer "step_id"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "verdict", null: false
-    t.integer "workflow_id", null: false
+    t.boolean "skipped", default: false, null: false
+    t.string "skip_reason"
     t.index ["run_id"], name: "index_operator_briefing_review_findings_on_run_id"
     t.index ["step_id"], name: "index_operator_briefing_review_findings_on_step_id"
     t.index ["workflow_id", "review_kind", "iteration", "run_id"], name: "idx_operator_briefing_review_findings_identity", unique: true
@@ -2384,11 +2384,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "operator_briefing_revisions", force: :cascade do |t|
     t.integer "briefing_id", null: false
-    t.json "content_blocks"
-    t.datetime "created_at", null: false
-    t.datetime "generated_at", null: false
-    t.integer "generation_run_id"
     t.integer "revision_number", null: false
+    t.datetime "generated_at", null: false
+    t.json "content_blocks"
+    t.integer "generation_run_id"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["briefing_id", "revision_number"], name: "idx_operator_briefing_revisions_number", unique: true
     t.index ["briefing_id"], name: "index_operator_briefing_revisions_on_briefing_id"
@@ -2396,48 +2396,48 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "operator_briefing_settings", force: :cascade do |t|
-    t.string "agent_provider"
-    t.boolean "budget_check_enabled", default: false, null: false
-    t.string "cadence_expression", null: false
-    t.datetime "created_at", null: false
-    t.datetime "last_scheduled_at"
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "cadence_expression", null: false
+    t.boolean "budget_check_enabled", default: false, null: false
+    t.string "agent_provider"
+    t.datetime "last_scheduled_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_operator_briefing_settings_on_user_id", unique: true
   end
 
   create_table "operator_briefing_source_preferences", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "source_key", null: false
+    t.boolean "enabled", default: true, null: false
+    t.float "weight", default: 1.0, null: false
+    t.string "suggested_by", default: "system", null: false
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
-    t.boolean "enabled", default: true, null: false
-    t.string "source_key", null: false
-    t.string "suggested_by", default: "system", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.float "weight", default: 1.0, null: false
     t.index ["user_id", "source_key", "confirmed_at"], name: "idx_operator_briefing_source_preferences_effective"
     t.index ["user_id", "source_key", "suggested_by", "created_at"], name: "idx_operator_briefing_source_preferences_suggestions"
     t.index ["user_id"], name: "index_operator_briefing_source_preferences_on_user_id"
   end
 
   create_table "operator_briefing_subscriptions", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.boolean "enabled", default: false, null: false
-    t.integer "repository_id", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.integer "repository_id", null: false
+    t.boolean "enabled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["repository_id"], name: "index_operator_briefing_subscriptions_on_repository_id"
     t.index ["user_id", "repository_id"], name: "idx_operator_briefing_subscriptions_identity", unique: true
     t.index ["user_id"], name: "index_operator_briefing_subscriptions_on_user_id"
   end
 
   create_table "operator_briefing_topic_links", force: :cascade do |t|
-    t.integer "briefing_id", null: false
-    t.datetime "created_at", null: false
-    t.string "source_span"
     t.integer "topic_id", null: false
-    t.datetime "updated_at", null: false
+    t.integer "briefing_id", null: false
     t.integer "workflow_id"
+    t.string "source_span"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["briefing_id"], name: "index_operator_briefing_topic_links_on_briefing_id"
     t.index ["topic_id", "briefing_id", "workflow_id"], name: "idx_operator_briefing_topic_links_identity", unique: true
     t.index ["topic_id"], name: "index_operator_briefing_topic_links_on_topic_id"
@@ -2445,17 +2445,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "operator_briefing_topic_revisions", force: :cascade do |t|
+    t.integer "topic_id", null: false
     t.integer "briefing_id"
-    t.datetime "created_at", null: false
-    t.json "findings"
+    t.integer "workflow_id"
+    t.integer "run_id"
+    t.integer "revision_number", null: false
     t.datetime "generated_at", null: false
     t.text "narrative", null: false
+    t.json "findings"
     t.json "references"
-    t.integer "revision_number", null: false
-    t.integer "run_id"
-    t.integer "topic_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "workflow_id"
     t.index ["briefing_id"], name: "index_operator_briefing_topic_revisions_on_briefing_id"
     t.index ["run_id"], name: "index_operator_briefing_topic_revisions_on_run_id"
     t.index ["topic_id", "revision_number"], name: "idx_operator_briefing_topic_revisions_number", unique: true
@@ -2464,11 +2464,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "operator_briefing_topics", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "first_seen_briefing_item_id"
     t.integer "repository_id", null: false
+    t.integer "first_seen_briefing_item_id"
     t.string "slug", null: false
     t.string "title", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["first_seen_briefing_item_id"], name: "index_operator_briefing_topics_on_first_seen_briefing_item_id"
     t.index ["repository_id", "slug"], name: "idx_operator_briefing_topics_repo_slug", unique: true
@@ -2476,16 +2476,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "operator_briefing_workflow_notable_changes", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "detector_key", null: false
-    t.json "evidence"
-    t.string "fact_key", null: false
+    t.integer "workflow_id", null: false
     t.integer "job_id", null: false
     t.integer "repository_id", null: false
+    t.string "detector_key", null: false
+    t.string "fact_key", null: false
     t.string "severity", null: false
     t.text "summary", null: false
+    t.json "evidence"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "workflow_id", null: false
     t.index ["job_id"], name: "index_operator_briefing_workflow_notable_changes_on_job_id"
     t.index ["repository_id", "severity", "created_at"], name: "idx_operator_briefing_notable_changes_repo_severity"
     t.index ["repository_id"], name: "idx_on_repository_id_f6cdaacbc0"
@@ -2495,38 +2495,38 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "passkey_challenges", force: :cascade do |t|
     t.string "challenge", null: false
-    t.string "challenge_type", null: false
-    t.datetime "created_at", null: false
-    t.datetime "expires_at", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id"
+    t.string "challenge_type", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["expires_at"], name: "index_passkey_challenges_on_expires_at"
     t.index ["user_id", "challenge_type"], name: "index_passkey_challenges_on_user_id_and_challenge_type"
   end
 
   create_table "passkeys", force: :cascade do |t|
-    t.datetime "created_at", null: false
+    t.integer "user_id", null: false
     t.string "external_id", null: false
-    t.datetime "last_used_at"
-    t.string "nickname"
     t.string "public_key", null: false
     t.integer "sign_count", default: 0, null: false
+    t.string "nickname"
+    t.datetime "last_used_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.index ["external_id"], name: "index_passkeys_on_external_id", unique: true
     t.index ["user_id"], name: "index_passkeys_on_user_id"
   end
 
   create_table "pending_action_groups", force: :cascade do |t|
     t.integer "chat_session_id", null: false
-    t.datetime "confirmed_at"
-    t.datetime "created_at", null: false
-    t.text "reason"
-    t.datetime "rejected_at"
     t.integer "repository_id"
-    t.string "state", default: "pending", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.text "reason"
+    t.string "state", default: "pending", null: false
+    t.datetime "confirmed_at"
+    t.datetime "rejected_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["chat_session_id", "state"], name: "index_pending_action_groups_on_chat_session_id_and_state"
     t.index ["chat_session_id"], name: "index_pending_action_groups_on_chat_session_id"
     t.index ["repository_id"], name: "index_pending_action_groups_on_repository_id"
@@ -2534,24 +2534,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "performance_log_events", force: :cascade do |t|
-    t.string "action", limit: 100
-    t.string "app_revision"
-    t.string "controller", limit: 200
-    t.datetime "created_at", null: false
-    t.float "duration_ms"
-    t.string "event_name", null: false
-    t.string "method", limit: 20
-    t.string "name", limit: 200
     t.datetime "occurred_at", null: false
-    t.string "path", limit: 500
-    t.json "payload", null: false
-    t.string "phase", limit: 200
+    t.string "app_revision"
+    t.string "event_name", null: false
     t.string "request_id"
-    t.integer "slow_sql_count"
+    t.string "method", limit: 20
+    t.string "path", limit: 500
+    t.string "controller", limit: 200
+    t.string "action", limit: 100
+    t.string "phase", limit: 200
+    t.string "name", limit: 200
+    t.string "trace_id", limit: 100
+    t.string "sql_fingerprint", limit: 1000
+    t.float "duration_ms"
     t.integer "sql_count"
     t.float "sql_duration_ms"
-    t.string "sql_fingerprint", limit: 1000
-    t.string "trace_id", limit: 100
+    t.integer "slow_sql_count"
+    t.json "payload", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
     t.index ["event_name", "occurred_at"], name: "idx_perf_events_name_occurred"
@@ -2575,63 +2575,63 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "platform_identities", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "external_handle"
-    t.string "external_id", null: false
-    t.datetime "linked_at", null: false
-    t.string "platform", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "platform", null: false
+    t.string "external_id", null: false
+    t.string "external_handle"
+    t.datetime "linked_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["platform", "external_id"], name: "index_platform_identities_on_platform_and_external_id", unique: true
     t.index ["user_id"], name: "index_platform_identities_on_user_id"
   end
 
   create_table "plugin_records", force: :cascade do |t|
-    t.string "author"
-    t.string "category"
+    t.string "name", null: false
+    t.boolean "enabled", default: true, null: false
     t.json "config", null: false
     t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.boolean "default_enabled", default: true, null: false
-    t.text "description"
     t.boolean "disableable", default: true, null: false
     t.string "display_name"
-    t.boolean "enabled", default: true, null: false
-    t.boolean "ever_enabled", default: false, null: false
-    t.text "extension_points"
+    t.text "description"
+    t.string "category"
     t.datetime "last_ticked_at"
-    t.string "name", null: false
-    t.datetime "updated_at", null: false
+    t.string "author"
+    t.text "extension_points"
+    t.boolean "ever_enabled", default: false, null: false
     t.boolean "experimental", default: false, null: false
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
   end
 
   create_table "pr_review_comments", force: :cascade do |t|
-    t.boolean "actionable"
-    t.datetime "actioned_at"
-    t.string "actioned_by"
-    t.string "attributed_to"
-    t.text "body"
-    t.datetime "comment_created_at"
+    t.integer "job_id", null: false
+    t.string "pr_type", null: false
     t.string "comment_kind", null: false
-    t.datetime "created_at", null: false
     t.bigint "github_comment_id", null: false
     t.string "github_handle"
-    t.datetime "handled_at"
+    t.string "attributed_to"
+    t.boolean "actionable"
+    t.text "body"
+    t.datetime "actioned_at"
+    t.string "actioned_by"
+    t.datetime "comment_created_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "handling_workflow_id"
+    t.string "handling_state"
+    t.datetime "handling_started_at"
     t.datetime "handling_failed_at"
     t.string "handling_failure_reason"
-    t.datetime "handling_started_at"
-    t.string "handling_state"
-    t.integer "handling_workflow_id"
+    t.datetime "handled_at"
     t.datetime "ignored_at"
-    t.integer "job_id", null: false
+    t.string "path"
+    t.string "side"
     t.integer "line"
+    t.integer "start_line"
     t.integer "original_line"
     t.integer "original_start_line"
-    t.string "path"
-    t.string "pr_type", null: false
-    t.string "side"
-    t.integer "start_line"
-    t.datetime "updated_at", null: false
     t.index ["actioned_at"], name: "index_pr_review_comments_on_actioned_at"
     t.index ["handling_state"], name: "index_pr_review_comments_on_handling_state"
     t.index ["handling_workflow_id"], name: "index_pr_review_comments_on_handling_workflow_id"
@@ -2641,20 +2641,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "preview_environments", force: :cascade do |t|
-    t.string "active_owner_key"
-    t.datetime "created_at", null: false
-    t.text "error_message"
-    t.string "error_reason"
-    t.datetime "expires_at"
-    t.string "internal_host"
     t.integer "job_id"
-    t.datetime "last_activity_at"
-    t.integer "port"
-    t.string "project_id"
-    t.integer "repository_id"
     t.string "state", default: "starting", null: false
-    t.datetime "updated_at", null: false
+    t.integer "port"
+    t.string "internal_host"
     t.string "workspace_path"
+    t.datetime "expires_at"
+    t.datetime "last_activity_at"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "repository_id"
+    t.string "error_reason"
+    t.string "project_id"
+    t.string "active_owner_key"
     t.index ["active_owner_key"], name: "idx_preview_environments_active_owner_key_unique", unique: true
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
     t.index ["job_id", "created_at", "id"], name: "idx_preview_environments_job_latest"
@@ -2669,18 +2669,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "preview_panel_versions", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "entry_file", default: "index.html", null: false
     t.integer "preview_panel_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "entry_file", default: "index.html", null: false
     t.index ["preview_panel_id"], name: "index_preview_panel_versions_on_preview_panel_id"
   end
 
   create_table "preview_panels", force: :cascade do |t|
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.string "state", default: "open", null: false
     t.string "title", null: false
+    t.string "state", default: "open", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "visibility", default: "private", null: false
     t.index ["chat_session_id"], name: "index_preview_panels_on_chat_session_id"
@@ -2688,24 +2688,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "provider_availability_evidences", force: :cascade do |t|
-    t.string "account_id", limit: 128
-    t.integer "chat_message_id"
+    t.integer "user_id", null: false
+    t.integer "run_id"
     t.integer "chat_session_id"
-    t.datetime "created_at", null: false
-    t.json "details"
-    t.integer "http_status"
-    t.string "model", limit: 100
-    t.datetime "observed_at", null: false
+    t.integer "chat_message_id"
     t.string "provider", limit: 32, null: false
-    t.text "repair_reason"
+    t.string "account_id", limit: 128
+    t.string "model", limit: 100
+    t.string "status", limit: 64, null: false
+    t.string "source", limit: 64, null: false
+    t.datetime "observed_at", null: false
+    t.integer "http_status"
+    t.json "details"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.string "repair_status", limit: 32
+    t.text "repair_reason"
     t.datetime "repaired_at"
     t.integer "repaired_by_user_id"
-    t.integer "run_id"
-    t.string "source", limit: 64, null: false
-    t.string "status", limit: 64, null: false
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.index ["chat_message_id"], name: "index_provider_availability_evidences_on_chat_message_id"
     t.index ["chat_session_id"], name: "index_provider_availability_evidences_on_chat_session_id"
     t.index ["provider", "status", "observed_at"], name: "idx_provider_evidence_provider_status_observed"
@@ -2747,11 +2747,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "provider_routing_rules", force: :cascade do |t|
+    t.string "scope_type", limit: 32, null: false
+    t.bigint "scope_id", null: false
+    t.string "task_key", null: false
     t.json "candidates", null: false
     t.datetime "created_at", null: false
-    t.bigint "scope_id", null: false
-    t.string "scope_type", limit: 32, null: false
-    t.string "task_key", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "repository_id"
@@ -2769,15 +2769,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "provider_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "normalized_messages"
     t.string "provider", default: "claude", null: false
     t.integer "resumable_id"
     t.string "resumable_type"
     t.integer "run_id"
     t.string "session_id", null: false
     t.text "transcript_jsonl", limit: 67108864
-    t.boolean "transcript_pruned", default: false, null: false
     t.datetime "updated_at", null: false
+    t.json "normalized_messages"
+    t.boolean "transcript_pruned", default: false, null: false
     t.index ["created_at"], name: "index_provider_sessions_on_created_at"
     t.index ["resumable_type", "resumable_id"], name: "index_provider_sessions_on_resumable", unique: true
     t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
@@ -2786,23 +2786,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "ref_movement_actions", force: :cascade do |t|
-    t.string "action_name", limit: 64, null: false
-    t.string "blocked_reason"
-    t.datetime "created_at", null: false
-    t.json "grade_phases"
-    t.bigint "job_id"
-    t.string "mode", limit: 32
     t.bigint "repository_id", null: false
+    t.bigint "job_id"
     t.bigint "requested_by_user_id", null: false
+    t.string "action_name", limit: 64, null: false
     t.string "source_kind", limit: 32
     t.string "source_ref"
-    t.string "state", limit: 32, default: "blocked", null: false
-    t.boolean "target_inferred", default: false, null: false
+    t.bigint "target_repository_id"
     t.string "target_kind", limit: 32
     t.string "target_ref"
-    t.bigint "target_repository_id"
-    t.datetime "updated_at", null: false
+    t.boolean "target_inferred", default: false, null: false
+    t.string "mode", limit: 32
+    t.json "grade_phases"
+    t.string "state", limit: 32, default: "blocked", null: false
+    t.string "blocked_reason"
     t.bigint "workflow_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["action_name"], name: "index_ref_movement_actions_on_action_name"
     t.index ["job_id"], name: "index_ref_movement_actions_on_job_id"
     t.index ["repository_id"], name: "index_ref_movement_actions_on_repository_id"
@@ -2817,66 +2817,66 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
     t.boolean "auto_merge_enabled", default: false, null: false
-    t.string "ci_health", default: "unknown", null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
-    t.boolean "distributed_workflow_dag_enabled", default: false, null: false
-    t.string "epic_dependency_policy", default: "linear", null: false
-    t.boolean "external_pr_ingestion_enabled", default: false, null: false
-    t.string "feedback_policy", default: "confirm", null: false
-    t.boolean "fork_auto_sync_enabled", default: false, null: false
-    t.integer "fork_pr_grace_period_hours", default: 24, null: false
     t.bigint "github_owner_id"
     t.bigint "github_repository_id"
-    t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
-    t.boolean "isolated_repro_dismissal_enabled", default: false, null: false
-    t.boolean "known_flaky_failure_dismissal_enabled", default: false, null: false
-    t.float "known_flaky_failure_min_score"
-    t.boolean "land_on_inherited_check_failure", default: false, null: false
-    t.boolean "landing_paused", default: false, null: false
-    t.string "last_ci_evaluated_sha"
-    t.string "last_graded_sha"
-    t.string "last_health_checked_sha"
-    t.datetime "last_main_health_poll_error_at"
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"
     t.string "last_poll_status"
-    t.boolean "main_branch_health_enabled", default: false, null: false
-    t.boolean "main_branch_repair_auto_approve", default: false, null: false
-    t.boolean "main_branch_repair_blocks_work", default: false, null: false
-    t.boolean "main_branch_repair_enabled", default: false, null: false
-    t.integer "main_health_poll_error_streak", default: 0, null: false
     t.string "name", null: false, collation: "NOCASE"
-    t.boolean "new_test_flakiness_gate_enabled", default: false, null: false
-    t.integer "new_test_flakiness_gate_repeats"
     t.string "owner", null: false, collation: "NOCASE"
-    t.json "plugin_signals"
-    t.datetime "plugin_signals_observed_at"
-    t.json "poll_issue_errors"
     t.boolean "polling_enabled", default: true, null: false
     t.boolean "pr_cost_footer_enabled", default: false, null: false
     t.boolean "prepare_enabled", default: true, null: false
-    t.string "review_policy", default: "self", null: false
-    t.string "risk_profile", default: "production", null: false
-    t.boolean "treat_grader_timeouts_as_failures", default: false, null: false
     t.string "trigger_label", default: "syrus", null: false
     t.boolean "trust_clean_rebase_grade", default: false, null: false
-    t.integer "untagged_open_issue_count", default: 0, null: false
-    t.datetime "untagged_open_issues_checked_at"
     t.datetime "updated_at", null: false
     t.string "upstream_default_branch"
     t.string "upstream_name"
     t.string "upstream_owner"
-    t.integer "upstream_pr_grace_period_days", default: 7, null: false
-    t.bigint "upstream_repository_id"
     t.integer "user_id"
+    t.bigint "upstream_repository_id"
+    t.string "review_policy", default: "self", null: false
+    t.string "feedback_policy", default: "confirm", null: false
+    t.integer "fork_pr_grace_period_hours", default: 24, null: false
+    t.integer "upstream_pr_grace_period_days", default: 7, null: false
+    t.string "ci_health", default: "unknown", null: false
+    t.string "grader_health", default: "unknown", null: false
+    t.string "last_health_checked_sha"
+    t.boolean "landing_paused", default: false, null: false
+    t.boolean "main_branch_health_enabled", default: false, null: false
+    t.boolean "main_branch_repair_enabled", default: false, null: false
+    t.boolean "treat_grader_timeouts_as_failures", default: false, null: false
+    t.string "last_graded_sha"
+    t.string "last_ci_evaluated_sha"
+    t.boolean "fork_auto_sync_enabled", default: false, null: false
+    t.boolean "main_branch_repair_auto_approve", default: false, null: false
+    t.string "epic_dependency_policy", default: "linear", null: false
+    t.boolean "external_pr_ingestion_enabled", default: false, null: false
+    t.integer "untagged_open_issue_count", default: 0, null: false
+    t.datetime "untagged_open_issues_checked_at"
+    t.integer "main_health_poll_error_streak", default: 0, null: false
+    t.datetime "last_main_health_poll_error_at"
+    t.boolean "main_branch_repair_blocks_work", default: false, null: false
+    t.string "risk_profile", default: "production", null: false
+    t.json "plugin_signals"
+    t.datetime "plugin_signals_observed_at"
+    t.boolean "distributed_workflow_dag_enabled", default: false, null: false
+    t.boolean "known_flaky_failure_dismissal_enabled", default: false, null: false
+    t.float "known_flaky_failure_min_score"
+    t.boolean "new_test_flakiness_gate_enabled", default: false, null: false
+    t.integer "new_test_flakiness_gate_repeats"
+    t.boolean "isolated_repro_dismissal_enabled", default: false, null: false
+    t.json "poll_issue_errors"
     t.datetime "last_full_poll_at"
     t.json "poll_external_pr_errors"
     t.string "vcs", default: "git", null: false
     t.boolean "ci_repair_enabled", default: true, null: false
     t.datetime "github_issues_synced_at"
     t.datetime "github_issues_full_synced_at"
+    t.string "pr_check_gate", default: "all", null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
@@ -2906,25 +2906,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "repository_final_approvers", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.integer "repository_id", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["repository_id", "user_id"], name: "index_repo_final_approvers_on_repository_and_user", unique: true
     t.index ["repository_id"], name: "index_repository_final_approvers_on_repository_id"
     t.index ["user_id"], name: "index_repository_final_approvers_on_user_id"
   end
 
   create_table "repository_memberships", force: :cascade do |t|
-    t.string "agent_provider"
-    t.datetime "created_at", null: false
-    t.datetime "github_permission_mismatch_checked_at"
-    t.string "github_permission_mismatch_reason"
-    t.bigint "installation_id"
     t.integer "repository_id", null: false
-    t.string "role", default: "read", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "role", default: "read", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "installation_id"
+    t.string "agent_provider"
+    t.string "github_permission_mismatch_reason"
+    t.datetime "github_permission_mismatch_checked_at"
     t.index ["installation_id"], name: "index_repository_memberships_on_installation_id"
     t.index ["repository_id", "user_id"], name: "index_repository_memberships_on_repository_id_and_user_id", unique: true
     t.index ["repository_id"], name: "index_repository_memberships_on_repository_id"
@@ -2932,31 +2932,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "retention_archives", force: :cascade do |t|
+    t.string "retention_key", null: false
+    t.datetime "pruned_before", null: false
+    t.integer "row_count", null: false
     t.bigint "byte_size", null: false
     t.datetime "created_at", null: false
-    t.datetime "pruned_before", null: false
-    t.string "retention_key", null: false
-    t.integer "row_count", null: false
     t.datetime "updated_at", null: false
     t.index ["retention_key", "pruned_before"], name: "index_retention_archives_on_retention_key_and_pruned_before"
   end
 
   create_table "run_checkpoints", force: :cascade do |t|
-    t.string "base_sha"
-    t.string "commit_sha", null: false
-    t.datetime "created_at", null: false
-    t.text "error_message"
-    t.integer "job_id", null: false
-    t.datetime "published_at"
-    t.string "remote_ref", null: false
-    t.integer "repository_id", null: false
     t.integer "run_id", null: false
-    t.string "status", default: "pending", null: false
-    t.integer "step_id", null: false
-    t.string "step_kind", null: false
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.integer "workflow_id", null: false
+    t.integer "step_id", null: false
+    t.integer "job_id", null: false
+    t.integer "repository_id", null: false
+    t.integer "user_id", null: false
+    t.string "step_kind", null: false
+    t.string "commit_sha", null: false
+    t.string "base_sha"
+    t.string "remote_ref", null: false
+    t.string "status", default: "pending", null: false
+    t.text "error_message"
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["job_id", "created_at"], name: "idx_run_checkpoints_job_created"
     t.index ["remote_ref"], name: "idx_run_checkpoints_remote_ref_unique", unique: true
     t.index ["repository_id", "created_at"], name: "idx_run_checkpoints_repository_created"
@@ -2971,11 +2971,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "error_class", null: false
     t.text "error_message"
     t.text "git_snapshot"
-    t.string "problem_code"
-    t.json "problem_evidence"
     t.text "repo_snapshot"
     t.integer "run_id", null: false
     t.datetime "updated_at", null: false
+    t.string "problem_code"
+    t.json "problem_evidence"
     t.index ["created_at"], name: "index_run_diagnostics_on_created_at"
     t.index ["problem_code"], name: "index_run_diagnostics_on_problem_code"
     t.index ["run_id"], name: "index_run_diagnostics_on_run_id", unique: true
@@ -2989,13 +2989,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.datetime "created_at", null: false
     t.text "diagnostic_summary"
     t.text "reason"
-    t.text "repair_reason"
-    t.string "repair_status", limit: 32
-    t.datetime "repaired_at"
-    t.integer "repaired_by_user_id"
     t.boolean "retryable", null: false
     t.integer "run_id", null: false
     t.datetime "updated_at", null: false
+    t.string "repair_status", limit: 32
+    t.text "repair_reason"
+    t.datetime "repaired_at"
+    t.integer "repaired_by_user_id"
     t.index ["classification", "repair_status", "classified_at"], name: "idx_run_failure_circuit_repair"
     t.index ["classification"], name: "index_run_failure_classifications_on_classification"
     t.index ["classified_at"], name: "index_run_failure_classifications_on_classified_at"
@@ -3038,58 +3038,58 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "run_resource_summaries", force: :cascade do |t|
-    t.string "agent_provider", limit: 64, null: false
-    t.integer "command_span_count", default: 0, null: false
-    t.datetime "created_at", null: false
-    t.float "duration_seconds"
-    t.datetime "finished_at"
-    t.string "grader_name", limit: 128
-    t.float "host_pressure_avg_cpu_some_percent"
-    t.float "host_pressure_avg_io_some_percent"
-    t.string "host_pressure_level", limit: 32, null: false
-    t.float "host_pressure_max_cpu_some_percent"
-    t.float "host_pressure_max_io_some_percent"
-    t.json "host_pressure_reasons", null: false
-    t.string "host_sample_confidence", limit: 32, null: false
-    t.integer "host_sample_count", default: 0, null: false
-    t.float "host_usage_avg_cpu_used_percent"
-    t.float "host_usage_avg_memory_used_percent"
-    t.float "host_usage_max_cpu_used_percent"
-    t.float "host_usage_max_data_root_used_percent"
-    t.float "host_usage_max_memory_used_percent"
-    t.string "hostname", limit: 255
+    t.bigint "run_id", null: false
     t.bigint "job_id", null: false
-    t.float "process_attributed_cpu_percent"
-    t.float "process_attributed_cpu_seconds"
-    t.float "process_attributed_duration_seconds"
-    t.bigint "process_attributed_io_bytes"
-    t.bigint "process_attributed_memory_bytes"
+    t.bigint "workflow_id"
+    t.bigint "step_id"
+    t.bigint "repository_id"
+    t.bigint "user_id", null: false
+    t.string "agent_provider", limit: 64, null: false
+    t.string "trigger_kind", limit: 64, null: false
+    t.string "step_kind", limit: 64
+    t.string "grader_name", limit: 128
+    t.string "hostname", limit: 255
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.float "duration_seconds"
+    t.integer "host_sample_count", default: 0, null: false
+    t.string "host_sample_confidence", limit: 32, null: false
+    t.float "host_usage_avg_cpu_used_percent"
+    t.float "host_usage_max_cpu_used_percent"
+    t.float "host_pressure_avg_cpu_some_percent"
+    t.float "host_pressure_max_cpu_some_percent"
+    t.float "host_usage_avg_memory_used_percent"
+    t.float "host_usage_max_memory_used_percent"
+    t.float "host_pressure_avg_io_some_percent"
+    t.float "host_pressure_max_io_some_percent"
+    t.float "host_usage_max_data_root_used_percent"
+    t.integer "spawned_process_count", default: 0, null: false
+    t.integer "command_span_count", default: 0, null: false
+    t.string "host_pressure_level", limit: 32, null: false
+    t.json "host_pressure_reasons", null: false
+    t.boolean "retention_limited", default: false, null: false
+    t.integer "summary_version", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.integer "process_attributed_sample_count", default: 0, null: false
-    t.string "process_attribution_confidence", limit: 32, default: "unknown", null: false
+    t.float "process_attributed_duration_seconds"
+    t.float "process_attributed_cpu_seconds"
+    t.float "process_attributed_cpu_percent"
+    t.bigint "process_attributed_memory_bytes"
+    t.bigint "process_attributed_io_bytes"
     t.string "process_attribution_method", limit: 64, default: "unknown", null: false
-    t.string "process_attribution_unavailable_reason", limit: 255
     t.integer "process_attribution_version", default: 1, null: false
+    t.string "process_attribution_confidence", limit: 32, default: "unknown", null: false
+    t.integer "process_sample_count", default: 0, null: false
     t.float "process_cpu_time_seconds"
-    t.integer "process_descendant_process_count", default: 0, null: false
-    t.json "process_exit_statuses"
+    t.float "process_wall_time_seconds"
     t.bigint "process_max_rss_bytes"
     t.bigint "process_read_io_bytes"
-    t.boolean "process_resource_fallback", default: false, null: false
-    t.integer "process_sample_count", default: 0, null: false
-    t.float "process_wall_time_seconds"
     t.bigint "process_write_io_bytes"
-    t.bigint "repository_id"
-    t.boolean "retention_limited", default: false, null: false
-    t.bigint "run_id", null: false
-    t.integer "spawned_process_count", default: 0, null: false
-    t.datetime "started_at"
-    t.bigint "step_id"
-    t.string "step_kind", limit: 64
-    t.integer "summary_version", null: false
-    t.string "trigger_kind", limit: 64, null: false
-    t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
-    t.bigint "workflow_id"
+    t.integer "process_descendant_process_count", default: 0, null: false
+    t.json "process_exit_statuses"
+    t.string "process_attribution_unavailable_reason", limit: 255
+    t.boolean "process_resource_fallback", default: false, null: false
     t.index ["hostname", "started_at"], name: "idx_run_resource_summaries_host_started"
     t.index ["job_id"], name: "index_run_resource_summaries_on_job_id"
     t.index ["process_attributed_duration_seconds", "created_at"], name: "idx_run_resource_summaries_process_duration_created"
@@ -3108,35 +3108,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "agent_provider", default: "claude", null: false
     t.text "agent_summary"
     t.integer "agent_turns"
-    t.string "base_sha"
     t.bigint "cache_creation_input_tokens"
     t.bigint "cache_read_input_tokens"
     t.decimal "cost_usd", precision: 12, scale: 6
     t.datetime "created_at", null: false
-    t.datetime "effective_at", null: false
-    t.string "effort_level"
-    t.bigint "entity_revision", default: 0, null: false
     t.datetime "finished_at"
     t.string "head_sha"
     t.bigint "input_tokens"
     t.integer "iteration", default: 1, null: false
     t.integer "job_id", null: false
     t.datetime "last_heartbeat_at"
-    t.string "live_session_id"
-    t.string "model"
     t.bigint "output_tokens"
     t.string "parent_session_id"
     t.text "prompt"
-    t.string "skill_resolved_class"
-    t.string "skill_resolved_path"
-    t.string "skill_source"
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
-    t.text "step_agent_diff", limit: 16777215
     t.integer "step_id"
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "base_sha"
+    t.text "step_agent_diff", limit: 16777215
+    t.string "live_session_id"
+    t.string "skill_source"
+    t.string "skill_resolved_path"
+    t.string "skill_resolved_class"
+    t.datetime "effective_at", null: false
+    t.string "model"
+    t.string "effort_level"
+    t.bigint "entity_revision", default: 0, null: false
     t.index ["agent_provider", "cost_usd"], name: "idx_runs_spending_provider_cost"
     t.index ["agent_provider", "created_at", "cost_usd"], name: "idx_runs_spending_provider_window"
     t.index ["agent_provider", "state", "finished_at"], name: "idx_runs_provider_state_finished"
@@ -3175,19 +3175,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "runtime_control_leases", force: :cascade do |t|
-    t.datetime "acquired_at"
-    t.string "active_group_key"
-    t.text "cancel_reason"
-    t.boolean "cancellable", default: true, null: false
-    t.datetime "created_at", null: false
-    t.datetime "expires_at"
-    t.string "mode", null: false
+    t.integer "runtime_session_id", null: false
     t.string "owner", default: "none", null: false
     t.string "owner_ref"
-    t.text "reason"
-    t.datetime "released_at"
-    t.integer "runtime_session_id", null: false
+    t.string "mode", null: false
     t.string "state", default: "active", null: false
+    t.text "reason"
+    t.text "cancel_reason"
+    t.datetime "acquired_at"
+    t.datetime "expires_at"
+    t.datetime "released_at"
+    t.boolean "cancellable", default: true, null: false
+    t.string "active_group_key"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["active_group_key"], name: "idx_runtime_control_leases_active_group_key_unique", unique: true
     t.index ["runtime_session_id", "mode", "state"], name: "index_runtime_control_leases_on_session_mode_state"
@@ -3196,25 +3196,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "runtime_sessions", force: :cascade do |t|
-    t.json "capabilities", null: false
-    t.integer "chat_session_id"
-    t.datetime "created_at", null: false
-    t.string "display_name", null: false
-    t.datetime "expires_at"
-    t.integer "job_id"
-    t.text "last_error"
-    t.datetime "latest_frame_at"
-    t.string "latest_frame_url"
-    t.json "metadata", null: false
-    t.boolean "primary", default: false, null: false
-    t.string "provider_key", null: false
     t.integer "repository_id", null: false
-    t.integer "run_id"
-    t.string "state", default: "starting", null: false
-    t.string "stream_url"
-    t.datetime "updated_at", null: false
+    t.integer "chat_session_id"
+    t.integer "job_id"
     t.integer "workflow_id"
+    t.integer "run_id"
     t.string "workspace_ref", null: false
+    t.string "provider_key", null: false
+    t.string "display_name", null: false
+    t.string "state", default: "starting", null: false
+    t.boolean "primary", default: false, null: false
+    t.json "capabilities", null: false
+    t.string "stream_url"
+    t.string "latest_frame_url"
+    t.datetime "latest_frame_at"
+    t.text "last_error"
+    t.json "metadata", null: false
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["chat_session_id"], name: "index_runtime_sessions_on_chat_session_id"
     t.index ["job_id"], name: "index_runtime_sessions_on_job_id"
     t.index ["provider_key"], name: "index_runtime_sessions_on_provider_key"
@@ -3225,22 +3225,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "runtime_terminal_session_links", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.integer "runtime_session_id", null: false
     t.bigint "terminal_session_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["runtime_session_id"], name: "index_runtime_terminal_session_links_on_runtime_session_id", unique: true
     t.index ["terminal_session_id"], name: "index_runtime_terminal_session_links_on_terminal_session_id", unique: true
   end
 
   create_table "scheduled_chat_messages", force: :cascade do |t|
-    t.text "body", null: false
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
+    t.integer "user_id", null: false
+    t.text "body", null: false
     t.datetime "fire_at", null: false
     t.datetime "sent_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
     t.datetime "fire_job_claimed_until"
     t.index ["chat_session_id"], name: "index_scheduled_chat_messages_on_chat_session_id"
     t.index ["sent_at", "fire_at", "fire_job_claimed_until"], name: "idx_on_sent_at_fire_at_fire_job_claimed_until_de3ffb0c66"
@@ -3253,16 +3253,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "cron_expression"
     t.text "description"
     t.boolean "enabled", default: true, null: false
-    t.string "legacy_cron_expression"
     t.string "name", null: false
     t.string "pr_pileup_policy", default: "skip", null: false
     t.text "prompt"
-    t.text "schedule_expression"
-    t.string "schedule_format", default: "rrule", null: false
-    t.string "schedule_input"
-    t.string "schedule_timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "schedule_input"
+    t.string "schedule_format", default: "rrule", null: false
+    t.text "schedule_expression"
+    t.string "schedule_timezone", default: "UTC", null: false
+    t.string "legacy_cron_expression"
     t.string "skill_name"
     t.json "skill_args"
     t.index ["user_id"], name: "index_scheduled_task_cron_templates_on_user_id"
@@ -3279,21 +3279,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "kind", null: false
     t.datetime "last_fired_at"
     t.datetime "last_successful_fire_at"
-    t.string "legacy_cron_expression"
     t.integer "minute_offset", default: 0, null: false
     t.string "name", null: false
     t.string "pr_pileup_policy", default: "skip", null: false
     t.text "prompt"
     t.integer "repository_id", null: false
-    t.text "schedule_expression"
-    t.string "schedule_format", default: "rrule", null: false
-    t.string "schedule_input"
-    t.string "schedule_timezone", default: "UTC", null: false
-    t.json "skill_args"
-    t.string "skill_name"
     t.string "state", default: "scheduled", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "schedule_input"
+    t.string "schedule_format", default: "rrule", null: false
+    t.text "schedule_expression"
+    t.string "schedule_timezone", default: "UTC", null: false
+    t.string "legacy_cron_expression"
+    t.string "skill_name"
+    t.json "skill_args"
     t.index ["archived_at"], name: "index_scheduled_tasks_on_archived_at"
     t.index ["cron_template_id"], name: "index_scheduled_tasks_on_cron_template_id"
     t.index ["repository_id"], name: "index_scheduled_tasks_on_repository_id"
@@ -3312,7 +3312,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "smart_folders", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "filter", null: false
+    t.json "filter", default: {}, null: false
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -3326,9 +3326,63 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.index ["user_id"], name: "index_smart_folders_on_user_id"
   end
 
+  create_table "solid_queue_claimed_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.bigint "process_id"
+  end
+
+  create_table "solid_queue_failed_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.bigint "job_id", null: false
+  end
+
+  create_table "solid_queue_jobs", force: :cascade do |t|
+    t.string "active_job_id"
+    t.text "arguments"
+    t.string "class_name", null: false
+    t.string "concurrency_key"
+    t.datetime "created_at", null: false
+    t.datetime "finished_at"
+    t.integer "priority", default: 0, null: false
+    t.string "queue_name", null: false
+    t.datetime "scheduled_at"
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "solid_queue_pauses", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "queue_name", null: false
+  end
+
+  create_table "solid_queue_processes", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "hostname"
+    t.string "kind", null: false
+    t.datetime "last_heartbeat_at", null: false
+    t.text "metadata"
+    t.string "name", null: false
+    t.integer "pid", null: false
+    t.bigint "supervisor_id"
+  end
+
+  create_table "solid_queue_ready_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.integer "priority", default: 0, null: false
+    t.string "queue_name", null: false
+  end
+
+  create_table "solid_queue_scheduled_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.integer "priority", default: 0, null: false
+    t.string "queue_name", null: false
+    t.datetime "scheduled_at", null: false
+  end
+
   create_table "spawned_processes", force: :cascade do |t|
-    t.bigint "agent_id"
-    t.bigint "chat_session_id"
     t.string "command", limit: 4096, null: false
     t.datetime "created_at", null: false
     t.integer "exit_status"
@@ -3341,7 +3395,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "outcome", limit: 32
     t.integer "pgid"
     t.integer "pid"
-    t.json "resource_attribution"
     t.integer "run_id"
     t.integer "silent_timeout_s"
     t.datetime "started_at", null: false
@@ -3349,6 +3402,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.integer "wall_timeout_s"
     t.string "workdir", limit: 4096
     t.integer "workflow_id"
+    t.json "resource_attribution"
+    t.bigint "chat_session_id"
+    t.bigint "agent_id"
     t.integer "job_id"
     t.index ["agent_id", "chat_session_id"], name: "idx_spawned_processes_agent_chat_backfill"
     t.index ["agent_id", "run_id"], name: "idx_spawned_processes_agent_run_backfill"
@@ -3392,20 +3448,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   create_table "steps", force: :cascade do |t|
     t.string "cancellation_reason"
     t.datetime "created_at", null: false
-    t.json "depends_on_ids", null: false
     t.json "details", null: false
-    t.bigint "entity_revision", default: 0, null: false
     t.datetime "finished_at"
     t.integer "iteration", default: 1, null: false
     t.string "kind", null: false
     t.string "loop_id"
     t.bigint "next_step_id"
-    t.string "placement_policy", default: "pinned_workflow_workspace", null: false
     t.integer "position", default: 0, null: false
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
     t.datetime "updated_at", null: false
     t.integer "workflow_id", null: false
+    t.json "depends_on_ids", null: false
+    t.string "placement_policy", default: "pinned_workflow_workspace", null: false
+    t.bigint "entity_revision", default: 0, null: false
     t.index ["kind", "state", "finished_at", "workflow_id"], name: "idx_steps_throughput_kind_state_finished"
     t.index ["kind", "workflow_id"], name: "idx_steps_kind_workflow_id"
     t.index ["next_step_id"], name: "index_steps_on_next_step_id"
@@ -3420,15 +3476,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "system_alert_notifications", force: :cascade do |t|
+    t.string "dismissal_key", null: false
     t.string "alert_id", null: false
-    t.datetime "created_at", null: false
+    t.string "severity", null: false
+    t.string "title", null: false
+    t.json "payload"
     t.datetime "delivered_at"
     t.string "delivery_error_class"
     t.text "delivery_error_message"
-    t.string "dismissal_key", null: false
-    t.json "payload"
-    t.string "severity", null: false
-    t.string "title", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "delivery_attempts", default: 0, null: false
     t.datetime "next_attempt_at"
@@ -3451,28 +3507,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "target_health_records", force: :cascade do |t|
-    t.json "artifacts"
-    t.datetime "checked_at", null: false
-    t.string "command_fingerprint", limit: 64, null: false
-    t.string "commit_sha", limit: 64, null: false
-    t.datetime "created_at", null: false
-    t.float "duration_s"
-    t.string "environment_fingerprint", limit: 64, null: false
-    t.integer "exit_code"
-    t.datetime "finished_at"
-    t.string "input_fingerprint", limit: 64, null: false
-    t.bigint "log_bytes"
-    t.string "log_path", limit: 1024
-    t.json "metadata"
-    t.string "project_id", limit: 128, null: false
     t.bigint "repository_id", null: false
-    t.bigint "run_id"
-    t.datetime "started_at"
-    t.string "status", limit: 32, null: false
-    t.bigint "step_id"
-    t.string "target_label", limit: 255, null: false
-    t.datetime "updated_at", null: false
     t.bigint "workflow_id"
+    t.bigint "step_id"
+    t.bigint "run_id"
+    t.string "target_label", limit: 255, null: false
+    t.string "project_id", limit: 128, null: false
+    t.string "commit_sha", limit: 64, null: false
+    t.string "input_fingerprint", limit: 64, null: false
+    t.string "command_fingerprint", limit: 64, null: false
+    t.string "environment_fingerprint", limit: 64, null: false
+    t.string "status", limit: 32, null: false
+    t.datetime "checked_at", null: false
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.float "duration_s"
+    t.integer "exit_code"
+    t.string "log_path", limit: 1024
+    t.bigint "log_bytes"
+    t.json "artifacts"
+    t.json "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["repository_id", "project_id", "status", "checked_at"], name: "idx_target_health_records_project_status"
     t.index ["repository_id", "target_label", "commit_sha", "input_fingerprint", "command_fingerprint", "environment_fingerprint"], name: "idx_target_health_records_identity", unique: true
     t.index ["repository_id", "target_label", "commit_sha"], name: "idx_target_health_records_repo_target_sha"
@@ -3482,21 +3538,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "team_memberships", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "role", null: false
     t.integer "team_id", null: false
-    t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "role", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["team_id", "user_id"], name: "index_team_memberships_on_team_id_and_user_id", unique: true
     t.index ["team_id"], name: "index_team_memberships_on_team_id"
     t.index ["user_id"], name: "index_team_memberships_on_user_id"
   end
 
   create_table "team_repositories", force: :cascade do |t|
-    t.datetime "created_at", null: false
+    t.integer "team_id", null: false
     t.integer "repository_id", null: false
     t.string "role", null: false
-    t.integer "team_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["repository_id"], name: "index_team_repositories_on_repository_id"
     t.index ["team_id", "repository_id"], name: "index_team_repositories_on_team_id_and_repository_id", unique: true
@@ -3504,27 +3560,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "teams", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.string "name", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "terminal_sessions", force: :cascade do |t|
-    t.string "auth_token", null: false
-    t.bigint "chat_session_id"
     t.datetime "created_at", null: false
-    t.datetime "finished_at"
-    t.string "name", null: false
-    t.string "outcome"
-    t.string "queue_name"
-    t.string "relay_address"
-    t.datetime "started_at", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.integer "workflow_id"
+    t.string "name", null: false
+    t.string "working_directory", null: false
+    t.string "relay_address"
+    t.string "auth_token", null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.string "outcome"
+    t.bigint "chat_session_id"
     t.string "worker_hostname"
     t.string "worker_storage_key"
-    t.integer "workflow_id"
-    t.string "working_directory", null: false
+    t.string "queue_name"
     t.string "workspace_kind"
     t.datetime "relay_started_at"
     t.index ["chat_session_id"], name: "index_terminal_sessions_on_chat_session_id"
@@ -3536,19 +3592,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "test_insight_cases", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "duration_ms"
-    t.text "failure_backtrace"
-    t.text "failure_message"
-    t.string "file_path"
-    t.string "name", null: false
-    t.text "output"
-    t.bigint "repository_id", null: false
-    t.string "status", limit: 32, null: false
-    t.string "suite_name", null: false
-    t.integer "test_identity_id"
     t.bigint "test_run_id", null: false
+    t.bigint "repository_id", null: false
+    t.string "name", null: false
+    t.string "suite_name", null: false
+    t.string "file_path"
+    t.string "status", limit: 32, null: false
+    t.integer "duration_ms"
+    t.text "output"
+    t.text "failure_message"
+    t.text "failure_backtrace"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "test_identity_id"
     t.boolean "wip_repair_failure", default: false, null: false
     t.index ["created_at", "id"], name: "idx_cases_retention"
     t.index ["repository_id", "test_identity_id", "id"], name: "idx_test_cases_repo_identity_id"
@@ -3563,22 +3619,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "test_insight_identities", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "file_path"
+    t.integer "repository_id", null: false
     t.string "fingerprint", limit: 64, null: false
-    t.integer "last_duration_ms"
+    t.string "suite_name", null: false
+    t.string "name", null: false
+    t.string "file_path"
+    t.string "last_status", limit: 32
+    t.datetime "last_seen_at"
     t.datetime "last_failed_at"
     t.datetime "last_passed_at"
-    t.datetime "last_seen_at"
-    t.string "last_status", limit: 32
-    t.string "name", null: false
-    t.integer "recent_avg_duration_ms"
+    t.integer "last_duration_ms"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "recent_sample_count", default: 0, null: false
     t.integer "recent_failed_count", default: 0, null: false
     t.integer "recent_passed_count", default: 0, null: false
-    t.integer "recent_sample_count", default: 0, null: false
-    t.integer "repository_id", null: false
-    t.string "suite_name", null: false
-    t.datetime "updated_at", null: false
+    t.integer "recent_avg_duration_ms"
     t.index ["repository_id", "fingerprint"], name: "idx_test_identities_repo_fingerprint", unique: true
     t.index ["repository_id", "last_duration_ms", "last_seen_at", "id"], name: "idx_test_identities_repo_last_duration"
     t.index ["repository_id", "last_failed_at", "id"], name: "idx_test_identities_repo_last_failed"
@@ -3587,35 +3643,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "test_insight_isolated_repro_attempts", force: :cascade do |t|
-    t.text "command"
-    t.datetime "created_at", null: false
-    t.integer "exit_status"
-    t.string "grader_name", limit: 128, null: false
-    t.bigint "job_id"
-    t.string "name", limit: 255, null: false
-    t.text "output"
     t.bigint "repository_id", null: false
-    t.boolean "reproduced", null: false
-    t.bigint "run_id"
-    t.string "sha", limit: 64, null: false
-    t.string "suite_name", limit: 255, null: false
-    t.datetime "updated_at", null: false
+    t.bigint "job_id"
     t.bigint "workflow_id"
+    t.bigint "run_id"
+    t.string "grader_name", limit: 128, null: false
+    t.string "suite_name", limit: 255, null: false
+    t.string "name", limit: 255, null: false
+    t.string "sha", limit: 64, null: false
+    t.boolean "reproduced", null: false
+    t.text "command"
+    t.text "output"
+    t.integer "exit_status"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["created_at", "id"], name: "idx_isolated_repro_attempts_retention"
     t.index ["repository_id", "sha"], name: "idx_isolated_repro_attempts_on_repo_and_sha"
   end
 
   create_table "test_insight_runs", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "duration_ms"
-    t.integer "error_count", default: 0, null: false
-    t.integer "failed_count", default: 0, null: false
-    t.string "grader_name", limit: 128, null: false
-    t.integer "passed_count", default: 0, null: false
-    t.bigint "repository_id", null: false
     t.bigint "run_id", null: false
-    t.integer "skipped_count", default: 0, null: false
+    t.bigint "repository_id", null: false
+    t.string "grader_name", limit: 128, null: false
     t.integer "total_count", default: 0, null: false
+    t.integer "passed_count", default: 0, null: false
+    t.integer "failed_count", default: 0, null: false
+    t.integer "skipped_count", default: 0, null: false
+    t.integer "error_count", default: 0, null: false
+    t.integer "duration_ms"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["created_at", "id"], name: "idx_runs_retention"
     t.index ["repository_id"], name: "index_test_insight_runs_on_repository_id"
@@ -3624,19 +3680,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "test_insight_runtime_summaries", force: :cascade do |t|
-    t.integer "avg_duration_ms"
-    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.integer "test_identity_id", null: false
     t.string "grader_name", limit: 128, null: false
-    t.datetime "last_observed_at"
-    t.integer "max_duration_ms"
-    t.integer "min_duration_ms"
+    t.string "window", limit: 32, null: false
+    t.integer "sample_count", default: 0, null: false
+    t.integer "avg_duration_ms"
     t.integer "p50_duration_ms"
     t.integer "p95_duration_ms"
-    t.integer "repository_id", null: false
-    t.integer "sample_count", default: 0, null: false
-    t.integer "test_identity_id", null: false
+    t.integer "min_duration_ms"
+    t.integer "max_duration_ms"
+    t.datetime "last_observed_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "window", limit: 32, null: false
     t.index ["repository_id", "grader_name", "window", "avg_duration_ms", "test_identity_id"], name: "idx_test_runtime_summary_avg"
     t.index ["repository_id", "grader_name", "window", "p95_duration_ms", "test_identity_id"], name: "idx_test_runtime_summary_p95"
     t.index ["repository_id"], name: "index_test_insight_runtime_summaries_on_repository_id"
@@ -3645,22 +3701,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "themes", force: :cascade do |t|
-    t.boolean "built_in", default: false, null: false
-    t.datetime "created_at", null: false
     t.string "name", null: false
-    t.integer "owner_user_id"
-    t.integer "position"
-    t.text "prompt"
     t.string "slug", null: false
+    t.boolean "built_in", default: false, null: false
+    t.integer "owner_user_id"
     t.json "tokens"
+    t.text "prompt"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "position"
     t.index ["owner_user_id", "position"], name: "index_themes_on_owner_user_id_and_position"
     t.index ["owner_user_id"], name: "index_themes_on_owner_user_id"
     t.index ["slug"], name: "index_themes_on_slug", unique: true
   end
 
   create_table "ui_engagement_samples", force: :cascade do |t|
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.string "route_id", null: false
     t.json "route_params", null: false
     t.datetime "started_at", null: false
@@ -3677,24 +3733,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
     t.text "api_token"
-    t.bigint "app_event_sequence", default: 0, null: false
     t.string "auto_approve_mode", default: "never", null: false
     t.string "avatar_url"
-    t.string "chat_provider"
     t.text "claude_oauth_token"
     t.text "codex_api_key"
     t.text "codex_auth_json"
     t.string "codex_auth_mode", default: "api_key", null: false
-    t.datetime "codex_usage_observed_at"
-    t.json "codex_usage_snapshot"
-    t.string "codex_usage_status"
-    t.integer "color_theme_id"
     t.datetime "created_at", null: false
     t.json "dashboard_preferences"
     t.string "email_address", null: false
     t.integer "epic_reopen_window", default: 30, null: false
     t.string "first_name"
-    t.text "gemini_api_key"
     t.datetime "gh_api_blocked_at"
     t.text "gh_api_blocked_reason"
     t.integer "gh_rate_limit_limit"
@@ -3704,27 +3753,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.string "gh_rate_limit_resource", limit: 32
     t.string "github_handle"
     t.text "github_token"
-    t.string "global_role", default: "user", null: false
     t.boolean "landing_paused", default: false, null: false
     t.string "last_name"
-    t.string "locale", null: false
-    t.text "muse_api_key"
     t.string "name"
-    t.json "notification_preferences", null: false
     t.string "password_digest", null: false
     t.text "profile_bio"
     t.string "profile_company"
     t.string "profile_location"
     t.string "profile_website"
-    t.json "provider_availability_overrides"
-    t.json "provider_availability_pause_thresholds"
-    t.integer "recent_chats_group_size", default: 10, null: false
-    t.string "role", default: "developer", null: false
     t.boolean "scheduling_paused", default: false, null: false
     t.string "theme", default: "light", null: false
-    t.json "ui_preferences", null: false
     t.datetime "updated_at", null: false
+    t.json "notification_preferences", null: false
+    t.string "chat_provider"
+    t.string "role", default: "developer", null: false
+    t.string "locale", null: false
+    t.text "gemini_api_key"
+    t.json "ui_preferences", null: false
+    t.string "codex_usage_status"
+    t.datetime "codex_usage_observed_at"
+    t.json "codex_usage_snapshot"
+    t.json "provider_availability_overrides"
+    t.json "provider_availability_pause_thresholds"
     t.string "webauthn_id", null: false
+    t.string "global_role", default: "user", null: false
+    t.integer "color_theme_id"
+    t.text "muse_api_key"
+    t.integer "recent_chats_group_size", default: 10, null: false
+    t.bigint "app_event_sequence", default: 0, null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["color_theme_id"], name: "index_users_on_color_theme_id"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
@@ -3733,22 +3789,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "video_walkthroughs", force: :cascade do |t|
-    t.json "analysis"
-    t.datetime "analyzed_at"
-    t.bigint "byte_size"
     t.integer "chat_session_id", null: false
-    t.string "content_type"
-    t.datetime "created_at", null: false
-    t.integer "duration_seconds"
-    t.text "error_message"
-    t.datetime "gemini_file_active_at"
-    t.string "gemini_file_content_type"
-    t.string "gemini_file_uri"
-    t.text "note"
+    t.integer "user_id", null: false
     t.string "state", default: "uploaded", null: false
     t.string "title"
+    t.integer "duration_seconds"
+    t.bigint "byte_size"
+    t.string "content_type"
+    t.string "gemini_file_uri"
+    t.datetime "gemini_file_active_at"
+    t.json "analysis"
+    t.text "error_message"
+    t.datetime "analyzed_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.text "note"
+    t.string "gemini_file_content_type"
     t.index ["chat_session_id"], name: "index_video_walkthroughs_on_chat_session_id"
     t.index ["state"], name: "index_video_walkthroughs_on_state"
     t.index ["user_id"], name: "index_video_walkthroughs_on_user_id"
@@ -3758,7 +3814,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true
@@ -3766,30 +3822,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
 
   create_table "whiteboard_snapshots", force: :cascade do |t|
     t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.integer "element_count", null: false
     t.string "name"
     t.json "scene_json", null: false
     t.string "snapshot_kind", null: false
+    t.integer "element_count", null: false
+    t.datetime "created_at", null: false
     t.index ["chat_session_id"], name: "index_whiteboard_snapshots_on_chat_session_id"
   end
 
   create_table "work_engine_reconciler_activity_events", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.json "details", null: false
     t.string "event_type", null: false
-    t.string "issue_kind"
+    t.string "source", null: false
+    t.string "severity", default: "info", null: false
     t.integer "job_id"
-    t.text "message", null: false
-    t.datetime "occurred_at", null: false
+    t.integer "workflow_id"
+    t.integer "step_id"
+    t.integer "run_id"
+    t.string "issue_kind"
     t.string "repair_action"
     t.string "repair_status"
-    t.integer "run_id"
-    t.string "severity", default: "info", null: false
-    t.string "source", null: false
-    t.integer "step_id"
+    t.text "message", null: false
+    t.json "details", null: false
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "workflow_id"
     t.index ["event_type", "occurred_at"], name: "index_reconciler_activity_on_type_and_occurred_at"
     t.index ["job_id", "occurred_at"], name: "index_reconciler_activity_on_job_and_occurred_at"
     t.index ["job_id"], name: "index_work_engine_reconciler_activity_events_on_job_id"
@@ -3803,33 +3859,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "work_intents", force: :cascade do |t|
-    t.bigint "actor_id"
-    t.datetime "cancelled_at"
-    t.datetime "created_at", null: false
-    t.string "delivery_track", limit: 128
-    t.string "idempotency_key", limit: 255
     t.string "kind", limit: 64, null: false
-    t.json "payload_artifacts"
-    t.string "priority", limit: 32
-    t.bigint "repository_id"
-    t.datetime "requested_at", null: false
-    t.datetime "satisfied_at"
-    t.bigint "scope_id"
-    t.string "scope_type", limit: 64, null: false
-    t.bigint "source_id"
-    t.string "source_ref", limit: 255
-    t.string "source_remote_kind", limit: 64
-    t.bigint "source_repository_id"
-    t.string "source_type", limit: 64
     t.string "state", limit: 32, null: false
-    t.bigint "superseded_by_work_intent_id"
-    t.string "target_ref", limit: 255
-    t.string "target_remote_kind", limit: 64
+    t.bigint "repository_id"
+    t.string "scope_type", limit: 64, null: false
+    t.bigint "scope_id"
+    t.string "delivery_track", limit: 128
+    t.bigint "source_repository_id"
+    t.string "source_remote_kind", limit: 64
+    t.string "source_ref", limit: 255
     t.bigint "target_repository_id"
-    t.datetime "updated_at", null: false
-    t.json "wait_details"
+    t.string "target_remote_kind", limit: 64
+    t.string "target_ref", limit: 255
+    t.string "priority", limit: 32
+    t.bigint "actor_id"
+    t.string "source_type", limit: 64
+    t.bigint "source_id"
+    t.string "idempotency_key", limit: 255
     t.string "wait_reason", limit: 64
     t.datetime "wait_until"
+    t.json "wait_details"
+    t.bigint "superseded_by_work_intent_id"
+    t.datetime "requested_at", null: false
+    t.datetime "satisfied_at"
+    t.datetime "cancelled_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.json "payload_artifacts"
     t.index ["idempotency_key"], name: "idx_work_intents_idempotency", unique: true
     t.index ["kind", "requested_at", "id"], name: "idx_work_intents_admin_kind"
     t.index ["kind", "state", "repository_id"], name: "idx_work_intents_kind_state_repo"
@@ -3843,13 +3899,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "work_unit_locks", force: :cascade do |t|
-    t.datetime "acquired_at", null: false
-    t.string "active_lock_key", limit: 255
-    t.datetime "created_at", null: false
-    t.string "lock_key", limit: 255, null: false
-    t.datetime "released_at"
-    t.datetime "updated_at", null: false
     t.bigint "work_unit_id", null: false
+    t.string "lock_key", limit: 255, null: false
+    t.datetime "acquired_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "released_at"
+    t.string "active_lock_key", limit: 255
     t.index ["active_lock_key"], name: "idx_work_unit_locks_active_key_unique", unique: true
     t.index ["lock_key", "released_at"], name: "idx_work_unit_locks_key_release"
     t.index ["lock_key"], name: "idx_work_unit_locks_lock_key"
@@ -3857,45 +3913,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "work_unit_members", force: :cascade do |t|
-    t.datetime "created_at", null: false
+    t.bigint "work_unit_id", null: false
     t.bigint "job_id", null: false
     t.string "role", limit: 64, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "work_unit_id", null: false
     t.index ["job_id", "role"], name: "idx_work_unit_members_job_role"
     t.index ["job_id", "work_unit_id"], name: "idx_work_unit_members_job_unit"
     t.index ["work_unit_id", "job_id", "role"], name: "idx_work_unit_members_unique", unique: true
   end
 
   create_table "work_units", force: :cascade do |t|
-    t.string "active_dedup_key", limit: 512
-    t.datetime "blocked_at"
-    t.bigint "blocked_by_user_id"
-    t.json "blocked_details"
+    t.bigint "work_intent_id", null: false
+    t.string "kind", limit: 64, null: false
+    t.string "state", limit: 32, null: false
+    t.bigint "repository_id"
+    t.string "scope_type", limit: 64, null: false
+    t.bigint "scope_id"
+    t.string "delivery_track", limit: 128
+    t.bigint "parent_work_unit_id"
+    t.bigint "source_repository_id"
+    t.string "source_remote_kind", limit: 64
+    t.string "source_ref", limit: 255
+    t.bigint "target_repository_id"
+    t.string "target_remote_kind", limit: 64
+    t.string "target_ref", limit: 255
+    t.bigint "workflow_id"
     t.string "blocked_reason", limit: 64
     t.datetime "blocked_until"
-    t.datetime "created_at", null: false
-    t.string "delivery_track", limit: 128
-    t.datetime "finished_at"
-    t.string "kind", limit: 64, null: false
-    t.bigint "parent_work_unit_id"
+    t.bigint "blocked_by_user_id"
+    t.json "blocked_details"
     t.boolean "pause_requested", default: false, null: false
     t.bigint "preempted_by_work_unit_id"
     t.string "preemption_reason", limit: 64
-    t.bigint "repository_id"
-    t.bigint "scope_id"
-    t.string "scope_type", limit: 64, null: false
-    t.string "source_ref", limit: 255
-    t.string "source_remote_kind", limit: 64
-    t.bigint "source_repository_id"
     t.datetime "started_at"
-    t.string "state", limit: 32, null: false
-    t.string "target_ref", limit: 255
-    t.string "target_remote_kind", limit: 64
-    t.bigint "target_repository_id"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "work_intent_id", null: false
-    t.bigint "workflow_id"
+    t.string "active_dedup_key", limit: 512
+    t.datetime "blocked_at"
     t.index ["active_dedup_key"], name: "idx_work_units_active_dedup_key_unique", unique: true
     t.index ["blocked_reason", "blocked_until"], name: "idx_work_units_blocked_wakeup"
     t.index ["kind", "state", "repository_id"], name: "idx_work_units_kind_state_repo"
@@ -3907,27 +3963,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "worker_host_health_samples", force: :cascade do |t|
-    t.float "cpu_pressure_full"
-    t.float "cpu_pressure_some"
-    t.float "cpu_used_percent"
-    t.datetime "created_at", null: false
-    t.bigint "data_root_available_bytes"
-    t.bigint "data_root_total_bytes"
-    t.float "data_root_used_percent"
     t.string "hostname", null: false
-    t.float "io_pressure_full"
-    t.float "io_pressure_some"
-    t.float "load_15m"
+    t.string "role", null: false
+    t.string "version", null: false
+    t.datetime "observed_at", null: false
+    t.float "cpu_used_percent"
     t.float "load_1m"
     t.float "load_5m"
+    t.float "load_15m"
+    t.float "memory_used_percent"
     t.bigint "memory_available_bytes"
     t.bigint "memory_total_bytes"
-    t.float "memory_used_percent"
-    t.datetime "observed_at", null: false
+    t.float "data_root_used_percent"
+    t.bigint "data_root_available_bytes"
+    t.bigint "data_root_total_bytes"
+    t.float "cpu_pressure_some"
+    t.float "cpu_pressure_full"
+    t.float "io_pressure_some"
+    t.float "io_pressure_full"
     t.json "raw_metrics", null: false
-    t.string "role", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "version", null: false
     t.string "worker_storage_key"
     t.json "capabilities"
     t.json "capability_diagnostics"
@@ -3941,30 +3997,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "workflow_activity_events", force: :cascade do |t|
-    t.string "app_revision"
-    t.datetime "created_at", null: false
-    t.float "duration_ms"
-    t.integer "epic_id"
+    t.datetime "occurred_at", null: false
     t.string "event_type", null: false
+    t.string "source", null: false
+    t.string "severity", default: "info", null: false
+    t.string "app_revision"
     t.string "hostname"
+    t.integer "pid"
+    t.integer "repository_id"
+    t.integer "epic_id"
     t.integer "job_id"
+    t.integer "workflow_id"
+    t.integer "step_id"
+    t.integer "run_id"
+    t.string "trigger_kind"
+    t.string "workflow_state"
+    t.string "step_kind"
+    t.string "run_state"
+    t.string "reason_key"
+    t.float "duration_ms"
     t.text "message", null: false
     t.json "metadata", null: false
-    t.datetime "occurred_at", null: false
-    t.integer "pid"
-    t.string "queue_role"
-    t.string "reason_key"
-    t.integer "repository_id"
-    t.integer "run_id"
-    t.string "run_state"
-    t.string "severity", default: "info", null: false
-    t.string "source", null: false
-    t.integer "step_id"
-    t.string "step_kind"
-    t.string "trigger_kind"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "workflow_id"
-    t.string "workflow_state"
+    t.string "queue_role"
     t.index ["epic_id"], name: "index_workflow_activity_events_on_epic_id"
     t.index ["event_type", "occurred_at"], name: "idx_workflow_activity_type_occurred"
     t.index ["job_id", "occurred_at"], name: "idx_workflow_activity_job_occurred"
@@ -3992,105 +4048,105 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
   end
 
   create_table "workflow_source_snapshots", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.bigint "creator_step_id", null: false
-    t.string "fingerprint"
-    t.string "prepare_fingerprint"
-    t.datetime "published_at", null: false
-    t.string "source_ref", null: false
-    t.string "source_sha", null: false
-    t.string "tree_sha"
-    t.datetime "updated_at", null: false
     t.bigint "workflow_id", null: false
+    t.string "source_sha", null: false
+    t.string "source_ref", null: false
+    t.string "tree_sha"
+    t.string "fingerprint"
+    t.bigint "creator_step_id", null: false
+    t.datetime "published_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "prepare_fingerprint"
     t.index ["creator_step_id"], name: "index_workflow_source_snapshots_on_creator_step_id"
     t.index ["prepare_fingerprint", "id"], name: "idx_wf_source_snapshots_prepare_fingerprint"
     t.index ["workflow_id", "published_at"], name: "idx_workflow_source_snapshots_current"
   end
 
   create_table "workflow_step_resource_profiles", force: :cascade do |t|
-    t.string "agent_provider", limit: 64, null: false
-    t.integer "attributed_sample_count", default: 0, null: false
-    t.string "attribution_quality", limit: 32, default: "host_correlated", null: false
-    t.datetime "created_at", null: false
-    t.float "failure_rate", default: 0.0, null: false
-    t.string "grader_name", limit: 128, default: "", null: false
-    t.integer "host_pressure_sample_count", default: 0, null: false
-    t.string "job_kind", limit: 64, default: "", null: false
-    t.datetime "last_observed_at"
-    t.float "p50_attributed_cpu_pressure"
-    t.float "p50_attributed_duration_seconds"
-    t.float "p50_attributed_io_pressure"
-    t.float "p50_attributed_memory_used_percent"
-    t.float "p50_cpu_pressure"
-    t.float "p50_duration_seconds"
-    t.float "p50_host_pressure_cpu"
-    t.float "p50_host_pressure_io"
-    t.float "p50_host_pressure_memory_used_percent"
-    t.float "p50_io_pressure"
-    t.float "p50_memory_used_percent"
-    t.float "p50_process_attributed_cpu_percent"
-    t.float "p50_process_attributed_cpu_seconds"
-    t.float "p50_process_attributed_duration_seconds"
-    t.bigint "p50_process_attributed_io_bytes"
-    t.bigint "p50_process_attributed_memory_bytes"
-    t.float "p90_attributed_cpu_pressure"
-    t.float "p90_attributed_duration_seconds"
-    t.float "p90_attributed_io_pressure"
-    t.float "p90_attributed_memory_used_percent"
-    t.float "p90_cpu_pressure"
-    t.float "p90_duration_seconds"
-    t.float "p90_host_pressure_cpu"
-    t.float "p90_host_pressure_io"
-    t.float "p90_host_pressure_memory_used_percent"
-    t.float "p90_io_pressure"
-    t.float "p90_memory_used_percent"
-    t.float "p90_process_attributed_cpu_percent"
-    t.float "p90_process_attributed_cpu_seconds"
-    t.float "p90_process_attributed_duration_seconds"
-    t.bigint "p90_process_attributed_io_bytes"
-    t.bigint "p90_process_attributed_memory_bytes"
-    t.float "p99_attributed_cpu_pressure"
-    t.float "p99_attributed_duration_seconds"
-    t.float "p99_attributed_io_pressure"
-    t.float "p99_attributed_memory_used_percent"
-    t.float "p99_cpu_pressure"
-    t.float "p99_duration_seconds"
-    t.float "p99_host_pressure_cpu"
-    t.float "p99_host_pressure_io"
-    t.float "p99_host_pressure_memory_used_percent"
-    t.float "p99_io_pressure"
-    t.float "p99_memory_used_percent"
-    t.float "p99_process_attributed_cpu_percent"
-    t.float "p99_process_attributed_cpu_seconds"
-    t.float "p99_process_attributed_duration_seconds"
-    t.bigint "p99_process_attributed_io_bytes"
-    t.bigint "p99_process_attributed_memory_bytes"
-    t.integer "process_attributed_sample_count", default: 0, null: false
-    t.integer "profile_version", null: false
     t.integer "repository_id", null: false
-    t.integer "sample_count", default: 0, null: false
-    t.string "step_kind", limit: 64, null: false
-    t.float "timeout_rate", default: 0.0, null: false
+    t.string "agent_provider", limit: 64, null: false
     t.string "trigger_kind", limit: 64, null: false
+    t.string "step_kind", limit: 64, null: false
+    t.string "grader_name", limit: 128, default: "", null: false
+    t.string "job_kind", limit: 64, default: "", null: false
+    t.integer "sample_count", default: 0, null: false
+    t.integer "attributed_sample_count", default: 0, null: false
+    t.float "p50_duration_seconds"
+    t.float "p90_duration_seconds"
+    t.float "p99_duration_seconds"
+    t.float "p50_cpu_pressure"
+    t.float "p90_cpu_pressure"
+    t.float "p99_cpu_pressure"
+    t.float "p50_io_pressure"
+    t.float "p90_io_pressure"
+    t.float "p99_io_pressure"
+    t.float "p50_memory_used_percent"
+    t.float "p90_memory_used_percent"
+    t.float "p99_memory_used_percent"
+    t.float "p50_attributed_duration_seconds"
+    t.float "p90_attributed_duration_seconds"
+    t.float "p99_attributed_duration_seconds"
+    t.float "p50_attributed_cpu_pressure"
+    t.float "p90_attributed_cpu_pressure"
+    t.float "p99_attributed_cpu_pressure"
+    t.float "p50_attributed_io_pressure"
+    t.float "p90_attributed_io_pressure"
+    t.float "p99_attributed_io_pressure"
+    t.float "p50_attributed_memory_used_percent"
+    t.float "p90_attributed_memory_used_percent"
+    t.float "p99_attributed_memory_used_percent"
+    t.float "timeout_rate", default: 0.0, null: false
+    t.float "failure_rate", default: 0.0, null: false
+    t.datetime "last_observed_at"
+    t.integer "profile_version", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "process_attributed_sample_count", default: 0, null: false
+    t.integer "host_pressure_sample_count", default: 0, null: false
+    t.string "attribution_quality", limit: 32, default: "host_correlated", null: false
+    t.float "p50_process_attributed_duration_seconds"
+    t.float "p90_process_attributed_duration_seconds"
+    t.float "p99_process_attributed_duration_seconds"
+    t.float "p50_process_attributed_cpu_seconds"
+    t.float "p90_process_attributed_cpu_seconds"
+    t.float "p99_process_attributed_cpu_seconds"
+    t.float "p50_process_attributed_cpu_percent"
+    t.float "p90_process_attributed_cpu_percent"
+    t.float "p99_process_attributed_cpu_percent"
+    t.bigint "p50_process_attributed_memory_bytes"
+    t.bigint "p90_process_attributed_memory_bytes"
+    t.bigint "p99_process_attributed_memory_bytes"
+    t.bigint "p50_process_attributed_io_bytes"
+    t.bigint "p90_process_attributed_io_bytes"
+    t.bigint "p99_process_attributed_io_bytes"
+    t.float "p50_host_pressure_cpu"
+    t.float "p90_host_pressure_cpu"
+    t.float "p99_host_pressure_cpu"
+    t.float "p50_host_pressure_io"
+    t.float "p90_host_pressure_io"
+    t.float "p99_host_pressure_io"
+    t.float "p50_host_pressure_memory_used_percent"
+    t.float "p90_host_pressure_memory_used_percent"
+    t.float "p99_host_pressure_memory_used_percent"
     t.index ["last_observed_at"], name: "idx_workflow_step_resource_profiles_observed"
     t.index ["repository_id", "agent_provider", "trigger_kind", "step_kind", "grader_name", "job_kind"], name: "idx_workflow_step_resource_profiles_key", unique: true
     t.index ["repository_id"], name: "index_workflow_step_resource_profiles_on_repository_id"
   end
 
   create_table "workflow_warnings", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "created_job_id"
-    t.json "evidence"
     t.integer "job_id", null: false
+    t.integer "workflow_id", null: false
+    t.integer "step_id"
+    t.integer "created_job_id"
     t.string "kind", null: false
     t.string "severity", default: "medium", null: false
-    t.string "state", default: "pending", null: false
-    t.integer "step_id"
-    t.text "suggested_prompt"
     t.string "title", null: false
+    t.string "state", default: "pending", null: false
+    t.text "suggested_prompt"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "workflow_id", null: false
+    t.json "evidence"
     t.index ["created_job_id"], name: "index_workflow_warnings_on_created_job_id"
     t.index ["job_id", "created_at"], name: "index_workflow_warnings_on_job_id_and_created_at"
     t.index ["job_id", "state"], name: "index_workflow_warnings_on_job_id_and_state"
@@ -4107,14 +4163,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.text "chain_template"
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false
-    t.string "effort_level"
-    t.bigint "entity_revision", default: 0, null: false
     t.integer "failure_count", default: 0, null: false
     t.string "failure_reason"
     t.datetime "finished_at"
     t.integer "job_id", null: false
-    t.string "model"
-    t.string "priority", default: "medium", null: false
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
     t.string "trigger_kind", null: false
@@ -4122,8 +4174,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_012316) do
     t.integer "user_id", null: false
     t.string "worker_hostname"
     t.string "worker_storage_key"
-    t.datetime "workflow_admission_override_at"
     t.boolean "workflow_admission_override_present", default: false, null: false
+    t.datetime "workflow_admission_override_at"
+    t.string "priority", default: "medium", null: false
+    t.string "model"
+    t.string "effort_level"
+    t.bigint "entity_revision", default: 0, null: false
     t.string "planned_execution_project_label"
     t.string "planned_execution_target_label"
     t.json "planned_execution_capabilities"

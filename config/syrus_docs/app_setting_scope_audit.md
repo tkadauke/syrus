@@ -91,7 +91,7 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `fork_auto_sync_enabled` | repo | Repository settings | setting | repo | Correct: repo-specific fork maintenance. |
 | `isolated_repro_dismissal_enabled` | repo | Repository settings | setting | repo | Correct: repo-specific grader interpretation. |
 | `known_flaky_failure_dismissal_enabled` | repo | Repository settings | setting | repo | Correct: repo-specific grader interpretation. |
-| `land_on_inherited_check_failure` | repo | Repository settings | setting | repo | Correct: repo-specific landing risk. |
+| `pr_check_gate` | repo | Repository settings | setting | repo | Correct: repo-specific landing risk. Replaced the `land_on_inherited_check_failure` boolean; `own_only` is that flag's former `true`. |
 | `landing_paused` | repo | Repository detail / repair actions | setting/state | repo | Correct: mutable per-repo landing gate. |
 | `main_branch_health_enabled` | repo | Repository settings | setting | repo | Correct: repo-specific health monitoring. |
 | `main_branch_repair_auto_approve` | repo | Repository settings | setting | repo | Correct: repo-specific repair approval risk. |
@@ -110,7 +110,7 @@ follow-up shape rather than an implicit split across unrelated pages.
 `Repository#breakage_policy` comes from the repository's risk profile
 (`RiskProfile`), alongside `main_branch_health_enabled`,
 `main_branch_repair_blocks_work`, `main_branch_repair_enabled`,
-`main_branch_repair_auto_approve`, and `land_on_inherited_check_failure`.
+`main_branch_repair_auto_approve`, and `pr_check_gate`.
 
 This audit originally recorded the breakage policy as an instance setting with
 a declared direction of "instance default with an explicit per-repo override

@@ -1001,6 +1001,63 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(ready.reload).to be_approved
   end
 
+  # pr_check_gate = "none": a repository whose own graders already cover its CI
+  # stops letting CI decide landing. It has to cover both check gates -- the Job's own
+  # state and its Epic siblings' -- or it is a no-op for Epic children, which
+  # are the Jobs it exists for: one red sibling holds the whole Epic.
+  describe "pr_check_gate" do
+    it "still blocks on failing PR checks by default" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
+    end
+
+    it "does not block on failing PR checks when the repository opts out" do
+      repository.update!(pr_check_gate: "none")
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to be_nil
+    end
+
+    it "does not block on pending PR checks when the repository opts out" do
+      repository.update!(pr_check_gate: "none")
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(pr_checks_sha: "abc123", pr_checks_state: "pending", pr_checks_checked_at: Time.current)
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to be_nil
+    end
+
+    it "stops one red Epic sibling from holding the rest of the Epic" do
+      epic = Factories.epic(user: user, repository: repository)
+      # Otherwise waiting_epic_release precedes the checks gate and the example
+      # never reaches the behaviour under test.
+      epic.update_columns(state: "in_progress")
+      clean = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+      red = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
+      red.update!(pr_checks_sha: "def456", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+
+      held = described_class.entries(Job.where(id: clean.id)).first
+      expect(held.blocked_reason&.fetch(:key)).to eq("pr_checks_failing")
+
+      repository.update!(pr_check_gate: "none")
+
+      # Released from the sibling's checks and on to the next gate: the Job is
+      # now an eligible Epic member waiting for the merge train to collect it,
+      # which is the whole point -- the train is what repairs the integration
+      # branch, and the checks gate was what kept it from ever starting.
+      released = described_class.entries(Job.where(id: clean.id)).first
+      expect(released.blocked_reason&.fetch(:key)).to eq("waiting_epic_merge_train")
+    end
+  end
+
   it "continues to non-overridable gates after matching an earlier override" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     user.update!(landing_paused: true)
@@ -1188,7 +1245,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
 
     it "lands through an inherited failure when the repository opts in" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-      job.repository.update!(land_on_inherited_check_failure: true)
+      job.repository.update!(pr_check_gate: "own_only")
       job.update_columns(
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
@@ -1212,7 +1269,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       first = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       second = queue_job(issue_number: 2, approved_at: 1.minute.ago)
       [ first, second ].each { |job| job.update_columns(epic_id: epic.id) }
-      repository.update!(land_on_inherited_check_failure: true)
+      repository.update!(pr_check_gate: "own_only")
       MainBranchHealthCheck.create!(
         repository: repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
@@ -1241,7 +1298,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       first = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       second = queue_job(issue_number: 2, approved_at: 1.minute.ago)
       [ first, second ].each { |job| job.update_columns(epic_id: epic.id) }
-      repository.update!(land_on_inherited_check_failure: true)
+      repository.update!(pr_check_gate: "own_only")
       MainBranchHealthCheck.create!(
         repository: repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "healthy", ci_failed_checks: []
@@ -1316,7 +1373,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     it "keeps every other landing gate when opted in" do
       parent = queue_job(issue_number: 9, approved_at: 5.minutes.ago)
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-      job.repository.update!(land_on_inherited_check_failure: true)
+      job.repository.update!(pr_check_gate: "own_only")
       job.update!(parent_job: parent)
       job.update_columns(
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
@@ -1335,7 +1392,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
 
     it "does not let the opt-in excuse a failure the job introduced" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-      job.repository.update!(land_on_inherited_check_failure: true)
+      job.repository.update!(pr_check_gate: "own_only")
       job.update_columns(
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec", "mine" ], mergeability_base_sha: "base-sha"

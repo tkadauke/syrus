@@ -18,7 +18,7 @@ RSpec.describe "main branch breakage policy operator docs" do
     expect(docs).to include("grader_health")
     expect(docs).to include("repository.landing_paused")
     expect(docs).to include("MainHealthChangedService")
-    expect(docs).to include("Repository#land_on_inherited_check_failure")
+    expect(docs).to include("Repository#pr_check_gate")
     expect(docs).to include("repositories#resume_landing")
     expect(docs).to include("LandingQueueProcessorJob")
   end
