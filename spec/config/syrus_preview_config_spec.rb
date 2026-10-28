@@ -33,6 +33,12 @@ RSpec.describe "Syrus self-preview configuration" do
     expect(preview_script).to include("npm run build -- --watch")
     expect(preview_script.index("npm run build > log/vite.log"))
       .to be < preview_script.index("npm run build -- --watch")
+    # CI serves immutable sources for one test run. Keeping both development
+    # watchers alive there can race the completed output and contend with the
+    # Rails process while Playwright waits for the server to become healthy.
+    expect(preview_script).to include('if [ -z "${CI:-}" ]; then')
+    expect(preview_script.index('if [ -z "${CI:-}" ]; then'))
+      .to be < preview_script.index("npm run build -- --watch")
     expect(preview_script).to include("wait_for_file app/assets/builds/.vite/manifest.json log/vite.log")
     expect(preview_script).to include("wait_for_file app/assets/builds/tailwind.css log/tailwind.log")
 
