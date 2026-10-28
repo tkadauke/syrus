@@ -27,7 +27,7 @@ function issue(overrides: Partial<RepositoryIssue> = {}): RepositoryIssue {
     body_excerpt: "Line one Line two",
     user_login: "alice",
     created_at: "2026-01-01T00:00:00Z",
-    labels: [ { name: "bug", color: "d73a4a" } ],
+    labels: [{ name: "bug", color: "d73a4a" }],
     delegated: false,
     linked_pull_request: null,
     ...overrides
@@ -54,13 +54,19 @@ function folderPaths() {
 }
 
 const ISSUE_FILTER_SCHEMA = [
-  { field: "preset", label: "Preset", bucket: "preset", operators: [ "is" ], values: [
-    { value: "inbox", label: "Inbox" },
-    { value: "delegated", label: "Delegated" },
-    { value: "open", label: "Open" },
-    { value: "closed", label: "Closed" }
-  ] },
-  { field: "query", label: "Search", bucket: "string", operators: [ "contains" ], values: [], free_text_search: true }
+  {
+    field: "preset",
+    label: "Preset",
+    bucket: "preset",
+    operators: ["is"],
+    values: [
+      { value: "inbox", label: "Inbox" },
+      { value: "delegated", label: "Delegated" },
+      { value: "open", label: "Open" },
+      { value: "closed", label: "Closed" }
+    ]
+  },
+  { field: "query", label: "Search", bucket: "string", operators: ["contains"], values: [], free_text_search: true }
 ]
 
 function issuesPayload(overrides: Partial<RepositoryIssuesPayload> = {}): RepositoryIssuesPayload {
@@ -74,7 +80,7 @@ function issuesPayload(overrides: Partial<RepositoryIssuesPayload> = {}): Reposi
     untouched_preset: true,
     sort: { column: "created_at", direction: "desc" },
     issue_count: 1,
-    issues: [ issue() ],
+    issues: [issue()],
     folder_counts: { all: 1, inbox: 1, delegated: 0, open: 1, closed: 0 },
     folder_paths: folderPaths(),
     paths: paths(),
@@ -99,7 +105,7 @@ function renderRoute(initialEntry = "/repositories/1/plugin/issues") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ initialEntry ]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<RepositoryIssuesTab />} path="/repositories/:repositoryId/plugin/issues" />
         </Routes>
@@ -141,10 +147,14 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("renders the standard smart folder navigation with counts and highlights the active folder", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      folder: "inbox",
-      folder_counts: { all: 13, inbox: 3, delegated: 2, open: 5, closed: 8 }
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          folder: "inbox",
+          folder_counts: { all: 13, inbox: 3, delegated: 2, open: 5, closed: 8 }
+        })
+      )
+    )
     renderRoute()
 
     const inboxLink = await screen.findByRole("link", { name: /Inbox/ })
@@ -159,9 +169,13 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("renders issue rows in the shared data table with labels, author, and delegated state", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      issues: [ issue({ number: 7, title: "Fix the forum", delegated: true, labels: [ { name: "bug", color: "d73a4a" } ] }) ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          issues: [issue({ number: 7, title: "Fix the forum", delegated: true, labels: [{ name: "bug", color: "d73a4a" }] })]
+        })
+      )
+    )
     renderRoute()
 
     expect(await screen.findByRole("link", { name: "#7" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/7")
@@ -175,11 +189,15 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("keeps the active folder and issue count in the column controls row", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      folder: "open",
-      issue_count: 1,
-      issues: [ issue({ number: 7, title: "Fix the forum" }) ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          folder: "open",
+          issue_count: 1,
+          issues: [issue({ number: 7, title: "Fix the forum" })]
+        })
+      )
+    )
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
     const columnsButton = await screen.findByRole("button", { name: "Columns" })
@@ -190,13 +208,19 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("renders connected pull requests on issue rows", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      issues: [ issue({
-        number: 274,
-        title: "Alert logbook too verbose",
-        linked_pull_request: { number: 411, url: "https://github.com/acme/widgets/pull/411" }
-      }) ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          issues: [
+            issue({
+              number: 274,
+              title: "Alert logbook too verbose",
+              linked_pull_request: { number: 411, url: "https://github.com/acme/widgets/pull/411" }
+            })
+          ]
+        })
+      )
+    )
     renderRoute()
 
     await screen.findByText("Alert logbook too verbose")
@@ -205,7 +229,7 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("closes an issue from the row action and refreshes the list", async () => {
-    const openPreset = { and: [ { field: "preset", op: "is", value: "open" } ] }
+    const openPreset = { and: [{ field: "preset", op: "is", value: "open" }] }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url.includes("/issues/close") && init?.method === "POST") {
@@ -226,11 +250,13 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("delegates an issue from the row action", async () => {
-    const inboxPreset = { and: [ { field: "preset", op: "is", value: "inbox" } ] }
+    const inboxPreset = { and: [{ field: "preset", op: "is", value: "inbox" }] }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url.includes("/issues/delegate") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(issuesPayload({ filter: inboxPreset, issues: [ issue({ delegated: true }) ], message: "Issue #7 delegated to Syrus." })))
+        return Promise.resolve(
+          jsonResponse(issuesPayload({ filter: inboxPreset, issues: [issue({ delegated: true })], message: "Issue #7 delegated to Syrus." }))
+        )
       }
       return Promise.resolve(jsonResponse(issuesPayload({ filter: inboxPreset })))
     })
@@ -258,10 +284,12 @@ describe("RepositoryIssuesTab", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Close" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/issues/close",
-      expect.objectContaining({ body: JSON.stringify({ issue_number: 7, folder: "all", q: explicitEmpty, sort: "created_at", direction: "desc" }) })
-    ))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/issues/close",
+        expect.objectContaining({ body: JSON.stringify({ issue_number: 7, folder: "all", q: explicitEmpty, sort: "created_at", direction: "desc" }) })
+      )
+    )
   })
 
   it("does not render the removed issue comment action", async () => {
@@ -279,13 +307,19 @@ describe("RepositoryIssuesTab", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url.includes("/issues/bulk") && init?.method === "POST") {
-        return new Promise<Response>((resolve) => { resolveBulk = resolve })
+        return new Promise<Response>((resolve) => {
+          resolveBulk = resolve
+        })
       }
-      return Promise.resolve(jsonResponse(issuesPayload({
-        folder: "open",
-        issues: [ issue({ number: 7 }), issue({ number: 8, title: "Second issue" }) ],
-        issue_count: 2
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          issuesPayload({
+            folder: "open",
+            issues: [issue({ number: 7 }), issue({ number: 8, title: "Second issue" })],
+            issue_count: 2
+          })
+        )
+      )
     })
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
@@ -300,7 +334,10 @@ describe("RepositoryIssuesTab", () => {
     await screen.findByText("2 issues delegated to Syrus.")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/bulk",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 7, 8 ], bulk_action: "delegate", folder: "open", sort: "created_at", direction: "desc" }) })
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ issue_numbers: [7, 8], bulk_action: "delegate", folder: "open", sort: "created_at", direction: "desc" })
+      })
     )
   })
 
@@ -314,11 +351,15 @@ describe("RepositoryIssuesTab", () => {
 
       listFetches += 1
       const currentIssue = listFetches === 1 ? issue({ number: 7, title: "Old issue" }) : issue({ number: 8, title: "Fresh issue" })
-      return Promise.resolve(jsonResponse(issuesPayload({
-        folder: "open",
-        issues: [ currentIssue ],
-        issue_count: 1
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          issuesPayload({
+            folder: "open",
+            issues: [currentIssue],
+            issue_count: 1
+          })
+        )
+      )
     })
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
@@ -332,15 +373,22 @@ describe("RepositoryIssuesTab", () => {
     await screen.findByText("1 issue delegated to Syrus.")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/bulk",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 8 ], bulk_action: "delegate", folder: "open", sort: "created_at", direction: "desc" }) })
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ issue_numbers: [8], bulk_action: "delegate", folder: "open", sort: "created_at", direction: "desc" })
+      })
     )
   })
 
   it("hides Close selected and the per-row Close action in the closed folder", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      folder: "closed",
-      issues: [ issue({ state: "closed" }) ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          folder: "closed",
+          issues: [issue({ state: "closed" })]
+        })
+      )
+    )
     renderRoute("/repositories/1/plugin/issues?folder=closed")
 
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select all issues" }))
@@ -351,12 +399,16 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("renders folder-specific empty states", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      folder: "delegated",
-      issues: [],
-      issue_count: 0,
-      folder_counts: { all: 0, inbox: 0, delegated: 0, open: 0, closed: 0 }
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          folder: "delegated",
+          issues: [],
+          issue_count: 0,
+          folder_counts: { all: 0, inbox: 0, delegated: 0, open: 0, closed: 0 }
+        })
+      )
+    )
     renderRoute("/repositories/1/plugin/issues?folder=delegated")
 
     expect(await screen.findByText("No issues in Delegated")).toBeInTheDocument()
@@ -364,12 +416,16 @@ describe("RepositoryIssuesTab", () => {
   })
 
   it("renders the applied search as a FilterBar chip with a working clear-filters link", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      folder: "open",
-      query: "forum",
-      filter: { and: [ { field: "query", op: "contains", value: "forum" } ] },
-      issue_count: 1
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          folder: "open",
+          query: "forum",
+          filter: { and: [{ field: "query", op: "contains", value: "forum" }] },
+          issue_count: 1
+        })
+      )
+    )
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
     expect(await screen.findByRole("button", { name: "Search contains forum" })).toBeInTheDocument()
@@ -381,19 +437,21 @@ describe("RepositoryIssuesTab", () => {
       const url = new URL(String(input), "http://test.host")
       const q = url.searchParams.get("q")
       const requestedFolder = url.searchParams.get("folder") || "open"
-      return Promise.resolve(jsonResponse(issuesPayload({
-        folder: requestedFolder === "delegated" ? "delegated" : "all",
-        filter: requestedFolder === "delegated"
-          ? { and: [ { field: "preset", op: "is", value: "delegated" } ] }
-          : q ? decodeFilterTree(q) : { and: [] },
-        filter_schema: [
-          { field: "preset", label: "Preset", bucket: "preset", operators: [ "is" ], values: [ { value: "delegated", label: "Delegated" } ] },
-          { field: "delegated", label: "Delegated", bucket: "enum", operators: [ "is" ], values: [ { value: "false", label: "Not delegated" } ] }
-        ],
-        issues: [],
-        issue_count: 0,
-        untouched_preset: requestedFolder === "delegated"
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          issuesPayload({
+            folder: requestedFolder === "delegated" ? "delegated" : "all",
+            filter: requestedFolder === "delegated" ? { and: [{ field: "preset", op: "is", value: "delegated" }] } : q ? decodeFilterTree(q) : { and: [] },
+            filter_schema: [
+              { field: "preset", label: "Preset", bucket: "preset", operators: ["is"], values: [{ value: "delegated", label: "Delegated" }] },
+              { field: "delegated", label: "Delegated", bucket: "enum", operators: ["is"], values: [{ value: "false", label: "Not delegated" }] }
+            ],
+            issues: [],
+            issue_count: 0,
+            untouched_preset: requestedFolder === "delegated"
+          })
+        )
+      )
     })
     renderRoute("/repositories/1/plugin/issues?folder=delegated")
 
@@ -412,15 +470,20 @@ describe("RepositoryIssuesTab", () => {
       const q = url.searchParams.get("q")
       const tree = q ? decodeFilterTree(q) : { and: [] }
       const query = tree.and?.find((chip) => chip.field === "query")?.value
-      const issues = typeof query === "string" ? [ matching, other ].filter((candidate) => candidate.title.toLowerCase().includes(query.toLowerCase())) : [ matching, other ]
+      const issues =
+        typeof query === "string" ? [matching, other].filter((candidate) => candidate.title.toLowerCase().includes(query.toLowerCase())) : [matching, other]
 
-      return Promise.resolve(jsonResponse(issuesPayload({
-        folder: "open",
-        filter: tree,
-        query: typeof query === "string" ? query : null,
-        issues,
-        issue_count: issues.length
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          issuesPayload({
+            folder: "open",
+            filter: tree,
+            query: typeof query === "string" ? query : null,
+            issues,
+            issue_count: issues.length
+          })
+        )
+      )
     })
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
@@ -444,13 +507,17 @@ describe("RepositoryIssuesTab", () => {
       const url = new URL(String(input), "http://test.host")
       const sort = url.searchParams.get("sort") || "created_at"
       const direction = url.searchParams.get("direction") === "asc" ? "asc" : "desc"
-      const rows = [ issue({ number: 1, title: "Older" }), issue({ number: 2, title: "Newer" }) ]
-      return Promise.resolve(jsonResponse(issuesPayload({
-        folder: "open",
-        sort: { column: sort, direction },
-        issues: rows,
-        issue_count: rows.length
-      })))
+      const rows = [issue({ number: 1, title: "Older" }), issue({ number: 2, title: "Newer" })]
+      return Promise.resolve(
+        jsonResponse(
+          issuesPayload({
+            folder: "open",
+            sort: { column: sort, direction },
+            issues: rows,
+            issue_count: rows.length
+          })
+        )
+      )
     })
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
@@ -458,16 +525,23 @@ describe("RepositoryIssuesTab", () => {
     fireEvent.click(screen.getByRole("button", { name: /Created/ }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/repositories/1/issues?folder=open&sort=created_at&direction=asc"), expect.anything())
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/app/repositories/1/issues?folder=open&sort=created_at&direction=asc"),
+        expect.anything()
+      )
     })
   })
 
   it("hides optional issue columns through the shared column selector", async () => {
     window.localStorage.clear()
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      folder: "open",
-      issues: [ issue({ number: 7, title: "Fix the forum" }) ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          folder: "open",
+          issues: [issue({ number: 7, title: "Fix the forum" })]
+        })
+      )
+    )
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
     expect(await screen.findByRole("columnheader", { name: /Author/ })).toBeInTheDocument()
@@ -480,15 +554,24 @@ describe("RepositoryIssuesTab", () => {
       expect(screen.queryByRole("columnheader", { name: /Author/ })).not.toBeInTheDocument()
     })
     expect(screen.getByRole("columnheader", { name: /Issue/ })).toBeInTheDocument()
-    expect(JSON.parse(window.localStorage.getItem("syrus.github_source.repository_issues.visible_columns") ?? "[]")).toEqual([ "number", "state", "status", "created" ])
+    expect(JSON.parse(window.localStorage.getItem("syrus.github_source.repository_issues.visible_columns") ?? "[]")).toEqual([
+      "number",
+      "state",
+      "status",
+      "created"
+    ])
   })
 
   it("reorders issue columns through header drag and keeps body cells aligned", async () => {
     window.localStorage.clear()
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
-      folder: "open",
-      issues: [ issue({ number: 7, title: "Fix the forum", delegated: true, user_login: "ada" }) ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          folder: "open",
+          issues: [issue({ number: 7, title: "Fix the forum", delegated: true, user_login: "ada" })]
+        })
+      )
+    )
     renderRoute("/repositories/1/plugin/issues?folder=open")
 
     const statusHeader = await screen.findByRole("columnheader", { name: /Status/ })
@@ -502,6 +585,12 @@ describe("RepositoryIssuesTab", () => {
     expect(headers.join(" | ")).toMatch(/Issue.*Number.*State.*Author.*Status.*Created.*Actions/)
     const row = findRowContaining("Fix the forum")
     expect(row.textContent).toMatch(/Fix the forum.*#7.*open.*ada.*Delegated/)
-    expect(JSON.parse(window.localStorage.getItem("syrus.github_source.repository_issues.visible_columns") ?? "[]")).toEqual([ "number", "state", "author", "status", "created" ])
+    expect(JSON.parse(window.localStorage.getItem("syrus.github_source.repository_issues.visible_columns") ?? "[]")).toEqual([
+      "number",
+      "state",
+      "author",
+      "status",
+      "created"
+    ])
   })
 })
