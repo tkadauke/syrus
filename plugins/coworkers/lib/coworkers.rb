@@ -17,7 +17,20 @@ module Coworkers
     disableable true
     depends_on [ "scheduled_tasks" ]
     provides mentionable: "Coworkers::MentionableProvider",
-             chat_prompt_injector: "Coworkers::PromptSection"
+             chat_prompt_injector: "Coworkers::PromptSection",
+             sidebar_page: "Coworkers::SidebarPages",
+             chat_list_group: "Coworkers::ChatListGroup",
+             chat_payload_contributor: "Coworkers::PayloadContributor"
+    route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
+    route :post, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#create"
+    route :post, "/api/v1/app/coworkers/test_remote", to: "api/v1/app/coworkers#test_remote"
+    route :get, "/api/v1/app/coworkers/sidebar_badge", to: "api/v1/app/coworkers#sidebar_badge"
+    route :get, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#show"
+    route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
+    frontend routes: {
+          "coworkers/Coworkers" => "app/frontend/routes/Coworkers.tsx"
+        },
+        i18n: [ "app/frontend/i18n/locales/*/coworkers.json" ]
 
     always { |scope| Coworkers::DataCleanup.install_into(scope) }
     while_enabled { |scope| Coworkers::ChatExtension.install_into(scope) }

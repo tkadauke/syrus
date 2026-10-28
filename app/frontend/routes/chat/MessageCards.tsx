@@ -59,6 +59,8 @@ import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 import { ToolErrorCard } from "./toolErrorCard"
+import { Avatar } from "../../components/Avatar"
+import { resolveAppearanceColor } from "../../lib/appearance"
 
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
@@ -146,11 +148,22 @@ export const ChatMessage = memo(function ChatMessage({
 
   if (item.role === "assistant") {
     if (!item.text) return null
+    const appearance = payload.agent_appearance
+    const appearanceColor = appearance ? resolveAppearanceColor(appearance.color_key, "light") : null
     return (
       <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
         {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
-        <div className="space-y-3">
+        <div
+          className={`space-y-3 ${appearance ? "rounded-r border-l-4 p-4" : ""}`}
+          style={appearanceColor ? { backgroundColor: appearanceColor.light, borderLeftColor: appearanceColor.dark } : undefined}
+        >
+          {appearance ? (
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <Avatar avatarUrl={appearance.avatar_url} avatarKey={appearance.avatar_key} colorKey={appearance.color_key} name={appearance.name} size="xs" />
+              {appearance.name}
+            </div>
+          ) : null}
           <ChatAssistantMarkdownSurface text={item.text} onLinkClick={handleMarkdownLink} />
           <MessageImageAttachments attachments={item.attachments} />
           {!readOnly && item.proposal ? (

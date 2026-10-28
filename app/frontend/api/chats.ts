@@ -69,7 +69,10 @@ export type ChatRecord = {
   coding_checkout_branch?: string | null
   runtime_session_count?: number
   chat_effort?: string | null
+  agent_appearance?: ChatAgentAppearance
 }
+
+export type ChatAgentAppearance = { name: string; color_key: string; avatar_key: string | null; avatar_url: string | null }
 
 export type ChatAgentActivity = {
   label: string
@@ -900,6 +903,7 @@ export type CodingDiffPayload = {
 
 export type ChatPayload = {
   message?: string | null
+  agent_appearance?: ChatAgentAppearance
   chat: ChatRecord
   chat_available: boolean
   chat_provider_display_name?: string

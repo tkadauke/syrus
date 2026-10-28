@@ -34,12 +34,14 @@ class Coworkers::Create
   def self.call(...) = new(...).call
 
   def initialize(owner:, name:, handle:, workspace_repo:, about: nil, color_key: nil, avatar_key: nil,
-                 chat_provider: nil, chat_model: nil, chat_effort: nil, remote_workspace: nil)
+                 chat_provider: nil, chat_model: nil, chat_effort: nil, avatar: nil, grants: nil, remote_workspace: nil)
     @owner = owner
     @name = name
     @handle = HandleRegistry.normalize(handle)
     @workspace_repo = workspace_repo
     @about = about.to_s.strip.presence
+    @avatar = avatar
+    @grants = grants
     @attributes = { color_key: color_key, avatar_key: avatar_key, chat_provider: chat_provider,
                     chat_model: chat_model, chat_effort: chat_effort }.compact
     remote_owner, remote_name = parse_remote(workspace_repo)
@@ -97,7 +99,8 @@ class Coworkers::Create
       owner_user: @owner, name: @name, handle: @handle,
       workspace_repo: repository.remote_url, role_summary: role_summary
     }.merge(@attributes))
-    DEFAULT_GRANTS.each { |capability, policy| coworker.grants.create!(capability: capability, approval_policy: policy) }
+    selected_grants.each { |capability, policy| coworker.grants.create!(capability: capability, approval_policy: policy) }
+    Coworkers::AvatarUpload.attach!(coworker, @avatar) if @avatar
     # Phase 1 attaches the workspace Repository directly to the main chat. The
     # per-chat coworker branch and merge-at-turn-end flow replaces this in Phase 3.
     chat = ChatSession.create!(user: @owner, repository: repository, title: @name, chat_provider: @attributes[:chat_provider])
@@ -133,6 +136,12 @@ class Coworkers::Create
       "memory/.gitkeep" => "",
       ".gitattributes" => "memory/** merge=union\n"
     }
+  end
+
+  def selected_grants
+    return DEFAULT_GRANTS unless @grants
+
+    DEFAULT_GRANTS.slice(*Array(@grants).map(&:to_s))
   end
 
   def parse_remote(value)

@@ -40,3 +40,13 @@ coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`, and
 and aggregate byte limits. The agent process receives neither the ordinary
 chat CLI invocation token nor a Git askpass token, so the owner's repository
 credentials and integration credentials are not exposed to its shell.
+
+When enabled, the plugin adds a Coworkers page and unread badge. Syrus is
+pinned first as the built-in engineer; custom coworkers show their configured
+color and avatar. The creation form collects the workspace remote, appearance,
+model, grants, and optional About text. Uploaded avatars are size-limited and
+resized before Active Storage saves them. Coworker chats are grouped separately
+in the chat sidebar, and assistant messages use the coworker's avatar and color.
+Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
+Workspace, and Activity are visible as coming-later placeholders where their
+full Phase 1 surface has not shipped yet.
