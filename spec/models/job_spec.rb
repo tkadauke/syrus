@@ -2964,6 +2964,8 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)
       prerequisite.runs.update_all(head_sha: "a" * 40)
+      prerequisite.latest_workflow.update_columns(state: "succeeded", finished_at: Time.current)
+      prerequisite.latest_workflow.work_unit.mark_terminal!("succeeded")
       prerequisite.update_columns(state: "implemented")
 
       expect {
@@ -2991,6 +2993,8 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       first.update!(branch_name: "syrus/issue-41-#{first.id}", pr_number: 6)
       first.runs.update_all(head_sha: "a" * 40)
+      first.latest_workflow.update_columns(state: "succeeded", finished_at: Time.current)
+      first.latest_workflow.work_unit.mark_terminal!("succeeded")
 
       expect {
         first.mark_implemented!
@@ -3001,6 +3005,8 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       second.update!(branch_name: "syrus/issue-42-#{second.id}", pr_number: 7)
       second.runs.update_all(head_sha: "b" * 40)
+      second.latest_workflow.update_columns(state: "succeeded", finished_at: Time.current)
+      second.latest_workflow.work_unit.mark_terminal!("succeeded")
 
       expect {
         second.mark_implemented!

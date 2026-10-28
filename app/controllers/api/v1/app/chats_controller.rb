@@ -1836,6 +1836,7 @@ module Api
 
         def chat_session_json(chat_session, counts: nil, turn_in_flight: nil, agent_busy: nil, turn_retry_state: nil)
           repository = PerformanceLogging.phase("chat_json.repository", chat_id: chat_session.id) { chat_session.repository }
+          participants = chat_session.participants_payload
           effective_provider = PerformanceLogging.phase("chat_json.effective_provider", chat_id: chat_session.id) { chat_session.effective_chat_provider }
           provider_availability = PerformanceLogging.phase("chat_json.provider_availability", chat_id: chat_session.id, provider: effective_provider) do
             ::App::ProviderAvailability.for_user(Current.user, effective_provider)
@@ -1858,12 +1859,12 @@ module Api
             entity_revision: chat_session.entity_revision,
             current_user_id: Current.user.id,
             user_id: chat_session.user_id,
-            read_only: chat_session.user_id != Current.user.id && !chat_session.chat_participants.exists?(user_id: Current.user.id),
+            read_only: chat_session.user_id != Current.user.id && participants.none? { |participant| participant.fetch(:id) == Current.user.id },
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
             system_kind: chat_session.system_kind,
             conversation_kind: chat_session.conversation_kind,
-            participants: chat_session.participants_payload,
+            participants: participants,
             pinned: chat_session.pinned?,
             pinned_context: chat_session.pinned_context,
             chat_provider: chat_session.chat_provider,

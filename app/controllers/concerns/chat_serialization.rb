@@ -140,6 +140,7 @@ module ChatSerialization
       associations: [
         :user,
         :active_goal,
+        { chat_participants: :user },
         { repository_attachments: :attachable }
       ]
     ).call
