@@ -20,6 +20,24 @@ RSpec.describe "retention policy executors" do
     )
   end
 
+  it "continues when capped provider payload cleanup leaves eligible rows" do
+    stub_const("RetentionPolicyExecutors::ProviderSession::PAYLOAD_BATCH_SIZE", 1)
+    stub_const("RetentionPolicyExecutors::ProviderSession::MAX_PAYLOAD_BATCHES", 1)
+    sessions = 2.times.map do |index|
+      run = Factories.job.initial_run.tap { |candidate| candidate.start!; candidate.succeed!; candidate.save! }
+      ProviderSession.create!(resumable: run, session_id: "payload-#{index}", transcript_jsonl: "payload").tap do |session|
+        session.update_columns(updated_at: ProviderSession::PAYLOAD_RETENTION.ago - 1.second)
+      end
+    end
+
+    result = nil
+    expect { result = RetentionPolicyPruneJob.perform_now("provider_session") }
+      .to have_enqueued_job(RetentionPolicyPruneJob).with("provider_session").once
+
+    expect(result).to eq(1)
+    expect(sessions.count { |session| session.reload.transcript_jsonl.present? }).to eq(1)
+  end
+
   it "detaches dependent command spans before deleting spawned processes" do
     process = SpawnedProcess.create!(
       kind: "agent", command: "agent", hostname: "host", started_at: 8.days.ago,
