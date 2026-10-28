@@ -18,18 +18,16 @@ it("keeps built-in SmartFolder navigation when its preset is removed", async () 
   const payload = {
     subject: "job",
     active_smart_folder_id: 7,
-    filter: { and: [ { field: "smart_folder_preset", op: "is", value: "inbox" } ] },
-    smart_folders: [
-      { id: 7, name: "Inbox", kind: "builtin", subject_type: "job", filter: {}, position: 0, visibility: "always", count: 1, active: true }
-    ],
+    filter: { and: [{ field: "smart_folder_preset", op: "is", value: "inbox" }] },
+    smart_folders: [{ id: 7, name: "Inbox", kind: "builtin", subject_type: "job", filter: {}, position: 0, visibility: "always", count: 1, active: true }],
     controls: {
       filter_schema: [
         {
           field: "smart_folder_preset",
           label: "Preset",
           bucket: "preset",
-          operators: [ "is" ],
-          values: [ { value: "inbox", label: "Inbox" } ]
+          operators: ["is"],
+          values: [{ value: "inbox", label: "Inbox" }]
         }
       ],
       filter_suggestions: []
@@ -37,7 +35,7 @@ it("keeps built-in SmartFolder navigation when its preset is removed", async () 
   } as unknown as DashboardPayload
 
   render(
-    <MemoryRouter initialEntries={[ "/dashboard/jobs?smart_folder_id=7" ]}>
+    <MemoryRouter initialEntries={["/dashboard/jobs?smart_folder_id=7"]}>
       <DashboardFilterBar payload={payload} pathname="/dashboard/jobs" search="?smart_folder_id=7" />
       <LocationProbe />
     </MemoryRouter>
