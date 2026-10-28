@@ -56,26 +56,8 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `chat_coding_workspace_budget_mb` | instance | Admin Settings | setting | instance | Correct: deployment disk budget for worker checkouts. |
 | `retention_available_space_override_gb` | instance | Admin Settings | setting | instance | Correct: deployment sizing fallback. |
 | `main_concern_report_threshold` | instance | Admin Settings | setting | instance default with repo override later | Correct for now; repos with different main-health noise may eventually want overrides. |
-| `run_diagnostic_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for diagnostic rows. |
-| `run_diagnostic_archive_before_delete` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment archival policy for diagnostic rows. |
-| `run_resource_summary_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for resource summaries. |
-| `worker_host_health_sample_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for worker health samples. |
-| `work_engine_reconciler_activity_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for reconciler events. |
-| `work_engine_reconciler_activity_archive_before_delete` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment archival policy for reconciler events. |
-| `provider_session_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for provider sessions. |
-| `job_log_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for user-visible Run output. |
-| `performance_log_event_retention_hours` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for performance diagnostics. |
-| `provider_session_archive_before_delete` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment archival policy for provider sessions. |
-| `spawned_process_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for subprocess inventory. |
-| `notification_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for notifications. |
-| `operational_log_event_retention_hours` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for operational logs. |
-| `run_health_snapshot_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for Run health snapshots. |
-| `run_health_snapshot_archive_before_delete` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment archival policy for Run health snapshots. |
-| `main_branch_health_check_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for main-branch health history. |
-| `main_branch_health_check_archive_before_delete` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment archival policy for main-branch health history. |
-| `workflow_step_resource_profile_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment data-retention policy for stale resource profiles. |
 | `workflow_step_resource_profile_input_retention_days` | instance | Admin Settings / Retention Settings | setting | instance | Correct: deployment lookback policy for rebuilding resource profiles. |
-| plugin-provided retention settings | instance | Admin Settings / Retention Settings | setting | instance | Correct: plugin-owned data-retention policy, folded into the registry without core enumerating plugin internals. |
+| row-retention policies | instance | Retention Settings | `retention_policy_settings` rows | instance | Correct: stable registry keys preserve core and active-plugin choices without adding `app_settings` columns. |
 
 ## Repository Policy Columns
 

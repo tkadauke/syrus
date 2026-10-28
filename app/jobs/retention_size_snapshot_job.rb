@@ -84,7 +84,7 @@ class RetentionSizeSnapshotJob < ApplicationJob
 
   def build_table_snapshot(definition)
     estimate = TableSizeEstimator.estimate(definition.table_name)
-    retention_value = AppSetting.current.public_send(definition.setting_key).to_i
+    retention_value = definition.retention_value
     bytes_per_unit, estimated_max = project_max_byte_size(estimate.byte_size_estimate, retention_value)
 
     TableSnapshot.new(

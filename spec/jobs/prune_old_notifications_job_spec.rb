@@ -14,7 +14,7 @@ RSpec.describe PruneOldNotificationsJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(notification_retention_days: 0)
+    set_retention(:notification, 0)
     user = Factories.user
     old = Notification.create!(user: user, kind: "job_failed", body: "Old", created_at: 10.years.ago)
 

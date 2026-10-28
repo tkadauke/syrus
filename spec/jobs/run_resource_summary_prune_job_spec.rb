@@ -16,7 +16,7 @@ RSpec.describe RunResourceSummaryPruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(run_resource_summary_retention_days: 0)
+    set_retention(:run_resource_summary, 0)
     old = create_summary!(created_at: 10.years.ago)
 
     described_class.perform_now

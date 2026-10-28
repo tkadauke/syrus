@@ -18,7 +18,7 @@ RSpec.describe SyrusDev::PerformancePayload, requires_plugin: "syrus_dev" do
   end
 
   it "reports and queries within the configured retention window" do
-    AppSetting.current.update!(performance_log_event_retention_hours: 12)
+    set_retention(:performance_log_event, 12)
     PerformanceLogEvent.create!(
       occurred_at: 13.hours.ago,
       event_name: PerformanceLogging::SLOW_REQUEST_EVENT,

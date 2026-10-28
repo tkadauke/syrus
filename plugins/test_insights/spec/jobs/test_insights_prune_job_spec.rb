@@ -150,7 +150,7 @@ RSpec.describe TestInsights::PruneJob do
   end
 
   it "keeps case and run history when retention is infinite" do
-    AppSetting.current.update!(test_insight_case_retention_days: 0)
+    set_retention(:test_insight_case, 0)
     old_run = create_test_run
     old_case = create_case(old_run)
     old_run.update_columns(created_at: 10.years.ago)

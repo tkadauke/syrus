@@ -33,7 +33,7 @@ RSpec.describe RunDiagnostic do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(run_diagnostic_retention_days: 0)
+      set_retention(:run_diagnostic, 0)
       old = described_class.create!(run: Factories.run, error_class: "X")
       old.update_columns(created_at: 10.years.ago)
 

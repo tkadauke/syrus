@@ -93,7 +93,7 @@ RSpec.describe MainBranchHealthCheck do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(main_branch_health_check_retention_days: 0)
+      set_retention(:main_branch_health_check, 0)
       MainBranchHealthCheck.create!(
         repository: repository, sha: "ancient", checked_at: 10.years.ago,
         ci_health: "unknown", grader_health: "unknown", source: "ci_poll"

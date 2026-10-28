@@ -1,6 +1,11 @@
 require "rails_helper"
 
 RSpec.describe MetricsDashboard::Sample do
+  before do
+    PluginRecord.find_or_create_by!(name: "metrics_dashboard").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+  end
+
   def sample(recorded_at:, metric: "m", series_key: SecureRandom.hex(4))
     described_class.create!(metric: metric, series_key: series_key, value: 1.0, recorded_at: recorded_at)
   end
@@ -15,7 +20,7 @@ RSpec.describe MetricsDashboard::Sample do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(metrics_dashboard_sample_retention_days: 0)
+      set_retention(:metrics_dashboard_sample, 0)
       old = sample(recorded_at: 10.years.ago)
 
       expect(described_class.prunable).to be_empty

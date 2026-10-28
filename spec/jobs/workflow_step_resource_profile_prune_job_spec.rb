@@ -48,7 +48,7 @@ RSpec.describe WorkflowStepResourceProfilePruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(workflow_step_resource_profile_retention_days: 0)
+    set_retention(:workflow_step_resource_profile, 0)
     old = profile(last_observed_at: 10.years.ago)
 
     expect { described_class.perform_now }.not_to change { WorkflowStepResourceProfile.count }
