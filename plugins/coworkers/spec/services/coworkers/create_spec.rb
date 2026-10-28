@@ -88,6 +88,14 @@ RSpec.describe Coworkers::Create do
     expect(coworker.coworker_chats.find_by!(role: "main").chat_session.repository).to eq(repository)
   end
 
+  it "copies the complete coworker chat configuration to the main chat" do
+    coworker = create_service(chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high").call
+
+    expect(coworker.coworker_chats.find_by!(role: "main").chat_session).to have_attributes(
+      chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
+    )
+  end
+
   it "reuses a shared repository without changing its automation flags" do
     repository = Factories.repository(
       user: owner, owner: "acme", name: "coworker-homes",
