@@ -61,6 +61,7 @@ function folderLink(pathname: string, search: string, folder: IssueFolder) {
   const params = new URLSearchParams(search)
   params.set("folder", folder)
   params.delete("state")
+  params.delete("q")
   return `${pathname}?${params.toString()}`
 }
 
@@ -96,11 +97,11 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
   const setupStatus = useSetupStatus()
   const filterParam = searchParams.get("q") || ""
   const sort = payload.sort
-  const queryKey = ["repositories", String(payload.repository.id), "issues", payload.folder, filterParam, sort.column, sort.direction] as const
+  const queryKey = ["repositories", String(payload.repository.id), "issues", resolveFolder(searchParams), filterParam, sort.column, sort.direction] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [selected, setSelected] = useState<number[]>([])
   const allSelected = payload.issues.length > 0 && selected.length === payload.issues.length
-  const canBulkClose = payload.folder !== "closed"
+  const canBulkClose = payload.issues.some((issue) => issue.state === "open")
 
   useEffect(() => {
     setSelected([])
@@ -189,6 +190,13 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
             filterSchema={payload.filter_schema}
             pathname={location.pathname}
             search={location.search}
+            buildLink={(pathname, search, updates) => {
+              const params = new URLSearchParams(search)
+              Object.entries(updates).forEach(([key, value]) => value == null ? params.delete(key) : params.set(key, String(value)))
+              if (Object.hasOwn(updates, "q")) params.set("folder", "all")
+              const query = params.toString()
+              return query ? `${pathname}?${query}` : pathname
+            }}
           />
         }
         mobileSummaryLabel={folders.find((folder) => folder.active)?.name}
@@ -277,9 +285,9 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
         ) : (
           <OnboardingEmptyState
             fallbackActionPath={emptyStateActionPath(payload)}
-            fallbackActionText={t(`repository.empty_${payload.folder}_action`)}
-            fallbackDescription={t(`repository.empty_${payload.folder}_description`, { label: payload.repository.trigger_label })}
-            fallbackTitle={t("repository.empty_title", { folder: t(`repository.folder_${payload.folder}`) })}
+            fallbackActionText={payload.untouched_preset ? t(`repository.empty_${payload.folder}_action`) : t("repository.empty_filtered_action")}
+            fallbackDescription={payload.untouched_preset ? t(`repository.empty_${payload.folder}_description`, { label: payload.repository.trigger_label }) : t("repository.empty_filtered_description")}
+            fallbackTitle={payload.untouched_preset ? t("repository.empty_title", { folder: t(`repository.folder_${payload.folder}`) }) : t("repository.empty_filtered_title")}
             prefix={prefix}
             setupStatus={setupStatus}
           />
@@ -291,6 +299,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
 }
 
 function emptyStateActionPath(payload: RepositoryIssuesPayload) {
+  if (!payload.untouched_preset) return payload.folder_paths.all
   return payload.folder === "open" ? payload.paths.github_issues_path : payload.folder_paths.open
 }
 

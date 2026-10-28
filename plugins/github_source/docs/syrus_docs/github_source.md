@@ -117,6 +117,12 @@ last synchronized rows and reports their stale/error status. Close, delegate,
 and bulk commands still execute against GitHub and update the affected cached
 rows after GitHub accepts the mutation.
 
+Inbox, Delegated, Open, and Closed are editable presets in the shared
+FilterBar. Selecting one shows its complete named preset as a chip. Editing or
+removing that chip switches navigation to the neutral All folder, so no hidden
+folder constraint is intersected with the visible filters. Folder counts remain
+unfiltered aggregates of the synchronized cache.
+
 `GithubSource::AdminPages` contributes **GitHub API Usage**
 (`/admin/github_api_usage`, group `observability`, order `42`), backed by
 `GithubSource::ApiUsagePayload`. That payload reads `GithubApiUsageRollup`

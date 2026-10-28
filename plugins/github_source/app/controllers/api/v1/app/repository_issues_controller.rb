@@ -11,7 +11,7 @@ module Api
         include RepositorySummarySerialization
 
         # Smart folders over the poll-synchronized local issue cache.
-        FOLDERS = %w[inbox delegated open closed].freeze
+        FOLDERS = %w[all inbox delegated open closed].freeze
         ISSUES_PER_PAGE = 50
         SORT_COLUMNS = %w[number title state author created_at delegated].freeze
         SORT_DIRECTIONS = %w[asc desc].freeze
@@ -78,12 +78,13 @@ module Api
 
           delegated_issues, inbox_issues = open_issues.partition { |issue| issue_delegated?(repository, issue) }
           folder_issues = {
+            "all" => open_issues + closed_issues,
             "inbox" => inbox_issues,
             "delegated" => delegated_issues,
             "open" => open_issues,
             "closed" => closed_issues
           }
-          matching_issues = sort_issues(repository, filter_issues(repository, folder_issues.fetch(folder), filter), sort)
+          matching_issues = sort_issues(repository, filter_issues(repository, folder_issues.fetch("all"), filter), sort)
           visible_issues = matching_issues.first(ISSUES_PER_PAGE)
 
           {
@@ -101,6 +102,7 @@ module Api
             folder: folder,
             query: filter.query,
             filter: filter.to_h,
+            untouched_preset: !explicit_issue_filter? && filter.preset.present?,
             filter_schema: GithubSource::IssuesFilter.schema,
             sort: sort,
             issue_count: matching_issues.size,
@@ -212,6 +214,8 @@ module Api
 
 
         def issue_folder
+          return "all" if explicit_issue_filter?
+
           folder = params[:folder].presence
           return folder if FOLDERS.include?(folder)
           return "closed" if params[:state] == "closed"
@@ -229,7 +233,11 @@ module Api
 
 
         def issue_filter
-          GithubSource::IssuesFilter.from_params(params)
+          GithubSource::IssuesFilter.for_request(params, folder: issue_folder)
+        end
+
+        def explicit_issue_filter?
+          params.key?(::Filters::QueryParam::PARAM_NAME) || params.key?(::Filters::QueryParam::PARAM_NAME.to_s)
         end
 
 

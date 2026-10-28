@@ -45,6 +45,7 @@ function paths() {
 
 function folderPaths() {
   return {
+    all: "/repositories/1?tab=github_issues&folder=all",
     inbox: "/repositories/1?tab=github_issues&folder=inbox",
     delegated: "/repositories/1?tab=github_issues&folder=delegated",
     open: "/repositories/1?tab=github_issues&folder=open",
@@ -64,10 +65,11 @@ function issuesPayload(overrides: Partial<RepositoryIssuesPayload> = {}): Reposi
     query: null,
     filter: { and: [] },
     filter_schema: ISSUE_FILTER_SCHEMA,
+    untouched_preset: true,
     sort: { column: "created_at", direction: "desc" },
     issue_count: 1,
     issues: [ issue() ],
-    folder_counts: { inbox: 1, delegated: 0, open: 1, closed: 0 },
+    folder_counts: { all: 1, inbox: 1, delegated: 0, open: 1, closed: 0 },
     folder_paths: folderPaths(),
     paths: paths(),
     ...overrides
@@ -129,7 +131,7 @@ describe("RepositoryIssuesTab", () => {
   it("renders the standard smart folder navigation with counts and highlights the active folder", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
       folder: "inbox",
-      folder_counts: { inbox: 3, delegated: 2, open: 5, closed: 8 }
+      folder_counts: { all: 13, inbox: 3, delegated: 2, open: 5, closed: 8 }
     })))
     renderRoute()
 
@@ -319,7 +321,7 @@ describe("RepositoryIssuesTab", () => {
       folder: "delegated",
       issues: [],
       issue_count: 0,
-      folder_counts: { inbox: 0, delegated: 0, open: 0, closed: 0 }
+      folder_counts: { all: 0, inbox: 0, delegated: 0, open: 0, closed: 0 }
     })))
     renderRoute("/repositories/1/plugin/issues?folder=delegated")
 
@@ -338,6 +340,34 @@ describe("RepositoryIssuesTab", () => {
 
     expect(await screen.findByRole("button", { name: "Search contains forum" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Clear filters" })).toBeInTheDocument()
+  })
+
+  it("shows folder presets as editable chips and moves edited filters to All", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://test.host")
+      const q = url.searchParams.get("q")
+      const requestedFolder = url.searchParams.get("folder") || "open"
+      return Promise.resolve(jsonResponse(issuesPayload({
+        folder: requestedFolder === "delegated" ? "delegated" : "all",
+        filter: requestedFolder === "delegated"
+          ? { and: [ { field: "preset", op: "is", value: "delegated" } ] }
+          : q ? decodeFilterTree(q) : { and: [] },
+        filter_schema: [
+          { field: "preset", label: "Preset", bucket: "preset", operators: [ "is" ], values: [ { value: "delegated", label: "Delegated" } ] },
+          { field: "delegated", label: "Delegated", bucket: "enum", operators: [ "is" ], values: [ { value: "false", label: "Not delegated" } ] }
+        ],
+        issues: [],
+        issue_count: 0,
+        untouched_preset: requestedFolder === "delegated"
+      })))
+    })
+    renderRoute("/repositories/1/plugin/issues?folder=delegated")
+
+    expect(await screen.findByRole("button", { name: "Preset is Delegated" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Remove Preset filter" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("folder=all"), expect.anything()))
+    expect(await screen.findByText("No issues match these filters")).toBeInTheDocument()
   })
 
   it("filters the issue list through the FilterBar's free-text search chip", async () => {
