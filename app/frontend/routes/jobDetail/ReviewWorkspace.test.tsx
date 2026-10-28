@@ -3,11 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
+import * as apiClient from "../../api/client"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { ShortcutsHelpModal } from "../../components/ShortcutsHelpModal"
 import { ShortcutsProvider } from "../../contexts/ShortcutsContext"
 import type { DiffLineMetricProvider } from "../../components/diff/ReviewableDiff"
-import { ReviewWorkspace } from "./ReviewWorkspace"
+import { ReviewWorkspace, fetchProfiledSourceDiff } from "./ReviewWorkspace"
 
 stubVirtualizerMeasurements()
 import {
@@ -2053,6 +2054,32 @@ describe("ReviewWorkspace", () => {
       ])
     }))
     vi.restoreAllMocks()
+  })
+
+  it("attributes a range fetch using the API client's scrubbed request path", async () => {
+    const endMarkerSpy = vi.spyOn(performanceMarkers, "endMarker")
+    vi.spyOn(apiClient, "getRecentApiRequests").mockReturnValue([{
+      at: "2026-10-28T00:00:00Z",
+      durationMs: 18,
+      path: "/api/v1/app/jobs/42/source_diff?[FILTERED]",
+      requestId: "range-request",
+      status: 200
+    }])
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+
+    await fetchProfiledSourceDiff("42", "?base=private-base&head=private-head")
+
+    expect(endMarkerSpy).toHaveBeenCalledWith(expect.objectContaining({ name: "diff_review.fetch_source_diff" }), expect.objectContaining({
+      apiRequests: [expect.objectContaining({
+        duration_ms: 18,
+        path: "/api/v1/app/jobs/:id/source_diff",
+        request_id: "range-request"
+      })],
+      spans: expect.arrayContaining([
+        expect.objectContaining({ duration_ms: 18, name: "api_transport" }),
+        expect.objectContaining({ name: "payload_parse_prepare" })
+      ])
+    }))
   })
 
   it("marks the initial diff render once the source diff has loaded", async () => {
