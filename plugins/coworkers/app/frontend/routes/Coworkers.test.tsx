@@ -29,6 +29,16 @@ const summaryPayload = {
       avatar_url: null,
       path: "/coworkers/7"
     }
+  ],
+  model_options: [
+    {
+      provider: "codex",
+      provider_label: "Codex",
+      models: [
+        { id: "gpt-6.1-sol", label: "GPT-6.1 Sol" },
+        { id: "gpt-6.1-terra", label: "GPT-6.1 Terra" }
+      ]
+    }
   ]
 }
 
@@ -99,11 +109,14 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   renderRoute("/coworkers/new")
   fill("Name", "Maya")
   fill("Handle", "maya")
-  fill("Model", "gpt-6.1-sol")
+  expect(await screen.findByRole("option", { name: "GPT-6.1 Sol" })).toBeInTheDocument()
+  fireEvent.change(screen.getByRole("combobox", { name: "Model" }), { target: { value: "codex:gpt-6.1-sol" } })
   fill("Workspace remote", "https://github.com/acme/workspace")
   fireEvent.click(screen.getByRole("button", { name: "Test push access" }))
   expect(await screen.findByText("Push access verified")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("radio", { name: "Comet" }))
+  expect(screen.queryByRole("radio", { name: "Rose Clear" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: /Coral Soft/ }))
   fireEvent.click(screen.getByRole("radio", { name: "Rose Clear" }))
   fireEvent.click(screen.getByRole("checkbox", { name: "workspace.shell" }))
   fill("About (optional)", "Research lead")
@@ -115,6 +128,8 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   const request = requests.find(({ path, init }) => path === "/api/v1/app/coworkers" && init?.method === "POST")
   const form = request?.init?.body as FormData
   expect(form.get("color_key")).toBe("rose-clear")
+  expect(form.get("chat_provider")).toBe("codex")
+  expect(form.get("chat_model")).toBe("gpt-6.1-sol")
   expect(form.get("avatar_key")).toBe("comet")
   expect(form.get("avatar")).toBeInstanceOf(File)
   expect(form.getAll("grants[]")).not.toContain("workspace.shell")

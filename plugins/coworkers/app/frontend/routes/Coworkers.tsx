@@ -6,12 +6,14 @@ import { AvatarPicker } from "@app/components/AvatarPicker"
 import { ColorPicker } from "@app/components/ColorPicker"
 import { Checkbox } from "@app/components/Checkbox"
 import { Input } from "@app/components/Input"
+import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
 import { PageHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { withRoutePrefix } from "@app/lib/routing"
+import { resolveAppearanceColor } from "@app/lib/appearance"
 import { createCoworker, createSideChat, fetchCoworker, fetchCoworkers, testCoworkerRemote, type CoworkerSummary } from "../api/coworkers"
 
 export default function CoworkersRoute() {
@@ -76,12 +78,20 @@ function NewCoworker() {
   const [color, setColor] = useState("coral-soft")
   const [avatar, setAvatar] = useState<string | null>(null)
   const [remote, setRemote] = useState("")
+  const [modelSelection, setModelSelection] = useState("")
+  const [colorPopupOpen, setColorPopupOpen] = useState(false)
+  const optionsQuery = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
   const mutation = useMutation({ mutationFn: createCoworker, onSuccess: (data) => navigate(withRoutePrefix(data.redirect_to, prefix)) })
   const remoteTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     form.set("color_key", color)
+    if (modelSelection) {
+      const [chatProvider, chatModel] = modelSelection.split(":", 2)
+      form.set("chat_provider", chatProvider)
+      form.set("chat_model", chatModel)
+    }
     if (avatar) form.set("avatar_key", avatar)
     mutation.mutate(form)
   }
@@ -96,7 +106,21 @@ function NewCoworker() {
       <form className="space-y-5 rounded border border-border bg-surface p-5" onSubmit={submit}>
         <Field label={t("fields.name")} name="name" required />
         <Field label={t("fields.handle")} name="handle" required pattern="[a-z0-9_-]{3,32}" />
-        <Field label={t("fields.model")} name="chat_model" />
+        <label className="block text-sm font-medium">
+          {t("fields.model")}
+          <Select className="mt-1" onChange={(event) => setModelSelection(event.target.value)} value={modelSelection}>
+            <option value="">{t("detail.account_default")}</option>
+            {(optionsQuery.data?.model_options || []).map((provider) => (
+              <optgroup key={provider.provider} label={provider.provider_label}>
+                {provider.models.map((model) => (
+                  <option key={model.id} value={`${provider.provider}:${model.id}`}>
+                    {model.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </Select>
+        </label>
         <label className="block text-sm font-medium">
           {t("fields.remote")}
           <Input
@@ -120,9 +144,31 @@ function NewCoworker() {
           {remoteTest.isSuccess ? <span className="ml-2 text-sm text-success">{t("new.push_ok")}</span> : null}
           {remoteTest.isError ? <span className="ml-2 text-sm text-danger">{remoteTest.error.message}</span> : null}
         </div>
-        <div>
+        <div className="relative">
           <label className="mb-2 block text-sm font-medium">{t("fields.color")}</label>
-          <ColorPicker ariaLabel={t("fields.color")} mode="light" value={color} onChange={setColor} />
+          <button
+            aria-expanded={colorPopupOpen}
+            aria-haspopup="dialog"
+            className="flex items-center gap-2 rounded border border-border bg-surface px-3 py-2 text-sm"
+            onClick={() => setColorPopupOpen((open) => !open)}
+            type="button"
+          >
+            <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: resolveAppearanceColor(color, "light").value }} />
+            {resolveAppearanceColor(color, "light").label}
+          </button>
+          {colorPopupOpen ? (
+            <div aria-label={t("fields.color")} className="absolute left-0 z-20 mt-2 rounded border border-border bg-surface p-3 shadow-lg" role="dialog">
+              <ColorPicker
+                ariaLabel={t("fields.color")}
+                mode="light"
+                value={color}
+                onChange={(value) => {
+                  setColor(value)
+                  setColorPopupOpen(false)
+                }}
+              />
+            </div>
+          ) : null}
         </div>
         <div>
           <label className="mb-2 block text-sm font-medium">{t("fields.avatar")}</label>
