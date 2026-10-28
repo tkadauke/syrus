@@ -33,14 +33,19 @@ RSpec.describe "API: coworkers", type: :request do
 
   it "creates side chats in the coworker's Phase 1 home-branch workspace" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
-    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url,
+      chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
+    )
     sign_in_as(owner)
 
     expect { post "/api/v1/app/coworkers/#{coworker.id}/chats" }.to change(Coworkers::Chat.where(role: "side"), :count).by(1)
 
     expect(response).to have_http_status(:created)
     chat = coworker.coworker_chats.find_by!(role: "side").chat_session
-    expect(chat.repository).to eq(repository)
+    expect(chat).to have_attributes(
+      repository: repository, chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
+    )
   end
 
   it "removes the routes and sidebar contribution when the plugin is disabled" do
