@@ -455,8 +455,8 @@ recording/validation/adjudication flow.
 ## Retention
 
 `test_insight_cases` is by far the plugin's highest-volume table (one row per
-test example per grader run). `test_insight_case_retention_days` controls how
-long `TestInsights::PruneJob` keeps raw cases and their parent run rows. It
+test example per grader run). Its policy in Admin Retention Settings controls
+how long `TestInsights::PruneJob` keeps raw cases and their parent run rows. It
 defaults to 90 days: active tests retain far more executions than the 20-case
 flakiness lookback needs, while the plugin's highest-volume table stays
 bounded. Set it to `0` for infinite retention. The job also deletes

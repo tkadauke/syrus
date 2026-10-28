@@ -401,12 +401,10 @@ Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a wri
 ## Data retention
 
 Per-table DB row retention windows are declared in `RetentionPolicyRegistry`
-(`app/models/retention_policy_registry.rb`), not hand-listed here or in
-`AppSettingRegistry` — `AppSettingRegistry.definitions` folds each entry in
-as an admin-editable integer setting (`RetentionPolicyRegistry::Definition#as_app_setting_definition`),
-so validations and admin metadata stay in sync automatically. Every setting
-follows the same `0` = infinite retention convention as
-`video_storage_budget_mb`: a `0` value means the corresponding scope returns
+and persisted by stable policy key in `retention_policy_settings`. Effective
+durations are stored as canonical seconds; `NULL` means explicit infinite
+retention. The admin API and UI continue to present the registry's display
+unit and preserve the `0` = infinite convention: a `0` value means the corresponding scope returns
 `.none` and the PruneJob is a no-op. Models include the shared
 `HasConfigurableRetention` concern and declare `configurable_retention
 setting_key:, unit:` once; the concern exposes `retention_window` (nil when
@@ -417,10 +415,10 @@ far back) as class methods.
 
 `RetentionPolicyRegistry.definitions` recomputes on every call, merging
 `CORE_DEFINITIONS` with whatever any installed plugin contributes via the
-`:retention_policy` extension point (`Syrus::Plugin::RetentionPolicy`,
-`Syrus::PluginRegistry.all_plugins` — unfiltered by enabled state, since the
-AppSetting column and its validation/admin metadata must exist regardless of
-whether the plugin happens to be enabled). A plugin that owns a prunable
+`:retention_policy` extension point (`Syrus::Plugin::RetentionPolicy`). Only
+enabled providers participate in active discovery. A disabled or removed
+plugin may leave an inert `retention_policy_settings` row, preserving its
+operator choice without loading plugin classes. A plugin that owns a prunable
 table (e.g. `metrics_dashboard`) must never be hand-listed in core's
 `CORE_DEFINITIONS` — a core file naming a plugin's model/job class by string
 would make that plugin undeletable in practice (see CLAUDE.md's "core specs
@@ -451,7 +449,6 @@ stays fixed or on its own settings.
 | `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` | yes |
 | `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` | yes |
 | `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` | no |
-| `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none | no |
 
 "Archivable" means the entry's `RetentionPolicyRegistry::Definition#archivable`
 flag is `true` — see "Archive-before-delete storage" below for what that
@@ -508,10 +505,8 @@ Three entries are worth calling out:
   plugin via the `:retention_policy` extension point rather than hand-listed
   in `RetentionPolicyRegistry::CORE_DEFINITIONS`, so the plugin stays
   physically removable (`bin/plugin-boundary-audit metrics_dashboard`). The
-  column itself is still added by a core migration and validated/exposed in
-  admin settings unconditionally, the same as other plugin-owned settings
-  like `discord_bot_token` — only the model's `.prunable` scope and PruneJob
-  go inert while the plugin is disabled. Its seven-day default matches the
+  persisted row may remain while the plugin is disabled, but active discovery,
+  its `.prunable` scope, and its PruneJob go inert. Its seven-day default matches the
   dashboard's longest selectable window; `prune_metrics_dashboard_samples`
   enforces it daily from `config/recurring.yml`.
 
@@ -573,7 +568,7 @@ operator picked 0 GB."
 /api/v1/app/admin/retention_settings`) renders one row per
 `RetentionPolicyRegistry` entry — never a hand-listed table set in the
 controller — joining in the cached `RetentionSizeSnapshotJob` sizing data and
-the entry's current `AppSetting` value. Each row shows the table's current
+the entry's current `RetentionPolicySetting` value. Each row shows the table's current
 row count/byte size, its projected max size at the configured retention (or
 "Unbounded" when the setting is `0`), and, when available-space data exists,
 that max size as a percentage of available space; when available space is
@@ -584,10 +579,9 @@ toggle) rather than one flat form, since the settings are unrelated to each
 other. `PATCH /api/v1/app/admin/retention_settings` accepts `0` as the
 infinite sentinel only when the matching `<setting_key>_infinite` flag is
 also true; blank finite inputs and bare zeroes are rejected before updating
-`AppSetting`, so clearing a field while retyping cannot silently disable
-age-based pruning. Nonzero values still validate against the same
-`AppSettingRegistry`-derived numericality bounds as every other retention
-setting. This page covers only the DB-table entries in the registry; the
+the dedicated policy store, so clearing a field while retyping cannot silently
+disable age-based pruning. Nonzero values must be positive integers. This page
+covers only the DB-table entries in the registry; the
 existing walkthrough-video retention/budget settings documented above stay on
 `/settings/edit`.
 
@@ -605,14 +599,9 @@ live table.
 
 **Opt-in flag.** `RetentionPolicyRegistry::Definition#archivable` marks which
 entries archiving is meaningful for (see the table above). Every archivable
-entry gets a matching `<key>_archive_before_delete` boolean `AppSetting`
-column (`Definition#archive_setting_key`), folded into
-`AppSettingRegistry.definitions` via
-`RetentionPolicyRegistry.archive_app_setting_definitions` the same way
-`as_app_setting_definition` folds the retention-window integer settings in.
-Every one of these defaults to `false` — archiving is off for every table
-until an operator explicitly enables it — and a non-archivable entry has no
-such column at all.
+entry stores its archive choice on the same `RetentionPolicySetting` row.
+Every one defaults to `false` — archiving is off until an operator explicitly
+enables it — while non-archivable policies always store `NULL` for that field.
 
 **`RetentionPruner`** (`app/services/retention_pruner.rb`) is the shared
 bounded-delete service used by retention PruneJobs. It selects ordered

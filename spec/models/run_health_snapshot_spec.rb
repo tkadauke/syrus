@@ -29,7 +29,7 @@ RSpec.describe RunHealthSnapshot, type: :model do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(run_health_snapshot_retention_days: 0)
+      set_retention(:run_health_snapshot, 0)
       old = snapshot(created_at: 10.years.ago)
 
       expect(described_class.prunable).to be_empty

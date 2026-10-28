@@ -12,11 +12,9 @@ RSpec.describe RetentionPolicyRegistry do
     end
   end
 
-  it "matches current AppSetting defaults for every core setting_key" do
-    setting = AppSetting.new
-
+  it "provides canonical-second defaults for every core policy" do
     described_class::CORE_DEFINITIONS.each do |definition|
-      expect(setting.public_send(definition.setting_key)).to eq(definition.default_value)
+      expect(definition.default_seconds).to eq(definition.default_value.public_send(definition.unit).to_i)
     end
   end
 
@@ -50,25 +48,13 @@ RSpec.describe RetentionPolicyRegistry do
     )
   end
 
-  it "converts to an admin-editable AppSettingRegistry definition" do
-    app_setting_definition = described_class.fetch(:run_diagnostic).as_app_setting_definition
-
-    expect(app_setting_definition.key).to eq(:run_diagnostic_retention_days)
-    expect(app_setting_definition.type).to eq(:integer)
-    expect(app_setting_definition.admin_editable).to be true
-    expect(app_setting_definition.min).to eq(0)
-  end
-
-  it "registers job logs and performance events as admin-editable retention settings" do
+  it "keeps display units in metadata while converting persisted seconds" do
     job_logs = described_class.fetch(:job_log)
     performance_events = described_class.fetch(:performance_log_event)
 
-    expect(job_logs.as_app_setting_definition).to have_attributes(
-      key: :job_log_retention_days, default: 30, admin_editable: true
-    )
-    expect(performance_events.as_app_setting_definition).to have_attributes(
-      key: :performance_log_event_retention_hours, default: 24, admin_editable: true
-    )
+    expect(job_logs.value_for(30.days.to_i)).to eq(30)
+    expect(performance_events.value_for(24.hours.to_i)).to eq(24)
+    expect(job_logs.value_for(nil)).to eq(0)
   end
 
   it "computes the archive_setting_key convention for every core definition" do
@@ -90,31 +76,8 @@ RSpec.describe RetentionPolicyRegistry do
     )
   end
 
-  it "leaves the lookback-only entry (no scope_name/job_class) non-archivable" do
-    definition = described_class.fetch(:workflow_step_resource_profile_input)
-
-    expect(definition.archivable).to be false
-    expect(definition.as_archive_app_setting_definition).to be_nil
-  end
-
-  it "converts an archivable definition to an admin-editable boolean AppSettingRegistry definition" do
-    app_setting_definition = described_class.fetch(:provider_session).as_archive_app_setting_definition
-
-    expect(app_setting_definition.key).to eq(:provider_session_archive_before_delete)
-    expect(app_setting_definition.type).to eq(:boolean)
-    expect(app_setting_definition.default).to eq(false)
-    expect(app_setting_definition.admin_editable).to be true
-  end
-
-  it "returns nil as_archive_app_setting_definition for a non-archivable definition" do
-    expect(described_class.fetch(:notification).as_archive_app_setting_definition).to be_nil
-  end
-
-  it "collects every archivable definition's setting into .archive_app_setting_definitions" do
-    keys = described_class.archive_app_setting_definitions.map(&:key)
-
-    expect(keys).to include(:provider_session_archive_before_delete, :run_diagnostic_archive_before_delete)
-    expect(keys).not_to include(:notification_archive_before_delete)
+  it "does not treat the resource-profile query lookback as row retention" do
+    expect(described_class::CORE_DEFINITIONS.map(&:key)).not_to include(:workflow_step_resource_profile_input)
   end
 
   describe "plugin-contributed definitions" do
@@ -147,6 +110,8 @@ RSpec.describe RetentionPolicyRegistry do
       Syrus::PluginRegistry.register(
         name: "fake-retention-plugin",
         version: "1.0.0",
+        default_enabled: true,
+        disableable: true,
         provides: { retention_policy: fake_provider }
       )
     end
@@ -160,10 +125,13 @@ RSpec.describe RetentionPolicyRegistry do
       expect(described_class.fetch(:fake_plugin_table).model).to eq("FakePluginModel")
     end
 
-    it "is not filtered by whether the contributing plugin is enabled" do
-      PluginRecord.find_or_create_by!(name: "fake-retention-plugin") { |r| r.enabled = false }
+    it "excludes a disabled plugin while leaving any persisted setting inert" do
+      PluginRecord.find_or_create_by!(name: "fake-retention-plugin").update!(enabled: false)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
+      RetentionPolicySetting.create!(retention_key: "fake_plugin_table", retention_seconds: 5.days.to_i)
 
-      expect(described_class.definitions.map(&:key)).to include(:fake_plugin_table)
+      expect(described_class.definitions.map(&:key)).not_to include(:fake_plugin_table)
+      expect(RetentionPolicySetting.find_by!(retention_key: "fake_plugin_table").retention_seconds).to eq(5.days.to_i)
     end
   end
 end

@@ -26,7 +26,7 @@ RSpec.describe WorkEngineReconcilerActivityPruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(work_engine_reconciler_activity_retention_days: 0)
+    set_retention(:work_engine_reconciler_activity, 0)
     WorkEngineReconcilerActivityEvent.record!(
       event_type: "run_finished",
       source: "spec",
@@ -54,7 +54,7 @@ RSpec.describe WorkEngineReconcilerActivityPruneJob do
   end
 
   it "archives before deleting when archive_before_delete is on" do
-    AppSetting.current.update!(work_engine_reconciler_activity_archive_before_delete: true)
+    set_retention_archive(:work_engine_reconciler_activity, true)
 
     travel_to Time.zone.parse("2026-08-09 12:00:00 UTC") do
       WorkEngineReconcilerActivityEvent.record!(

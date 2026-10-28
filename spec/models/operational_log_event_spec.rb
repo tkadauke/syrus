@@ -23,7 +23,7 @@ RSpec.describe OperationalLogEvent do
     end
 
     it "returns none when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(operational_log_event_retention_hours: 0)
+      set_retention(:operational_log_event, 0)
       old = event(occurred_at: 10.years.ago)
 
       expect(described_class.expired).to be_empty
@@ -45,7 +45,7 @@ RSpec.describe OperationalLogEvent do
     end
 
     it "returns the epoch when retention is set to 0 (infinite)" do
-      AppSetting.current.update!(operational_log_event_retention_hours: 0)
+      set_retention(:operational_log_event, 0)
 
       expect(described_class.retention_floor(now: Time.current)).to eq(Time.at(0))
     end

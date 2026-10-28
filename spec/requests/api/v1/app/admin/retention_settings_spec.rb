@@ -41,7 +41,7 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
 
   it "builds the table payload from the registry, current AppSetting values, and cached size snapshots" do
     sign_in_as(admin)
-    AppSetting.current.update!(notification_retention_days: 10)
+    set_retention(:notification, 10)
     allow(Rails).to receive(:cache).and_return(ActiveSupport::Cache::MemoryStore.new)
     allow(TableSizeEstimator).to receive(:estimate).with("notifications").and_return(
       TableSizeEstimator::Result.new(table_name: "notifications", row_count_estimate: 1000, byte_size_estimate: 200_000)
@@ -112,32 +112,32 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
 
   it "updates a table's retention setting" do
     sign_in_as(admin)
-    AppSetting.current.update!(notification_retention_days: 30)
+    set_retention(:notification, 30)
 
     patch "/api/v1/app/admin/retention_settings", params: {
       retention_settings: { notification_retention_days: 60 }
     }
 
     expect(response).to have_http_status(:ok)
-    expect(AppSetting.current.reload.notification_retention_days).to eq(60)
+    expect(definition.setting.reload.retention_seconds).to eq(60.days.to_i)
     expect(parse_body["message"]).to eq("Retention settings updated.")
   end
 
   it "permits 0 as the infinite-retention sentinel when the infinite flag is explicit" do
     sign_in_as(admin)
-    AppSetting.current.update!(notification_retention_days: 30)
+    set_retention(:notification, 30)
 
     patch "/api/v1/app/admin/retention_settings", params: {
       retention_settings: { notification_retention_days: 0, notification_retention_days_infinite: true }
     }
 
     expect(response).to have_http_status(:ok)
-    expect(AppSetting.current.reload.notification_retention_days).to eq(0)
+    expect(definition.setting.reload.retention_seconds).to be_nil
   end
 
   it "rejects a bare 0 retention value without persisting infinite retention" do
     sign_in_as(admin)
-    AppSetting.current.update!(notification_retention_days: 30)
+    set_retention(:notification, 30)
 
     patch "/api/v1/app/admin/retention_settings", params: {
       retention_settings: { notification_retention_days: 0 }
@@ -146,12 +146,12 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
     expect(parse_body.dig("error", "message")).to include("Choose infinite retention explicitly")
-    expect(AppSetting.current.reload.notification_retention_days).to eq(30)
+    expect(definition.retention_value).to eq(30)
   end
 
   it "rejects a blank retention value instead of dropping it as absent" do
     sign_in_as(admin)
-    AppSetting.current.update!(notification_retention_days: 30)
+    set_retention(:notification, 30)
 
     patch "/api/v1/app/admin/retention_settings", params: {
       retention_settings: { notification_retention_days: "" }
@@ -160,12 +160,12 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
     expect(parse_body.dig("error", "message")).to include("Enter a retention window")
-    expect(AppSetting.current.reload.notification_retention_days).to eq(30)
+    expect(definition.retention_value).to eq(30)
   end
 
   it "rejects a negative retention value without persisting it" do
     sign_in_as(admin)
-    AppSetting.current.update!(notification_retention_days: 30)
+    set_retention(:notification, 30)
 
     patch "/api/v1/app/admin/retention_settings", params: {
       retention_settings: { notification_retention_days: -1 }
@@ -173,7 +173,7 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(AppSetting.current.reload.notification_retention_days).to eq(30)
+    expect(definition.retention_value).to eq(30)
   end
 
   it "updates the manual available-space override and immediately reflects it in available_space, without waiting for the snapshot job to rerun" do
@@ -230,7 +230,7 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     }
 
     expect(response).to have_http_status(:ok)
-    expect(AppSetting.current.reload.public_send(archivable_definition.archive_setting_key)).to eq(true)
+    expect(archivable_definition.setting.reload.archive_before_delete).to eq(true)
     row = parse_body["tables"].find { |t| t["key"] == archivable_definition.key.to_s }
     expect(row["archive_before_delete"]).to eq(true)
   end
@@ -238,14 +238,14 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
   it "disables archive-before-delete for a table (false is not treated as a blank/absent value)" do
     allow(RetentionPolicyRegistry).to receive(:definitions).and_return([ definition, archivable_definition ])
     sign_in_as(admin)
-    AppSetting.current.update!(archivable_definition.archive_setting_key => true)
+    set_retention_archive(archivable_definition.key, true)
 
     patch "/api/v1/app/admin/retention_settings", params: {
       retention_settings: { archivable_definition.archive_setting_key => false }
     }
 
     expect(response).to have_http_status(:ok)
-    expect(AppSetting.current.reload.public_send(archivable_definition.archive_setting_key)).to eq(false)
+    expect(archivable_definition.setting.reload.archive_before_delete).to eq(false)
     row = parse_body["tables"].find { |t| t["key"] == archivable_definition.key.to_s }
     expect(row["archive_before_delete"]).to eq(false)
   end
@@ -258,7 +258,7 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     }
 
     expect(response).to have_http_status(:ok)
-    expect(AppSetting.current.reload.notification_retention_days).to eq(45)
+    expect(definition.retention_value).to eq(45)
     expect(AppSetting.current.polling_paused).to eq(false)
   end
 end

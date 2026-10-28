@@ -35,7 +35,7 @@ RSpec.describe PruneOperationalLogsJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(operational_log_event_retention_hours: 0)
+    set_retention(:operational_log_event, 0)
     old = event(occurred_at: 10.years.ago)
 
     described_class.perform_now

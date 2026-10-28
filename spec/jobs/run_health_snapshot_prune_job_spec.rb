@@ -32,7 +32,7 @@ RSpec.describe RunHealthSnapshotPruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(run_health_snapshot_retention_days: 0)
+    set_retention(:run_health_snapshot, 0)
     old = snapshot(created_at: 10.years.ago)
 
     expect { described_class.perform_now }.not_to change { RunHealthSnapshot.count }
@@ -47,7 +47,7 @@ RSpec.describe RunHealthSnapshotPruneJob do
   end
 
   it "archives before deleting when archive_before_delete is on" do
-    AppSetting.current.update!(run_health_snapshot_archive_before_delete: true)
+    set_retention_archive(:run_health_snapshot, true)
     old = snapshot(created_at: (RunHealthSnapshot.retention_window + 1.day).ago)
 
     expect { described_class.perform_now }.to change { RetentionArchive.count }.by(1)

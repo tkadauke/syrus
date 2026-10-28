@@ -22,7 +22,7 @@ RSpec.describe SpawnedProcessPruneJob do
   end
 
   it "is a no-op when retention is set to 0 (infinite)" do
-    AppSetting.current.update!(spawned_process_retention_days: 0)
+    set_retention(:spawned_process, 0)
     old = fixture(finished_at: 10.years.ago, outcome: "succeeded", exit_status: 0)
 
     described_class.perform_now

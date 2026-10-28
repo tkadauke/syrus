@@ -418,10 +418,8 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
   end
 
   it "falls back to a 100-year lookback when both input retention settings are 0 (infinite)" do
-    AppSetting.current.update!(
-      workflow_step_resource_profile_input_retention_days: 0,
-      run_resource_summary_retention_days: 0
-    )
+    AppSetting.current.update!(workflow_step_resource_profile_input_retention_days: 0)
+    set_retention(:run_resource_summary, 0)
     resource_summary(repository: repository, duration: 100, cpu: 10.0)
     resource_summary(
       repository: repository,
