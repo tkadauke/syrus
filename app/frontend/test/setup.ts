@@ -84,4 +84,5 @@ afterEach(() => {
   _clearRecentApiRequestsForTest()
   vi.clearAllMocks()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })

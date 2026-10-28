@@ -46,6 +46,46 @@ test.describe("chat markdown table layout", () => {
     expect(statusBox!.x + statusBox!.width).toBeLessThanOrEqual(wrapBox!.x + wrapBox!.width + 1)
   })
 
+  test("keeps a measured fitting table within its scroll wrapper", async ({ page }) => {
+    await page.setViewportSize({ width: 402, height: 844 })
+    await page.setContent(`
+      <style>
+        ${chatCss}
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        .message { box-sizing: border-box; width: 360px; margin: 16px; }
+      </style>
+      <div class="message">
+        <div class="chat-prose">
+          <div class="chat-prose-table-wrap" data-testid="wrap">
+            <table class="chat-prose-table chat-prose-table--balanced chat-prose-table--measured" style="--chat-table-measured-width: 359px;">
+              <colgroup>
+                <col class="chat-prose-table__col chat-prose-table__col--label" style="--chat-table-column-width: 78px;">
+                <col class="chat-prose-table__col chat-prose-table__col--prose" style="--chat-table-column-width: 281px;">
+              </colgroup>
+              <thead><tr><th>Plugin</th><th>Recommendation</th></tr></thead>
+              <tbody><tr><td>browser</td><td>Use browser automation when the task needs an external site.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `)
+
+    const wrap = page.getByTestId("wrap")
+    const table = wrap.locator("table")
+
+    await expect(wrap).toBeVisible()
+    await expect.poll(async () => wrap.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0)
+    await expect
+      .poll(async () => {
+        const [wrapWidth, tableWidth] = await Promise.all([
+          wrap.evaluate((element) => element.getBoundingClientRect().width),
+          table.evaluate((element) => element.getBoundingClientRect().width)
+        ])
+        return wrapWidth - tableWidth
+      })
+      .toBe(0)
+  })
+
   test("keeps genuinely wide unbreakable tables horizontally scrollable", async ({ page }) => {
     await page.setViewportSize({ width: 402, height: 844 })
     await page.setContent(`

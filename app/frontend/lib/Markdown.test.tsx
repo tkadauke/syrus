@@ -182,7 +182,7 @@ describe("Markdown", () => {
     expect(layout).toEqual({ wide: true, widths: [160, 260] })
   })
 
-  it("measures rendered markdown table columns and applies pixel widths through colgroup", async () => {
+  it("reserves the collapsed border pixel when applying measured column widths", async () => {
     const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect
 
     HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
@@ -209,7 +209,9 @@ describe("Markdown", () => {
       const columns = Array.from(container.querySelectorAll("col"))
 
       expect(columns.map((column) => column.getAttribute("data-chat-table-column"))).toEqual(["label", "prose"])
-      expect(columns.map((column) => column.getAttribute("style"))).toEqual(["--chat-table-column-width: 78px;", "--chat-table-column-width: 282px;"])
+      expect(columns.map((column) => column.getAttribute("style"))).toEqual(["--chat-table-column-width: 78px;", "--chat-table-column-width: 281px;"])
+      expect(columns.reduce((total, column) => total + Number.parseInt(column.style.getPropertyValue("--chat-table-column-width"), 10), 0)).toBe(359)
+      expect(container.querySelector("table")).toHaveStyle({ "--chat-table-measured-width": "359px" })
       expect(container.querySelector("table")).not.toHaveClass("chat-prose-table--wide")
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect

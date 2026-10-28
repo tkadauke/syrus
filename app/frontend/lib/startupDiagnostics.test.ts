@@ -16,7 +16,15 @@ function inlineStartupScript(): string {
   return layout.slice(bodyStart + 1, bodyEnd)
 }
 
-function installStartupShell(options: { standalone?: boolean; displayStandalone?: boolean; path?: string } = {}) {
+function installStartupShell(
+  options: {
+    standalone?: boolean
+    displayStandalone?: boolean
+    path?: string
+    visibility?: DocumentVisibilityState
+    performanceEntries?: Record<string, PerformanceEntry[]>
+  } = {}
+) {
   document.head.innerHTML = `
     <meta name="csrf-token" content="csrf-token-123">
     <meta name="syrus-app-revision" content="app-sha">
@@ -33,6 +41,7 @@ function installStartupShell(options: { standalone?: boolean; displayStandalone?
   `
   window.history.pushState({}, "", options.path ?? "/jobs/42")
   Object.defineProperty(navigator, "standalone", { configurable: true, value: options.standalone === true })
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: options.visibility ?? "visible" })
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: vi.fn((query: string) => ({
@@ -55,6 +64,9 @@ function installStartupShell(options: { standalone?: boolean; displayStandalone?
   })
 
   const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+  if (options.performanceEntries) {
+    vi.spyOn(window.performance, "getEntriesByType").mockImplementation((type) => options.performanceEntries?.[type] ?? [])
+  }
   window.eval(inlineStartupScript())
   return fetchSpy
 }
@@ -66,11 +78,15 @@ function postedBodies(fetchSpy: FetchSpy): Array<Record<string, unknown>> {
 }
 
 function postedBrowserErrors(fetchSpy: FetchSpy): Array<Record<string, unknown>> {
-  return postedBodies(fetchSpy).map((body) => body.browser_error).filter(Boolean) as Array<Record<string, unknown>>
+  return postedBodies(fetchSpy)
+    .map((body) => body.browser_error)
+    .filter(Boolean) as Array<Record<string, unknown>>
 }
 
 function postedPerformanceEvents(fetchSpy: FetchSpy): Array<Record<string, unknown>> {
-  return postedBodies(fetchSpy).map((body) => body.performance_event).filter(Boolean) as Array<Record<string, unknown>>
+  return postedBodies(fetchSpy)
+    .map((body) => body.performance_event)
+    .filter(Boolean) as Array<Record<string, unknown>>
 }
 
 function startupStatus() {
@@ -100,27 +116,29 @@ describe("startupDiagnostics", () => {
     const mark = vi.fn()
     window.SyrusStartupDiagnostics = { mark }
 
-    markStartupMilestone("react_first_render")
+    markStartupMilestone("react_commit")
 
-    expect(mark).toHaveBeenCalledWith("react_first_render")
+    expect(mark).toHaveBeenCalledWith("react_commit")
   })
 
   it("does nothing when the shell hook is unavailable", () => {
-    expect(() => markStartupMilestone("react_module_loaded")).not.toThrow()
+    expect(() => markStartupMilestone("react_module_evaluated")).not.toThrow()
   })
 
   it("posts standalone startup milestones to performance events with launch context", () => {
     const fetchSpy = installStartupShell({ standalone: true, path: "/jobs/42?tab=summary" })
 
-    window.SyrusStartupDiagnostics?.mark("react_module_loaded")
-    window.SyrusStartupDiagnostics?.mark("react_first_render")
+    window.SyrusStartupDiagnostics?.mark("react_module_evaluated")
+    window.SyrusStartupDiagnostics?.mark("react_commit")
+    window.SyrusStartupDiagnostics?.mark("react_post_paint")
 
     expect(window.__syrusReactFirstRender).toBe(true)
     const events = postedPerformanceEvents(fetchSpy)
     expect(events.map((event) => event.name)).toEqual([
       "startup.shell_loaded",
-      "startup.react_module_loaded",
-      "startup.react_first_render"
+      "startup.react_module_evaluated",
+      "startup.react_commit",
+      "startup.react_post_paint"
     ])
     expect(events[0]).toMatchObject({
       path: "/jobs/42?tab=summary",
@@ -136,10 +154,90 @@ describe("startupDiagnostics", () => {
     })
   })
 
+  it("records bounded transfer context including cached and zeroed timing fields", () => {
+    const resource = (index: number, origin = window.location.origin) =>
+      ({
+        name: `${origin}/assets/chunk-${index}.js?secret=no`,
+        entryType: "resource",
+        initiatorType: "script",
+        requestStart: index === 0 ? 0 : 10.04,
+        responseStart: index === 0 ? 0 : 12.06,
+        responseEnd: index === 0 ? 0 : 14.08,
+        transferSize: index === 0 ? 0 : 1234,
+        encodedBodySize: index === 0 ? 900 : 1000,
+        decodedBodySize: index === 0 ? 1200 : 1500,
+        nextHopProtocol: index === 0 ? "" : "h2"
+      }) as unknown as PerformanceEntry
+    const fetchSpy = installStartupShell({
+      standalone: true,
+      performanceEntries: {
+        navigation: [
+          {
+            requestStart: 1,
+            responseStart: 2,
+            responseEnd: 3,
+            transferSize: 4,
+            encodedBodySize: 5,
+            decodedBodySize: 6,
+            nextHopProtocol: "h3"
+          } as unknown as PerformanceEntry
+        ],
+        resource: [
+          resource(0),
+          { name: `${window.location.origin}/assets/missing.js`, entryType: "resource", initiatorType: "script" } as unknown as PerformanceEntry,
+          ...Array.from({ length: 44 }, (_, index) => resource(index + 1)),
+          resource(99, "https://cdn.example.test")
+        ]
+      }
+    })
+
+    window.SyrusStartupDiagnostics?.mark("react_module_evaluated")
+
+    const event = postedPerformanceEvents(fetchSpy).find((entry) => entry.name === "startup.react_module_evaluated")
+    const timings = (event?.metadata as { startup_timings: { navigation: Record<string, unknown>; resources: Array<Record<string, unknown>> } }).startup_timings
+    expect(timings.navigation).toMatchObject({ response_end_ms: 3, transfer_size: 4, protocol: "h3" })
+    expect(timings.resources).toHaveLength(40)
+    expect(timings.resources[0]).toEqual({
+      path: "/assets/chunk-0.js",
+      request_start_ms: 0,
+      response_start_ms: 0,
+      response_end_ms: 0,
+      transfer_size: 0,
+      encoded_body_size: 900,
+      decoded_body_size: 1200,
+      cache_status: "cached",
+      protocol: null,
+      delivery_type: null
+    })
+    expect(timings.resources[1]).toMatchObject({
+      path: "/assets/missing.js",
+      request_start_ms: null,
+      response_start_ms: null,
+      response_end_ms: null,
+      transfer_size: null,
+      encoded_body_size: null,
+      decoded_body_size: null,
+      cache_status: null,
+      protocol: null,
+      delivery_type: null
+    })
+    expect(JSON.stringify(timings)).not.toContain("cdn.example.test")
+  })
+
+  it("records initially hidden visibility and lifecycle state on every milestone", () => {
+    const fetchSpy = installStartupShell({ standalone: true, visibility: "hidden" })
+    window.SyrusStartupDiagnostics?.mark("react_commit")
+
+    for (const event of postedPerformanceEvents(fetchSpy)) {
+      expect(event.visibility_state).toBe("hidden")
+      expect(event.metadata).toMatchObject({ visibility_state: "hidden", lifecycle_state: "hidden" })
+    }
+  })
+
   it("keeps normal tab milestones local unless diagnostics are explicitly requested", () => {
     const fetchSpy = installStartupShell()
 
-    window.SyrusStartupDiagnostics?.mark("react_first_render")
+    window.SyrusStartupDiagnostics?.mark("react_commit")
 
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -147,12 +245,9 @@ describe("startupDiagnostics", () => {
   it("allows opt-in startup milestone posting from a normal browser tab", () => {
     const fetchSpy = installStartupShell({ path: "/dashboard?startup_diagnostics=1" })
 
-    window.SyrusStartupDiagnostics?.mark("react_first_render")
+    window.SyrusStartupDiagnostics?.mark("react_commit")
 
-    expect(postedPerformanceEvents(fetchSpy).map((event) => event.name)).toEqual([
-      "startup.shell_loaded",
-      "startup.react_first_render"
-    ])
+    expect(postedPerformanceEvents(fetchSpy).map((event) => event.name)).toEqual(["startup.shell_loaded", "startup.react_commit"])
   })
 
   it("reports script and stylesheet load failures to browser errors without leaking cross-origin URLs", () => {
@@ -186,7 +281,7 @@ describe("startupDiagnostics", () => {
 
   it("does not show the startup shell for resource failures after React renders", () => {
     const fetchSpy = installStartupShell()
-    window.SyrusStartupDiagnostics?.mark("react_first_render")
+    window.SyrusStartupDiagnostics?.mark("react_commit")
     const failedLazyScript = document.createElement("script")
     failedLazyScript.src = `${window.location.origin}/assets/lazy-chunk-dead.js?v=asset-sha`
     document.head.appendChild(failedLazyScript)
@@ -224,10 +319,7 @@ describe("startupDiagnostics", () => {
     window.dispatchEvent(rejectionEvent)
 
     const errors = postedBrowserErrors(fetchSpy)
-    expect(errors.map((entry) => entry.name)).toEqual([
-      "StartupWindowError",
-      "StartupUnhandledRejection"
-    ])
+    expect(errors.map((entry) => entry.name)).toEqual(["StartupWindowError", "StartupUnhandledRejection"])
     expect(errors[0].metadata).toMatchObject({
       source: "/assets/chunk.js?v=asset-sha",
       line: 12,
@@ -258,9 +350,7 @@ describe("startupDiagnostics", () => {
     expect(error.metadata).toMatchObject({
       root_present: true,
       root_blank: true,
-      milestones: [
-        { name: "shell_loaded", at_ms: 0 }
-      ]
+      milestones: [{ name: "shell_loaded", at_ms: 0, visibility_state: "visible", document_ready_state: "complete", lifecycle_state: "active" }]
     })
     expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
     expect(startupStatus()).toHaveTextContent("Syrus is still loading")
@@ -273,7 +363,7 @@ describe("startupDiagnostics", () => {
     vi.useFakeTimers()
     const fetchSpy = installStartupShell()
 
-    window.SyrusStartupDiagnostics?.mark("react_first_render")
+    window.SyrusStartupDiagnostics?.mark("react_commit")
     vi.advanceTimersByTime(8000)
 
     expect(postedBrowserErrors(fetchSpy)).toEqual([])

@@ -48,6 +48,18 @@ RSpec.describe TestInsights::TestIdentity do
 
   describe ".refresh_many!" do
     let(:repository) { Factories.repository }
+    let(:test_run) do
+      TestInsights::TestRun.create!(
+        run: Factories.job(repository: repository).initial_run,
+        repository: repository,
+        grader_name: "rspec",
+        total_count: 0,
+        passed_count: 0,
+        failed_count: 0,
+        skipped_count: 0,
+        error_count: 0
+      )
+    end
 
     def create_identity!(name)
       described_class.create!(
@@ -59,16 +71,8 @@ RSpec.describe TestInsights::TestIdentity do
     end
 
     def create_test_case!(identity, status:, created_at:)
-      test_run = TestInsights::TestRun.create!(
-        run: Factories.job(repository: repository).initial_run,
-        repository: repository,
-        grader_name: "rspec",
-        total_count: 1,
-        passed_count: status == "passed" ? 1 : 0,
-        failed_count: status == "failed" ? 1 : 0,
-        skipped_count: 0,
-        error_count: status == "error" ? 1 : 0
-      )
+      test_run.increment!(:total_count)
+      test_run.increment!("#{status}_count")
       TestInsights::TestCase.create!(
         test_run: test_run,
         repository: repository,

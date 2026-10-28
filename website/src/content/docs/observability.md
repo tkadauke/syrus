@@ -21,6 +21,19 @@ API — named spans like `diff_review.parse_diff` or
 specific phase responsible, the same way backend phase events do for
 requests.
 
+Event-loop lag is inferred from a timer callback arriving late; it is not a
+direct CPU measurement. Rows include a page-session identifier and sequence,
+the expected and actual callback intervals, route at sample time, focus and
+standalone/display-mode context, a coarse browser family, and the latest
+lifecycle transition. Rows also retain a consecutive quantized-cadence count
+capped at three, including callbacks omitted by the report-rate limiter. Three
+integer-multiple intervals are marked as ambiguous quantized cadence; focus
+and lifecycle context do not turn that signature into proof of browser
+throttling. Isolated delays remain plausible main-thread stalls. Hidden and
+visibility-transition intervals are re-baselined rather than reported. Use
+nearby long-task and slow-input traces before concluding that a late callback
+proves either main-thread work or timer throttling.
+
 Use it when:
 
 - a page takes seconds to load,

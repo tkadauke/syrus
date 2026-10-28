@@ -94,6 +94,8 @@
         var reportedKeys = {};
         var milestones = [];
         var pendingStartupState = null;
+        var lifecycleState = document.visibilityState === "hidden" ? "hidden" : "active";
+        var MAX_STARTUP_RESOURCES = 40;
 
         function meta(name) {
           var el = document.querySelector('meta[name="' + name + '"]');
@@ -115,6 +117,46 @@
           } catch (e) {
             return "unknown";
           }
+        }
+
+        function finiteNumber(value) {
+          return typeof value === "number" && isFinite(value) ? Math.max(0, Math.round(value * 10) / 10) : null;
+        }
+
+        function timingEntry(entry, includePath) {
+          var transferSize = finiteNumber(entry.transferSize);
+          var decodedSize = finiteNumber(entry.decodedBodySize);
+          var result = {
+            request_start_ms: finiteNumber(entry.requestStart),
+            response_start_ms: finiteNumber(entry.responseStart),
+            response_end_ms: finiteNumber(entry.responseEnd),
+            transfer_size: transferSize,
+            encoded_body_size: finiteNumber(entry.encodedBodySize),
+            decoded_body_size: decodedSize,
+            cache_status: transferSize === 0 && decodedSize > 0 ? "cached" : null,
+            protocol: shortText(entry.nextHopProtocol || "", 30) || null,
+            delivery_type: shortText(entry.deliveryType || "", 30) || null
+          };
+          if (includePath) {
+            try {
+              result.path = new URL(entry.name, window.location.href).pathname;
+            } catch (e) {
+              result.path = "unknown";
+            }
+          }
+          return result;
+        }
+
+        function startupTimings() {
+          if (!window.performance || !performance.getEntriesByType) return { navigation: null, resources: [] };
+          var navigation = performance.getEntriesByType("navigation")[0];
+          var resources = performance.getEntriesByType("resource").filter(function (entry) {
+            if (entry.initiatorType !== "script") return false;
+            return sameOriginPath(entry.name) !== "cross-origin";
+          }).slice(0, MAX_STARTUP_RESOURCES).map(function (entry) {
+            return timingEntry(entry, true);
+          });
+          return { navigation: navigation ? timingEntry(navigation, false) : null, resources: resources };
         }
 
         function userAgentFamily() {
@@ -153,6 +195,8 @@
             navigator_standalone: standalone.navigator_standalone,
             display_mode_standalone: standalone.display_mode_standalone,
             visibility_state: document.visibilityState || "unknown",
+            document_ready_state: document.readyState || "unknown",
+            lifecycle_state: lifecycleState,
             milestones: milestones.slice(-20)
           };
           Object.keys(extra || {}).forEach(function (key) {
@@ -228,6 +272,9 @@
         function reportMilestone(milestone) {
           if (!shouldReportMilestone()) return;
 
+          var extra = { milestone: milestone };
+          if (milestone === "react_module_evaluated") extra.startup_timings = startupTimings();
+
           postJson("/api/v1/app/performance_events", {
             performance_event: {
               trace_id: "startup-" + startupAt + "-" + milestone,
@@ -235,7 +282,7 @@
               path: window.location.pathname + window.location.search,
               duration_ms: Date.now() - startupAt,
               visibility_state: document.visibilityState || "unknown",
-              metadata: context({ milestone: milestone })
+              metadata: context(extra)
             }
           });
         }
@@ -269,10 +316,16 @@
         }
 
         function mark(milestone) {
-          var entry = { name: milestone, at_ms: Date.now() - startupAt };
+          var entry = {
+            name: milestone,
+            at_ms: Date.now() - startupAt,
+            visibility_state: document.visibilityState || "unknown",
+            document_ready_state: document.readyState || "unknown",
+            lifecycle_state: lifecycleState
+          };
           milestones.push(entry);
           if (milestones.length > 20) milestones.shift();
-          if (milestone === "react_first_render") {
+          if (milestone === "react_commit") {
             window.__syrusReactFirstRender = true;
             hideStartupState();
           }
@@ -281,6 +334,14 @@
 
         window.SyrusStartupDiagnostics = { mark: mark, report: report, context: context };
         mark("shell_loaded");
+
+        document.addEventListener("visibilitychange", function () {
+          lifecycleState = document.visibilityState === "hidden" ? "hidden" : "active";
+        });
+        window.addEventListener("pagehide", function () { lifecycleState = "pagehide"; });
+        window.addEventListener("pageshow", function (event) { lifecycleState = event.persisted ? "restored" : "active"; });
+        document.addEventListener("freeze", function () { lifecycleState = "frozen"; });
+        document.addEventListener("resume", function () { lifecycleState = "active"; });
 
         window.addEventListener("error", function (event) {
           var target = event.target;

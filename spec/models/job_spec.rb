@@ -344,6 +344,58 @@ RSpec.describe Job, :ci_only do
 
       job.update!(state: "failed", issue_title: "Repair the basilica")
     end
+
+    it "refreshes linked chat status when the Job state changes" do
+      allow(AppUserChannel).to receive(:broadcast_to)
+      job = Factories.job_record(state: "implemented")
+      chat_session = ChatSession.create!(user: job.user)
+      ChatProposal.create!(
+        chat_session: chat_session,
+        job: job,
+        kind: "job",
+        state: "confirmed",
+        slug: "linked-proposal",
+        title: "Linked proposal",
+        body: "Do the thing."
+      )
+
+      job.update!(state: "approved")
+
+      expect(AppUserChannel).to have_received(:broadcast_to).with(
+        job.user,
+        hash_including(
+          "type" => "chat.updated",
+          "resource" => "chat",
+          "id" => chat_session.id,
+          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+        )
+      ).once
+    end
+
+    it "does not refresh linked chat status for Job metadata changes" do
+      allow(AppUserChannel).to receive(:broadcast_to)
+      job = Factories.job_record(issue_title: "Original title")
+      chat_session = ChatSession.create!(user: job.user)
+      ChatProposal.create!(
+        chat_session: chat_session,
+        job: job,
+        kind: "job",
+        state: "confirmed",
+        slug: "linked-proposal",
+        title: "Linked proposal",
+        body: "Do the thing."
+      )
+
+      job.update!(issue_title: "Revised title")
+
+      expect(AppUserChannel).not_to have_received(:broadcast_to).with(
+        job.user,
+        hash_including(
+          "type" => "chat.updated",
+          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+        )
+      )
+    end
   end
 
   describe "queued chat pending actions" do

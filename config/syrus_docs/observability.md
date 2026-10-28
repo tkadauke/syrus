@@ -219,6 +219,30 @@ of a parallel stream, so marker events show up in the same
 traces (`browser.long_task`, `browser.slow_input`, `browser.event_loop_lag`)
 already use.
 
+Event-loop rows describe timer delivery, not a direct measurement of CPU work.
+Each row retains the route at sample time plus a stable `page_session_id`,
+monotonic `callback_sequence`, `actual_interval_ms`, `expected_interval_ms`,
+`quantized_cadence_run`, focus and display-mode state, a coarse user-agent
+family, and only the latest lifecycle transition type/age. This bounded
+context lets one page session be followed through SPA navigation without
+retaining a lifecycle history or a high-cardinality user-agent string.
+
+To reproduce the sampler's classification from a stored row, compare
+`actual_interval_ms` with integer multiples of `expected_interval_ms`. A
+callback within the larger of 20 ms or 2% of a multiple increments
+`quantized_cadence_run`; any other callback resets it. The run count includes
+callbacks omitted by the ten-second report limiter, so it is the bounded
+aggregate needed to explain a retained row even when preceding callbacks were
+not retained, and it saturates at three because larger values do not change
+the classification. Counts below three are `plausible_main_thread_stall`; a
+count of three is `ambiguous_quantized_cadence`. Focus, display mode, and the
+latest lifecycle transition remain context only: none proves why a visible
+timer arrived late, because periodic main-thread work can produce the same
+shape. No isolated plausible stall is suppressed. Samples while hidden, the
+interval spanning a visibility transition, and lags above the configured
+plausibility ceiling are omitted and re-baselined. Correlate nearby long-task
+and slow-input rows before claiming either blocking or browser throttling.
+
 SPA startup milestones use the same browser trace ingestion path with
 `startup.*` names. To keep volume bounded, normal Safari tabs keep milestones
 in memory only; milestones are posted when the launch appears to be an iOS/Home
@@ -226,8 +250,43 @@ Screen standalone session (`navigator.standalone` or `display-mode:
 standalone`) or when an operator explicitly opens a URL with
 `startup_diagnostics=1`. The milestone metadata mirrors the browser-error
 startup context so operators can compare `startup.shell_loaded`,
-`startup.react_module_loaded`, and `startup.react_first_render` for standalone
-launches without filing browser-error jobs for successful starts.
+`startup.react_module_evaluated`, `startup.react_commit`, and
+`startup.react_post_paint` for standalone launches without filing browser-error
+jobs for successful starts. The definitions are deliberately non-cumulative:
+
+- **transfer** is the Navigation Timing request/response interval plus up to 40
+  same-origin `script` Resource Timing entries observed when the entry module
+  finishes evaluation. Each entry contains request start, response start/end,
+  transfer/encoded/decoded sizes, inferred cache status, delivery type, and
+  connection protocol where the browser exposes them. Asset identifiers are
+  pathnames only; origins and query strings are discarded. Zero and missing
+  values are retained because browsers commonly suppress these fields.
+- **evaluation** ends at `startup.react_module_evaluated`, immediately after
+  the initial static module graph has evaluated. Subtract the latest relevant
+  resource `response_end_ms` from this milestone's `duration_ms`; do not call
+  the entire shell-to-module interval evaluation time.
+- **commit** is `startup.react_commit`, emitted from React's layout-effect
+  boundary after the first commit. It satisfies the existing startup watchdog
+  and hides the loading shell.
+- **paint** is `startup.react_post_paint`, emitted after two animation frames
+  requested from that layout effect, so at least one paint opportunity has
+  passed. Every milestone records `visibility_state`, `document_ready_state`,
+  and the latest lifecycle state; hidden launches must not be interpreted as
+  visible paint latency.
+
+Reproduce a launch from a normal tab by adding `?startup_diagnostics=1`, then
+query the Rails console (within the 24-hour retention window):
+
+```ruby
+events = PerformanceLogEvent.where(
+  event_name: PerformanceLogging::BROWSER_TRACE_EVENT,
+  name: %w[startup.shell_loaded startup.react_module_evaluated startup.react_commit startup.react_post_paint]
+).where("occurred_at >= ?", 30.minutes.ago).order(:trace_id)
+
+events.pluck(:trace_id, :name, :duration_ms, :path)
+evaluated = events.find_by(name: "startup.react_module_evaluated")
+evaluated&.payload&.dig("metadata", "startup_timings")
+```
 
 Helpers: `measureSync`/`measureAsync` (time a block, sync or async),
 `startMarker`/`endMarker` (an explicit span that doesn't fit one function

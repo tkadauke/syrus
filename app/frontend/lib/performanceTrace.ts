@@ -110,7 +110,7 @@ export function postBrowserTraces(payloads: BrowserTracePayload[], options: { be
   const body = JSON.stringify({ performance_events: payloads, authenticity_token: csrfToken })
 
   if (options.beacon && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-    const blob = new Blob([ body ], { type: "application/json" })
+    const blob = new Blob([body], { type: "application/json" })
     if (navigator.sendBeacon("/api/v1/app/performance_events", blob)) return true
   }
 
@@ -156,18 +156,21 @@ function observeLongTasks(_options: BrowserObserverOptions): void {
     list.getEntries().forEach((entry) => {
       if (entry.duration < 100) return
 
-      recordBrowserTrace({
-        trace_id: browserTraceId("longtask"),
-        name: "browser.long_task",
-        path: currentTracePath(),
-        duration_ms: roundMs(entry.duration),
-        visibility_state: visibilityState(),
-        metadata: {
-          entry_type: entry.entryType,
-          start_time_ms: roundMs(entry.startTime),
-          source: "performance_observer"
-        }
-      }, { enabled: true })
+      recordBrowserTrace(
+        {
+          trace_id: browserTraceId("longtask"),
+          name: "browser.long_task",
+          path: currentTracePath(),
+          duration_ms: roundMs(entry.duration),
+          visibility_state: visibilityState(),
+          metadata: {
+            entry_type: entry.entryType,
+            start_time_ms: roundMs(entry.startTime),
+            source: "performance_observer"
+          }
+        },
+        { enabled: true }
+      )
     })
   })
 
@@ -188,26 +191,28 @@ function observeSlowEvents(_options: BrowserObserverOptions): void {
       if (entry.duration < 50) return
 
       const inputDelayMs = typeof entry.processingStart === "number" ? Math.max(0, entry.processingStart - entry.startTime) : null
-      const processingDurationMs = typeof entry.processingStart === "number" && typeof entry.processingEnd === "number"
-        ? Math.max(0, entry.processingEnd - entry.processingStart)
-        : null
+      const processingDurationMs =
+        typeof entry.processingStart === "number" && typeof entry.processingEnd === "number" ? Math.max(0, entry.processingEnd - entry.processingStart) : null
 
-      recordBrowserTrace({
-        trace_id: browserTraceId("input"),
-        name: "browser.slow_input",
-        path: currentTracePath(),
-        duration_ms: roundMs(entry.duration),
-        visibility_state: visibilityState(),
-        metadata: {
-          event_name: entry.name,
-          entry_type: entry.entryType,
-          input_delay_ms: inputDelayMs === null ? null : roundMs(inputDelayMs),
-          processing_duration_ms: processingDurationMs === null ? null : roundMs(processingDurationMs),
-          interaction_id: typeof entry.interactionId === "number" && entry.interactionId > 0 ? entry.interactionId : null,
-          target: targetLabel(entry.target),
-          source: "performance_observer"
-        }
-      }, { enabled: true })
+      recordBrowserTrace(
+        {
+          trace_id: browserTraceId("input"),
+          name: "browser.slow_input",
+          path: currentTracePath(),
+          duration_ms: roundMs(entry.duration),
+          visibility_state: visibilityState(),
+          metadata: {
+            event_name: entry.name,
+            entry_type: entry.entryType,
+            input_delay_ms: inputDelayMs === null ? null : roundMs(inputDelayMs),
+            processing_duration_ms: processingDurationMs === null ? null : roundMs(processingDurationMs),
+            interaction_id: typeof entry.interactionId === "number" && entry.interactionId > 0 ? entry.interactionId : null,
+            target: targetLabel(entry.target),
+            source: "performance_observer"
+          }
+        },
+        { enabled: true }
+      )
     })
   })
 
@@ -236,21 +241,45 @@ function observeEventLoopLag(options: BrowserObserverOptions): void {
   const thresholdMs = options.eventLoopLagThresholdMs ?? 150
   const minReportIntervalMs = options.minEventLoopReportIntervalMs ?? 10_000
   const maxPlausibleLagMs = options.maxPlausibleEventLoopLagMs ?? 10_000
+  const pageSessionId = browserTraceId("page-session")
   let expectedAt = performanceNow() + intervalMs
+  let lastCallbackAt = expectedAt - intervalMs
   let lastReportedAt = 0
+  let callbackSequence = 0
+  let quantizedCadenceCount = 0
+  let latestLifecycleTransition = "sampler_start"
+  let latestLifecycleTransitionAt = performanceNow()
   // The interval spanning a visibility transition measured the throttle, not
   // the page, so drop it and re-baseline.
   let skipNextSample = documentHidden()
 
   const onVisibilityChange = (): void => {
+    recordLifecycleTransition(`visibility_${visibilityState()}`)
     expectedAt = performanceNow() + intervalMs
+    lastCallbackAt = expectedAt - intervalMs
     skipNextSample = true
   }
+  const recordLifecycleTransition = (type: string): void => {
+    latestLifecycleTransition = type
+    latestLifecycleTransitionAt = performanceNow()
+  }
+  const lifecycleListeners: Array<[EventTarget, string, EventListener]> = [
+    [window, "focus", () => recordLifecycleTransition("focus")],
+    [window, "blur", () => recordLifecycleTransition("blur")],
+    [window, "pageshow", () => recordLifecycleTransition("pageshow")],
+    [window, "pagehide", () => recordLifecycleTransition("pagehide")],
+    [document, "freeze", () => recordLifecycleTransition("freeze")],
+    [document, "resume", () => recordLifecycleTransition("resume")]
+  ]
   document.addEventListener("visibilitychange", onVisibilityChange)
+  lifecycleListeners.forEach(([target, type, listener]) => target.addEventListener(type, listener))
 
   const intervalId = window.setInterval(() => {
     const now = performanceNow()
+    callbackSequence += 1
+    const actualIntervalMs = Math.max(0, now - lastCallbackAt)
     const lagMs = now - expectedAt
+    lastCallbackAt = now
     expectedAt = now + intervalMs
 
     const hidden = documentHidden()
@@ -258,32 +287,88 @@ function observeEventLoopLag(options: BrowserObserverOptions): void {
     // Stay suppressed for as long as the tab is hidden, and for the first tick
     // after it comes back.
     skipNextSample = hidden
-    if (skip) return
+    if (skip) {
+      quantizedCadenceCount = 0
+      return
+    }
+
+    const cadenceMultiple = Math.round(actualIntervalMs / intervalMs)
+    const quantizedCadence = cadenceMultiple >= 2 && Math.abs(actualIntervalMs - cadenceMultiple * intervalMs) <= Math.max(20, intervalMs * 0.02)
+    quantizedCadenceCount = quantizedCadence ? Math.min(quantizedCadenceCount + 1, 3) : 0
 
     if (lagMs < thresholdMs) return
     if (lagMs > maxPlausibleLagMs) return
     if (now - lastReportedAt < minReportIntervalMs) return
 
+    const focused = documentFocused()
     lastReportedAt = now
-    recordBrowserTrace({
-      trace_id: browserTraceId("event-loop"),
-      name: "browser.event_loop_lag",
-      path: currentTracePath(),
-      duration_ms: roundMs(lagMs),
-      visibility_state: visibilityState(),
-      metadata: {
-        interval_ms: intervalMs,
-        threshold_ms: thresholdMs,
-        max_plausible_lag_ms: maxPlausibleLagMs,
-        source: "event_loop_sampler"
-      }
-    }, { enabled: true })
+    recordBrowserTrace(
+      {
+        trace_id: browserTraceId("event-loop"),
+        name: "browser.event_loop_lag",
+        path: currentTracePath(),
+        duration_ms: roundMs(lagMs),
+        visibility_state: visibilityState(),
+        metadata: {
+          page_session_id: pageSessionId,
+          callback_sequence: callbackSequence,
+          actual_interval_ms: roundMs(actualIntervalMs),
+          expected_interval_ms: intervalMs,
+          interval_ms: intervalMs,
+          threshold_ms: thresholdMs,
+          max_plausible_lag_ms: maxPlausibleLagMs,
+          focus_state: focused ? "focused" : "unfocused",
+          display_mode: displayMode(),
+          user_agent_family: userAgentFamily(),
+          lifecycle_transition_type: latestLifecycleTransition,
+          lifecycle_transition_age_ms: roundMs(Math.min(Math.max(0, now - latestLifecycleTransitionAt), 86_400_000)),
+          classification: eventLoopLagClassification(quantizedCadenceCount),
+          cadence_multiple: quantizedCadence ? cadenceMultiple : null,
+          quantized_cadence_run: quantizedCadenceCount,
+          source: "event_loop_sampler"
+        }
+      },
+      { enabled: true }
+    )
   }, intervalMs)
 
   observerCleanups.push(() => {
     document.removeEventListener("visibilitychange", onVisibilityChange)
+    lifecycleListeners.forEach(([target, type, listener]) => target.removeEventListener(type, listener))
     window.clearInterval(intervalId)
   })
+}
+
+function eventLoopLagClassification(quantizedCadenceCount: number): string {
+  if (quantizedCadenceCount < 3) return "plausible_main_thread_stall"
+  return "ambiguous_quantized_cadence"
+}
+
+function documentFocused(): boolean {
+  return typeof document.hasFocus === "function" ? document.hasFocus() : false
+}
+
+function displayMode(): string {
+  const standaloneNavigator = navigator as Navigator & { standalone?: boolean }
+  if (standaloneNavigator.standalone === true) return "standalone"
+  if (typeof window.matchMedia !== "function") return "browser"
+
+  for (const mode of ["standalone", "fullscreen", "minimal-ui"]) {
+    if (window.matchMedia(`(display-mode: ${mode})`).matches) return mode
+  }
+  return "browser"
+}
+
+function userAgentFamily(): string {
+  const userAgent = typeof navigator.userAgent === "string" ? navigator.userAgent : ""
+  if (/Edg\//.test(userAgent)) return "edge"
+  if (/Electron\//.test(userAgent)) return "electron"
+  if (/CriOS\//.test(userAgent)) return "chrome_ios"
+  if (/FxiOS\//.test(userAgent)) return "firefox_ios"
+  if (/Chrome\//.test(userAgent)) return "chrome"
+  if (/Firefox\//.test(userAgent)) return "firefox"
+  if (/Safari\//.test(userAgent)) return "safari"
+  return "other"
 }
 
 function documentHidden(): boolean {
@@ -320,7 +405,7 @@ function targetLabel(target: EventTarget | null | undefined): string | null {
   const tag = target.tagName.toLowerCase()
   const role = target.getAttribute("role")
   const testId = target.getAttribute("data-testid")
-  const pieces = [ tag ]
+  const pieces = [tag]
   if (role) pieces.push(`[role=${role}]`)
   if (testId) pieces.push(`[data-testid=${testId}]`)
 
