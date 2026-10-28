@@ -28,6 +28,12 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
+  it "dogfoods the container execution backend for grader runs" do
+    config = YAML.safe_load(Rails.root.join(".syrus.yml").read)
+
+    expect(config.dig("execution", "grader_backend")).to eq("container_execution")
+  end
+
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 
