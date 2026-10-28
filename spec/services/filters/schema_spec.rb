@@ -1,11 +1,18 @@
 require "rails_helper"
 
 RSpec.describe Filters::Schema do
+  it "exposes built-in smart folders as named preset values" do
+    preset = described_class.for(subject: :epic).find { |field| field.fetch("field") == "smart_folder_preset" }
+
+    expect(preset).to include("label" => "Preset", "bucket" => "preset", "operators" => [ "is" ])
+    expect(preset.fetch("values")).to include("value" => "epics_archived", "label" => "Archived")
+  end
+
   describe ".for" do
     it "returns the job subject schema by default" do
       fields = described_class.for.map { |chip| chip["field"] }
 
-      expect(fields).to eq(Filters::Registry::CHIPS.keys)
+      expect(fields).to eq([ "smart_folder_preset", *Filters::Registry::CHIPS.keys ])
     end
 
     it "raises a clear error for unknown subjects" do
@@ -136,7 +143,7 @@ RSpec.describe Filters::Schema do
       schema = described_class.for(subject: :epic)
       fields = schema.map { |chip| chip["field"] }
 
-      expect(fields).to match_array(Filters::SUBJECTS.fetch(:epic).fields)
+      expect(fields).to match_array([ "smart_folder_preset", *Filters::SUBJECTS.fetch(:epic).fields ])
       expect(schema.find { |chip| chip["field"] == "state" }["values"].map { |v| v["value"] }).to eq(Epic::STATES)
       expect(schema.find { |chip| chip["field"] == "attention" }["values"].map { |v| v["value"] }).to include("ready_to_start", "recently_done")
     end

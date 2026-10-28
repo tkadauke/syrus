@@ -97,6 +97,26 @@ RSpec.describe Filters::Compiler do
     }.to raise_error(Filters::UnknownFilterField)
   end
 
+  it "rejects unknown built-in preset keys" do
+    expect {
+      compile("field" => "smart_folder_preset", "op" => "is", "value" => "not_registered")
+    }.to raise_error(ArgumentError, /unknown smart folder preset/)
+  end
+
+  it "rejects a built-in definition that recursively expands itself" do
+    recursive = {
+      key: "recursive",
+      name: "Recursive",
+      visibility: :always,
+      filter: { "and" => [ { "field" => "smart_folder_preset", "op" => "is", "value" => "recursive" } ] }
+    }
+    allow(SmartFolder).to receive(:builtins_for_subject).with(:job).and_return([ recursive ])
+
+    expect {
+      compile("field" => "smart_folder_preset", "op" => "is", "value" => "recursive")
+    }.to raise_error(ArgumentError, /recursive smart folder preset/)
+  end
+
   it "raises a clear error for unknown subjects" do
     expect {
       described_class.call(Filters::Ast.parse({}), scope: Job.all, subject: :made_up)

@@ -1588,13 +1588,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       inbox_folder = SmartFolder.find_builtin_by_attention("inbox")
       expect(body["active_smart_folder_id"]).to eq(inbox_folder.id)
-      expect(body["filter"]).to eq(
-        "and" => [
-          { "field" => "attention", "op" => "is", "value" => "inbox" },
-          { "field" => "job_type", "op" => "is", "value" => "user" },
-          { "field" => "eligible_approver", "op" => "is", "value" => "me" }
-        ]
-      )
+      expect(body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree("inbox"))
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
       expect(body["items"].map { |item| item.fetch("id") }).not_to include(other_inbox_job.id)
 

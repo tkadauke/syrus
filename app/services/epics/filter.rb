@@ -16,7 +16,10 @@ module Epics
     end
 
     def includes_archived_state?
-      chips.any? { |chip| chip.field == "state" && chip.value.to_s == "archived" }
+      chips.any? do |chip|
+        (chip.field == "state" && chip.value.to_s == "archived") ||
+          (chip.field == Filters::SmartFolderResolution::PRESET_FIELD && chip.value.to_s == "epics_archived")
+      end
     end
 
     def self.build_tree_from_url_params(params)
