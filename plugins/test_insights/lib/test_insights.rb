@@ -56,6 +56,5 @@ module TestInsights
     always do |scope|
       TestInsights::DataCleanup.install_into(scope)
     end
-
   end
 end
