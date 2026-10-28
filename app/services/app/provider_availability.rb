@@ -8,7 +8,8 @@ module App
     # plan, so this window is generous. A later success on the same
     # provider/model suppresses it, which is how recovery is detected.
     MODEL_UNSUPPORTED_WINDOW = 7.days
-    LATEST_PROVIDER_RUN_INDEX = "idx_runs_provider_latest_finished"
+    LATEST_PROVIDER_RUN_INDEX = "idx_runs_user_provider_state_recent"
+    TERMINAL_RUN_STATES = %w[succeeded failed].freeze
     @cache_mutex = Mutex.new
     @process_cache = {}
 
@@ -160,6 +161,25 @@ module App
       end
     end
 
+    def self.latest_terminal_run_id(scope)
+      scope = provider_run_scope_for_latest(scope)
+
+      TERMINAL_RUN_STATES.filter_map do |state|
+        scope
+          .where(state: state)
+          .where.not(finished_at: nil)
+          .order(finished_at: :desc, updated_at: :desc, id: :desc)
+          .limit(1)
+          .pick(:id, :finished_at, :updated_at)
+      end.max_by { |id, finished_at, updated_at| [ finished_at, updated_at, id ] }&.first
+    end
+
+    def self.provider_run_scope_for_latest(scope)
+      return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
+
+      scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (#{LATEST_PROVIDER_RUN_INDEX})"))
+    end
+
     private
 
     attr_reader :user, :provider, :now, :batch
@@ -236,17 +256,7 @@ module App
         @terminal_runs_by_provider ||= begin
           run_ids_by_provider = providers.to_h do |provider|
             scope = Run.where(user_id: user.id, agent_provider: provider)
-            if ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
-              scope = scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (#{LATEST_PROVIDER_RUN_INDEX})"))
-            end
-
-            run_id = scope
-              .where(state: %w[succeeded failed])
-              .where.not(finished_at: nil)
-              .order(finished_at: :desc, updated_at: :desc, id: :desc)
-              .limit(1)
-              .pick(:id)
-            [ provider, run_id ]
+            [ provider, ProviderAvailability.latest_terminal_run_id(scope) ]
           end
 
           Run.where(id: run_ids_by_provider.values.compact)
@@ -643,13 +653,10 @@ module App
     def latest_terminal_provider_run
       return batch.latest_terminal_run_for(provider) if batch
 
-      run = provider_run_scope_for_latest
-        .select(:id, :state, :finished_at, :updated_at, :model)
-        .where(state: %w[succeeded failed])
-        .where.not(finished_at: nil)
-        .order(finished_at: :desc, updated_at: :desc, id: :desc)
-        .limit(1)
-        .first
+      run_id = self.class.latest_terminal_run_id(provider_run_scope)
+      return unless run_id
+
+      run = Run.select(:id, :state, :finished_at, :updated_at, :model).find_by(id: run_id)
       return run unless run&.failed?
 
       Run.includes(:run_diagnostic, :run_failure_classification).find(run.id)
@@ -674,13 +681,6 @@ module App
 
     def provider_run_scope
       Run.where(user_id: user.id, agent_provider: provider)
-    end
-
-    def provider_run_scope_for_latest
-      scope = provider_run_scope
-      return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
-
-      scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (#{LATEST_PROVIDER_RUN_INDEX})"))
     end
 
     def usage_limit?(run, text)

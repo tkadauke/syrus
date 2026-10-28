@@ -50,13 +50,12 @@ RSpec.describe App::ProviderAvailability do
   end
 
   it "forces the recency-aware latest-provider-run index on MySQL" do
-    availability = described_class.new(user: user, provider: "codex", now: now)
-
     allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return("Mysql2")
+    scope = Run.where(user_id: user.id, agent_provider: "codex")
 
-    sql = availability.send(:provider_run_scope_for_latest).to_sql
-    expect(sql).to include("FORCE INDEX (idx_runs_provider_latest_finished)")
-    expect(sql).not_to include("idx_runs_user_provider_state_recent")
+    sql = described_class.provider_run_scope_for_latest(scope).to_sql
+
+    expect(sql).to include("FORCE INDEX (idx_runs_user_provider_state_recent)")
   end
 
   it "finds the latest finished terminal provider run among skewed active and null-finished rows" do
@@ -862,19 +861,33 @@ RSpec.describe App::ProviderAvailability do
       )
     end
     rows = providers.flat_map do |provider|
-      250.times.map do |index|
+      terminal_rows = %w[succeeded failed].map.with_index do |state, index|
         {
           job_id: jobs.fetch(provider).id,
           user_id: user.id,
           trigger_kind: "initial",
           agent_provider: provider,
-          state: index.even? ? "succeeded" : "failed",
-          finished_at: now - index.minutes,
-          effective_at: now - index.minutes,
-          created_at: now - index.minutes,
-          updated_at: now - index.minutes
+          state: state,
+          finished_at: now - (index + 1).minutes,
+          effective_at: now - (index + 1).minutes,
+          created_at: now - (index + 1).minutes,
+          updated_at: now - (index + 1).minutes
         }
       end
+      non_terminal_rows = 500.times.map do |index|
+        {
+          job_id: jobs.fetch(provider).id,
+          user_id: user.id,
+          trigger_kind: "initial",
+          agent_provider: provider,
+          state: index.even? ? "cancelled" : "skipped",
+          finished_at: now + index.minutes,
+          effective_at: now + index.minutes,
+          created_at: now + index.minutes,
+          updated_at: now + index.minutes
+        }
+      end
+      terminal_rows + non_terminal_rows
     end
     Run.insert_all!(rows)
 
@@ -904,24 +917,26 @@ RSpec.describe App::ProviderAvailability do
       queries = query_count.call(providers)
     end
 
-    latest_queries = queries.grep(/SELECT ["`]?runs["`]?\.["`]?id["`]? FROM ["`]?runs["`]?.*agent_provider.*ORDER BY.*finished_at.*LIMIT/i)
-    expect(latest_queries.size).to eq(providers.size)
+    latest_queries = queries.grep(/SELECT ["`]?runs["`]?\.["`]?id["`]?.*FROM ["`]?runs["`]?.*agent_provider.*ORDER BY.*finished_at.*LIMIT/i)
+    expect(latest_queries.size).to eq(providers.size * described_class::TERMINAL_RUN_STATES.size)
     expect(latest_queries).to all(match(/LIMIT (?:1|\?)/))
+    expect(latest_queries).to all(match(/["`]?state["`]? = \?/))
+    expect(latest_queries).to all(satisfy { |sql| !sql.match?(/["`]?state["`]? IN/i) })
     expect(queries.join(" ")).not_to match(/ROW_NUMBER|provider_rank/i)
     expect(instantiated_runs).to eq(providers.size)
   end
 
   it "plans the latest terminal Run lookup from the recency index" do
-    availability = described_class.new(user: user, provider: "codex", now: now)
-    relation = availability.send(:provider_run_scope_for_latest)
-      .where(state: %w[succeeded failed])
+    relation = Run.where(user_id: user.id, agent_provider: "codex")
+      .where(state: "succeeded")
       .where.not(finished_at: nil)
       .order(finished_at: :desc, updated_at: :desc, id: :desc)
       .limit(1)
 
     plan = ActiveRecord::Base.connection.execute("EXPLAIN QUERY PLAN #{relation.select(:id).to_sql}").to_a.join(" ")
 
-    expect(plan).to include(described_class::LATEST_PROVIDER_RUN_INDEX)
+    expect(plan).to match(/idx_runs_user_(?:provider_state|state_provider)_recent/)
+    expect(plan).not_to include("USE TEMP B-TREE")
   end
 
   it "caches provider availability outside the request-local cache" do
