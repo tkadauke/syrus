@@ -13,10 +13,22 @@ RSpec.describe "Filters::Chips" do
     # suite (or before(:context) seeds for unrelated users) doesn't
     # pollute results. The Repository chip still sees multiple repos
     # within the user's scope.
-    Filters::Compiler.call(
-      Filters::Ast.parse("field" => field, "op" => op, "value" => value),
-      scope: scope,
-      user: user
+    run_tree({ "field" => field, "op" => op, "value" => value }, scope: scope)
+  end
+
+  def run_tree(tree, scope: Job.where(user: user))
+    Filters::Compiler.call(Filters::Ast.parse(tree), scope: scope, user: user)
+  end
+
+  def run_inbox_with_eligibility(scope: Job.where(user: user))
+    run_tree(
+      {
+        "and" => [
+          { "field" => "attention", "op" => "is", "value" => "inbox" },
+          { "field" => "eligible_approver", "op" => "is", "value" => "me" }
+        ]
+      },
+      scope: scope
     )
   end
 
@@ -519,13 +531,14 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
-    it "inbox: excludes jobs owned by other users even from a team-wide scope" do
+    it "inbox: leaves approval eligibility to its separate editable chip" do
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user, owner: "acme", name: "other-widgets")
       mine = Factories.job_record(repository: repo, issue_number: 51, state: "implemented")
-      Factories.job_record(repository: other_repo, issue_number: 52, state: "implemented", owner_user: other_user)
+      theirs = Factories.job_record(repository: other_repo, issue_number: 52, state: "implemented", owner_user: other_user)
 
-      expect(run(field: "attention", op: "is", value: "inbox", scope: Job.all)).to contain_exactly(mine)
+      expect(run(field: "attention", op: "is", value: "inbox", scope: Job.all)).to contain_exactly(mine, theirs)
+      expect(run_inbox_with_eligibility(scope: Job.all)).to contain_exactly(mine)
     end
 
     it "inbox: includes the operator's own NULL-owner jobs but not other users' (effective ownership)" do
@@ -540,7 +553,7 @@ RSpec.describe "Filters::Chips" do
       theirs = Factories.job_record(repository: other_repo, issue_number: 54, state: "implemented", user: other_user)
       theirs.update_column(:owner_user_id, nil)
 
-      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      result = run_inbox_with_eligibility(scope: Job.all)
       expect(result).to include(mine)
       expect(result).not_to include(theirs)
     end
@@ -553,7 +566,7 @@ RSpec.describe "Filters::Chips" do
         user: other_user, owner_user: other_user
       )
 
-      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      result = run_inbox_with_eligibility(scope: Job.all)
       expect(result).to include(not_mine_but_eligible)
     end
 
@@ -565,7 +578,7 @@ RSpec.describe "Filters::Chips" do
         user: user, owner_user: other_user
       )
 
-      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      result = run_inbox_with_eligibility(scope: Job.all)
       expect(result).not_to include(created_by_me_owned_by_other)
     end
 
@@ -578,7 +591,7 @@ RSpec.describe "Filters::Chips" do
         user: other_user, owner_user: other_user
       )
 
-      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      result = run_inbox_with_eligibility(scope: Job.all)
       expect(result).to include(eligible_via_final_say)
     end
 
@@ -590,7 +603,7 @@ RSpec.describe "Filters::Chips" do
         user: other_user, owner_user: other_user
       )
 
-      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      result = run_inbox_with_eligibility(scope: Job.all)
       expect(result).not_to include(not_eligible)
     end
 
