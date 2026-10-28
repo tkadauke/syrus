@@ -1381,7 +1381,7 @@ Non-agentic. Calls the GitHub merge API for an `external_pr` Job's `external_pr_
 
 ### merge_train_assemble
 
-Non-agentic. Validates that all open Epic child Jobs are approved and the member count is within `AppSetting.merge_train_max_size`.
+Non-agentic. Validates that all open Epic child Jobs are approved. Epic trains are not size-capped; `AppSetting.merge_train_max_size` applies to epicless job bundles only.
 
 ### merge_train_build
 

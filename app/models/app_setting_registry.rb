@@ -154,7 +154,7 @@ class AppSettingRegistry
       min: 1,
       max: nil,
       category: "Landing queue",
-      operational_meaning: "Maximum number of PRs that can participate in one merge train.",
+      operational_meaning: "Maximum number of unrelated PRs in one job-bundle train. Epic trains are not capped — their children are a linear stack.",
       zero_means: nil,
       admin_editable: true,
       secret: false,

@@ -500,6 +500,32 @@ RSpec.describe LandingBundleAssembler do
       expect(result.job_ids).to eq([ root.id, leaf_a.id, leaf_b.id ])
     end
 
+    # merge_train_max_size bounds how many *unrelated* Jobs a job bundle
+    # rebases on top of one another. An Epic's children are a linear stack,
+    # each already built and graded on its predecessor, so the cap does not
+    # apply -- and because an Epic lands all-or-nothing, applying it could
+    # only refuse the Epic outright. Eleven ready children against a cap of
+    # ten left every one of them waiting on an operator.
+    it "lands every child of an Epic larger than merge_train_max_size" do
+      AppSetting.current.update!(merge_train_max_size: 2)
+      children = (1..5).map { |n| child(issue_number: n) }
+
+      result = described_class.for_epic(epic)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to match_array(children.map(&:id))
+    end
+
+    it "keeps the cap on a priority-tier bundle of unrelated Jobs" do
+      # The same setting, the other scope: unrelated Jobs still get bounded.
+      AppSetting.current.update!(merge_train_max_size: 2)
+      3.times { |n| Factories.job_record(user: user, owner_user: user, repository: repository, issue_number: 50 + n, state: "approved", pr_number: 950 + n) }
+
+      result = described_class.for_repository(repository)
+
+      expect(result.job_ids.size).to eq(2)
+    end
+
     it "is not ready when any open child is unapproved" do
       child(issue_number: 1, state: "approved")
       child(issue_number: 2, state: "implemented")
@@ -565,15 +591,16 @@ RSpec.describe LandingBundleAssembler do
       expect(result.reason).to match(/no open child/)
     end
 
-    it "is not ready when the epic exceeds merge_train_max_size" do
+    it "ignores merge_train_max_size entirely, down to a cap of one" do
       AppSetting.current.update!(merge_train_max_size: 1)
-      child(issue_number: 1)
-      child(issue_number: 2)
+      a = child(issue_number: 1)
+      b = child(issue_number: 2)
 
       result = described_class.for_epic(epic)
 
-      expect(result).not_to be_ready
-      expect(result.reason).to match(/merge_train_max_size/)
+      expect(result).to be_ready
+      expect(result.reason).to be_nil
+      expect(result.job_ids).to match_array([ a.id, b.id ])
     end
   end
 end

@@ -106,7 +106,9 @@ member, and an unattributable failure would split the train arbitrarily.
 
 **Type:** integer · **Default:** 20 · **Min:** 1
 
-Maximum number of PRs that can participate in a single merge train. `merge_train_assemble` rejects the train if the member count exceeds this limit.
+Maximum number of unrelated PRs that can participate in a single job-bundle train. Applies to epicless job bundles only: the assembler trims the ordered candidate list to this size without separating a dependent from its prerequisite.
+
+Epic trains are **not** capped. Their children are a linear stack rather than unrelated changes, and an Epic lands all-or-nothing, so a cap could only refuse it outright. See `merge_train.md`.
 
 ### merge_train_multisect_section_width
 

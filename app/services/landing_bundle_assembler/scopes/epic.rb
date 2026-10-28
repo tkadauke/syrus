@@ -38,16 +38,23 @@ class LandingBundleAssembler::Scopes::Epic
 
   def partitions = [ [ nil, @open_children ] ]
 
+  # Deliberately uncapped: `AppSetting.merge_train_max_size` does not apply to
+  # an Epic.
+  #
+  # That cap bounds how many *unrelated* Jobs a job bundle rebases on top of
+  # one another, where every added member is another independent change the
+  # others have never been tested against and another chance the train breaks.
+  # An Epic's children are not unrelated: they are built as a linear stack,
+  # each one already written and graded on top of its predecessor, which is
+  # the arrangement the cap exists to approximate. Bounding them protects
+  # against a risk the stack has already removed.
+  #
+  # And an Epic lands all-or-nothing, so a cap here cannot shrink a bundle the
+  # way `Scopes::PriorityTier` does -- it can only refuse the Epic outright
+  # and leave every child waiting on an operator to raise a number or split
+  # the Epic by hand.
   def finalize(ordered)
-    max = AppSetting.merge_train_max_size
-    if ordered.size > max
-      LandingBundleAssembler::Scopes::Outcome.new(
-        reason: "epic has #{ordered.size} ready children (> merge_train_max_size=#{max}); cannot land atomically",
-        members: []
-      )
-    else
-      LandingBundleAssembler::Scopes::Outcome.new(reason: nil, members: ordered)
-    end
+    LandingBundleAssembler::Scopes::Outcome.new(reason: nil, members: ordered)
   end
 
   # No minimum beyond "at least one open child," already guaranteed by

@@ -26,9 +26,10 @@ maintenance and integration-branch landing from racing each other.
 `merge_train_assemble` validates:
 - The Epic has released its children for execution.
 - Every open child Job in the Epic is in `approved` state.
-- The member count does not exceed `AppSetting.merge_train_max_size` (default: 20).
 
-If either check fails, the train is cancelled and member Jobs revert to `approved`.
+There is no size limit on an Epic train — see [Size limit](#size-limit).
+
+If a check fails, the train is cancelled and member Jobs revert to `approved`.
 
 ## Build phase
 
@@ -246,7 +247,21 @@ re-approval before Syrus retries.
 
 ## Size limit
 
-`AppSetting.merge_train_max_size` (default: 20) caps the train size. Epics with more open approved Jobs than this limit require either splitting the Epic or increasing the limit.
+`AppSetting.merge_train_max_size` does **not** apply to an Epic train. An Epic
+of any size lands as one train.
+
+The cap bounds job bundles instead (see
+[Epicless Job Bundling](epicless_job_bundling.md)), where every added member is
+an unrelated change the others have never been tested against, so each one
+makes a failure more likely. An Epic's children are a linear stack — each was
+built and graded on top of its predecessor — which is the arrangement the cap
+exists to approximate, so capping them guards against a risk the stack has
+already removed.
+
+The asymmetry also matters because an Epic lands all-or-nothing. A cap cannot
+trim an Epic train the way it trims a job bundle; it can only refuse the Epic,
+leaving every child waiting until an operator raises the number or splits the
+Epic by hand.
 
 ## Same-Epic dependency satisfaction
 
