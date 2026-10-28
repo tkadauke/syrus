@@ -17,6 +17,36 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
   end
 
   describe "GET /macro" do
+    describe "SmartFolder/FilterBar conformance" do
+      let!(:contract_running) do
+        Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
+      end
+      let!(:contract_failed) do
+        Workflow.create!(job: job, trigger_kind: "retry", state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago, worker_hostname: "worker-x")
+      end
+      let(:smart_folder_contract_subject) { "worker_timeline" }
+      let(:smart_folder_contract_seed_filter) { { "and" => [ { "field" => "status", "op" => "is_one_of", "value" => [ "failed" ] } ] } }
+      let(:smart_folder_contract_folder) do
+        SmartFolder.create!(user: admin, name: "Failures", kind: "user_defined", subject_type: smart_folder_contract_subject, filter: smart_folder_contract_seed_filter)
+      end
+      let(:smart_folder_contract_seed_ids) { [ contract_failed.id ] }
+      let(:smart_folder_contract_replacement_filter) { { "and" => [ { "field" => "status", "op" => "is_one_of", "value" => [ "running" ] } ] } }
+      let(:smart_folder_contract_replacement_ids) { [ contract_running.id ] }
+      let(:smart_folder_contract_unfiltered_ids) { [ contract_running.id, contract_failed.id ] }
+      let(:smart_folder_contract_request) { ->(params) { get "/api/v1/app/admin/worker_timeline/macro", params: params } }
+      let(:smart_folder_contract_body) { parse_body }
+      let(:smart_folder_contract_result_ids) do
+        smart_folder_contract_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }.map { |span| span.fetch("workflow_id") }
+      end
+
+      before do
+        enable_plugin!
+        sign_in_as(admin)
+      end
+
+      include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :macro
+    end
+
     it "is disabled by default (plugin disabled)" do
       sign_in_as(admin)
 

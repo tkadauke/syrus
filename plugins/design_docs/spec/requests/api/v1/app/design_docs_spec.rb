@@ -46,6 +46,28 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     doc
   end
 
+  describe "SmartFolder/FilterBar conformance" do
+    let!(:contract_owned) { create_design_doc(title: "Owned") }
+    let!(:contract_accepted) { create_design_doc(title: "Accepted", state: "accepted") }
+    let(:smart_folder_contract_subject) { DesignDocs::SmartFolders::SUBJECT }
+    let(:smart_folder_contract_folder) do
+      SmartFolder.ensure_builtins_for_subject!(smart_folder_contract_subject)
+      SmartFolder.builtins(smart_folder_contract_subject).find_by!(name: "My docs")
+    end
+    let(:smart_folder_contract_seed_filter) { Filters::SmartFolderResolution.preset_tree("design_docs_mine") }
+    let(:smart_folder_contract_seed_ids) { [ contract_owned.id, contract_accepted.id ] }
+    let(:smart_folder_contract_replacement_filter) { { "and" => [ { "field" => "state", "op" => "is", "value" => "accepted" } ] } }
+    let(:smart_folder_contract_replacement_ids) { [ contract_accepted.id ] }
+    let(:smart_folder_contract_unfiltered_ids) { [ contract_owned.id, contract_accepted.id ] }
+    let(:smart_folder_contract_request) { ->(params) { get "/api/v1/app/design_docs", params: params } }
+    let(:smart_folder_contract_body) { parse_body }
+    let(:smart_folder_contract_result_ids) { smart_folder_contract_body.fetch("design_docs").map { |row| row.fetch("id") } }
+
+    before { sign_in_as(owner) }
+
+    include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :index
+  end
+
   it "returns not found when the design_docs plugin is disabled" do
     PluginRecord.find_by!(name: "design_docs").update!(enabled: false)
     sign_in_as(owner)
