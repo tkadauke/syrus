@@ -276,7 +276,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
       <Route path="/app-shell" element={<RootRoute initialBootstrap={initialBootstrap} />} />
       {renderAppRoutes(initialBootstrap)}
       {renderPluginSidebarRoutes(initialBootstrap)}
-      <Route path="*" element={<BootstrapShell initialBootstrap={initialBootstrap} />} />
+      <Route path="*" element={<PluginSidebarPageRoute fallback={<BootstrapShell initialBootstrap={initialBootstrap} />} />} />
     </Routes>
   )
 
