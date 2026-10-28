@@ -31,7 +31,6 @@ RSpec.describe Coworkers::Chat do
       described_class.insert!({ coworker_id: coworker.id, chat_session_id: described_class.first.chat_session_id, role: "side", created_at: Time.current, updated_at: Time.current })
     end.to raise_error(ActiveRecord::RecordNotUnique)
   end
-
   it "rejects a chat owned by someone other than the coworker's owner" do
     other_user = User.create!(email_address: "other@example.com", password: "password123")
     other_chat = ChatSession.create!(user: other_user, title: "Someone else's chat")
