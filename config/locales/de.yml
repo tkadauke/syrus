@@ -493,6 +493,7 @@ de:
       unknown_provider: "Unbekannter Agentenanbieter."
 
     filters:
+      unsupported_operator: "Der Operator für %{field} wird nicht unterstützt."
       invalid_usage: "Ungültige Anfrage zur Filternutzung."
       invalid_suggestions: "Ungültige Anfrage für Filtervorschläge."
       unknown_field: "Unbekanntes Filterfeld."

@@ -177,6 +177,15 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `wake_provider_admission` | chat | essential | write | yes | - | - | - | - |
 | `withdraw_pending_action` | chat | essential | write | no | - | - | - | - |
 | `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
+| `list_chats` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
+| `read_chat_messages` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
+| `search_chats` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
+| `ask_user_question` | coworker | essential | write | no | - | - | `chat.message_owner` | - |
+| `list_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
+| `propose_job` | coworker | essential | write | no | - | - | `syrus.propose_job` | - |
+| `read_job` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
+| `search_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
+| `suggest_next_step` | coworker | essential | write | no | - | - | `chat.message_owner` | - |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
 | `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |

@@ -1,0 +1,6 @@
+en:
+  api:
+    coworkers:
+      chat_group: "Coworkers"
+      invalid_workspace_remote: "Workspace remote must be a GitHub repository URL."
+      push_access_verified: "Push access verified."

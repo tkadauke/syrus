@@ -154,6 +154,10 @@ class ChatWorkspace
     new(chat_session).ensure_job_branch_checkout!(repository, branch_name)
   end
 
+  def self.ensure_branch_checkout!(chat_session, repository, branch_name)
+    new(chat_session).ensure_branch_checkout!(repository, branch_name)
+  end
+
   # Returns { files: ["path/to/file", ...], checkout_branch: "..." }
   # for the coding checkout. Files are sorted and exclude .git, .syrus,
   # and node_modules trees. Returns nil if the checkout does not exist.
@@ -454,6 +458,22 @@ class ChatWorkspace
 
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     write_relay_credentials!
+    path
+  end
+
+  def ensure_branch_checkout!(repository, branch_name)
+    ensure_root!
+    path = self.class.repo_path_for(@chat_session, repository)
+    current_branch = self.class.git_value(path, "branch", "--show-current")
+
+    if path.join(".git").directory? && current_branch == branch_name
+      fast_forward_branch!(repository, path, branch_name)
+    else
+      FileUtils.rm_rf(path.to_s)
+      full_clone_at_branch!(repository, path, branch_name)
+    end
+
+    @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     path
   end
 
@@ -1048,8 +1068,11 @@ class ChatWorkspace
   # stale commit would be wrong rather than merely old -- a Job's own branch
   # and Syrus-pinned commits (see git_mirror.md).
   def fast_forward!(repository, path)
-    default_branch = repository.default_branch
-    refspec = "+refs/heads/#{default_branch}:refs/remotes/origin/#{default_branch}"
+    fast_forward_branch!(repository, path, repository.default_branch)
+  end
+
+  def fast_forward_branch!(repository, path, branch)
+    refspec = "+refs/heads/#{branch}:refs/remotes/origin/#{branch}"
 
     fetch_via_transport!(
       repository: repository, user: repository.user,
@@ -1058,8 +1081,8 @@ class ChatWorkspace
       @git.run("fetch", authenticated_url(repository), refspec, "--prune", chdir: path.to_s, env: @env)
     end
 
-    @git.run("switch", "--", default_branch, chdir: path.to_s)
-    @git.run("merge", "--ff-only", "origin/#{default_branch}", chdir: path.to_s)
+    @git.run("switch", "--", branch, chdir: path.to_s)
+    @git.run("merge", "--ff-only", "origin/#{branch}", chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end
 

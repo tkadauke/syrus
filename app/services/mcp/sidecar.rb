@@ -143,10 +143,11 @@ module Mcp
           plugin_tools_for(chat_session, tier: :evaluator, policy: :evaluator)
       else
         registry_tier = tier.to_s == "all" ? :essential : tier
-        allowed = McpToolRegistry.tools_for_context(context, surface: :chat, tier: registry_tier)
+        surface = context.role == AgentRole::COWORKER_CHAT ? :coworker : :chat
+        allowed = McpToolRegistry.tools_for_context(context, surface: surface, tier: registry_tier)
         tools = allowed.map { |tool| authorize_tool(tool) }
         tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
-        tools + plugin_tools_for(chat_session, tier: registry_tier)
+        tools + plugin_tools_for(chat_session, tier: registry_tier, policy: surface)
       end
     end
 
@@ -156,6 +157,7 @@ module Mcp
     def self.filter_by_policy(definitions, policy)
       case policy
       when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
+      when :coworker   then definitions.select { |defn| defn[:coworker_safe] || defn["coworker_safe"] }
       else definitions
       end
     end
@@ -168,7 +170,12 @@ module Mcp
       tool_sets
         .select do |tool_set|
           PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set, operation: :available_for) do
-            tool_set.available_for?(chat_session, tier: tier)
+            if policy == :coworker
+              tool_set.respond_to?(:available_for_coworker?) &&
+                tool_set.available_for_coworker?(chat_session, tier: tier)
+            else
+              tool_set.available_for?(chat_session, tier: tier)
+            end
           end
         end
         .flat_map { |tool_set| mcp_tools_for(tool_set, tier: tier, chat_session: chat_session, policy: policy) }
@@ -188,6 +195,14 @@ module Mcp
       end
 
       definitions = filter_by_policy(definitions, policy)
+      if policy == :coworker
+        grants = McpToolContext.from_chat_session(chat_session).granted_capabilities
+        definitions = definitions.select do |definition|
+          capability = definition[:capability] || definition["capability"]
+          grantless = definition[:coworker_grantless] || definition["coworker_grantless"]
+          grantless == true || capability.present? && grants.include?(capability.to_s)
+        end
+      end
 
       definitions.map do |defn|
         MCP::Tool.define(

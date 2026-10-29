@@ -69,6 +69,7 @@ class ChatPendingAction < ApplicationRecord
     mutate_provider_routing_rules
     override_job_planned_execution
     local_tool_call
+    coworker_tool_call
     spawn_chat
     accept_insights
     dismiss_insights

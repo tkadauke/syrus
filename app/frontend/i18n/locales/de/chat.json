@@ -1,5 +1,9 @@
 {
   "share_people": "Teilen",
+  "mention_add_to_chat": "Zum Chat hinzufügen",
+  "mention_kind_human": "Person",
+  "mention_kind_coworker": "Coworker",
+  "mention_kind_syrus": "Syrus",
   "share_dialog_title": "Chat teilen",
   "share_dialog_description": "Hinzugefügte Personen können den vollständigen Live-Chat lesen, aber nichts posten.",
   "share_dialog_search": "Personen suchen oder exakten @Handle eingeben",

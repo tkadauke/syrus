@@ -553,6 +553,7 @@ en:
       unknown_provider: "Unknown agent provider."
 
     filters:
+      unsupported_operator: "%{field} operator is not supported."
       invalid_usage: "Invalid filter usage request."
       invalid_suggestions: "Invalid filter suggestion request."
       unknown_field: "Unknown filter field."

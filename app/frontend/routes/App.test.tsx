@@ -166,7 +166,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Syrus SPA" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Syrus SPA" })).toBeInTheDocument()
     const accountNav = await screen.findByRole("navigation", { name: "Account" })
     expect(within(accountNav).getByRole("button", { name: "operator@example.com" })).toHaveAttribute("aria-expanded", "false")
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument()
@@ -17817,6 +17817,7 @@ function credentialsPayload(
       id: 1,
       email_address: "operator@example.com",
       name: overrides.name ?? "Operator",
+      handle: "operator",
       first_name: null,
       last_name: null,
       profile_bio: null,

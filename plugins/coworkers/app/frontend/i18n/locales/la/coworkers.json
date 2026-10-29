@@ -1,0 +1,44 @@
+{
+  "nav": "Collegae",
+  "title": "Collegae",
+  "loading": "Collegae onerantur…",
+  "error": "Collegae onerari non potuerunt.",
+  "built_in": "Inclusus · machinator",
+  "coming_later": "Postea veniet",
+  "new": {
+    "action": "Novus collega",
+    "title": "Novus collega",
+    "create": "Collegam crea",
+    "test_push": "Accessum mittendi proba",
+    "push_ok": "Accessus mittendi probatus"
+  },
+  "fields": {
+    "name": "Nomen",
+    "handle": "Nomen compellandi",
+    "model": "Exemplar",
+    "remote": "Repositorium spatii",
+    "color": "Color",
+    "avatar": "Effigies",
+    "grants": "Facultates",
+    "about": "De collega (facultativum)"
+  },
+  "tabs": {
+    "chat": "Colloquium",
+    "chats": "Colloquia",
+    "profile": "Forma",
+    "capabilities": "Facultates",
+    "schedule": "Ordo",
+    "memory": "Memoria",
+    "workspace": "Spatium",
+    "activity": "Acta"
+  },
+  "detail": {
+    "soul_heading": "SOUL.md",
+    "new_side_chat": "Novum colloquium",
+    "main_chat": "Colloquium principale",
+    "account_default": "Praedefinitum rationis",
+    "soul_unavailable": "SOUL.md praesto non est.",
+    "engineer_capabilities": "Facultates machinatoriae fixae",
+    "existing_link": "Hanc facultatem ex pagina Syrus iam exstante aperi."
+  }
+}

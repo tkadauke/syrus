@@ -7,12 +7,37 @@ import type { TFunction } from "i18next"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatJobSummary, type ChatMode, type ChatNavRecord, type ChatSidebarAgentOption, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatType, type ChatsIndexPayload } from "../../api/chats"
+import {
+  DEFAULT_CHAT_SIDEBAR_SETTINGS,
+  cancelCodingCheckout,
+  deleteChat,
+  fetchChatGroupsPage,
+  fetchChats,
+  fetchMoreChatsForGroup,
+  hideChat,
+  markChatRead,
+  markChatUnread,
+  renameChat,
+  updateChatPinned,
+  type ChatGroupRecord,
+  type ChatJobSummary,
+  type ChatMode,
+  type ChatNavRecord,
+  type ChatSidebarAgentOption,
+  type ChatSidebarGroupBy,
+  type ChatSidebarPerGroup,
+  type ChatSidebarSettings,
+  type ChatSidebarSortBy,
+  type ChatSidebarStatus,
+  type ChatType,
+  type ChatsIndexPayload
+} from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { Input } from "../../components/Input"
+import { Avatar } from "../../components/Avatar"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { Surface, surfaceClasses } from "../../components/ui"
@@ -184,7 +209,7 @@ export function RecentChatsSidebar({
   const scrollRafRef = useRef<number | null>(null)
   const activeChatId = activeChatIdFromPath(location.pathname)
   const sidebarQueryKey = useMemo(
-    () => sidebarSettings.unread_only ? [...recentChatsQueryKey(sidebarSettings), activeChatId] : recentChatsQueryKey(sidebarSettings),
+    () => (sidebarSettings.unread_only ? [...recentChatsQueryKey(sidebarSettings), activeChatId] : recentChatsQueryKey(sidebarSettings)),
     [activeChatId, sidebarSettings]
   )
   const chats = useQuery({
@@ -230,21 +255,30 @@ export function RecentChatsSidebar({
       if (!chats.data?.groups_has_more || nextOffset == null || loadingMoreGroups) return
       if (!force && failedGroupOffset === nextOffset) return
 
-    setLoadingMoreGroups(true)
-    void fetchChatGroupsPage(sidebarSettings, nextOffset, activeChatId).then((payload) => {
-      setFailedGroupOffset(null)
-      queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) => current ? {
-        ...current,
-        groups: appendUniqueChatGroups(current.groups, payload.groups),
-        groups_has_more: payload.groups_has_more,
-        groups_next_offset: payload.groups_next_offset
-      } : current)
-    }).catch(() => {
-      setFailedGroupOffset(nextOffset)
-    }).finally(() => {
-      setLoadingMoreGroups(false)
-    })
-  }, [activeChatId, chats.data, failedGroupOffset, loadingMoreGroups, queryClient, sidebarQueryKey, sidebarSettings])
+      setLoadingMoreGroups(true)
+      void fetchChatGroupsPage(sidebarSettings, nextOffset, activeChatId)
+        .then((payload) => {
+          setFailedGroupOffset(null)
+          queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) =>
+            current
+              ? {
+                  ...current,
+                  groups: appendUniqueChatGroups(current.groups, payload.groups),
+                  groups_has_more: payload.groups_has_more,
+                  groups_next_offset: payload.groups_next_offset
+                }
+              : current
+          )
+        })
+        .catch(() => {
+          setFailedGroupOffset(nextOffset)
+        })
+        .finally(() => {
+          setLoadingMoreGroups(false)
+        })
+    },
+    [activeChatId, chats.data, failedGroupOffset, loadingMoreGroups, queryClient, sidebarQueryKey, sidebarSettings]
+  )
 
   useEffect(() => {
     const root = sidebarRootRef.current
@@ -294,14 +328,12 @@ export function RecentChatsSidebar({
     if (!beforeChat || loadingSections.has(section.key)) return
 
     setLoadingSections((current) => new Set(current).add(section.key))
-    void fetchMoreChatsForGroup(section, beforeChat.id, sidebarSettings, activeChatId).then((payload) => {
-      setLoadedSections((current) => {
-        const existing = current[section.key]
-        const existingIds = new Set([
-          ...section.chats.map((chat) => chat.id),
-          ...(existing?.chats.map((chat) => chat.id) || [])
-        ])
-        const nextChats = payload.chats.filter((chat) => !existingIds.has(chat.id))
+    void fetchMoreChatsForGroup(section, beforeChat.id, sidebarSettings, activeChatId)
+      .then((payload) => {
+        setLoadedSections((current) => {
+          const existing = current[section.key]
+          const existingIds = new Set([...section.chats.map((chat) => chat.id), ...(existing?.chats.map((chat) => chat.id) || [])])
+          const nextChats = payload.chats.filter((chat) => !existingIds.has(chat.id))
 
           return {
             ...current,
@@ -529,6 +561,15 @@ export function RecentChatsSidebar({
                       onDragOver={(e) => e.preventDefault()}
                     >
                       <Link className={recentChatLinkClass(active)} onClick={onCloseDrawer} title={title} to={withRoutePrefix(chat.chat_path, prefix)}>
+                        {chat.agent_appearance ? (
+                          <Avatar
+                            avatarUrl={chat.agent_appearance.avatar_url}
+                            avatarKey={chat.agent_appearance.avatar_key}
+                            colorKey={chat.agent_appearance.color_key}
+                            name={chat.agent_appearance.name}
+                            size="xs"
+                          />
+                        ) : null}
                         <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
                         {chat.conversation_kind === "group" ? (
                           <span className="contents" data-testid="group-chat-icon">

@@ -225,6 +225,7 @@ Rails.application.routes.draw do
         post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /[a-zA-Z0-9_-]+/ }
         delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
+        get "filters/schema", to: "filters#schema"
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"
@@ -250,6 +251,7 @@ Rails.application.routes.draw do
         post "preview_panels/:id/token", to: "preview_panels#token", constraints: { id: /\d+/ }
         post "chats/onboarding", to: "chats#onboarding"
         get "chats/:id", to: "chats#show", constraints: { id: /\d+/ }
+        get "chats/:id/mentionables", to: "chats#mentionables", constraints: { id: /\d+/ }
         patch "chats/:id", to: "chats#update", constraints: { id: /\d+/ }
         delete "chats/:id", to: "chats#destroy", constraints: { id: /\d+/ }
         get "chats/:id/preview", to: "chats#preview", constraints: { id: /\d+/ }

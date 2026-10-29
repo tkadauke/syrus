@@ -3,13 +3,14 @@ class McpToolContext
               :allowed_memory_scopes, :allowed_repository_ids,
               :allowed_job_ids, :allowed_workflow_ids, :allowed_run_ids,
               :allowed_chat_session_ids, :allowed_context_sources
+  attr_reader :granted_capabilities, :capability_approval_policies, :interactive
 
   def initialize(surface:, role:, user:, repository: nil, epic: nil, job: nil,
                  workflow: nil, run: nil, chat_session: nil,
                  allowed_memory_scopes: [], allowed_repository_ids: [],
                  allowed_job_ids: nil, allowed_workflow_ids: nil,
                  allowed_run_ids: nil, allowed_chat_session_ids: nil,
-                 allowed_context_sources: nil)
+                 allowed_context_sources: nil, granted_capabilities: [], capability_approval_policies: {}, interactive: false)
     @surface                = surface
     @role                   = role
     @user                   = user
@@ -26,6 +27,9 @@ class McpToolContext
     @allowed_run_ids        = allowed_run_ids
     @allowed_chat_session_ids = allowed_chat_session_ids
     @allowed_context_sources  = allowed_context_sources
+    @granted_capabilities     = Array(granted_capabilities).map(&:to_s).freeze
+    @capability_approval_policies = capability_approval_policies.stringify_keys.freeze
+    @interactive              = interactive
   end
 
   def self.from_run(run)
@@ -43,6 +47,7 @@ class McpToolContext
   end
 
   def self.from_chat_session(chat_session, evaluator: false)
+    coworker = coworker_for_chat(chat_session)
     new(
       surface:                :chat,
       role:                   evaluator ? AgentRole::CHAT_EVALUATOR : role_for_chat(chat_session),
@@ -52,7 +57,11 @@ class McpToolContext
       # What this surface permits, not what the memory store defines: a chat
       # may write cross-repository facts, a workflow run may not.
       allowed_memory_scopes:  %w[ global repository ],
-      allowed_repository_ids: chat_session.attached_repositories.ids
+      allowed_repository_ids: chat_session.attached_repositories.ids,
+      allowed_chat_session_ids: coworker ? coworker.readable_chat_session_ids : nil,
+      granted_capabilities: coworker ? coworker.grants.pluck(:capability) : [],
+      capability_approval_policies: coworker ? coworker.grants.pluck(:capability, :approval_policy).to_h : {},
+      interactive: interactive_turn?(chat_session)
     )
   end
 
@@ -95,12 +104,28 @@ class McpToolContext
   end
 
   private_class_method def self.role_for_chat(chat_session)
-    if chat_session.coding?
+    if coworker_for_chat(chat_session)
+      AgentRole::COWORKER_CHAT
+    elsif chat_session.coding?
       AgentRole::CHAT_CODING
     elsif chat_session.mode == "local"
       AgentRole::CHAT_LOCAL
     else
       AgentRole::CHAT_PLANNER
     end
+  end
+
+  private_class_method def self.coworker_for_chat(chat_session)
+    return unless chat_session.respond_to?(:coworker)
+
+    coworker = chat_session.coworker
+    coworker if coworker.respond_to?(:kind) && coworker.kind == "coworker"
+  end
+
+  private_class_method def self.interactive_turn?(chat_session)
+    return false unless chat_session.respond_to?(:current_turn_message_id)
+
+    message_id = chat_session.current_turn_message_id
+    message_id.present? && chat_session.messages.where(id: message_id, role: "user").exists?
   end
 end

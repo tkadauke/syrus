@@ -62,6 +62,7 @@ RSpec.describe McpToolRegistry do
         required_roles: [],
         step_kinds: [],
         capability: nil,
+        interactive_only: false,
         mutation: false
       )
 
@@ -100,7 +101,7 @@ RSpec.describe McpToolRegistry do
     it "still exposes all entries when no surface is requested" do
       surfaces = described_class.entries.map(&:surface).uniq
 
-      expect(surfaces).to contain_exactly(:chat, :workflow, :agent_insight)
+      expect(surfaces).to contain_exactly(:chat, :coworker, :workflow, :agent_insight)
     end
   end
 

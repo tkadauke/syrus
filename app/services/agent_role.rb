@@ -5,6 +5,7 @@ module AgentRole
   CHAT_LOCAL      = "chat:local"
   CHAT_WALKTHROUGH = "chat:walkthrough"
   CHAT_EVALUATOR  = "chat:evaluator"
+  COWORKER_CHAT   = "chat:coworker"
 
   # Workflow/run surface roles
   WORKFLOW_IMPLEMENT                = "workflow:implement"
@@ -56,7 +57,8 @@ module AgentRole
 
   ALL_ROLES = (WORKFLOW_ROLES + CHAT_ROLES + HELPER_ROLES + [
     INFRASTRUCTURE_MAIN_REPAIR,
-    AGENT_INSIGHT
+    AGENT_INSIGHT,
+    COWORKER_CHAT
   ]).freeze
 
   # Structural role derivation from a Step kind — no transcript text

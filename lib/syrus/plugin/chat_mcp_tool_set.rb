@@ -23,6 +23,12 @@ module Syrus
     #
     # Defaults to false, so a tool set that says nothing behaves exactly as
     # it did before the flag existed.
+    # * +coworker_safe+ explicitly opts a definition into coworker chats.
+    #   Definitions are excluded there by default, including credential-backed
+    #   tool sets, and should also name their required capability. A tool set
+    #   must additionally implement `.available_for_coworker?`; its absence is
+    #   the deny-by-default behavior. Each safe definition must include a
+    #   `capability:` value held by the coworker or it is still excluded.
     module ChatMcpToolSet
     end
   end

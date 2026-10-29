@@ -1,0 +1,6 @@
+la:
+  api:
+    coworkers:
+      chat_group: "Collegae"
+      invalid_workspace_remote: "Remotum spatii laboris URL repositorii GitHub esse debet."
+      push_access_verified: "Accessus ad mittendum comprobatus est."

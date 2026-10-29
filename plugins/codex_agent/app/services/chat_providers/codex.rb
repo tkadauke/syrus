@@ -42,6 +42,7 @@ module ChatProviders
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
                stop_requested:, process_started:)
+      require_full_coworker_workspace_access!
       timing = CodexInvocation::StartupTiming.new(
         source: "codex_chat",
         sink: method(:log_startup_timing)

@@ -54,6 +54,24 @@ module ChatProviders
 
     attr_reader :chat, :runner, :image_paths, :file_paths, :env
 
+    def coworker_capabilities
+      context = McpToolContext.from_chat_session(chat)
+      return unless context.role == AgentRole::COWORKER_CHAT
+
+      context.granted_capabilities
+    end
+
+    # Providers that cannot independently disable native file and shell tools
+    # must fail closed when either grant is revoked. Running with an
+    # unenforceable partial permission would turn the grant into decoration.
+    def require_full_coworker_workspace_access!
+      capabilities = coworker_capabilities
+      return unless capabilities
+      return if capabilities.include?("workspace.files") && capabilities.include?("workspace.shell")
+
+      raise ArgumentError, "This provider cannot safely run with the coworker's current workspace grants."
+    end
+
     def transcript_from_result(result)
       return result.transcript_jsonl if result.transcript_jsonl.present?
       return nil if result.transcript_path.blank? || !File.exist?(result.transcript_path)

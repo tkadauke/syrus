@@ -73,7 +73,32 @@ module ChatSearch
     scope = apply_chat_attachment_filter(scope, "Epic", :epic_id)
     return scope if performed?
 
-    apply_chat_attachment_filter(scope, "Job", :job_id)
+    scope = apply_chat_attachment_filter(scope, "Job", :job_id)
+    return scope if performed?
+
+    apply_plugin_chat_filter(scope, :coworker_id)
+  end
+
+  def apply_plugin_chat_filter(scope, field)
+    values = params[field].to_s.split(",").map(&:strip).reject(&:blank?)
+    return scope if values.empty?
+
+    chip = Filters::Registry.find(field.to_s, subject: :chat_message)
+    op = params["#{field.to_s.delete_suffix('_id')}_op"].presence || "is"
+    unless chip.operators.include?(op.to_sym)
+      render_error("bad_request", I18n.t("api.filters.unsupported_operator", field: field), status: :bad_request)
+      return scope.none
+    end
+    value = op.in?(%w[is_one_of is_none_of]) ? values : values.first
+    messages = chip.new(
+      scope: ChatMessage.where(chat_session_id: scope.select(:id)),
+      op: op,
+      value: value,
+      user: Current.user
+    ).apply
+    scope.where(id: messages.select(:chat_session_id))
+  rescue Filters::UnknownFilterField
+    scope.none
   end
 
   def apply_chat_attachment_filter(scope, attachable_type, param_name)

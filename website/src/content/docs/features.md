@@ -651,6 +651,12 @@ flow.
 
 ## Chats
 
+Typing `@` in a message shows only people and agents relevant to that chat,
+plus your own coworkers that can be added and Syrus. Continue typing to filter
+by handle, name, or role, then use the arrow keys and Enter or Tab to insert a
+mention. Your own handle is editable under Profile; handles are public,
+instance-wide identifiers and should not contain sensitive information.
+
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
 when one is available; the new-chat form shows that attachment in a repository
@@ -1647,6 +1653,28 @@ what a plugin depends on, and what depends on it. Enabling a plugin silently
 enables its dependencies too. Disabling a plugin that other enabled plugins
 still depend on asks for confirmation first, listing exactly which plugins
 would also be disabled, before cascading the disable through all of them.
+
+### Coworkers (experimental)
+
+The bundled Coworkers plugin is an experimental foundation for persistent,
+named agents owned by one user. It stores coworker identity, globally unique
+handles, appearance, workspace remotes, explicit capability grants, and main
+or side chat associations. Existing chats remain chats with Syrus, the
+built-in engineer, unless they have an explicit coworker association.
+
+Coworkers is installed but disabled by default. A self-hosted instance must
+enable beta mode before an administrator can enable it from **Admin →
+Plugins**. When enabled, it exposes a Coworkers page for creating named agents,
+choosing their appearance and capabilities, opening their main and side chats,
+and viewing their read-only identity profile. Coworker conversations are kept
+in a separate chat-list group and carry the coworker's avatar and color. Search
+labels these conversations and offers a coworker filter alongside the built-in
+Syrus option. A chat owner can share a conversation read-only with one of their
+own coworkers; a coworker with the shared-chat grant can list, search, and read
+its own and shared chats, but cannot post to arbitrary chats. It does not yet
+expose workspace execution screens. Disabling it removes its page,
+chat grouping, and other runtime contributions while
+preserving stored records for later re-enablement.
 
 ## Tailscale
 

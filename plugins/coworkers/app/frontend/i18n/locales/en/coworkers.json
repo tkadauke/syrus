@@ -1,0 +1,38 @@
+{
+  "nav": "Coworkers",
+  "title": "Coworkers",
+  "loading": "Loading coworkers…",
+  "error": "Coworkers could not be loaded.",
+  "built_in": "Built-in · engineer",
+  "coming_later": "Coming later",
+  "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
+  "fields": {
+    "name": "Name",
+    "handle": "Handle",
+    "model": "Model",
+    "remote": "Workspace remote",
+    "color": "Color",
+    "avatar": "Avatar",
+    "grants": "Capabilities",
+    "about": "About (optional)"
+  },
+  "tabs": {
+    "chat": "Chat",
+    "chats": "Chats",
+    "profile": "Profile",
+    "capabilities": "Capabilities",
+    "schedule": "Schedule",
+    "memory": "Memory",
+    "workspace": "Workspace",
+    "activity": "Activity"
+  },
+  "detail": {
+    "soul_heading": "SOUL.md",
+    "new_side_chat": "New side chat",
+    "main_chat": "Main chat",
+    "account_default": "Account default",
+    "soul_unavailable": "SOUL.md is unavailable.",
+    "engineer_capabilities": "Fixed engineer capabilities",
+    "existing_link": "Open this feature from its existing Syrus page."
+  }
+}

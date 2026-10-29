@@ -13,7 +13,10 @@ export function ChatShareDialog({ chatId, open, onClose }: { chatId: number; ope
   const sharesKey = ["chat-shares", chatId]
   const shares = useQuery({ queryKey: sharesKey, queryFn: () => fetchChatShares(chatId), enabled: open })
   const candidates = useQuery({ queryKey: ["chat-share-candidates", chatId, query], queryFn: () => fetchChatShareCandidates(chatId, query), enabled: open })
-  const add = useMutation({ mutationFn: (userId: number) => createChatShare(chatId, userId), onSuccess: (data) => client.setQueryData(sharesKey, data) })
+  const add = useMutation({
+    mutationFn: (target: { target_type: string; target_id: number }) => createChatShare(chatId, target),
+    onSuccess: (data) => client.setQueryData(sharesKey, data)
+  })
   const remove = useMutation({ mutationFn: (shareId: number) => deleteChatShare(chatId, shareId), onSuccess: (data) => client.setQueryData(sharesKey, data) })
 
   return (
@@ -40,15 +43,15 @@ export function ChatShareDialog({ chatId, open, onClose }: { chatId: number; ope
             </Button>
           </div>
         ))}
-        {candidates.data?.people.map((person) => (
-          <div className="flex items-center justify-between gap-3" key={person.user_id}>
+        {candidates.data?.targets.map((person) => (
+          <div className="flex items-center justify-between gap-3" key={`${person.target_type}-${person.target_id}`}>
             <div>
               <div className="text-sm font-medium text-text-primary">
                 {person.name} <span className="text-text-muted">@{person.handle}</span>
               </div>
               {person.repository_access_warning ? <div className="text-xs text-warning">{t("share_repository_warning")}</div> : null}
             </div>
-            <Button size="sm" disabled={add.isPending} onClick={() => add.mutate(person.user_id)}>
+            <Button size="sm" disabled={add.isPending} onClick={() => add.mutate({ target_type: person.target_type, target_id: person.target_id })}>
               {t("share_add")}
             </Button>
           </div>
