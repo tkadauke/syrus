@@ -77,8 +77,6 @@ const textFilenames = chatAttachmentPolicy.text_filenames as string[]
 const textApplicationMimeTypes = chatAttachmentPolicy.text_application_mime_types as string[]
 const fallbackMimeTypes = chatAttachmentPolicy.fallback_mime_types as string[]
 
-export const CHAT_ATTACHMENT_ACCEPT = [...Object.keys(binaryExtensions), ...textExtensions].join(",")
-
 export const CHAT_RASTER_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const
 
 export function isChatRasterImage(mimeType: string) {

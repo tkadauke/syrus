@@ -111,7 +111,6 @@ import {
   CHAT_COMPOSER_DRAFT_RESTORED_EVENT,
   CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT,
   type ChatQueryKey,
-  CHAT_ATTACHMENT_ACCEPT,
   chatAttachmentTypeAllowed,
   isChatRasterImage,
   CHAT_ATTACHMENT_MAX_BYTES,
@@ -2178,8 +2177,9 @@ export function Compose({
               ) : null}
             </div>
           ) : null}
+          {/* `accept` cannot express exact extensionless names such as Dockerfile.
+              Leave native filtering off and enforce the shared policy after selection. */}
           <Input
-            accept={walkthroughsEnabled ? `${CHAT_ATTACHMENT_ACCEPT},video/webm,video/mp4,video/quicktime` : CHAT_ATTACHMENT_ACCEPT}
             aria-label={t("chat_attachments")}
             className="hidden"
             disabled={send.isPending || systemAction.isPending}
