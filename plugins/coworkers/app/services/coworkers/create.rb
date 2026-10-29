@@ -15,21 +15,12 @@ class Coworkers::Create
     "syrus.propose_job" => "confirm"
   }.freeze
 
-  PLACEHOLDER_SOUL = <<~MARKDOWN.freeze
-    role: not set up yet
-
-    You have not been set up yet. Interview your owner about your name, role,
-    personality, how you should work, and what you should never do. Then write
-    what you learn into SOUL.md, USER.md, and AGENTS.md.
-  MARKDOWN
   AGENTS = <<~MARKDOWN.freeze
     # Operating rules
 
     Keep SOUL.md, USER.md, and memory/ current as you work with your owner.
     Treat this branch as your persistent home and do not push outside coworkers/.
   MARKDOWN
-  USER = "# Owner\n\nLearn about your owner during your first conversation.\n".freeze
-  KICKOFF = "Your identity has not been set up yet. Interview your owner now and update your workspace identity files with the answers.".freeze
 
   def self.call(...) = new(...).call
 
@@ -110,7 +101,7 @@ class Coworkers::Create
 
   def create_kickoff!(coworker)
     chat = coworker.coworker_chats.find_by!(role: "main").chat_session
-    message = chat.messages.create!(role: "system", content: { "text" => KICKOFF }, skip_turn_trigger: false)
+    message = chat.messages.create!(role: "system", content: { "text" => kickoff }, skip_turn_trigger: false)
     enqueued = ChatTurnJob.perform_later(chat.id, message.id)
     raise KickoffEnqueueFailed, "could not enqueue the coworker's kickoff turn" unless enqueued
   end
@@ -124,15 +115,30 @@ class Coworkers::Create
   def role_summary = @about ? @about.lines.first.strip.delete_prefix("role:").strip : "not set up yet"
 
   def soul
-    return PLACEHOLDER_SOUL unless @about
-    "role: #{role_summary}\n\n#{@about}\n"
+    return "name: #{@name}\nrole: #{role_summary}\n\n#{@about}\n" if @about
+
+    <<~MARKDOWN
+      name: #{@name}
+      role: not set up yet
+
+      Your name is #{@name}. Interview #{@owner.display_name}, your owner, about your role,
+      personality, how you should work, and what you should never do. Then write
+      what you learn into SOUL.md, USER.md, and AGENTS.md.
+    MARKDOWN
+  end
+
+  def user = "# Owner\n\nYour owner is #{@owner.display_name}. Learn more about them during your first conversation.\n"
+
+  def kickoff
+    "You are #{@name}, and your owner is #{@owner.display_name}. Your identity has not been set up yet. " \
+      "Interview your owner about your role, personality, working preferences, and boundaries, then update your workspace identity files with the answers."
   end
 
   def seed_files
     {
       "SOUL.md" => soul,
       "AGENTS.md" => AGENTS,
-      "USER.md" => USER,
+      "USER.md" => user,
       "memory/.gitkeep" => "",
       ".gitattributes" => "memory/** merge=union\n"
     }

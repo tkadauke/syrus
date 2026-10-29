@@ -25,7 +25,7 @@ RSpec.describe Coworkers::Create do
     def delete!(branch) = deleted_branches << branch
   end
 
-  let(:owner) { Factories.user }
+  let(:owner) { Factories.user(first_name: "Ada", last_name: "Lovelace") }
   let(:remote) { FakeCoworkerRemote.new(owner) }
 
   def create_service(**attributes)
@@ -81,7 +81,10 @@ RSpec.describe Coworkers::Create do
       ".gitattributes" => "memory/** merge=union\n",
       "memory/.gitkeep" => ""
     )
-    expect(remote.seeded_files.fetch("SOUL.md")).to include("role: not set up yet", "Interview your owner")
+    expect(remote.seeded_files.fetch("SOUL.md")).to include(
+      "name: Maya", "role: not set up yet", "Your name is Maya", "Interview Ada Lovelace"
+    )
+    expect(remote.seeded_files.fetch("USER.md")).to include("Your owner is Ada Lovelace")
     expect(remote.seeded_identity).to have_attributes(git_name: "Maya (@maya)", git_email: "maya@coworkers.syrus.invalid")
     expect(coworker).to have_attributes(accent_hex: "#0090FF", role_summary: "not set up yet")
     expect(coworker.grants.pluck(:capability, :approval_policy).to_h).to eq(described_class::DEFAULT_GRANTS)
@@ -130,7 +133,8 @@ RSpec.describe Coworkers::Create do
 
     coworker = create_service(about: "Research lead\nCurious and concise.").call
 
-    expect(remote.seeded_files.fetch("SOUL.md")).to eq("role: Research lead\n\nResearch lead\nCurious and concise.\n")
+    expect(remote.seeded_files.fetch("SOUL.md")).to eq("name: Maya\nrole: Research lead\n\nResearch lead\nCurious and concise.\n")
+    expect(remote.seeded_files.fetch("USER.md")).to include("Your owner is Ada Lovelace")
     expect(coworker.role_summary).to eq("Research lead")
     expect(coworker.chats.first.messages).to be_empty
   end
@@ -142,7 +146,9 @@ RSpec.describe Coworkers::Create do
     chat = coworker.chats.first
     message = chat.messages.find_by!(role: "system")
 
-    expect(message.extract_text_from_content).to include("Interview your owner now")
+    expect(message.extract_text_from_content).to include(
+      "You are Maya", "your owner is Ada Lovelace", "Interview your owner about your role"
+    )
     expect(ChatTurnJob).to have_received(:perform_later).with(chat.id, message.id)
   end
 
