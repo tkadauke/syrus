@@ -1,6 +1,7 @@
 require "rails_helper"
 require "socket"
 require "tmpdir"
+require "execution/backend_test_kit"
 
 RSpec.describe ContainerExecution::Backend do
   around do |example|
@@ -181,3 +182,57 @@ RSpec.describe ContainerExecution::Backend do
     )
   end
 end
+
+class ContainerBackendContractAdapter
+  def initialize(example)
+    @example = example
+    ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"] = "syrus-worker:test"
+    ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "/host=/host"
+    ENV["SYRUS_PERSISTENT_MCP_SOCKET"] = "/host/mcp.sock"
+  end
+
+  def call(request)
+    command = nil
+    runner = @example.instance_double(ProcessRunner, run: Execution::BackendTestKit.success_result)
+    @example.allow(ProcessRunner).to @example.receive(:new) do |kwargs|
+      command = kwargs.fetch(:command)
+      runner
+    end
+    result = ContainerExecution::Backend.new.run(request)
+    observe(command, result)
+  end
+
+  private
+
+  def observe(command, result)
+    mounts = values_after(command, "--mount").filter_map do |value|
+      parts = value.split(",")
+      fields = parts.grep(/=/).to_h { |field| field.split("=", 2) }
+      next if fields["dst"] == ContainerExecution::Backend::MCP_SOCKET_CONTAINER_PATH
+      { source: fields.fetch("src"), destination: fields.fetch("dst"),
+        mode: parts.include?("readonly") ? :read_only : :read_write }
+    end
+    env = values_after(command, "--env").grep(/=/).to_h { |value| value.split("=", 2) }
+    limits = {
+      memory_max: value_after(command, "--memory"),
+      cpu_max: "#{value_after(command, '--cpu-quota')} #{value_after(command, '--cpu-period')}",
+      io_weight: value_after(command, "--blkio-weight").to_i
+    }
+    Execution::BackendTestKit::Observation.new(
+      mounts: mounts, network: command[command.index("--network") + 1] == "none" ? "grader" : nil,
+      resource_limits: limits, env: env,
+      mcp_endpoint: env["SYRUS_PERSISTENT_MCP_SOCKET"], result: result
+    )
+  end
+
+  def values_after(command, flag)
+    command.each_index.filter_map { |index| command[index + 1] if command[index] == flag }
+  end
+
+  def value_after(command, flag) = command[command.index(flag) + 1]
+end
+
+Execution::BackendTestKit.define_examples(
+  RSpec,
+  adapter: ->(example) { ContainerBackendContractAdapter.new(example) }
+)

@@ -17,6 +17,7 @@ module ContainerExecution
     end
 
     def run(request)
+      validate_request!(request)
       ProcessRunner.new(
         env: request.env,
         command: docker_command(request),

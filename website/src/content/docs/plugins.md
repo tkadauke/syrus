@@ -210,3 +210,19 @@ Syrus checks the last two by actually removing a plugin: `bin/plugin-boundary-au
 <plugin>` copies the checkout, deletes that plugin plus everything that depends
 on it, and runs a command of your choosing — a boot check by default, or the
 full test suite — against what is left.
+
+## Execution Backend Contract
+
+Execution backends use the stable, versioned `Execution::Backend` contract.
+Version 1.0 requires implementations to preserve read/write mount modes,
+enforce the requested network profile, translate memory, CPU, and I/O limits,
+make the persistent MCP daemon reachable through the advertised socket, and
+reject malformed requests consistently. When a provider declines a request,
+Syrus tries the next provider and ultimately falls back to local execution.
+
+Syrus ships `Execution::BackendTestKit`, a transport-neutral RSpec conformance
+suite. An in-tree or closed-source backend supplies a small adapter that runs
+the real backend and reports a normalized observation of its transport. This
+lets the same assertions cover local processes, containers, and private
+execution systems without exposing backend internals. The operator guide
+contains the adapter API and invocation example.
