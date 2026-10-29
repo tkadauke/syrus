@@ -29,8 +29,14 @@ module Coworkers::McpTools
           "grants" => Array(grants).map(&:to_s).uniq }.compact
         preflight_fields = fields.except("about")
         Coworkers::CreatePreflight.new(owner: chat.user, **preflight_fields.symbolize_keys, test_push: test_push != false).call
-        create_pending_action!(server_context, chat, action: "create_coworker", payload: fields,
-          message: "Create coworker @#{fields['handle']}?")
+        pending_action = create_pending_action_for_current_message!(
+          server_context, chat, action: "create_coworker", payload: fields, requested_by: "agent"
+        )
+        Mcp::Tools.success(
+          pending_confirmation_id: pending_action.id, pending_action_id: pending_action.id,
+          state: pending_action.state, message: "Create coworker @#{fields['handle']}?",
+          coworker: fields
+        )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       rescue StandardError => e

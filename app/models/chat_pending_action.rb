@@ -22,6 +22,7 @@ class ChatPendingAction < ApplicationRecord
     fire_scheduled_task_now
     create_repo_document
     create_coworker
+    escalate_coworker_grants
     delete_repo_document
     delete_design_doc
     poll_job_feedback

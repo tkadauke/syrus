@@ -36,6 +36,10 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
     described_class.call(**fields.merge(overrides), server_context: { chat_session: chat })
   end
 
+  def response_payload(response)
+    JSON.parse(response.content.first.fetch(:text))
+  end
+
   it "preflights but creates nothing before confirmation, then creates exactly the shown fields" do
     response = propose
     expect(response).not_to be_error
@@ -45,6 +49,7 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
 
     action = chat.pending_actions.last
     expect(action.payload).to eq(fields.deep_stringify_keys)
+    expect(response_payload(response).fetch("coworker")).to eq(action.payload)
     expect(remote.push_tests).to eq(1)
 
     expect(action.confirm!).to be true
@@ -97,5 +102,67 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
 
     expect(Coworkers::ChatToolSet.available_for?(chat, tier: :deferred)).to be false
+  end
+end
+
+RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
+  let(:owner) { Factories.user }
+  let(:chat) { ChatSession.create!(user: owner) }
+  let(:coworker) do
+    Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-grants", workspace_repo: "git@example.com:workspaces.git"
+    )
+  end
+
+  def propose(grants)
+    described_class.call(coworker_id: coworker.id, grants: grants, server_context: { chat_session: chat })
+  end
+
+  it "normalizes an escalation into its own pending action and grants exactly those capabilities on confirmation" do
+    response = propose([ "syrus.read_jobs", "workspace.shell", "syrus.read_jobs" ])
+    action = chat.pending_actions.last
+
+    expect(response).not_to be_error
+    expect(action).to have_attributes(
+      action: "escalate_coworker_grants",
+      payload: { "coworker_id" => coworker.id, "handle" => "maya-grants", "grants" => [ "syrus.read_jobs", "workspace.shell" ] }
+    )
+    expect(coworker.grants).to be_empty
+    expect(JSON.parse(response.content.first.fetch(:text)).fetch("grant_escalation")).to eq(action.payload)
+
+    expect(action.confirm!).to be true
+    expect(coworker.grants.reload.pluck(:capability, :approval_policy).to_h).to eq(
+      "syrus.read_jobs" => "auto", "workspace.shell" => "auto"
+    )
+  end
+
+  it "adds nothing when the escalation is rejected" do
+    propose([ "workspace.shell" ])
+    chat.pending_actions.last.reject!
+
+    expect(coworker.grants).to be_empty
+  end
+
+  it "rechecks escalation races at confirmation" do
+    propose([ "workspace.shell" ])
+    action = chat.pending_actions.last
+    coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
+
+    expect { action.confirm! }.to raise_error(ArgumentError, /already granted/)
+    expect(coworker.grants.where(capability: "workspace.shell").count).to eq(1)
+  end
+
+  it "cannot escalate a coworker owned by another user" do
+    other = Factories.user
+    other_coworker = Coworkers::Coworker.create!(
+      owner_user: other, name: "Other", handle: "other-grants", workspace_repo: "git@example.com:other.git"
+    )
+
+    response = described_class.call(
+      coworker_id: other_coworker.id, grants: [ "workspace.shell" ], server_context: { chat_session: chat }
+    )
+
+    expect(response).to be_error
+    expect(chat.pending_actions).to be_empty
   end
 end
