@@ -168,7 +168,7 @@ export function AdminToolCards() {
 
   const filters = useMemo(() => catalogFiltersFromSearch(FILTER_FIELDS, search), [search])
   const filterTree = useMemo(() => catalogFilterTreeFromSearch(FILTER_FIELDS, TEXT_FILTER_FIELDS, search), [search])
-  const selectedViewport = useMemo(() => viewportPresetFromSearch(search), [search])
+  const selectedViewport = useMemo(() => viewportPresetFromSearch(search, window.innerWidth), [search])
 
   const filteredEntries = useMemo(
     () => allEntries.filter((entry) => matchesFilters(entry, filters)).sort((left, right) => left.toolName.localeCompare(right.toolName)),
