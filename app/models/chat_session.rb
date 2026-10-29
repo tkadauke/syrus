@@ -632,7 +632,8 @@ class ChatSession < ApplicationRecord
 
   # Computed live from current human headcount, not a stored/toggleable
   # setting: chats with 0-1 participants always trigger the agent; chats
-  # with 2+ participants require an explicit @syrus mention on every message.
+  # with 2+ participants require an explicit mention of an addressable agent
+  # on every message.
   def should_trigger_agent?(message_or_mentions)
     chat_participants.count <= 1 || agent_addressed?(message_or_mentions)
   end
