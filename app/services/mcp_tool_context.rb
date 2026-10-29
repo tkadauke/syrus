@@ -56,7 +56,7 @@ class McpToolContext
       chat_session:           chat_session,
       # What this surface permits, not what the memory store defines: a chat
       # may write cross-repository facts, a workflow run may not.
-      allowed_memory_scopes:  %w[ global repository ],
+      allowed_memory_scopes:  coworker ? %w[ global repository team instance ] : %w[ global repository ],
       allowed_repository_ids: chat_session.attached_repositories.ids,
       allowed_chat_session_ids: coworker ? coworker.readable_chat_session_ids : nil,
       granted_capabilities: coworker ? coworker.grants.pluck(:capability) : [],

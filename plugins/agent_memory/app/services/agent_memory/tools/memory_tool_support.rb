@@ -29,11 +29,17 @@ module AgentMemory
       # Returns memories visible to the agent based on context surface:
       #   run  — own + published memories within the job's repository
       #   chat — own global + own/published repository memories for attached repos
+      #   coworker chat — everything its owner can read across their repositories
       def visible_memories_for(context)
         if context.run?
           AgentMemory::Entry.active
                     .where(scope: "repository", scope_id: context.repository.id)
                     .where("agent_memory_entries.user_id = ? OR agent_memory_entries.published = ?", context.user.id, true)
+        elsif context.role == AgentRole::COWORKER_CHAT
+          owned = AgentMemory::Entry.active.where(user_id: context.user.id)
+          published = AgentMemory::Entry.active.where.not(user_id: context.user.id)
+                                         .where(scope: "repository", scope_id: memory_repository_ids(context), published: true)
+          owned.or(published)
         else
           AgentMemory::Entry.active.visible_to(context.user, context.allowed_repository_ids)
         end
@@ -52,10 +58,16 @@ module AgentMemory
         if context.chat?
           return memory if memory.repository? &&
                            memory.published? &&
-                           context.allowed_repository_ids.include?(memory.scope_id)
+                           memory_repository_ids(context).include?(memory.scope_id)
         end
 
         nil
+      end
+
+      def memory_repository_ids(context)
+        return context.allowed_repository_ids unless context.role == AgentRole::COWORKER_CHAT
+
+        Repository.accessible_repository_ids_for(context.user).pluck(:id)
       end
 
       # Returns the repository to write to given a requested scope and scope_id.

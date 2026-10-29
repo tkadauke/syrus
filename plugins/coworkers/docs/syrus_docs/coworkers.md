@@ -33,7 +33,10 @@ surface names the coworker grant required to advertise it, and interactive
 question/suggestion tools are present only while handling an owner-authored
 turn. Plugin chat tools are excluded unless their tool set and definitions
 explicitly opt into coworker use. The Agent Memory plugin opts in only its
-read, search, and list tools. Shared-chat reads are restricted to the
+read, search, and list tools, without requiring a grant. Those tools expose
+the owner's memories plus published memories from every repository the owner
+can access; they never expose another user's private memory or any memory
+mutation or publishing tool. Shared-chat reads are restricted to the
 coworker's own chats and chats explicitly shared with that coworker, even
 when its owner is an administrator.
 
