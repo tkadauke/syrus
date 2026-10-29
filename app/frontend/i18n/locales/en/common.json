@@ -517,6 +517,31 @@
       "pr_coverage_not_executable": "Changed line is not executable"
     }
   },
+  "accent_picker": {
+    "tone": "Tone",
+    "families": {
+      "pastel": "Pastel",
+      "dusty": "Dusty",
+      "vivid": "Vivid",
+      "electric": "Electric",
+      "jewel": "Jewel",
+      "earth": "Naturals"
+    },
+    "hues": {
+      "red": "Red",
+      "orange": "Orange",
+      "yellow": "Yellow",
+      "lime": "Lime",
+      "green": "Green",
+      "teal": "Teal",
+      "cyan": "Cyan",
+      "blue": "Blue",
+      "indigo": "Indigo",
+      "violet": "Violet",
+      "purple": "Purple",
+      "pink": "Pink"
+    }
+  },
   "native_notifications": {
     "generic": "Syrus notification",
     "ci_failed": "CI failed",
