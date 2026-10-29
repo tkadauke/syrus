@@ -6,7 +6,7 @@ export type CoworkerSummary = {
   handle: string
   role_summary: string | null
   state: string
-  accent_hex: string
+  color_key: string
   avatar_key: string | null
   avatar_url: string | null
   path: string
@@ -45,18 +45,10 @@ export type CoworkerMemoryPayload = {
 
 export const fetchCoworkers = () =>
   getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")
-export function fetchCoworker(id: string) {
-  return getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
-}
-export function fetchCoworkerMemory(id: string, search: string) {
-  return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
-}
-export function createCoworker(form: FormData) {
-  return postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
-}
-export function createSideChat(id: number) {
-  return postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
-}
+export const fetchCoworker = (id: string) => getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
+export const fetchCoworkerMemory = (id: string, search: string) => getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
+export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
+export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
 export const testCoworkerRemote = (workspaceRepo: string) =>
   postJson<{ message: string }>("/api/v1/app/coworkers/test_remote", { workspace_repo: workspaceRepo })
 export const addCoworkerToChat = (coworkerId: number, chatId: number) => postJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
