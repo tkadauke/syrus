@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import type { ChatPendingActionInline } from "@app/api/chats"
-import type { ToolCardContext } from "@app/pluginToolCards"
-import proposeCoworkerToolCard from "./propose_coworker"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
+import proposeCoworkerToolCard, { examples } from "./propose_coworker"
 
 function live(state: ChatPendingActionInline["state"], overrides: Partial<ChatPendingActionInline> = {}): ChatPendingActionInline {
   return {
@@ -50,6 +50,18 @@ function renderCard(action: ChatPendingActionInline) {
 }
 
 describe("propose_coworker tool card", () => {
+  it("registers visually reviewable fixtures for every live state", () => {
+    expect(examples.map((example) => example.id)).toEqual(["pending", "confirmed", "rejected", "failed"])
+    const proposed = toolCardContextForExample("propose_coworker", examples[0])
+    renderCard(proposed.livePendingAction!)
+
+    expect(screen.getByRole("textbox", { name: "About (optional)" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled()
+    expect(screen.getByRole("textbox")).toHaveClass("max-w-full")
+    expect(screen.getByRole("textbox").closest("div.relative")).toHaveClass("max-w-full", "overflow-hidden")
+  })
+
   it("renders the proposed configuration and edits About with the keyboard", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ messages: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -83,6 +95,19 @@ describe("propose_coworker tool card", () => {
     renderCard(live("confirmed", { review: { about: "role: Research director" }, outcome: { coworker_id: 12, chat_id: 44 } }))
     expect(screen.getByRole("textbox", { name: "About (optional)" })).toHaveValue("role: Research director")
     expect(screen.getByRole("textbox", { name: "About (optional)" })).toBeDisabled()
+  })
+
+  it("persists an unsaved About edit before confirming", async () => {
+    const fetch = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ messages: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    renderCard(live("pending", { app_update_path: "/update" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "About (optional)" }), { target: { value: "role: Research director" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+    expect(fetch.mock.calls[0][0]).toBe("/update")
+    expect(fetch.mock.calls[1][0]).toBe("/confirm")
   })
 
   it("shows confirmed links to the coworker and main chat", () => {
