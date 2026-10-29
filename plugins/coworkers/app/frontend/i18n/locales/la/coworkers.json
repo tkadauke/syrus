@@ -18,6 +18,22 @@
     "truncated": "Hic magnus fasciculus ex parte ostenditur.",
     "categories": { "daily": "Diaria", "people": "Personae", "repos": "Repositoria", "banks": "Thesauri" }
   },
+  "workspace": {
+    "loading": "Spatium oneratur…",
+    "unavailable": "Spatium huius collegae nunc attingi non potest.",
+    "files": "Fasciculi spatii",
+    "choose_file": "Fasciculum ad inspiciendum elige.",
+    "binary": "Fasciculi binarii inspici non possunt.",
+    "partial": "Haec arbor spatii imperfecta est. Soli fasciculi praesto ostenduntur.",
+    "truncated": "Hic magnus fasciculus ex parte ostenditur.",
+    "history": "Historia committendi",
+    "no_commits": "Historia committendi praesto non est.",
+    "chat_source": "Colloquium {{id}}",
+    "run_source": "Cursus {{id}}",
+    "conflict": "Ramus colloquii nondum coniunctus {{branch}}:",
+    "test_push": "Accessum mittendi proba",
+    "push_ok": "Accessus mittendi probatus"
+  },
   "new": {
     "action": "Novus collega",
     "title": "Novus collega",

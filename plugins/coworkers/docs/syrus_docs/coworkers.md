@@ -129,6 +129,14 @@ shows recent daily files first. Provider-truncated or exceptionally large trees
 return their available files with a partial-results notice; searches also warn
 when capped file contents mean the result set cannot be complete. The Activity
 tab reports total uncapped spend, sent and received coworker-message traffic for
-the last 30 days, plus recent refused and rate-limited deliveries. Capabilities,
-Schedule, and Workspace remain coming-later placeholders where their full
-surfaces have not shipped yet.
+the last 30 days, plus recent refused and rate-limited deliveries. Capabilities
+and Schedule remain coming-later placeholders where their full surfaces have
+not shipped yet.
+
+The Workspace tab is a read-only view of the coworker's home branch through
+the same cached repository-content providers. It shows the remote and branch,
+the file tree with plain-text or Markdown previews, available commit history,
+and chat branches with unresolved merge conflicts. Partial trees and capped
+files are marked explicitly. The only remote action is **Test push access**,
+which creates and immediately deletes a randomized throwaway ref beneath
+`coworkers/`; file edits and arbitrary pushes are not exposed in the UI.

@@ -22,6 +22,7 @@ import {
   createSideChat,
   fetchCoworker,
   fetchCoworkerMemory,
+  fetchCoworkerWorkspace,
   fetchCoworkers,
   removeCoworkerFromChat,
   testCoworkerRemote,
@@ -352,8 +353,92 @@ function CoworkerPage({ id }: { id: string }) {
           )}
         </section>
       ) : null}
-      {!["chat", "profile", "memory", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
+      {!["chat", "profile", "memory", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
+  )
+}
+
+function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
+  const { t } = useT("coworkers")
+  const [selectedPath, setSelectedPath] = useState<string | undefined>()
+  const query = useQuery({
+    queryKey: ["coworkers", id, "workspace", selectedPath],
+    queryFn: () => fetchCoworkerWorkspace(id, selectedPath)
+  })
+  const pushTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
+
+  if (query.isPending) return <PanelMessage>{t("workspace.loading")}</PanelMessage>
+  if (query.isError || !query.data) return <PanelMessage>{t("workspace.unavailable")}</PanelMessage>
+  const workspace = query.data
+
+  return (
+    <section className="overflow-hidden rounded border border-border bg-surface">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4 text-sm">
+        <div>
+          <div className="font-medium text-text-primary">{workspace.remote}</div>
+          <div className="text-text-muted">{workspace.branch}</div>
+        </div>
+        <div>
+          <button className="rounded border border-border px-3 py-2 hover:bg-surface-subtle" onClick={() => pushTest.mutate()} type="button">
+            {t("workspace.test_push")}
+          </button>
+          {pushTest.isSuccess ? <span className="ml-2 text-success">{t("workspace.push_ok")}</span> : null}
+        </div>
+      </header>
+      {workspace.partial ? <PanelMessage>{t("workspace.partial")}</PanelMessage> : null}
+      {workspace.conflicts.map((conflict) => (
+        <div className="border-b border-warning/40 bg-warning/10 p-3 text-sm" key={conflict.branch}>
+          {t("workspace.conflict", { branch: conflict.branch })} {conflict.files.join(", ")}
+        </div>
+      ))}
+      <div className="grid min-h-80 md:grid-cols-[16rem_1fr]">
+        <nav aria-label={t("workspace.files")} className="border-b border-border p-3 md:border-b-0 md:border-r">
+          {workspace.files
+            .filter((file) => file.type !== "directory")
+            .map((file) => (
+              <button
+                className={`block w-full truncate rounded px-2 py-1 text-left text-sm ${selectedPath === file.path ? "bg-accent/10 text-accent" : "hover:bg-surface-subtle"}`}
+                key={file.path}
+                onClick={() => setSelectedPath(file.path)}
+                type="button"
+              >
+                {file.path}
+              </button>
+            ))}
+        </nav>
+        <div className="min-w-0 p-4">
+          {workspace.selected_file ? (
+            <>
+              <h2 className="mb-3 font-semibold">{workspace.selected_file.path}</h2>
+              {workspace.selected_file.truncated ? <PanelMessage>{t("workspace.truncated")}</PanelMessage> : null}
+              {workspace.selected_file.binary ? (
+                <PanelMessage>{t("workspace.binary")}</PanelMessage>
+              ) : workspace.selected_file.path.toLowerCase().endsWith(".md") ? (
+                <Markdown className="chat-prose text-sm" text={workspace.selected_file.content} />
+              ) : (
+                <pre className="overflow-auto whitespace-pre-wrap text-sm">{workspace.selected_file.content}</pre>
+              )}
+            </>
+          ) : (
+            <PanelMessage>{t("workspace.choose_file")}</PanelMessage>
+          )}
+        </div>
+      </div>
+      {workspace.commits.length ? (
+        <div className="border-t border-border p-4">
+          <h2 className="font-semibold">{t("workspace.history")}</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {workspace.commits.map((commit) => (
+              <li key={commit.sha}>
+                <span className="font-mono">{commit.sha.slice(0, 7)}</span> {commit.message}
+                {commit.source_id ? <span className="ml-2 text-text-muted">{t(`workspace.${commit.source}_source`, { id: commit.source_id })}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   )
 }
 
