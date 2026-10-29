@@ -58,6 +58,12 @@ list, search, and read its own chats plus those shares; revoking a share
 removes access immediately. Coworkers are never offered the arbitrary
 `send_chat_message` tool.
 
+Chat owners can also add their coworkers to a chat's agent roster from the
+coworker page or by choosing an autocomplete result marked "Add to chat."
+Rostered coworkers become addressable by every participant in that chat and
+can be removed by the chat owner. Coworkers owned by anyone else cannot be
+added. The roster is shown beside the chat heading.
+
 Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
 Workspace, and Activity are visible as coming-later placeholders where their
 full Phase 1 surface has not shipped yet.

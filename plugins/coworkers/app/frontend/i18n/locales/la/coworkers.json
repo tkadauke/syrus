@@ -35,6 +35,10 @@
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",
+    "add_to_chat": "Ad colloquium adde",
+    "remove_from_chat": "E colloquio remove",
+    "choose_chat": "Colloquium elige",
+    "on_roster": "additus",
     "main_chat": "Colloquium principale",
     "account_default": "Praedefinitum rationis",
     "soul_unavailable": "SOUL.md praesto non est.",

@@ -70,6 +70,54 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.fetch("mentionables").pluck("handle")).not_to include("private")
   end
 
+  it "adds and removes an owned coworker from a chat roster without duplicates" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Plans")
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
+    }.to change(Coworkers::ChatAgent, :count).by(1)
+    expect(response).to have_http_status(:created)
+    expect(Coworkers::ChatAgent.last.added_by_user).to eq(owner)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
+    }.not_to change(Coworkers::ChatAgent, :count)
+    expect(response).to have_http_status(:created)
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
+    }.to change(Coworkers::ChatAgent, :count).by(-1)
+    expect(response).to have_http_status(:no_content)
+  end
+
+  it "refuses to add another user's coworker" do
+    other = Factories.user(email_address: "other-roster@example.com")
+    coworker = Coworkers::Coworker.create!(owner_user: other, name: "Private", handle: "private-agent", workspace_repo: "https://github.com/acme/private.git")
+    chat = ChatSession.create!(user: owner, title: "Plans")
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
+    }.not_to change(Coworkers::ChatAgent, :count)
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "moves a newly rostered coworker into the addressable autocomplete scope" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-roster", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Plans")
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/#{chat.id}/mentionables"
+    expect(response.parsed_body.fetch("mentionables").find { |row| row["kind"] == "coworker" && row["id"] == coworker.id }).to include("add_to_chat" => true)
+
+    post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
+    get "/api/v1/app/chats/#{chat.id}/mentionables"
+    expect(response.parsed_body.fetch("mentionables").find { |row| row["kind"] == "coworker" && row["id"] == coworker.id }).to include("add_to_chat" => false)
+    expect(chat.resolve_mentions("Ask @maya-roster")).to include(include("kind" => "coworker", "id" => coworker.id))
+  end
+
   it "creates side chats in the coworker's Phase 1 home-branch workspace" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(

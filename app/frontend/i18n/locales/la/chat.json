@@ -1,6 +1,9 @@
 {
   "share_people": "Communicare",
   "mention_add_to_chat": "Ad colloquium adde",
+  "mention_add_error": "Hic collega colloquio addi non potuit.",
+  "agent_roster": "Agentes in hoc colloquio",
+  "remove_agent": "{{name}} e colloquio remove",
   "mention_kind_human": "Persona",
   "mention_kind_coworker": "Sodalis",
   "mention_kind_syrus": "Syrus",

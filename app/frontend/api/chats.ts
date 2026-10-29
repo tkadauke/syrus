@@ -73,6 +73,7 @@ export type ChatRecord = {
 }
 
 export type ChatAgentAppearance = { name: string; accent_hex: string; avatar_key: string | null; avatar_url: string | null }
+export type ChatAgentRosterItem = ChatAgentAppearance & { id: number; handle: string; removable: boolean }
 
 export type ChatMentionable = {
   id: number | string
@@ -916,6 +917,7 @@ export type CodingDiffPayload = {
 export type ChatPayload = {
   message?: string | null
   agent_appearance?: ChatAgentAppearance
+  agent_roster?: ChatAgentRosterItem[]
   chat: ChatRecord
   chat_available: boolean
   chat_provider_display_name?: string
@@ -1065,6 +1067,14 @@ export function fetchChatShareCandidates(chatId: number | string, query: string)
 
 export function fetchChatMentionables(chatId: number | string, query: string) {
   return getJson<{ mentionables: ChatMentionable[] }>(`/api/v1/app/chats/${chatId}/mentionables?q=${encodeURIComponent(query)}`)
+}
+
+export function addChatAgent(chatId: number | string, coworkerId: number) {
+  return postJson<{ agent: ChatAgentRosterItem }>(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
+}
+
+export function removeChatAgent(chatId: number | string, coworkerId: number) {
+  return deleteJson<void>(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
 }
 
 export function createChatShare(chatId: number | string, target: Pick<ChatShareTarget, "target_type" | "target_id">) {

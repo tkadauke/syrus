@@ -35,6 +35,10 @@
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Neuer Nebenchat",
+    "add_to_chat": "Zum Chat hinzufügen",
+    "remove_from_chat": "Aus dem Chat entfernen",
+    "choose_chat": "Chat auswählen",
+    "on_roster": "hinzugefügt",
     "main_chat": "Hauptchat",
     "account_default": "Kontostandard",
     "soul_unavailable": "SOUL.md ist nicht verfügbar.",

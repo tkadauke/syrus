@@ -656,6 +656,9 @@ plus your own coworkers that can be added and Syrus. Continue typing to filter
 by handle, name, or role, then use the arrow keys and Enter or Tab to insert a
 mention. Your own handle is editable under Profile; handles are public,
 instance-wide identifiers and should not contain sensitive information.
+Selecting an own coworker marked **Add to chat** adds it to the chat's agent
+roster before inserting the mention. Everyone participating in the chat can
+then address that coworker, while the chat owner can remove it from the roster.
 
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
@@ -1692,7 +1695,9 @@ labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. A chat owner can share a conversation read-only with one of their
 own coworkers; a coworker with the shared-chat grant can list, search, and read
 its own and shared chats, but cannot post to arbitrary chats. It does not yet
-expose workspace execution screens. Disabling it removes its page,
+expose workspace execution screens. Chat owners can add an owned coworker to
+an agent roster from its page or from mention autocomplete, see the roster in
+the chat heading, and remove it later. Disabling the plugin removes its page,
 chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 
