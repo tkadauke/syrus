@@ -50,7 +50,7 @@ module Mcp::Tools
 
       def pending_coworker_approval(tool, server_context, arguments)
         context = McpToolContext.from_server_context(server_context)
-        return unless context.role == AgentRole::COWORKER_CHAT
+        return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
         entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == tool }
         return unless entry&.mutation
@@ -82,10 +82,10 @@ module Mcp::Tools
     end
 
     def admin?
-      current_user.admin? && mcp_context&.role != AgentRole::COWORKER_CHAT
+      current_user.admin? && !mcp_context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
     end
 
-    def current_user = chat_session.user
+    def current_user = mcp_context&.user || chat_session.user
 
     def chat_session = server_context.fetch(:chat_session)
 

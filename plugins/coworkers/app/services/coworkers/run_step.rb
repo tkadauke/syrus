@@ -1,0 +1,22 @@
+module Coworkers
+  class RunStep < ::Steps::Base
+    def call
+      workspace.setup
+      run.update!(prompt: prompt) if run.prompt.blank?
+      log("invoking coworker for background run (#{workflow.slug})")
+      run_agent(prompt: run.prompt)
+    end
+
+    private
+
+    def prompt
+      <<~TEXT.strip
+        You are running an unattended background task as a persistent coworker.
+
+        #{job.issue_body.presence || job.issue_title}
+
+        Work in the checked-out coworker workspace. Interactive-only tools are unavailable. Any action requiring owner confirmation must be queued for approval instead of waiting for a live response.
+      TEXT
+    end
+  end
+end

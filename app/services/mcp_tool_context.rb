@@ -33,6 +33,8 @@ class McpToolContext
   end
 
   def self.from_run(run)
+    coworker = coworker_for_run(run)
+    main_chat = coworker&.coworker_chats&.find_by(role: "main")&.chat_session
     new(
       surface:                :run,
       role:                   role_for_run(run),
@@ -41,8 +43,13 @@ class McpToolContext
       job:                    run.job,
       workflow:               run.workflow,
       run:                    run,
-      allowed_memory_scopes:  [ "repository" ],
-      allowed_repository_ids: [ run.job.repository_id ].compact
+      chat_session:           main_chat,
+      allowed_memory_scopes:  coworker ? %w[ global repository instance ] : [ "repository" ],
+      allowed_repository_ids: [ run.job.repository_id ].compact,
+      allowed_chat_session_ids: coworker ? coworker.readable_chat_session_ids : nil,
+      granted_capabilities: coworker ? coworker.grants.pluck(:capability) : [],
+      capability_approval_policies: coworker ? unattended_approval_policies(coworker) : {},
+      interactive: false
     )
   end
 
@@ -120,6 +127,19 @@ class McpToolContext
 
     coworker = chat_session.coworker
     coworker if coworker.respond_to?(:kind) && coworker.kind == "coworker"
+  end
+
+  private_class_method def self.coworker_for_run(run)
+    return unless role_for_run(run) == AgentRole::COWORKER
+    return unless run.job.origin == "coworkers"
+
+    Coworkers::Coworker.find_by(id: run.job.origin_id)
+  end
+
+  private_class_method def self.unattended_approval_policies(coworker)
+    coworker.grants.pluck(:capability, :approval_policy).to_h.transform_values do |policy|
+      policy == "confirm" ? "queue" : policy
+    end
   end
 
   private_class_method def self.interactive_turn?(chat_session)
