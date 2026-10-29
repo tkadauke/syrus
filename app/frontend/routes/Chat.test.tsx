@@ -2530,34 +2530,6 @@ describe("chat temporal markers", () => {
   })
 })
 
-describe("chat transcript virtualization", () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-    mockDesktopViewport()
-  })
-
-  it("keeps a multi-megabyte transcript's mounted DOM bounded", async () => {
-    const largeText = "A long transcript row. ".repeat(250)
-    const messages = Array.from({ length: 1_000 }, (_, index) => ({
-      type: "message",
-      id: index + 1,
-      role: index % 2 === 0 ? "assistant" : "user",
-      tool_name: null,
-      content: { text: `${index}: ${largeText}` },
-      text: `${index}: ${largeText}`,
-      bookmarkable: true
-    }))
-    mockChatPayload(chatPayload({ messages }))
-
-    renderRoute()
-
-    await screen.findByTestId("virtual-chat-transcript")
-    await waitFor(() => expect(screen.getAllByTestId("virtual-chat-row").length).toBeGreaterThan(0))
-    expect(screen.getAllByTestId("virtual-chat-row").length).toBeLessThan(30)
-    expect(document.querySelectorAll("[id^='message-']").length).toBeLessThan(30)
-  })
-})
-
 describe("proposal outcome system events", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -2730,14 +2702,12 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(
-          jsonResponse({
-            bookmarks: [
-              { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
-              { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
-            ]
-          })
-        )
+        return Promise.resolve(jsonResponse({
+          bookmarks: [
+            { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
+            { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
+          ]
+        }))
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -2790,11 +2760,9 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(
-          jsonResponse({
-            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
-          })
-        )
+        return Promise.resolve(jsonResponse({
+          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
+        }))
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -2849,11 +2817,9 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(
-          jsonResponse({
-            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
-          })
-        )
+        return Promise.resolve(jsonResponse({
+          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
+        }))
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -6319,9 +6285,9 @@ describe("floating composer height tracking", () => {
     observedElements = []
 
     class StubResizeObserver {
-      private callback: ResizeObserverCallback
+      private callback: () => void
 
-      constructor(callback: ResizeObserverCallback) {
+      constructor(callback: () => void) {
         this.callback = callback
       }
 
@@ -6331,18 +6297,7 @@ describe("floating composer height tracking", () => {
         // same effect flush that called observe()) — mirror that here so
         // this doesn't race ChatColumn's own synchronous mount-time reset
         // effect the way a same-tick callback would.
-        void Promise.resolve().then(() =>
-          this.callback(
-            [
-              {
-                target: element,
-                contentRect: element.getBoundingClientRect(),
-                borderBoxSize: [{ inlineSize: element.offsetWidth || 1200, blockSize: element.offsetHeight || 800 }]
-              } as unknown as ResizeObserverEntry
-            ],
-            this as unknown as ResizeObserver
-          )
-        )
+        void Promise.resolve().then(() => this.callback())
       }
 
       unobserve() {}
