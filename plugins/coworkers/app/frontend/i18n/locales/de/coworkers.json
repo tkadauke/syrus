@@ -24,6 +24,8 @@
     "history": "Commit-Verlauf",
     "conflicts": "Nicht zusammengeführte Chat-Branches",
     "binary": "Binärdateien können nicht angezeigt werden.",
+    "partial": "Dieser Workspace-Dateibaum ist unvollständig. Nur die vom Remote zurückgegebenen Dateien werden angezeigt.",
+    "truncated": "Diese große Datei wird nur teilweise angezeigt.",
     "source_chat": "Chat {{id}}",
     "source_run": "Run {{id}}"
   },

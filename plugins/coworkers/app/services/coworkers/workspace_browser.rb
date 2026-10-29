@@ -69,7 +69,9 @@ class Coworkers::WorkspaceBrowser
     home = @content.resolve(branch)
     chat = @content.resolve(chat_branch)
     %i[ahead diverged].include?(@content.relation(base: home, head: chat))
-  rescue RepositoryContent::Error
+  rescue RepositoryContent::UnknownRevision, RepositoryContent::NotFound
+    false
+  rescue RepositoryContent::Unavailable, RepositoryContent::Unsupported
     # The conflict message remains the best cached evidence when a provider
     # cannot compare the refs (or a replica has not fetched the chat ref yet).
     true

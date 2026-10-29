@@ -333,6 +333,7 @@ function CoworkerWorkspace({ id, prefix }: { id: string; prefix: string }) {
       {query.isError ? <PanelMessage>{query.error.message}</PanelMessage> : null}
       {query.data ? (
         <>
+          {query.data.partial ? <PanelMessage>{t("workspace.partial")}</PanelMessage> : null}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-surface p-4 text-sm">
             <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-[auto_1fr]">
               <dt className="font-medium">{t("fields.remote")}</dt>
@@ -378,6 +379,7 @@ function CoworkerWorkspace({ id, prefix }: { id: string; prefix: string }) {
             </nav>
             <article className="min-w-0 p-5">
               <h2 className="mb-4 border-b border-border pb-2 font-mono text-sm">{selected?.path}</h2>
+              {selected?.truncated ? <p className="mb-3 text-sm text-warning">{t("workspace.truncated")}</p> : null}
               {selected?.binary ? (
                 <PanelMessage>{t("workspace.binary")}</PanelMessage>
               ) : selected?.markdown ? (

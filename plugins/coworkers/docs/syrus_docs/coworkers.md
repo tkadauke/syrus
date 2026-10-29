@@ -120,6 +120,7 @@ when capped file contents mean the result set cannot be complete.
 The Workspace tab is read-only: it shows the home branch tree, previews text
 and Markdown files, attributes recent commits to their chat or run, and calls
 out chat branches left unmerged by conflicts. It shows the remote and branch.
+Truncated trees and large-file previews are labeled as incomplete.
 Its only action is **Test push access**, which creates and immediately deletes
 a random throwaway ref under `coworkers/`; there is no workspace write API.
 Capabilities, Schedule, and Activity remain coming-later placeholders.

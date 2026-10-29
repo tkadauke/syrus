@@ -223,7 +223,7 @@ it("renders the read-only workspace, Markdown, attributed commits, conflicts, an
     remote: "https://github.com/acme/workspace.git",
     branch: "coworkers/maya",
     files: [{ path: "SOUL.md", type: "file", size: 12 }],
-    selected_file: { path: "SOUL.md", content: "# Maya\n\nResearcher", size: 20, markdown: true },
+    selected_file: { path: "SOUL.md", content: "# Maya\n\nResearcher", size: 2000000, markdown: true, truncated: true },
     commits: [
       {
         sha: "a".repeat(40),
@@ -233,7 +233,8 @@ it("renders the read-only workspace, Markdown, attributed commits, conflicts, an
         source: { type: "chat", id: 12, path: "/chats/12" }
       }
     ],
-    conflicts: [{ chat_id: 12, branch: "coworkers/chat/7-12", files: ["SOUL.md"], chat_path: "/chats/12" }]
+    conflicts: [{ chat_id: 12, branch: "coworkers/chat/7-12", files: ["SOUL.md"], chat_path: "/chats/12" }],
+    partial: true
   }
   vi.stubGlobal(
     "fetch",
@@ -250,6 +251,8 @@ it("renders the read-only workspace, Markdown, attributed commits, conflicts, an
 
   expect(await screen.findByRole("heading", { name: "Maya", level: 1 })).toBeInTheDocument()
   expect(await screen.findByText("Researcher", { selector: "p" })).toBeInTheDocument()
+  expect(screen.getByText("This workspace tree is incomplete. Only the files returned by the remote are shown.")).toBeInTheDocument()
+  expect(screen.getByText("This large file is shown in part.")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "coworkers/chat/7-12" })).toHaveAttribute("href", "/chats/12")
   expect(screen.getByRole("link", { name: "Chat 12" })).toHaveAttribute("href", "/chats/12")
   expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()

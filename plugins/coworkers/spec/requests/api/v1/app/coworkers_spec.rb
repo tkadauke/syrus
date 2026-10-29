@@ -282,6 +282,7 @@ RSpec.describe "API: coworkers", type: :request do
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     chat.messages.create!(role: "system", content: { "coworker_workspace_conflict" => { "branch" => "coworkers/chat/#{coworker.id}-#{chat.id}", "files" => [ "SOUL.md" ] } })
     stub_repository_content(repository, ref: "coworkers/maya-workspace", files: { "SOUL.md" => "# Maya", "notes.txt" => "plain" })
+    stub_repository_content(repository, ref: "coworkers/chat/#{coworker.id}-#{chat.id}", files: { "SOUL.md" => "# Conflicted Maya" })
     stub_repository_commit_log(repository, ref: "coworkers/maya-workspace", commits: [
       { sha: "a" * 40, message: "Update @maya from chat #{chat.id}", date: Time.zone.parse("2026-10-29T12:00:00Z") }
     ])
@@ -294,6 +295,24 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.fetch("selected_file")).to include("path" => "SOUL.md", "content" => "# Maya", "markdown" => true)
     expect(response.parsed_body.fetch("commits").sole.dig("source", "path")).to eq("/chats/#{chat.id}")
     expect(response.parsed_body.fetch("conflicts").sole).to include("chat_id" => chat.id, "files" => [ "SOUL.md" ])
+  end
+
+  it "does not show a recorded conflict after its chat branch has disappeared" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "resolved-conflict", workspace_repo: repository.remote_url)
+    chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    chat.messages.create!(role: "system", content: {
+      "coworker_workspace_conflict" => { "branch" => "coworkers/chat/#{coworker.id}-#{chat.id}", "files" => [ "SOUL.md" ] }
+    })
+    stub_repository_content(repository, ref: "coworkers/resolved-conflict", files: { "SOUL.md" => "# Resolved" })
+    stub_repository_commit_log(repository, ref: "coworkers/resolved-conflict")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("conflicts")).to be_empty
   end
 
   it "distinguishes a missing workspace branch from an unreachable remote" do

@@ -24,6 +24,8 @@
     "history": "Historia commissorum",
     "conflicts": "Rami colloquiorum nondum coniuncti",
     "binary": "Fasciculi binarii ostendi non possunt.",
+    "partial": "Arbor huius spatii imperfecta est. Soli fasciculi a repositorio redditi monstrantur.",
+    "truncated": "Hic fasciculus magnus ex parte tantum monstratur.",
     "source_chat": "Colloquium {{id}}",
     "source_run": "Cursus {{id}}"
   },

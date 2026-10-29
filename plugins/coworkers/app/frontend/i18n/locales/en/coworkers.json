@@ -24,6 +24,8 @@
     "history": "Commit history",
     "conflicts": "Unmerged chat branches",
     "binary": "Binary files cannot be previewed.",
+    "partial": "This workspace tree is incomplete. Only the files returned by the remote are shown.",
+    "truncated": "This large file is shown in part.",
     "source_chat": "Chat {{id}}",
     "source_run": "Run {{id}}"
   },

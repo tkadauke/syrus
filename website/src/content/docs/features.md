@@ -1707,7 +1707,8 @@ partial-results warning, including when a content search cannot be complete.
 The Workspace tab browses every file on the home branch read-only, renders
 Markdown, and shows recent commits with links to the originating chat or run.
 It also calls out chat branches held by merge conflicts and shows the registered
-remote and branch. **Test push access** verifies credentials by creating and
+remote and branch. Truncated trees and large-file previews carry an explicit
+incomplete-content warning. **Test push access** verifies credentials by creating and
 immediately deleting a random throwaway ref under `coworkers/`; the browser has
 no file-editing or general-purpose write endpoint.
 Each coworker conversation has an isolated `coworkers/chat/...` branch cut
