@@ -1,4 +1,5 @@
 require "open3"
+require "digest"
 require "pathname"
 require "timeout"
 
@@ -15,11 +16,12 @@ module ContainerExecution
       def concurrency_duration = BUILD_LOCK_TIMEOUT
     end
 
-    def initialize(request, runner: Open3, semaphore: SolidQueue::Semaphore, sleeper: ->(duration) { sleep(duration) })
+    def initialize(request, runner: Open3, semaphore: SolidQueue::Semaphore, sleeper: ->(duration) { sleep(duration) }, image_namespace: Configuration.docker_image_namespace)
       @request = request
       @runner = runner
       @semaphore = semaphore
       @sleeper = sleeper
+      @image_namespace = image_namespace
     end
 
     def resolve
@@ -31,7 +33,7 @@ module ContainerExecution
 
     private
 
-    attr_reader :request, :runner, :semaphore, :sleeper
+    attr_reader :request, :runner, :semaphore, :sleeper, :image_namespace
 
     def devcontainer_spec
       return unless Configuration.devcontainer_enabled? && request.job&.repository
@@ -81,7 +83,8 @@ module ContainerExecution
     end
 
     def with_build_lock(spec)
-      lock = BuildLock.new("devcontainer_build:#{request.job.repository.id}:#{spec.revision}")
+      namespace_key = Digest::SHA256.hexdigest(image_namespace).first(16)
+      lock = BuildLock.new("devcontainer_build:#{namespace_key}:#{request.job.repository.id}:#{spec.revision}")
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + BUILD_LOCK_TIMEOUT
       acquired = false
 
