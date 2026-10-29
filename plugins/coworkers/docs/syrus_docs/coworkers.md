@@ -116,5 +116,13 @@ memories, distinguishes an empty memory tree from an unreachable remote, and
 shows recent daily files first. Provider-truncated or exceptionally large trees
 return their available files with a partial-results notice; searches also warn
 when capped file contents mean the result set cannot be complete. Capabilities,
-Schedule, Workspace, and Activity
-remain coming-later placeholders where their full surfaces have not shipped yet.
+Schedule, and Activity remain coming-later placeholders where their full
+surfaces have not shipped yet.
+
+The Workspace tab is a read-only view of the coworker's home branch through
+the same cached repository-content providers. It shows the remote and branch,
+the file tree with plain-text or Markdown previews, available commit history,
+and chat branches with unresolved merge conflicts. Partial trees and capped
+files are marked explicitly. The only remote action is **Test push access**,
+which creates and immediately deletes a randomized throwaway ref beneath
+`coworkers/`; file edits and arbitrary pushes are not exposed in the UI.

@@ -322,6 +322,41 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "browses the home branch through repository content and flags partial files" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-workspace", workspace_repo: repository.remote_url)
+    stub_repository_content(
+      repository, ref: "coworkers/maya-workspace",
+      files: { "README.md" => ("# Workspace\n" + ("x" * Coworkers::WorkspaceBrowser::MAX_FILE_BYTES)) },
+      truncated_tree: true
+    )
+    stub_repository_content(repository, ref: repository.default_branch, files: {})
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { path: "README.md" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include(
+      "remote" => repository.remote_url, "branch" => "coworkers/maya-workspace", "partial" => true
+    )
+    expect(response.parsed_body.fetch("selected_file")).to include("path" => "README.md", "truncated" => true)
+  end
+
+  it "distinguishes an unreachable workspace and a missing home branch" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "missing-workspace", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: repository.default_branch, files: {})
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace"
+    expect(response).to have_http_status(:service_unavailable)
+
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("offline"))
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace"
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.parsed_body.dig("error", "code")).to eq("remote_unavailable")
+  end
+
   it "offers only the owner's coworkers as typed read-only share targets" do
     mine = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
     other_owner = Factories.user(email_address: "other-owner@example.com")

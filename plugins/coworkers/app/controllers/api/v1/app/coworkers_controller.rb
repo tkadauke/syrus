@@ -94,6 +94,18 @@ module Api
           end
         end
 
+        def workspace
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          payload = Coworkers::WorkspaceBrowser.new(
+            coworker: coworker, repository: workspace_repository(coworker), user: Current.user
+          ).call(path: params[:path])
+          render json: payload
+        rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
+          Rails.logger.info("[Coworkers::WorkspaceBrowser] workspace unavailable: #{error.class}: #{error.message}")
+          render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
+        end
+
         def test_remote
           match = params.require(:workspace_repo).to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
           return render_error("validation_failed", I18n.t("api.coworkers.invalid_workspace_remote"), status: :unprocessable_content) unless match
