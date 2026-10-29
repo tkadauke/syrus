@@ -21,6 +21,7 @@ export function smartFolderFilterLinkBuilder({
   const activeFolder = smartFolders.find((folder) => folder.id === activeSmartFolderId)
   const presetFields = new Set(filterSchema.filter((field) => field.bucket === "preset").map((field) => field.field))
   const activePresetChips = collectPresetChips(filter as FilterTree | null | undefined, presetFields)
+  const activeFilterChips = collectChipSignatures(filter as FilterTree | null | undefined)
 
   return (path, search, updates) => {
     const nextUpdates = { ...updates }
@@ -32,7 +33,7 @@ export function smartFolderFilterLinkBuilder({
 
     if (activeFolder?.kind === "user_defined") {
       if (nextUpdates.smart_folder_id == null) nextUpdates.smart_folder_id = activeFolder.id
-    } else if (changesFilter && !preservesActivePreset(nextUpdates.q, activePresetChips)) {
+    } else if (changesFilter && !isPresetPreservingRemoval(nextUpdates.q, activePresetChips, activeFilterChips)) {
       // Once a built-in preset is changed, its identity no longer describes
       // the effective filter. Keep q (including an encoded empty tree), but
       // stop highlighting the original folder in navigation.
@@ -43,7 +44,7 @@ export function smartFolderFilterLinkBuilder({
   }
 }
 
-function preservesActivePreset(encodedFilter: unknown, activePresetChips: string[]) {
+function isPresetPreservingRemoval(encodedFilter: unknown, activePresetChips: string[], activeFilterChips: string[]) {
   if (activePresetChips.length === 0 || typeof encodedFilter !== "string") return false
 
   const nextTree = decodeFilterTree(encodedFilter)
@@ -51,7 +52,9 @@ function preservesActivePreset(encodedFilter: unknown, activePresetChips: string
 
   const activeFields = new Set(activePresetChips.map((signature) => signature.split("\u0000", 1)[0]))
   const nextPresetChips = new Set(collectPresetChips(nextTree, activeFields))
-  return activePresetChips.every((signature) => nextPresetChips.has(signature))
+  const activeChips = new Set(activeFilterChips)
+  const nextChips = collectChipSignatures(nextTree)
+  return activePresetChips.every((signature) => nextPresetChips.has(signature)) && nextChips.every((signature) => activeChips.has(signature))
 }
 
 function collectPresetChips(node: FilterNode | null | undefined, presetFields: Set<string>): string[] {
@@ -60,6 +63,14 @@ function collectPresetChips(node: FilterNode | null | undefined, presetFields: S
 
   const children = [...(node.and ?? []), ...(node.or ?? []), ...(node.not ? [node.not] : [])]
   return children.flatMap((child) => collectPresetChips(child, presetFields))
+}
+
+function collectChipSignatures(node: FilterNode | null | undefined): string[] {
+  if (!node || typeof node !== "object") return []
+  if ("field" in node) return [`${node.field}\u0000${node.op}\u0000${JSON.stringify(node.value)}`]
+
+  const children = [...(node.and ?? []), ...(node.or ?? []), ...(node.not ? [node.not] : [])]
+  return children.flatMap(collectChipSignatures)
 }
 
 function decodeFilterTree(encoded: string): FilterTree | null {
