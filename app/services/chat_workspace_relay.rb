@@ -171,7 +171,7 @@ class ChatWorkspaceRelay
       session, error_status = authenticate(headers, params)
       return send_response(client, error_status) unless session
 
-      repo = session.repository
+      repo = relay_repository(session, params)
       return send_response(client, 422) unless repo
 
       path_param = params["path"].to_s.strip
@@ -184,6 +184,13 @@ class ChatWorkspaceRelay
     rescue StandardError => e
       Rails.logger.error("ChatWorkspaceRelay /workspace/file: #{e.class}: #{e.message}")
       send_response(client, 500)
+    end
+
+    def relay_repository(session, params)
+      repository_id = params["repository_id"].presence
+      return session.repository unless repository_id
+
+      session.attached_repositories.find_by(id: repository_id)
     end
 
     def handle_diff(client, headers, params)
