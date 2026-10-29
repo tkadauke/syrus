@@ -1,4 +1,6 @@
 {
+  "background_run_completed": "Background run completed",
+  "background_run_failed": "Background run failed",
   "share_people": "Share",
   "mention_add_to_chat": "Add to chat",
   "mention_add_error": "Could not add this coworker to the chat.",

@@ -21,6 +21,8 @@ RSpec.describe "Coworker background runs" do
   before do
     PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
     Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+    lifecycle = instance_double(Coworkers::ChatWorkspaceLifecycle, finalize_background!: :merged)
+    allow(Coworkers::ChatWorkspaceLifecycle).to receive(:new).with(main_chat).and_return(lifecycle)
   end
 
   it "builds prepare, agent, post, and close steps on the coworker's home branch" do
@@ -86,6 +88,24 @@ RSpec.describe "Coworker background runs" do
     expect(main_chat.reload).not_to be_turn_in_flight
   end
 
+
+  it "posts a result without clearing an owner turn that started while the run was finishing" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", started_at: 5.seconds.ago, finished_at: Time.current, cost_usd: 0.25)
+    owner_message = main_chat.messages.create!(role: "user", content: { "text" => "Meanwhile" }, skip_turn_trigger: true)
+    main_chat.update_columns(turn_in_flight: true, current_turn_message_id: owner_message.id)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    Coworkers::PostToChat.new(post_run).call
+
+    expect(main_chat.reload).to be_turn_in_flight
+    expect(main_chat.messages.last.content.fetch("background_run")).to include(
+      "duration_seconds" => 5.0, "cost_usd" => "0.25", "merge_state" => "merged"
+    )
+  end
+
   it "posts a failure and closes the infrastructure Job when the agent step fails" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     source_step = workflow.steps.find_by!(kind: "coworker_run")
@@ -99,5 +119,20 @@ RSpec.describe "Coworker background runs" do
       "run_id" => source_run.id, "state" => "failed"
     )
     expect(job.reload).to have_attributes(state: "closed", closure_reason: "coworker_task")
+  end
+
+  it "auto-pauses the originating schedule after consecutive failures" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, name: "Daily review", prompt: "Review it.",
+      kind: "cron", cron_expression: "0 9 * * *", minute_offset: 5, pr_pileup_policy: "skip"
+    )
+    task.update_columns(consecutive_failure_count: AppSetting.max_job_failures - 1)
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    workflow.steps.find_by!(kind: "coworker_run").update_columns(state: "failed")
+
+    Coworkers::Workflow.after_fail(workflow)
+
+    expect(task.reload).to be_auto_paused
   end
 end

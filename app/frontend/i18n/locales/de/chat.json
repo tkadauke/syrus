@@ -1,4 +1,6 @@
 {
+  "background_run_completed": "Hintergrundlauf abgeschlossen",
+  "background_run_failed": "Hintergrundlauf fehlgeschlagen",
   "share_people": "Teilen",
   "mention_add_to_chat": "Zum Chat hinzufügen",
   "mention_add_error": "Dieser Coworker konnte nicht zum Chat hinzugefügt werden.",

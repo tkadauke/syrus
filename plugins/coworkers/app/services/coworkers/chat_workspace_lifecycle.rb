@@ -50,7 +50,22 @@ class Coworkers::ChatWorkspaceLifecycle
 
     commit_turn!(path)
     push_chat_branch!(path)
-    merge_into_home!
+    merge_into_home!(chat_branch)
+  end
+
+  # Background runs share the exact home-branch merge/retry/conflict path used
+  # at chat turn end. Their immutable run ref preserves the completed work when
+  # a concurrent chat changed the home branch incompatibly.
+  def finalize_background!(path:, workflow:)
+    source_branch = "coworkers/run/#{@coworker.id}-#{workflow.id}"
+    @git.configure_author(identity, chdir: path.to_s)
+    if @git.run("status", "--porcelain", chdir: path.to_s).present?
+      @git.run("add", "--all", chdir: path.to_s)
+      @git.run("commit", "-m", "Update @#{@coworker.handle} from background run", chdir: path.to_s)
+    end
+    push_guard.allow!(source_branch)
+    @git.run("push", @remote_url, "HEAD:refs/heads/#{source_branch}", chdir: path.to_s, env: @env)
+    merge_into_home!(source_branch, conflict_checkout: path)
   end
 
   private
@@ -95,21 +110,21 @@ class Coworkers::ChatWorkspaceLifecycle
     @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: path.to_s, env: @env)
   end
 
-  def merge_into_home!
+  def merge_into_home!(source_branch, conflict_checkout: checkout_path)
     MAX_PUSH_ATTEMPTS.times do |attempt|
-      outcome = merge_once
+      outcome = merge_once(source_branch, conflict_checkout:)
       return outcome unless outcome == :retry
       raise GitRunner::GitError.new([ "push", home_branch ], 1, "home branch kept moving") if attempt == MAX_PUSH_ATTEMPTS - 1
     end
   end
 
-  def merge_once
+  def merge_once(source_branch, conflict_checkout:)
     Dir.mktmpdir("syrus-coworker-merge-") do |dir|
       clone_branch!(home_branch, dir)
       @git.configure_author(identity, chdir: dir)
-      @git.run("fetch", @remote_url, "refs/heads/#{chat_branch}:refs/remotes/origin/coworker-chat", chdir: dir, env: @env)
-      merge = @git.capture("merge", "--no-edit", "origin/coworker-chat", chdir: dir, env: @env)
-      return report_conflict!(dir, merge) unless merge.success?
+      @git.run("fetch", @remote_url, "refs/heads/#{source_branch}:refs/remotes/origin/coworker-source", chdir: dir, env: @env)
+      merge = @git.capture("merge", "--no-edit", "origin/coworker-source", chdir: dir, env: @env)
+      return report_conflict!(dir, merge, source_branch:, conflict_checkout:) unless merge.success?
 
       @git.run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(home_branch)}", chdir: dir, env: @env)
       :merged
@@ -119,13 +134,13 @@ class Coworkers::ChatWorkspaceLifecycle
     end
   end
 
-  def report_conflict!(merge_path, merge)
+  def report_conflict!(merge_path, merge, source_branch:, conflict_checkout:)
     files = unmerged_files(merge_path)
-    leave_conflict_in_chat_checkout!
-    post_conflict!(files: files, detail: merge.stderr.to_s.last(500))
+    leave_conflict_in_checkout!(conflict_checkout)
+    post_conflict!(files: files, detail: merge.stderr.to_s.last(500), source_branch:)
   end
 
-  def post_conflict!(files:, detail:)
+  def post_conflict!(files:, detail:, source_branch: chat_branch)
     links = files.map do |file|
       "/api/v1/app/chats/#{@chat.id}/source_file/raw?path=#{ERB::Util.url_encode(file)}&repository_id=#{@repository.id}"
     end
@@ -133,12 +148,12 @@ class Coworkers::ChatWorkspaceLifecycle
     @chat.messages.create!(
       role: "system",
       content: {
-        "text" => I18n.t("api.coworkers.workspace_conflict", branch: chat_branch, files: linked_files),
+        "text" => I18n.t("api.coworkers.workspace_conflict", branch: source_branch, files: linked_files),
         "body_format" => "markdown",
         "prominent" => true,
         "system_label" => I18n.t("api.coworkers.workspace_conflict_label"),
         "system_tone" => "warning",
-        "coworker_workspace_conflict" => { "branch" => chat_branch, "files" => files, "links" => links,
+        "coworker_workspace_conflict" => { "branch" => source_branch, "files" => files, "links" => links,
                                              "detail" => detail }
       }
     )
@@ -153,8 +168,7 @@ class Coworkers::ChatWorkspaceLifecycle
     value.gsub(/[\\\[\]]/) { |character| "\\#{character}" }
   end
 
-  def leave_conflict_in_chat_checkout!
-    path = checkout_path
+  def leave_conflict_in_checkout!(path)
     @git.run("fetch", @remote_url, "refs/heads/#{home_branch}:refs/remotes/origin/coworker-home", chdir: path.to_s, env: @env)
     @git.capture("merge", "--no-edit", "origin/coworker-home", chdir: path.to_s, env: @env)
   end
