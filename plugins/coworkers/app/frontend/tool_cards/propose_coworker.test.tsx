@@ -54,7 +54,7 @@ describe("propose_coworker tool card", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ messages: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
-    renderCard(live("pending", { app_update_path: "/update" }))
+    const view = renderCard(live("pending", { app_update_path: "/update" }))
     for (const value of [
       "Maya",
       "@maya",
@@ -79,6 +79,10 @@ describe("propose_coworker tool card", () => {
         expect.objectContaining({ method: "PATCH", body: JSON.stringify({ about: "role: Research director" }) })
       )
     )
+    view.unmount()
+    renderCard(live("confirmed", { review: { about: "role: Research director" }, outcome: { coworker_id: 12, chat_id: 44 } }))
+    expect(screen.getByRole("textbox", { name: "About (optional)" })).toHaveValue("role: Research director")
+    expect(screen.getByRole("textbox", { name: "About (optional)" })).toBeDisabled()
   })
 
   it("shows confirmed links to the coworker and main chat", () => {

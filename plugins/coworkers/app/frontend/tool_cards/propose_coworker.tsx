@@ -20,11 +20,19 @@ function optional(value: unknown) {
 
 function CoworkerProposalCard({ context }: { context: ToolCardContext }) {
   const card = values(context)!
-  const about = displayValue(card.coworker.about) || ""
+  const reviewedAbout = isPlainObject(card.live?.review) ? displayValue(card.live.review.about) : null
+  const about = reviewedAbout ?? displayValue(card.coworker.about) ?? ""
   const [draft, setDraft] = useState(about)
-  useEffect(() => setDraft(about), [about])
+  const [savedAbout, setSavedAbout] = useState(about)
+  useEffect(() => {
+    setDraft(about)
+    setSavedAbout(about)
+  }, [about])
   const updatePath = card.live?.app_update_path
-  const save = useMutation({ mutationFn: () => patchJson(updatePath!, { about: draft }) })
+  const save = useMutation({
+    mutationFn: (reviewedAbout: string) => patchJson(updatePath!, { about: reviewedAbout }),
+    onSuccess: (_response, reviewedAbout) => setSavedAbout(reviewedAbout)
+  })
   const grants = isPlainObject(card.coworker.grant_policies) ? Object.entries(card.coworker.grant_policies) : []
   const outcome = card.live?.outcome
   const coworkerId = isPlainObject(outcome) ? displayValue(outcome.coworker_id) : ""
@@ -79,8 +87,8 @@ function CoworkerProposalCard({ context }: { context: ToolCardContext }) {
         <div className="flex flex-wrap items-center gap-2">
           <button
             className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-            disabled={save.isPending || draft === about}
-            onClick={() => save.mutate()}
+            disabled={save.isPending || draft === savedAbout}
+            onClick={() => save.mutate(draft)}
             type="button"
           >
             {i18n.t("coworkers:tool_card.save_about")}
