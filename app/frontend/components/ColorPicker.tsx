@@ -16,7 +16,7 @@ import {
 
 const SHADES = [-2, -1, 0, 1, 2] as const
 const TONE_BUTTON_CLASS =
-  "flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:gap-1.5 sm:text-xs"
+  "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 text-[10px] font-medium leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-9 sm:flex-row sm:gap-1.5 sm:px-1 sm:py-0 sm:text-xs"
 const VARIANT_BUTTON_CLASS =
   "h-11 rounded-lg text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
 const SWATCH_BUTTON_CLASS =
@@ -109,7 +109,7 @@ export function ColorPicker({ value, accentRef, onChange, ariaLabel, name = "Syr
                     className="h-3 w-3 shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]"
                     style={{ backgroundColor: tone.colors[selection.accentRef.index].hex }}
                   />
-                  <span className="truncate">{t(`accent_picker.families.${tone.id}`)}</span>
+                  <span>{t(`accent_picker.families.${tone.id}`)}</span>
                 </button>
               )
             })}
