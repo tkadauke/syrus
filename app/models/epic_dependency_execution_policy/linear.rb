@@ -27,10 +27,18 @@ class EpicDependencyExecutionPolicy::Linear
 
     jobs = upstream.work_jobs.to_a
     jobs.any? && linear_endpoints(jobs) && jobs.all? do |job|
-      job.branch_name.present? &&
+      execution_ready_job?(job) &&
+        job.branch_name.present? &&
         (job.pr_number.present? || job.external_pr_number.present?) &&
         job.head_sha.present?
     end
+  end
+
+  # Match the ordinary Job dependency rule: a materialized implemented branch
+  # is enough to release execution. Later pre-landing states retain that
+  # readiness, and only a successful close remains usable after termination.
+  def execution_ready_job?(job)
+    job.implemented? || job.approved? || job.landing? || job.dependency_succeeded?
   end
 
   def anchor!(upstream)

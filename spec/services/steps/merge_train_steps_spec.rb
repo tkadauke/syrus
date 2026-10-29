@@ -118,6 +118,23 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(LandingFailureHandler.merge_train_rebuild_required?(error.message)).to be(true)
     end
 
+    it "refuses a stale train when an upstream Epic dependency is incomplete" do
+      upstream = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Upstream")
+      EpicDependency.create!(epic: epic, depends_on_epic: upstream, derived: false)
+      a = member_job(issue_number: 1)
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+
+      error = begin
+        step_handler(described_class, "merge_train_assemble", train, a).call
+      rescue Steps::Base::StepFailed => e
+        e
+      end
+
+      expect(error.problem&.code).to eq("merge_train_rebuild_required")
+      expect(error.message).to include("upstream Epic dependencies are not complete")
+    end
+
     it "refuses to run against a terminal train" do
       a = member_job(issue_number: 1, state: "approved")
       train = MergeTrain.create!(

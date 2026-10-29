@@ -40,6 +40,9 @@ class MergeTrainDispatcher
 
     workflow = nil
     MergeTrain.transaction do
+      @epic.lock!
+      raise ActiveRecord::Rollback unless @epic.landing_dependencies_satisfied?
+
       members = result.members.map { |job| job.tap(&:lock!) }
       delivery_policy = self.delivery_policy
 
@@ -81,6 +84,7 @@ class MergeTrainDispatcher
   def blocker_reason
     return "landing queue is paused" if landing_queue_paused?
     return "waiting for Epic to release" unless @epic.releases_jobs_for_execution?
+    return "waiting for upstream Epic dependencies to complete" unless @epic.landing_dependencies_satisfied?
     return "#{@epic.slug} already has an active merge train" if active_train_in_progress?
 
     if (landing_job = landing_job_in_progress)

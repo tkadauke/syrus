@@ -33,6 +33,7 @@ Jobs wait in `approved` when:
 - A same-repo Job is already landing (serialized per repo by default).
 - The Job is part of an Epic and siblings aren't yet approved for their shared merge train.
 - A dependency Job hasn't closed successfully.
+- An early-released Epic's upstream Epic has not completed successfully.
 - The repository's main branch health is `broken` and Syrus has paused repository landing for repair.
 
 `inconclusive` main branch health is warning-only. Syrus shows the main-health warning surfaces and notifications, but it does not hold queued workflows or landing queue entries solely because the signal is inconclusive.
@@ -508,7 +509,7 @@ Manual dependency rows can opt into `satisfaction_mode: "closed"` for cleanup or
 
 Manual Job-to-Job dependencies can also use `satisfaction_mode: "deployment_stage"` with `required_deployment_stage_name` to wait until the upstream Job reaches a configured repository `deployment_stages` entry. Deployment-stage dependencies are valid only for resolved Job targets. Syrus rejects them when the upstream repository has no deployment stage tracking or when the named stage is unknown, because otherwise the dependency could never unblock. A successfully closed upstream Job that has not reached the required stage is still waiting, not failed; an unsuccessfully closed upstream Job is still a failed dependency.
 
-Implementation has a narrower, execution-only exception: a same-Epic child Job may start on an `implemented` parent once that parent has a materialized branch, PR, and head SHA, as long as stack parent selection is unambiguous. For approved same-Epic fan-in, Syrus may also create a prepared combined base branch and start the child there when all dependency PR branches merge cleanly. This does not satisfy the landing gate above.
+Implementation has a narrower, execution-only exception: any Job dependency may start on an `implemented` parent once that parent has a materialized branch, PR, and head SHA, as long as stack parent selection is unambiguous. Same-Epic parents retain that readiness in `approved` or `landing`; for approved same-Epic fan-in, Syrus may also create a prepared combined base branch and start the child there when all dependency PR branches merge cleanly. This does not satisfy the landing gate above.
 
 Operators can add or remove manual dependencies from the Job detail page; admins can override the gate.
 
