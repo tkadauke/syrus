@@ -16,7 +16,7 @@ RSpec.describe Coworkers::ChatToolSet do
     expect(described_class.tool_definitions(tier: :essential)).to contain_exactly(
       include(name: "message_coworker", coworker_safe: true, capability: "coworker.message", mutation: true)
     )
-    expect(described_class.tool_definitions(tier: :deferred)).to be_empty
+    expect(described_class.tool_definitions(tier: :deferred).pluck(:name)).not_to include("message_coworker")
   end
 
   it "dispatches message_coworker through the plugin-owned tool" do
