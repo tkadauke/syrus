@@ -61,6 +61,7 @@
     "workspace": "Workspace",
     "activity": "Activity"
   },
+  "activity": { "message_traffic": "Message traffic", "window": "Last {{count}} days", "sent": "Sent", "received": "Received" },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",
