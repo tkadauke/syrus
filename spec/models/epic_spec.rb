@@ -503,6 +503,99 @@ RSpec.describe Epic, :ci_only do
     expect(epic.reload).to be_in_progress
   end
 
+  describe "early dependency execution" do
+    def materialized_job(epic:, number:, branch:, state: "implemented")
+      job = Factories.job_record(
+        user: user, repository: epic.repository, epic: epic, issue_number: number,
+        state: state, branch_name: branch, pr_number: number
+      )
+      job.runs.create!(trigger_kind: "initial", agent_provider: job.agent_provider, head_sha: number.to_s * 40)
+      job
+    end
+
+    before do
+      allow(Feature).to receive(:early_epic_dependency_execution_enabled?).and_return(true)
+    end
+
+    it "preserves strict behavior when the feature is disabled" do
+      allow(Feature).to receive(:early_epic_dependency_execution_enabled?).and_return(false)
+      upstream = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
+      materialized_job(epic: upstream, number: 11, branch: "syrus/upstream")
+      downstream = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
+      root = Factories.job_record(user: user, repository: repository, epic: downstream, issue_number: 12, state: "blocked_by_epic")
+      EpicDependency.create!(epic: downstream, depends_on_epic: upstream, derived: false)
+
+      expect(downstream.reload).not_to be_execution_dependencies_ready
+      expect(downstream.send(:dependencies_done?)).to be(false)
+      expect(root.reload.parent_job).to be_nil
+    end
+
+    it "anchors the downstream root to the unique upstream tail without satisfying landing" do
+      upstream = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
+      first = materialized_job(epic: upstream, number: 21, branch: "syrus/first")
+      tail = materialized_job(epic: upstream, number: 22, branch: "syrus/tail")
+      JobDependency.create!(job: tail, depends_on_job: first, source: "manual")
+      downstream = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
+      root = Factories.job_record(user: user, repository: repository, epic: downstream, issue_number: 23, state: "blocked_by_epic")
+      EpicDependency.create!(epic: downstream, depends_on_epic: upstream, derived: false)
+
+      expect(downstream.reload).to be_execution_dependencies_ready
+      expect(downstream.send(:dependencies_done?)).to be(false)
+      expect(root.reload.parent_job).to eq(tail)
+      expect(root.dependencies.find_by(depends_on_job: tail)).to be_present
+
+      result = JobStackResolver.new(root.reload).resolve!(apply: false)
+      expect(result.artifacts).to include(
+        RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/tail",
+        "stack_parent_job_id" => tail.id,
+        "stack_parent_head_sha" => tail.head_sha
+      )
+    end
+
+    it "forms one continuous stack across three dependent Epics" do
+      epic_a = described_class.create!(user: user, repository: repository, title: "A", state: "in_progress")
+      job_a = materialized_job(epic: epic_a, number: 31, branch: "syrus/a")
+      epic_b = described_class.create!(user: user, repository: repository, title: "B", state: "in_progress")
+      job_b = materialized_job(epic: epic_b, number: 32, branch: "syrus/b")
+      EpicDependency.create!(epic: epic_b, depends_on_epic: epic_a, derived: false)
+      epic_c = described_class.create!(user: user, repository: repository, title: "C", state: "in_progress")
+      job_c = Factories.job_record(user: user, repository: repository, epic: epic_c, issue_number: 33, state: "blocked_by_epic")
+      EpicDependency.create!(epic: epic_c, depends_on_epic: epic_b, derived: false)
+
+      expect(epic_b.reload).to be_execution_dependencies_ready
+      expect(epic_c.reload).to be_execution_dependencies_ready
+      expect(job_b.reload.parent_job).to eq(job_a)
+      expect(job_c.reload.parent_job).to eq(job_b)
+      expect(epic_b.send(:dependencies_done?)).to be(false)
+      expect(epic_c.send(:dependencies_done?)).to be(false)
+    end
+
+    it "blocks missing head identity, cross-repository dependencies, and nonlinear topology" do
+      upstream = described_class.create!(user: user, repository: repository, title: "Incomplete", state: "in_progress")
+      Factories.job_record(user: user, repository: repository, epic: upstream, issue_number: 41, state: "implemented", branch_name: nil, pr_number: 41)
+      downstream = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
+      Factories.job_record(user: user, repository: repository, epic: downstream, issue_number: 42, state: "blocked_by_epic")
+      EpicDependency.create!(epic: downstream, depends_on_epic: upstream, derived: false)
+      expect(downstream.reload).not_to be_execution_dependencies_ready
+
+      other_repository = Factories.repository(user: user, owner: "other", name: "repo")
+      cross_upstream = described_class.create!(user: user, repository: other_repository, title: "Cross", state: "in_progress")
+      materialized_job(epic: cross_upstream, number: 43, branch: "syrus/cross")
+      cross_downstream = described_class.create!(user: user, repository: repository, title: "Local", state: "in_progress")
+      Factories.job_record(user: user, repository: repository, epic: cross_downstream, issue_number: 44, state: "blocked_by_epic")
+      EpicDependency.create!(epic: cross_downstream, depends_on_epic: cross_upstream, derived: false)
+      expect(cross_downstream.reload).not_to be_execution_dependencies_ready
+
+      nonlinear = described_class.create!(user: user, repository: repository, title: "Legacy graph", state: "in_progress")
+      materialized_job(epic: nonlinear, number: 45, branch: "syrus/one")
+      materialized_job(epic: nonlinear, number: 46, branch: "syrus/two")
+      blocked = described_class.create!(user: user, repository: repository, title: "Blocked", state: "in_progress")
+      Factories.job_record(user: user, repository: repository, epic: blocked, issue_number: 47, state: "blocked_by_epic")
+      EpicDependency.create!(epic: blocked, depends_on_epic: nonlinear, derived: false)
+      expect(blocked.reload).not_to be_execution_dependencies_ready
+    end
+  end
+
   it "releases blocked child Jobs once the dependency Epic actually completes (all jobs merged)" do
     prerequisite = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
     epic = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")

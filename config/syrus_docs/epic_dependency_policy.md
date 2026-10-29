@@ -48,6 +48,17 @@ Epics proposed through chat are always `linear`. Existing Epics that used the re
 
 Linear Epics can implement down the stack before every parent is approved or landed. Once a same-Epic parent Job reaches `implemented` with a branch, PR number, and captured `head_sha`, Syrus may start the immediate child Job on that parent branch. This is execution-only readiness: `dependencies_satisfied?` remains strict for landing and still requires the parent to close successfully, or for same-Epic dependencies to reach `approved` or `landing`.
 
+The default-disabled experimental `early_epic_dependency_execution` feature
+extends that execution-only rule across an Epic boundary. An unfinished
+upstream Epic qualifies only when it is in the same repository, both Epics use
+the linear policy, each side has a unique root and tail, and every upstream
+work Job has both a PR branch and captured head SHA. Syrus connects the
+downstream root to the upstream tail using `parent_job` plus a concrete
+`JobDependency`; Workflow base artifacts retain the selected parent branch,
+Job ID, and head SHA. `Epic#dependencies_done?` remains the strict landing
+gate. Cross-repository, unresolved, multi-upstream, incomplete, and nonlinear
+graphs stay blocked.
+
 A handful of older Epics still carry a `JobDependency` graph with more than one parent per child (predating the unconditional linear-chain enforcement described below). For those, eager execution first looks for an unambiguous stack base. If a child has multiple approved same-Epic parents and no single downstream parent branch contains every dependency change, Syrus tries to prepare a synthetic execution base branch by merging those dependency PR branches in deterministic dependency order. If that merge is clean, the child starts from the prepared base. If it conflicts or a dependency branch/head SHA is missing, the child stays queued with `stack_fan_in_base_unavailable` and includes the blocking dependency branches plus the operator action: land the siblings, linearize the stack, or resolve the merge conflict. This execution path is driven entirely by the shape of the actual `JobDependency` graph, not by the `epic_dependency_policy` field.
 
 ## Proposal validation

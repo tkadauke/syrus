@@ -447,6 +447,14 @@ include child Jobs up front. In linear Epics, children with same-Epic parents
 can keep implementing down the stack once the immediate parent has an
 implemented PR branch; approval and landing order still waits for the normal
 dependency gates.
+Instances may also opt into the experimental, default-disabled **Early Epic
+dependency execution** feature. It lets a linear Epic start from the unique
+tail of one unfinished upstream Epic when both are in the same repository and
+every upstream Job has a branch and captured head commit. Syrus records that
+cross-Epic root-to-tail relationship as normal Job stack topology, so chains
+of Epics remain one continuous implementation stack. Epic completion remains
+the landing gate; cross-repository, incomplete, or ambiguous graphs still
+wait for the upstream Epic to finish.
 For a handful of older Epics whose child Jobs still branch or fan in (from
 before same-Epic dependencies were required to form a single chain), Syrus
 can prepare a combined execution base from approved dependency PR branches

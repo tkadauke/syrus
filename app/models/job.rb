@@ -841,6 +841,7 @@ class Job < ApplicationRecord
 
   after_update_commit :rebase_stack_children_after_successful_parent_close, if: :saved_change_to_stack_parent_resolved_terminal?
   after_update_commit :start_dependent_jobs_after_implementation, if: :saved_change_to_implemented?
+  after_update_commit :refresh_execution_ready_dependent_epics, if: :saved_change_to_implemented?
   after_update_commit :enqueue_deferred_visual_diff_work_after_implementation, if: :saved_change_to_implemented?
   after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
@@ -1717,6 +1718,18 @@ class Job < ApplicationRecord
     return if branch_name.blank? || pr_number.blank?
 
     start_dependent_jobs_if_ready
+  end
+
+  def refresh_execution_ready_dependent_epics
+    return if branch_name.blank? || head_sha.blank? || epic_id.blank?
+
+    EpicDependency.where(depends_on_epic_id: epic_id).includes(:epic).find_each do |dependency|
+      dependent = dependency.epic
+      next unless dependent&.execution_dependencies_ready?
+
+      dependent.refresh_auto_state!
+      dependent.send(:unblock_child_jobs!) if dependent.in_progress?
+    end
   end
 
   def start_dependent_jobs_after_approval

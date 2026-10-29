@@ -75,6 +75,12 @@ features:
     description: "Enables landing multiple approved epicless Jobs together as one atomic bundle, the same way an Epic's children land together via the merge train."
     description_i18n_key: "features.slugs.epicless_job_bundling.description"
     default: true
+  - slug: early_epic_dependency_execution
+    category: "Labs"
+    name: "Early Epic dependency execution"
+    description: "Allows linear same-repository Epics to begin implementation from a fully materialized upstream Epic stack while keeping landing dependencies strict."
+    experimental: true
+    default: false
   - slug: persistent_mcp_sidecar
     category: "Labs"
     name: "Persistent MCP sidecar"
