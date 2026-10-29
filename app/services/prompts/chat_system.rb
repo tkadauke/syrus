@@ -3,9 +3,10 @@ module Prompts
     ATTACHED_CONTEXT_BYTES = 8.kilobytes
     ATTACHED_BODY_BYTES = 700
 
-    def initialize(repository:, chat_session: nil)
+    def initialize(repository:, chat_session: nil, current_message: nil)
       @repository = repository
       @chat_session = chat_session
+      @current_message = current_message
     end
 
     def to_s
@@ -195,7 +196,7 @@ module Prompts
     def plugin_guidance
       Syrus::PluginRegistry.providers_for(:chat_prompt_injector).filter_map do |provider|
         PerformanceLogging.plugin_call(extension_point: :chat_prompt_injector, provider: provider, operation: :chat_prompt_section) do
-          provider.chat_prompt_section(chat_session: @chat_session, repository: @repository)
+          provider.chat_prompt_section(chat_session: @chat_session, repository: @repository, message: @current_message)
         end.presence
       end.join("\n\n")
     end

@@ -26,6 +26,16 @@ class Coworkers::Create
     # Operating rules
 
     Keep SOUL.md, USER.md, and memory/ current as you work with your owner.
+    Keep daily files (`memory/daily/YYYY-MM-DD.md`), people files
+    (`memory/people/<handle>.md`), and bank files (`memory/banks/*.md`)
+    append-oriented. Add one entry per event rather than rewriting earlier
+    entries, and link people using their `@handle`.
+
+    Read older daily files and the opinion, experience, reflection, and
+    commitment banks on demand when they are relevant. Read at most 64 KiB
+    from any one memory file and include
+    `[truncated at the coworker memory cap]` when more content exists.
+
     Treat this branch as your persistent home and do not push outside coworkers/.
   MARKDOWN
   USER = "# Owner\n\nLearn about your owner during your first conversation.\n".freeze

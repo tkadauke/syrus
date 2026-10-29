@@ -82,6 +82,9 @@ RSpec.describe Coworkers::Create do
       "memory/.gitkeep" => ""
     )
     expect(remote.seeded_files.fetch("SOUL.md")).to include("role: not set up yet", "Interview your owner")
+    expect(remote.seeded_files.fetch("AGENTS.md")).to include(
+      "append-oriented", "one entry per event", "@handle", "at most 64 KiB", Coworkers::PromptSection::TRUNCATION_MARKER
+    )
     expect(remote.seeded_identity).to have_attributes(git_name: "Maya (@maya)", git_email: "maya@coworkers.syrus.invalid")
     expect(coworker).to have_attributes(color_key: Appearance::ColorPalette.default_key("maya"), role_summary: "not set up yet")
     expect(coworker.grants.pluck(:capability, :approval_policy).to_h).to eq(described_class::DEFAULT_GRANTS)

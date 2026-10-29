@@ -5,7 +5,7 @@ module Whiteboard
   module PromptSection
     include Syrus::Plugin::ChatPromptInjector
 
-    def self.chat_prompt_section(chat_session:, repository:)
+    def self.chat_prompt_section(chat_session:, repository:, message: nil)
       <<~TEXT.strip
         You have access to a shared whiteboard alongside this chat. Use it
         only when the operator explicitly asks for a canvas, diagram, sketch,

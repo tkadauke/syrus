@@ -36,8 +36,12 @@ they cannot enforce.
 
 In the Phase 1 workspace model, a turn runs directly in a checkout of the
 coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`, and
-`USER.md` are loaded into every fresh or resumed turn under bounded per-file
-and aggregate byte limits. The agent process receives neither the ordinary
+`USER.md`, today's and yesterday's daily memory, participant and sender people
+files, and the attached repository's memory file are loaded into every fresh
+or resumed turn. Each file is capped at 64 KiB and the combined content at
+128 KiB, with visible truncation markers. Older daily files and memory banks
+remain available on demand through the workspace file tools under the same
+per-file cap. The agent process receives neither the ordinary
 chat CLI invocation token nor a Git askpass token, so the owner's repository
 credentials and integration credentials are not exposed to its shell.
 
