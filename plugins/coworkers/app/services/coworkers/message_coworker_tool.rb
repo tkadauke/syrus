@@ -33,7 +33,11 @@ module Coworkers
         return Mcp::Tools.invalid("@#{normalized_handle} is not one of this owner's coworkers") unless receiver
         return Mcp::Tools.invalid("@#{receiver.handle} is #{receiver.state} and cannot receive messages") unless receiver.state == "active"
 
-        message_context = delivery_context(server_context[:current_message])
+        current_message = server_context[:current_message]
+        current_message_id = current_message.id if current_message.respond_to?(:id)
+        return Mcp::Tools.invalid("coworker messages require a persisted current turn") unless current_message_id.present?
+
+        message_context = delivery_context(current_message)
         if message_context.fetch("hop_count") > MAX_HOPS
           message = "coworker message chain reached its #{MAX_HOPS}-hop limit"
           record_refusal!(sender: sender, receiver: receiver, status: "refused", reason: message, delivery_context: message_context)
@@ -57,9 +61,9 @@ module Coworkers
       private
 
       def delivery_context(current_message)
-        incoming = current_message&.content.to_h.fetch("coworker_message", {})
+        incoming = current_message.content.to_h.fetch("coworker_message", {})
         {
-          "origin_turn_id" => incoming["origin_turn_id"] || current_message&.id,
+          "origin_turn_id" => incoming["origin_turn_id"] || current_message.id,
           "hop_count" => incoming.fetch("hop_count", 0).to_i + 1
         }
       end
