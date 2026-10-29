@@ -38,6 +38,15 @@ RSpec.describe "plugin documentation placement" do
       "docs must sit under docs/syrus_docs/, which is where SearchSyrusDocsTool reads:\n  #{misplaced.join("\n  ")}"
   end
 
+  it "gives every bundled plugin at least one canonical document" do
+    missing = plugin_names.reject do |name|
+      Dir.glob(Rails.root.join("plugins", name, "docs", "syrus_docs", "*.md")).any?
+    end
+
+    expect(missing).to be_empty,
+      "every bundled plugin needs canonical product docs under docs/syrus_docs/:\n  #{missing.join("\n  ")}"
+  end
+
   # Name matching alone missed four docs -- insight_jobs, memory_audit_history,
   # repository_throughput_metrics, sccache_build_cache -- whose subject was a
   # plugin under a different title. A doc that leans this heavily on one

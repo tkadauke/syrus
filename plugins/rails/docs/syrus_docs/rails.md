@@ -1,4 +1,4 @@
-# syrus_rails
+# Syrus Rails
 
 `syrus_rails` is a Syrus plugin gem that bundles Rails-*framework*-specific capabilities into a single `PluginRegistry.register` call (registered manifest name `syrus-rails`). It lives at `plugins/rails/` inside the Syrus repository and is the primary integration point for Ruby on Rails repositories.
 
