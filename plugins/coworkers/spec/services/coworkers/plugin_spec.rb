@@ -10,6 +10,23 @@ RSpec.describe "Coworkers plugin" do
     expect(manifest).not_to be_default_enabled
   end
 
+  it "registers the owner-only Job visibility restriction before contributing coworker tasks" do
+    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
+    restriction = manifest.provides.fetch(:job_visibility_restriction)
+
+    expect(restriction).to eq(Coworkers::JobVisibilityRestriction)
+    expect(restriction).to include(Syrus::Plugin::JobVisibilityRestriction)
+    expect(restriction.origin_key).to eq("coworkers")
+  end
+
+  it "does not allow the coworker task kind to exist without its visibility restriction" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    next expect(Job::Kind.values).not_to include("coworker_task") unless Job::Kind.values.include?("coworker_task")
+
+    restrictions = Syrus::PluginRegistry.providers_for(:job_visibility_restriction)
+    expect(restrictions.map(&:origin_key)).to include("coworkers")
+  end
+
   it "resolves an unlinked chat to the built-in Syrus coworker" do
     chat = ChatSession.create!(user: owner, title: "Existing chat")
     scope = Syrus::EffectScope.new(label: "spec")
