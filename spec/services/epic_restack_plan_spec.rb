@@ -118,9 +118,16 @@ RSpec.describe EpicRestackPlan do
       [ downstream_root.id, upstream_tail.branch_name ],
       [ leaf_root.id, downstream_root.branch_name ]
     ])
-    expect(described_class.for(downstream).fetch("branch_order").map { |entry| entry["job_id"] }).to eq([
+    downstream_plan = described_class.for(downstream)
+    expect(downstream_plan.fetch("branch_order").map { |entry| entry["job_id"] }).to eq([
       downstream_root.id, leaf_root.id
     ])
+    downstream_entry = downstream_plan.fetch("branch_order").first
+    expect(downstream_entry).to include(
+      "target_base" => upstream_tail.branch_name,
+      "target_parent_job_id" => upstream_tail.id,
+      "repair_reasons" => []
+    )
   end
 
   it "repairs a downstream root whose cross-Epic parent metadata is missing" do
