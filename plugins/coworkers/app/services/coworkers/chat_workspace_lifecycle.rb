@@ -123,11 +123,16 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def post_conflict!(files:, detail:)
-    links = files.map { |file| "/api/v1/app/chats/#{@chat.id}/source_file/raw?path=#{ERB::Util.url_encode(file)}" }
+    links = files.map do |file|
+      "/api/v1/app/chats/#{@chat.id}/source_file/raw?path=#{ERB::Util.url_encode(file)}&repository_id=#{@repository.id}"
+    end
+    linked_files = files.zip(links).map { |file, link| "- [#{markdown_link_label(file)}](#{link})" }.join("\n")
     @chat.messages.create!(
       role: "system",
       content: {
-        "text" => "The coworker workspace has merge conflicts. Both versions remain on #{chat_branch}; resolve: #{files.join(', ')}",
+        "text" => I18n.t("api.coworkers.workspace_conflict", branch: chat_branch, files: linked_files),
+        "body_format" => "markdown",
+        "prominent" => true,
         "coworker_workspace_conflict" => { "branch" => chat_branch, "files" => files, "links" => links,
                                              "detail" => detail }
       }
@@ -137,6 +142,10 @@ class Coworkers::ChatWorkspaceLifecycle
 
   def unmerged_files(path)
     @git.run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?)
+  end
+
+  def markdown_link_label(value)
+    value.gsub(/[\\\[\]]/) { |character| "\\#{character}" }
   end
 
   def leave_conflict_in_chat_checkout!

@@ -1344,7 +1344,9 @@ module Api
             return
           end
 
-          relay_response = proxy_to_coding_relay_response(chat_session, "file", params: { path: file_path })
+          relay_response = proxy_to_coding_relay_response(
+            chat_session, "file", params: { path: file_path, repository_id: params[:repository_id] }.compact
+          )
           if relay_response.nil?
             schedule_coding_relay_refresh!(chat_session)
             render_error("relay_unavailable", t("api.chats.errors.source_relay_unavailable"), status: :service_unavailable)

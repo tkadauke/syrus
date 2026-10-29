@@ -101,7 +101,7 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(home_file("memory/daily.md")).to include("first append", "second append")
   end
 
-  it "keeps a real conflict in the chat checkout and posts linked conflict metadata" do
+  it "keeps a real conflict in the chat checkout and posts visible Markdown file links" do
     first = chat
     second = chat
     first_lifecycle = lifecycle(first)
@@ -114,8 +114,12 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
 
     expect { second_lifecycle.finalize! }.to change(second.messages, :count).by(1)
     conflict = second.messages.last.content.fetch("coworker_workspace_conflict")
+    visible_text = second.messages.last.content.fetch("text")
     expect(conflict.fetch("files")).to eq([ "SOUL.md" ])
     expect(conflict.fetch("links").first).to include("/chats/#{second.id}", "SOUL.md")
+    expect(visible_text).to include("[SOUL.md](#{conflict.fetch('links').first})")
+    expect(second.messages.last.content.fetch("body_format")).to eq("markdown")
+    expect(second.messages.last.content.fetch("prominent")).to be(true)
     expect(second_path.join("SOUL.md").read).to include("<<<<<<<", "role: first", "role: second")
     expect(home_file("SOUL.md")).to eq("role: first\n")
 

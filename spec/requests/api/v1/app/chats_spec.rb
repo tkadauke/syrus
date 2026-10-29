@@ -3680,6 +3680,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.body).to eq("# Widgets\n")
     end
 
+    it "forwards an attached repository selection to the relay" do
+      sign_in_as(user)
+      workspace_repository = Factories.repository(user: user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      chat.chat_attachments.find_or_create_by!(attachable: workspace_repository)
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "SOUL.md", "repository_id" => repository.id.to_s))
+        .to_return(status: 200, body: { content: "role: tester\n", binary: false, too_large: false, path: "SOUL.md" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file/raw", params: { path: "SOUL.md", repository_id: repository.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to eq("role: tester\n")
+    end
+
     it "does not inline binary or too-large files" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository,
