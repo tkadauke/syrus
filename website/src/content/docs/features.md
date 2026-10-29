@@ -1698,7 +1698,11 @@ choosing their appearance and capabilities, opening their main and side chats,
 and viewing their read-only identity profile. A new coworker's identity files
 and first conversation already include its configured name and its owner's
 display name, leaving the initial interview to establish its role, personality,
-working preferences, and boundaries. Coworker conversations are kept
+working preferences, and boundaries. Each coworker's Memory tab is a
+read-only, searchable browser for the daily, people, repository, and bank
+Markdown files on its home branch. It shows recent daily files first, links to
+the owner's existing Syrus memories, and reports empty and unreachable remotes
+separately. Coworker conversations are kept
 in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. A chat owner can share a conversation read-only with one of their
