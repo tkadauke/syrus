@@ -4,13 +4,7 @@ module BugReports
   class ChatStarter
     include BugReports::ContextFormatter
 
-    INLINE_TEXT_MIME_TYPES = %w[
-      text/plain
-      text/markdown
-      text/x-markdown
-      image/svg+xml
-    ].freeze
-    INLINE_TEXT_MAX_BYTES = 200_000
+    class InvalidAttachment < StandardError; end
 
     Result = Struct.new(:chat_session, :error, keyword_init: true) do
       def success?
@@ -41,12 +35,11 @@ module BugReports
       prompt_text += format_context_markdown(context)
 
       chat_attachments = []
-      inline_sections = []
-      append_upload!(chat_attachments, inline_sections, screenshot) if screenshot.present?
+      @attachment_total_bytes = 0
+      append_upload!(chat_attachments, screenshot) if screenshot.present?
       extra.each do |attachment|
-        append_upload!(chat_attachments, inline_sections, attachment)
+        append_upload!(chat_attachments, attachment)
       end
-      prompt_text += inline_sections.join
 
       chat_session = nil
       user_message = nil
@@ -78,6 +71,8 @@ module BugReports
       Result.new(chat_session: chat_session)
     rescue ActiveRecord::RecordInvalid => e
       failure(e.record.errors.full_messages.to_sentence)
+    rescue InvalidAttachment => e
+      failure(e.message)
     end
 
     private
@@ -88,39 +83,30 @@ module BugReports
       Result.new(error: error)
     end
 
-    def append_upload!(chat_attachments, inline_sections, upload)
+    def append_upload!(chat_attachments, upload)
       body = upload.read
       filename = upload.original_filename.presence || "attachment"
       content_type = upload.content_type.presence || "application/octet-stream"
 
       policy = ChatAttachmentPolicy.check(filename: filename, mime_type: content_type)
-      if policy.accepted? && (!policy.text? || ChatAttachmentPolicy.valid_text?(body))
-        if body.bytesize > ChatMessageParams::CHAT_ATTACHMENT_MAX_BYTES
-          inline_sections << omitted_attachment_section(filename, "larger than chat's inline attachment limit")
-          return
-        end
-
-        chat_attachments << {
-          "name" => filename,
-          "mime_type" => policy.mime_type,
-          "data" => Base64.strict_encode64(body)
-        }
-        return
+      raise InvalidAttachment, "#{filename} is not a supported attachment type." unless policy.accepted?
+      if policy.text? && !ChatAttachmentPolicy.valid_text?(body)
+        raise InvalidAttachment, "#{filename} is not valid UTF-8 text."
+      end
+      if body.bytesize > ChatMessageParams::CHAT_ATTACHMENT_MAX_BYTES
+        raise InvalidAttachment, "Each attachment must be 5 MB or smaller."
       end
 
-      if INLINE_TEXT_MIME_TYPES.include?(content_type) && body.bytesize <= INLINE_TEXT_MAX_BYTES
-        inline_sections << inline_text_attachment_section(filename, body.force_encoding("UTF-8").scrub)
-      else
-        inline_sections << omitted_attachment_section(filename, "unsupported chat attachment type #{content_type}")
+      @attachment_total_bytes += body.bytesize
+      if @attachment_total_bytes > ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES
+        raise InvalidAttachment, "Attachments must total 20 MB or less."
       end
-    end
 
-    def inline_text_attachment_section(filename, body)
-      "\n\n## #{filename}\n\n```text\n#{body}\n```"
-    end
-
-    def omitted_attachment_section(filename, reason)
-      "\n\n## #{filename}\n\nAttachment not inlined: #{reason}."
+      chat_attachments << {
+        "name" => ChatAttachmentPolicy.sanitize_filename(filename),
+        "mime_type" => policy.mime_type,
+        "data" => Base64.strict_encode64(body)
+      }
     end
   end
 end
