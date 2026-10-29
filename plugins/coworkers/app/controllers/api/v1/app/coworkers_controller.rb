@@ -6,8 +6,12 @@ module Api
         include AgentProviderCatalogOptions
 
         def index
+          coworkers = scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).to_a
+          weekly_spend = Coworkers::Activity.weekly_spend_by_coworker(
+            coworkers: coworkers, user: Current.user
+          )
           render json: {
-            coworkers: scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).map { |coworker| summary_json(coworker) },
+            coworkers: coworkers.map { |coworker| summary_json(coworker, weekly_spend_usd: weekly_spend.fetch(coworker.id)) },
             syrus: syrus_json,
             model_options: model_options_json
           }
@@ -149,13 +153,13 @@ module Api
           params.permit(:name, :handle, :workspace_repo, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model, :chat_effort)
         end
 
-        def summary_json(coworker)
-          weekly_spend = Coworkers::Activity.new(coworker: coworker, user: Current.user).week_spend
+        def summary_json(coworker, weekly_spend_usd: nil)
+          weekly_spend_usd ||= Coworkers::Activity.new(coworker: coworker, user: Current.user).week_spend
           {
             id: coworker.id, name: coworker.name, handle: coworker.handle, role_summary: coworker.role_summary,
             state: coworker.state, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
             avatar_url: coworker.avatar_url, path: "/coworkers/#{coworker.id}",
-            weekly_spend_usd: weekly_spend
+            weekly_spend_usd: weekly_spend_usd
           }
         end
 

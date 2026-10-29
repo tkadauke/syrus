@@ -45,7 +45,42 @@ RSpec.describe Coworkers::Activity do
     )
   end
 
+  it "loads tool-call counts in one grouped query for the run collection" do
+    runs = 3.times.map { coworker_run(cost: 0.25, finished_at: 1.day.ago) }
+    runs.each { |run| JobLog.append!(run: run, chunk: "tool", kind: "tool_call") }
+
+    queries = sql_queries { described_class.new(coworker: coworker, user: owner).call }
+    tool_call_queries = queries.grep(/FROM ["`]job_logs["`].*kind.*GROUP BY/i)
+
+    expect(tool_call_queries.size).to eq(1)
+  end
+
+  it "loads weekly spend for a coworker collection with two aggregate queries" do
+    coworkers = 3.times.map do |index|
+      Coworkers::Coworker.create!(
+        owner_user: owner, name: "Coworker #{index}", handle: "activity-#{index}",
+        workspace_repo: repository.remote_url
+      )
+    end
+
+    queries = sql_queries do
+      described_class.weekly_spend_by_coworker(coworkers: coworkers, user: owner)
+    end
+
+    expect(queries.grep(/FROM ["`]chat_spend_entries["`]/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]runs["`]/i).size).to eq(1)
+  end
+
   private
+
+  def sql_queries
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
 
   def coworker_run(cost:, finished_at:)
     job = Job.create!(
