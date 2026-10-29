@@ -84,21 +84,59 @@ RSpec.describe ContainerExecution::SeedImage do
     )
     tag = "syrus-devcontainer:#{spec.fingerprint.first(24)}"
     semaphore = ConcurrentSemaphore.new
-    runner = ConcurrentRunner.new(semaphore)
+    image_store = ConcurrentImageStore.new
+    runners = 2.times.map { ConcurrentRunner.new(semaphore, image_store) }
     artifact = { "config" => spec.config, "source" => spec.source, "revision" => spec.revision }
     requests = 2.times.map do
       request(repository: repository, workflow: instance_double(Workflow, artifact: artifact))
     end
 
-    threads = requests.map do |concurrent_request|
+    threads = requests.zip(runners).map do |concurrent_request, runner|
       Thread.new do
-        described_class.new(concurrent_request, runner: runner, semaphore: semaphore, sleeper: ->(_) { Thread.pass }).resolve
+        described_class.new(
+          concurrent_request,
+          runner: runner,
+          semaphore: semaphore,
+          sleeper: ->(_) { Thread.pass },
+          image_namespace: "shared-daemon"
+        ).resolve
       end
     end
 
     expect(threads.map(&:value)).to all(eq(tag))
-    expect(runner.build_count).to eq(1)
-    expect(semaphore.keys).to all(eq("devcontainer_build:42:#{'d' * 40}"))
+    expect(image_store.build_count).to eq(1)
+    namespace_key = Digest::SHA256.hexdigest("shared-daemon").first(16)
+    expect(semaphore.keys).to all(eq("devcontainer_build:#{namespace_key}:42:#{'d' * 40}"))
+  end
+
+  it "does not serialize builds in distinct worker-local Docker image stores" do
+    enable_devcontainer
+    ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "#{@workspace}=#{@workspace}"
+    repository = instance_double(Repository, id: 42)
+    spec = ContainerExecution::DevcontainerSpec::Result.new(
+      config: { "build" => { "dockerfile" => "Dockerfile", "context" => ".." } },
+      source: ".devcontainer/devcontainer.json",
+      revision: "e" * 40
+    )
+    artifact = { "config" => spec.config, "source" => spec.source, "revision" => spec.revision }
+    semaphore = ConcurrentSemaphore.new
+    runners = [ LocalImageRunner.new, LocalImageRunner.new ]
+
+    threads = runners.each_with_index.map do |runner, index|
+      concurrent_request = request(repository: repository, workflow: instance_double(Workflow, artifact: artifact))
+      Thread.new do
+        described_class.new(
+          concurrent_request,
+          runner: runner,
+          semaphore: semaphore,
+          image_namespace: "worker-daemon-#{index}"
+        ).resolve
+      end
+    end
+
+    expect(threads.map(&:value)).to all(eq("syrus-devcontainer:#{spec.fingerprint.first(24)}"))
+    expect(runners.sum(&:build_count)).to eq(2)
+    expect(semaphore.keys.uniq.size).to eq(2)
   end
 
   it "translates devcontainer build paths into the Docker host namespace" do
@@ -168,7 +206,7 @@ RSpec.describe ContainerExecution::SeedImage do
 
     def initialize
       @mutex = Mutex.new
-      @held = false
+      @held = Set.new
       @rejected = ConditionVariable.new
       @rejected_once = false
       @keys = []
@@ -177,18 +215,19 @@ RSpec.describe ContainerExecution::SeedImage do
     def wait(lock)
       @mutex.synchronize do
         @keys << lock.concurrency_key
-        if @held
+        if @held.include?(lock.concurrency_key)
           @rejected_once = true
           @rejected.broadcast
           false
         else
-          @held = true
+          @held << lock.concurrency_key
+          true
         end
       end
     end
 
-    def signal(_lock)
-      @mutex.synchronize { @held = false }
+    def signal(lock)
+      @mutex.synchronize { @held.delete(lock.concurrency_key) }
     end
 
     def wait_for_rejection
@@ -197,23 +236,65 @@ RSpec.describe ContainerExecution::SeedImage do
   end
 
   class ConcurrentRunner
+    def initialize(semaphore, image_store)
+      @semaphore = semaphore
+      @image_store = image_store
+    end
+
+    def capture3(_docker, command, *)
+      if command == "image"
+        status = @image_store.built? ? success : failure
+        [ "", "", status ]
+      else
+        @image_store.start_build
+        @semaphore.wait_for_rejection
+        @image_store.finish_build
+        [ "", "", success ]
+      end
+    end
+
+    private
+
+    def success = Status.new(success?: true, exitstatus: 0)
+    def failure = Status.new(success?: false, exitstatus: 1)
+  end
+
+  class ConcurrentImageStore
     attr_reader :build_count
 
-    def initialize(semaphore)
-      @semaphore = semaphore
+    def initialize
       @mutex = Mutex.new
+      @built = false
+      @build_count = 0
+    end
+
+    def built?
+      @mutex.synchronize { @built }
+    end
+
+    def start_build
+      @mutex.synchronize { @build_count += 1 }
+    end
+
+    def finish_build
+      @mutex.synchronize { @built = true }
+    end
+  end
+
+  class LocalImageRunner
+    attr_reader :build_count
+
+    def initialize
       @built = false
       @build_count = 0
     end
 
     def capture3(_docker, command, *)
       if command == "image"
-        status = @mutex.synchronize { @built ? success : failure }
-        [ "", "", status ]
+        [ "", "", @built ? success : failure ]
       else
-        @mutex.synchronize { @build_count += 1 }
-        @semaphore.wait_for_rejection
-        @mutex.synchronize { @built = true }
+        @build_count += 1
+        @built = true
         [ "", "", success ]
       end
     end

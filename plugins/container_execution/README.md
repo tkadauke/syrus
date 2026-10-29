@@ -28,4 +28,7 @@ image for container-backed graders. Syrus pulls `image` declarations and builds
 not replace `.syrus.yml` prepare commands or affect local execution. Build
 contexts and Dockerfiles must be covered by
 `SYRUS_CONTAINER_EXECUTION_HOST_PATHS` so the Docker host receives its own path
-rather than the worker-container path.
+rather than the worker-container path. Seed-image builds are locked within one
+Docker image store. Workers that connect to the same remote daemon should share
+one `SYRUS_CONTAINER_EXECUTION_DOCKER_NAMESPACE`; workers with separate local
+daemons use distinct namespaces automatically.
