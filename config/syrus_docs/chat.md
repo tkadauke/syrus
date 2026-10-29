@@ -385,12 +385,11 @@ mentions are highlighted and create an in-app notification for the mentioned
 participant, but never trigger an agent turn. Users can disable mention
 notifications in their notification preferences.
 
-Every mentionable also exposes `avatar_url` and `color_key`. Humans use their
+Every mentionable also exposes `avatar_url` and `accent_hex`. Humans use their
 uploaded or linked avatar and a neutral highlight. Built-in Syrus uses initials
-on a fixed curated color. The shared appearance palette
-stores stable keys with separately contrast-checked light and dark values;
-frontend callers resolve the key for the active mode rather than persisting a
-hex value. Reusable color and avatar pickers are fixed-choice grids, and the
+on Blush, the library color nearest its previous light-mode coral by OKLab
+distance. The shared accent library stores one hex per identity and derives
+contrast-safe text and display ramps from it. Reusable color and avatar pickers are fixed-choice grids, and the
 shared avatar renderer falls back from an uploaded image to a bundled avatar
 and then to initials on the mentionable color.
 

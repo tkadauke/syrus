@@ -301,7 +301,7 @@ class User < ApplicationRecord
   def kind = "human"
   def subtitle = role.presence || profile_company
   def avatar_url = self[:avatar_url]
-  def color_key = nil
+  def accent_hex = nil
   def addressable_in?(chat)
     participants = chat.association(:chat_participants)
     return participants.target.any? { |participant| participant.user_id == id } if participants.loaded?
