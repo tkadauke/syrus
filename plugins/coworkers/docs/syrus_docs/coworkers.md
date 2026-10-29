@@ -88,6 +88,8 @@ Paused and archived coworkers, Syrus, the sender itself, and handles outside
 the owner's coworker list are refused. Deliveries carry their origin turn and
 hop count; a chain cannot continue beyond three hops. Each pair of coworkers
 can queue at most ten messages in a ten-minute window, regardless of direction.
+Hop-limit refusals and rate-limited attempts are recorded in the sender's main
+chat and listed in the sender's Activity tab.
 
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
@@ -109,6 +111,7 @@ memories, distinguishes an empty memory tree from an unreachable remote, and
 shows recent daily files first. Provider-truncated or exceptionally large trees
 return their available files with a partial-results notice; searches also warn
 when capped file contents mean the result set cannot be complete. The Activity
-tab reports sent and received coworker-message traffic for the last 30 days.
-Capabilities, Schedule, and Workspace remain coming-later placeholders where
-their full surfaces have not shipped yet.
+tab reports total uncapped spend, sent and received coworker-message traffic for
+the last 30 days, plus recent refused and rate-limited deliveries. Capabilities,
+Schedule, and Workspace remain coming-later placeholders where their full
+surfaces have not shipped yet.

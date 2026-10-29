@@ -19,7 +19,7 @@ RSpec.describe Coworkers::MessageCoworkerTool do
   end
 
   it "refuses a coworker message chain beyond the hop limit" do
-    Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin", workspace_repo: repository.remote_url)
+    receiver = Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin", workspace_repo: repository.remote_url)
     current_message = chat.messages.create!(
       role: "user",
       content: { "text" => "Message from @rin", "coworker_message" => { "origin_turn_id" => 42, "hop_count" => 3 } },
@@ -33,6 +33,12 @@ RSpec.describe Coworkers::MessageCoworkerTool do
 
     expect(response).to be_error
     expect(response.content.first[:text]).to include("3-hop limit")
+    refusal = chat.messages.last
+    expect(refusal).to have_attributes(role: "system")
+    expect(refusal.content).to include(
+      "text" => include("Message to @rin was not delivered"),
+      "coworker_message" => include("status" => "refused", "receiver_id" => receiver.id, "origin_turn_id" => 42, "hop_count" => 4)
+    )
   end
 
   it "refuses a pair after its delivery rate limit is reached" do
@@ -45,6 +51,46 @@ RSpec.describe Coworkers::MessageCoworkerTool do
 
     expect(response).to be_error
     expect(response.content.first[:text]).to include("rate limit reached for @maya and @rin", "try again in 37 seconds")
+    expect(chat.messages.last.content.fetch("coworker_message")).to include(
+      "status" => "rate_limited", "receiver_id" => receiver.id, "hop_count" => 1
+    )
+  end
+
+  it "stops a two-party ping-pong after three delivered hops" do
+    rin, rin_chat = create_coworker_with_main_chat(name: "Rin", handle: "rin")
+    allow(Coworkers::MessageRateLimiter).to receive(:reserve).and_return(allowed_rate_limit)
+
+    expect(deliver(from_chat: chat, to: rin)).not_to be_error
+    first = rin_chat.messages.last
+    expect(deliver(from_chat: rin_chat, to: sender, current_message: first)).not_to be_error
+    second = chat.messages.last
+
+    rin_chat.update!(turn_in_flight: false, current_turn_message_id: nil)
+    expect(deliver(from_chat: chat, to: rin, current_message: second)).not_to be_error
+    ChatQueuedMessagePromoter.deliver_one_if_idle!(rin_chat)
+    third = rin_chat.messages.last
+    response = deliver(from_chat: rin_chat, to: sender, current_message: third)
+
+    expect([ first, second, third ].map { |message| message.content.dig("coworker_message", "hop_count") }).to eq([ 1, 2, 3 ])
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("3-hop limit")
+  end
+
+  it "stops a three-party cycle after three delivered hops" do
+    rin, rin_chat = create_coworker_with_main_chat(name: "Rin", handle: "rin")
+    sol, sol_chat = create_coworker_with_main_chat(name: "Sol", handle: "sol")
+    allow(Coworkers::MessageRateLimiter).to receive(:reserve).and_return(allowed_rate_limit)
+
+    deliver(from_chat: chat, to: rin)
+    first = rin_chat.messages.last
+    deliver(from_chat: rin_chat, to: sol, current_message: first)
+    second = sol_chat.messages.last
+    deliver(from_chat: sol_chat, to: sender, current_message: second)
+    third = chat.messages.last
+    response = deliver(from_chat: chat, to: rin, current_message: third)
+
+    expect([ first, second, third ].map { |message| message.content.dig("coworker_message", "hop_count") }).to eq([ 1, 2, 3 ])
+    expect(response).to be_error
   end
 
   it "refuses Syrus, self, unknown, foreign, paused, and archived targets with clear results" do
@@ -66,5 +112,34 @@ RSpec.describe Coworkers::MessageCoworkerTool do
       expect(response).to be_error
       expect(response.content.first[:text]).to include(message)
     end
+  end
+
+  def create_coworker_with_main_chat(name:, handle:)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: name, handle: handle, workspace_repo: repository.remote_url)
+    main_chat = ChatSession.create!(user: owner, repository: repository, title: name)
+    Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+    [ coworker, main_chat ]
+  end
+
+  def deliver(from_chat:, to:, current_message: nil)
+    response = described_class.call(
+      server_context: { chat_session: from_chat, current_message: current_message },
+      handle: to.handle, text: "Continue"
+    )
+    return response if response.error?
+
+    ActiveJob::Base.queue_adapter.enqueued_jobs.pop
+    from = Coworkers::Chat.find_by!(chat_session: from_chat).coworker
+    incoming = current_message&.content.to_h.fetch("coworker_message", {})
+    context = {
+      "origin_turn_id" => incoming["origin_turn_id"] || current_message&.id,
+      "hop_count" => incoming.fetch("hop_count", 0).to_i + 1
+    }
+    Coworkers::MessageDeliveryJob.perform_now(from.id, to.id, "Continue", context)
+    response
+  end
+
+  def allowed_rate_limit
+    Coworkers::MessageRateLimiter::Result.new(allowed: true, retry_after_seconds: 0)
   end
 end

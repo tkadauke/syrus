@@ -132,15 +132,31 @@ module Api
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
             grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy } },
-            message_traffic: message_traffic_json(coworker)
+            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
           )
+        end
+
+        def spend_usd(coworker)
+          chat_spend = coworker.coworker_chats.joins(:chat_session).sum("chat_sessions.cumulative_cost_usd")
+          run_spend = Run.joins(:job).where(jobs: { origin: "coworkers", origin_id: coworker.id.to_s }).sum(:cost_usd)
+          (chat_spend + run_spend).to_f
         end
 
         def message_traffic_json(coworker)
           main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
           messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago).to_a : []
-          directions = messages.filter_map { |message| message.content.dig("coworker_message", "direction") if message.content.is_a?(Hash) }
-          { sent: directions.count("outgoing"), received: directions.count("incoming"), window_days: 30 }
+          metadata = messages.filter_map { |message| message.content["coworker_message"] if message.content.is_a?(Hash) }
+          delivered = metadata.select { |entry| entry["status"].blank? }
+          events = messages.filter_map do |message|
+            entry = message.content["coworker_message"] if message.content.is_a?(Hash)
+            next unless entry&.fetch("status", nil).in?(%w[refused rate_limited])
+
+            { status: entry.fetch("status"), receiver_handle: entry.fetch("receiver_handle"),
+              reason: message.extract_text_from_content, occurred_at: message.created_at.iso8601 }
+          end
+          { sent: delivered.count { |entry| entry["direction"] == "outgoing" },
+            received: delivered.count { |entry| entry["direction"] == "incoming" },
+            window_days: 30, delivery_events: events.reverse.first(20) }
         end
 
         def soul_for(coworker)
