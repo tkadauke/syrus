@@ -20,6 +20,7 @@ module Coworkers
     provides mentionable: "Coworkers::MentionableProvider",
              chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
+             chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
