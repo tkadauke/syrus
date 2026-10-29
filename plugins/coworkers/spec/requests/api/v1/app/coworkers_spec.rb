@@ -92,6 +92,21 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:no_content)
   end
 
+  it "distinguishes implicit coworker chats from removable roster entries" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-membership", workspace_repo: "https://github.com/acme/workspace.git")
+    own_chat = ChatSession.create!(user: owner, title: "Maya main")
+    roster_chat = ChatSession.create!(user: owner, title: "Planning")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: own_chat, role: "main")
+    Coworkers::ChatAgent.create!(coworker: coworker, chat_session: roster_chat, added_by_user: owner)
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}"
+
+    chats = response.parsed_body.dig("coworker", "available_chats").index_by { |chat| chat.fetch("id") }
+    expect(chats.fetch(own_chat.id)).to include("implicit" => true, "rostered" => false)
+    expect(chats.fetch(roster_chat.id)).to include("implicit" => false, "rostered" => true)
+  end
+
   it "refuses to add another user's coworker" do
     other = Factories.user(email_address: "other-roster@example.com")
     coworker = Coworkers::Coworker.create!(owner_user: other, name: "Private", handle: "private-agent", workspace_repo: "https://github.com/acme/private.git")

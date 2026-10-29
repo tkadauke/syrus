@@ -229,6 +229,7 @@ function CoworkerPage({ id }: { id: string }) {
   if (query.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
   if (!query.data) return <PanelMessage>{t("error")}</PanelMessage>
   const coworker = query.data.coworker
+  const selectedChat = coworker.available_chats.find((chat) => chat.id === Number(selectedChatId))
   return (
     <Page.Root gutter="responsive" size="wide">
       <Page.Header>
@@ -252,19 +253,19 @@ function CoworkerPage({ id }: { id: string }) {
               {coworker.available_chats.map((chat) => (
                 <option key={chat.id} value={chat.id}>
                   {chat.title}
-                  {chat.rostered ? ` — ${t("detail.on_roster")}` : ""}
+                  {chat.rostered || chat.implicit ? ` — ${t("detail.on_roster")}` : ""}
                 </option>
               ))}
             </Select>
             <button
               className="rounded border border-border px-3 py-2 text-sm disabled:opacity-50"
-              disabled={!selectedChatId || roster.isPending || coworker.available_chats.find((chat) => chat.id === Number(selectedChatId))?.rostered}
+              disabled={!selectedChatId || roster.isPending || selectedChat?.rostered || selectedChat?.implicit}
               onClick={() => roster.mutate({ chatId: Number(selectedChatId), add: true })}
               type="button"
             >
               {t("detail.add_to_chat")}
             </button>
-            {coworker.available_chats.find((chat) => chat.id === Number(selectedChatId))?.rostered ? (
+            {selectedChat?.rostered ? (
               <button
                 className="rounded border border-border px-3 py-2 text-sm"
                 disabled={roster.isPending}

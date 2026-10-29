@@ -46,6 +46,13 @@ class Coworkers::Coworker < ApplicationRecord
   def schedules = ScheduledTasks::Task.none
   def chat_configuration = attributes.symbolize_keys.slice(:chat_provider, :chat_model, :chat_effort).compact
 
+  def workspace_repository
+    match = workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
+    return unless match
+
+    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
+  end
+
   # A coworker sees only its own conversations and chats explicitly shared
   # with it. The owner's role (including admin) must never widen this scope.
   def readable_chat_session_ids

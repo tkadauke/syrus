@@ -21,7 +21,7 @@ export type CoworkerDetail = CoworkerSummary & {
   soul: string | null
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
   grants: { capability: string; approval_policy: string }[]
-  available_chats: { id: number; title: string; rostered: boolean }[]
+  available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]
 }
 export type CoworkerModelOptions = {
   provider: string

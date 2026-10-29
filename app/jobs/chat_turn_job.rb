@@ -49,6 +49,7 @@ class ChatTurnJob < ApplicationJob
 
     @chat = chat
     @user_message = user_message
+    @agent_chat = @chat.respond_to?(:agent_turn_context) ? @chat.agent_turn_context(@user_message) : @chat
     @turn_started_at = Time.current
     @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
     @cancelled = false
@@ -117,10 +118,10 @@ class ChatTurnJob < ApplicationJob
     flush_current_assistant_content!
     return if @chat.reload.deleted?
 
-    capture_session!(provider, result) if result
+    capture_session!(provider, result) if result && !ephemeral_agent_turn?
     return if @chat.reload.deleted?
 
-    @chat.record_turn_usage!(result) if result
+    @chat.record_turn_usage!(result, agent_provider: provider.provider) if result
     return if @chat.reload.deleted?
 
     record_provider_success_evidence!(provider, result)
@@ -178,7 +179,7 @@ class ChatTurnJob < ApplicationJob
       # Phase 1 works directly on the coworker's home branch, one chat turn at
       # a time. Phase 3 replaces this with per-chat branches merged at turn end.
       workspace_path = ChatWorkspace.ensure_branch_checkout!(
-        @chat, @chat.repository, "coworkers/#{@chat.coworker.handle}"
+        @chat, active_chat.repository, "coworkers/#{active_chat.coworker.handle}"
       )
     elsif coding_mode_active?
       ensure_coding_checkout!
@@ -189,8 +190,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def chat_provider
-    @chat.pin_chat_provider!(broadcast: false) if @chat.chat_provider.blank? && @chat.messages.exists?
-    ChatProviders.for(@chat.effective_chat_provider).new(chat: @chat, runner: self.class.agent_runner)
+    @chat.pin_chat_provider!(broadcast: false) if active_chat.equal?(@chat) && @chat.chat_provider.blank? && @chat.messages.exists?
+    ChatProviders.for(active_chat.effective_chat_provider).new(chat: active_chat, runner: self.class.agent_runner)
   end
 
   def record_provider_success_evidence!(provider, result)
@@ -201,7 +202,7 @@ class ChatTurnJob < ApplicationJob
     ProviderAvailabilityEvidence.record_codex_success!(
       user: @chat.user,
       source: "chat_turn_success",
-      model: @chat.chat_model.presence || ProviderAvailabilityEvidence.codex_configured_model,
+      model: active_chat.chat_model.presence || ProviderAvailabilityEvidence.codex_configured_model,
       chat_session: @chat,
       chat_message: @user_message,
       details: {
@@ -216,7 +217,7 @@ class ChatTurnJob < ApplicationJob
 
   def provider_with_turn_context(provider, attachment_context, agent_env)
     provider.class.new(
-      chat: @chat,
+      chat: active_chat,
       runner: self.class.agent_runner,
       image_paths: attachment_context.fetch(:image_paths),
       file_paths: attachment_context.fetch(:file_paths),
@@ -248,6 +249,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def resume_session_id_for(_provider)
+    return if ephemeral_agent_turn?
+
     @chat.provider_session_metadata&.session_id
   end
 
@@ -264,7 +267,7 @@ class ChatTurnJob < ApplicationJob
   end
 
   def prompt_for(parent_session_id, user_text:)
-    snapshot = AgentEnvironmentSnapshot.for_chat(repository: @chat.repository, chat_session: @chat)
+    snapshot = AgentEnvironmentSnapshot.for_chat(repository: active_chat.repository, chat_session: @chat)
     goal_context = Prompts::ChatGoalContext.new(chat_session: @chat, current_message: @user_message).to_s
     return proposal_outcome_prompt(snapshot: snapshot, user_text: user_text) if proposal_outcome_message?
 
@@ -280,11 +283,11 @@ class ChatTurnJob < ApplicationJob
     end
 
     if parent_session_id.present?
-      elaboration_guidance = Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).elaboration_guidance
+      elaboration_guidance = Prompts::ChatSystem.new(repository: active_chat.repository, chat_session: @chat).elaboration_guidance
       return [ snapshot, elaboration_guidance.presence, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
     end
 
-    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
+    [ Prompts::ChatSystem.new(repository: active_chat.repository, chat_session: @chat).to_s, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
   end
 
   # Some messages are not really "the user said this" -- a walkthrough video is
@@ -312,7 +315,7 @@ class ChatTurnJob < ApplicationJob
   # Full system prompt for a fresh session; the compact elaboration guidance when
   # resuming (the resumed session already carries the full system context).
   def system_guidance(parent_session_id)
-    chat_system = Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat)
+    chat_system = Prompts::ChatSystem.new(repository: active_chat.repository, chat_session: @chat)
     base = parent_session_id.present? ? chat_system.elaboration_guidance.presence : chat_system.to_s
     coding = coding_mode_guidance
     [ base, coding ].compact.join("\n\n")
@@ -608,7 +611,7 @@ class ChatTurnJob < ApplicationJob
       worker_id: decision.daemon_identity["worker_id"],
       current_message: @user_message,
       tier: tier,
-      provider: @chat.effective_chat_provider,
+      provider: active_chat.effective_chat_provider,
       expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
     )
   end
@@ -619,7 +622,7 @@ class ChatTurnJob < ApplicationJob
       worker_id: fallback.identity.fetch(:worker_id),
       current_message: @user_message,
       tier: tier,
-      provider: @chat.effective_chat_provider
+      provider: active_chat.effective_chat_provider
     )
   end
 
@@ -641,7 +644,7 @@ class ChatTurnJob < ApplicationJob
   # Only Claude chat sessions have direct HTTP MCP transport wiring. Other
   # providers still use the persistent daemon through bin/syrus-mcp-proxy.
   def persistent_http_transport_supported?
-    @chat.effective_chat_provider == "claude"
+    active_chat.effective_chat_provider == "claude"
   end
 
   # Records where existing chat diagnostics already surface it: the chat's
@@ -696,8 +699,11 @@ class ChatTurnJob < ApplicationJob
   end
 
   def coworker_chat?
-    @chat.respond_to?(:coworker) && @chat.coworker.respond_to?(:kind) && @chat.coworker.kind == "coworker"
+    active_chat.respond_to?(:coworker) && active_chat.coworker.respond_to?(:kind) && active_chat.coworker.kind == "coworker"
   end
+
+  def active_chat = @agent_chat || @chat
+  def ephemeral_agent_turn? = active_chat.respond_to?(:ephemeral_agent_turn?) && active_chat.ephemeral_agent_turn?
 
   def record_agent_event(chunk, kind: nil, tool_name: nil, tool_input: nil,
                          tool_result_content: nil, tool_result_error: nil,
@@ -780,7 +786,7 @@ class ChatTurnJob < ApplicationJob
       tool_name: tool_name,
       tool_use_id: tool_use_id,
       tool_input: tool_input,
-      provider: @chat.effective_chat_provider,
+      provider: active_chat.effective_chat_provider,
       sidecar_mode: "stdio"
     )
   rescue StandardError => e
@@ -796,7 +802,7 @@ class ChatTurnJob < ApplicationJob
       tool_use_id: tool_use_id,
       content: tool_result_content,
       error: tool_result_error == true,
-      provider: @chat.effective_chat_provider,
+      provider: active_chat.effective_chat_provider,
       sidecar_mode: "stdio"
     )
   rescue StandardError => e
@@ -906,7 +912,7 @@ class ChatTurnJob < ApplicationJob
   # observe directly (the sidecar side records the other six -- see
   # Mcp::Sidecar#record_startup_timing_phases!/#configure_mcp_startup_instrumentation!)
   # plus the "the whole thing worked" first-reply milestone.
-  def record_mcp_startup_phase!(phase:, provider: @chat.effective_chat_provider, server_name: nil, tier: nil, metadata: {})
+  def record_mcp_startup_phase!(phase:, provider: active_chat.effective_chat_provider, server_name: nil, tier: nil, metadata: {})
     McpStartupTiming.record!(
       phase: phase,
       provider: provider,
@@ -1004,8 +1010,8 @@ class ChatTurnJob < ApplicationJob
       exception_detail(exception).presence ||
       "Agent turn failed."
 
-    provider_name = provider&.provider.to_s.presence || @chat.effective_chat_provider.to_s.presence
-    model = ProviderUsageLimit.extract_model(detail, fallback: @chat.chat_model)
+    provider_name = provider&.provider.to_s.presence || active_chat.effective_chat_provider.to_s.presence
+    model = ProviderUsageLimit.extract_model(detail, fallback: active_chat.chat_model)
 
     if result&.outcome.to_s == ProviderUsageLimit::OUTCOME || ProviderUsageLimit.detect?(detail)
       message = ProviderUsageLimit.detail(provider: provider_name, model: model, message: detail)
