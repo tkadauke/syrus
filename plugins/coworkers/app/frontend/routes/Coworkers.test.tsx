@@ -239,8 +239,7 @@ it("does not claim that an incomplete search has no matches", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes("/memory"))
-        return jsonResponse({ files: [], search: "needle", truncated: true, partial: true, search_incomplete: true })
+      if (String(input).includes("/memory")) return jsonResponse({ files: [], search: "needle", truncated: true, partial: true, search_incomplete: true })
       return jsonResponse(detailPayload)
     })
   )
