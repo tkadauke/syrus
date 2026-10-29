@@ -166,7 +166,11 @@ export const ChatMessage = memo(function ChatMessage({
               {appearance.name}
             </div>
           ) : null}
-          <ChatAssistantMarkdownSurface text={item.text} onLinkClick={handleMarkdownLink} />
+          {backgroundRun(item.content) ? (
+            <BackgroundRunCard run={backgroundRun(item.content)!} text={item.text} onLinkClick={handleMarkdownLink} />
+          ) : (
+            <ChatAssistantMarkdownSurface text={item.text} onLinkClick={handleMarkdownLink} />
+          )}
           <MessageImageAttachments attachments={item.attachments} />
           {!readOnly && item.proposal ? (
             <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
@@ -200,6 +204,49 @@ export const ChatMessage = memo(function ChatMessage({
     </SharedMessageRenderer>
   )
 }, sameChatMessageProps)
+
+type BackgroundRun = {
+  state?: string
+  summary?: string
+  duration_seconds?: number | null
+  cost_usd?: string | null
+  merge_state?: string | null
+}
+
+function backgroundRun(content: unknown): BackgroundRun | null {
+  if (!isPlainObject(content) || !isPlainObject(content.background_run)) return null
+  return content.background_run as BackgroundRun
+}
+
+function BackgroundRunCard({
+  run,
+  text,
+  onLinkClick
+}: {
+  run: BackgroundRun
+  text: string
+  onLinkClick: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
+}) {
+  const { t } = useT("chat")
+  const failed = run.state === "failed"
+  const duration = run.duration_seconds == null ? null : `${run.duration_seconds.toFixed(1)}s`
+  const cost = run.cost_usd == null ? null : `$${run.cost_usd}`
+  return (
+    <details
+      className={`rounded border px-3 py-2 ${failed ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30" : "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30"}`}
+    >
+      <summary className="cursor-pointer text-sm font-medium">
+        {failed ? t("background_run_failed") : t("background_run_completed")}
+        {[duration, cost].filter(Boolean).length ? (
+          <span className="ml-2 font-normal text-text-muted">{[duration, cost].filter(Boolean).join(" · ")}</span>
+        ) : null}
+      </summary>
+      <div className="mt-2">
+        <ChatAssistantMarkdownSurface compact text={run.summary || text} onLinkClick={onLinkClick} />
+      </div>
+    </details>
+  )
+}
 
 function sameChatMessageProps(previous: ChatMessageProps, next: ChatMessageProps) {
   return (
