@@ -123,6 +123,8 @@ class McpToolContext
   end
 
   private_class_method def self.interactive_turn?(chat_session)
+    return false unless chat_session.respond_to?(:current_turn_message_id)
+
     message_id = chat_session.current_turn_message_id
     message_id.present? && chat_session.messages.where(id: message_id, role: "user").exists?
   end

@@ -74,6 +74,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PATCH | `/api/v1/app/chats/:id/mark_unread` | `api/v1/app/chats#mark_unread` |
 | core | GET | `/api/v1/app/chats/:id/media` | `api/v1/app/chats#media` |
 | core | GET | `/api/v1/app/chats/:id/media/chat_images/:document_id/file` | `api/v1/app/chats#media_chat_image` |
+| core | GET | `/api/v1/app/chats/:id/mentionables` | `api/v1/app/chats#mentionables` |
 | core | POST | `/api/v1/app/chats/:id/message` | `api/v1/app/chats#message` |
 | core | DELETE | `/api/v1/app/chats/:id/messages` | `api/v1/app/chats#clear_messages` |
 | core | GET | `/api/v1/app/chats/:id/messages` | `api/v1/app/chats#messages` |
@@ -169,6 +170,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/epics/new` | `api/v1/app/epics#new` |
 | core | POST | `/api/v1/app/event_actions/file_job` | `api/v1/app/event_actions#file_job` |
 | core | GET | `/api/v1/app/filters/fk_options` | `api/v1/app/filters#fk_options` |
+| core | GET | `/api/v1/app/filters/schema` | `api/v1/app/filters#schema` |
 | core | GET | `/api/v1/app/filters/suggestions` | `api/v1/app/filters#suggestions` |
 | core | POST | `/api/v1/app/filters/usage` | `api/v1/app/filters#usage` |
 | core | GET | `/api/v1/app/jobs` | `api/v1/app/jobs#index` |

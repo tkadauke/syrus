@@ -17817,6 +17817,7 @@ function credentialsPayload(
       id: 1,
       email_address: "operator@example.com",
       name: overrides.name ?? "Operator",
+      handle: "operator",
       first_name: null,
       last_name: null,
       profile_bio: null,

@@ -86,7 +86,7 @@ module ChatSearch
     chip = Filters::Registry.find(field.to_s, subject: :chat_message)
     op = params["#{field.to_s.delete_suffix('_id')}_op"].presence || "is"
     unless chip.operators.include?(op.to_sym)
-      render_error("bad_request", "#{field} operator is not supported.", status: :bad_request)
+      render_error("bad_request", I18n.t("api.filters.unsupported_operator", field: field), status: :bad_request)
       return scope.none
     end
     value = op.in?(%w[is_one_of is_none_of]) ? values : values.first

@@ -30,8 +30,14 @@ export type CoworkerModelOptions = {
 
 export const fetchCoworkers = () =>
   getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")
-export const fetchCoworker = (id: string) => getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
-export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
-export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
+export function fetchCoworker(id: string) {
+  return getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
+}
+export function createCoworker(form: FormData) {
+  return postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
+}
+export function createSideChat(id: number) {
+  return postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
+}
 export const testCoworkerRemote = (workspaceRepo: string) =>
   postJson<{ message: string }>("/api/v1/app/coworkers/test_remote", { workspace_repo: workspaceRepo })

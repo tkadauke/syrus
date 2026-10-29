@@ -33,6 +33,7 @@
     "activity": "Acta"
   },
   "detail": {
+    "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",
     "main_chat": "Colloquium principale",
     "account_default": "Praedefinitum rationis",

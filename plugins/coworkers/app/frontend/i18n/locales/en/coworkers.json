@@ -27,6 +27,7 @@
     "activity": "Activity"
   },
   "detail": {
+    "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",
     "main_chat": "Main chat",
     "account_default": "Account default",

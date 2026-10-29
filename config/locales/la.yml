@@ -493,6 +493,7 @@ la:
       unknown_provider: "Praebitor agentis ignotus est."
 
     filters:
+      unsupported_operator: "Operator campi %{field} non sustinetur."
       invalid_usage: "Petitio usus filtrorum invalida est."
       invalid_suggestions: "Petitio suggestionum filtrorum invalida est."
       unknown_field: "Campus filtri ignotus est."

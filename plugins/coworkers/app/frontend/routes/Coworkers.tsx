@@ -249,7 +249,7 @@ function CoworkerPage({ id }: { id: string }) {
             <dt>{t("fields.remote")}</dt>
             <dd>{coworker.workspace_repo}</dd>
           </dl>
-          <h2 className="font-semibold">SOUL.md</h2>
+          <h2 className="font-semibold">{t("detail.soul_heading")}</h2>
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
