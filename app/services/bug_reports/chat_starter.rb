@@ -4,7 +4,6 @@ module BugReports
   class ChatStarter
     include BugReports::ContextFormatter
 
-    CHAT_ATTACHMENT_MIME_TYPES = ChatMessageParams::CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.freeze
     INLINE_TEXT_MIME_TYPES = %w[
       text/plain
       text/markdown
@@ -94,15 +93,16 @@ module BugReports
       filename = upload.original_filename.presence || "attachment"
       content_type = upload.content_type.presence || "application/octet-stream"
 
-      if CHAT_ATTACHMENT_MIME_TYPES.include?(content_type)
-        if Base64.strict_encode64(body).bytesize > ChatMessageParams::CHAT_ATTACHMENT_MAX_BASE64_BYTES
+      policy = ChatAttachmentPolicy.check(filename: filename, mime_type: content_type)
+      if policy.accepted? && (!policy.text? || ChatAttachmentPolicy.valid_text?(body))
+        if body.bytesize > ChatMessageParams::CHAT_ATTACHMENT_MAX_BYTES
           inline_sections << omitted_attachment_section(filename, "larger than chat's inline attachment limit")
           return
         end
 
         chat_attachments << {
           "name" => filename,
-          "mime_type" => content_type,
+          "mime_type" => policy.mime_type,
           "data" => Base64.strict_encode64(body)
         }
         return

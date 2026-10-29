@@ -443,18 +443,17 @@ class ChatTurnJob < ApplicationJob
 
     attachments.each do |attachment|
       mime_type = attachment["mime_type"].to_s
-      path = attachments_dir.join("#{SecureRandom.uuid}#{ext_for(mime_type)}")
-      File.binwrite(path, Base64.decode64(attachment["data"].to_s))
+      display_name = ChatAttachmentPolicy.sanitize_filename(attachment["name"].to_s.presence || "attachment#{ext_for(mime_type)}")
+      path = attachments_dir.join("#{SecureRandom.hex(6)}-#{display_name}")
+      File.binwrite(path, Base64.strict_decode64(attachment["data"].to_s))
+      attachment_notes << attachment_note(display_name, path)
 
-      if mime_type.start_with?("image/")
+      if %w[image/jpeg image/png image/gif image/webp].include?(mime_type)
         image_paths << path.to_s
-        attachment_notes << image_attachment_note(attachment, path)
       elsif mime_type == "application/pdf"
         file_flag_supported = self.class.claude_file_flag_supported? if file_flag_supported.nil?
         if file_flag_supported
           file_paths << path.to_s
-        else
-          attachment_notes << "[Attached PDF: #{attachment['name']}]\n"
         end
       end
     end
@@ -474,9 +473,8 @@ class ChatTurnJob < ApplicationJob
     content.to_s
   end
 
-  def image_attachment_note(attachment, path)
-    name = attachment["name"].to_s.presence || path.basename.to_s
-    "[Attached image: #{name} saved at #{path}. Use the Read tool to inspect it.]\n"
+  def attachment_note(name, path)
+    "[Attached file: #{name} saved at #{path}. Use your normal file-reading tools to inspect it.]\n"
   end
 
   def ext_for(mime_type)

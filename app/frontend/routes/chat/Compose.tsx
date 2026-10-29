@@ -112,7 +112,8 @@ import {
   CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT,
   type ChatQueryKey,
   CHAT_ATTACHMENT_ACCEPT,
-  CHAT_ATTACHMENT_ALLOWED_MIME_TYPES,
+  chatAttachmentTypeAllowed,
+  isChatRasterImage,
   CHAT_ATTACHMENT_MAX_BYTES,
   CHAT_ATTACHMENT_TOTAL_MAX_BYTES,
   CHAT_COMPOSE_MAX_ROWS,
@@ -488,7 +489,7 @@ export function Compose({
       submittedDraftRef.current = null
       finishSubmittedDraft(draft, true)
       rememberSubmittedPrompt(draft.messageText)
-      onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => attachment.mimeType.startsWith("image/")) })
+      onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => isChatRasterImage(attachment.mimeType)) })
       mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       setPendingConfirmation(null)
@@ -704,7 +705,7 @@ export function Compose({
       return
     }
     if (walkthrough?.status === "ready") {
-      // A walkthrough and image/PDF attachments can't share one send: the
+      // A walkthrough and ordinary attachments can't share one send: the
       // video goes to Gemini, the attachments to the chat agent — silently
       // splitting them (and leaking the images to the next message) is the
       // review finding. Block explicitly instead.
@@ -1134,7 +1135,7 @@ export function Compose({
   }
 
   function attachmentValidationMessage(nextAttachments: ChatComposeAttachment[]) {
-    const unsupported = nextAttachments.find((attachment) => !CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.includes(attachment.mimeType))
+    const unsupported = nextAttachments.find((attachment) => !chatAttachmentTypeAllowed(attachment.name, attachment.mimeType))
     if (unsupported) {
       return t("attachment_unsupported_type", { name: unsupported.name })
     }
@@ -2061,7 +2062,7 @@ export function Compose({
                   className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                   key={`${attachment.name}-${index}`}
                 >
-                  {attachment.mimeType.startsWith("image/") ? (
+                  {isChatRasterImage(attachment.mimeType) ? (
                     <>
                       <button
                         aria-label={t("aria_annotate_attachment", { name: attachment.name })}
@@ -3704,7 +3705,7 @@ function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessa
   const { t } = useT("chat")
   if (!attachments || attachments.length === 0) return null
 
-  const imageCount = attachments.filter((attachment) => attachment.mime_type.startsWith("image/")).length
+  const imageCount = attachments.filter((attachment) => isChatRasterImage(attachment.mime_type)).length
   const label = imageCount === attachments.length ? t("image_count", { count: attachments.length }) : t("attachment_count", { count: attachments.length })
 
   return (

@@ -4059,7 +4059,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       pid: 12345,
       started_at: Time.current
     )
-    attachment = { name: "shot.png", mime_type: "image/png", data: "abc123" }
+    attachment = { name: "shot.png", mime_type: "image/png", data: Base64.strict_encode64("image-bytes") }
 
     post "/api/v1/app/chats/#{chat.id}/queued_messages", params: { chat_message: { text: "", attachments: [ attachment ] } }
 
@@ -4135,7 +4135,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates attachment-only scratchpad items and preserves attachments on text-only edits" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
-    attachment = { name: "diagram.png", mime_type: "image/png", data: "abc123" }
+    attachment = { name: "diagram.png", mime_type: "image/png", data: Base64.strict_encode64("image-bytes") }
 
     post "/api/v1/app/chats/#{chat.id}/scratchpad_items", params: { scratchpad_item: { content: "", attachments: [ attachment ] } }
 
@@ -7312,7 +7312,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
   end
 
-  it "returns a validation error for disallowed chat message attachment MIME types" do
+  it "accepts recognized text attachments with conservative browser MIME values" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+
+    attachments = [
+      { name: "notes.md", mime_type: "text/plain", data: Base64.strict_encode64("# Notes\n") },
+      { name: "settings.yaml", mime_type: "application/octet-stream", data: Base64.strict_encode64("enabled: true\n") },
+      { name: "Dockerfile", mime_type: "text/plain", data: Base64.strict_encode64("FROM ruby:3.4\n") },
+      { name: "icon.svg", mime_type: "image/svg+xml", data: Base64.strict_encode64("<svg></svg>") }
+    ]
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Inspect these", attachments: attachments } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.messages.last.content.fetch("attachments").pluck("name")).to eq(%w[notes.md settings.yaml Dockerfile icon.svg])
+  end
+
+  it "returns a validation error for filenames outside the attachment allowlist" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
 
@@ -7320,31 +7337,80 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       post "/api/v1/app/chats/#{chat.id}/message", params: {
         chat_message: {
           text: "Inspect this file",
-          attachments: [ { name: "script.js", mime_type: "application/javascript", data: "alert(1)" } ]
+          attachments: [ { name: "program.exe", mime_type: "application/octet-stream", data: Base64.strict_encode64("binary") } ]
         }
       }
     }.not_to change(ChatMessage, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("script.js is not a supported type (images or PDF).")
+    expect(parse_body.dig("error", "message")).to eq("program.exe is not a supported attachment type.")
+  end
+
+  it "rejects malformed Base64 and non-UTF-8 text chat attachments" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: {
+      chat_message: { text: "Inspect", attachments: [ { name: "notes.txt", mime_type: "text/plain", data: "%%%" } ] }
+    }
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("malformed Base64")
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: {
+      chat_message: { text: "Inspect", attachments: [ { name: "notes.txt", mime_type: "text/plain", data: Base64.strict_encode64("bad\xFF".b) } ] }
+    }
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("not valid UTF-8 text")
+  end
+
+  it "rejects NUL-containing and traversal-style chat attachments" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: {
+      chat_message: { text: "Inspect", attachments: [ { name: "notes.txt", mime_type: "text/plain", data: Base64.strict_encode64("a\0b") } ] }
+    }
+    expect(response).to have_http_status(:unprocessable_content)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: {
+      chat_message: { text: "Inspect", attachments: [ { name: "../../notes.txt", mime_type: "text/plain", data: Base64.strict_encode64("safe") } ] }
+    }
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.messages.last.content.dig("attachments", 0, "name")).to eq("notes.txt")
   end
 
   it "returns a validation error for oversized chat message attachment data" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
-    stub_const("ChatMessageParams::CHAT_ATTACHMENT_MAX_BASE64_BYTES", 4)
+    stub_const("ChatMessageParams::CHAT_ATTACHMENT_MAX_BYTES", 4)
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/message", params: {
         chat_message: {
           text: "Inspect this image",
-          attachments: [ { name: "large.png", mime_type: "image/png", data: "abcde" } ]
+          attachments: [ { name: "large.png", mime_type: "image/png", data: Base64.strict_encode64("abcde") } ]
         }
       }
     }.not_to change(ChatMessage, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Attachment data must be 7 MB or smaller.")
+    expect(parse_body.dig("error", "message")).to eq("Each attachment must be 5 MB or smaller.")
+  end
+
+  it "enforces the decoded total attachment size" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+    stub_const("ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES", 5)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: {
+      chat_message: {
+        text: "Inspect",
+        attachments: %w[first second].map { |name| { name: "#{name}.txt", mime_type: "text/plain", data: Base64.strict_encode64("abc") } }
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Attachments must total 20 MB or less.")
   end
 
   it "keeps ordinary chat message content unchanged when attachments are omitted" do

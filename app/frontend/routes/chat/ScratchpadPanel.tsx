@@ -20,7 +20,7 @@ import { SendIcon } from "../../components/SendIcon"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { mergeChatPayloadUpdate } from "../../lib/chatCache"
-import { type ChatQueryKey } from "./constants"
+import { isChatRasterImage, type ChatQueryKey } from "./constants"
 import { appendSearch, errorAsError } from "./utils"
 import { PencilIcon } from "./icons"
 
@@ -415,7 +415,7 @@ function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessa
   const { t } = useT("chat")
   if (!attachments || attachments.length === 0) return null
 
-  const imageCount = attachments.filter((attachment) => attachment.mime_type.startsWith("image/")).length
+  const imageCount = attachments.filter((attachment) => isChatRasterImage(attachment.mime_type)).length
   const label = imageCount === attachments.length ? t("image_count", { count: attachments.length }) : t("attachment_count", { count: attachments.length })
 
   return (

@@ -1,4 +1,4 @@
-import chatAttachmentMimeTypes from "../../../../config/chat_attachment_mime_types.json"
+import chatAttachmentPolicy from "../../../../config/chat_attachment_policy.json"
 
 // Chat UI constants shared across Chat.tsx and its extracted helper/component
 // modules. Pure primitive values (thresholds, storage keys, size limits) —
@@ -71,9 +71,31 @@ export const CHAT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
 
 export const CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20 * 1024 * 1024
 
-export const CHAT_ATTACHMENT_ALLOWED_MIME_TYPES: readonly string[] = chatAttachmentMimeTypes
+const binaryExtensions = chatAttachmentPolicy.binary_extensions as Record<string, string[]>
+const textExtensions = chatAttachmentPolicy.text_extensions as string[]
+const textFilenames = chatAttachmentPolicy.text_filenames as string[]
+const textApplicationMimeTypes = chatAttachmentPolicy.text_application_mime_types as string[]
+const fallbackMimeTypes = chatAttachmentPolicy.fallback_mime_types as string[]
 
-export const CHAT_ATTACHMENT_ACCEPT = CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.join(",")
+export const CHAT_ATTACHMENT_ACCEPT = [...Object.keys(binaryExtensions), ...textExtensions].join(",")
+
+export const CHAT_RASTER_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const
+
+export function isChatRasterImage(mimeType: string) {
+  return (CHAT_RASTER_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType)
+}
+
+export function chatAttachmentTypeAllowed(name: string, suppliedMimeType: string) {
+  const basename = name.replaceAll("\\", "/").split("/").pop() || ""
+  const dot = basename.lastIndexOf(".")
+  const extension = dot > 0 ? basename.slice(dot).toLowerCase() : ""
+  const mimeType = suppliedMimeType.toLowerCase().split(";", 1)[0].trim()
+  const binaryMimeTypes = binaryExtensions[extension]
+  if (binaryMimeTypes) return binaryMimeTypes.includes(mimeType)
+
+  const recognizedText = textExtensions.includes(extension) || (!extension && textFilenames.includes(basename))
+  return recognizedText && (mimeType.startsWith("text/") || textApplicationMimeTypes.includes(mimeType) || fallbackMimeTypes.includes(mimeType))
+}
 
 export const WHITEBOARD_MAX_ELEMENTS = 1000
 
