@@ -1,6 +1,8 @@
 module AgentMemory
   module Tools
     module MemoryToolSupport
+      COWORKER_READ_SCOPES = %w[ global repository instance ].freeze
+
       private
 
       def memory_payload(memory)
@@ -36,7 +38,7 @@ module AgentMemory
                     .where(scope: "repository", scope_id: context.repository.id)
                     .where("agent_memory_entries.user_id = ? OR agent_memory_entries.published = ?", context.user.id, true)
         elsif context.role == AgentRole::COWORKER_CHAT
-          owned = AgentMemory::Entry.active.where(user_id: context.user.id)
+          owned = AgentMemory::Entry.active.where(user_id: context.user.id, scope: COWORKER_READ_SCOPES)
           published = AgentMemory::Entry.active.where.not(user_id: context.user.id)
                                          .where(scope: "repository", scope_id: memory_repository_ids(context), published: true)
           owned.or(published)
@@ -53,7 +55,10 @@ module AgentMemory
 
         memory = AgentMemory::Entry.active.find_by(id: id)
         return unless memory
-        return memory if memory.user_id == context.user.id
+        if memory.user_id == context.user.id
+          return memory unless context.role == AgentRole::COWORKER_CHAT
+          return memory if COWORKER_READ_SCOPES.include?(memory.scope)
+        end
 
         if context.chat?
           return memory if memory.repository? &&
