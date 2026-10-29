@@ -22,7 +22,8 @@ module Coworkers
              chat_prompt_injector: "Coworkers::PromptSection",
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
-             chat_payload_contributor: "Coworkers::PayloadContributor"
+             chat_payload_contributor: "Coworkers::PayloadContributor",
+             chat_mcp_tool_set: "Coworkers::ChatToolSet"
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :post, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#create"
     route :post, "/api/v1/app/coworkers/test_remote", to: "api/v1/app/coworkers#test_remote"
