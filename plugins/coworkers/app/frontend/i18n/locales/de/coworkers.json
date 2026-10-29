@@ -12,6 +12,7 @@
     "test_push": "Push-Zugriff testen",
     "push_ok": "Push-Zugriff bestätigt"
   },
+  "tool_card": { "title": "Vorgeschlagener Mitarbeiter", "summary": "Mitarbeiter @{{handle}} vorgeschlagen" },
   "fields": {
     "name": "Name",
     "handle": "Handle",
