@@ -32,14 +32,9 @@ module Api
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy
-          repository = workspace_repository(coworker)
           chat = ApplicationRecord.transaction do
-            # Phase 1 intentionally works directly from the coworker's home
-            # branch. Phase 3 replaces this with per-chat branches merged at
-            # turn end; keep side chats attached to the workspace Repository
-            # until that branch lifecycle exists.
             session = ChatSession.create!(
-              user: Current.user, repository: repository, title: coworker.name,
+              user: Current.user, repository: workspace_repository(coworker), title: coworker.name,
               **coworker.chat_configuration
             )
             Coworkers::Chat.create!(coworker: coworker, chat_session: session, role: "side")
