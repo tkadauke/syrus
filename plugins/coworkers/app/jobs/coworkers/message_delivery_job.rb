@@ -15,7 +15,8 @@ module Coworkers
       ApplicationRecord.transaction do
         sender_chat.messages.create!(
           role: "system",
-          content: message_content(direction: "outgoing", sender: sender, receiver: receiver, text: text, delivery_context: delivery_context)
+          content: message_content(direction: "outgoing", sender: sender, receiver: receiver, text: text, delivery_context: delivery_context),
+          skip_turn_trigger: true
         )
         receiver_chat.chat_queued_messages.create!(
           content: message_content(direction: "incoming", sender: sender, receiver: receiver, text: text, delivery_context: delivery_context).merge(

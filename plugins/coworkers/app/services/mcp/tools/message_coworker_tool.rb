@@ -36,6 +36,14 @@ module Mcp::Tools
         message_context = delivery_context(server_context[:current_message])
         return Mcp::Tools.invalid("coworker message chain reached its #{MAX_HOPS}-hop limit") if message_context.fetch("hop_count") > MAX_HOPS
 
+        rate_limit = Coworkers::MessageRateLimiter.reserve(sender: sender, receiver: receiver)
+        unless rate_limit.allowed?
+          return Mcp::Tools.invalid(
+            "coworker message rate limit reached for @#{sender.handle} and @#{receiver.handle}; " \
+            "try again in #{rate_limit.retry_after_seconds} seconds"
+          )
+        end
+
         delivery = Coworkers::MessageDeliveryJob.perform_later(sender.id, receiver.id, body, message_context)
         return Mcp::Tools.invalid("the coworker message could not be queued") unless delivery
 
