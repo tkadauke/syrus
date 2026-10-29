@@ -34,6 +34,11 @@ Configuration:
   `docker`.
 - `SYRUS_CONTAINER_EXECUTION_DOCKER_SOCKET`: Docker socket path to check when
   `DOCKER_HOST` is not set, default `/var/run/docker.sock`.
+- `SYRUS_CONTAINER_EXECUTION_DOCKER_NAMESPACE`: stable identity for the Docker
+  image store used by seed-image build locks. It defaults to the worker host
+  identity plus Docker transport, which prevents unrelated workers with local
+  daemons from blocking each other. Set the same explicit value on every worker
+  that connects to one shared remote daemon so they reuse one another's builds.
 - `SYRUS_CONTAINER_EXECUTION_HOST_PATHS`: comma-separated
   `worker_path=daemon_host_path` mappings. Every declared execution mount and
   MCP socket source must be covered. Use identity mappings only when the Docker
