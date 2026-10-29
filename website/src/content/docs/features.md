@@ -644,7 +644,10 @@ mention. Your own handle is editable under Profile; handles are public,
 instance-wide identifiers and should not contain sensitive information.
 Selecting an own coworker marked **Add to chat** adds it to the chat's agent
 roster before inserting the mention. Everyone participating in the chat can
-then address that coworker, while the chat owner can remove it from the roster.
+then address that coworker. An exact mention starts that coworker with the chat
+owner's settings, while a coworker outside the roster remains plain text and
+does not start a turn. Coworker turns in the same chat run one at a time. The
+chat owner can remove a coworker from the roster.
 
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
@@ -666,9 +669,10 @@ members may only remove themselves, which reads as "Leave" and takes them back
 out of the chat. The owner cannot be removed. The message list labels each
 human message with its sender's name so a multi-person transcript stays
 readable, and because the
-agent only replies to a group chat message that resolves the exact structured
-mention `@syrus`, the composer shows a lightweight reminder whenever more than
-one human is currently in the chat. Mentions of people are highlighted and send
+agent only replies to a group chat message that resolves an exact structured
+mention of `@syrus` or an agent on the chat roster, the composer shows a
+lightweight reminder whenever more than one human is currently in the chat.
+Mentions of people are highlighted and send
 the mentioned participant an in-app notification, but do not start an agent
 turn. Saved mentions follow the person's current handle after a rename. Platform-origin
 sessions, such as future
