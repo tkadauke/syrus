@@ -104,7 +104,11 @@ class PreparedWorkspaceArchive
         metadata: metadata.merge("sha256" => source.sha256),
         service_name: service.name
       )
-      @snapshot.prepared_workspace_archive.attach(blob)
+      unless @snapshot.attach_prepared_workspace_archive(blob)
+        log("another worker published an archive for snapshot ##{@snapshot.id} first; discarding this upload")
+        cleanup_partial_upload!(service, key)
+        return false
+      end
       log("uploaded prepared workspace archive for snapshot ##{@snapshot.id} " \
         "(#{source.bytes} bytes, #{self.class.pigz_available? ? "pigz" : "gzip"})")
       true

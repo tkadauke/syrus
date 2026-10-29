@@ -702,8 +702,11 @@ class ImmutableSourceCheckout
 
     reusable = WorkflowSourceSnapshot.reusable_prepared_archive_for(fingerprint)
     if reusable && !snapshot.prepared_workspace_archive.attached?
-      snapshot.prepared_workspace_archive.attach(reusable.blob)
-      log("[immutable_source_checkout] prepared archive already published for #{fingerprint.first(12)}; reusing it instead of uploading")
+      if snapshot.attach_prepared_workspace_archive(reusable.blob)
+        log("[immutable_source_checkout] prepared archive already published for #{fingerprint.first(12)}; reusing it instead of uploading")
+      else
+        log("[immutable_source_checkout] prepared archive for #{fingerprint.first(12)} was attached concurrently by another worker")
+      end
       return
     end
 

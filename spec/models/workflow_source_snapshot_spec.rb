@@ -18,6 +18,65 @@ RSpec.describe WorkflowSourceSnapshot, :ci_only do
     expect(snapshot.errors[:base]).to include("tree_sha or fingerprint must be present")
   end
 
+  describe "#attach_prepared_workspace_archive" do
+    def snapshot_for(source_sha:, fingerprint: nil)
+      described_class.create!(
+        workflow: workflow,
+        creator_step: step,
+        source_sha: source_sha,
+        source_ref: "refs/heads/syrus/source-snapshots/#{source_sha}",
+        tree_sha: "tree-#{source_sha}",
+        prepare_fingerprint: fingerprint,
+        published_at: Time.current
+      )
+    end
+
+    def blob_for(data)
+      ActiveStorage::Blob.create_and_upload!(
+        io: StringIO.new(data),
+        filename: "prepared.tar.gz",
+        content_type: "application/gzip"
+      )
+    end
+
+    # Regression: grader fanout puts several graders on one snapshot across
+    # several workers. Each independently resolved the same reusable blob, saw
+    # the snapshot unattached, and attached it -- and the attachment
+    # uniqueness index rejected whichever insert landed second with
+    # RecordNotUnique. Production classified that as an unretryable
+    # application error and failed a Run that had done nothing wrong.
+    it "treats a concurrent attach of the same blob as success" do
+      snapshot = snapshot_for(source_sha: "abc123")
+      blob = blob_for("archive")
+
+      # The other worker resolved the same reusable blob and its INSERT landed
+      # first, so this one's insert hits the attachment uniqueness index. This
+      # is the exact production shape: same snapshot, same blob, two workers.
+      allow(snapshot.prepared_workspace_archive).to receive(:attach) do
+        ActiveStorage::Attachment.create!(record: snapshot, name: "prepared_workspace_archive", blob: blob)
+        raise ActiveRecord::RecordNotUnique,
+          "Mysql2::Error: Duplicate entry 'WorkflowSourceSnapshot-#{snapshot.id}-prepared_workspace_archive-#{blob.id}'"
+      end
+
+      expect { expect(snapshot.attach_prepared_workspace_archive(blob)).to be(true) }.not_to raise_error
+      expect(snapshot.reload.prepared_workspace_archive.blob.id).to eq(blob.id)
+    end
+
+    it "reports false rather than raising when a different blob wins the race" do
+      snapshot = snapshot_for(source_sha: "def456")
+      winner = blob_for("winner")
+      loser = blob_for("loser")
+
+      allow(snapshot.prepared_workspace_archive).to receive(:attach) do
+        ActiveStorage::Attachment.create!(record: snapshot, name: "prepared_workspace_archive", blob: winner)
+        raise ActiveRecord::RecordNotUnique, "Duplicate entry"
+      end
+
+      expect(snapshot.attach_prepared_workspace_archive(loser)).to be(false)
+      expect(snapshot.reload.prepared_workspace_archive.blob.id).to eq(winner.id)
+    end
+  end
+
   it "requires a creator step" do
     snapshot = described_class.new(
       workflow: workflow,

@@ -29,6 +29,33 @@ class WorkflowSourceSnapshot < ApplicationRecord
       &.prepared_workspace_archive
   end
 
+  # Attaches the prepared archive, tolerating a concurrent winner.
+  #
+  # Grader fanout puts several graders on one snapshot across several workers,
+  # and each of them independently resolves the same reusable blob, sees the
+  # snapshot unattached, and attaches it. The attachment uniqueness index then
+  # rejects whichever insert arrives second with RecordNotUnique, and a Run
+  # that had done nothing wrong died classified as an application error.
+  #
+  # Losing that race is success: the snapshot ends up with exactly the blob
+  # this caller wanted on it. Only a *different* blob winning is worth
+  # reporting, and the caller gets `false` for that rather than an exception,
+  # because publishing an archive is an optimization and must never be able to
+  # fail the work that triggered it.
+  def attach_prepared_workspace_archive(blob)
+    prepared_workspace_archive.attach(blob)
+    true
+  rescue ActiveRecord::RecordNotUnique
+    reload
+    attached = prepared_workspace_archive.attached? &&
+      prepared_workspace_archive.blob.id == blob.id
+    Rails.logger.info(
+      "[WorkflowSourceSnapshot] prepared archive attach race on ##{id}; " \
+        "#{attached ? "another worker attached the same blob" : "another blob won"}"
+    )
+    attached
+  end
+
   # One blob now backs every snapshot that shares a prepare fingerprint, so
   # purging it because *this* snapshot's workflow was cleaned up would delete
   # the archive the others still point at. Detach instead whenever the blob is
