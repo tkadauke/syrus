@@ -5,17 +5,42 @@ RSpec.describe Coworkers::MessageCoworkerTool do
   let(:repository) { Factories.repository(user: owner) }
   let(:sender) { Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url) }
   let(:chat) { ChatSession.create!(user: owner, repository: repository, title: "Maya") }
+  let(:current_message) { chat.messages.create!(role: "user", content: { "text" => "Start" }, skip_turn_trigger: true) }
 
   before { Coworkers::Chat.create!(coworker: sender, chat_session: chat, role: "main") }
 
   def call(handle)
-    described_class.call(server_context: { chat_session: chat }, handle: handle, text: "Hello")
+    described_class.call(server_context: { chat_session: chat, current_message: current_message }, handle: handle, text: "Hello")
   end
 
   it "queues a delivery to an active coworker owned by the same user" do
     receiver = Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin", workspace_repo: repository.remote_url)
 
-    expect { call("@rin") }.to have_enqueued_job(Coworkers::MessageDeliveryJob).with(sender.id, receiver.id, "Hello", { "origin_turn_id" => nil, "hop_count" => 1 })
+    expect { call("@rin") }.to have_enqueued_job(Coworkers::MessageDeliveryJob).with(
+      sender.id, receiver.id, "Hello", { "origin_turn_id" => current_message.id, "hop_count" => 1 }
+    )
+  end
+
+  it "refuses to queue without a persisted current turn" do
+    Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin", workspace_repo: repository.remote_url)
+
+    response = nil
+    expect {
+      response = described_class.call(server_context: { chat_session: chat }, handle: "rin", text: "Hello")
+    }.not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("require a persisted current turn")
+  end
+
+  it "refuses a sidecar context that has no anchored turn message" do
+    Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin", workspace_repo: repository.remote_url)
+    context = { chat_session: chat, current_message: Mcp::Tools::CurrentMessage.new(chat) }
+
+    response = described_class.call(server_context: context, handle: "rin", text: "Hello")
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("require a persisted current turn")
   end
 
   it "refuses a coworker message chain beyond the hop limit" do
@@ -52,7 +77,8 @@ RSpec.describe Coworkers::MessageCoworkerTool do
     expect(response).to be_error
     expect(response.content.first[:text]).to include("rate limit reached for @maya and @rin", "try again in 37 seconds")
     expect(chat.messages.last.content.fetch("coworker_message")).to include(
-      "status" => "rate_limited", "receiver_id" => receiver.id, "hop_count" => 1
+      "status" => "rate_limited", "receiver_id" => receiver.id,
+      "origin_turn_id" => current_message.id, "hop_count" => 1
     )
   end
 
@@ -60,7 +86,7 @@ RSpec.describe Coworkers::MessageCoworkerTool do
     rin, rin_chat = create_coworker_with_main_chat(name: "Rin", handle: "rin")
     allow(Coworkers::MessageRateLimiter).to receive(:reserve).and_return(allowed_rate_limit)
 
-    expect(deliver(from_chat: chat, to: rin)).not_to be_error
+    expect(deliver(from_chat: chat, to: rin, current_message: current_message)).not_to be_error
     first = rin_chat.messages.last
     expect(deliver(from_chat: rin_chat, to: sender, current_message: first)).not_to be_error
     second = chat.messages.last
@@ -72,6 +98,7 @@ RSpec.describe Coworkers::MessageCoworkerTool do
     response = deliver(from_chat: rin_chat, to: sender, current_message: third)
 
     expect([ first, second, third ].map { |message| message.content.dig("coworker_message", "hop_count") }).to eq([ 1, 2, 3 ])
+    expect([ first, second, third ].map { |message| message.content.dig("coworker_message", "origin_turn_id") }.uniq).to eq([ current_message.id ])
     expect(response).to be_error
     expect(response.content.first[:text]).to include("3-hop limit")
   end
@@ -81,7 +108,7 @@ RSpec.describe Coworkers::MessageCoworkerTool do
     sol, sol_chat = create_coworker_with_main_chat(name: "Sol", handle: "sol")
     allow(Coworkers::MessageRateLimiter).to receive(:reserve).and_return(allowed_rate_limit)
 
-    deliver(from_chat: chat, to: rin)
+    deliver(from_chat: chat, to: rin, current_message: current_message)
     first = rin_chat.messages.last
     deliver(from_chat: rin_chat, to: sol, current_message: first)
     second = sol_chat.messages.last
@@ -90,6 +117,7 @@ RSpec.describe Coworkers::MessageCoworkerTool do
     response = deliver(from_chat: chat, to: rin, current_message: third)
 
     expect([ first, second, third ].map { |message| message.content.dig("coworker_message", "hop_count") }).to eq([ 1, 2, 3 ])
+    expect([ first, second, third ].map { |message| message.content.dig("coworker_message", "origin_turn_id") }.uniq).to eq([ current_message.id ])
     expect(response).to be_error
   end
 
@@ -130,9 +158,9 @@ RSpec.describe Coworkers::MessageCoworkerTool do
 
     ActiveJob::Base.queue_adapter.enqueued_jobs.pop
     from = Coworkers::Chat.find_by!(chat_session: from_chat).coworker
-    incoming = current_message&.content.to_h.fetch("coworker_message", {})
+    incoming = current_message.content.to_h.fetch("coworker_message", {})
     context = {
-      "origin_turn_id" => incoming["origin_turn_id"] || current_message&.id,
+      "origin_turn_id" => incoming["origin_turn_id"] || current_message.id,
       "hop_count" => incoming.fetch("hop_count", 0).to_i + 1
     }
     Coworkers::MessageDeliveryJob.perform_now(from.id, to.id, "Continue", context)

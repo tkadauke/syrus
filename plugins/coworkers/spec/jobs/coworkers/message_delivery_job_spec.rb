@@ -38,7 +38,7 @@ RSpec.describe Coworkers::MessageDeliveryJob do
     active = receiver_chat.messages.create!(role: "user", content: { "text" => "Working" }, skip_turn_trigger: true)
     receiver_chat.update_columns(current_turn_message_id: active.id, turn_in_flight: true)
 
-    expect { described_class.perform_now(sender.id, receiver.id, "Wait your turn.") }
+    expect { described_class.perform_now(sender.id, receiver.id, "Wait your turn.", { "origin_turn_id" => active.id, "hop_count" => 1 }) }
       .not_to have_enqueued_job(ChatTurnJob)
 
     queued = receiver_chat.reload.queued_messages.last
@@ -49,6 +49,15 @@ RSpec.describe Coworkers::MessageDeliveryJob do
     )
     expect(queued.content.dig("coworker_message", "hop_count")).to eq(1)
     expect(receiver_chat.messages.map(&:extract_text_from_content)).not_to include(a_string_including("Wait your turn"))
+  end
+
+  it "drops malformed delivery contexts without writing either chat" do
+    sender, sender_chat = create_coworker(name: "Maya", handle: "maya")
+    receiver, receiver_chat = create_coworker(name: "Rin", handle: "rin")
+
+    expect {
+      described_class.perform_now(sender.id, receiver.id, "Untraceable.", { "origin_turn_id" => nil, "hop_count" => 1 })
+    }.not_to change { sender_chat.messages.count + receiver_chat.messages.count + receiver_chat.queued_messages.count }
   end
 
 
@@ -76,6 +85,6 @@ RSpec.describe Coworkers::MessageDeliveryJob do
       .with(hash_including(role: "system", skip_turn_trigger: true))
       .and_call_original
 
-    job.perform(sender.id, receiver.id, "Explicitly non-triggering.")
+    job.perform(sender.id, receiver.id, "Explicitly non-triggering.", { "origin_turn_id" => 42, "hop_count" => 1 })
   end
 end
