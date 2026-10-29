@@ -73,7 +73,7 @@ class Coworkers::ChatWorkspaceLifecycle
     Dir.mktmpdir("syrus-coworker-chat-") do |dir|
       clone_branch!(home_branch, dir)
       @git.run("switch", "-c", chat_branch, chdir: dir)
-      @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: dir, env: @env)
+      push!("HEAD:refs/heads/#{chat_branch}", chdir: dir)
     end
   rescue GitRunner::GitError
     # Another worker may have created the immutable chat ref concurrently.
@@ -89,7 +89,7 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def push_chat_branch!(path)
-    @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: path.to_s, env: @env)
+    push!("HEAD:refs/heads/#{chat_branch}", chdir: path.to_s)
   end
 
   def merge_into_home!
@@ -108,7 +108,7 @@ class Coworkers::ChatWorkspaceLifecycle
       merge = @git.capture("merge", "--no-edit", "origin/coworker-chat", chdir: dir, env: @env)
       return report_conflict!(dir, merge) unless merge.success?
 
-      @git.run("push", @remote_url, "HEAD:refs/heads/#{home_branch}", chdir: dir, env: @env)
+      push!("HEAD:refs/heads/#{home_branch}", chdir: dir)
       :merged
     rescue GitRunner::GitError => error
       raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
@@ -161,5 +161,10 @@ class Coworkers::ChatWorkspaceLifecycle
     # Never leave the authenticated transport URL in a checkout exposed to the
     # coworker's shell. Lifecycle operations pass it explicitly when needed.
     @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: destination)
+  end
+
+  def push!(*refspecs, chdir:)
+    Coworkers::PushGuard.new(coworker: @coworker).validate!(*refspecs)
+    @git.run("push", @remote_url, *refspecs, chdir: chdir, env: @env)
   end
 end

@@ -19,8 +19,8 @@ class Coworkers::RemoteWorkspace
       write(path, "access-check", "Syrus coworker workspace access check\n")
       commit!(path, Coworkers::GitIdentity.new(name: "Syrus", handle: "access-check"), "Test coworker workspace access")
       ref = "refs/heads/coworkers/access-check-#{SecureRandom.hex(8)}"
-      @git.run("push", authenticated_url, "HEAD:#{ref}", chdir: path)
-      @git.run("push", authenticated_url, ":#{ref}", chdir: path)
+      push!("HEAD:#{ref}", chdir: path)
+      push!(":#{ref}")
     end
   end
 
@@ -32,17 +32,32 @@ class Coworkers::RemoteWorkspace
         write(path, relative_path, content)
       end
       commit!(path, identity, "Create @#{identity.git_email.split('@').first}'s coworker home")
-      @git.run("push", authenticated_url, "HEAD:refs/heads/#{branch}", chdir: path)
+      push!("HEAD:refs/heads/#{branch}", chdir: path, home_branch: branch)
     end
   end
 
-  def delete!(branch)
-    @git.run("push", authenticated_url, ":refs/heads/#{branch}")
+  def copy!(from:, to:, coworker:)
+    raise ArgumentError, "coworker branch already exists: #{to}" if branch_exists?(to)
+
+    Dir.mktmpdir("syrus-coworker-move-") do |path|
+      @git.run("init", "--initial-branch=coworker-move", path)
+      @git.run("fetch", authenticated_url, "refs/heads/#{from}:refs/remotes/origin/coworker-home", chdir: path)
+      push!("refs/remotes/origin/coworker-home:refs/heads/#{to}", chdir: path, coworker: coworker, home_branch: to)
+    end
+  end
+
+  def delete!(branch, coworker: nil, home_branch: nil)
+    push!(":refs/heads/#{branch}", coworker: coworker, home_branch: home_branch || branch)
   end
 
   private
 
   def authenticated_url = repository.authenticated_url(user: @user)
+
+  def push!(*refspecs, chdir: nil, coworker: nil, home_branch: nil)
+    Coworkers::PushGuard.new(coworker: coworker, home_branch: home_branch).validate!(*refspecs)
+    @git.run("push", authenticated_url, *refspecs, chdir: chdir)
+  end
 
   def with_seed_checkout
     Dir.mktmpdir("syrus-coworker-") do |path|

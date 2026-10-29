@@ -17,6 +17,13 @@ The coworker's owner receives write membership when a shared registration is
 reused, so workspace Jobs remain authorized for every coworker owner.
 The remote's default branch is never modified.
 
+Changing a coworker's handle moves its home branch in the same operation. The
+operation refuses to start while that coworker has a chat turn or background
+run in flight, creates the new ref, updates the handle registry and coworker,
+then removes the old ref. A failure preserves the old handle and branch.
+Deleting a coworker moves the home branch to
+`coworkers/archived/<handle>-<date>` before freeing the handle for reuse.
+
 Coworker chats use a separate, deny-by-default MCP surface. Administrator
 ownership does not add administrator or repair tools. Every core tool on the
 surface names the coworker grant required to advertise it, and interactive
@@ -46,6 +53,10 @@ and file-disjoint changes merge automatically; append-oriented files under
 `memory/` use Git's union merge driver. A conflict keeps both refs and the
 conflicted local checkout intact and posts the affected file links into the
 chat. A missing local checkout is re-cloned from the canonical remote.
+All pushes made by this lifecycle are guarded to the `coworkers/` namespace;
+for an existing coworker, only its home branch and immutable-id chat branches
+are accepted. This guard keeps agents from straying and is not a security
+boundary against shell access with remote credentials.
 
 `SOUL.md`, `AGENTS.md`, and
 `USER.md`, today's and yesterday's daily memory, participant and sender people

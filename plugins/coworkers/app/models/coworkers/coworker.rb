@@ -26,7 +26,8 @@ class Coworkers::Coworker < ApplicationRecord
   validate :avatar_is_image
 
   before_validation :assign_default_color, if: -> { color_key.blank? && handle.present? }
-  before_update :rename_handle!, if: :will_save_change_to_handle?
+  around_update :move_home_branch_for_handle_change, if: :will_save_change_to_handle?
+  around_destroy :archive_home_branch
   after_create :claim_handle!
   after_destroy :release_handle!
 
@@ -53,8 +54,23 @@ class Coworkers::Coworker < ApplicationRecord
 
   def assign_default_color = self.color_key = Appearance::ColorPalette.default_key(handle)
   def claim_handle! = HandleRegistry.claim!(handle: handle, owner: self)
-  def rename_handle! = HandleRegistry.rename!(owner: self, handle: handle)
   def release_handle! = HandleRegistry.release!(owner: self)
+
+  def move_home_branch_for_handle_change
+    old_handle, new_handle = handle_change_to_be_saved
+    Coworkers::OperationLock.with(self) do
+      Coworkers::BranchLifecycle.new(self).rename!(old_handle: old_handle, new_handle: new_handle) do
+        HandleRegistry.rename!(owner: self, handle: new_handle)
+        yield
+      end
+    end
+  end
+
+  def archive_home_branch
+    Coworkers::OperationLock.with(self) do
+      Coworkers::BranchLifecycle.new(self).archive!(handle: handle) { yield }
+    end
+  end
 
   def avatar_is_image
     return unless avatar.attached?
