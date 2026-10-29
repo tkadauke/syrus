@@ -193,6 +193,24 @@ RSpec.describe ChatWorkspaceRelay do
         expect(res.code).to eq("200")
         expect(ChatWorkspace).to have_received(:file_content).with(anything, anything, "README.md", ref: sha)
       end
+
+      it "reads from a specifically attached repository when requested" do
+        workspace_repository = Factories.repository(user: user)
+        chat_session.chat_attachments.find_or_create_by!(attachable: workspace_repository)
+
+        res = get_relay("/workspace/file?session_id=#{chat_session.id}&path=SOUL.md&repository_id=#{repository.id}")
+
+        expect(res.code).to eq("200")
+        expect(ChatWorkspace).to have_received(:file_content).with(chat_session, repository, "SOUL.md", ref: nil)
+      end
+
+      it "rejects a repository that is not attached to the chat" do
+        unattached = Factories.repository(user: user)
+
+        res = get_relay("/workspace/file?session_id=#{chat_session.id}&path=SOUL.md&repository_id=#{unattached.id}")
+
+        expect(res.code).to eq("422")
+      end
     end
 
     describe "GET /workspace/commits" do

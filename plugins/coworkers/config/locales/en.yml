@@ -5,3 +5,7 @@ en:
       chat_group: "Coworkers"
       invalid_workspace_remote: "Workspace remote must be a GitHub repository URL."
       push_access_verified: "Push access verified."
+      workspace_conflict: |-
+        The coworker workspace has merge conflicts. Both versions remain on `%{branch}`. Resolve these files:
+
+        %{files}
