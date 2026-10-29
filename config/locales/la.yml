@@ -3,6 +3,15 @@ la:
     errors:
       invalid_request: "Petitio invalida est."
       unavailable: "Haec actio ad tempus praesto non est."
+      chat_attachments:
+        default_name: "Adiunctum"
+        must_be_array: "Adiuncta series esse debent."
+        must_be_objects: "Adiuncta obiecta esse debent."
+        unsupported_type: "%{name} genus adiuncti sustentatum non est."
+        malformed_base64: "%{name} data Base64 vitiosa continet."
+        file_too_large: "Unumquodque adiunctum non maius quam 5 MB esse debet."
+        invalid_utf8: "%{name} textus UTF-8 validus non est."
+        total_too_large: "Adiuncta simul non maiora quam 20 MB esse debent."
     mcp:
       bulk_confirmation:
         cleanup_workspaces: "%{count} spatia laboris workflow delere?"

@@ -33,7 +33,7 @@ module ChatMessageParams
 
   def sanitized_attachments(attachments)
     unless attachments.is_a?(Array)
-      render_error("validation_failed", "Attachments must be an array.", status: :unprocessable_content)
+      render_error("validation_failed", I18n.t("server.errors.chat_attachments.must_be_array"), status: :unprocessable_content)
       return
     end
 
@@ -41,7 +41,7 @@ module ChatMessageParams
     sanitized = attachments.map do |attachment|
       attributes = attachment.respond_to?(:to_unsafe_h) ? attachment.to_unsafe_h : attachment
       unless attributes.respond_to?(:[])
-        render_error("validation_failed", "Attachments must be objects.", status: :unprocessable_content)
+        render_error("validation_failed", I18n.t("server.errors.chat_attachments.must_be_objects"), status: :unprocessable_content)
         return
       end
 
@@ -50,25 +50,26 @@ module ChatMessageParams
       data = (attributes["data"] || attributes[:data]).to_s
 
       policy = ChatAttachmentPolicy.check(filename: name, mime_type: mime_type)
+      display_name = name.to_s.presence || I18n.t("server.errors.chat_attachments.default_name")
       unless policy.accepted?
-        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} is not a supported attachment type.", status: :unprocessable_content)
+        render_error("validation_failed", I18n.t("server.errors.chat_attachments.unsupported_type", name: display_name), status: :unprocessable_content)
         return
       end
 
       begin
         decoded = Base64.strict_decode64(data)
       rescue ArgumentError
-        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} contains malformed Base64 data.", status: :unprocessable_content)
+        render_error("validation_failed", I18n.t("server.errors.chat_attachments.malformed_base64", name: display_name), status: :unprocessable_content)
         return
       end
 
       if decoded.bytesize > CHAT_ATTACHMENT_MAX_BYTES
-        render_error("validation_failed", "Each attachment must be 5 MB or smaller.", status: :unprocessable_content)
+        render_error("validation_failed", I18n.t("server.errors.chat_attachments.file_too_large"), status: :unprocessable_content)
         return
       end
 
       if policy.text? && !ChatAttachmentPolicy.valid_text?(decoded)
-        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} is not valid UTF-8 text.", status: :unprocessable_content)
+        render_error("validation_failed", I18n.t("server.errors.chat_attachments.invalid_utf8", name: display_name), status: :unprocessable_content)
         return
       end
 
@@ -79,7 +80,7 @@ module ChatMessageParams
 
 
     if total_bytes > CHAT_ATTACHMENT_TOTAL_MAX_BYTES
-      render_error("validation_failed", "Attachments must total 20 MB or less.", status: :unprocessable_content)
+      render_error("validation_failed", I18n.t("server.errors.chat_attachments.total_too_large"), status: :unprocessable_content)
       return
     end
 
