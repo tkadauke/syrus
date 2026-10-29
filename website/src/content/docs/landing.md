@@ -30,9 +30,10 @@ run.
 
 The experimental early Epic dependency-execution feature changes when a
 same-repository dependent Epic may begin implementation, not when it may land.
-Its children remain outside the merge train until every upstream Epic has
-completed successfully. Syrus rechecks that strict boundary during dispatch
-and assembly so stale queue snapshots and restarts cannot bypass landing order.
+Its children may be approved while an upstream Epic is unfinished, but they
+remain outside the merge train until every upstream Epic has completed
+successfully. Syrus rechecks that strict boundary during dispatch and assembly
+so stale queue snapshots and restarts cannot bypass landing order.
 
 ## Epic Merge Trains
 

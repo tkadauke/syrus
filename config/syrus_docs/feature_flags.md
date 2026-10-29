@@ -222,11 +222,13 @@ unique tail Job with the normal `parent_job` and `JobDependency` topology. The
 initial Workflow records the selected parent branch, Job ID, and head SHA so
 the fork boundary remains inspectable if the upstream stack later moves.
 
-This is only an execution-readiness exception. `Epic#dependencies_done?`
-remains strict, so approval and landing still wait for the upstream Epic to
-finish successfully. Missing branch/head identity, cross-repository
-dependencies, multiple unfinished upstream Epics, and ambiguous or nonlinear
-Job graphs remain blocked. Disabling the flag restores strict admission.
+This relaxes execution readiness and approval timing. Downstream Jobs may be
+approved while the upstream Epic is unfinished, but `Epic#dependencies_done?`
+and merge-train dispatch and assembly remain strict, so landing still waits for
+the upstream Epic to finish successfully. Missing branch/head identity,
+cross-repository dependencies, multiple unfinished upstream Epics, and
+ambiguous or nonlinear Job graphs remain blocked. Disabling the flag restores
+strict admission.
 
 Stack rebases and Epic restacks treat these anchored Epics as one continuous
 stack. Starting at an upstream root traverses dependent Epics in order, while
