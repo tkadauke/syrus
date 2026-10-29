@@ -101,12 +101,14 @@ module Admin
       close_job_successfully
       complete_implement_step
       coworker_tool_call
+      create_coworker
       create_repo_document
       delegate_issue
       delete_design_doc
       delete_repo_document
       dismiss_insights
       emergency_land
+      escalate_coworker_grants
       fire_scheduled_task_now
       force_fail_job
       force_landing_recheck
