@@ -45,15 +45,34 @@ class Coworkers::WorkspaceBrowser
 
   def commits(home)
     base = @reader.resolve(@repository.default_branch)
-    @reader.history(base: base, head: home).commits.map do |commit|
+    history = @reader.history(base: base, head: home).commits
+    runs_by_sha = source_runs(history)
+    history.map do |commit|
       chat_id = commit.message[/\bchat (\d+)\b/i, 1]
+      run = runs_by_sha[commit.sha]
       {
         sha: commit.sha, message: commit.message, authored_at: commit.authored_at,
-        source: chat_id ? "chat" : "run", source_id: chat_id&.to_i
+        source: chat_id ? "chat" : run ? "run" : "unattributed",
+        source_id: chat_id&.to_i || run&.id
       }
     end
   rescue RepositoryContent::Error
     []
+  end
+
+  def source_runs(commits)
+    shas = commits.map(&:sha)
+    candidates = Run.joins(:job)
+      .where(user_id: @coworker.owner_user_id, jobs: { repository_id: @repository.id })
+      .where(head_sha: shas + shas.map { |sha| sha.first(12) })
+      .where.not(head_sha: [ nil, "" ])
+      .order(id: :desc)
+      .to_a
+
+    commits.to_h do |commit|
+      run = candidates.find { |candidate| commit.sha.start_with?(candidate.head_sha) }
+      [ commit.sha, run ]
+    end
   end
 
   def active_conflicts(home)
