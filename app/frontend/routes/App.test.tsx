@@ -17823,6 +17823,7 @@ function credentialsPayload(
       handle: "operator",
       first_name: null,
       last_name: null,
+      handle: "operator",
       profile_bio: null,
       profile_location: null,
       profile_company: null,
