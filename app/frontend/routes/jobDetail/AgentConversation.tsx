@@ -325,7 +325,7 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
           ) : null}
           {transcript.data ? (
             transcript.data.logs && transcript.data.logs.length > 0 ? (
-              <RunTranscriptLogs fillHeight logs={transcript.data.logs} />
+              <RunTranscriptLogs agentic fillHeight logs={transcript.data.logs} />
             ) : (
               <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
             )
