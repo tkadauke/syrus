@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 import type { ChatToolGroupCall, ChatToolGroupItem } from "@app/api/chats"
 import { FilterBar, type FilterSchemaField } from "@app/components/FilterBar"
@@ -119,6 +119,14 @@ export function AdminToolCards() {
   usePageTitle(t("tool_cards.heading"))
   const location = useLocation()
   const search = location.search
+  const [browserWidth, setBrowserWidth] = useState(() => window.innerWidth)
+
+  useEffect(() => {
+    const updateBrowserWidth = () => setBrowserWidth(window.innerWidth)
+    window.addEventListener("resize", updateBrowserWidth)
+    updateBrowserWidth()
+    return () => window.removeEventListener("resize", updateBrowserWidth)
+  }, [])
 
   const allEntries = useMemo(() => allToolPresentationEntries(), [])
 
@@ -168,7 +176,7 @@ export function AdminToolCards() {
 
   const filters = useMemo(() => catalogFiltersFromSearch(FILTER_FIELDS, search), [search])
   const filterTree = useMemo(() => catalogFilterTreeFromSearch(FILTER_FIELDS, TEXT_FILTER_FIELDS, search), [search])
-  const selectedViewport = useMemo(() => viewportPresetFromSearch(search, window.innerWidth), [search])
+  const selectedViewport = useMemo(() => viewportPresetFromSearch(search, browserWidth), [search, browserWidth])
 
   const filteredEntries = useMemo(
     () => allEntries.filter((entry) => matchesFilters(entry, filters)).sort((left, right) => left.toolName.localeCompare(right.toolName)),
