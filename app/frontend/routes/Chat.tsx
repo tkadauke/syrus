@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { defaultRangeExtractor, observeElementRect, useVirtualizer } from "@tanstack/react-virtual"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import type { Step } from "react-joyride"
 import type {
@@ -171,7 +172,9 @@ import {
   replaceProposalInMessages
 } from "./chat/messageStreamItems"
 import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEvents"
-import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
+import { buildMessageStreamItems, createChatRenderCache, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
+import type { ChatStreamItem } from "./chat/streamTypes"
+import { useMarkedRender } from "../lib/performanceMarkers"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
 import {
@@ -376,7 +379,8 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
 }
 
 function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
-  const items = useMemo(() => renderChatMessages(payload.messages), [payload.messages])
+  const renderCache = useRef(createChatRenderCache())
+  const items = useMemo(() => renderChatMessages(payload.messages, renderCache.current), [payload.messages])
   const placeholderPayload = useMemo(() => sharedChatRenderPayload(payload), [payload])
   const pendingActionIds = useMemo(() => new Set<number>(), [])
   const { t } = useT("chat")
@@ -632,6 +636,119 @@ function toolGroupReferencesMedia(group: ChatToolGroupItem): boolean {
   })
 }
 
+function chatRenderMarkerMetadata(messages: ChatMessageItem[], renderedRows: number, streaming: boolean, loadingOlder: boolean) {
+  let totalCharacters = 0
+  let largestMessageSize = 0
+  let largestResultSize = 0
+
+  for (const message of messages) {
+    const messageSize = message.text?.length || 0
+    totalCharacters += messageSize
+    largestMessageSize = Math.max(largestMessageSize, messageSize)
+    if (message.role !== "tool_result") continue
+    const record =
+      message.content && typeof message.content === "object" && !Array.isArray(message.content) ? (message.content as Record<string, unknown>) : null
+    const result = record?.content ?? record?.result
+    const resultSize = typeof result === "string" ? result.length : 0
+    totalCharacters += resultSize
+    largestResultSize = Math.max(largestResultSize, resultSize)
+  }
+
+  return {
+    loaded_message_count: messages.length,
+    total_character_count: totalCharacters,
+    largest_message_size: largestMessageSize,
+    largest_result_size: largestResultSize,
+    rendered_row_count: renderedRows,
+    streaming,
+    loading_older: loadingOlder
+  }
+}
+
+function transcriptItemContainsMessage(item: ChatStreamItem, messageId: number) {
+  if (item.type === "message") return item.id === messageId
+  if (item.type === "tool_group") return item.calls.some((call) => call.message_id === messageId)
+  return false
+}
+
+function interactiveTranscriptRange(range: Parameters<typeof defaultRangeExtractor>[0]) {
+  const indexes = new Set(defaultRangeExtractor(range))
+  const activeRow = document.activeElement?.closest<HTMLElement>("[data-virtual-chat-index]")
+  const selectedRow = window.getSelection()?.anchorNode?.parentElement?.closest<HTMLElement>("[data-virtual-chat-index]")
+  const expandedRows = [...document.querySelectorAll<HTMLElement>("[data-virtual-chat-index] details[open], [data-virtual-chat-index] [aria-expanded='true']")]
+    .map((element) => element.closest<HTMLElement>("[data-virtual-chat-index]"))
+    .filter((row): row is HTMLElement => row != null)
+
+  // An expanded card owns state deeper than the transcript row (including
+  // plugin cards and nested tool groups). Retaining only those rows preserves
+  // that state across long scrolls without making every transcript row
+  // permanent. Focus and selection receive the same treatment.
+  for (const row of [activeRow, selectedRow, ...expandedRows]) {
+    const index = Number(row?.dataset.virtualChatIndex)
+    if (Number.isInteger(index) && index >= 0 && index < range.count) indexes.add(index)
+  }
+
+  return [...indexes].sort((left, right) => left - right)
+}
+
+function TranscriptRow({
+  entranceBaselineMessageId,
+  item,
+  onNotice,
+  onRetry,
+  onSelectWorkspaceTab,
+  payload,
+  pendingActionIds,
+  prefix,
+  queryKey,
+  retryTextMap,
+  retrying,
+  toolCardMedia
+}: {
+  entranceBaselineMessageId: number | null
+  item: ChatStreamItem
+  onNotice: (message: string | null) => void
+  onRetry: (text: string) => void
+  onSelectWorkspaceTab?: () => void
+  payload: ChatPayload
+  pendingActionIds: Set<number>
+  prefix: string
+  queryKey: ChatQueryKey
+  retryTextMap: Map<number, string>
+  retrying: boolean
+  toolCardMedia?: ChatMediaPayload
+}) {
+  if (item.type === "timestamp") return <MessageTimestamp fullDatetime={item.fullDatetime} time={item.time} />
+  if (item.type === "day_divider") return <DayDivider date={item.date} label={item.label} />
+  if (item.type === "pending_action")
+    return <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} queryKey={queryKey} onNotice={onNotice} />
+  if (item.type === "pending_action_group")
+    return <PendingActionGroupCard pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
+  if (item.type === "tool_group") {
+    return (
+      <SharedMessageRenderer compact>
+        <ToolGroup chatMedia={toolCardMedia} chatSessionId={payload.chat.id} item={item} payload={payload} />
+      </SharedMessageRenderer>
+    )
+  }
+
+  return (
+    <ChatMessage
+      animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageId)}
+      item={item}
+      payload={payload}
+      pendingActionIds={pendingActionIds}
+      prefix={prefix}
+      queryKey={queryKey}
+      retryText={retryTextMap.get(item.id) ?? null}
+      retrying={retrying}
+      onNotice={onNotice}
+      onRetry={onRetry}
+      onSelectWorkspaceTab={onSelectWorkspaceTab}
+    />
+  )
+}
+
 function MessageStream({
   bookmarkTarget,
   contextFindOpenerRef,
@@ -681,8 +798,9 @@ function MessageStream({
   const [findQuery, setFindQuery] = useState("")
   const [activeFindIndex, setActiveFindIndex] = useState(0)
   const lastAutoSelectedFindSignatureRef = useRef<string | null>(null)
+  const renderCacheRef = useRef(createChatRenderCache())
   const displayedMessages = useMemo(() => mergeChatMessages(olderMessages, payload.messages), [olderMessages, payload.messages])
-  const displayedItems = useMemo(() => renderChatMessages(displayedMessages), [displayedMessages])
+  const displayedItems = useMemo(() => renderChatMessages(displayedMessages, renderCacheRef.current), [displayedMessages])
   const agentQuestions = payload.agent_questions || []
   const hiddenSystemMessageCount = useMemo(() => displayedItems.filter(isLowPrioritySystemMessage).length, [displayedItems])
   const visibleItems = useMemo(
@@ -695,6 +813,37 @@ function MessageStream({
     () => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups)),
     [visibleItems, payload.pending_actions, pendingActionGroups]
   )
+  const estimateTranscriptRow = useCallback(
+    (index: number) => {
+      const item = streamItems[index]
+      if (!item) return 160
+      if (item.type === "timestamp" || item.type === "day_divider") return 36
+      if (item.type === "pending_action") return 180
+      if (item.type === "pending_action_group") return 220
+      if (item.type === "tool_group") return 128
+
+      // Text length is a deliberately conservative first estimate. Exact
+      // heights are recorded by ResizeObserver after mount; a useful estimate
+      // avoids a large correction (and visible scroll jump) for very long rows.
+      return Math.min(900, 96 + Math.ceil(item.text.length / 90) * 24)
+    },
+    [streamItems]
+  )
+  const transcriptVirtualizer = useVirtualizer({
+    count: streamItems.length,
+    estimateSize: estimateTranscriptRow,
+    getItemKey: (index) => renderItemKey(streamItems[index]),
+    getScrollElement: () => streamRef.current,
+    initialRect: { width: 1200, height: 800 },
+    // A zero rect is possible while a browser is laying out a newly mounted
+    // or hidden chat (and in headless DOMs). Keep the estimate until the next
+    // ResizeObserver delivery instead of collapsing the row and oscillating.
+    measureElement: (element) => element.getBoundingClientRect().height || estimateTranscriptRow(Number(element.getAttribute("data-index"))),
+    observeElementRect: (instance, callback) => observeElementRect(instance, (rect) => callback({ width: rect.width || 1200, height: rect.height || 800 })),
+    overscan: 6,
+    rangeExtractor: interactiveTranscriptRange
+  })
+  const virtualRows = transcriptVirtualizer.getVirtualItems()
   const toolCardMedia = useQuery({
     queryKey: ["chat_media", String(payload.chat.id)],
     queryFn: () => fetchChatMedia(payload.chat.id),
@@ -713,6 +862,25 @@ function MessageStream({
       setOlderMessages((current) => mergeChatMessages(page.messages, current))
       setHasMoreOlder(page.has_more_older)
     }
+  })
+  const renderMarkerMetadata = useMemo(
+    () => chatRenderMarkerMetadata(displayedMessages, virtualRows.length, agentActive, loadOlder.isPending),
+    [agentActive, displayedMessages, loadOlder.isPending, virtualRows.length]
+  )
+  useMarkedRender("chat.transcript.render_commit", {
+    deps: [visibleItemsSignature, agentActive, loadOlder.isPending],
+    metadata: renderMarkerMetadata,
+    thresholdMs: 16,
+    sampleRate: 0.2,
+    maxPerSession: 20
+  })
+  useMarkedRender("chat.transcript.render_paint", {
+    deps: [visibleItemsSignature, agentActive, loadOlder.isPending],
+    metadata: renderMarkerMetadata,
+    phase: "paint",
+    thresholdMs: 32,
+    sampleRate: 0.1,
+    maxPerSession: 10
   })
   const findSearch = useMemo(() => {
     const params = new URLSearchParams({ chat_session_id: String(payload.chat.id), q: findQuery })
@@ -770,6 +938,7 @@ function MessageStream({
     },
     onError: (error) => onNotice(errorMessage(error, t("retry_failed")))
   })
+  const retryMessage = useCallback((text: string) => retryTurn.mutate(text), [retryTurn.mutate])
 
   const retryScheduledTurn = useMutation({
     mutationFn: () => {
@@ -1008,6 +1177,13 @@ function MessageStream({
     preserveScrollAfterOlderLoadRef.current = null
   }, [visibleItemsSignature])
 
+  // Content can change height without changing the item count: streaming
+  // text, highlighted code, media loads, pending-action transitions, tool
+  // expansion, and responsive reflow all pass through this measurement.
+  useLayoutEffect(() => {
+    transcriptVirtualizer.measure()
+  }, [transcriptVirtualizer, visibleItemsSignature, toolCardMedia.data, isDesktop])
+
   useEffect(() => {
     const stream = streamRef.current
     if (!stream || !messageStreamNeedsOlderMessages(stream)) return
@@ -1036,6 +1212,17 @@ function MessageStream({
     const stream = streamRef.current
     if (!stream) return
 
+    const targetIndex = streamItems.findIndex((item) => transcriptItemContainsMessage(item, activeBookmarkTarget.messageId))
+    if (targetIndex >= 0 && !findChatMessageAnchor(stream, activeBookmarkTarget.messageId)) {
+      // The keyed measurement map can still be empty when a hash/search target
+      // first arrives. Fall back to row estimates instead of resolving an
+      // off-screen index to offset 0; once mounted, scrollIntoView aligns it.
+      const measuredOffset = transcriptVirtualizer.getOffsetForIndex(targetIndex, "start")?.[0] ?? 0
+      const estimatedOffset = streamItems.slice(0, targetIndex).reduce((offset, _item, index) => offset + estimateTranscriptRow(index), 0)
+      transcriptVirtualizer.scrollToOffset(measuredOffset > 0 ? measuredOffset : estimatedOffset, { align: "start" })
+      return
+    }
+
     const target = findChatMessageAnchor(stream, activeBookmarkTarget.messageId)
     if (target) {
       scrollChatMessageIntoView(target)
@@ -1052,7 +1239,18 @@ function MessageStream({
 
     bookmarkLoadBeforeRef.current = oldestId
     loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
-  }, [activeBookmarkTarget, hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path, visibleItemsSignature])
+  }, [
+    activeBookmarkTarget,
+    hasMoreOlder,
+    loadOlder,
+    oldestId,
+    payload.chat.id,
+    payload.paths.app_messages_path,
+    estimateTranscriptRow,
+    streamItems,
+    transcriptVirtualizer,
+    virtualRows
+  ])
 
   if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
@@ -1136,36 +1334,37 @@ function MessageStream({
           {hiddenSystemMessageCount > 0 ? (
             <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
           ) : null}
-          {streamItems.map((item) =>
-            item.type === "timestamp" ? (
-              <MessageTimestamp fullDatetime={item.fullDatetime} key={renderItemKey(item)} time={item.time} />
-            ) : item.type === "day_divider" ? (
-              <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
-            ) : item.type === "pending_action" ? (
-              <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
-            ) : item.type === "pending_action_group" ? (
-              <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
-            ) : item.type === "tool_group" ? (
-              <SharedMessageRenderer compact key={renderItemKey(item)}>
-                <ToolGroup chatMedia={toolCardMedia.data} chatSessionId={payload.chat.id} item={item} payload={payload} />
-              </SharedMessageRenderer>
-            ) : (
-              <ChatMessage
-                animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
-                item={item}
-                key={renderItemKey(item)}
-                payload={payload}
-                pendingActionIds={pendingActionIds}
-                prefix={prefix}
-                queryKey={queryKey}
-                retryText={retryTextMap.get(item.id) ?? null}
-                retrying={retryTurn.isPending}
-                onNotice={onNotice}
-                onRetry={(text) => retryTurn.mutate(text)}
-                onSelectWorkspaceTab={onSelectWorkspaceTab}
-              />
-            )
-          )}
+          <div className="relative w-full" data-testid="virtual-chat-transcript" style={{ height: transcriptVirtualizer.getTotalSize() }}>
+            {virtualRows.map((virtualRow) => {
+              const item = streamItems[virtualRow.index]
+              return (
+                <div
+                  className="absolute left-0 top-0 w-full pb-4"
+                  data-index={virtualRow.index}
+                  data-virtual-chat-index={virtualRow.index}
+                  data-testid="virtual-chat-row"
+                  key={virtualRow.key}
+                  ref={transcriptVirtualizer.measureElement}
+                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  <TranscriptRow
+                    entranceBaselineMessageId={entranceBaselineMessageIdRef.current}
+                    item={item}
+                    onNotice={onNotice}
+                    onRetry={retryMessage}
+                    onSelectWorkspaceTab={onSelectWorkspaceTab}
+                    payload={payload}
+                    pendingActionIds={pendingActionIds}
+                    prefix={prefix}
+                    queryKey={queryKey}
+                    retryTextMap={retryTextMap}
+                    retrying={retryTurn.isPending}
+                    toolCardMedia={toolCardMedia.data}
+                  />
+                </div>
+              )
+            })}
+          </div>
           {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
           <ChatTurnIndicator
             payload={payload}

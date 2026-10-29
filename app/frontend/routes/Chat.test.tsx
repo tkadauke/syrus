@@ -2530,6 +2530,138 @@ describe("chat temporal markers", () => {
   })
 })
 
+describe("chat transcript virtualization", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("keeps a multi-megabyte transcript's mounted DOM bounded", async () => {
+    const largeText = "A long transcript row. ".repeat(250)
+    const messages = Array.from({ length: 1_000 }, (_, index) => ({
+      type: "message",
+      id: index + 1,
+      role: index % 2 === 0 ? "assistant" : "user",
+      tool_name: null,
+      content: { text: `${index}: ${largeText}` },
+      text: `${index}: ${largeText}`,
+      bookmarkable: true
+    }))
+    mockChatPayload(chatPayload({ messages }))
+
+    renderRoute()
+
+    await screen.findByTestId("virtual-chat-transcript")
+    await waitFor(() => expect(screen.getAllByTestId("virtual-chat-row").length).toBeGreaterThan(0))
+    expect(screen.getAllByTestId("virtual-chat-row").length).toBeLessThan(30)
+    expect(document.querySelectorAll("[id^='message-']").length).toBeLessThan(30)
+  })
+
+  it("re-estimates streaming rows as their text grows", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const payload = chatPayload({ messages: [virtualMessage(1, "short")] })
+    mockChatPayload(payload)
+    renderChatRouteWithClient(queryClient)
+
+    const transcript = await screen.findByTestId("virtual-chat-transcript")
+    const initialHeight = Number.parseFloat(transcript.style.height)
+
+    await act(async () => {
+      queryClient.setQueryData(chatQueryKey("8", ""), {
+        ...payload,
+        messages: [virtualMessage(1, "streaming ".repeat(2_000))]
+      })
+    })
+
+    await waitFor(() => expect(Number.parseFloat(transcript.style.height)).toBeGreaterThan(initialHeight))
+  })
+
+  it("anchors the viewport when an older page is prepended", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/messages?before=11") {
+        return Promise.resolve(
+          jsonResponse({ has_more_older: false, messages: Array.from({ length: 10 }, (_, index) => virtualMessage(index + 1, `older ${index}`)) })
+        )
+      }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({ messages: Array.from({ length: 20 }, (_, index) => virtualMessage(index + 11, `newer ${index}`)) }, { has_more_older: true })
+        )
+      )
+    })
+    renderRoute()
+
+    const stream = await screen.findByTestId("chat-message-stream")
+    const transcript = screen.getByTestId("virtual-chat-transcript")
+    Object.defineProperty(stream, "scrollHeight", { configurable: true, get: () => Number.parseFloat(transcript.style.height) })
+    stream.scrollTop = 10
+    const initialHeight = stream.scrollHeight
+    fireEvent.scroll(stream)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/messages?before=11", expect.anything()))
+    await waitFor(() => expect(stream.scrollHeight).toBeGreaterThan(initialHeight))
+    expect(stream.scrollTop).toBe(stream.scrollHeight - initialHeight + 10)
+  })
+
+  it("uses measured variable row heights and remeasures expanded content", async () => {
+    const observers = installResizeObserverHarness()
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const row = this
+      const height = row.matches("[data-virtual-chat-index]") ? (row.querySelector("details[open]") ? 640 : 180) : 800
+      return domRect(height)
+    })
+    mockChatPayload(
+      chatPayload({ messages: [...virtualToolMessages(), ...Array.from({ length: 20 }, (_, index) => virtualMessage(index + 3, `row ${index}`))] })
+    )
+    renderRoute()
+
+    const transcript = await screen.findByTestId("virtual-chat-transcript")
+    await waitFor(() => expect(Number.parseFloat(transcript.style.height)).toBeGreaterThan(2_000))
+    const initialHeight = Number.parseFloat(transcript.style.height)
+    fireEvent.click(screen.getByText("Read"))
+    observers.notify()
+
+    await waitFor(() => expect(Number.parseFloat(transcript.style.height)).toBeGreaterThan(initialHeight + 300))
+  })
+
+  it("retains an expanded tool row while it is outside the visible window", async () => {
+    mockChatPayload(
+      chatPayload({ messages: [...virtualToolMessages(), ...Array.from({ length: 200 }, (_, index) => virtualMessage(index + 3, `row ${index}`))] })
+    )
+    renderRoute()
+
+    const summary = await screen.findByText("Read")
+    fireEvent.click(summary)
+    expect(summary.closest("details")).toHaveAttribute("open")
+
+    const stream = screen.getByTestId("chat-message-stream")
+    stream.scrollTop = 50_000
+    fireEvent.scroll(stream)
+
+    await waitFor(() => expect(screen.getByText("Read").closest("details")).toHaveAttribute("open"))
+    expect(screen.getAllByTestId("virtual-chat-row").length).toBeLessThan(30)
+  })
+
+  it("addresses an off-screen hash target through the virtualizer", async () => {
+    const scrollTo = vi.fn()
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.dataset.testid === "chat-message-stream" ? 24_000 : 0
+    })
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: scrollTo
+    })
+    mockChatPayload(chatPayload({ messages: Array.from({ length: 200 }, (_, index) => virtualMessage(index + 1, `row ${index}`)) }))
+
+    renderRoute("/app-shell/chats/8#message-180")
+
+    expect(document.getElementById("message-180")).toBeNull()
+    await waitFor(() => expect(scrollTo.mock.calls.some(([options]) => typeof options === "object" && Number(options.top) > 0)).toBe(true))
+  })
+})
+
 describe("proposal outcome system events", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -2702,12 +2834,14 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(jsonResponse({
-          bookmarks: [
-            { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
-            { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            bookmarks: [
+              { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
+              { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
+            ]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -2760,9 +2894,11 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(jsonResponse({
-          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -2817,9 +2953,11 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(jsonResponse({
-          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -6279,9 +6417,9 @@ describe("floating composer height tracking", () => {
     observedElements = []
 
     class StubResizeObserver {
-      private callback: () => void
+      private callback: ResizeObserverCallback
 
-      constructor(callback: () => void) {
+      constructor(callback: ResizeObserverCallback) {
         this.callback = callback
       }
 
@@ -6291,7 +6429,18 @@ describe("floating composer height tracking", () => {
         // same effect flush that called observe()) — mirror that here so
         // this doesn't race ChatColumn's own synchronous mount-time reset
         // effect the way a same-tick callback would.
-        void Promise.resolve().then(() => this.callback())
+        void Promise.resolve().then(() =>
+          this.callback(
+            [
+              {
+                target: element,
+                contentRect: element.getBoundingClientRect(),
+                borderBoxSize: [{ inlineSize: element.offsetWidth || 1200, blockSize: element.offsetHeight || 800 }]
+              } as unknown as ResizeObserverEntry
+            ],
+            this as unknown as ResizeObserver
+          )
+        )
       }
 
       unobserve() {}
@@ -7708,6 +7857,92 @@ function renderRoute(initialEntry = "/app-shell/chats/8") {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function renderChatRouteWithClient(queryClient: QueryClient, initialEntry = "/app-shell/chats/8") {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function virtualMessage(id: number, text: string) {
+  return { type: "message", id, role: "assistant", tool_name: null, content: { text }, text, bookmarkable: true }
+}
+
+function virtualToolMessages() {
+  return [
+    {
+      type: "message",
+      id: 1,
+      role: "tool_use",
+      tool_name: "Read",
+      content: { type: "tool_use", id: "virtual-tool", name: "Read", input: { file_path: "/large.rb" } },
+      text: "",
+      bookmarkable: false
+    },
+    {
+      type: "message",
+      id: 2,
+      role: "tool_result",
+      tool_name: "Read",
+      content: { type: "tool_result", tool_use_id: "virtual-tool", content: "large result", is_error: false },
+      text: "",
+      bookmarkable: false
+    }
+  ]
+}
+
+function domRect(height: number): DOMRect {
+  return { bottom: height, height, left: 0, right: 1200, top: 0, width: 1200, x: 0, y: 0, toJSON: () => ({}) }
+}
+
+function installResizeObserverHarness() {
+  const observers: Array<{ callback: ResizeObserverCallback; elements: Set<Element> }> = []
+
+  class TestResizeObserver {
+    callback: ResizeObserverCallback
+    elements = new Set<Element>()
+
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback
+      observers.push(this)
+    }
+
+    observe(element: Element) {
+      this.elements.add(element)
+    }
+
+    unobserve(element: Element) {
+      this.elements.delete(element)
+    }
+
+    disconnect() {
+      this.elements.clear()
+    }
+  }
+
+  vi.stubGlobal("ResizeObserver", TestResizeObserver)
+  return {
+    notify() {
+      for (const observer of observers) {
+        const entries = [...observer.elements].map((target) => {
+          const rect = target.getBoundingClientRect()
+          return {
+            target,
+            contentRect: rect,
+            borderBoxSize: [{ inlineSize: rect.width, blockSize: rect.height }]
+          } as unknown as ResizeObserverEntry
+        })
+        observer.callback(entries, observer as unknown as ResizeObserver)
+      }
+    }
+  }
 }
 
 function renderRouteWithMobileChromeContext(overrides: Partial<MobileChatHeaderControls> = {}) {

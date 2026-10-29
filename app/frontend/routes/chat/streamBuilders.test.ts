@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatRenderItem, ChatToolGroupItem } from "../../api/chats"
-import { buildMessageStreamItems, pendingActionCardData, renderChatMessages } from "./streamBuilders"
+import { buildMessageStreamItems, createChatRenderCache, pendingActionCardData, renderChatMessages } from "./streamBuilders"
+import * as performanceMarkers from "../../lib/performanceMarkers"
 
 function toolUse(id: number, overrides: Partial<ChatMessageItem> & { toolUseId: string; toolName: string; input?: Record<string, unknown> }): ChatMessageItem {
   const { toolUseId, toolName, input, ...rest } = overrides
@@ -165,6 +166,138 @@ describe("buildMessageStreamItems pending action groups", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("reuses an unchanged multi-megabyte result and its render row across tail updates", () => {
+    const cache = createChatRenderCache()
+    const largeResult = JSON.stringify({ body: "x".repeat(2_100_000) })
+    const messages = [
+      toolUse(1, { toolUseId: "tu_large", toolName: "read_artifact", entity_revision: 1 }),
+      toolResult(2, { toolUseId: "tu_large", content: largeResult, entity_revision: 1 })
+    ]
+    const first = renderChatMessages(messages, cache)
+    const firstGroup = group(first[0])
+    const firstParsed = firstGroup.calls[0].result_json
+
+    const second = renderChatMessages(
+      [
+        ...messages.map((message) => ({ ...message })),
+        { type: "message", id: 3, entity_revision: 1, role: "assistant", content: {}, text: "tail", bookmarkable: false } as ChatMessageItem
+      ],
+      cache
+    )
+
+    expect(second[0]).toBe(firstGroup)
+    expect(group(second[0]).calls[0].result_json).toBe(firstParsed)
+    expect(second[1]).toMatchObject({ id: 3, text: "tail" })
+  })
+
+  it("records sampled derivation cost with bounded numeric transcript metadata", () => {
+    const marker = vi.spyOn(performanceMarkers, "measureSync")
+    const result = "x".repeat(2_100_000)
+
+    renderChatMessages([toolUse(1, { toolUseId: "tu_marker", toolName: "read_artifact" }), toolResult(2, { toolUseId: "tu_marker", content: result })])
+
+    expect(marker).toHaveBeenCalledWith("chat.transcript.derive", expect.any(Function), {
+      metadata: {
+        loaded_message_count: 2,
+        total_character_count: result.length,
+        largest_message_size: 0,
+        largest_result_size: result.length
+      },
+      thresholdMs: 8,
+      sampleRate: 0.2,
+      maxPerSession: 20
+    })
+    marker.mockRestore()
+  })
+
+  it("invalidates a same-id message row whenever its entity revision changes", () => {
+    const cache = createChatRenderCache()
+    const original: ChatMessageItem = {
+      type: "message",
+      id: 30,
+      entity_revision: 1,
+      role: "user",
+      text: "same text",
+      bookmarkable: false,
+      pinnable: false,
+      created_at: "2026-01-01T00:00:00Z"
+    }
+    const first = renderChatMessages([original], cache)[0]
+    const changed: ChatMessageItem = {
+      ...original,
+      entity_revision: 2,
+      bookmarkable: true,
+      pinnable: true,
+      created_at: "2026-01-02T00:00:00Z",
+      video_walkthrough_id: 9,
+      chat_shell_command: { id: 4, command: "pwd", output: "/tmp", outcome: "succeeded", exit_status: 0, started_at: null, finished_at: null },
+      cross_chat_bridge: { thread_id: 5, direction: "inbound", counterpart_chat_session_id: 8, counterpart_chat_title: "Source" }
+    }
+
+    const second = renderChatMessages([changed], cache)[0]
+
+    expect(second).not.toBe(first)
+    expect(second).toMatchObject(changed)
+  })
+
+  it("invalidates association-backed state even when the message revision is unchanged", () => {
+    const cache = createChatRenderCache()
+    const original: ChatMessageItem = {
+      type: "message",
+      id: 31,
+      entity_revision: 4,
+      role: "assistant",
+      text: "action",
+      bookmarkable: true,
+      pending_action: {
+        id: 12,
+        action: "cancel_job",
+        state: "pending",
+        label: "Cancel job",
+        detail: null,
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    }
+    const first = renderChatMessages([original], cache)[0]
+    const changed: ChatMessageItem = {
+      ...original,
+      pending_action: { ...original.pending_action!, state: "confirmed" }
+    }
+
+    const second = renderChatMessages([changed], cache)[0]
+
+    expect(second).not.toBe(first)
+    expect(second).toMatchObject({ pending_action: { id: 12, state: "confirmed" } })
+  })
+
+  it("invalidates a same-id tool group when source or result state changes", () => {
+    const cache = createChatRenderCache()
+    const first = group(
+      renderChatMessages(
+        [
+          toolUse(40, { toolUseId: "tu_changed", toolName: "read_file", input: { path: "old.rb" }, entity_revision: 1 }),
+          toolResult(41, { toolUseId: "tu_changed", content: "same body", entity_revision: 1 })
+        ],
+        cache
+      )[0]
+    )
+
+    const second = group(
+      renderChatMessages(
+        [
+          toolUse(40, { toolUseId: "tu_changed", toolName: "read_file", input: { path: "new.rb" }, entity_revision: 2 }),
+          toolResult(41, { toolUseId: "tu_changed", content: "same body", isError: true, entity_revision: 2 })
+        ],
+        cache
+      )[0]
+    )
+
+    expect(second).not.toBe(first)
+    expect(second.calls[0]).toMatchObject({ detail: "new.rb", result_error: true, result_settled: true })
+    expect(second.outcome_label).toBe("Failed")
+  })
+
   it("provides normalized list-tags context to later tool cards", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_tags", toolName: "mcp__syrus__list_tags" }),

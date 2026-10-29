@@ -31,6 +31,7 @@ import {
   toolResultPresentation
 } from "./toolRendering"
 import { isReadOnlyToolName } from "../../toolPresentationRegistry"
+import { measureSync } from "../../lib/performanceMarkers"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -47,15 +48,50 @@ type OpenCall = {
   container: ChatRenderItem[]
 }
 
-export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
+type CachedToolResult = {
+  content: unknown
+  rawResult: unknown
+  unboundedBody: string
+  body: string
+  parsed: unknown
+}
+
+export type ChatRenderCache = {
+  results: Map<number, CachedToolResult>
+  previousItems: ChatRenderItem[]
+  previousRevisions: Map<string, string>
+}
+
+export function createChatRenderCache(): ChatRenderCache {
+  return { results: new Map(), previousItems: [], previousRevisions: new Map() }
+}
+
+const legacyMessageIdentities = new WeakMap<ChatMessageItem, number>()
+let nextLegacyMessageIdentity = 1
+
+export function renderChatMessages(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
+  const metadata = transcriptMetadata(messages)
+  return measureSync("chat.transcript.derive", () => renderChatMessagesUnmeasured(messages, cache), {
+    metadata,
+    thresholdMs: 8,
+    sampleRate: 0.2,
+    maxPerSession: 20
+  })
+}
+
+function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
   const containerByParentKey = new Map<string, ChatRenderItem[]>([[ROOT_KEY, items]])
   const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([[ROOT_KEY, null]])
   const openCallsByToolUseId = new Map<string, OpenCall>()
   const settledContextCalls: NonNullable<ChatToolGroupCall["context_calls"]> = []
   const priorResults = new Map<string, unknown>()
+  const messageRevisions = new Map<number, string>()
+  const callRevisionParts = new Map<number, string[]>()
 
   for (const message of messages) {
+    const messageRevision = sourceMessageRevision(message)
+    messageRevisions.set(message.id, messageRevision)
     if (groupableToolUse(message)) {
       const toolName = message.tool_name || ""
       const presentation = toolPresentation(toolName, contentInput(message.content))
@@ -87,6 +123,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         pending_action: message.pending_action ?? null,
         nested: []
       }
+      callRevisionParts.set(message.id, [messageRevision])
 
       const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
       let group: ChatToolGroupItem
@@ -121,11 +158,14 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
       }
 
       if (open && open.call.result_settled !== true) {
+        callRevisionParts.get(open.call.message_id)?.push(messageRevision)
         const content = contentRecord(message.content)
         const rawResult = content ? (content.content ?? content.result) : (message.content ?? message.text)
-        const unboundedBody = content ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
-        open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
-        const parsedResult = parsedToolResult(rawResult, unboundedBody)
+        const cached = cache?.results.get(message.id)
+        const derived = cached && cached.rawResult === rawResult ? cached : deriveToolResult(message.content, rawResult, Boolean(content))
+        cache?.results.set(message.id, derived)
+        const { unboundedBody, body, parsed: parsedResult } = derived
+        open.call.result_body = body
         open.call.result_json = parsedResult
         open.call.result_settled = true
         open.call.result_error = content?.is_error === true
@@ -167,7 +207,96 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
     }
   }
 
-  return pruneBenignDanglingToolGroups(items)
+  const pruned = pruneBenignDanglingToolGroups(items)
+  if (!cache) return pruned
+  const nextRevisions = new Map(pruned.map((item) => [renderIdentity(item), renderItemRevision(item, messageRevisions, callRevisionParts)]))
+  const reconciled = reconcileRenderItems(cache.previousItems, cache.previousRevisions, pruned, nextRevisions)
+  cache.previousItems = reconciled
+  cache.previousRevisions = nextRevisions
+  return reconciled
+}
+
+function deriveToolResult(content: unknown, rawResult: unknown, structured: boolean): CachedToolResult {
+  const unboundedBody = structured ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
+  return {
+    content,
+    rawResult,
+    unboundedBody,
+    body: structured ? fullResultBody(rawResult) : unboundedBody,
+    parsed: parsedToolResult(rawResult, unboundedBody)
+  }
+}
+
+function reconcileRenderItems(
+  previous: ChatRenderItem[],
+  previousRevisions: Map<string, string>,
+  next: ChatRenderItem[],
+  nextRevisions: Map<string, string>
+): ChatRenderItem[] {
+  const previousByKey = new Map(previous.map((item) => [renderIdentity(item), item]))
+  return next.map((item) => {
+    const identity = renderIdentity(item)
+    const prior = previousByKey.get(identity)
+    return prior && previousRevisions.get(identity) === nextRevisions.get(identity) ? prior : item
+  })
+}
+
+function renderIdentity(item: ChatRenderItem): string {
+  return item.type === "tool_group" ? `tool:${item.calls.map((call) => call.message_id).join(",")}` : `message:${item.id}`
+}
+
+function sourceMessageRevision(message: ChatMessageItem): string {
+  if (message.entity_revision != null) return `${message.id}:${message.entity_revision}:${dynamicMessageRevision(message)}`
+  let identity = legacyMessageIdentities.get(message)
+  if (identity == null) {
+    identity = nextLegacyMessageIdentity++
+    legacyMessageIdentities.set(message, identity)
+  }
+  return `${message.id}:legacy:${identity}`
+}
+
+// Some visible fields are hydrated from associated records rather than the
+// ChatMessage row itself, so the message's entity_revision does not move when
+// (for example) a pending action settles or shell-command output arrives.
+// Include those association-backed values in the revision without serializing
+// the potentially multi-megabyte message/tool-result content.
+function dynamicMessageRevision(message: ChatMessageItem): string {
+  return JSON.stringify([message.pending_action, message.proposal, message.chat_shell_command, message.cross_chat_bridge, message.sender_user])
+}
+
+function renderItemRevision(item: ChatRenderItem, messageRevisions: Map<number, string>, callRevisionParts: Map<number, string[]>): string {
+  if (item.type === "message") return messageRevisions.get(item.id) || `missing:${item.id}`
+  return item.calls.map((call) => callRevision(call, callRevisionParts)).join("|")
+}
+
+function callRevision(call: ChatToolGroupCall, callRevisionParts: Map<number, string[]>): string {
+  const own = callRevisionParts.get(call.message_id)?.join("+") || `missing:${call.message_id}`
+  const nested = (call.nested || []).flatMap((group) => group.calls.map((nestedCall) => callRevision(nestedCall, callRevisionParts))).join(",")
+  return nested ? `${own}[${nested}]` : own
+}
+
+function transcriptMetadata(messages: ChatMessageItem[]) {
+  let totalCharacters = 0
+  let largestMessage = 0
+  let largestResult = 0
+  for (const message of messages) {
+    const messageSize = message.text?.length || 0
+    totalCharacters += messageSize
+    largestMessage = Math.max(largestMessage, messageSize)
+    if (message.role === "tool_result") {
+      const content = contentRecord(message.content)
+      const result = content ? (content.content ?? content.result) : message.content
+      const size = typeof result === "string" ? result.length : 0
+      totalCharacters += size
+      largestResult = Math.max(largestResult, size)
+    }
+  }
+  return {
+    loaded_message_count: messages.length,
+    total_character_count: totalCharacters,
+    largest_message_size: largestMessage,
+    largest_result_size: largestResult
+  }
 }
 
 function updateToolGroupState(group: ChatToolGroupItem) {
