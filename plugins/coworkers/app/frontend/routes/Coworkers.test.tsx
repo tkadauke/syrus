@@ -321,6 +321,36 @@ it("warns when the workspace tree and selected file are truncated", async () => 
   expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
 })
 
+it("renders chat, run, and unavailable commit provenance honestly", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/workspace"))
+        return jsonResponse({
+          remote: "https://github.com/acme/workspace.git",
+          branch: "coworkers/maya",
+          files: [],
+          partial: false,
+          selected_file: null,
+          commits: [
+            { sha: "a".repeat(40), message: "Chat change", authored_at: null, source: "chat", source_id: 91 },
+            { sha: "b".repeat(40), message: "Run change", authored_at: null, source: "run", source_id: 42 },
+            { sha: "c".repeat(40), message: "Seed", authored_at: null, source: "unattributed", source_id: null }
+          ],
+          conflicts: []
+        })
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Workspace" }))
+
+  expect(await screen.findByText("Chat 91")).toBeInTheDocument()
+  expect(screen.getByText("Run 42")).toBeInTheDocument()
+  expect(screen.getByText("Source unavailable")).toBeInTheDocument()
+})
+
 it("renders Syrus without a workspace or main chat and links its fixed surfaces", async () => {
   const fetchSpy = vi.fn()
   vi.stubGlobal("fetch", fetchSpy)
