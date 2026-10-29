@@ -679,8 +679,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findAllByText("Inspect this branch")
-    const handledCards = document.querySelectorAll('[data-cognitive-review-note-state="handled"]')
-    expect(handledCards.length).toBeGreaterThan(0)
+    await waitFor(() => expect(document.querySelectorAll('[data-cognitive-review-note-state="handled"]').length).toBeGreaterThan(0))
     expect(screen.getAllByText("Acknowledged").length).toBeGreaterThan(0)
     expect(screen.getAllByText("1 acknowledged review note").length).toBeGreaterThan(0)
     expect(screen.queryByText("1 open review note")).not.toBeInTheDocument()
