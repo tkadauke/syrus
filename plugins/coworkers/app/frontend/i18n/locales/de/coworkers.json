@@ -19,7 +19,8 @@
     "grant_summary": "Fähigkeiten für @{{handle}} vorgeschlagen",
     "account_default": "Kontostandard",
     "not_provided": "Nicht angegeben",
-    "example_pending": "Ausstehender Mitarbeiter"
+    "example_pending": "Ausstehender Mitarbeiter",
+    "example_grant_pending": "Ausstehende Fähigkeitserweiterung"
   },
   "fields": {
     "name": "Name",
