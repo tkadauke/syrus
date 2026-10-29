@@ -19,6 +19,7 @@ import {
   browserTraceId,
   performanceLoggingEnabled,
   postBrowserTraces,
+  type BrowserTraceApiRequest,
   type BrowserTracePayload,
   type BrowserTraceSpan
 } from "./performanceTrace"
@@ -26,6 +27,7 @@ import {
 export type PerformanceMarkerMetadata = Record<string, string | number | boolean | null | undefined>
 
 export type PerformanceMarkerOptions = {
+  apiRequests?: BrowserTraceApiRequest[]
   // Test/story override, same convention as recordBrowserTrace: true/false
   // forces the decision; omitted defers to the live feature flag.
   enabled?: boolean
@@ -71,13 +73,22 @@ export function startMarker(name: string, options: PerformanceMarkerOptions = {}
   return { name, options, startedAt: performanceNow(), traceId: browserTraceId(markerPrefix(name)) }
 }
 
-export function endMarker(handle: PerformanceMarkerHandle, extra: { metadata?: PerformanceMarkerMetadata; spans?: BrowserTraceSpan[] } = {}): void {
+export function endMarker(
+  handle: PerformanceMarkerHandle,
+  extra: { apiRequests?: BrowserTraceApiRequest[]; metadata?: PerformanceMarkerMetadata; spans?: BrowserTraceSpan[] } = {}
+): void {
   const durationMs = roundMs(performanceNow() - handle.startedAt)
-  enqueueMarkerEvent(handle.name, durationMs, {
-    ...handle.options,
-    metadata: { ...handle.options.metadata, ...extra.metadata },
-    spans: extra.spans ?? handle.options.spans
-  }, handle.traceId)
+  enqueueMarkerEvent(
+    handle.name,
+    durationMs,
+    {
+      ...handle.options,
+      apiRequests: extra.apiRequests ?? handle.options.apiRequests,
+      metadata: { ...handle.options.metadata, ...extra.metadata },
+      spans: extra.spans ?? handle.options.spans
+    },
+    handle.traceId
+  )
 }
 
 // Measures a synchronous named span. Always runs `fn` and returns/throws
@@ -187,6 +198,7 @@ function enqueueMarkerEvent(name: string, durationMs: number | null, options: Pe
     duration_ms: durationMs ?? 0,
     visibility_state: markerVisibilityState(),
     metadata: compactMetadata(options.metadata),
+    api_requests: options.apiRequests,
     spans: options.spans
   })
   scheduleFlush()

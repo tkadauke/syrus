@@ -1,6 +1,7 @@
 import { createHighlighterCore, createCssVariablesTheme } from "@shikijs/core"
 import { createOnigurumaEngine } from "@shikijs/engine-oniguruma"
 import type { HighlighterCore, LanguageInput, ThemedToken } from "@shikijs/core"
+import { endMarker, startMarker } from "./performanceMarkers"
 
 // The languages the unified highlighter wires up. Each
 // id is a real Shiki grammar id (see @shikijs/langs) so it can be passed
@@ -193,14 +194,22 @@ const cssVariablesTheme = createCssVariablesTheme({
 })
 
 let highlighterPromise: Promise<HighlighterCore> | null = null
+const languagePromises = new Map<HighlighterLanguageId, Promise<void>>()
+const tokenizationPromises = new Map<string, Promise<ThemedToken[][]>>()
+const MAX_TOKENIZATION_CACHE_ENTRIES = 200
 
 function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
+    const marker = startMarker("diff_review.highlighter_initialize", { maxPerSession: 1 })
     highlighterPromise = createHighlighterCore({
-      themes: [ cssVariablesTheme ],
+      themes: [cssVariablesTheme],
       langs: [],
       engine: createOnigurumaEngine(() => import("@shikijs/engine-oniguruma/wasm-inlined"))
     })
+    highlighterPromise.then(
+      () => endMarker(marker),
+      () => endMarker(marker, { metadata: { error: true } })
+    )
   }
 
   return highlighterPromise
@@ -209,19 +218,65 @@ function getHighlighter(): Promise<HighlighterCore> {
 export async function loadLanguage(lang: HighlighterLanguageId): Promise<void> {
   const highlighter = await getHighlighter()
   if (highlighter.getLoadedLanguages().includes(lang)) return
-
-  await highlighter.loadLanguage(LANGUAGE_LOADERS[lang])
+  let promise = languagePromises.get(lang)
+  if (!promise) {
+    promise = highlighter.loadLanguage(LANGUAGE_LOADERS[lang]).finally(() => languagePromises.delete(lang))
+    languagePromises.set(lang, promise)
+  }
+  await promise
 }
 
 // Tokenizes the full code string (not an isolated diff hunk / line range) so
 // multi-line constructs like heredocs and template literals resolve
 // correctly via Shiki's grammar continuation state, then returns one token
 // array per line, suitable for rendering as <span>s.
-export async function tokenizeLines(code: string, lang: HighlighterLanguageId): Promise<ThemedToken[][]> {
-  await loadLanguage(lang)
-  const highlighter = await getHighlighter()
+export async function tokenizeLines(code: string, lang: HighlighterLanguageId, options: { performanceMarker?: string } = {}): Promise<ThemedToken[][]> {
+  const key = `${lang}\u0000${code}`
+  const existing = tokenizationPromises.get(key)
+  if (existing) return existing
 
-  return highlighter.codeToTokensBase(code, { lang, theme: HIGHLIGHTER_THEME_NAME })
+  const marker = options.performanceMarker ? startMarker(options.performanceMarker, { maxPerSession: 300 }) : null
+  const promise = (async () => {
+    await loadLanguage(lang)
+    const highlighter = await getHighlighter()
+    return highlighter.codeToTokensBase(code, { lang, theme: HIGHLIGHTER_THEME_NAME })
+  })()
+  tokenizationPromises.set(key, promise)
+  trimTokenizationCache()
+  promise.then(
+    (tokens) =>
+      marker &&
+      endMarker(marker, {
+        metadata: {
+          character_count: Math.min(code.length, 1_000_000),
+          language: lang,
+          line_count: Math.min(tokens.length, 100_000),
+          token_span_count: Math.min(
+            tokens.reduce((sum, line) => sum + line.length, 0),
+            1_000_000
+          )
+        }
+      }),
+    () => {
+      tokenizationPromises.delete(key)
+      if (marker) endMarker(marker, { metadata: { character_count: Math.min(code.length, 1_000_000), error: true, language: lang } })
+    }
+  )
+  return promise
+}
+
+function trimTokenizationCache() {
+  while (tokenizationPromises.size > MAX_TOKENIZATION_CACHE_ENTRIES) {
+    const oldest = tokenizationPromises.keys().next().value
+    if (oldest === undefined) return
+    tokenizationPromises.delete(oldest)
+  }
+}
+
+export function resetHighlighterCachesForTest() {
+  highlighterPromise = null
+  tokenizationPromises.clear()
+  languagePromises.clear()
 }
 
 const EXTENSION_LANGUAGE_MAP: Record<string, HighlighterLanguageId> = {

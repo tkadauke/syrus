@@ -106,6 +106,12 @@ module Api
           render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
         end
 
+        def activity
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          render json: Coworkers::Activity.new(coworker: coworker, user: Current.user).call
+        end
+
         def test_remote
           match = params.require(:workspace_repo).to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
           return render_error("validation_failed", I18n.t("api.coworkers.invalid_workspace_remote"), status: :unprocessable_content) unless match
@@ -144,10 +150,12 @@ module Api
         end
 
         def summary_json(coworker)
+          weekly_spend = Coworkers::Activity.new(coworker: coworker, user: Current.user).week_spend
           {
             id: coworker.id, name: coworker.name, handle: coworker.handle, role_summary: coworker.role_summary,
             state: coworker.state, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
-            avatar_url: coworker.avatar_url, path: "/coworkers/#{coworker.id}"
+            avatar_url: coworker.avatar_url, path: "/coworkers/#{coworker.id}",
+            weekly_spend_usd: weekly_spend
           }
         end
 
@@ -158,8 +166,26 @@ module Api
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
-            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy } }
+            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy } },
+            message_traffic: message_traffic_json(coworker)
           )
+        end
+
+        def message_traffic_json(coworker)
+          main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
+          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago).to_a : []
+          metadata = messages.filter_map { |message| message.content["coworker_message"] if message.content.is_a?(Hash) }
+          delivered = metadata.select { |entry| entry["status"].blank? }
+          events = messages.filter_map do |message|
+            entry = message.content["coworker_message"] if message.content.is_a?(Hash)
+            next unless entry&.fetch("status", nil).in?(%w[refused rate_limited])
+
+            { status: entry.fetch("status"), receiver_handle: entry.fetch("receiver_handle"),
+              reason: message.extract_text_from_content, occurred_at: message.created_at.iso8601 }
+          end
+          { sent: delivered.count { |entry| entry["direction"] == "outgoing" },
+            received: delivered.count { |entry| entry["direction"] == "incoming" },
+            window_days: 30, delivery_events: events.reverse.first(20) }
         end
 
         def soul_for(coworker)
@@ -192,7 +218,7 @@ module Api
         end
 
         def syrus_json
-          { id: "syrus", name: "Syrus", handle: "syrus", role_summary: "Engineer", state: "active", accent_hex: "#FBCFD3", avatar_key: nil, avatar_url: nil, path: "/coworkers/syrus", built_in: true, chat_model: nil }
+          { id: "syrus", name: "Syrus", handle: "syrus", role_summary: "Engineer", state: "active", accent_hex: "#FBCFD3", avatar_key: nil, avatar_url: nil, path: "/coworkers/syrus", built_in: true, chat_model: nil, weekly_spend_usd: 0.0 }
         end
 
         def model_options_json

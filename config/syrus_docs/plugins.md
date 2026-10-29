@@ -3061,7 +3061,8 @@ uses the first provider that accepts; if none do, it runs the request through
 `Execution::Local`.
 
 The bundled `container_execution` plugin is the first provider. It only accepts
-grader requests when the plugin is enabled, a container image is configured, a
+grader requests when the plugin is enabled, a container image is configured (or
+opt-in devcontainer resolution finds an image/build declaration), a
 Docker CLI/transport is reachable from the worker, and every requested bind
 source has an explicit worker-path to Docker-host-path mapping. It maps the
 declared mounts/network/resource limits to Docker run flags, and otherwise lets

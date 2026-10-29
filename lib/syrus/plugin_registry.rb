@@ -59,6 +59,7 @@ module Syrus
       retention_policy
       repository_content_provider
       execution_backend
+      workflow_artifact_contributor
       speech_to_text_provider
       purge_contributor
       workspace_git_transport
@@ -125,6 +126,7 @@ module Syrus
       retention_policy:        -> { Syrus::Plugin::RetentionPolicy },
       repository_content_provider: -> { Syrus::Plugin::RepositoryContentProvider },
       execution_backend:      -> { Syrus::Plugin::ExecutionBackend },
+      workflow_artifact_contributor: -> { Syrus::Plugin::WorkflowArtifactContributor },
       speech_to_text_provider:  -> { Syrus::Plugin::SpeechToTextProvider },
       purge_contributor:       -> { Syrus::Plugin::PurgeContributor },
       workspace_git_transport: -> { Syrus::Plugin::WorkspaceGitTransport },

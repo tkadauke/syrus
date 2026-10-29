@@ -21,11 +21,13 @@ import {
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerActivity,
   fetchCoworkerMemory,
   fetchCoworkerWorkspace,
   fetchCoworkers,
   removeCoworkerFromChat,
   testCoworkerRemote,
+  type CoworkerDetail,
   type CoworkerMemoryFile,
   type CoworkerSummary
 } from "../api/coworkers"
@@ -78,6 +80,7 @@ function CoworkerCard({ coworker, prefix }: { coworker: CoworkerSummary; prefix:
           <div className="font-semibold text-text-primary">{coworker.name}</div>
           <div className="text-sm text-text-secondary">@{coworker.handle}</div>
           <div className="mt-2 text-sm text-text-secondary">{coworker.role_summary}</div>
+          <div className="mt-2 text-sm font-medium text-text-primary">{t("card.weekly_spend", { amount: coworker.weekly_spend_usd.toFixed(2) })}</div>
           {coworker.built_in ? <span className="mt-2 inline-block rounded bg-surface-subtle px-2 py-0.5 text-xs">{t("built_in")}</span> : null}
         </div>
       </div>
@@ -201,7 +204,7 @@ function NewCoworker() {
         </div>
         <fieldset>
           <legend className="mb-2 text-sm font-medium">{t("fields.grants")}</legend>
-          {["chat.message_owner", "workspace.files", "workspace.shell", "chats.read_shared", "syrus.read_jobs"].map((grant) => (
+          {["chat.message_owner", "coworker.message", "workspace.files", "workspace.shell", "chats.read_shared", "syrus.read_jobs"].map((grant) => (
             <Checkbox className="mb-2" defaultChecked key={grant} label={grant} name="grants[]" value={grant} />
           ))}
         </fieldset>
@@ -315,8 +318,101 @@ function CoworkerPage({ id }: { id: string }) {
       ) : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
-      {!["chat", "profile", "memory", "workspace"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {tab === "activity" ? <CoworkerActivity id={id} traffic={coworker.message_traffic} /> : null}
+      {!["chat", "profile", "memory", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
+  )
+}
+
+function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail["message_traffic"] }) {
+  const { t } = useT("coworkers")
+  const query = useQuery({ queryKey: ["coworkers", id, "activity"], queryFn: () => fetchCoworkerActivity(id) })
+  if (query.isPending) return <PanelMessage>{t("activity.loading")}</PanelMessage>
+  if (query.isError || !query.data) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
+  const activity = query.data
+  return (
+    <section className="space-y-6 rounded border border-border bg-surface p-5">
+      <div>
+        <h2 className="font-semibold">{t("activity.spend")}</h2>
+        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.this_week")}</dt>
+            <dd className="text-2xl font-semibold">${activity.spend.week_usd.toFixed(2)}</dd>
+          </div>
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.total")}</dt>
+            <dd className="text-2xl font-semibold">${activity.spend.total_usd.toFixed(2)}</dd>
+            <dd className="mt-1 text-xs text-text-secondary">{t("activity.spend_not_capped")}</dd>
+          </div>
+        </dl>
+      </div>
+      <div>
+        <h2 className="font-semibold">{t("activity.runs")}</h2>
+        {activity.runs.length ? (
+          <ul className="mt-3 divide-y divide-border rounded border border-border">
+            {activity.runs.map((run) => (
+              <li className="grid gap-2 p-3 text-sm sm:grid-cols-4" key={run.id}>
+                <span>RUN-{run.id}</span>
+                <span>{t(`activity.status.${run.state}`, { defaultValue: run.state })}</span>
+                <span>{t("activity.tool_calls", { count: run.tool_calls_count })}</span>
+                <span className="sm:text-right">${run.cost_usd.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_runs")}</p>
+        )}
+      </div>
+      <div>
+        <h2 className="font-semibold">{t("activity.side_chats")}</h2>
+        {activity.side_chats.length ? (
+          <ul className="mt-3 space-y-2">
+            {activity.side_chats.map((chat) => (
+              <li className="flex justify-between rounded border border-border p-3 text-sm" key={chat.id}>
+                <Link className="text-brand" to={chat.path}>
+                  {chat.title || t("activity.untitled_chat")}
+                </Link>
+                <span>${chat.cost_usd.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_side_chats")}</p>
+        )}
+      </div>
+      <div>
+        <h2 className="font-semibold">{t("activity.message_traffic")}</h2>
+        <p className="mt-1 text-sm text-text-secondary">{t("activity.window", { count: traffic.window_days })}</p>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.sent")}</dt>
+            <dd className="text-2xl font-semibold">{traffic.sent}</dd>
+          </div>
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.received")}</dt>
+            <dd className="text-2xl font-semibold">{traffic.received}</dd>
+          </div>
+        </dl>
+        <h3 className="mt-6 font-semibold">{t("activity.delivery_issues")}</h3>
+        {traffic.delivery_events.length ? (
+          <ul className="mt-3 space-y-2">
+            {traffic.delivery_events.map((event) => (
+              <li className="rounded border border-border bg-surface-subtle p-3 text-sm" key={`${event.occurred_at}-${event.receiver_handle}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{t(`activity.${event.status}`, { handle: event.receiver_handle })}</span>
+                  <time className="text-text-secondary" dateTime={event.occurred_at}>
+                    {new Date(event.occurred_at).toLocaleString()}
+                  </time>
+                </div>
+                <p className="mt-1 text-text-secondary">{event.reason}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_delivery_issues")}</p>
+        )}
+      </div>
+    </section>
   )
 }
 

@@ -10,6 +10,7 @@ export type CoworkerSummary = {
   avatar_key: string | null
   avatar_url: string | null
   path: string
+  weekly_spend_usd: number
   built_in?: boolean
   chat_model?: string | null
 }
@@ -22,6 +23,25 @@ export type CoworkerDetail = CoworkerSummary & {
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
   grants: { capability: string; approval_policy: string }[]
   available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]
+  message_traffic: {
+    sent: number
+    received: number
+    window_days: number
+    delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
+  }
+}
+export type CoworkerActivityPayload = {
+  spend: { week_usd: number; total_usd: number }
+  runs: {
+    id: number
+    job_id: number
+    state: string
+    started_at: string | null
+    finished_at: string | null
+    tool_calls_count: number
+    cost_usd: number
+  }[]
+  side_chats: { id: number; title: string | null; path: string; cost_usd: number }[]
 }
 export type CoworkerModelOptions = {
   provider: string
@@ -58,6 +78,7 @@ export const fetchCoworker = (id: string) => getJson<{ coworker: CoworkerDetail 
 export const fetchCoworkerMemory = (id: string, search: string) => getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
 export const fetchCoworkerWorkspace = (id: string, path?: string) =>
   getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
+export const fetchCoworkerActivity = (id: string) => getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
 export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
 export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
 export const testCoworkerRemote = (workspaceRepo: string) =>

@@ -1,13 +1,34 @@
-import { describe, expect, it } from "vitest"
-import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, tokenizeLines } from "./highlighter"
+import { describe, expect, it, vi } from "vitest"
+import * as performanceMarkers from "./performanceMarkers"
+import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, resetHighlighterCachesForTest, tokenizeLines } from "./highlighter"
 
 function textOf(line: { content: string }[]) {
   return line.map((token) => token.content).join("")
 }
 
 describe("tokenizeLines", () => {
+  it("coalesces concurrent identical tokenization and reuses the stable cached result", async () => {
+    resetHighlighterCachesForTest()
+    const first = tokenizeLines("class Job; end", "ruby")
+    const second = tokenizeLines("class Job; end", "ruby")
+    const [firstResult, secondResult] = await Promise.all([first, second])
+
+    expect(secondResult).toBe(firstResult)
+    expect(await tokenizeLines("class Job; end", "ruby")).toBe(firstResult)
+  })
+
+  it("attributes shared highlighter initialization once across concurrent callers", async () => {
+    resetHighlighterCachesForTest()
+    const startMarker = vi.spyOn(performanceMarkers, "startMarker")
+
+    await Promise.all([tokenizeLines("class Job; end", "ruby"), tokenizeLines("const job = {}", "typescript")])
+
+    expect(startMarker.mock.calls.filter(([name]) => name === "diff_review.highlighter_initialize")).toHaveLength(1)
+    startMarker.mockRestore()
+  })
+
   it("colors tokens with var(--shiki-*) custom properties, not literal colors", async () => {
-    const code = "def greeting\n  \"hi\" # comment\nend"
+    const code = 'def greeting\n  "hi" # comment\nend'
     const lines = await tokenizeLines(code, "ruby")
 
     const keywordToken = lines[0].find((token) => token.content === "def")
@@ -23,21 +44,13 @@ describe("tokenizeLines", () => {
     expect(stringToken?.color).not.toBe(commentToken?.color)
 
     const prefixPattern = new RegExp(`^var\\(${HIGHLIGHTER_CSS_VARIABLE_PREFIX}`)
-    for (const token of [ keywordToken, stringToken, commentToken ]) {
+    for (const token of [keywordToken, stringToken, commentToken]) {
       expect(token?.color).toMatch(prefixPattern)
     }
   })
 
   it("carries a multi-line ruby heredoc's string scope across every line it spans", async () => {
-    const code = [
-      "def greeting",
-      "  message = <<~TEXT",
-      "    Hello there,",
-      "    this spans multiple lines.",
-      "  TEXT",
-      "  message",
-      "end"
-    ].join("\n")
+    const code = ["def greeting", "  message = <<~TEXT", "    Hello there,", "    this spans multiple lines.", "  TEXT", "  message", "end"].join("\n")
 
     const lines = await tokenizeLines(code, "ruby")
 
@@ -54,8 +67,7 @@ describe("tokenizeLines", () => {
     const heredocCloseLine = lines[4]
     const afterHeredocLine = lines[5]
 
-    const stringColorOf = (line: { content: string; color?: string }[]) =>
-      line.find((token) => token.content.trim().length > 0)?.color
+    const stringColorOf = (line: { content: string; color?: string }[]) => line.find((token) => token.content.trim().length > 0)?.color
 
     const heredocMarkerColor = heredocOpenLine.find((token) => token.content.includes("<<~TEXT"))?.color
     expect(heredocMarkerColor).toBeTruthy()
@@ -69,12 +81,7 @@ describe("tokenizeLines", () => {
   })
 
   it("carries a multi-line JS/TS template literal's string scope across every line it spans", async () => {
-    const code = [
-      "const greeting = `Hello",
-      "  multi",
-      "  line`",
-      "const other = 1"
-    ].join("\n")
+    const code = ["const greeting = `Hello", "  multi", "  line`", "const other = 1"].join("\n")
 
     const lines = await tokenizeLines(code, "typescript")
 
@@ -89,8 +96,7 @@ describe("tokenizeLines", () => {
     const templateColor = openLine.find((token) => token.content.includes("`Hello"))?.color
     expect(templateColor).toBeTruthy()
 
-    const colorOf = (line: { content: string; color?: string }[]) =>
-      line.find((token) => token.content.trim().length > 0)?.color
+    const colorOf = (line: { content: string; color?: string }[]) => line.find((token) => token.content.trim().length > 0)?.color
 
     expect(colorOf(middleLine)).toBe(templateColor)
     expect(colorOf(closeLine)).toBe(templateColor)
@@ -98,12 +104,7 @@ describe("tokenizeLines", () => {
   })
 
   it("carries a multi-line python string scope across every line it spans", async () => {
-    const code = [
-      "message = \"\"\"Hello",
-      "  multi",
-      "  line\"\"\"",
-      "other = 1"
-    ].join("\n")
+    const code = ['message = """Hello', "  multi", '  line"""', "other = 1"].join("\n")
 
     const lines = await tokenizeLines(code, "python")
 
@@ -115,11 +116,10 @@ describe("tokenizeLines", () => {
     const closeLine = lines[2]
     const afterLine = lines[3]
 
-    const stringColor = openLine.find((token) => token.content.includes("\"\"\"Hello"))?.color
+    const stringColor = openLine.find((token) => token.content.includes('"""Hello'))?.color
     expect(stringColor).toBeTruthy()
 
-    const colorOf = (line: { content: string; color?: string }[]) =>
-      line.find((token) => token.content.trim().length > 0)?.color
+    const colorOf = (line: { content: string; color?: string }[]) => line.find((token) => token.content.trim().length > 0)?.color
 
     expect(colorOf(middleLine)).toBe(stringColor)
     expect(colorOf(closeLine)).toBe(stringColor)

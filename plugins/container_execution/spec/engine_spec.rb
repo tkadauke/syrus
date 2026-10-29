@@ -8,5 +8,6 @@ RSpec.describe "ContainerExecution plugin" do
     expect(manifest.default_enabled?).to be(false)
     expect(manifest.disableable?).to be(true)
     expect(manifest.provides[:execution_backend]).to eq(ContainerExecution::Backend)
+    expect(manifest.provides[:workflow_artifact_contributor]).to eq(ContainerExecution::WorkflowArtifactContributor)
   end
 end

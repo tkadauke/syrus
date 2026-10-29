@@ -15,6 +15,7 @@ const summaryPayload = {
     avatar_key: null,
     avatar_url: null,
     path: "/coworkers/syrus",
+    weekly_spend_usd: 0,
     built_in: true
   },
   coworkers: [
@@ -27,7 +28,8 @@ const summaryPayload = {
       accent_hex: "#E5484D",
       avatar_key: "comet",
       avatar_url: null,
-      path: "/coworkers/7"
+      path: "/coworkers/7",
+      weekly_spend_usd: 0.75
     }
   ],
   model_options: [
@@ -52,7 +54,13 @@ const detailPayload = {
     soul: "role: Researcher\n\nCurious and concise.",
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
-    grants: [{ capability: "workspace.files", approval_policy: "auto" }]
+    grants: [{ capability: "workspace.files", approval_policy: "auto" }],
+    message_traffic: {
+      sent: 4,
+      received: 7,
+      window_days: 30,
+      delivery_events: [{ status: "refused", receiver_handle: "rin", reason: "Three-hop limit reached", occurred_at: "2026-10-29T10:00:00Z" }]
+    }
   }
 }
 
@@ -175,6 +183,38 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Add to chat" }))
 
   await waitFor(() => expect(requests).toContain("/api/v1/app/chats/22/agents/7"))
+})
+
+it("shows sent and received message traffic on the Activity tab", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/activity"))
+        return jsonResponse({
+          spend: { week_usd: 1.25, total_usd: 3.5 },
+          runs: [{ id: 9, job_id: 8, state: "succeeded", started_at: null, finished_at: null, tool_calls_count: 2, cost_usd: 2.25 }],
+          side_chats: [{ id: 13, title: "Research", path: "/chats/13", cost_usd: 0.25 }]
+        })
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7")
+
+  fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
+
+  expect(await screen.findByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
+  expect(screen.getByRole("heading", { name: "Delivery issues" })).toBeInTheDocument()
+  expect(await screen.findByText("$1.25")).toBeInTheDocument()
+  expect(screen.getByText("$3.50")).toBeInTheDocument()
+  expect(screen.getByText("RUN-9")).toBeInTheDocument()
+  expect(screen.getByText("2 tool calls")).toBeInTheDocument()
+  expect(screen.getByText("Research")).toBeInTheDocument()
+  expect(screen.getByText("Shown for visibility; not capped.")).toBeInTheDocument()
+  expect(screen.getByText("Message to @rin refused")).toBeInTheDocument()
+  expect(screen.getByText("Three-hop limit reached")).toBeInTheDocument()
+  expect(screen.getByText("Last 30 days")).toBeInTheDocument()
+  expect(screen.getByText("4")).toBeInTheDocument()
+  expect(screen.getByText("7")).toBeInTheDocument()
 })
 
 it("does not offer removal for the coworker's implicit own chat", async () => {

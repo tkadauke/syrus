@@ -1,0 +1,89 @@
+require "mcp"
+
+module Coworkers
+  class MessageCoworkerTool < MCP::Tool
+    MAX_HOPS = 3
+
+    tool_name "message_coworker"
+
+    description "Queue a message from the current coworker to another active coworker owned by the same operator. The message is delivered to both coworkers' main chats."
+
+    input_schema(
+      properties: {
+        handle: { type: "string", description: "The receiving coworker's handle, with or without @." },
+        text: { type: "string", description: "The message to deliver." }
+      },
+      required: %w[handle text]
+    )
+
+    class << self
+      def call(handle:, text:, server_context:)
+        chat = server_context.fetch(:chat_session)
+        sender = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat.id)&.coworker
+        return Mcp::Tools.invalid("message_coworker is only available from a coworker's chat") unless sender
+
+        normalized_handle = HandleRegistry.normalize(handle.to_s.delete_prefix("@"))
+        body = text.to_s.strip
+        return Mcp::Tools.invalid("handle is required") if normalized_handle.blank?
+        return Mcp::Tools.invalid("text is required") if body.blank?
+        return Mcp::Tools.invalid("Syrus cannot receive coworker messages") if normalized_handle == "syrus"
+        return Mcp::Tools.invalid("a coworker cannot message itself") if normalized_handle == sender.handle
+
+        receiver = Coworkers::Coworker.find_by(owner_user_id: sender.owner_user_id, handle: normalized_handle)
+        return Mcp::Tools.invalid("@#{normalized_handle} is not one of this owner's coworkers") unless receiver
+        return Mcp::Tools.invalid("@#{receiver.handle} is #{receiver.state} and cannot receive messages") unless receiver.state == "active"
+
+        current_message = server_context[:current_message]
+        current_message_id = current_message.id if current_message.respond_to?(:id)
+        return Mcp::Tools.invalid("coworker messages require a persisted current turn") unless current_message_id.present?
+
+        message_context = delivery_context(current_message)
+        if message_context.fetch("hop_count") > MAX_HOPS
+          message = "coworker message chain reached its #{MAX_HOPS}-hop limit"
+          record_refusal!(sender: sender, receiver: receiver, status: "refused", reason: message, delivery_context: message_context)
+          return Mcp::Tools.invalid(message)
+        end
+
+        rate_limit = Coworkers::MessageRateLimiter.reserve(sender: sender, receiver: receiver)
+        unless rate_limit.allowed?
+          message = "coworker message rate limit reached for @#{sender.handle} and @#{receiver.handle}; " \
+            "try again in #{rate_limit.retry_after_seconds} seconds"
+          record_refusal!(sender: sender, receiver: receiver, status: "rate_limited", reason: message, delivery_context: message_context)
+          return Mcp::Tools.invalid(message)
+        end
+
+        delivery = Coworkers::MessageDeliveryJob.perform_later(sender.id, receiver.id, body, message_context)
+        return Mcp::Tools.invalid("the coworker message could not be queued") unless delivery
+
+        Mcp::Tools.success(queued: true, from_handle: sender.handle, to_handle: receiver.handle)
+      end
+
+      private
+
+      def delivery_context(current_message)
+        incoming = current_message.content.to_h.fetch("coworker_message", {})
+        {
+          "origin_turn_id" => incoming["origin_turn_id"] || current_message.id,
+          "hop_count" => incoming.fetch("hop_count", 0).to_i + 1
+        }
+      end
+
+      def record_refusal!(sender:, receiver:, status:, reason:, delivery_context:)
+        sender.coworker_chats.find_by!(role: "main").chat_session.messages.create!(
+          role: "system",
+          content: {
+            "text" => "Message to @#{receiver.handle} was not delivered: #{reason}",
+            "source" => "coworker_message",
+            "coworker_message" => {
+              "direction" => "outgoing", "status" => status,
+              "receiver_id" => receiver.id, "receiver_handle" => receiver.handle,
+              "origin_turn_id" => delivery_context["origin_turn_id"],
+              "hop_count" => delivery_context["hop_count"]
+            }
+          },
+          skip_turn_trigger: true
+        )
+      end
+    end
+  end
+end

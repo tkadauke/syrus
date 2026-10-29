@@ -5,6 +5,7 @@
   "error": "Mitarbeiter konnten nicht geladen werden.",
   "built_in": "Integriert · Entwickler",
   "coming_later": "Kommt später",
+  "card": { "weekly_spend": "${{amount}} diese Woche" },
   "memory": {
     "search": "Erinnerungsdateien durchsuchen",
     "files": "Erinnerungsdateien",
@@ -83,6 +84,29 @@
     "memory": "Gedächtnis",
     "workspace": "Workspace",
     "activity": "Aktivität"
+  },
+  "activity": {
+    "loading": "Aktivität wird geladen…",
+    "unavailable": "Die Aktivität kann gerade nicht geladen werden.",
+    "message_traffic": "Nachrichtenverkehr",
+    "window": "Letzte {{count}} Tage",
+    "sent": "Gesendet",
+    "received": "Empfangen",
+    "spend": "Gesamtausgaben",
+    "this_week": "Diese Woche",
+    "total": "Insgesamt",
+    "runs": "Runs",
+    "tool_calls_one": "{{count}} Tool-Aufruf",
+    "tool_calls_other": "{{count}} Tool-Aufrufe",
+    "no_runs": "Noch keine geplanten Runs.",
+    "side_chats": "Kosten der Nebenchats",
+    "no_side_chats": "Noch keine Nebenchats.",
+    "untitled_chat": "Unbenannter Chat",
+    "spend_not_capped": "Nur zur Übersicht; nicht begrenzt.",
+    "delivery_issues": "Zustellprobleme",
+    "refused": "Nachricht an @{{handle}} abgelehnt",
+    "rate_limited": "Nachricht an @{{handle}} begrenzt",
+    "no_delivery_issues": "Keine abgelehnten oder begrenzten Zustellungen."
   },
   "detail": {
     "soul_heading": "SOUL.md",

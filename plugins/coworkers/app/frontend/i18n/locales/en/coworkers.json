@@ -5,6 +5,7 @@
   "error": "Coworkers could not be loaded.",
   "built_in": "Built-in · engineer",
   "coming_later": "Coming later",
+  "card": { "weekly_spend": "${{amount}} this week" },
   "memory": {
     "search": "Search memory files",
     "files": "Memory files",
@@ -77,6 +78,29 @@
     "memory": "Memory",
     "workspace": "Workspace",
     "activity": "Activity"
+  },
+  "activity": {
+    "loading": "Loading activity…",
+    "unavailable": "Activity cannot be loaded right now.",
+    "message_traffic": "Message traffic",
+    "window": "Last {{count}} days",
+    "sent": "Sent",
+    "received": "Received",
+    "spend": "Total spend",
+    "this_week": "This week",
+    "total": "All time",
+    "runs": "Runs",
+    "tool_calls_one": "{{count}} tool call",
+    "tool_calls_other": "{{count}} tool calls",
+    "no_runs": "No scheduled runs yet.",
+    "side_chats": "Side-chat costs",
+    "no_side_chats": "No side chats yet.",
+    "untitled_chat": "Untitled chat",
+    "spend_not_capped": "Shown for visibility; not capped.",
+    "delivery_issues": "Delivery issues",
+    "refused": "Message to @{{handle}} refused",
+    "rate_limited": "Message to @{{handle}} rate limited",
+    "no_delivery_issues": "No refused or rate-limited deliveries."
   },
   "detail": {
     "soul_heading": "SOUL.md",

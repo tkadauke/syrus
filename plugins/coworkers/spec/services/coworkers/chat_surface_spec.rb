@@ -166,6 +166,17 @@ RSpec.describe "Coworker chat surface" do
     expect(AgentMemory::Tools::ReadMemoryTool.call(id: inaccessible_published.id, server_context: context)).to be_error
   end
 
+  it "offers coworker messaging only with its named grant" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).not_to include("message_coworker")
+
+    coworker.grants.create!(capability: "coworker.message", approval_policy: "auto")
+
+    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("message_coworker")
+  end
+
   it "turns revoked workspace grants into provider-native denials" do
     files = coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
     shell = coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")

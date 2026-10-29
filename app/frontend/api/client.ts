@@ -138,7 +138,7 @@ async function performJsonRead<T>(path: string, options: { signal?: AbortSignal 
 
   if (response.status === 204) return { data: undefined as T, meta }
 
-  return { data: await response.json() as T, meta }
+  return { data: (await response.json()) as T, meta }
 }
 
 export async function postJson<T>(path: string, body?: unknown): Promise<T> {
@@ -276,7 +276,7 @@ function recordApiRequest(path: string, response: Response, durationMs: number |
   if (recentApiRequests.length > MAX_RECENT_API_REQUESTS) recentApiRequests.shift()
 }
 
-function scrubApiRequestPath(path: string): string {
+export function scrubApiRequestPath(path: string): string {
   const [rawPath] = path.split("?", 1)
   const scrubbedPath = scrubSensitivePathSegments(rawPath)
   const queryIndex = path.indexOf("?")

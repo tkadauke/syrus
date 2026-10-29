@@ -1130,12 +1130,11 @@ class Job < ApplicationRecord
     ReviewPolicies.for(repository.review_policy).new(self).satisfied?
   end
 
-  # Early Epic dependency execution may release implementation against an
-  # unfinished upstream stack. That exception ends at review: every approval
-  # entry point flows through the AASM transition and therefore retains the
-  # strict successful-completion contract for Epic dependencies.
+  # Approval may happen while an upstream Epic is still in progress. Landing
+  # remains strictly gated by the Epic dependency checks in the merge-train
+  # dispatcher and assemble step.
   def strict_epic_dependencies_satisfied_for_approval?
-    epic.nil? || epic.landing_dependencies_satisfied?
+    true
   end
 
   # Returns true when +user+ is eligible to add a JobApproval vote.

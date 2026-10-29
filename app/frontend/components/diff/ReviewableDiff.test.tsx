@@ -1560,6 +1560,69 @@ describe("ReviewableDiff", () => {
     expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
   })
 
+  it("yields between highlight chunks so a large multi-file diff remains interactive", async () => {
+    vi.useFakeTimers()
+    const tokenizeSpy = vi
+      .spyOn(highlighterLib, "tokenizeLines")
+      .mockImplementation(async (code) => code.split("\n").map((line) => [{ content: line, offset: 0 }]))
+    const manyFiles = Array.from({ length: 30 }, (_, index) => ({
+      additions: 2,
+      deletions: 0,
+      patch: [
+        `diff --git a/app/models/job_${index}.rb b/app/models/job_${index}.rb`,
+        `--- a/app/models/job_${index}.rb`,
+        `+++ b/app/models/job_${index}.rb`,
+        "@@ -1,1 +1,2 @@",
+        ` class Job${index}`,
+        `+  def call_${index}; end`,
+        "@@ -20,1 +21,2 @@",
+        ` class LaterJob${index}`,
+        `+  def later_${index}; end`
+      ].join("\n"),
+      path: `app/models/job_${index}.rb`,
+      status: "modified"
+    }))
+
+    render(<ReviewableDiff files={manyFiles} mode="continuous" />)
+
+    expect(screen.getByText("app/models/job_0.rb")).toBeInTheDocument()
+    expect(tokenizeSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersToNextTimerAsync()
+    const firstChunkCount = tokenizeSpy.mock.calls.length
+    expect(firstChunkCount).toBeGreaterThan(0)
+    expect(firstChunkCount).toBeLessThan(14) // seven mounted files, two hunks each
+    const collapseButton = screen.getAllByRole("button", { name: "Collapse file" })[0]
+    fireEvent.click(collapseButton)
+    expect(collapseButton).toHaveAttribute("aria-expanded", "false")
+    tokenizeSpy.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it("reuses syntax tokens after a file section unmounts and remounts", async () => {
+    const tokenizeSpy = vi
+      .spyOn(highlighterLib, "tokenizeLines")
+      .mockImplementation(async (code) => code.split("\n").map((line) => [{ content: line, color: "var(--shiki-token-keyword)", offset: 0 }]))
+    const rubyFiles = ["alpha", "beta"].map((name) => ({
+      additions: 1,
+      deletions: 0,
+      patch: [`diff --git a/${name}.rb b/${name}.rb`, `--- a/${name}.rb`, `+++ b/${name}.rb`, "@@ -1,1 +1,2 @@", ` class ${name}`, `+  def ${name}; end`].join(
+        "\n"
+      ),
+      path: `${name}.rb`,
+      status: "modified"
+    }))
+    const { rerender } = render(<ReviewableDiff files={rubyFiles} mode="single-file" selectedPath="alpha.rb" />)
+
+    await waitFor(() => expect(tokenizeSpy.mock.calls.some(([code]) => code.includes("class alpha"))).toBe(true))
+    rerender(<ReviewableDiff files={rubyFiles} mode="single-file" selectedPath="beta.rb" />)
+    await waitFor(() => expect(tokenizeSpy.mock.calls.some(([code]) => code.includes("class beta"))).toBe(true))
+    rerender(<ReviewableDiff files={rubyFiles} mode="single-file" selectedPath="alpha.rb" />)
+
+    await waitFor(() => expect(screen.getAllByText("alpha")[0]).toHaveStyle({ color: "var(--shiki-token-keyword)" }))
+    expect(tokenizeSpy.mock.calls.filter(([code]) => code.includes("class alpha"))).toHaveLength(1)
+    tokenizeSpy.mockRestore()
+  })
+
   it("drops cached syntax tokens when a same-path patch changes with the same visible row count", async () => {
     const firstFile = {
       additions: 1,

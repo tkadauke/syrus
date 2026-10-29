@@ -21,13 +21,13 @@ module Coworkers
              mcp_run_context_contributor: "Coworkers::RunContextContributor",
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
+             chat_mcp_tool_set: "Coworkers::ChatToolSet",
              chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
              chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
-             chat_payload_contributor: "Coworkers::PayloadContributor",
-             chat_mcp_tool_set: "Coworkers::ChatToolSet"
+             chat_payload_contributor: "Coworkers::PayloadContributor"
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :post, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#create"
     route :post, "/api/v1/app/coworkers/test_remote", to: "api/v1/app/coworkers#test_remote"
@@ -37,6 +37,7 @@ module Coworkers
     route :delete, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#destroy"
     route :get, "/api/v1/app/coworkers/:id/memory", to: "api/v1/app/coworkers#memory"
     route :get, "/api/v1/app/coworkers/:id/workspace", to: "api/v1/app/coworkers#workspace"
+    route :get, "/api/v1/app/coworkers/:id/activity", to: "api/v1/app/coworkers#activity"
     route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
     route :post, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#add_to_chat"
     route :delete, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#remove_from_chat"
