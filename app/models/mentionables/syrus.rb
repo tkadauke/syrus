@@ -8,7 +8,9 @@ module Mentionables
     def subtitle = "Engineer"
     def kind = "syrus"
     def avatar_url = nil
-    def color_key = "coral-deep"
+    # Blush is the closest library color to the previous light-mode Syrus
+    # initials color (#e9b7aa) by OKLab distance.
+    def accent_hex = "#FBCFD3"
     def agentic? = true
     def addressable_in?(_chat) = true
   end
