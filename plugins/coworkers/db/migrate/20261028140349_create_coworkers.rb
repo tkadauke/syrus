@@ -1,7 +1,7 @@
 class CreateCoworkers < ActiveRecord::Migration[8.1]
   def up
     create_table :coworkers, if_not_exists: true do |t|
-      t.references :owner_user, null: false, foreign_key: { to_table: :users }
+      t.references :owner_user, null: false
       t.string :name, null: false
       t.string :handle, null: false
       t.string :chat_provider
@@ -17,7 +17,7 @@ class CreateCoworkers < ActiveRecord::Migration[8.1]
     add_index :coworkers, :handle, unique: true unless index_exists?(:coworkers, :handle, unique: true)
 
     create_table :coworker_grants, if_not_exists: true do |t|
-      t.references :coworker, null: false, foreign_key: true
+      t.references :coworker, null: false
       t.string :capability, null: false
       t.json :constraints, null: false
       t.string :approval_policy, null: false
@@ -26,8 +26,8 @@ class CreateCoworkers < ActiveRecord::Migration[8.1]
     add_index :coworker_grants, [ :coworker_id, :capability ], unique: true unless index_exists?(:coworker_grants, [ :coworker_id, :capability ], unique: true)
 
     create_table :coworker_chats, if_not_exists: true do |t|
-      t.references :chat_session, null: false, foreign_key: true, index: false
-      t.references :coworker, null: false, foreign_key: true, index: false
+      t.references :chat_session, null: false, index: false
+      t.references :coworker, null: false, index: false
       t.string :role, null: false
       t.timestamps
     end
