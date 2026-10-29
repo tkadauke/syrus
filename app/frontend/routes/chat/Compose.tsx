@@ -2321,7 +2321,7 @@ export function Compose({
                     <Avatar
                       avatarKey={mentionable.avatar_key}
                       avatarUrl={mentionable.avatar_url}
-                      colorKey={mentionable.color_key}
+                      accentHex={mentionable.accent_hex}
                       name={mentionable.display_name}
                       size="xs"
                     />

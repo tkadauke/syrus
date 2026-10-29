@@ -72,13 +72,13 @@ module Api
         end
 
         def create_params
-          params.permit(:name, :handle, :workspace_repo, :about, :color_key, :avatar_key, :chat_provider, :chat_model, :chat_effort)
+          params.permit(:name, :handle, :workspace_repo, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model, :chat_effort)
         end
 
         def summary_json(coworker)
           {
             id: coworker.id, name: coworker.name, handle: coworker.handle, role_summary: coworker.role_summary,
-            state: coworker.state, color_key: coworker.color_key, avatar_key: coworker.avatar_key,
+            state: coworker.state, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
             avatar_url: coworker.avatar_url, path: "/coworkers/#{coworker.id}"
           }
         end
@@ -109,7 +109,7 @@ module Api
         end
 
         def syrus_json
-          { id: "syrus", name: "Syrus", handle: "syrus", role_summary: "Engineer", state: "active", color_key: "coral-deep", avatar_key: nil, avatar_url: nil, path: "/coworkers/syrus", built_in: true, chat_model: nil }
+          { id: "syrus", name: "Syrus", handle: "syrus", role_summary: "Engineer", state: "active", accent_hex: "#FBCFD3", avatar_key: nil, avatar_url: nil, path: "/coworkers/syrus", built_in: true, chat_model: nil }
         end
 
         def model_options_json

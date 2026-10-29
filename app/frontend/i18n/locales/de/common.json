@@ -517,6 +517,45 @@
       "pr_coverage_not_executable": "Geänderte Zeile ist nicht ausführbar"
     }
   },
+  "accent_picker": {
+    "color": "Farbe",
+    "tone": "Ton",
+    "hue": "Farbton",
+    "naturals": "Naturtöne",
+    "fine_tune": "Feinabstimmung",
+    "preview": "Live-Vorschau",
+    "preview_message": "Bereit, wenn du es bist.",
+    "online": "Online",
+    "variants": {
+      "deeper": "Dunkler",
+      "deep": "Dunkel",
+      "base": "Basis",
+      "light": "Hell",
+      "lighter": "Heller"
+    },
+    "families": {
+      "pastel": "Pastell",
+      "dusty": "Gedämpft",
+      "vivid": "Leuchtend",
+      "electric": "Elektrisch",
+      "jewel": "Juwel",
+      "earth": "Naturtöne"
+    },
+    "hues": {
+      "red": "Rot",
+      "orange": "Orange",
+      "yellow": "Gelb",
+      "lime": "Limette",
+      "green": "Grün",
+      "teal": "Blaugrün",
+      "cyan": "Cyan",
+      "blue": "Blau",
+      "indigo": "Indigo",
+      "violet": "Violett",
+      "purple": "Purpur",
+      "pink": "Pink"
+    }
+  },
   "native_notifications": {
     "generic": "Syrus-Benachrichtigung",
     "ci_failed": "CI fehlgeschlagen",

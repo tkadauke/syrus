@@ -33,7 +33,7 @@ class Coworkers::Create
 
   def self.call(...) = new(...).call
 
-  def initialize(owner:, name:, handle:, workspace_repo:, about: nil, color_key: nil, avatar_key: nil,
+  def initialize(owner:, name:, handle:, workspace_repo:, about: nil, accent_hex: nil, avatar_key: nil,
                  chat_provider: nil, chat_model: nil, chat_effort: nil, avatar: nil, grants: nil, remote_workspace: nil)
     @owner = owner
     @name = name
@@ -42,7 +42,7 @@ class Coworkers::Create
     @about = about.to_s.strip.presence
     @avatar = avatar
     @grants = grants
-    @attributes = { color_key: color_key, avatar_key: avatar_key, chat_provider: chat_provider,
+    @attributes = { accent_hex: accent_hex, avatar_key: avatar_key, chat_provider: chat_provider,
                     chat_model: chat_model, chat_effort: chat_effort }.compact
     remote_owner, remote_name = parse_remote(workspace_repo)
     @remote = remote_workspace || Coworkers::RemoteWorkspace.new(owner: remote_owner, name: remote_name, user: owner)

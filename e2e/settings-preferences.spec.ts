@@ -4,7 +4,7 @@ import { DEMO_USER, signInAsDemo } from "./support/auth"
 
 test.slow()
 
-test("edits settings, provider defaults, locale, and theme preferences", async ({ page }) => {
+test("edits settings, provider defaults, locale, and theme preferences", async ({ page }, testInfo) => {
   skipWhenRemote()
   resetDemoAccountSettings()
 
@@ -52,8 +52,13 @@ test("edits settings, provider defaults, locale, and theme preferences", async (
     await page.reload()
     await expect(page.getByLabel("Agent provider")).toHaveValue("claude")
 
+    const accentPicker = page.getByRole("region", { name: "Color" })
+    await selectThemeMode(page, "Light")
+    await testInfo.attach("accent-picker-light", { body: await accentPicker.screenshot(), contentType: "image/png" })
+
     await selectThemeMode(page, "Dark")
     await expect(page.locator("html")).toHaveClass(/dark/)
+    await testInfo.attach("accent-picker-dark", { body: await accentPicker.screenshot(), contentType: "image/png" })
 
     await selectColorTheme(page, "Ocean")
     await expect(page.locator("html")).toHaveAttribute("data-theme", "ocean")

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Avatar } from "@app/components/Avatar"
 import { AvatarPicker } from "@app/components/AvatarPicker"
@@ -13,7 +13,7 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { withRoutePrefix } from "@app/lib/routing"
-import { resolveAppearanceColor } from "@app/lib/appearance"
+import { defaultAccentSelection, type AccentSelection } from "@app/lib/appearance"
 import { createCoworker, createSideChat, fetchCoworker, fetchCoworkers, testCoworkerRemote, type CoworkerSummary } from "../api/coworkers"
 
 export default function CoworkersRoute() {
@@ -59,7 +59,7 @@ function CoworkerCard({ coworker, prefix }: { coworker: CoworkerSummary; prefix:
   return (
     <Link className="rounded border border-border bg-surface p-4 hover:border-brand" style={{ borderLeftWidth: 4 }} to={withRoutePrefix(coworker.path, prefix)}>
       <div className="flex gap-3">
-        <Avatar avatarUrl={coworker.avatar_url} avatarKey={coworker.avatar_key} colorKey={coworker.color_key} name={coworker.name} />
+        <Avatar avatarUrl={coworker.avatar_url} avatarKey={coworker.avatar_key} accentHex={coworker.accent_hex} name={coworker.name} />
         <div>
           <div className="font-semibold text-text-primary">{coworker.name}</div>
           <div className="text-sm text-text-secondary">@{coworker.handle}</div>
@@ -75,7 +75,8 @@ function NewCoworker() {
   const { t } = useT("coworkers")
   const navigate = useNavigate()
   const prefix = usePrefix()
-  const [color, setColor] = useState("coral-soft")
+  const [color, setColor] = useState<AccentSelection>(() => defaultAccentSelection())
+  const [colorEdited, setColorEdited] = useState(false)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [remote, setRemote] = useState("")
   const [modelSelection, setModelSelection] = useState("")
@@ -83,10 +84,13 @@ function NewCoworker() {
   const optionsQuery = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
   const mutation = useMutation({ mutationFn: createCoworker, onSuccess: (data) => navigate(withRoutePrefix(data.redirect_to, prefix)) })
   const remoteTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
+  useEffect(() => {
+    if (optionsQuery.data && !colorEdited) setColor(defaultAccentSelection(optionsQuery.data.coworkers.map((coworker) => coworker.accent_hex)))
+  }, [colorEdited, optionsQuery.data])
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    form.set("color_key", color)
+    form.set("accent_hex", color.accentHex)
     if (modelSelection) {
       const [chatProvider, chatModel] = modelSelection.split(":", 2)
       form.set("chat_provider", chatProvider)
@@ -153,18 +157,24 @@ function NewCoworker() {
             onClick={() => setColorPopupOpen((open) => !open)}
             type="button"
           >
-            <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: resolveAppearanceColor(color, "light").value }} />
-            {resolveAppearanceColor(color, "light").label}
+            <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: color.accentHex }} />
+            {color.accentHex}
           </button>
           {colorPopupOpen ? (
-            <div aria-label={t("fields.color")} className="absolute left-0 z-20 mt-2 rounded border border-border bg-surface p-3 shadow-lg" role="dialog">
+            <div
+              aria-label={t("fields.color")}
+              className="absolute left-0 z-20 mt-2 w-[min(90vw,36rem)] rounded border border-border bg-surface p-3 shadow-lg"
+              role="dialog"
+            >
               <ColorPicker
                 ariaLabel={t("fields.color")}
                 mode="light"
-                value={color}
-                onChange={(value) => {
-                  setColor(value)
-                  setColorPopupOpen(false)
+                accentRef={color.accentRef}
+                name={t("new.title")}
+                value={color.accentHex}
+                onChange={(selection) => {
+                  setColor(selection)
+                  setColorEdited(true)
                 }}
               />
             </div>
@@ -221,7 +231,7 @@ function CoworkerPage({ id }: { id: string }) {
           {t("title")}
         </Link>
         <div className="mt-3 flex items-center gap-3">
-          <Avatar avatarUrl={coworker.avatar_url} avatarKey={coworker.avatar_key} colorKey={coworker.color_key} name={coworker.name} size="large" />
+          <Avatar avatarUrl={coworker.avatar_url} avatarKey={coworker.avatar_key} accentHex={coworker.accent_hex} name={coworker.name} size="large" />
           <div>
             <PageHeading>{coworker.name}</PageHeading>
             <div className="text-text-secondary">@{coworker.handle}</div>

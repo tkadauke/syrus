@@ -1,4 +1,5 @@
-import { resolveAppearanceColor, resolveBundledAvatar, type AppearanceMode } from "../lib/appearance"
+import type { CSSProperties } from "react"
+import { accentProperties, onColor, resolveBundledAvatar } from "../lib/appearance"
 
 export type AvatarSize = "xs" | "sm" | "normal" | "large"
 
@@ -15,15 +16,13 @@ const DIMENSIONS: Record<AvatarSize, string> = {
 export function Avatar({
   avatarUrl,
   avatarKey,
-  colorKey,
-  mode = "light",
+  accentHex,
   name,
   size = "normal"
 }: {
   avatarUrl: string | null | undefined
   avatarKey?: string | null
-  colorKey?: string | null
-  mode?: AppearanceMode
+  accentHex?: string | null
   name: string
   size?: AvatarSize
 }) {
@@ -42,13 +41,13 @@ export function Avatar({
     return <img alt="" className={`${dimension} shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700`} src={imageUrl} />
   }
 
-  const fallbackColor = colorKey ? resolveAppearanceColor(colorKey, mode).value : undefined
+  const fallbackStyle = accentHex ? ({ ...accentProperties(accentHex), backgroundColor: accentHex, color: onColor(accentHex) } as CSSProperties) : undefined
 
   return (
     <div
       aria-hidden="true"
       className={`${dimension} flex shrink-0 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700`}
-      style={fallbackColor ? { backgroundColor: fallbackColor, color: "var(--color-text-primary)" } : undefined}
+      style={fallbackStyle}
     >
       {initials}
     </div>

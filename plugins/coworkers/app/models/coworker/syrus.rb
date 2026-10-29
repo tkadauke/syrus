@@ -14,7 +14,7 @@ module Coworker
     def subtitle = "Engineer"
     def role_summary = subtitle
     def kind = "syrus"
-    def color_key = "coral-deep"
+    def accent_hex = "#FBCFD3"
     def agentic? = true
     def addressable_in?(_chat) = true
     def grants = []

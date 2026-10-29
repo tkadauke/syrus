@@ -517,6 +517,45 @@
       "pr_coverage_not_executable": "Linea mutata non exsecutabilis est"
     }
   },
+  "accent_picker": {
+    "color": "Color",
+    "tone": "Tonus",
+    "hue": "Color",
+    "naturals": "Naturales",
+    "fine_tune": "Temperatio",
+    "preview": "Praevisio viva",
+    "preview_message": "Paratus sum.",
+    "online": "Praesens",
+    "variants": {
+      "deeper": "Profundior",
+      "deep": "Profundus",
+      "base": "Basis",
+      "light": "Clarus",
+      "lighter": "Clarior"
+    },
+    "families": {
+      "pastel": "Pastellus",
+      "dusty": "Temperatus",
+      "vivid": "Vividus",
+      "electric": "Electricus",
+      "jewel": "Gemma",
+      "earth": "Naturales"
+    },
+    "hues": {
+      "red": "Ruber",
+      "orange": "Aurantius",
+      "yellow": "Flavus",
+      "lime": "Citreus",
+      "green": "Viridis",
+      "teal": "Caeruleoviridis",
+      "cyan": "Cyanus",
+      "blue": "Caeruleus",
+      "indigo": "Indicum",
+      "violet": "Violaceus",
+      "purple": "Purpureus",
+      "pink": "Roseus"
+    }
+  },
   "native_notifications": {
     "generic": "Nuntiatio Syrus",
     "ci_failed": "CI defecit",

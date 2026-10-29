@@ -23,7 +23,7 @@ RSpec.describe Mentionables::Resolver do
       def subtitle = "Researcher"
       def kind = "coworker"
       def avatar_url = nil
-      def color_key = "coral"
+      def accent_hex = "#E5484D"
       def agentic? = true
       def addressable_in?(_chat) = true
     end.new(41)
@@ -46,8 +46,8 @@ RSpec.describe Mentionables::Resolver do
 
     expect(syrus).to have_attributes(
       handle: "syrus", display_name: "Syrus", subtitle: "Engineer", kind: "syrus",
-      avatar_url: nil, color_key: "coral-deep", agentic?: true
+      avatar_url: nil, accent_hex: "#FBCFD3", agentic?: true
     )
-    expect(owner).to have_attributes(kind: "human", avatar_url: nil, color_key: nil, agentic?: false)
+    expect(owner).to have_attributes(kind: "human", avatar_url: nil, accent_hex: nil, agentic?: false)
   end
 end

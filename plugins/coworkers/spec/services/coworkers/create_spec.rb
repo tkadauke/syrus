@@ -83,7 +83,7 @@ RSpec.describe Coworkers::Create do
     )
     expect(remote.seeded_files.fetch("SOUL.md")).to include("role: not set up yet", "Interview your owner")
     expect(remote.seeded_identity).to have_attributes(git_name: "Maya (@maya)", git_email: "maya@coworkers.syrus.invalid")
-    expect(coworker).to have_attributes(color_key: Appearance::ColorPalette.default_key("maya"), role_summary: "not set up yet")
+    expect(coworker).to have_attributes(accent_hex: "#0090FF", role_summary: "not set up yet")
     expect(coworker.grants.pluck(:capability, :approval_policy).to_h).to eq(described_class::DEFAULT_GRANTS)
     expect(coworker.coworker_chats.find_by!(role: "main").chat_session.repository).to eq(repository)
   end

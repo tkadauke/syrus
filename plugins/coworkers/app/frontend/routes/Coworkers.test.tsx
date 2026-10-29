@@ -11,7 +11,7 @@ const summaryPayload = {
     handle: "syrus",
     role_summary: "Engineer",
     state: "active",
-    color_key: "coral-deep",
+    accent_hex: "#FBCFD3",
     avatar_key: null,
     avatar_url: null,
     path: "/coworkers/syrus",
@@ -24,7 +24,7 @@ const summaryPayload = {
       handle: "maya",
       role_summary: "Researcher",
       state: "active",
-      color_key: "rose-soft",
+      accent_hex: "#E5484D",
       avatar_key: "comet",
       avatar_url: null,
       path: "/coworkers/7"
@@ -115,9 +115,10 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   fireEvent.click(screen.getByRole("button", { name: "Test push access" }))
   expect(await screen.findByText("Push access verified")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("radio", { name: "Comet" }))
-  expect(screen.queryByRole("radio", { name: "Rose Clear" })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: /Coral Soft/ }))
-  fireEvent.click(screen.getByRole("radio", { name: "Rose Clear" }))
+  expect(screen.queryByRole("button", { name: "Poppy" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: /#0090FF/ }))
+  fireEvent.click(screen.getByRole("button", { name: "Poppy" }))
+  expect(screen.getByRole("dialog", { name: "Color" })).toBeInTheDocument()
   fireEvent.click(screen.getByRole("checkbox", { name: "workspace.shell" }))
   fill("About (optional)", "Research lead")
   const upload = new File(["avatar"], "maya.png", { type: "image/png" })
@@ -127,7 +128,7 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   expect(await screen.findByRole("heading", { name: "Maya" })).toBeInTheDocument()
   const request = requests.find(({ path, init }) => path === "/api/v1/app/coworkers" && init?.method === "POST")
   const form = request?.init?.body as FormData
-  expect(form.get("color_key")).toBe("rose-clear")
+  expect(form.get("accent_hex")).toBe("#E5484D")
   expect(form.get("chat_provider")).toBe("codex")
   expect(form.get("chat_model")).toBe("gpt-6.1-sol")
   expect(form.get("avatar_key")).toBe("comet")
