@@ -3,10 +3,28 @@ module Coworkers
     def self.install_into(scope)
       scope.effect("chat coworker resolver") do
         ChatSession.define_method(:coworker) do
-          Coworkers::Chat.includes(:coworker).find_by(chat_session_id: id)&.coworker || ::Coworker::Syrus.for(user)
+          active = current_turn_message_id && messages.find_by(id: current_turn_message_id)
+          rostered = active && coworker_roster_mention(active)
+          rostered || Coworkers::Chat.includes(:coworker).find_by(chat_session_id: id)&.coworker || ::Coworker::Syrus.for(user)
         end
 
-        -> { ChatSession.remove_method(:coworker) if ChatSession.instance_methods(false).include?(:coworker) }
+        ChatSession.define_method(:coworker_roster_mention) do |message|
+          mentions = Array(message.resolved_mentions)
+          coworker_ids = mentions.filter_map { |mention| mention["id"] if mention["kind"] == "coworker" }
+          rostered = Coworkers::ChatAgent.where(chat_session_id: id, coworker_id: coworker_ids).includes(:coworker).index_by(&:coworker_id)
+          coworker_ids.lazy.filter_map { |coworker_id| rostered[coworker_id]&.coworker }.first
+        end
+
+        ChatSession.define_method(:agent_turn_context) do |message|
+          rostered = coworker_roster_mention(message)
+          rostered ? Coworkers::TurnChatContext.new(self, rostered) : self
+        end
+
+        -> do
+          %i[coworker coworker_roster_mention agent_turn_context].each do |method|
+            ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
+          end
+        end
       end
     end
   end

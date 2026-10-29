@@ -34,6 +34,53 @@ RSpec.describe "Coworkers plugin" do
     scope&.dispose
   end
 
+
+  it "selects a roster-mentioned coworker as the active turn context" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "coworker-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-turn", workspace_repo: repository.remote_url,
+      chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
+    )
+    chat = ChatSession.create!(user: owner, title: "Planning")
+    Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
+    coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
+    message = chat.messages.build(
+      role: "user", content: { "text" => "Ask @maya-turn" },
+      mentions: [ { "kind" => "coworker", "id" => coworker.id, "handle" => coworker.handle, "start" => 4, "end" => 14 } ]
+    )
+    message.skip_turn_trigger = true
+    message.save!
+    chat.update_columns(current_turn_message_id: message.id)
+    scope = Syrus::EffectScope.new(label: "rostered coworker turn spec")
+    Coworkers::ChatExtension.install_into(scope)
+
+    context = chat.reload.agent_turn_context(message)
+
+    expect(chat.coworker).to eq(coworker)
+    expect(context).to have_attributes(
+      coworker: coworker, effective_chat_provider: "codex", chat_model: "gpt-6.1-sol",
+      chat_effort: "high", repository: repository
+    )
+    expect(McpToolContext.from_chat_session(context)).to have_attributes(
+      role: AgentRole::COWORKER_CHAT, granted_capabilities: [ "workspace.files" ]
+    )
+
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@user_message, message)
+    job.instance_variable_set(:@agent_chat, context)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/roster-chat"))
+    expect(ChatWorkspace).to receive(:ensure_branch_checkout!)
+      .with(chat, repository, "coworkers/maya-turn")
+      .and_return(Pathname("/tmp/roster-coworker"))
+
+    expect(job.send(:chat_provider)).to have_attributes(provider: "codex")
+    expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/roster-coworker"))
+    expect(job.send(:resume_session_id_for, nil)).to be_nil
+  ensure
+    scope&.dispose
+  end
+
   it "removes the chat extension when disabled" do
     scope = Syrus::EffectScope.new(label: "spec")
     Coworkers::ChatExtension.install_into(scope)
