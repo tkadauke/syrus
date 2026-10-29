@@ -29,6 +29,7 @@ RSpec.describe ContainerExecution::Backend do
 
   it "declines grader requests when Docker cannot be launched" do
     ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"] = "syrus-worker:test"
+    ENV.delete("SYRUS_CONTAINER_EXECUTION_DOCKER")
     configure_host_paths
     configure_docker_socket
 
@@ -37,6 +38,7 @@ RSpec.describe ContainerExecution::Backend do
 
   it "declines grader requests when Docker transport is not reachable from the worker" do
     ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"] = "syrus-worker:test"
+    ENV.delete("SYRUS_CONTAINER_EXECUTION_DOCKER_SOCKET")
     configure_docker_command
     configure_host_paths
 
