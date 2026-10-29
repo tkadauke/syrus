@@ -44,6 +44,28 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "loads weekly card spend with collection-wide aggregates" do
+    3.times do |index|
+      Coworkers::Coworker.create!(
+        owner_user: owner, name: "Coworker #{index}", handle: "card-spend-#{index}",
+        workspace_repo: "https://github.com/acme/workspace.git"
+      )
+    end
+    sign_in_as(owner)
+
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      get "/api/v1/app/coworkers"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(queries.grep(/FROM ["`]chat_spend_entries["`]/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]runs["`]/i).size).to eq(1)
+  end
+
   it "groups coworker chats and includes their appearance in the chat list" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git", avatar_key: "comet")
     chat = ChatSession.create!(user: owner, title: "Maya")
