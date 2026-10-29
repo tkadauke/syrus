@@ -611,9 +611,17 @@ class Epic < ApplicationRecord
   end
 
   def execution_dependencies_ready?
-    dependencies_done? || EpicDependencyExecutionPolicy::Linear.new(self).ready?
+    landing_dependencies_satisfied? || EpicDependencyExecutionPolicy::Linear.new(self).ready?
   end
   public :execution_dependencies_ready?
+
+  # Execution may be released speculatively across a same-repository Epic
+  # boundary. Approval, merge trains, landing, and completion must continue to
+  # use the strict dependency contract instead of that execution-only release.
+  def landing_dependencies_satisfied?
+    dependencies_done?
+  end
+  public :landing_dependencies_satisfied?
 
   def child_jobs_confirmed?
     jobs.where(state: "triaging").none?

@@ -28,6 +28,12 @@ failures. For example, if GitHub is still recomputing mergeability after a
 push, Syrus waits briefly and retries instead of throwing away a green grader
 run.
 
+The experimental early Epic dependency-execution feature changes when a
+same-repository dependent Epic may begin implementation, not when it may land.
+Its children remain outside the merge train until every upstream Epic has
+completed successfully. Syrus rechecks that strict boundary during dispatch
+and assembly so stale queue snapshots and restarts cannot bypass landing order.
+
 ## Epic Merge Trains
 
 When an Epic's open child Jobs are all approved, Syrus lands the Epic as one

@@ -552,6 +552,30 @@ RSpec.describe Epic, :ci_only do
       )
     end
 
+    it "releases a blocked downstream root when the upstream tail becomes implemented" do
+      upstream = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
+      tail = Factories.job_record(
+        user: user, repository: repository, epic: upstream, issue_number: 24,
+        state: "running", branch_name: "syrus/upstream-tail", pr_number: 24
+      )
+      tail.runs.create!(trigger_kind: "initial", agent_provider: tail.agent_provider, head_sha: "b" * 40)
+      downstream = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
+      root = Factories.job_record(
+        user: user, repository: repository, epic: downstream, kind: "direct",
+        issue_number: nil, issue_title: "Downstream work", issue_body: "Do it",
+        state: "blocked_by_epic"
+      )
+      EpicDependency.create!(epic: downstream, depends_on_epic: upstream, derived: false)
+
+      expect {
+        tail.update!(state: "implemented")
+      }.to change { root.reload.state }.from("blocked_by_epic").to("queued")
+        .and change { root.workflows.count }.by(1)
+
+      expect(root.reload.parent_job).to eq(tail)
+      expect(downstream.reload).not_to be_landing_dependencies_satisfied
+    end
+
     it "forms one continuous stack across three dependent Epics" do
       epic_a = described_class.create!(user: user, repository: repository, title: "A", state: "in_progress")
       job_a = materialized_job(epic: epic_a, number: 31, branch: "syrus/a")
@@ -593,6 +617,21 @@ RSpec.describe Epic, :ci_only do
       Factories.job_record(user: user, repository: repository, epic: blocked, issue_number: 47, state: "blocked_by_epic")
       EpicDependency.create!(epic: blocked, depends_on_epic: nonlinear, derived: false)
       expect(blocked.reload).not_to be_execution_dependencies_ready
+    end
+
+    it "does not release from failed or cancelled upstream work" do
+      %w[failed cancelled].each_with_index do |closure_reason, index|
+        upstream = described_class.create!(user: user, repository: repository, title: "Upstream #{closure_reason}", state: "in_progress")
+        materialized_job(epic: upstream, number: 50 + index, branch: "syrus/#{closure_reason}").update!(
+          state: "closed", closure_reason: closure_reason
+        )
+        downstream = described_class.create!(user: user, repository: repository, title: "Downstream #{closure_reason}", state: "in_progress")
+        Factories.job_record(user: user, repository: repository, epic: downstream, issue_number: 60 + index, state: "blocked_by_epic")
+        EpicDependency.create!(epic: downstream, depends_on_epic: upstream, derived: false)
+
+        expect(downstream.reload).not_to be_execution_dependencies_ready
+        expect(downstream).not_to be_landing_dependencies_satisfied
+      end
     end
   end
 

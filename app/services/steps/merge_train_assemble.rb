@@ -33,6 +33,7 @@ module Steps
         )
       end
 
+      validate_epic_dependencies!(train) if train.epic_backed?
       validate_epic_siblings!(train) if train.epic_backed?
 
       train.update!(integration_branch: train.default_integration_branch) if train.integration_branch.blank?
@@ -41,6 +42,16 @@ module Steps
     end
 
     private
+
+    def validate_epic_dependencies!(train)
+      return if train.epic.landing_dependencies_satisfied?
+
+      fail_with!(
+        :merge_train_rebuild_required,
+        "merge_train: upstream Epic dependencies are not complete; rebuild required",
+        evidence: { "epic_id" => train.epic_id }
+      )
+    end
 
     def validate_epic_siblings!(train)
       unapproved_open = train.epic.work_jobs.where.not(state: "closed").where.not(state: %w[approved landing])
