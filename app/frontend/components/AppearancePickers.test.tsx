@@ -74,6 +74,10 @@ describe("appearance helpers", () => {
     expect(screen.getByText(`Iris +1 · ${irisLight}`)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Vivid" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "Iris" })).toHaveAttribute("aria-pressed", "true")
+    for (const label of ["Pastel", "Dusty", "Vivid", "Electric", "Jewel"]) {
+      expect(screen.getByRole("button", { name: label }).lastElementChild).not.toHaveClass("truncate")
+      expect(screen.getByRole("button", { name: label })).toHaveTextContent(label)
+    }
     expect(screen.getByRole("button", { name: "+1 Light" })).toHaveStyle({ color: onColor(irisLight) })
     expect(screen.getByText("Ready when you are.")).toHaveStyle({ backgroundColor: irisLight, color: onColor(irisLight) })
     expect(screen.getByText("A")).toBeInTheDocument()
