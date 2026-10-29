@@ -23,6 +23,10 @@ RSpec.describe Coworkers::BranchLifecycle do
       guard.allow!(branch)
       raise "delete failed" if fail_on == :delete
       branches.delete(branch)
+      if fail_on == :after_delete
+        self.fail_on = nil
+        raise "transaction commit failed"
+      end
     end
   end
 
@@ -65,6 +69,15 @@ RSpec.describe Coworkers::BranchLifecycle do
     expect(Handle.find_by!(owner: coworker).handle).to eq("maya")
   end
 
+  it "restores the old ref when the transaction fails after deleting it" do
+    remote.fail_on = :after_delete
+
+    expect { lifecycle.rename!(handle: "maya-renamed") }.to raise_error("transaction commit failed")
+    expect(remote.branches).to contain_exactly("coworkers/maya")
+    expect(coworker.reload.handle).to eq("maya")
+    expect(Handle.find_by!(owner: coworker).handle).to eq("maya")
+  end
+
   it "refuses a rename while a turn is in flight" do
     chat = ChatSession.create!(user: owner, title: "Maya", turn_in_flight: true)
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
@@ -82,5 +95,15 @@ RSpec.describe Coworkers::BranchLifecycle do
 
     expect(second).to eq("coworkers/archived/maya-2026-10-29-2")
     expect(Handle.where(handle: "maya")).to be_empty
+  end
+
+
+  it "restores the home ref and coworker when archive commit fails after deletion" do
+    remote.fail_on = :after_delete
+
+    expect { lifecycle.archive! }.to raise_error("transaction commit failed")
+    expect(remote.branches).to contain_exactly("coworkers/maya")
+    expect(Coworkers::Coworker.find(coworker.id).handle).to eq("maya")
+    expect(Handle.find_by!(owner: coworker).handle).to eq("maya")
   end
 end

@@ -29,6 +29,7 @@ class Coworkers::BranchLifecycle
           @remote.guarded_delete!(old_branch, guard: guard)
         end
       rescue StandardError => error
+        restore_original_ref!(source: old_branch, replacement: new_branch, guard: RenameGuard.new(guard, destination_guard))
         remove_compensating_ref(new_branch, destination_guard)
         @coworker.reload
         raise error
@@ -50,6 +51,7 @@ class Coworkers::BranchLifecycle
           @remote.guarded_delete!(source, guard: guard)
         end
       rescue StandardError => error
+        restore_original_ref!(source:, replacement: destination, guard: guard)
         remove_compensating_ref(destination, guard)
         raise error
       end
@@ -84,6 +86,12 @@ class Coworkers::BranchLifecycle
   end
 
   def home(handle) = "coworkers/#{handle}"
+
+  def restore_original_ref!(source:, replacement:, guard:)
+    return if @remote.branch_exists?(source)
+
+    @remote.copy!(source: replacement, destination: source, guard:)
+  end
 
   def remove_compensating_ref(branch, guard)
     @remote.guarded_delete!(branch, guard:) if @remote.branch_exists?(branch)
