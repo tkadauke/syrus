@@ -9,6 +9,51 @@ import type { fetchJobRunArtifacts } from "../../api/jobs"
 const RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24
 
 export type TranscriptLog = NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>[number]
+export type DisplayTranscriptLog = TranscriptLog & { sourceKey: string }
+
+export function coalesceTranscriptLogs(logs: TranscriptLog[]) {
+  const displayLogs: DisplayTranscriptLog[] = []
+  const sourceByKind = new Map<string, string>()
+
+  for (const log of logs) {
+    const displayLog = { ...log, sourceKey: transcriptLogSourceKey(log, sourceByKind) }
+    const previous = displayLogs.at(-1)
+    if (previous && shouldCoalesceTranscriptLogs(previous, displayLog)) {
+      previous.chunk = joinTranscriptChunks(previous.chunk, displayLog.chunk)
+      continue
+    }
+    displayLogs.push(displayLog)
+  }
+
+  return displayLogs
+}
+
+export function transcriptLogSourceKey(log: TranscriptLog, sourceByKind: Map<string, string>) {
+  const kind = log.kind || "log"
+  const command = commandMarkerSource(log.chunk)
+  if (command) {
+    const source = `${kind}:command:${command}`
+    sourceByKind.set(kind, source)
+    return source
+  }
+  return sourceByKind.get(kind) || `${kind}:run`
+}
+
+export function commandMarkerSource(chunk: string) {
+  const firstLine = chunk.split(/\r?\n/, 1)[0]?.trim() || ""
+  const marker = firstLine.match(/^\[(prepare|grade|grader:[^\]]+)\](?: \(\d+\/\d+\))? \$ (.+)$/)
+  return marker ? `${marker[1]}:${marker[2]}` : null
+}
+
+export function shouldCoalesceTranscriptLogs(previous: DisplayTranscriptLog, next: DisplayTranscriptLog) {
+  return previous.kind === next.kind && previous.sourceKey === next.sourceKey && !["tool_call", "rate_limited"].includes(previous.kind || "")
+}
+
+export function joinTranscriptChunks(previous: string, next: string) {
+  if (previous.endsWith("\n") || next.startsWith("\n")) return previous + next
+  return `${previous}\n${next}`
+}
+
 export function isRunTranscriptAtBottom(element: HTMLElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight <= RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX
 }

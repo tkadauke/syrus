@@ -63,6 +63,41 @@ function command() {
 }
 
 describe("WorkflowsTab", () => {
+  it("passes the Step agentic metadata to the transcript renderer", async () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].agentic = false
+    workflow.steps[0].runs[0].job_log_count = 2
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          job_id: 42,
+          workflow_id: 10,
+          run_id: 51,
+          artifact: "transcript",
+          logs: [
+            { id: 1, sequence: 1, kind: "stdout", chunk: "first", created_at: null },
+            { id: 2, sequence: 2, kind: "stdout", chunk: "second", created_at: null }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42 } as JobDetailPayload["job"], workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
+
+    expect(await screen.findAllByTestId("run-transcript-log-compact")).toHaveLength(1)
+    expect(screen.queryByTestId("run-transcript-log-system")).not.toBeInTheDocument()
+  })
+
   it("renders workflow diagnostics through shared section, surface, and code primitives", () => {
     const workflow = workflowWithDiffRun()
     workflow.steps[0].details = {

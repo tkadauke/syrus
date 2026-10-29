@@ -27,13 +27,13 @@ import type { HTMLAttributes, ReactNode, UIEvent } from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { TranscriptMessageRow } from "../../components/TranscriptMessageRow"
-import { ChatAssistantMarkdownSurface, SharedMessageRenderer, ToolGroup } from "../chat/MessageCards"
+import { ChatAssistantMarkdownSurface, SharedMessageRenderer, SystemMessage, ToolGroup } from "../chat/MessageCards"
 import type { JobRun, fetchJobRunArtifacts } from "../../api/jobs"
 import { useT } from "../../hooks/useT"
 export { AgentDiff } from "../../components/diff/ReviewableDiff"
 import { withRoutePrefix } from "./formatting"
 import { formatElapsed, humanize } from "./stepModel"
-import { isRunTranscriptAtBottom, scrollRunTranscriptToBottom } from "./transcript"
+import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToBottom } from "./transcript"
 import { transcriptRenderItems } from "./transcriptRenderItems"
 
 // Shared presentational micro-components extracted from JobDetail.tsx: the small
@@ -205,19 +205,22 @@ function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<t
 
 export function RunTranscriptLogs({
   logs,
-  fillHeight = false
+  fillHeight = false,
+  agentic
 }: {
   logs: NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>
   fillHeight?: boolean
+  agentic: boolean
 }) {
   const { t } = useT("jobs")
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
   const logSignature = logs.map((log) => `${log.id}:${log.sequence}:${log.kind || ""}:${log.chunk.length}`).join("|")
-  const renderItems = transcriptRenderItems(logs)
+  const renderItems = agentic ? transcriptRenderItems(logs) : []
+  const displayLogs = agentic ? [] : coalesceTranscriptLogs(logs)
   const streamClassName = [
     fillHeight ? "min-h-0 flex-1 max-h-none" : "max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none",
-    "min-w-0 space-y-4 overflow-y-auto overflow-x-hidden px-3 pb-3"
+    `min-w-0 overflow-y-auto overflow-x-hidden px-3 pb-3 ${agentic ? "space-y-4" : "space-y-1"}`
   ].join(" ")
 
   function handleScroll(event: UIEvent<HTMLOListElement>) {
@@ -230,34 +233,38 @@ export function RunTranscriptLogs({
 
   return (
     <ol className={streamClassName} data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
-      {renderItems.map((item, index) => {
-        if (item.type === "tool_group") {
-          return (
-            <SharedMessageRenderer as="li" compact key={`tool-${item.calls[0]?.message_id ?? index}`} readOnly testId="run-transcript-tool-group">
-              <ToolGroup item={item} />
-            </SharedMessageRenderer>
-          )
-        }
+      {agentic
+        ? renderItems.map((item, index) => {
+            if (item.type === "tool_group") {
+              return (
+                <SharedMessageRenderer as="li" compact key={`tool-${item.calls[0]?.message_id ?? index}`} readOnly testId="run-transcript-tool-group">
+                  <ToolGroup item={item} />
+                </SharedMessageRenderer>
+              )
+            }
 
-        if (item.role === "assistant") {
-          return (
-            <SharedMessageRenderer as="li" key={item.id} readOnly testId="run-transcript-log-assistant">
-              <ChatAssistantMarkdownSurface text={item.text} />
-            </SharedMessageRenderer>
-          )
-        }
+            if (item.role === "assistant") {
+              return (
+                <SharedMessageRenderer as="li" key={item.id} readOnly testId="run-transcript-log-assistant">
+                  <ChatAssistantMarkdownSurface text={item.text} />
+                </SharedMessageRenderer>
+              )
+            }
 
-        const sourceLog = logs.find((log) => log.id === item.id)
-        return (
-          <TranscriptMessageRow
-            chunk={item.text}
-            kind={item.role}
-            key={item.id}
-            label={transcriptLogKindLabel(sourceLog?.kind, t)}
-            sequence={item.id}
-          />
-        )
-      })}
+            const sourceLog = logs.find((log) => log.id === item.id)
+            return (
+              <SharedMessageRenderer as="li" key={item.id} readOnly testId="run-transcript-log-system">
+                <SystemMessage
+                  item={{ tone: "neutral", label: transcriptLogKindLabel(sourceLog?.kind, t), body: item.text, prominent: true }}
+                  prefix=""
+                  renderAnsi
+                />
+              </SharedMessageRenderer>
+            )
+          })
+        : displayLogs.map((log) => (
+            <TranscriptMessageRow chunk={log.chunk} kind={log.kind} key={log.id} label={transcriptLogKindLabel(log.kind, t)} sequence={log.sequence} />
+          ))}
     </ol>
   )
 }
