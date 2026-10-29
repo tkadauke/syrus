@@ -425,19 +425,18 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
           )}
         </div>
       </div>
-      {workspace.commits.length ? (
-        <div className="border-t border-border p-4">
-          <h2 className="font-semibold">{t("workspace.history")}</h2>
-          <ul className="mt-2 space-y-1 text-sm">
-            {workspace.commits.map((commit) => (
-              <li key={commit.sha}>
-                <span className="font-mono">{commit.sha.slice(0, 7)}</span> {commit.message}
-                {commit.source_id ? <span className="ml-2 text-text-muted">{t(`workspace.${commit.source}_source`, { id: commit.source_id })}</span> : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <div className="rounded border border-border bg-surface p-4">
+        <h2 className="mb-3 font-semibold">{t("workspace.history")}</h2>
+        {workspace.commits.length === 0 ? <p className="text-sm text-text-muted">{t("workspace.no_commits")}</p> : null}
+        <ol className="space-y-2">
+          {workspace.commits.map((commit) => (
+            <li className="text-sm" key={commit.sha}>
+              <code>{commit.sha.slice(0, 7)}</code> {commit.message}
+              {commit.source_id ? <span className="ml-2 text-text-muted">{t(`workspace.${commit.source}_source`, { id: commit.source_id })}</span> : null}
+            </li>
+          ))}
+        </ol>
+      </div>
     </section>
   )
 }

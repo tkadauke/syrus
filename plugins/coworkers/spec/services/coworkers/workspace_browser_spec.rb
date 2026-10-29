@@ -21,4 +21,27 @@ RSpec.describe Coworkers::WorkspaceBrowser do
 
     expect(result[:conflicts]).to be_empty
   end
+
+  it "attributes commits to chats and matching runs without inventing provenance" do
+    chat_sha = "a" * 40
+    run_sha = "b" * 40
+    seed_sha = "c" * 40
+    stub_repository_content(repository, ref: "coworkers/maya-browser", files: { "README.md" => "hello" })
+    stub_repository_content(repository, ref: repository.default_branch, files: {})
+    stub_repository_history(repository, base: repository.default_branch, head: "coworkers/maya-browser", commits: [
+      { sha: chat_sha, message: "Update @maya-browser from chat 91" },
+      { sha: run_sha, message: "Refresh research notes" },
+      { sha: seed_sha, message: "Create coworker home" }
+    ])
+    job = Factories.job_with_run(user: owner, repository: repository, run_attrs: { head_sha: run_sha.first(12) })
+    run = job.runs.sole
+
+    commits = described_class.new(coworker: coworker, repository: repository, user: owner).call.fetch(:commits)
+
+    expect(commits).to contain_exactly(
+      include(sha: chat_sha, source: "chat", source_id: 91),
+      include(sha: run_sha, source: "run", source_id: run.id),
+      include(sha: seed_sha, source: "unattributed", source_id: nil)
+    )
+  end
 end

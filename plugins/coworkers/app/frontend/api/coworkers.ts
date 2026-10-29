@@ -55,7 +55,7 @@ export type CoworkerWorkspacePayload = {
   files: { path: string; type: string }[]
   partial: boolean
   selected_file: { path: string; content: string; truncated: boolean; binary: boolean } | null
-  commits: { sha: string; message: string; authored_at: string | null; source: "chat" | "run"; source_id: number | null }[]
+  commits: { sha: string; message: string; authored_at: string | null; source: "chat" | "run" | "unattributed"; source_id: number | null }[]
   conflicts: { branch: string; files: string[]; detail: string | null }[]
 }
 

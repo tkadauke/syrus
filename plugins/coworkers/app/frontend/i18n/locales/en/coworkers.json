@@ -30,6 +30,7 @@
     "no_commits": "No commit history is available.",
     "chat_source": "Chat {{id}}",
     "run_source": "Run {{id}}",
+    "unattributed_source": "Source unavailable",
     "conflict": "Unmerged chat branch {{branch}}:",
     "test_push": "Test push access",
     "push_ok": "Push access verified"

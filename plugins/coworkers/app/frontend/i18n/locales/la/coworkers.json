@@ -30,6 +30,7 @@
     "no_commits": "Historia committendi praesto non est.",
     "chat_source": "Colloquium {{id}}",
     "run_source": "Cursus {{id}}",
+    "unattributed_source": "Origo non praesto",
     "conflict": "Ramus colloquii nondum coniunctus {{branch}}:",
     "test_push": "Accessum mittendi proba",
     "push_ok": "Accessus mittendi probatus"
