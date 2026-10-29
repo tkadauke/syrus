@@ -52,6 +52,16 @@ RSpec.describe ContainerExecution::Backend do
     expect(described_class.available_for?(request(kind: "grader"))).to be(false)
   end
 
+  it "is available without a global image when an opted-in repository declares a devcontainer" do
+    configure_container_execution
+    ENV.delete("SYRUS_CONTAINER_EXECUTION_IMAGE")
+    ENV["SYRUS_CONTAINER_EXECUTION_DEVCONTAINER"] = "true"
+    job = instance_double(Job, repository: Object.new)
+    allow(ContainerExecution::DevcontainerSpec).to receive(:for_job).with(job).and_return(Object.new)
+
+    expect(described_class.available_for?(request(kind: "grader", job: job))).to be(true)
+  end
+
   it "translates mounts, network policy, resource limits, env, workdir, and the MCP socket into docker run args" do
     configure_container_execution
     backend = described_class.new

@@ -8,6 +8,10 @@ module ContainerExecution
       ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"].presence
     end
 
+    def devcontainer_enabled?
+      ActiveModel::Type::Boolean.new.cast(ENV["SYRUS_CONTAINER_EXECUTION_DEVCONTAINER"])
+    end
+
     def docker_command
       ENV.fetch("SYRUS_CONTAINER_EXECUTION_DOCKER", "docker")
     end
