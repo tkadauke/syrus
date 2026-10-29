@@ -232,7 +232,7 @@ it("browses, searches, and renders coworker memory without write controls", asyn
               { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\nShipped it.", truncated: false },
               { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Thomas likes **evidence**.", truncated: false }
             ]
-        return jsonResponse({ files: matches, search: "", truncated: false })
+        return jsonResponse({ files: matches, search: "", truncated: false, partial: false, search_incomplete: false })
       }
       return jsonResponse(detailPayload)
     })
@@ -257,7 +257,10 @@ it("shows clear empty and unreachable memory states", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes("/memory")) return unavailable ? jsonResponse({ error: { message: "offline" } }, 503) : jsonResponse({ files: [], search: "", truncated: false })
+      if (String(input).includes("/memory"))
+        return unavailable
+          ? jsonResponse({ error: { message: "offline" } }, 503)
+          : jsonResponse({ files: [], search: "", truncated: false, partial: false, search_incomplete: false })
       return jsonResponse(detailPayload)
     })
   )
@@ -272,6 +275,23 @@ it("shows clear empty and unreachable memory states", async () => {
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Memory" }))
   expect(await screen.findByText("This coworker's memory cannot be reached right now.")).toBeInTheDocument()
+})
+
+it("does not claim that an incomplete search has no matches", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/memory"))
+        return jsonResponse({ files: [], search: "needle", truncated: true, partial: true, search_incomplete: true })
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7?search=needle")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+
+  expect(await screen.findByText("Some memory content could not be searched. These results may be incomplete.")).toBeInTheDocument()
+  expect(screen.queryByText("No memory files match this search.")).not.toBeInTheDocument()
 })
 
 it("renders Syrus without a workspace or main chat and links its fixed surfaces", async () => {

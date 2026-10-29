@@ -35,7 +35,13 @@ export type CoworkerMemoryFile = {
   content: string
   truncated: boolean
 }
-export type CoworkerMemoryPayload = { files: CoworkerMemoryFile[]; search: string; truncated: boolean }
+export type CoworkerMemoryPayload = {
+  files: CoworkerMemoryFile[]
+  search: string
+  truncated: boolean
+  partial: boolean
+  search_incomplete: boolean
+}
 
 export const fetchCoworkers = () =>
   getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")

@@ -96,5 +96,8 @@ home branch through the cached repository-content providers and presents daily,
 people, repository, and bank Markdown files without any editing controls. It
 supports full-text search across paths and contents, links to the owner's Syrus
 memories, distinguishes an empty memory tree from an unreachable remote, and
-shows recent daily files first. Capabilities, Schedule, Workspace, and Activity
+shows recent daily files first. Provider-truncated or exceptionally large trees
+return their available files with a partial-results notice; searches also warn
+when capped file contents mean the result set cannot be complete. Capabilities,
+Schedule, Workspace, and Activity
 remain coming-later placeholders where their full surfaces have not shipped yet.

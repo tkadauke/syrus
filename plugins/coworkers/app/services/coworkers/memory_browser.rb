@@ -13,21 +13,40 @@ module Coworkers
     def call(search: nil)
       reader = RepositoryContent.for(@repository, user: @user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
-      files = reader.files(
-        revision,
-        glob: CATEGORIES.map { |category| "memory/#{category}/**/*.md" },
-        max_files: MAX_FILES,
-        max_bytes: MAX_FILE_BYTES
-      ).map { |path, blob| file_json(path, blob) }
+      entries, partial_tree = memory_entries(reader, revision)
+      entries.sort_by! { |entry| sort_key({ category: entry.path.split("/")[1], name: File.basename(entry.path, ".md") }) }
+      over_limit = entries.size > MAX_FILES
+      files = entries.first(MAX_FILES).map do |entry|
+        file_json(entry.path, reader.read(revision, entry.path, max_bytes: MAX_FILE_BYTES))
+      end
+      truncated_files = files.any? { |file| file[:truncated] }
 
       needle = search.to_s.strip.downcase
       files.select! { |file| "#{file[:path]}\n#{file[:content]}".downcase.include?(needle) } if needle.present?
       files.sort_by! { |file| sort_key(file) }
 
-      { files: files, search: search.to_s.strip, truncated: files.any? { |file| file[:truncated] } }
+      {
+        files: files,
+        search: search.to_s.strip,
+        truncated: truncated_files,
+        partial: partial_tree || over_limit,
+        search_incomplete: needle.present? && (partial_tree || over_limit || truncated_files)
+      }
     end
 
     private
+
+    def memory_entries(reader, revision)
+      entries = reader.tree(revision)
+      [ select_memory_files(entries), false ]
+    rescue RepositoryContent::Truncated => error
+      [ select_memory_files(error.partial), true ]
+    end
+
+    def select_memory_files(entries)
+      patterns = CATEGORIES.map { |category| "memory/#{category}/**/*.md" }
+      entries.select { |entry| entry.file? && RepositoryContent::Glob.match?(patterns, entry.path) }
+    end
 
     def file_json(path, blob)
       category = path.split("/")[1]

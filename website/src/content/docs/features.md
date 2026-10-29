@@ -1702,7 +1702,9 @@ working preferences, and boundaries. Each coworker's Memory tab is a
 read-only, searchable browser for the daily, people, repository, and bank
 Markdown files on its home branch. It shows recent daily files first, links to
 the owner's existing Syrus memories, and reports empty and unreachable remotes
-separately. Coworker conversations are kept
+separately. Large or provider-truncated trees remain browseable with an explicit
+partial-results warning, including when a content search cannot be complete.
+Coworker conversations are kept
 in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. A chat owner can share a conversation read-only with one of their
