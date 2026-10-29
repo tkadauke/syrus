@@ -54,7 +54,18 @@
     "workspace": "Spatium",
     "activity": "Acta"
   },
-  "activity": { "message_traffic": "Commercium nuntiorum", "window": "Diebus {{count}} proximis", "sent": "Missi", "received": "Accepti", "spend": "Sumptus omnis", "spend_not_capped": "Ad conspectum tantum; non finitus.", "delivery_issues": "Vitium traditionis", "refused": "Nuntius ad @{{handle}} recusatus", "rate_limited": "Nuntius ad @{{handle}} finitus", "no_delivery_issues": "Nullae traditiones recusatae aut finitae." },
+  "activity": {
+    "message_traffic": "Commercium nuntiorum",
+    "window": "Diebus {{count}} proximis",
+    "sent": "Missi",
+    "received": "Accepti",
+    "spend": "Sumptus omnis",
+    "spend_not_capped": "Ad conspectum tantum; non finitus.",
+    "delivery_issues": "Vitium traditionis",
+    "refused": "Nuntius ad @{{handle}} recusatus",
+    "rate_limited": "Nuntius ad @{{handle}} finitus",
+    "no_delivery_issues": "Nullae traditiones recusatae aut finitae."
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",

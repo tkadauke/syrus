@@ -322,6 +322,24 @@ function CoworkerPage({ id }: { id: string }) {
               <dd className="text-2xl font-semibold">{coworker.message_traffic.received}</dd>
             </div>
           </dl>
+          <h3 className="mt-6 font-semibold">{t("activity.delivery_issues")}</h3>
+          {coworker.message_traffic.delivery_events.length ? (
+            <ul className="mt-3 space-y-2">
+              {coworker.message_traffic.delivery_events.map((event) => (
+                <li className="rounded border border-border bg-surface-subtle p-3 text-sm" key={`${event.occurred_at}-${event.receiver_handle}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{t(`activity.${event.status}`, { handle: event.receiver_handle })}</span>
+                    <time className="text-text-secondary" dateTime={event.occurred_at}>
+                      {new Date(event.occurred_at).toLocaleString()}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-text-secondary">{event.reason}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-text-secondary">{t("activity.no_delivery_issues")}</p>
+          )}
         </section>
       ) : null}
       {!["chat", "profile", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
