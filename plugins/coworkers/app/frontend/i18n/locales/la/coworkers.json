@@ -54,6 +54,7 @@
     "workspace": "Spatium",
     "activity": "Acta"
   },
+  "activity": { "message_traffic": "Commercium nuntiorum", "window": "Diebus {{count}} proximis", "sent": "Missi", "received": "Accepti" },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",

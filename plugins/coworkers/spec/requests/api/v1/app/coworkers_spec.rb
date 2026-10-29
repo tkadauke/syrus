@@ -128,6 +128,21 @@ RSpec.describe "API: coworkers", type: :request do
     expect(chats.fetch(roster_chat.id)).to include("implicit" => false, "rostered" => true)
   end
 
+  it "reports recent incoming and outgoing coworker message traffic" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-traffic", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Maya main")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    chat.messages.create!(role: "system", content: { "text" => "Sent", "coworker_message" => { "direction" => "outgoing" } })
+    chat.messages.create!(role: "user", content: { "text" => "Received", "coworker_message" => { "direction" => "incoming" } }, skip_turn_trigger: true)
+    old = chat.messages.create!(role: "system", content: { "text" => "Old", "coworker_message" => { "direction" => "outgoing" } })
+    old.update_columns(created_at: 31.days.ago)
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}"
+
+    expect(response.parsed_body.dig("coworker", "message_traffic")).to eq("sent" => 1, "received" => 1, "window_days" => 30)
+  end
+
   it "refuses to add another user's coworker" do
     other = Factories.user(email_address: "other-roster@example.com")
     coworker = Coworkers::Coworker.create!(owner_user: other, name: "Private", handle: "private-agent", workspace_repo: "https://github.com/acme/private.git")

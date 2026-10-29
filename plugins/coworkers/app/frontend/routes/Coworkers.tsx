@@ -196,7 +196,7 @@ function NewCoworker() {
         </div>
         <fieldset>
           <legend className="mb-2 text-sm font-medium">{t("fields.grants")}</legend>
-          {["chat.message_owner", "workspace.files", "workspace.shell", "chats.read_shared", "syrus.read_jobs"].map((grant) => (
+          {["chat.message_owner", "coworker.message", "workspace.files", "workspace.shell", "chats.read_shared", "syrus.read_jobs"].map((grant) => (
             <Checkbox className="mb-2" defaultChecked key={grant} label={grant} name="grants[]" value={grant} />
           ))}
         </fieldset>
@@ -308,7 +308,23 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
-      {!["chat", "profile"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {tab === "activity" ? (
+        <section className="rounded border border-border bg-surface p-5">
+          <h2 className="font-semibold">{t("activity.message_traffic")}</h2>
+          <p className="mt-1 text-sm text-text-secondary">{t("activity.window", { count: coworker.message_traffic.window_days })}</p>
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded bg-surface-subtle p-3">
+              <dt className="text-sm text-text-secondary">{t("activity.sent")}</dt>
+              <dd className="text-2xl font-semibold">{coworker.message_traffic.sent}</dd>
+            </div>
+            <div className="rounded bg-surface-subtle p-3">
+              <dt className="text-sm text-text-secondary">{t("activity.received")}</dt>
+              <dd className="text-2xl font-semibold">{coworker.message_traffic.received}</dd>
+            </div>
+          </dl>
+        </section>
+      ) : null}
+      {!["chat", "profile", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
   )
 }

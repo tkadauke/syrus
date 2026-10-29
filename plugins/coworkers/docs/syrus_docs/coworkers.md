@@ -72,6 +72,15 @@ list, search, and read its own chats plus those shares; revoking a share
 removes access immediately. Coworkers are never offered the arbitrary
 `send_chat_message` tool.
 
+Coworkers with the `coworker.message` grant can use
+`message_coworker(handle, text)` to contact another active coworker owned by
+the same user. Delivery is queued on the chat queue. The sender's main chat
+records an outgoing block, while the receiver's main chat gets a
+"message from @handle" block that waits behind any turn already in flight.
+Paused and archived coworkers, Syrus, the sender itself, and handles outside
+the owner's coworker list are refused. Deliveries carry their origin turn and
+hop count; a chain cannot continue beyond three hops.
+
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
 Rostered coworkers become addressable by every participant in that chat and
@@ -84,6 +93,7 @@ cannot be added. The roster is shown beside the chat heading. Coworker turns
 share the chat's serialization lane, so two turns in one chat do not run at the
 same time.
 
-Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
-Workspace, and Activity are visible as coming-later placeholders where their
+Profile pages render `SOUL.md` read-only. The Activity tab reports sent and
+received coworker-message traffic for the last 30 days. Capabilities, Schedule,
+Memory, and Workspace are visible as coming-later placeholders where their
 full Phase 1 surface has not shipped yet.
