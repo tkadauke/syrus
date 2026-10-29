@@ -56,8 +56,8 @@ module ContainerExecution
       spec_directory = File.dirname(spec.source)
       dockerfile = build_config.fetch("dockerfile", "Dockerfile")
       context = build_config.fetch("context", ".")
-      dockerfile_path = workspace_path(spec_directory, dockerfile)
-      context_path = workspace_path(spec_directory, context)
+      dockerfile_path = docker_host_path(workspace_path(spec_directory, dockerfile))
+      context_path = docker_host_path(workspace_path(spec_directory, context))
       args = build_config.fetch("args", {}).flat_map { |key, value| [ "--build-arg", "#{key}=#{value}" ] }
       run_docker!("build", "--tag", tag, "--file", dockerfile_path, *args, context_path)
       tag
@@ -75,6 +75,11 @@ module ContainerExecution
     def workspace_root
       mount = request.mounts&.declared_mounts&.find { |candidate| candidate.include?(request.chdir) }
       mount&.host_path || request.chdir
+    end
+
+    def docker_host_path(worker_path)
+      Configuration.host_path_for(worker_path) ||
+        raise(BuildError, "devcontainer build path is not visible to the Docker host: #{worker_path}")
     end
 
     def image_present?(image)
