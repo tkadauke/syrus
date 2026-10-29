@@ -34,6 +34,15 @@ en:
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."
+      chat_attachments:
+        default_name: "Attachment"
+        must_be_array: "Attachments must be an array."
+        must_be_objects: "Attachments must be objects."
+        unsupported_type: "%{name} is not a supported attachment type."
+        malformed_base64: "%{name} contains malformed Base64 data."
+        file_too_large: "Each attachment must be 5 MB or smaller."
+        invalid_utf8: "%{name} is not valid UTF-8 text."
+        total_too_large: "Attachments must total 20 MB or less."
     mcp:
       bulk_confirmation:
         cleanup_workspaces: "Delete %{count} workflow workspaces?"

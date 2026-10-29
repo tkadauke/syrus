@@ -3,6 +3,15 @@ de:
     errors:
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
+      chat_attachments:
+        default_name: "Anhang"
+        must_be_array: "Anhänge müssen als Array angegeben werden."
+        must_be_objects: "Anhänge müssen Objekte sein."
+        unsupported_type: "%{name} ist kein unterstützter Anhangstyp."
+        malformed_base64: "%{name} enthält fehlerhafte Base64-Daten."
+        file_too_large: "Jeder Anhang darf höchstens 5 MB groß sein."
+        invalid_utf8: "%{name} ist kein gültiger UTF-8-Text."
+        total_too_large: "Anhänge dürfen insgesamt höchstens 20 MB groß sein."
     mcp:
       bulk_confirmation:
         cleanup_workspaces: "%{count} Workflow-Arbeitsbereiche löschen?"
