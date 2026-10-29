@@ -234,6 +234,57 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "browses and searches the owner's coworker memory from the cached repository content surface" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/maya", files: {
+      "memory/daily/2026-10-28.md" => "Yesterday's notes",
+      "memory/daily/2026-10-29.md" => "Decided to ship the browser",
+      "memory/people/thomas.md" => "Thomas likes evidence",
+      "memory/repos/acme__app.md" => "Release checklist",
+      "memory/banks/opinions.md" => "Search should be simple",
+      "SOUL.md" => "not memory"
+    })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("files").pluck("path")).to eq([
+      "memory/daily/2026-10-29.md", "memory/daily/2026-10-28.md", "memory/people/thomas.md",
+      "memory/repos/acme__app.md", "memory/banks/opinions.md"
+    ])
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory", params: { search: "evidence" }
+    expect(response.parsed_body.fetch("files")).to contain_exactly(include("path" => "memory/people/thomas.md", "content" => "Thomas likes evidence"))
+  end
+
+  it "distinguishes empty memory from an unreachable remote" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/maya", files: { "SOUL.md" => "role: Researcher" })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("files")).to be_empty
+
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("offline"))
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.parsed_body.dig("error", "code")).to eq("remote_unavailable")
+  end
+
+  it "does not expose another owner's memory browser" do
+    other = Factories.user(email_address: "memory-owner@example.com")
+    coworker = Coworkers::Coworker.create!(owner_user: other, name: "Hidden", handle: "hidden-memory", workspace_repo: "https://github.com/acme/private.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "offers only the owner's coworkers as typed read-only share targets" do
     mine = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
     other_owner = Factories.user(email_address: "other-owner@example.com")
