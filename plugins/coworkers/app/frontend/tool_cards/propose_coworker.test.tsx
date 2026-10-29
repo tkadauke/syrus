@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import proposeCoworkerToolCard from "./propose_coworker"
-import proposeCoworkerGrantsToolCard from "./propose_coworker_grants"
+import proposeCoworkerGrantsToolCard, { examples as grantExamples } from "./propose_coworker_grants"
 
 describe("propose_coworker tool card", () => {
   it("renders every normalized field that confirmation will execute", () => {
@@ -49,22 +49,13 @@ describe("propose_coworker tool card", () => {
   })
 
   it("renders a grant escalation from its normalized pending payload", () => {
-    const context: ToolCardContext = {
-      toolName: "propose_coworker_grants",
-      resultBody: "{}",
-      resultError: false,
-      input: { coworker_id: 7, grants: ["workspace.shell", "workspace.shell"] },
-      parsedResult: {
-        pending_action_id: 502,
-        state: "pending",
-        grant_escalation: { coworker_id: 7, handle: "maya", grants: ["workspace.shell"] }
-      }
-    }
+    expect(grantExamples).toHaveLength(1)
+    const context = toolCardContextForExample("propose_coworker_grants", grantExamples[0])
 
     render(<>{proposeCoworkerGrantsToolCard.renderExpanded(context)}</>)
 
     expect(screen.getByText("@maya")).toBeInTheDocument()
-    expect(screen.getByText("workspace.shell")).toBeInTheDocument()
+    expect(screen.getByText("workspace.shell, syrus.propose_job")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
   })
 })
