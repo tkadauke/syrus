@@ -552,6 +552,22 @@ RSpec.describe Epic, :ci_only do
       )
     end
 
+    it "reports the remaining child confirmation blocker once dependencies are execution-ready" do
+      upstream = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
+      materialized_job(epic: upstream, number: 27, branch: "syrus/upstream")
+      downstream = described_class.create!(user: user, repository: repository, title: "Downstream")
+      Factories.job_record(
+        user: user, repository: repository, epic: downstream, issue_number: 28,
+        state: "triaging"
+      )
+      EpicDependency.create!(epic: downstream, depends_on_epic: upstream, derived: false)
+
+      expect(downstream.reload).to be_execution_dependencies_ready
+      expect {
+        downstream.start_implementing!(actor: user)
+      }.to raise_error(Epic::NotStartable, /until its child Jobs are confirmed/)
+    end
+
     it "releases a blocked downstream root when the upstream tail becomes implemented" do
       upstream = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
       tail = Factories.job_record(

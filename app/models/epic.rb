@@ -529,7 +529,7 @@ class Epic < ApplicationRecord
     actor_user = epic_advancement_actor(actor)
     return I18n.t("api.epics.product_owner_forbidden") if actor_user&.product_owner?
     return I18n.t("api.epics.start_claimed_by_other") if (backlog? || ready?) && claimed? && actor_user && !claimed_by?(actor_user)
-    if (backlog? || ready?) && !dependencies_done?
+    if (backlog? || ready?) && !execution_dependencies_ready?
       return I18n.t("api.epics.start_blocked_by_dependencies", names: unfinished_dependency_names.to_sentence)
     end
     return I18n.t("api.epics.start_children_empty") if (backlog? || ready?) && jobs.none?
