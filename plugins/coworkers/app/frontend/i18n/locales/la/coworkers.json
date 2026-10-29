@@ -18,6 +18,15 @@
     "truncated": "Hic magnus fasciculus ex parte ostenditur.",
     "categories": { "daily": "Diaria", "people": "Personae", "repos": "Repositoria", "banks": "Thesauri" }
   },
+  "workspace": {
+    "loading": "Spatium oneratur…",
+    "files": "Fasciculi spatii",
+    "history": "Historia commissorum",
+    "conflicts": "Rami colloquiorum nondum coniuncti",
+    "binary": "Fasciculi binarii ostendi non possunt.",
+    "source_chat": "Colloquium {{id}}",
+    "source_run": "Cursus {{id}}"
+  },
   "new": {
     "action": "Novus collega",
     "title": "Novus collega",

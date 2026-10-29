@@ -275,6 +275,60 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.dig("error", "code")).to eq("remote_unavailable")
   end
 
+  it "browses a workspace with attributed history and conflict branches through repository content" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-workspace", workspace_repo: repository.remote_url)
+    chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    chat.messages.create!(role: "system", content: { "coworker_workspace_conflict" => { "branch" => "coworkers/chat/#{coworker.id}-#{chat.id}", "files" => [ "SOUL.md" ] } })
+    stub_repository_content(repository, ref: "coworkers/maya-workspace", files: { "SOUL.md" => "# Maya", "notes.txt" => "plain" })
+    stub_repository_commit_log(repository, ref: "coworkers/maya-workspace", commits: [
+      { sha: "a" * 40, message: "Update @maya from chat #{chat.id}", date: Time.zone.parse("2026-10-29T12:00:00Z") }
+    ])
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { path: "SOUL.md" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("remote" => repository.remote_url, "branch" => "coworkers/maya-workspace")
+    expect(response.parsed_body.fetch("selected_file")).to include("path" => "SOUL.md", "content" => "# Maya", "markdown" => true)
+    expect(response.parsed_body.fetch("commits").sole.dig("source", "path")).to eq("/chats/#{chat.id}")
+    expect(response.parsed_body.fetch("conflicts").sole).to include("chat_id" => chat.id, "files" => [ "SOUL.md" ])
+  end
+
+  it "distinguishes a missing workspace branch from an unreachable remote" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "missing-home", workspace_repo: repository.remote_url)
+    sign_in_as(owner)
+
+    stub_repository_content(repository, ref: "some-other-branch", files: {})
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace"
+    expect(response).to have_http_status(:not_found)
+    expect(response.parsed_body.dig("error", "code")).to eq("missing_branch")
+
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("offline"))
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace"
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.parsed_body.dig("error", "code")).to eq("remote_unavailable")
+  end
+
+  it "tests workspace push access with a throwaway ref and reports the remote failure reason" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "push-test", workspace_repo: repository.remote_url)
+    remote = instance_double(Coworkers::RemoteWorkspace)
+    allow(Coworkers::RemoteWorkspace).to receive(:new).with(owner: "acme", name: "workspace", user: owner).and_return(remote)
+    sign_in_as(owner)
+
+    expect(remote).to receive(:test_push_access!).and_return(true)
+    post "/api/v1/app/coworkers/#{coworker.id}/workspace/test_push"
+    expect(response).to have_http_status(:ok)
+
+    allow(remote).to receive(:test_push_access!).and_raise(GitRunner::GitError.new([ "push" ], 128, "permission denied"))
+    post "/api/v1/app/coworkers/#{coworker.id}/workspace/test_push"
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig("error", "message")).to include("permission denied")
+  end
+
   it "marks searches incomplete when file contents or the provider tree are truncated" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)

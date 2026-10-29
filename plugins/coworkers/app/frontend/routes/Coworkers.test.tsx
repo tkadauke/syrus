@@ -218,6 +218,45 @@ it("renders the custom profile, creates side chats, and marks later tabs as stub
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
 })
 
+it("renders the read-only workspace, Markdown, attributed commits, conflicts, and push test", async () => {
+  const workspace = {
+    remote: "https://github.com/acme/workspace.git",
+    branch: "coworkers/maya",
+    files: [{ path: "SOUL.md", type: "file", size: 12 }],
+    selected_file: { path: "SOUL.md", content: "# Maya\n\nResearcher", size: 20, markdown: true },
+    commits: [
+      {
+        sha: "a".repeat(40),
+        short_sha: "aaaaaaa",
+        message: "Update from chat 12",
+        authored_at: "2026-10-29T12:00:00Z",
+        source: { type: "chat", id: 12, path: "/chats/12" }
+      }
+    ],
+    conflicts: [{ chat_id: 12, branch: "coworkers/chat/7-12", files: ["SOUL.md"], chat_path: "/chats/12" }]
+  }
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path.includes("/workspace/test_push") && init?.method === "POST") return jsonResponse({ message: "Push access verified." })
+      if (path.includes("/workspace")) return jsonResponse(workspace)
+      return jsonResponse(detailPayload)
+    })
+  )
+
+  renderRoute("/coworkers/7")
+  fireEvent.click(await screen.findByRole("button", { name: "Workspace" }))
+
+  expect(await screen.findByRole("heading", { name: "Maya", level: 1 })).toBeInTheDocument()
+  expect(await screen.findByText("Researcher", { selector: "p" })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "coworkers/chat/7-12" })).toHaveAttribute("href", "/chats/12")
+  expect(screen.getByRole("link", { name: "Chat 12" })).toHaveAttribute("href", "/chats/12")
+  expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Test push access" }))
+  expect(await screen.findByText("Push access verified")).toBeInTheDocument()
+})
+
 it("browses, searches, and renders coworker memory without write controls", async () => {
   const requests: string[] = []
   vi.stubGlobal(

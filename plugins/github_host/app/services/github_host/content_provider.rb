@@ -183,6 +183,14 @@ module GithubHost
       history
     end
 
+    def commit_log(revision_id, limit:)
+      translate(unknown_revision: "unknown revision #{revision_id}") do
+        client.repository_commits(slug, revision_id, limit: limit).map do |commit|
+          RepositoryContent::Commit.new(sha: commit[:sha], message: commit[:message], authored_at: commit[:date])
+        end
+      end
+    end
+
     def tree_sha(revision_id)
       translate(unknown_revision: "unknown revision #{revision_id}") { client.commit_tree_sha(slug, revision_id) }
     end

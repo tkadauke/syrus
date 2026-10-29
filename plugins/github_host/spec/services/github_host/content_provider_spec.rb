@@ -211,6 +211,15 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  it "lists commits reachable from an orphan branch without requiring a merge base" do
+    allow(client).to receive(:repository_commits).with("acme/widgets", sha, limit: 50).and_return([
+      { sha: sha, message: "Update from chat 12", date: Time.zone.parse("2026-10-29T12:00:00Z") }
+    ])
+
+    expect(provider.commit_log(sha, limit: 50).sole)
+      .to have_attributes(sha: sha, message: "Update from chat 12", authored_at: Time.zone.parse("2026-10-29T12:00:00Z"))
+  end
+
   describe "#tree_sha" do
     it "reads the commit's root tree SHA" do
       allow(client).to receive(:commit_tree_sha).with("acme/widgets", sha).and_return("t" * 40)

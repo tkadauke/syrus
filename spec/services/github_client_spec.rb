@@ -1124,6 +1124,22 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#repository_commits" do
+    it "returns newest-first commit metadata for one revision" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits")
+        .with(query: { "per_page" => "2", "sha" => "orphan-sha" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [
+          { sha: "newest", commit: { message: "Update from chat 12\n\nBody", committer: { date: "2026-10-29T12:00:00Z" } } },
+          { sha: "older", commit: { message: "Create workspace", committer: { date: "2026-10-28T12:00:00Z" } } }
+        ].to_json)
+
+      expect(GithubClient.for(repository: repository, user: user).repository_commits("acme/widgets", "orphan-sha", limit: 2)).to eq([
+        { sha: "newest", message: "Update from chat 12", date: Time.zone.parse("2026-10-29T12:00:00Z") },
+        { sha: "older", message: "Create workspace", date: Time.zone.parse("2026-10-28T12:00:00Z") }
+      ])
+    end
+  end
+
   describe "#compare_divergence" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

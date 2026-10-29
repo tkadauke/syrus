@@ -942,6 +942,18 @@ class GithubClient
     track_rate_limits { @client.commit(repo_slug, ref) }.sha
   end
 
+  def repository_commits(repo_slug, ref, limit: 50)
+    track_rate_limits do
+      Array(@client.commits(repo_slug, sha: ref, per_page: limit.clamp(1, 100))).first(limit).map do |commit|
+        {
+          sha: commit.sha,
+          message: commit.commit.message.lines.first&.strip || "",
+          date: commit.commit.committer.date
+        }
+      end
+    end
+  end
+
   # Every entry in the tree of `commit_sha`, recursively:
   # { entries: [{ path:, type:, mode:, size:, sha: }], truncated: bool }.
   # `type` is GitHub's: "blob" (files and symlinks, told apart by `mode`

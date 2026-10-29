@@ -155,6 +155,13 @@ module Syrus
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list commit history"
       end
 
+      # Commits reachable from one revision, newest first. Unlike #history,
+      # this also works for orphan branches that have no merge base with a
+      # repository's default branch.
+      def commit_log(_revision_id, limit:)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list a revision's commit log"
+      end
+
       def tree_sha(_revision_id)
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not read commit tree SHAs"
       end

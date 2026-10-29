@@ -33,6 +33,8 @@ module Coworkers
     route :patch, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#update"
     route :delete, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#destroy"
     route :get, "/api/v1/app/coworkers/:id/memory", to: "api/v1/app/coworkers#memory"
+    route :get, "/api/v1/app/coworkers/:id/workspace", to: "api/v1/app/coworkers#workspace"
+    route :post, "/api/v1/app/coworkers/:id/workspace/test_push", to: "api/v1/app/coworkers#test_workspace"
     route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
     route :post, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#add_to_chat"
     route :delete, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#remove_from_chat"

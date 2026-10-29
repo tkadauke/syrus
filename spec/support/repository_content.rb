@@ -57,6 +57,10 @@ class FakeRepositoryContentProvider
       @histories ||= {}
     end
 
+    def commit_logs
+      @commit_logs ||= {}
+    end
+
     # { revision_id => tree_sha }
     def tree_shas
       @tree_shas ||= {}
@@ -79,6 +83,7 @@ class FakeRepositoryContentProvider
       @changed_paths = {}
       @diffs = {}
       @histories = {}
+      @commit_logs = {}
       @tree_shas = {}
       @failures = {}
       @calls = []
@@ -173,6 +178,11 @@ class FakeRepositoryContentProvider
     entry[:history]
   end
 
+  def commit_log(revision_id, limit:)
+    record(:commit_log, revision_id, limit)
+    Array(self.class.commit_logs[revision_id]).first(limit)
+  end
+
   # The tree SHA stubbed for this revision with stub_repository_tree_sha, or
   # Unsupported -- the default every real provider falls back to -- when
   # nothing has stubbed one.
@@ -259,6 +269,13 @@ module RepositoryContentHelpers
     history = RepositoryContent::CommitHistory.new(commits: history_commits, merge_base_id: merge_base_sha)
     FakeRepositoryContentProvider.histories[[ base_id, head_id ]] = { history: history, truncated: truncated }
     history
+  end
+
+  def stub_repository_commit_log(repository, ref:, commits: [])
+    revision_id = ensure_fake_ref(repository, ref)
+    FakeRepositoryContentProvider.commit_logs[revision_id] = commits.map do |commit|
+      RepositoryContent::Commit.new(sha: commit[:sha], message: commit[:message], authored_at: commit[:date])
+    end
   end
 
   # Fails the example the moment anything asks for changes -- as an RSpec

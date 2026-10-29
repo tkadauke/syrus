@@ -182,6 +182,21 @@ module RepositoryContent
       result
     end
 
+    def commit_log(revision, limit: 50)
+      id = revision_id(revision)
+      limit = limit.to_i.clamp(1, 100)
+      key = cache_key("commit_log", id, limit)
+      cached = cache.read(key)
+      if cached
+        record(CACHE_PROVIDER, :commit_log, "answered")
+        return cached.map { |attrs| Commit.new(**attrs.symbolize_keys) }
+      end
+
+      result = through_chain(:commit_log) { |provider| provider.commit_log(id, limit: limit) }
+      cache.write(key, result.map { |commit| commit.to_h.transform_keys(&:to_s) }, expires_in: CONTENT_CACHE_TTL)
+      result
+    end
+
     # The id of a commit's root tree object -- what two revisions share when
     # they produced identical content, immutable per revision like #tree.
     def tree_sha(revision)

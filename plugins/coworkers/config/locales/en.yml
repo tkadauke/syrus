@@ -2,6 +2,8 @@ en:
   api:
     coworkers:
       memory_unavailable: "The coworker's memory cannot be reached right now."
+      workspace_unavailable: "The coworker's workspace remote cannot be reached right now."
+      workspace_branch_missing: "The coworker's home branch does not exist."
       chat_group: "Coworkers"
       invalid_workspace_remote: "Workspace remote must be a GitHub repository URL."
       push_access_verified: "Push access verified."

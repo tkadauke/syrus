@@ -94,12 +94,44 @@ module Api
           end
         end
 
+        def workspace
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          payload = Coworkers::WorkspaceBrowser.new(
+            coworker: coworker, repository: workspace_repository(coworker), user: Current.user
+          ).call(path: params[:path])
+          render json: payload
+        rescue RepositoryContent::UnknownRevision
+          render_error("missing_branch", I18n.t("api.coworkers.workspace_branch_missing"), status: :not_found)
+        rescue ActiveRecord::RecordNotFound
+          raise
+        rescue RepositoryContent::Unavailable => error
+          Rails.logger.info("[Coworkers::WorkspaceBrowser] workspace unavailable: #{error.class}: #{error.message}")
+          render_error("remote_unavailable", I18n.t("api.coworkers.workspace_unavailable"), status: :service_unavailable)
+        end
+
         def test_remote
           match = params.require(:workspace_repo).to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
           return render_error("validation_failed", I18n.t("api.coworkers.invalid_workspace_remote"), status: :unprocessable_content) unless match
 
           Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: Current.user).test_push_access!
           render json: { message: I18n.t("api.coworkers.push_access_verified") }
+        rescue ActiveRecord::RecordNotFound
+          raise
+        rescue StandardError => error
+          render_error("remote_unavailable", error.message, status: :unprocessable_content)
+        end
+
+        def test_workspace
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          match = coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
+          raise ActiveRecord::RecordNotFound unless match
+
+          Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: Current.user).test_push_access!
+          render json: { message: I18n.t("api.coworkers.push_access_verified") }
+        rescue ActiveRecord::RecordNotFound
+          raise
         rescue StandardError => error
           render_error("remote_unavailable", error.message, status: :unprocessable_content)
         end

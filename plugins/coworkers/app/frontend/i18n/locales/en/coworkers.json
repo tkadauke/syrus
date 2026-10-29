@@ -18,6 +18,15 @@
     "truncated": "This large file is shown in part.",
     "categories": { "daily": "Daily", "people": "People", "repos": "Repositories", "banks": "Banks" }
   },
+  "workspace": {
+    "loading": "Loading workspace…",
+    "files": "Workspace files",
+    "history": "Commit history",
+    "conflicts": "Unmerged chat branches",
+    "binary": "Binary files cannot be previewed.",
+    "source_chat": "Chat {{id}}",
+    "source_run": "Run {{id}}"
+  },
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
   "tool_card": {
     "title": "Proposed coworker",

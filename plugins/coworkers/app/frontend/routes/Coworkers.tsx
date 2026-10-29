@@ -22,9 +22,11 @@ import {
   createSideChat,
   fetchCoworker,
   fetchCoworkerMemory,
+  fetchCoworkerWorkspace,
   fetchCoworkers,
   removeCoworkerFromChat,
   testCoworkerRemote,
+  testCoworkerWorkspace,
   type CoworkerMemoryFile,
   type CoworkerSummary
 } from "../api/coworkers"
@@ -313,8 +315,101 @@ function CoworkerPage({ id }: { id: string }) {
         </section>
       ) : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
-      {!["chat", "profile", "memory"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {tab === "workspace" ? <CoworkerWorkspace id={id} prefix={prefix} /> : null}
+      {!["chat", "profile", "memory", "workspace"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
+  )
+}
+
+function CoworkerWorkspace({ id, prefix }: { id: string; prefix: string }) {
+  const { t } = useT("coworkers")
+  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const query = useQuery({ queryKey: ["coworkers", id, "workspace", selectedPath], queryFn: () => fetchCoworkerWorkspace(id, selectedPath) })
+  const pushTest = useMutation({ mutationFn: () => testCoworkerWorkspace(id) })
+  const selected = query.data?.selected_file
+  return (
+    <section className="space-y-4">
+      {query.isPending ? <PanelMessage>{t("workspace.loading")}</PanelMessage> : null}
+      {query.isError ? <PanelMessage>{query.error.message}</PanelMessage> : null}
+      {query.data ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-surface p-4 text-sm">
+            <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-[auto_1fr]">
+              <dt className="font-medium">{t("fields.remote")}</dt>
+              <dd className="break-all text-text-secondary">{query.data.remote}</dd>
+              <dt className="font-medium">{t("fields.branch")}</dt>
+              <dd className="font-mono text-text-secondary">{query.data.branch}</dd>
+            </dl>
+            <div>
+              <button className="rounded border border-border px-3 py-2" disabled={pushTest.isPending} onClick={() => pushTest.mutate()} type="button">
+                {t("new.test_push")}
+              </button>
+              {pushTest.isSuccess ? <p className="mt-1 text-success">{t("new.push_ok")}</p> : null}
+              {pushTest.isError ? <p className="mt-1 max-w-md text-danger">{pushTest.error.message}</p> : null}
+            </div>
+          </div>
+          {query.data.conflicts.length ? (
+            <div className="rounded border border-warning bg-warning-soft p-4">
+              <h2 className="font-semibold">{t("workspace.conflicts")}</h2>
+              {query.data.conflicts.map((conflict) => (
+                <p className="mt-1 text-sm" key={conflict.branch}>
+                  <Link className="text-brand underline" to={withRoutePrefix(conflict.chat_path, prefix)}>
+                    {conflict.branch}
+                  </Link>
+                  : {conflict.files.join(", ")}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[18rem_minmax(0,1fr)]">
+            <nav aria-label={t("workspace.files")} className="border-b border-border p-3 md:border-b-0 md:border-r">
+              {query.data.files
+                .filter((file) => file.type === "file")
+                .map((file) => (
+                  <button
+                    className={`block w-full rounded px-2 py-1.5 text-left font-mono text-sm ${selected?.path === file.path ? "bg-brand-soft text-brand" : "hover:bg-surface-subtle"}`}
+                    key={file.path}
+                    onClick={() => setSelectedPath(file.path)}
+                    type="button"
+                  >
+                    {file.path}
+                  </button>
+                ))}
+            </nav>
+            <article className="min-w-0 p-5">
+              <h2 className="mb-4 border-b border-border pb-2 font-mono text-sm">{selected?.path}</h2>
+              {selected?.binary ? (
+                <PanelMessage>{t("workspace.binary")}</PanelMessage>
+              ) : selected?.markdown ? (
+                <Markdown className="chat-prose text-sm" text={selected.content || ""} />
+              ) : (
+                <pre className="overflow-auto whitespace-pre-wrap text-sm">{selected?.content}</pre>
+              )}
+            </article>
+          </div>
+          <div className="rounded border border-border bg-surface p-4">
+            <h2 className="mb-3 font-semibold">{t("workspace.history")}</h2>
+            <ol className="space-y-3">
+              {query.data.commits.map((commit) => (
+                <li className="text-sm" key={commit.sha}>
+                  <span className="mr-2 font-mono text-text-muted">{commit.short_sha}</span>
+                  {commit.message}
+                  {commit.source ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <Link className="text-brand underline" to={withRoutePrefix(commit.source.path, prefix)}>
+                        {t(`workspace.source_${commit.source.type}`, { id: commit.source.id })}
+                      </Link>
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </>
+      ) : null}
+    </section>
   )
 }
 

@@ -18,6 +18,15 @@
     "truncated": "Diese große Datei wird nur teilweise angezeigt.",
     "categories": { "daily": "Täglich", "people": "Personen", "repos": "Repositorys", "banks": "Sammlungen" }
   },
+  "workspace": {
+    "loading": "Workspace wird geladen…",
+    "files": "Workspace-Dateien",
+    "history": "Commit-Verlauf",
+    "conflicts": "Nicht zusammengeführte Chat-Branches",
+    "binary": "Binärdateien können nicht angezeigt werden.",
+    "source_chat": "Chat {{id}}",
+    "source_run": "Run {{id}}"
+  },
   "new": {
     "action": "Neuer Mitarbeiter",
     "title": "Neuer Mitarbeiter",

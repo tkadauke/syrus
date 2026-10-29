@@ -115,6 +115,11 @@ supports full-text search across paths and contents, links to the owner's Syrus
 memories, distinguishes an empty memory tree from an unreachable remote, and
 shows recent daily files first. Provider-truncated or exceptionally large trees
 return their available files with a partial-results notice; searches also warn
-when capped file contents mean the result set cannot be complete. Capabilities,
-Schedule, Workspace, and Activity
-remain coming-later placeholders where their full surfaces have not shipped yet.
+when capped file contents mean the result set cannot be complete.
+
+The Workspace tab is read-only: it shows the home branch tree, previews text
+and Markdown files, attributes recent commits to their chat or run, and calls
+out chat branches left unmerged by conflicts. It shows the remote and branch.
+Its only action is **Test push access**, which creates and immediately deletes
+a random throwaway ref under `coworkers/`; there is no workspace write API.
+Capabilities, Schedule, and Activity remain coming-later placeholders.
