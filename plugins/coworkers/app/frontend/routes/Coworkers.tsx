@@ -317,7 +317,7 @@ function CoworkerPage({ id }: { id: string }) {
         <section className="rounded border border-border bg-surface p-5">
           <h2 className="font-semibold">{t("activity.message_traffic")}</h2>
           <p className="mt-1 text-sm text-text-secondary">{t("activity.window", { count: coworker.message_traffic.window_days })}</p>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <dl className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded bg-surface-subtle p-3">
               <dt className="text-sm text-text-secondary">{t("activity.sent")}</dt>
               <dd className="text-2xl font-semibold">{coworker.message_traffic.sent}</dd>
@@ -326,7 +326,30 @@ function CoworkerPage({ id }: { id: string }) {
               <dt className="text-sm text-text-secondary">{t("activity.received")}</dt>
               <dd className="text-2xl font-semibold">{coworker.message_traffic.received}</dd>
             </div>
+            <div className="rounded bg-surface-subtle p-3">
+              <dt className="text-sm text-text-secondary">{t("activity.spend")}</dt>
+              <dd className="text-2xl font-semibold">${coworker.spend_usd.toFixed(2)}</dd>
+              <dd className="mt-1 text-xs text-text-secondary">{t("activity.spend_not_capped")}</dd>
+            </div>
           </dl>
+          <h3 className="mt-6 font-semibold">{t("activity.delivery_issues")}</h3>
+          {coworker.message_traffic.delivery_events.length ? (
+            <ul className="mt-3 space-y-2">
+              {coworker.message_traffic.delivery_events.map((event) => (
+                <li className="rounded border border-border bg-surface-subtle p-3 text-sm" key={`${event.occurred_at}-${event.receiver_handle}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{t(`activity.${event.status}`, { handle: event.receiver_handle })}</span>
+                    <time className="text-text-secondary" dateTime={event.occurred_at}>
+                      {new Date(event.occurred_at).toLocaleString()}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-text-secondary">{event.reason}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-text-secondary">{t("activity.no_delivery_issues")}</p>
+          )}
         </section>
       ) : null}
       {!["chat", "profile", "memory", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
