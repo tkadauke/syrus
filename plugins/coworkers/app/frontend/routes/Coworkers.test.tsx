@@ -200,12 +200,12 @@ it("browses coworker memory as rendered Markdown with search and owner-memory li
       if (String(input).includes("/memory")) {
         const url = new URL(String(input), "http://test.host")
         const filtered = url.searchParams.has("q")
-        const files = filtered ? [
-          { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." }
-        ] : [
-          { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." },
-          { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Owner notes" }
-        ]
+        const files = filtered
+          ? [{ path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." }]
+          : [
+              { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." },
+              { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Owner notes" }
+            ]
         return jsonResponse({
           files,
           selected_path: filtered ? files[0].path : url.searchParams.get("path") || files[0].path,
@@ -242,7 +242,10 @@ it("shows distinct empty and unavailable coworker memory states", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes("/memory")) return memoryStatus === 200 ? jsonResponse({ files: [], selected_path: null, filter: { and: [] }, filter_schema: [] }) : jsonResponse({ code: "remote_unavailable" }, 503)
+      if (String(input).includes("/memory"))
+        return memoryStatus === 200
+          ? jsonResponse({ files: [], selected_path: null, filter: { and: [] }, filter_schema: [] })
+          : jsonResponse({ code: "remote_unavailable" }, 503)
       return jsonResponse(detailPayload)
     })
   )

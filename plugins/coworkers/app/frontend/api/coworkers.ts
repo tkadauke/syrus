@@ -38,8 +38,7 @@ export type CoworkerMemoryPayload = {
 export const fetchCoworkers = () =>
   getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")
 export const fetchCoworker = (id: string) => getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
-export const fetchCoworkerMemory = (id: string, search: string) =>
-  getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
+export const fetchCoworkerMemory = (id: string, search: string) => getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
 export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
 export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
 export const testCoworkerRemote = (workspaceRepo: string) =>

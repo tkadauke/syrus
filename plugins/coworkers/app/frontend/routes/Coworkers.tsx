@@ -287,12 +287,7 @@ function CoworkerMemory({ id }: { id: string }) {
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <FilterBar
-          filter={query.data.filter}
-          filterSchema={query.data.filter_schema}
-          pathname={location.pathname}
-          search={location.search}
-        />
+        <FilterBar filter={query.data.filter} filterSchema={query.data.filter_schema} pathname={location.pathname} search={location.search} />
         <Link className="shrink-0 text-sm text-brand underline" to={`${prefix}/memories`}>
           {t("memory.owner_memories")}
         </Link>
@@ -328,7 +323,9 @@ function CoworkerMemory({ id }: { id: string }) {
                 <div className="mb-4 font-mono text-xs text-text-muted">{selected.path}</div>
                 <Markdown className="chat-prose text-sm text-text-primary break-words" text={selected.content} />
               </>
-            ) : <PanelMessage>{t("memory.select_file")}</PanelMessage>}
+            ) : (
+              <PanelMessage>{t("memory.select_file")}</PanelMessage>
+            )}
           </article>
         </div>
       )}
