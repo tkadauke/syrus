@@ -17828,7 +17828,6 @@ function credentialsPayload(
       profile_company: null,
       profile_website: null,
       display_name: overrides.name ?? "Operator",
-      handle: "operator",
       github_handle: "operator",
       admin: true,
       agent_provider: overrides.agentProvider ?? "claude",
