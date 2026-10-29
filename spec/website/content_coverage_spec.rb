@@ -7,6 +7,12 @@ RSpec.describe "website content coverage" do
     File.read(File.expand_path("../../website/#{path}", __dir__))
   end
 
+  it "bounds static export workers for hosted Pages builds" do
+    next_config = read_website("next.config.ts")
+
+    expect(next_config).to match(/experimental:\s*\{[^}]*globalNotFound:\s*true,[^}]*cpus:\s*2[^}]*\}/m)
+  end
+
   it "keeps the public docs navigation contract in the website README" do
     readme = read_website("README.md")
 

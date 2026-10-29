@@ -18,7 +18,11 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
   images: { unoptimized: true },
   reactStrictMode: true,
-  experimental: { globalNotFound: true },
+  // GitHub's hosted runners advertise enough CPUs for Next to fan out more
+  // static-generation workers than their memory limit can sustain. Keep the
+  // Pages build bounded; uncapped builds are killed with SIGKILL while
+  // exporting the documentation routes.
+  experimental: { globalNotFound: true, cpus: 2 },
   poweredByHeader: false,
   // Surfaced to the client for the footer build stamp. The Pages workflow
   // injects GIT_SHA / GIT_REF from the triggering commit.
