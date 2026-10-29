@@ -372,7 +372,9 @@ function CoworkerMemory({ id }: { id: string }) {
       </div>
       {query.isPending ? <PanelMessage>{t("memory.loading")}</PanelMessage> : null}
       {query.isError ? <PanelMessage>{t("memory.unavailable")}</PanelMessage> : null}
-      {query.isSuccess && files.length === 0 ? <PanelMessage>{searchValue ? t("memory.no_results") : t("memory.empty")}</PanelMessage> : null}
+      {query.data?.search_incomplete ? <PanelMessage>{t("memory.search_incomplete")}</PanelMessage> : null}
+      {query.data?.partial && !query.data.search_incomplete ? <PanelMessage>{t("memory.partial")}</PanelMessage> : null}
+      {query.isSuccess && files.length === 0 && !query.data.search_incomplete ? <PanelMessage>{searchValue ? t("memory.no_results") : t("memory.empty")}</PanelMessage> : null}
       {query.isSuccess && files.length > 0 ? (
         <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[15rem_minmax(0,1fr)]">
           <MemoryFileList files={files} selectedPath={selected?.path} setSelectedPath={setSelectedPath} />

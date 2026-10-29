@@ -12,6 +12,8 @@
     "unavailable": "Memoria huius collegae nunc attingi non potest.",
     "empty": "Hic collega memoriam nondum habet.",
     "no_results": "Nullus fasciculus memoriae huic quaestioni respondet.",
+    "search_incomplete": "Pars memoriae scrutari non potuit. Hi eventus imperfecti esse possunt.",
+    "partial": "Haec arbor memoriae magna vel imperfecta est. Soli fasciculi praesto ostenduntur.",
     "owner_memories": "Memorias tuas Syri aperire",
     "truncated": "Hic magnus fasciculus ex parte ostenditur.",
     "categories": { "daily": "Diaria", "people": "Personae", "repos": "Repositoria", "banks": "Thesauri" }

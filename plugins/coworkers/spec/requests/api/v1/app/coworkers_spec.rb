@@ -275,6 +275,43 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.dig("error", "code")).to eq("remote_unavailable")
   end
 
+  it "marks searches incomplete when file contents or the provider tree are truncated" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    content = ("a" * Coworkers::MemoryBrowser::MAX_FILE_BYTES) + "tail-only-needle"
+    stub_repository_content(
+      repository,
+      ref: "coworkers/maya",
+      files: { "memory/banks/long.md" => content },
+      truncated_tree: true
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory", params: { search: "tail-only-needle" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include(
+      "files" => [], "truncated" => true, "partial" => true, "search_incomplete" => true
+    )
+  end
+
+  it "returns a deliberate partial result when the memory tree exceeds the file bound" do
+    stub_const("Coworkers::MemoryBrowser::MAX_FILES", 1)
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/maya", files: {
+      "memory/daily/2026-10-29.md" => "Today",
+      "memory/people/thomas.md" => "Thomas"
+    })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("partial" => true, "search_incomplete" => false)
+    expect(response.parsed_body.fetch("files").size).to eq(1)
+  end
+
   it "does not expose another owner's memory browser" do
     other = Factories.user(email_address: "memory-owner@example.com")
     coworker = Coworkers::Coworker.create!(owner_user: other, name: "Hidden", handle: "hidden-memory", workspace_repo: "https://github.com/acme/private.git")
