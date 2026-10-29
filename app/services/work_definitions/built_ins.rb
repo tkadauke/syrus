@@ -201,9 +201,21 @@ module WorkDefinitions
     self.runtime_role = "first_class"
     self.scope = "epic"
 
+    def members_for(job:, artifacts: {}, **)
+      ids = Array(artifacts[StackRebasePlan::STACK_ARTIFACT]).filter_map { |entry| entry["job_id"] }
+      ids = StackRebasePlan.lock_jobs_for(job).map(&:id) if ids.empty?
+      parent = job.parent_job
+      if parent.present? && StackRebasePlan.traversable_parent_boundary?(job, parent) && parent.epic_id != job.epic_id
+        ids << parent.id
+      end
+      ids.uniq!
+      jobs = Job.where(id: ids).index_by(&:id)
+      ids.filter_map { |id| jobs[id] }.presence || [ job ]
+    end
+
     def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
       keys = member_jobs.map { |member_job| "maintenance:rebase:job:#{member_job.id}" }
-      keys << "maintenance:stack_rebase:epic:#{job.epic_id}" if job.epic_id.present?
+      keys.concat(member_jobs.filter_map(&:epic_id).uniq.map { |epic_id| "maintenance:stack_rebase:epic:#{epic_id}" })
       keys.uniq
     end
   end

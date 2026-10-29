@@ -228,6 +228,12 @@ finish successfully. Missing branch/head identity, cross-repository
 dependencies, multiple unfinished upstream Epics, and ambiguous or nonlinear
 Job graphs remain blocked. Disabling the flag restores strict admission.
 
+Stack rebases and Epic restacks treat these anchored Epics as one continuous
+stack. Starting at an upstream root traverses dependent Epics in order, while
+starting at a downstream root preserves the current upstream tail as its base.
+The workflow locks every participating Job and Epic for the duration of the
+rebase. Disabling the flag restores single-Epic planning and locking.
+
 ## epicless_job_bundling
 
 **Category:** Labs

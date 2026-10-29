@@ -15,8 +15,32 @@ class StackRebasePlan
 
   def self.related_job_ids_for(job)
     root = job
-    root = root.parent_job while root.parent_job.present?
+    while root.parent_job.present? && traversable_parent_boundary?(root, root.parent_job)
+      root = root.parent_job
+    end
     new(root).ordered_jobs.map(&:id)
+  end
+
+  def self.lock_jobs_for(job)
+    jobs = ordered_jobs_for(job)
+    parent = job.parent_job
+    if parent.present? && traversable_parent_boundary?(job, parent) && parent.epic_id != job.epic_id
+      jobs << parent
+    end
+    jobs.uniq
+  end
+
+  def self.traversable_parent_boundary?(job, parent)
+    return true if parent.epic_id == job.epic_id
+
+    Feature.early_epic_dependency_execution_enabled? &&
+      parent.repository_id == job.repository_id &&
+      parent.epic.present? &&
+      job.epic.present? &&
+      !parent.epic.done? &&
+      parent.epic.resolved_epic_dependency_policy == "linear" &&
+      job.epic.resolved_epic_dependency_policy == "linear" &&
+      EpicDependency.exists?(epic_id: job.epic_id, depends_on_epic_id: parent.epic_id)
   end
 
   def self.base_branch_for(job, base_overrides)
@@ -60,15 +84,20 @@ class StackRebasePlan
 
   def walk_children(parent)
     parent.stack_children.order(:id).flat_map do |child|
-      next [] unless rebaseable_child?(child)
+      next [] unless rebaseable_child?(child, parent)
 
       [ child, *walk_children(child) ]
     end
   end
 
-  def rebaseable_child?(child)
+  def rebaseable_child?(child, parent)
     child.open? &&
       child.branch_name.present? &&
-      (child.pr_number.present? || child.external_pr_number.present?)
+      (child.pr_number.present? || child.external_pr_number.present?) &&
+      traversable_epic_boundary?(child, parent)
+  end
+
+  def traversable_epic_boundary?(child, parent)
+    self.class.traversable_parent_boundary?(child, parent)
   end
 end
