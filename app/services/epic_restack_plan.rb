@@ -140,6 +140,7 @@ class EpicRestackPlan
 
   def selected_parent(job)
     dependencies = same_epic_open_dependencies(job)
+    dependencies = [ inferred_cross_epic_parent(job) ].compact if dependencies.empty?
     return nil if dependencies.empty?
 
     dependencies.first
@@ -147,7 +148,7 @@ class EpicRestackPlan
 
   def same_epic_open_dependencies(job)
     job.dependencies.includes(:depends_on_job).filter_map(&:depends_on_job).select do |dependency|
-      dependency.epic_id == @epic.id && !dependency.dependency_succeeded?
+      participating_epic_ids.include?(dependency.epic_id) && !dependency.dependency_succeeded?
     end
   end
 
@@ -183,13 +184,63 @@ class EpicRestackPlan
   end
 
   def same_epic_dependencies(job)
-    job.dependencies.includes(:depends_on_job).filter_map(&:depends_on_job).select do |dependency|
-      dependency.epic_id == @epic.id
+    dependencies = job.dependencies.includes(:depends_on_job).filter_map(&:depends_on_job).select do |dependency|
+      participating_epic_ids.include?(dependency.epic_id)
     end
+    dependencies = [ inferred_cross_epic_parent(job) ].compact if dependencies.empty?
+    dependencies
+  end
+
+  def inferred_cross_epic_parent(job)
+    return unless Feature.early_epic_dependency_execution_enabled?
+    return if job.dependencies.includes(:depends_on_job).any? { |dependency| dependency.depends_on_job&.epic_id == job.epic_id }
+
+    upstreams = job.epic.dependencies.includes(:depends_on_epic).filter_map(&:depends_on_epic).select do |upstream|
+      participating_epic_ids.include?(upstream.id) && !upstream.done?
+    end
+    return unless upstreams.one?
+
+    upstream_jobs = child_jobs.select { |candidate| candidate.epic_id == upstreams.first.id }
+    upstream_ids = upstream_jobs.map(&:id).to_set
+    tails = upstream_jobs.reject do |candidate|
+      child_jobs.any? do |possible_child|
+        possible_child.dependencies.any? do |dependency|
+          dependency.depends_on_job_id == candidate.id && upstream_ids.include?(possible_child.id)
+        end
+      end
+    end
+    tails.one? ? tails.first : nil
   end
 
   def child_jobs
-    @child_jobs ||= @epic.work_jobs.includes(:repository, :parent_job, dependencies: :depends_on_job).order(:id).to_a
+    @child_jobs ||= Job.where(epic_id: participating_epic_ids)
+      .includes(:repository, :epic, :parent_job, dependencies: :depends_on_job).order(:id).to_a
+  end
+
+  def participating_epic_ids
+    @participating_epic_ids ||= participating_epics.map(&:id).to_set
+  end
+
+  def participating_epics
+    return [ @epic ] unless Feature.early_epic_dependency_execution_enabled?
+
+    visited = Set.new
+    queue = [ @epic ]
+    result = []
+    until queue.empty?
+      epic = queue.shift
+      next if visited.add?(epic.id) == false
+
+      result << epic
+      epic.dependent_epics.order(:id).each do |dependent|
+        next unless dependent.repository_id == @epic.repository_id
+        next unless dependent.resolved_epic_dependency_policy == "linear"
+        next unless epic.resolved_epic_dependency_policy == "linear"
+
+        queue << dependent
+      end
+    end
+    result
   end
 
   def rebaseable_job?(job)
