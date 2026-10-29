@@ -57,6 +57,9 @@ class Coworkers::ChatWorkspaceLifecycle
   # at chat turn end. Their immutable run ref preserves the completed work when
   # a concurrent chat changed the home branch incompatibly.
   def finalize_background!(path:, workflow:)
+    path = Pathname(path)
+    return :unavailable unless path.join(".git").directory?
+
     source_branch = "coworkers/run/#{@coworker.id}-#{workflow.id}"
     @git.configure_author(identity, chdir: path.to_s)
     if @git.run("status", "--porcelain", chdir: path.to_s).present?
@@ -137,12 +140,14 @@ class Coworkers::ChatWorkspaceLifecycle
   def report_conflict!(merge_path, merge, source_branch:, conflict_checkout:)
     files = unmerged_files(merge_path)
     leave_conflict_in_checkout!(conflict_checkout)
-    post_conflict!(files: files, detail: merge.stderr.to_s.last(500), source_branch:)
+    conflict_ref = snapshot_background_conflict!(conflict_checkout, source_branch) if background_run_branch?(source_branch)
+    post_conflict!(files: files, detail: merge.stderr.to_s.last(500), source_branch:, ref: conflict_ref)
   end
 
-  def post_conflict!(files:, detail:, source_branch: chat_branch)
+  def post_conflict!(files:, detail:, source_branch: chat_branch, ref: nil)
     links = files.map do |file|
-      "/api/v1/app/chats/#{@chat.id}/source_file/raw?path=#{ERB::Util.url_encode(file)}&repository_id=#{@repository.id}"
+      query = { path: file, repository_id: @repository.id, ref: ref }.compact
+      "/api/v1/app/chats/#{@chat.id}/source_file/raw?#{query.to_query}"
     end
     linked_files = files.zip(links).map { |file, link| "- [#{markdown_link_label(file)}](#{link})" }.join("\n")
     @chat.messages.create!(
@@ -153,7 +158,7 @@ class Coworkers::ChatWorkspaceLifecycle
         "prominent" => true,
         "system_label" => I18n.t("api.coworkers.workspace_conflict_label"),
         "system_tone" => "warning",
-        "coworker_workspace_conflict" => { "branch" => source_branch, "files" => files, "links" => links,
+        "coworker_workspace_conflict" => { "branch" => source_branch, "ref" => ref, "files" => files, "links" => links,
                                              "detail" => detail }
       }
     )
@@ -171,6 +176,17 @@ class Coworkers::ChatWorkspaceLifecycle
   def leave_conflict_in_checkout!(path)
     @git.run("fetch", @remote_url, "refs/heads/#{home_branch}:refs/remotes/origin/coworker-home", chdir: path.to_s, env: @env)
     @git.capture("merge", "--no-edit", "origin/coworker-home", chdir: path.to_s, env: @env)
+  end
+
+  def background_run_branch?(branch)
+    branch.start_with?("coworkers/run/")
+  end
+
+  def snapshot_background_conflict!(path, source_branch)
+    @git.run("add", "--all", chdir: path.to_s)
+    @git.run("commit", "-m", "Preserve @#{@coworker.handle} background run conflict", chdir: path.to_s)
+    @git.run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(source_branch)}", chdir: path.to_s, env: @env)
+    @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
   end
 
   def clone_branch!(branch, destination)
