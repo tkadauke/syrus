@@ -645,9 +645,11 @@ instance-wide identifiers and should not contain sensitive information.
 Selecting an own coworker marked **Add to chat** adds it to the chat's agent
 roster before inserting the mention. Everyone participating in the chat can
 then address that coworker. An exact mention starts that coworker with the chat
-owner's settings, while a coworker outside the roster remains plain text and
-does not start a turn. Coworker turns in the same chat run one at a time. The
-chat owner can remove a coworker from the roster.
+owner's settings. A coworker is also implicitly addressable in its own main
+and side chats without a roster entry; coworkers that are neither the chat's
+implicit coworker nor on its roster remain plain text and do not start a turn.
+Coworker turns in the same chat run one at a time. The chat owner can remove a
+coworker from the roster.
 
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
