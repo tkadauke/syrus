@@ -26,7 +26,7 @@
     "workspace": "Workspace",
     "activity": "Activity"
   },
-  "activity": { "message_traffic": "Message traffic", "window": "Last {{count}} days", "sent": "Sent", "received": "Received" },
+  "activity": { "message_traffic": "Message traffic", "window": "Last {{count}} days", "sent": "Sent", "received": "Received", "spend": "Total spend", "spend_not_capped": "Shown for visibility; not capped.", "delivery_issues": "Delivery issues", "refused": "Message to @{{handle}} refused", "rate_limited": "Message to @{{handle}} rate limited", "no_delivery_issues": "No refused or rate-limited deliveries." },
   "detail": {
     "new_side_chat": "New side chat",
     "add_to_chat": "Add to chat",

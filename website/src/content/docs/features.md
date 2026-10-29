@@ -1673,6 +1673,13 @@ the chat heading, and remove it later. Disabling the plugin removes its page,
 chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 
+Coworkers with the message grant can queue messages to another active coworker
+owned by the same user. Syrus stops message chains after three hops and limits
+each pair to ten messages per ten-minute window. Refused and rate-limited
+attempts appear in the sender's main chat and Activity tab.
+The Activity tab also shows each coworker's total spend for visibility; v1 does
+not impose a spending cap.
+
 ## Tailscale
 
 The bundled `tailscale` plugin exposes a Syrus installation on the operator's

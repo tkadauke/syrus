@@ -47,7 +47,24 @@ RSpec.describe Coworkers::MessageDeliveryJob do
       "text" => "Message from @maya\n\nWait your turn.",
       "coworker_message" => include("direction" => "incoming")
     )
+    expect(queued.content.dig("coworker_message", "hop_count")).to eq(1)
     expect(receiver_chat.messages.map(&:extract_text_from_content)).not_to include(a_string_including("Wait your turn"))
+  end
+
+
+  it "preserves origin and hop metadata while waiting in the queue" do
+    sender, = create_coworker(name: "Maya", handle: "maya")
+    receiver, receiver_chat = create_coworker(name: "Rin", handle: "rin")
+    active = receiver_chat.messages.create!(role: "user", content: { "text" => "Working" }, skip_turn_trigger: true)
+    receiver_chat.update_columns(current_turn_message_id: active.id, turn_in_flight: true)
+
+    described_class.perform_now(sender.id, receiver.id, "Queued metadata.", { "origin_turn_id" => 912, "hop_count" => 3 })
+    queued = receiver_chat.reload.queued_messages.last
+    receiver_chat.update!(current_turn_message_id: nil, turn_in_flight: false)
+    ChatQueuedMessagePromoter.deliver_one_if_idle!(receiver_chat)
+
+    expect(queued.reload.delivered_at).to be_present
+    expect(receiver_chat.messages.last.content.fetch("coworker_message")).to include("origin_turn_id" => 912, "hop_count" => 3)
   end
 
   it "sets skip_turn_trigger explicitly on the sender-side block" do

@@ -112,14 +112,21 @@ RSpec.describe "API: coworkers", type: :request do
     chat = ChatSession.create!(user: owner, title: "Maya main")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     chat.messages.create!(role: "system", content: { "text" => "Sent", "coworker_message" => { "direction" => "outgoing" } })
+    chat.update!(cumulative_cost_usd: 1.25)
     chat.messages.create!(role: "user", content: { "text" => "Received", "coworker_message" => { "direction" => "incoming" } }, skip_turn_trigger: true)
+    chat.messages.create!(role: "system", content: { "text" => "Message to @rin was not delivered", "coworker_message" => { "direction" => "outgoing", "status" => "refused", "receiver_handle" => "rin" } })
     old = chat.messages.create!(role: "system", content: { "text" => "Old", "coworker_message" => { "direction" => "outgoing" } })
     old.update_columns(created_at: 31.days.ago)
     sign_in_as(owner)
 
     get "/api/v1/app/coworkers/#{coworker.id}"
 
-    expect(response.parsed_body.dig("coworker", "message_traffic")).to eq("sent" => 1, "received" => 1, "window_days" => 30)
+    traffic = response.parsed_body.dig("coworker", "message_traffic")
+    expect(traffic).to include("sent" => 1, "received" => 1, "window_days" => 30)
+    expect(traffic.fetch("delivery_events")).to contain_exactly(
+      include("status" => "refused", "receiver_handle" => "rin", "reason" => "Message to @rin was not delivered")
+    )
+    expect(response.parsed_body.dig("coworker", "spend_usd")).to eq(1.25)
   end
 
   it "refuses to add another user's coworker" do
