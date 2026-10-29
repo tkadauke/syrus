@@ -26,8 +26,16 @@ module JobExecutionAccessors
   end
 
   def head_sha
+    if runs.loaded?
+      return runs
+        .select { |run| run.head_sha.present? }
+        .max_by { |run| [ run.created_at, run.id ] }
+        &.head_sha
+    end
+
     runs.where.not(head_sha: [ nil, "" ]).reorder(created_at: :desc, id: :desc).pick(:head_sha)
   end
+
   def any_active_run?
     return runs.any? { |run| run.state.in?(%w[queued running]) } if runs.loaded?
 
