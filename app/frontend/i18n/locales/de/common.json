@@ -517,6 +517,31 @@
       "pr_coverage_not_executable": "Geänderte Zeile ist nicht ausführbar"
     }
   },
+  "accent_picker": {
+    "tone": "Ton",
+    "families": {
+      "pastel": "Pastell",
+      "dusty": "Gedämpft",
+      "vivid": "Leuchtend",
+      "electric": "Elektrisch",
+      "jewel": "Juwel",
+      "earth": "Naturtöne"
+    },
+    "hues": {
+      "red": "Rot",
+      "orange": "Orange",
+      "yellow": "Gelb",
+      "lime": "Limette",
+      "green": "Grün",
+      "teal": "Blaugrün",
+      "cyan": "Cyan",
+      "blue": "Blau",
+      "indigo": "Indigo",
+      "violet": "Violett",
+      "purple": "Purpur",
+      "pink": "Pink"
+    }
+  },
   "native_notifications": {
     "generic": "Syrus-Benachrichtigung",
     "ci_failed": "CI fehlgeschlagen",
