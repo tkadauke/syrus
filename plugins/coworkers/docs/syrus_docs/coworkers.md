@@ -57,6 +57,15 @@ and file-disjoint changes merge automatically; append-oriented files under
 conflicted local checkout intact and posts the affected file links into the
 chat. A missing local checkout is re-cloned from the canonical remote.
 
+Changing a coworker's handle moves its home branch in the same locked
+operation. Deleting a coworker preserves the home branch under
+`coworkers/archived/<handle>-<date>` (with a numeric suffix when that name is
+already occupied) and releases the handle for reuse. Syrus guards coworker
+pushes so an individual coworker can target only its own home branch, immutable
+chat branches, and archive branches. This keeps an agent from straying into
+unrelated refs; repository permissions, not this convenience guard, remain the
+security boundary.
+
 `SOUL.md`, `AGENTS.md`, and
 `USER.md`, today's and yesterday's daily memory, participant and sender people
 files, and the attached repository's memory file are loaded into every fresh
