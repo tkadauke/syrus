@@ -62,13 +62,17 @@ describe("systemMessage", () => {
       content: {
         text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
         body_format: "markdown",
-        prominent: true
+        prominent: true,
+        system_label: "Workspace conflict",
+        system_tone: "warning"
       }
     })
 
     expect(systemMessage(message)).toMatchObject({
       body_format: "markdown",
       prominent: true,
+      label: "Workspace conflict",
+      tone: "warning",
       body: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)"
     })
   })

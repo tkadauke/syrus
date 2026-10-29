@@ -9,3 +9,4 @@ la:
         In spatio laboris collegae conflictus coniunctionis sunt. Utraque versio in `%{branch}` manet. Hos fasciculos corrige:
 
         %{files}
+      workspace_conflict_label: "Conflictus spatii laboris"
