@@ -21,6 +21,7 @@ class ChatPendingAction < ApplicationRecord
     force_fail_job
     fire_scheduled_task_now
     create_repo_document
+    create_coworker
     delete_repo_document
     delete_design_doc
     poll_job_feedback

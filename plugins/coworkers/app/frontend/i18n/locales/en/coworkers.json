@@ -6,6 +6,7 @@
   "built_in": "Built-in · engineer",
   "coming_later": "Coming later",
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
+  "tool_card": { "title": "Proposed coworker", "summary": "Proposed coworker @{{handle}}" },
   "fields": {
     "name": "Name",
     "handle": "Handle",
