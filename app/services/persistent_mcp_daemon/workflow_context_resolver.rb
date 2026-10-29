@@ -32,7 +32,10 @@ class PersistentMcpDaemon::WorkflowContextResolver
     private
 
     def allowed_tools_for(tool_context)
-      McpToolPolicy.for(tool_context) + Mcp::Sidecar.plugin_workflow_tools_for(tool_context)
+      policy_tools = McpToolPolicy.for(tool_context)
+      return policy_tools if tool_context.role == AgentRole::COWORKER
+
+      policy_tools + Mcp::Sidecar.plugin_workflow_tools_for(tool_context)
     end
   end
 end
