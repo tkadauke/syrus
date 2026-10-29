@@ -1,4 +1,4 @@
-# ruby
+# Ruby
 
 `ruby` is a Syrus plugin gem that bundles Ruby-generic capabilities — not specific to Rails — into a single `PluginRegistry.register` call. It lives at `plugins/ruby/` inside the Syrus repository and applies to any Ruby project: gems, Sinatra apps, plain Ruby scripts, and Rails apps alike.
 

@@ -9,6 +9,10 @@ just serves the static files.
 
 Public docs live in [`src/content/docs/`](./src/content/docs/) and are rendered
 by the active Next.js site at `/docs`.
+Bundled plugin pages render their canonical product documentation directly from
+`plugins/<name>/docs/syrus_docs/*.md`. A plugin may own multiple files; its
+name-matching file is the introduction and the page links to every additional
+document.
 
 ## Develop
 
@@ -64,6 +68,10 @@ The current static site is intentionally small:
 | Docs                   | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files                                                                    |
 | Open-source onboarding | `components/demo.tsx`                    | Static download, docs, GitHub, and issue-tracker calls to action                                                               |
 | Product copy           | `lib/site.ts`                            | Source of truth for hero copy, workflow steps, feature pillars, and entry points                                               |
+
+Plugin READMEs are not website content. Keep operator-facing plugin prose in
+the plugin's `docs/syrus_docs/` directory so the application docs search and
+public website always use the same source.
 
 Marketing-page copy lives in `lib/site.ts`, while reusable chrome copy lives in
 the typed locale dictionaries in `lib/chrome.ts`. Prefer updating that shared copy over scattering

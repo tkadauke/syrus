@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Nav } from "@/components/nav"
 import { Footer } from "@/components/footer"
+import { PluginDocumentation } from "@/components/plugin-documentation"
 import { findPlugin, pluginStaticParams } from "@/lib/plugins"
 import { localizedMetadata } from "@/lib/metadata"
 import { localizedHref, type Locale } from "@/lib/locales"
@@ -74,7 +75,7 @@ export async function PluginPage({ params, locale }: PageProps & { locale: Local
               </div>
             </div>
           </header>
-          <div className="doc-prose mt-8" dangerouslySetInnerHTML={{ __html: plugin.html }} />
+          <PluginDocumentation documents={plugin.documents} />
         </article>
       </main>
       <Footer locale={locale} />
