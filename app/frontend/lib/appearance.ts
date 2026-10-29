@@ -3,6 +3,9 @@ import avatarConfig from "../../../config/appearance/avatars.json"
 
 export type AccentFamilyId = (typeof colorConfig.families)[number]["id"]
 export type AccentColor = (typeof colorConfig.families)[number]["colors"][number]
+export type AccentShade = -2 | -1 | 0 | 1 | 2
+export type AccentRef = { family: AccentFamilyId; index: number; shade: AccentShade }
+export type AccentSelection = { accentHex: string; accentRef: AccentRef }
 export type BundledAvatar = (typeof avatarConfig)[number]
 
 export const HUE_COLUMNS = colorConfig.hue_columns
@@ -35,6 +38,14 @@ export function mixHex(hex: string, p: number, target: string): string {
         .padStart(2, "0")
     )
     .join("")}`.toUpperCase()
+}
+
+export function accentVariant(baseHex: string, shade: AccentShade): string {
+  if (shade === -2) return mixHex(baseHex, 72, "#000000")
+  if (shade === -1) return mixHex(baseHex, 86, "#000000")
+  if (shade === 1) return mixHex(baseHex, 82, "#FFFFFF")
+  if (shade === 2) return mixHex(baseHex, 64, "#FFFFFF")
+  return baseHex.toUpperCase()
 }
 
 const toLinear = (value: number) => {
@@ -101,6 +112,39 @@ export function colorDistance(a: string, b: string): number {
   const p = oklab(a)
   const q = oklab(b)
   return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) * 100
+}
+
+function familyFor(id: AccentFamilyId) {
+  return ACCENT_FAMILIES.find((family) => family.id === id)
+}
+
+export function resolveAccentRef(ref: AccentRef): AccentSelection | null {
+  const family = familyFor(ref.family)
+  const color = family?.colors[ref.index]
+  if (!color || ![-2, -1, 0, 1, 2].includes(ref.shade)) return null
+  return { accentHex: accentVariant(color.hex, ref.shade), accentRef: ref }
+}
+
+export function resolveAccentSelection(accentHex: string, accentRef?: AccentRef | null): AccentSelection {
+  const normalizedHex = accentHex.toUpperCase()
+  const referenced = accentRef ? resolveAccentRef(accentRef) : null
+  if (referenced?.accentHex === normalizedHex) return referenced
+
+  let nearest = { family: ACCENT_FAMILIES[0], index: 0, distance: Number.POSITIVE_INFINITY }
+  for (const family of ACCENT_FAMILIES) {
+    family.colors.forEach((color, index) => {
+      const distance = colorDistance(normalizedHex, color.hex)
+      if (distance < nearest.distance) nearest = { family, index, distance }
+    })
+  }
+  const color = nearest.family.colors[nearest.index]
+  return { accentHex: color.hex.toUpperCase(), accentRef: { family: nearest.family.id, index: nearest.index, shade: 0 } }
+}
+
+export function defaultAccentSelection(otherAccentHexes: readonly string[] = []): AccentSelection {
+  const used = new Set(otherAccentHexes.map((hex) => hex.toUpperCase()))
+  const hex = DEFAULT_AGENT_ORDER.find((candidate) => !used.has(candidate.toUpperCase())) ?? DEFAULT_AGENT_ORDER[0]
+  return resolveAccentSelection(hex)
 }
 
 const CVD = {

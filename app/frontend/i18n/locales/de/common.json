@@ -518,7 +518,21 @@
     }
   },
   "accent_picker": {
+    "color": "Farbe",
     "tone": "Ton",
+    "hue": "Farbton",
+    "naturals": "Naturtöne",
+    "fine_tune": "Feinabstimmung",
+    "preview": "Live-Vorschau",
+    "preview_message": "Bereit, wenn du es bist.",
+    "online": "Online",
+    "variants": {
+      "deeper": "Dunkler",
+      "deep": "Dunkel",
+      "base": "Basis",
+      "light": "Hell",
+      "lighter": "Heller"
+    },
     "families": {
       "pastel": "Pastell",
       "dusty": "Gedämpft",
