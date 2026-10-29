@@ -87,6 +87,9 @@ RSpec.describe Coworkers::Create do
       "name: Maya", "role: not set up yet", "Your name is Maya", "Interview Ada Lovelace"
     )
     expect(remote.seeded_files.fetch("USER.md")).to include("Your owner is Ada Lovelace")
+    expect(remote.seeded_files.fetch("AGENTS.md")).to include(
+      "append-oriented", "one entry per event", "@handle", "at most 64 KiB", Coworkers::PromptSection::TRUNCATION_MARKER
+    )
     expect(remote.seeded_identity).to have_attributes(git_name: "Maya (@maya)", git_email: "maya@coworkers.syrus.invalid")
     expect(coworker).to have_attributes(accent_hex: "#0090FF", role_summary: "not set up yet")
     expect(coworker.grants.pluck(:capability, :approval_policy).to_h).to eq(described_class::DEFAULT_GRANTS)

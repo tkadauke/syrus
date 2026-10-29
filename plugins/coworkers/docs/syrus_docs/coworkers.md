@@ -33,7 +33,11 @@ surface names the coworker grant required to advertise it, and interactive
 question/suggestion tools are present only while handling an owner-authored
 turn. Plugin chat tools are excluded unless their tool set and definitions
 explicitly opt into coworker use. The Agent Memory plugin opts in only its
-read, search, and list tools. Shared-chat reads are restricted to the
+read, search, and list tools, without requiring a grant. Those tools expose
+the owner's user/global, repository, and instance memories plus published
+memories from every repository the owner can access. Team-scoped memories,
+another user's private memory, and all memory mutation or publishing tools
+remain unavailable. Shared-chat reads are restricted to the
 coworker's own chats and chats explicitly shared with that coworker, even
 when its owner is an administrator.
 
@@ -45,15 +49,18 @@ without that separation fail closed rather than starting with permissions
 they cannot enforce.
 
 In the Phase 1 workspace model, a turn runs directly in a checkout of the
-coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`, and
-`USER.md` are loaded into every fresh or resumed turn under bounded per-file
-and aggregate byte limits. The initial identity files and kickoff give the
-coworker its configured name and the owner's display name, so its first
-conversation can focus on role, personality, working preferences, and
-boundaries instead of asking for either name. The agent process receives
-neither the ordinary chat CLI invocation token nor a Git askpass token, so the
-owner's repository credentials and integration credentials are not exposed to
-its shell.
+coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`,
+`USER.md`, today's and yesterday's daily memory, participant and sender people
+files, and the attached repository's memory file are loaded into every fresh
+or resumed turn. Each file is capped at 64 KiB and the combined content at
+128 KiB, with visible truncation markers. Older daily files and memory banks
+remain available on demand through the workspace file tools under the same
+per-file cap. The initial identity files and kickoff give the coworker its
+configured name and the owner's display name, so its first conversation can
+focus on role, personality, working preferences, and boundaries instead of
+asking for either name. The agent process receives neither the ordinary chat
+CLI invocation token nor a Git askpass token, so the owner's repository
+credentials and integration credentials are not exposed to its shell.
 
 When enabled, the plugin adds a Coworkers page and unread badge. Syrus is
 pinned first as the built-in engineer; custom coworkers show their configured
@@ -84,6 +91,13 @@ cannot be added. The roster is shown beside the chat heading. Coworker turns
 share the chat's serialization lane, so two turns in one chat do not run at the
 same time.
 
-Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
-Workspace, and Activity are visible as coming-later placeholders where their
-full Phase 1 surface has not shipped yet.
+Profile pages render `SOUL.md` read-only. The Memory tab reads the coworker's
+home branch through the cached repository-content providers and presents daily,
+people, repository, and bank Markdown files without any editing controls. It
+supports full-text search across paths and contents, links to the owner's Syrus
+memories, distinguishes an empty memory tree from an unreachable remote, and
+shows recent daily files first. Provider-truncated or exceptionally large trees
+return their available files with a partial-results notice; searches also warn
+when capped file contents mean the result set cannot be complete. Capabilities,
+Schedule, Workspace, and Activity
+remain coming-later placeholders where their full surfaces have not shipped yet.

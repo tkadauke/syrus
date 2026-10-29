@@ -126,10 +126,44 @@ RSpec.describe "Coworker chat surface" do
   it "offers only read-only memory tools without a grant" do
     allow(AgentMemory).to receive(:enabled?).and_return(true)
 
-    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include("read_memory")
+    essential_names = Mcp::Sidecar.chat_tool_names(chat, tier: :essential)
+    expect(essential_names).to include("read_memory")
     deferred_names = Mcp::Sidecar.chat_tool_names(chat, tier: :deferred)
     expect(deferred_names).to include("search_memories", "list_memories")
-    expect(deferred_names).not_to include("write_memory", "delete_memory", "publish_memory", "unpublish_memory")
+    expect(essential_names + deferred_names).not_to include(
+      "write_memory", "update_memory", "delete_memory", "publish_memory", "unpublish_memory"
+    )
+  end
+
+  it "gives memory reads exactly the owner's visibility across repositories and scopes" do
+    other_repository = Factories.repository(user: owner)
+    inaccessible_repository = Factories.repository(user: Factories.user)
+    other_user = Factories.user
+    owner_global = AgentMemory::Entry.create!(user: owner, kind: "user_pref", scope: "global", content: "owner global needle")
+    owner_instance = AgentMemory::Entry.create!(user: owner, kind: "reference", scope: "instance", content: "owner instance needle")
+    owner_team = AgentMemory::Entry.create!(user: owner, kind: "reference", scope: "team", scope_id: 123, content: "owner team needle")
+    owner_repository = AgentMemory::Entry.create!(user: owner, kind: "project_fact", scope: "repository", scope_id: other_repository.id, content: "owner repository needle")
+    published_repository = AgentMemory::Entry.create!(user: other_user, kind: "reference", scope: "repository", scope_id: other_repository.id, content: "published repository needle", published: true)
+    unpublished_repository = AgentMemory::Entry.create!(user: other_user, kind: "reference", scope: "repository", scope_id: other_repository.id, content: "unpublished repository needle")
+    private_other_user = AgentMemory::Entry.create!(user: other_user, kind: "user_pref", scope: "global", content: "private other user needle")
+    inaccessible_published = AgentMemory::Entry.create!(user: other_user, kind: "reference", scope: "repository", scope_id: inaccessible_repository.id, content: "inaccessible published needle", published: true)
+    context = { chat_session: chat }
+
+    list_response = AgentMemory::Tools::ListMemoriesTool.call(server_context: context, limit: 100)
+    listed_ids = JSON.parse(list_response.content.first[:text]).fetch("memories").pluck("id")
+    expect(listed_ids).to include(owner_global.id, owner_instance.id, owner_repository.id, published_repository.id)
+    expect(listed_ids).not_to include(owner_team.id, unpublished_repository.id, private_other_user.id, inaccessible_published.id)
+
+    search_response = AgentMemory::Tools::SearchMemoriesTool.call(query: "needle", server_context: context, limit: 50)
+    searched_ids = JSON.parse(search_response.content.first[:text]).fetch("memories").pluck("id")
+    expect(searched_ids).to match_array(listed_ids)
+
+    expect(AgentMemory::Tools::ReadMemoryTool.call(id: owner_repository.id, server_context: context)).not_to be_error
+    expect(AgentMemory::Tools::ReadMemoryTool.call(id: published_repository.id, server_context: context)).not_to be_error
+    expect(AgentMemory::Tools::ReadMemoryTool.call(id: owner_team.id, server_context: context)).to be_error
+    expect(AgentMemory::Tools::ReadMemoryTool.call(id: unpublished_repository.id, server_context: context)).to be_error
+    expect(AgentMemory::Tools::ReadMemoryTool.call(id: private_other_user.id, server_context: context)).to be_error
+    expect(AgentMemory::Tools::ReadMemoryTool.call(id: inaccessible_published.id, server_context: context)).to be_error
   end
 
   it "turns revoked workspace grants into provider-native denials" do

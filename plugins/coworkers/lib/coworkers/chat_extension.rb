@@ -20,8 +20,14 @@ module Coworkers
           rostered ? Coworkers::TurnChatContext.new(self, rostered) : self
         end
 
+        ChatSession.define_method(:workspace_file_read_policy) do |relative_path|
+          next unless Coworkers::Chat.exists?(chat_session_id: id)
+
+          Coworkers::WorkspaceFileReadPolicy.for(relative_path)
+        end
+
         -> do
-          %i[coworker coworker_roster_mention agent_turn_context].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context workspace_file_read_policy].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end

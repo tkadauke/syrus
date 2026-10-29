@@ -5,6 +5,19 @@
   "error": "Coworkers could not be loaded.",
   "built_in": "Built-in · engineer",
   "coming_later": "Coming later",
+  "memory": {
+    "search": "Search memory files",
+    "files": "Memory files",
+    "loading": "Loading memory…",
+    "unavailable": "This coworker's memory cannot be reached right now.",
+    "empty": "This coworker has no memory yet.",
+    "no_results": "No memory files match this search.",
+    "search_incomplete": "Some memory content could not be searched. These results may be incomplete.",
+    "partial": "This memory tree is large or incomplete. Only the available files are shown.",
+    "owner_memories": "Open your Syrus memories",
+    "truncated": "This large file is shown in part.",
+    "categories": { "daily": "Daily", "people": "People", "repos": "Repositories", "banks": "Banks" }
+  },
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
   "tool_card": {
     "title": "Proposed coworker",

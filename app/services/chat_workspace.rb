@@ -765,26 +765,30 @@ class ChatWorkspace
     safe = safe_checkout_path(path, relative_path)
     return nil unless safe
     normalized_relative_path = safe.relative_path_from(path).to_s
-    return file_content_at_ref(path, normalized_relative_path, ref) if ref.present?
+    policy = workspace_file_read_policy(normalized_relative_path)
+    return file_content_at_ref(path, normalized_relative_path, ref, policy:) if ref.present?
     safe = safe_checkout_path(path, normalized_relative_path, resolve_symlinks: true)
     return nil unless safe
     return nil unless safe&.file?
 
     size = safe.size
-    if size > self.class::MAX_FILE_BYTES
+    limit = policy&.max_bytes || self.class::MAX_FILE_BYTES
+    if size > limit && !policy
       return { content: nil, binary: false, too_large: true, size: size }
     end
 
-    raw = safe.binread
+    raw = safe.binread([ limit + 1, size ].min)
     if raw.include?("\x00")
       return { content: nil, binary: true, too_large: false }
     end
 
-    {
-      content: decode_text_content(raw),
+    result = {
+      content: bounded_file_content(raw, policy, size),
       binary: false,
       too_large: false
     }
+    result[:truncated] = true if policy.present? && size > limit
+    result
   end
 
   def coding_diff(repository, mode: :cumulative, ref: nil)
@@ -1141,7 +1145,7 @@ class ChatWorkspace
     nil
   end
 
-  def file_content_at_ref(checkout_dir, relative_path, ref)
+  def file_content_at_ref(checkout_dir, relative_path, ref, policy: nil)
     return nil unless valid_commit_ref?(ref)
 
     spec = "#{ref}:#{relative_path}"
@@ -1154,12 +1158,13 @@ class ChatWorkspace
     return nil unless size_capture.success?
 
     size = size_capture.stdout.to_i
-    if size > self.class::MAX_FILE_BYTES
+    limit = policy&.max_bytes || self.class::MAX_FILE_BYTES
+    if size > limit && !policy
       return { content: nil, binary: false, too_large: true, size: size }
     end
 
     show_capture = checked_git_capture("file content", "show", spec, chdir: checkout_dir.to_s, env: @env,
-      limit: self.class::MAX_FILE_BYTES + 1)
+      limit: limit + 1)
     return nil unless show_capture.success?
     raw = show_capture.stdout
 
@@ -1167,11 +1172,27 @@ class ChatWorkspace
       return { content: nil, binary: true, too_large: false }
     end
 
-    {
-      content: decode_text_content(raw),
+    result = {
+      content: bounded_file_content(raw, policy, size),
       binary: false,
       too_large: false
     }
+    result[:truncated] = true if policy.present? && size > limit
+    result
+  end
+
+  def workspace_file_read_policy(relative_path)
+    return unless @chat_session.respond_to?(:workspace_file_read_policy)
+
+    @chat_session.workspace_file_read_policy(relative_path)
+  end
+
+  def bounded_file_content(raw, policy, original_size)
+    return decode_text_content(raw) unless policy && original_size > policy.max_bytes
+
+    suffix = "\n\n#{policy.truncation_marker}\n"
+    prefix = decode_text_content(raw).safe_byteslice(0, policy.max_bytes - suffix.bytesize)
+    prefix + suffix
   end
 
   def decode_text_content(raw)
