@@ -5,6 +5,14 @@ require "tmpdir"
 RSpec.describe ContainerExecution::Backend do
   around do |example|
     @previous_env = ENV.to_h
+    %w[
+      DOCKER_HOST
+      SYRUS_CONTAINER_EXECUTION_DOCKER
+      SYRUS_CONTAINER_EXECUTION_DOCKER_SOCKET
+      SYRUS_CONTAINER_EXECUTION_HOST_PATHS
+      SYRUS_CONTAINER_EXECUTION_IMAGE
+      SYRUS_PERSISTENT_MCP_SOCKET
+    ].each { |key| ENV.delete(key) }
     Dir.mktmpdir("container-execution") do |dir|
       @workspace = dir
       @host_workspace = File.join(dir, "host")
