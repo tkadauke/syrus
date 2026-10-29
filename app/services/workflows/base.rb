@@ -84,7 +84,7 @@ module Workflows
       chain_template = steps_for(job)
       raise "no steps declared for #{name}" if chain_template.nil? || chain_template.empty?
 
-      effective_artifacts = artifacts
+      effective_artifacts = (artifacts || {}).merge(plugin_workflow_artifacts(job))
       effective_chain_template = chain_template
       if (skip_reason = job.prepare_skip_reason)
         effective_chain_template = effective_chain_template.reject { |node| node == "prepare" }
@@ -180,6 +180,15 @@ module Workflows
         planned_execution_capabilities: requirement.capabilities,
         planned_execution_source: requirement.source
       }
+    end
+
+    def self.plugin_workflow_artifacts(job)
+      Syrus::PluginRegistry.providers_for(:workflow_artifact_contributor).each_with_object({}) do |provider, artifacts|
+        contributor = provider.is_a?(String) ? provider.constantize : provider
+        artifacts.merge!(contributor.for_job(job).to_h)
+      rescue StandardError => e
+        Rails.logger.warn("[Workflows::Base] workflow artifact contributor #{provider} failed: #{e.class}: #{e.message}")
+      end
     end
 
     def self.prepare_skipped_for?(job)

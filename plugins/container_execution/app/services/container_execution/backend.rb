@@ -10,7 +10,7 @@ module ContainerExecution
 
     def available_for?(request)
       request.kind.to_s == "grader" &&
-        Configuration.image.present? &&
+        seed_image_available_for?(request) &&
         Configuration.docker_command_path.present? &&
         Configuration.docker_transport_available? &&
         all_mounts_host_visible?(request)
@@ -63,7 +63,7 @@ module ContainerExecution
         *env_args(request),
         "--workdir",
         container_workdir(request),
-        Configuration.image,
+        SeedImage.new(request).resolve,
         *request.command
       ].compact
     end
@@ -151,6 +151,17 @@ module ContainerExecution
     def mcp_socket_host_visible?
       socket_path = Configuration.mcp_socket_path
       socket_path.blank? || Configuration.host_path_for(socket_path).present?
+    end
+
+    def seed_image_available_for?(request)
+      return true if Configuration.image.present?
+      return false unless Configuration.devcontainer_enabled? && request.job&.repository
+
+      if request.workflow
+        return request.workflow.artifact(WorkflowArtifactContributor::ARTIFACT_KEY).present?
+      end
+
+      DevcontainerSpec.for_job(request.job).present?
     end
   end
 end

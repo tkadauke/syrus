@@ -8,6 +8,10 @@ module ContainerExecution
       ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"].presence
     end
 
+    def devcontainer_enabled?
+      ActiveModel::Type::Boolean.new.cast(ENV["SYRUS_CONTAINER_EXECUTION_DEVCONTAINER"])
+    end
+
     def docker_command
       ENV.fetch("SYRUS_CONTAINER_EXECUTION_DOCKER", "docker")
     end
@@ -24,6 +28,16 @@ module ContainerExecution
 
     def docker_socket_path
       ENV.fetch("SYRUS_CONTAINER_EXECUTION_DOCKER_SOCKET", "/var/run/docker.sock")
+    end
+
+    # Image tags are reusable only by processes that address the same Docker
+    # image store. The worker hostname keeps identical socket paths on separate
+    # hosts from being mistaken for one shared daemon. Deployments that route
+    # several workers to one remote daemon can give them an explicit common
+    # namespace.
+    def docker_image_namespace
+      ENV["SYRUS_CONTAINER_EXECUTION_DOCKER_NAMESPACE"].presence ||
+        "#{SyrusVersion.hostname}:#{ENV['DOCKER_HOST'].presence || docker_socket_path}"
     end
 
     def docker_transport_available?

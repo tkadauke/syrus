@@ -20,10 +20,25 @@ The backend maps the execution request onto the container invocation:
 Configuration:
 
 - `SYRUS_CONTAINER_EXECUTION_IMAGE`: container image used for grader commands.
+- `SYRUS_CONTAINER_EXECUTION_DEVCONTAINER`: opt in to repository seed images.
+  When true, Syrus reads `.devcontainer/devcontainer.json` and then
+  `.devcontainer.json` from the repository's default branch through the
+  repository-content providers. An `image` is pulled if it is not already
+  local; a `build` declaration is built from the checked-out workspace. This
+  replaces only the base image for container-backed graders. The normal
+  `.syrus.yml` prepare commands and prepared-workspace archive still apply on
+  top, and local execution is unchanged. Build contexts and Dockerfiles are
+  translated through `SYRUS_CONTAINER_EXECUTION_HOST_PATHS`, just like bind
+  mounts, and an unmapped build path is rejected. Defaults to false.
 - `SYRUS_CONTAINER_EXECUTION_DOCKER`: Docker-compatible CLI path, default
   `docker`.
 - `SYRUS_CONTAINER_EXECUTION_DOCKER_SOCKET`: Docker socket path to check when
   `DOCKER_HOST` is not set, default `/var/run/docker.sock`.
+- `SYRUS_CONTAINER_EXECUTION_DOCKER_NAMESPACE`: stable identity for the Docker
+  image store used by seed-image build locks. It defaults to the worker host
+  identity plus Docker transport, which prevents unrelated workers with local
+  daemons from blocking each other. Set the same explicit value on every worker
+  that connects to one shared remote daemon so they reuse one another's builds.
 - `SYRUS_CONTAINER_EXECUTION_HOST_PATHS`: comma-separated
   `worker_path=daemon_host_path` mappings. Every declared execution mount and
   MCP socket source must be covered. Use identity mappings only when the Docker

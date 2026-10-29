@@ -49,6 +49,17 @@ The core app should keep behavior that is required for Syrus to function.
 Plugins should be things that can reasonably be disabled, replaced, or
 distributed separately.
 
+The optional Container Execution backend can use a repository's standard
+`.devcontainer/devcontainer.json` or `.devcontainer.json` as its seed image.
+With devcontainer support enabled, it pulls an `image` declaration or builds a
+`build` declaration for container-backed graders; `.syrus.yml` prepare and
+grader configuration continues to run on top of that image. Repositories
+without a devcontainer and local execution keep their existing behavior.
+Concurrent builds for the same revision are deduplicated within each Docker
+image store. Workers connected to one shared remote daemon should use the same
+`SYRUS_CONTAINER_EXECUTION_DOCKER_NAMESPACE`; separate local daemons are scoped
+independently by default.
+
 ## Bundled Plugin Directory
 
 The public plugin directory at [/plugins](/plugins) is generated from the
