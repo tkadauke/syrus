@@ -6,11 +6,21 @@
   "built_in": "Built-in · engineer",
   "coming_later": "Coming later",
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
-  "tool_card": { "title": "Proposed coworker", "summary": "Proposed coworker @{{handle}}" },
+  "tool_card": {
+    "title": "Proposed coworker",
+    "summary": "Proposed coworker @{{handle}}",
+    "grant_title": "Proposed capability grant",
+    "grant_summary": "Proposed capabilities for @{{handle}}",
+    "account_default": "Account default",
+    "not_provided": "Not provided",
+    "example_pending": "Pending coworker"
+  },
   "fields": {
     "name": "Name",
     "handle": "Handle",
     "model": "Model",
+    "provider": "Provider",
+    "effort": "Reasoning effort",
     "remote": "Workspace remote",
     "color": "Color",
     "avatar": "Avatar",

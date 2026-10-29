@@ -12,11 +12,21 @@
     "test_push": "Accessum mittendi proba",
     "push_ok": "Accessus mittendi probatus"
   },
-  "tool_card": { "title": "Collega propositus", "summary": "Collega @{{handle}} propositus" },
+  "tool_card": {
+    "title": "Collega propositus",
+    "summary": "Collega @{{handle}} propositus",
+    "grant_title": "Concessio facultatis proposita",
+    "grant_summary": "Facultates pro @{{handle}} propositae",
+    "account_default": "Praedefinitum rationis",
+    "not_provided": "Non datum",
+    "example_pending": "Collega pendens"
+  },
   "fields": {
     "name": "Nomen",
     "handle": "Nomen compellandi",
     "model": "Exemplar",
+    "provider": "Provisor",
+    "effort": "Labor ratiocinandi",
     "remote": "Repositorium spatii",
     "color": "Color",
     "avatar": "Effigies",

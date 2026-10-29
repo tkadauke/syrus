@@ -12,11 +12,21 @@
     "test_push": "Push-Zugriff testen",
     "push_ok": "Push-Zugriff bestätigt"
   },
-  "tool_card": { "title": "Vorgeschlagener Mitarbeiter", "summary": "Mitarbeiter @{{handle}} vorgeschlagen" },
+  "tool_card": {
+    "title": "Vorgeschlagener Mitarbeiter",
+    "summary": "Mitarbeiter @{{handle}} vorgeschlagen",
+    "grant_title": "Vorgeschlagene Fähigkeitsfreigabe",
+    "grant_summary": "Fähigkeiten für @{{handle}} vorgeschlagen",
+    "account_default": "Kontostandard",
+    "not_provided": "Nicht angegeben",
+    "example_pending": "Ausstehender Mitarbeiter"
+  },
   "fields": {
     "name": "Name",
     "handle": "Handle",
     "model": "Modell",
+    "provider": "Provider",
+    "effort": "Denkaufwand",
     "remote": "Workspace-Remote",
     "color": "Farbe",
     "avatar": "Avatar",
