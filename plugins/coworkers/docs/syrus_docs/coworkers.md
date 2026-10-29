@@ -38,8 +38,16 @@ tool boundary. Claude can deny file and shell tools independently; providers
 without that separation fail closed rather than starting with permissions
 they cannot enforce.
 
-In the Phase 1 workspace model, a turn runs directly in a checkout of the
-coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`, and
+Each coworker chat runs in its own disposable checkout and immutable-id branch,
+`coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's
+`coworkers/<handle>` home branch. At turn end Syrus commits with the coworker's
+git identity, pushes the chat branch, and merges it into the home branch. Clean
+and file-disjoint changes merge automatically; append-oriented files under
+`memory/` use Git's union merge driver. A conflict keeps both refs and the
+conflicted local checkout intact and posts the affected file links into the
+chat. A missing local checkout is re-cloned from the canonical remote.
+
+`SOUL.md`, `AGENTS.md`, and
 `USER.md`, today's and yesterday's daily memory, participant and sender people
 files, and the attached repository's memory file are loaded into every fresh
 or resumed turn. Each file is capped at 64 KiB and the combined content at

@@ -1530,6 +1530,23 @@ preview panels' file tools directly, so core's prompt described tools core
 does not own. `video_walkthroughs` is the third customer, and this is the
 point that unblocks moving it out of core.
 
+## `chat_workspace_lifecycle`
+
+Plugins whose chats need a durable Git workspace can own checkout behavior
+without making `ChatTurnJob` depend on plugin models. Providers implement:
+
+```ruby
+.applies_to?(chat_session:)       # => true / false
+.prepare!(chat_session:)          # => Pathname used as the agent working directory
+.finalize!(chat_session:)         # commit, merge, or otherwise persist the turn
+```
+
+The first applicable provider prepares the checkout before agent invocation.
+Core calls that same provider's finalizer before ending the turn and promoting
+a queued message, so two turns from one chat cannot overtake persistence.
+Finalizers should surface recoverable conflicts in the chat and return; an
+unexpected finalization failure is logged and posted as a system message.
+
 ## `chat_payload_contributor`
 
 The chat payload is one JSON document the chat page reads, and three of its

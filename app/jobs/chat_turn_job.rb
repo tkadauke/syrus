@@ -166,6 +166,7 @@ class ChatTurnJob < ApplicationJob
       return
     end
 
+    finalize_plugin_workspace!
     ChatGoalIterationAuditor.after_turn!(chat_session: @chat, user_message: @user_message)
     @chat.end_turn_for!(@user_message) if @user_message
     clear_stop_request_and_broadcast_controls!
@@ -174,18 +175,28 @@ class ChatTurnJob < ApplicationJob
 
   def ensure_workspace!
     workspace_path = ChatWorkspace.ensure_root!(@chat)
-    if coworker_chat?
-      # Phase 1 works directly on the coworker's home branch, one chat turn at
-      # a time. Phase 3 replaces this with per-chat branches merged at turn end.
-      workspace_path = ChatWorkspace.ensure_branch_checkout!(
-        @chat, @chat.repository, "coworkers/#{@chat.coworker.handle}"
-      )
+    if (lifecycle = plugin_workspace_lifecycle)
+      workspace_path = lifecycle.prepare!(chat_session: @chat)
+      @plugin_workspace_prepared = true
     elsif coding_mode_active?
       ensure_coding_checkout!
     else
       refresh_attached_repository_checkouts!(workspace_path)
     end
     workspace_path
+  end
+
+  def plugin_workspace_lifecycle
+    @plugin_workspace_lifecycle ||= Syrus::PluginRegistry.providers_for(:chat_workspace_lifecycle).find do |provider|
+      provider.applies_to?(chat_session: @chat)
+    end
+  end
+
+  def finalize_plugin_workspace!
+    plugin_workspace_lifecycle&.finalize!(chat_session: @chat) if @plugin_workspace_prepared
+  rescue StandardError => error
+    create_message!("system", text: "The coworker workspace could not be merged: #{error.message}")
+    Rails.logger.error("[ChatTurnJob] plugin workspace finalization failed for chat ##{@chat.id}: #{error.class}: #{error.message}")
   end
 
   def chat_provider
