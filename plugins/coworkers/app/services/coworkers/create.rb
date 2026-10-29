@@ -115,11 +115,11 @@ class Coworkers::Create
   def role_summary = @about ? @about.lines.first.strip.delete_prefix("role:").strip : "not set up yet"
 
   def soul
-    return "name: #{@name}\nrole: #{role_summary}\n\n#{@about}\n" if @about
+    return "role: #{role_summary}\nname: #{@name}\n\n#{@about}\n" if @about
 
     <<~MARKDOWN
-      name: #{@name}
       role: not set up yet
+      name: #{@name}
 
       Your name is #{@name}. Interview #{@owner.display_name}, your owner, about your role,
       personality, how you should work, and what you should never do. Then write
