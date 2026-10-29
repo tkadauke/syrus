@@ -379,9 +379,7 @@ export function ReviewableDiff({
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
   const effectiveMaxVisibleFiles =
-    isMobileFilesMenu && scroll === "natural" && mode === "continuous"
-      ? Math.min(maxVisibleFiles, MOBILE_NATURAL_SCROLL_FILE_BATCH_SIZE)
-      : maxVisibleFiles
+    isMobileFilesMenu && scroll === "natural" && mode === "continuous" ? Math.min(maxVisibleFiles, MOBILE_NATURAL_SCROLL_FILE_BATCH_SIZE) : maxVisibleFiles
   const effectiveReviewSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, ...reviewSettings }
   const wordHighlightingEnabled = wordHighlighting ?? effectiveReviewSettings.intraline_highlighting === "word"
   const { t } = useT("common")
