@@ -5,6 +5,17 @@
   "error": "Collegae onerari non potuerunt.",
   "built_in": "Inclusus · machinator",
   "coming_later": "Postea veniet",
+  "memory": {
+    "search": "Scrutare fasciculos memoriae",
+    "files": "Fasciculi memoriae",
+    "loading": "Memoria oneratur…",
+    "unavailable": "Memoria huius collegae nunc attingi non potest.",
+    "empty": "Hic collega memoriam nondum habet.",
+    "no_results": "Nullus fasciculus memoriae huic quaestioni respondet.",
+    "owner_memories": "Memorias tuas Syri aperire",
+    "truncated": "Hic magnus fasciculus ex parte ostenditur.",
+    "categories": { "daily": "Diaria", "people": "Personae", "repos": "Repositoria", "banks": "Thesauri" }
+  },
   "new": {
     "action": "Novus collega",
     "title": "Novus collega",

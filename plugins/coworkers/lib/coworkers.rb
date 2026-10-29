@@ -28,6 +28,7 @@ module Coworkers
     route :post, "/api/v1/app/coworkers/test_remote", to: "api/v1/app/coworkers#test_remote"
     route :get, "/api/v1/app/coworkers/sidebar_badge", to: "api/v1/app/coworkers#sidebar_badge"
     route :get, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#show"
+    route :get, "/api/v1/app/coworkers/:id/memory", to: "api/v1/app/coworkers#memory"
     route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
     frontend routes: {
           "coworkers/Coworkers" => "app/frontend/routes/Coworkers.tsx"

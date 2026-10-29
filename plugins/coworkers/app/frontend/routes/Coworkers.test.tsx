@@ -176,6 +176,62 @@ it("renders the custom profile, creates side chats, and marks later tabs as stub
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
 })
 
+it("browses, searches, and renders coworker memory without write controls", async () => {
+  const requests: string[] = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      requests.push(path)
+      if (path.includes("/memory")) {
+        const matches = path.includes("search=evidence")
+          ? [{ path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Thomas likes **evidence**.", truncated: false }]
+          : [
+              { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\nShipped it.", truncated: false },
+              { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Thomas likes **evidence**.", truncated: false }
+            ]
+        return jsonResponse({ files: matches, search: "", truncated: false })
+      }
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  expect(await screen.findByRole("heading", { name: "2026-10-29" })).toBeInTheDocument()
+  expect(screen.getByRole("heading", { name: "Today" })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open your Syrus memories" })).toHaveAttribute("href", "/memories")
+  expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole("button", { name: /add filter/i }))
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "evidence" } })
+  fireEvent.click(screen.getByRole("button", { name: "Search for evidence" }))
+  expect(await screen.findByRole("heading", { name: "thomas" })).toBeInTheDocument()
+  expect(requests.some((path) => path.includes("search=evidence"))).toBe(true)
+})
+
+it("shows clear empty and unreachable memory states", async () => {
+  let unavailable = false
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/memory")) return unavailable ? jsonResponse({ error: { message: "offline" } }, 503) : jsonResponse({ files: [], search: "", truncated: false })
+      return jsonResponse(detailPayload)
+    })
+  )
+  const view = renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  expect(await screen.findByText("This coworker has no memory yet.")).toBeInTheDocument()
+
+  unavailable = true
+  view.unmount()
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  expect(await screen.findByText("This coworker's memory cannot be reached right now.")).toBeInTheDocument()
+})
+
 it("renders Syrus without a workspace or main chat and links its fixed surfaces", async () => {
   const fetchSpy = vi.fn()
   vi.stubGlobal("fetch", fetchSpy)

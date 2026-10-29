@@ -48,6 +48,20 @@ module Api
           render json: { chat_path: "/chats/#{chat.id}" }, status: :created
         end
 
+        def memory
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          begin
+            payload = Coworkers::MemoryBrowser.new(
+              coworker: coworker, repository: workspace_repository(coworker), user: Current.user
+            ).call(search: params[:search])
+            render json: payload
+          rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
+            Rails.logger.info("[Coworkers::MemoryBrowser] memory unavailable: #{error.class}: #{error.message}")
+            render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
+          end
+        end
+
         def test_remote
           match = params.require(:workspace_repo).to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
           return render_error("validation_failed", I18n.t("api.coworkers.invalid_workspace_remote"), status: :unprocessable_content) unless match
