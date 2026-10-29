@@ -10,10 +10,19 @@ class Coworkers::BranchLifecycle
 
   def archive!(handle:)
     date = Time.current.to_date.iso8601
-    move!(from: "coworkers/#{handle}", to: "coworkers/archived/#{handle}-#{date}") { yield }
+    base = "coworkers/archived/#{handle}-#{date}"
+    move!(from: "coworkers/#{handle}", to: available_archive_branch(base)) { yield }
   end
 
   private
+
+  def available_archive_branch(base)
+    return base unless @remote.branch_exists?(base)
+
+    sequence = 2
+    sequence += 1 while @remote.branch_exists?("#{base}-#{sequence}")
+    "#{base}-#{sequence}"
+  end
 
   def move!(from:, to:)
     @remote.copy!(from: from, to: to, coworker: @coworker)

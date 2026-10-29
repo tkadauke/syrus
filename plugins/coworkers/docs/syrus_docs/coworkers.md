@@ -22,7 +22,9 @@ operation refuses to start while that coworker has a chat turn or background
 run in flight, creates the new ref, updates the handle registry and coworker,
 then removes the old ref. A failure preserves the old handle and branch.
 Deleting a coworker moves the home branch to
-`coworkers/archived/<handle>-<date>` before freeing the handle for reuse.
+`coworkers/archived/<handle>-<date>` before freeing the handle for reuse. If a
+reused handle is deleted again on the same day, Syrus appends the first free
+numeric suffix instead of overwriting the earlier archive.
 
 Coworker chats use a separate, deny-by-default MCP surface. Administrator
 ownership does not add administrator or repair tools. Every core tool on the

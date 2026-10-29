@@ -5,16 +5,24 @@ RSpec.describe Coworkers::BranchLifecycle do
     attr_reader :operations
     attr_accessor :fail_copy, :fail_delete
 
-    def initialize = @operations = []
+    def initialize
+      @operations = []
+      @branches = Set.new
+    end
+
+    def branch_exists?(branch) = @branches.include?(branch)
+    def existing!(*branches) = @branches.merge(branches)
 
     def copy!(from:, to:, coworker:)
       operations << [ :copy, from, to, coworker.id ]
       raise "copy failed" if fail_copy
+      @branches << to
     end
 
     def delete!(branch, **)
       operations << [ :delete, branch ]
       raise "delete failed" if fail_delete == branch
+      @branches.delete(branch)
     end
   end
 
@@ -69,6 +77,19 @@ RSpec.describe Coworkers::BranchLifecycle do
 
     expect(remote.operations).to eq([
       [ :copy, "coworkers/maya", "coworkers/archived/maya-2026-10-29", 7 ],
+      [ :delete, "coworkers/maya" ]
+    ])
+  end
+
+  it "adds a sequence when a reused handle is deleted again on the same day" do
+    remote.existing!("coworkers/archived/maya-2026-10-29")
+
+    travel_to Time.zone.local(2026, 10, 29) do
+      lifecycle.archive!(handle: "maya") { :destroyed }
+    end
+
+    expect(remote.operations).to eq([
+      [ :copy, "coworkers/maya", "coworkers/archived/maya-2026-10-29-2", 7 ],
       [ :delete, "coworkers/maya" ]
     ])
   end

@@ -22,6 +22,11 @@ RSpec.describe Coworkers::Coworker do
     }.merge(attributes))
   end
 
+  def create_lock_owner(scope_id:)
+    intent = WorkIntent.create!(kind: "initial", state: "requested", scope_type: "spec", scope_id: scope_id)
+    WorkUnit.create!(work_intent: intent, kind: "initial", state: "running", scope_type: "spec", scope_id: scope_id)
+  end
+
   it "claims, renames, and releases its shared handle" do
     coworker = create_coworker
     expect(coworker.handle_record.reload.handle).to eq("maya")
@@ -44,6 +49,35 @@ RSpec.describe Coworkers::Coworker do
     expect(coworker.reload.handle).to eq("maya")
     expect(coworker.handle_record.reload.handle).to eq("maya")
     expect(branch_lifecycle).not_to have_received(:rename!)
+  end
+
+  it "holds the coworker run lock for the complete branch and database move" do
+    coworker = create_coworker
+    observed_lock = nil
+    competing_lock_valid = nil
+    allow(branch_lifecycle).to receive(:rename!) do |**_, &block|
+      observed_lock = WorkUnitLock.active.find_by(lock_key: "coworker:#{coworker.id}")
+      competing_unit = create_lock_owner(scope_id: coworker.id + 10_000)
+      competing_lock_valid = competing_unit.work_unit_locks.new(lock_key: "coworker:#{coworker.id}").valid?
+      block.call
+    end
+
+    coworker.update!(handle: "nora")
+
+    expect(observed_lock).to be_present
+    expect(competing_lock_valid).to be(false)
+    expect(WorkUnitLock.active.where(lock_key: "coworker:#{coworker.id}")).to be_empty
+  end
+
+  it "refuses a rename when a background run owns the coworker lock" do
+    coworker = create_coworker
+    unit = create_lock_owner(scope_id: coworker.id + 20_000)
+    lock = unit.work_unit_locks.create!(lock_key: "coworker:#{coworker.id}")
+
+    expect { coworker.update!(handle: "blocked") }.to raise_error(Coworkers::OperationLock::Busy)
+    expect(coworker.reload.handle).to eq("maya")
+  ensure
+    lock&.release!
   end
 
   it "keeps the old handle when the handle registry update fails" do
@@ -73,7 +107,10 @@ RSpec.describe Coworkers::Coworker do
 
     replacement = create_coworker
     expect(replacement.handle).to eq("maya")
-    expect(branch_lifecycle).to have_received(:archive!).with(handle: "maya")
+    replacement.destroy!
+
+    expect(Handle.where(handle: "maya")).to be_empty
+    expect(branch_lifecycle).to have_received(:archive!).with(handle: "maya").twice
   end
 
   it "cannot claim a reserved or already claimed handle" do
