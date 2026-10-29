@@ -1,9 +1,22 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20260916144445_add_retention_settings_to_app_settings")
+require Rails.root.join("db/migrate/20261028143228_create_retention_policy_settings")
 
 RSpec.describe AddRetentionSettingsToAppSettings, :ci_only do
   let(:migration) { described_class.new }
   let(:connection) { ActiveRecord::Base.connection }
+
+  around do |example|
+    current_migration = CreateRetentionPolicySettings.new
+    current_migration.migrate(:down)
+    connection.schema_cache.clear!
+    AppSetting.reset_column_information
+    example.run
+  ensure
+    current_migration.migrate(:up) unless connection.table_exists?(:retention_policy_settings)
+    connection.schema_cache.clear!
+    AppSetting.reset_column_information
+  end
 
   # The values this migration introduced are deliberately NOT pinned here.
   # A later migration is allowed to move one -- ReduceMetricsDashboardSampleRetention
