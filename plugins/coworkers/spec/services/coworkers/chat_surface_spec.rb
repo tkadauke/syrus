@@ -141,6 +141,7 @@ RSpec.describe "Coworker chat surface" do
     other_user = Factories.user
     owner_global = AgentMemory::Entry.create!(user: owner, kind: "user_pref", scope: "global", content: "owner global needle")
     owner_instance = AgentMemory::Entry.create!(user: owner, kind: "reference", scope: "instance", content: "owner instance needle")
+    owner_team = AgentMemory::Entry.create!(user: owner, kind: "reference", scope: "team", scope_id: 123, content: "owner team needle")
     owner_repository = AgentMemory::Entry.create!(user: owner, kind: "project_fact", scope: "repository", scope_id: other_repository.id, content: "owner repository needle")
     published_repository = AgentMemory::Entry.create!(user: other_user, kind: "reference", scope: "repository", scope_id: other_repository.id, content: "published repository needle", published: true)
     unpublished_repository = AgentMemory::Entry.create!(user: other_user, kind: "reference", scope: "repository", scope_id: other_repository.id, content: "unpublished repository needle")
@@ -151,7 +152,7 @@ RSpec.describe "Coworker chat surface" do
     list_response = AgentMemory::Tools::ListMemoriesTool.call(server_context: context, limit: 100)
     listed_ids = JSON.parse(list_response.content.first[:text]).fetch("memories").pluck("id")
     expect(listed_ids).to include(owner_global.id, owner_instance.id, owner_repository.id, published_repository.id)
-    expect(listed_ids).not_to include(unpublished_repository.id, private_other_user.id, inaccessible_published.id)
+    expect(listed_ids).not_to include(owner_team.id, unpublished_repository.id, private_other_user.id, inaccessible_published.id)
 
     search_response = AgentMemory::Tools::SearchMemoriesTool.call(query: "needle", server_context: context, limit: 50)
     searched_ids = JSON.parse(search_response.content.first[:text]).fetch("memories").pluck("id")
@@ -159,6 +160,7 @@ RSpec.describe "Coworker chat surface" do
 
     expect(AgentMemory::Tools::ReadMemoryTool.call(id: owner_repository.id, server_context: context)).not_to be_error
     expect(AgentMemory::Tools::ReadMemoryTool.call(id: published_repository.id, server_context: context)).not_to be_error
+    expect(AgentMemory::Tools::ReadMemoryTool.call(id: owner_team.id, server_context: context)).to be_error
     expect(AgentMemory::Tools::ReadMemoryTool.call(id: unpublished_repository.id, server_context: context)).to be_error
     expect(AgentMemory::Tools::ReadMemoryTool.call(id: private_other_user.id, server_context: context)).to be_error
     expect(AgentMemory::Tools::ReadMemoryTool.call(id: inaccessible_published.id, server_context: context)).to be_error
