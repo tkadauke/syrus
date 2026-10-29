@@ -13,12 +13,15 @@ RSpec.describe AddBranchToMainBranchHealthChecks, :ci_only do
     migration.migrate(:down)
     MainBranchHealthCheck.reset_column_information
     repository = Factories.repository(default_branch: "develop")
-    check = MainBranchHealthCheck.create!(repository: repository, sha: "abc123", checked_at: Time.current, source: "ci_poll")
+    legacy_health_check = Class.new(ApplicationRecord) do
+      self.table_name = "main_branch_health_checks"
+    end
+    check_id = legacy_health_check.create!(repository_id: repository.id, sha: "abc123", checked_at: Time.current, source: "ci_poll").id
 
     migration.migrate(:up)
     MainBranchHealthCheck.reset_column_information
 
-    expect(check.reload.branch).to eq("develop")
+    expect(MainBranchHealthCheck.find(check_id).branch).to eq("develop")
     expect(MainBranchHealthCheck.columns_hash.fetch("branch").null).to be(false)
   end
 end
