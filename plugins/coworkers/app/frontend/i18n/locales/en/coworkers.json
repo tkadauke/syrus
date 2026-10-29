@@ -26,6 +26,7 @@
     "workspace": "Workspace",
     "activity": "Activity"
   },
+  "activity": { "message_traffic": "Message traffic", "window": "Last {{count}} days", "sent": "Sent", "received": "Received" },
   "detail": {
     "new_side_chat": "New side chat",
     "add_to_chat": "Add to chat",

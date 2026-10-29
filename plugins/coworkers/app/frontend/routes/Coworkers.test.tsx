@@ -52,7 +52,8 @@ const detailPayload = {
     soul: "role: Researcher\n\nCurious and concise.",
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
-    grants: [{ capability: "workspace.files", approval_policy: "auto" }]
+    grants: [{ capability: "workspace.files", approval_policy: "auto" }],
+    message_traffic: { sent: 4, received: 7, window_days: 30 }
   }
 }
 
@@ -174,6 +175,21 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Add to chat" }))
 
   await waitFor(() => expect(requests).toContain("/api/v1/app/chats/22/agents/7"))
+})
+
+it("shows sent and received message traffic on the Activity tab", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => jsonResponse(detailPayload))
+  )
+  renderRoute("/coworkers/7")
+
+  fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
+
+  expect(screen.getByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
+  expect(screen.getByText("Last 30 days")).toBeInTheDocument()
+  expect(screen.getByText("4")).toBeInTheDocument()
+  expect(screen.getByText("7")).toBeInTheDocument()
 })
 
 it("does not offer removal for the coworker's implicit own chat", async () => {

@@ -32,6 +32,7 @@
     "workspace": "Spatium",
     "activity": "Acta"
   },
+  "activity": { "message_traffic": "Commercium nuntiorum", "window": "Diebus {{count}} proximis", "sent": "Missi", "received": "Accepti" },
   "detail": {
     "new_side_chat": "Novum colloquium",
     "add_to_chat": "Ad colloquium adde",
