@@ -21,6 +21,7 @@ export function isLowPrioritySystemMessage(item: ChatRenderItem) {
   return (
     item.type === "message" &&
     item.role === "system" &&
+    !item.system?.prominent &&
     !isProposalOutcomeSystemMessage(item) &&
     !isGoalContinuationSystemMessage(item) &&
     !isCrossChatBridgeSystemMessage(item) &&
