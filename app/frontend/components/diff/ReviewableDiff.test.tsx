@@ -1896,6 +1896,35 @@ describe("changed-file count cap", () => {
 
     expect(screen.queryByRole("button", { name: /Load .* more files/ })).not.toBeInTheDocument()
   })
+
+  it("renders mobile natural-scroll diffs in bounded batches while leaving desktop unchanged", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    let mobile = true
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: mobile, removeEventListener: () => undefined })
+    })
+
+    try {
+      const largeDiff = manyFiles(16)
+      const { unmount } = render(<ReviewableDiff files={largeDiff} mode="continuous" scroll="natural" showFileHeaders />)
+
+      expect(screen.getByTestId("agent-diff-viewer").querySelector("[data-total-file-count]")).toHaveAttribute("data-total-file-count", "5")
+      expect(screen.getByTitle("file4.rb")).toBeInTheDocument()
+      expect(screen.queryByTitle("file5.rb")).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Load 5 more files (11 remaining)" })).toBeInTheDocument()
+
+      unmount()
+      mobile = false
+      render(<ReviewableDiff files={largeDiff} mode="continuous" scroll="natural" showFileHeaders />)
+
+      expect(screen.getByTestId("agent-diff-viewer").querySelector("[data-total-file-count]")).toHaveAttribute("data-total-file-count", "16")
+      expect(screen.queryByRole("button", { name: /Load .* more files/ })).not.toBeInTheDocument()
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
 })
 
 // These exercise ReviewableDiff's file-level virtualization (see the

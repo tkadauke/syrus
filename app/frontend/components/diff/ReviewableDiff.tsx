@@ -169,6 +169,11 @@ type FilesPopupPlacement = {
 
 const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
+// Natural-scroll diffs cannot use the component's file virtualizer because
+// the page, rather than the diff panel, owns vertical scrolling. Keep the
+// initial mobile DOM small instead: wrapped code lines are particularly
+// expensive for WebKit to lay out and repeatedly measure.
+const MOBILE_NATURAL_SCROLL_FILE_BATCH_SIZE = 5
 const DIFF_INLINE_REVIEW_PANEL_BASE_CLASS =
   "box-border min-w-0 w-[min(44rem,calc(100vw-3rem))] max-w-[min(44rem,calc(100vw-3rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
 // Sticky for the same reason the desktop variant is: the panel sits in a cell
@@ -373,6 +378,8 @@ export function ReviewableDiff({
   const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
+  const effectiveMaxVisibleFiles =
+    isMobileFilesMenu && scroll === "natural" && mode === "continuous" ? Math.min(maxVisibleFiles, MOBILE_NATURAL_SCROLL_FILE_BATCH_SIZE) : maxVisibleFiles
   const effectiveReviewSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, ...reviewSettings }
   const wordHighlightingEnabled = wordHighlighting ?? effectiveReviewSettings.intraline_highlighting === "word"
   const { t } = useT("common")
@@ -385,16 +392,17 @@ export function ReviewableDiff({
   const sortedFiles = useMemo(() => sortReviewFiles(files, effectiveReviewSettings.file_sort), [files, effectiveReviewSettings.file_sort])
   const renderFiles = filesForMode(sortedFiles, mode, selectedPath)
   const filesSignature = renderFiles.map((file) => file.path).join("\n")
+  const visibilitySignature = `${filesSignature}\n:max-visible:${effectiveMaxVisibleFiles}`
 
   // Reset the "how many files are revealed" cap (and the per-file cache)
   // whenever the underlying file list actually changes (not on every
   // re-render, since query refetches can hand back a fresh array reference
   // for the same data).
-  const [visibleState, setVisibleState] = useState(() => ({ count: Math.min(renderFiles.length, maxVisibleFiles), signature: filesSignature }))
+  const [visibleState, setVisibleState] = useState(() => ({ count: Math.min(renderFiles.length, effectiveMaxVisibleFiles), signature: visibilitySignature }))
   let visibleFileCount = visibleState.count
-  if (visibleState.signature !== filesSignature) {
-    visibleFileCount = Math.min(renderFiles.length, maxVisibleFiles)
-    setVisibleState({ count: visibleFileCount, signature: filesSignature })
+  if (visibleState.signature !== visibilitySignature) {
+    visibleFileCount = Math.min(renderFiles.length, effectiveMaxVisibleFiles)
+    setVisibleState({ count: visibleFileCount, signature: visibilitySignature })
     fileCache.current = new Map()
   }
 
@@ -456,7 +464,7 @@ export function ReviewableDiff({
     const index = renderFiles.findIndex((file) => file.path === target)
     if (index === -1) return
     if (index >= visibleFileCount) {
-      setVisibleState({ count: index + 1, signature: filesSignature })
+      setVisibleState({ count: index + 1, signature: visibilitySignature })
       return
     }
     pendingScrollTarget.current = null
@@ -580,13 +588,15 @@ export function ReviewableDiff({
         {remainingFileCount > 0 ? (
           <div className="border-t border-gray-200 px-4 py-3 text-center font-sans dark:border-gray-800">
             <Button
-              onClick={() => setVisibleState({ count: Math.min(renderFiles.length, visibleFileCount + maxVisibleFiles), signature: filesSignature })}
+              onClick={() =>
+                setVisibleState({ count: Math.min(renderFiles.length, visibleFileCount + effectiveMaxVisibleFiles), signature: visibilitySignature })
+              }
               size="sm"
               variant="secondary"
             >
               {t("diff_review.load_more_files", {
-                count: Math.min(maxVisibleFiles, remainingFileCount),
-                loadCount: Math.min(maxVisibleFiles, remainingFileCount),
+                count: Math.min(effectiveMaxVisibleFiles, remainingFileCount),
+                loadCount: Math.min(effectiveMaxVisibleFiles, remainingFileCount),
                 remainingCount: remainingFileCount
               })}
             </Button>
