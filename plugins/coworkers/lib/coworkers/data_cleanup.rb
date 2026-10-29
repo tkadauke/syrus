@@ -10,6 +10,7 @@ module Coworkers
       scope.effect("coworker chats") do
         Syrus::DataCleanup.register("ChatSession", "coworkers.chat_links") do |chat|
           Coworkers::Chat.where(chat_session_id: chat.id).find_each(&:destroy)
+          Coworkers::ChatAgent.where(chat_session_id: chat.id).find_each(&:destroy)
         end
       end
     end

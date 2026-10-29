@@ -66,6 +66,7 @@ import {
   fetchChatMedia,
   fetchChatMessages,
   fetchChatSearchMessages,
+  removeChatAgent,
   fetchSharedChat,
   markChatRead,
   rejectChatProposal,
@@ -117,6 +118,7 @@ import {
   type ShareChatPayload,
   type SharedChatPayload
 } from "../api/chats"
+import { Avatar } from "../components/Avatar"
 import { CloseIcon } from "../components/CloseIcon"
 import { UnderlineTabs } from "../components/Tabs"
 import { GearIcon } from "../components/GearIcon"
@@ -1934,6 +1936,53 @@ export function ChatTour() {
   return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
+function ChatAgentRoster({ payload, queryKey, onNotice }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const removal = useMutation({
+    mutationFn: (coworkerId: number) => removeChatAgent(payload.chat.id, coworkerId),
+    onSuccess: (_result, coworkerId) => {
+      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) =>
+        current
+          ? {
+              ...current,
+              agent_roster: (current.agent_roster || []).filter((agent) => agent.id !== coworkerId)
+            }
+          : current
+      )
+      void queryClient.invalidateQueries({ queryKey: ["chat-mentionables", payload.chat.id] })
+    },
+    onError: (error) => onNotice(errorMessage(error, t("command_failed")))
+  })
+  const roster = payload.agent_roster || []
+  if (roster.length === 0) return null
+
+  return (
+    <div aria-label={t("agent_roster")} className="mt-2 flex flex-wrap items-center gap-1.5">
+      {roster.map((agent) => (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-subtle py-1 pl-1 pr-2 text-xs text-text-secondary"
+          key={agent.id}
+        >
+          <Avatar avatarKey={agent.avatar_key} avatarUrl={agent.avatar_url} accentHex={agent.accent_hex} name={agent.name} size="xs" />
+          <span className="max-w-[8rem] truncate">@{agent.handle}</span>
+          {agent.removable ? (
+            <button
+              aria-label={t("remove_agent", { name: agent.name })}
+              className="rounded-full p-0.5 text-text-muted hover:bg-surface-raised hover:text-text-primary disabled:opacity-50"
+              disabled={removal.isPending}
+              onClick={() => removal.mutate(agent.id)}
+              type="button"
+            >
+              <CloseIcon className="h-3 w-3" />
+            </button>
+          ) : null}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function ChatColumn({
   bookmarkTarget,
   chatId,
@@ -2072,6 +2121,7 @@ function ChatColumn({
             {payload.chat.conversation_kind === "group" ? (
               <GroupChatParticipants payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
             ) : null}
+            <ChatAgentRoster payload={payload} queryKey={queryKey} onNotice={onNotice} />
           </div>
         </header>
       ) : null}
@@ -2585,6 +2635,10 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
   const daemonState = payload.chat.local_daemon_state ?? null
+  const copyButtonClassName =
+    daemonState === "disconnected"
+      ? "rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+      : "rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
   const chatId = payload.chat.id
 
   const sessionQuery = useQuery({
@@ -2614,12 +2668,7 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
               <code className="rounded bg-amber-50 px-2 py-1 font-mono text-xs text-amber-950 dark:bg-amber-900 dark:text-amber-100">
                 {command ?? t("local_daemon_command_loading")}
               </code>
-              <button
-                className="rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!command}
-                onClick={copyCommand}
-                type="button"
-              >
+              <button className={copyButtonClassName} disabled={!command} onClick={copyCommand} type="button">
                 {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
               </button>
             </div>
@@ -2640,12 +2689,7 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
             <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">
               {command ?? t("local_daemon_command_loading")}
             </code>
-            <button
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!command}
-              onClick={copyCommand}
-              type="button"
-            >
+            <button className={copyButtonClassName} disabled={!command} onClick={copyCommand} type="button">
               {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
             </button>
           </div>
