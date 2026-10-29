@@ -37,9 +37,13 @@ they cannot enforce.
 In the Phase 1 workspace model, a turn runs directly in a checkout of the
 coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`, and
 `USER.md` are loaded into every fresh or resumed turn under bounded per-file
-and aggregate byte limits. The agent process receives neither the ordinary
-chat CLI invocation token nor a Git askpass token, so the owner's repository
-credentials and integration credentials are not exposed to its shell.
+and aggregate byte limits. The initial identity files and kickoff give the
+coworker its configured name and the owner's display name, so its first
+conversation can focus on role, personality, working preferences, and
+boundaries instead of asking for either name. The agent process receives
+neither the ordinary chat CLI invocation token nor a Git askpass token, so the
+owner's repository credentials and integration credentials are not exposed to
+its shell.
 
 When enabled, the plugin adds a Coworkers page and unread badge. Syrus is
 pinned first as the built-in engineer; custom coworkers show their configured
