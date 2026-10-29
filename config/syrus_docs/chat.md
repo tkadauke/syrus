@@ -378,17 +378,18 @@ payload's `chat.participants`, the two participant endpoints, and the
 Mention gating: `ChatSession#should_trigger_agent?` is computed live
 from `chat_participants.count`, not a stored setting — chats with 0-1 human
 participants trigger the agent on every message; chats with 2+ require a
-resolved mention of Syrus or an agent on the chat roster in that specific
-message. Mentions are stored on the
+resolved mention of Syrus, the chat's implicit coworker, or an agent on the
+chat roster in that specific message. Mentions are stored on the
 message as `{ kind, id, handle, start, end }`; exact handle resolution prevents
 prefix collisions, and rendering uses the mentionable's current handle. Human
 mentions are highlighted and create an in-app notification for the mentioned
 participant, but never trigger an agent turn. Users can disable mention
 notifications in their notification preferences.
 
-An exact structured mention of a rostered coworker runs that coworker with the
-chat owner's provider settings and spend. Coworkers outside the roster are not
-resolved, rendered, notified, or run. All turns in one chat share the same
+An exact structured mention of the chat's implicit coworker or a rostered
+coworker runs that coworker with the chat owner's provider settings and spend.
+Coworkers that are neither the chat's implicit coworker nor on its roster are
+not resolved, rendered, notified, or run. All turns in one chat share the same
 serialized chat-turn concurrency lane.
 
 Every mentionable also exposes `avatar_url` and `accent_hex`. Humans use their

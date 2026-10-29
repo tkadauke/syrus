@@ -76,11 +76,13 @@ Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
 Rostered coworkers become addressable by every participant in that chat and
 an exact structured mention starts a coworker turn using the chat owner's
-settings. Coworkers outside the roster remain plain text and do not start a
-turn. Coworkers can be removed by the chat owner, and coworkers owned by anyone
-else cannot be added. The roster is shown beside the chat heading. Coworker
-turns share the chat's serialization lane, so two turns in one chat do not run
-at the same time.
+settings. A coworker is also implicitly addressable in its own main and side
+chats without a roster entry. Coworkers that are neither the chat's implicit
+coworker nor on its roster remain plain text and do not start a turn. Rostered
+coworkers can be removed by the chat owner, and coworkers owned by anyone else
+cannot be added. The roster is shown beside the chat heading. Coworker turns
+share the chat's serialization lane, so two turns in one chat do not run at the
+same time.
 
 Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
 Workspace, and Activity are visible as coming-later placeholders where their
