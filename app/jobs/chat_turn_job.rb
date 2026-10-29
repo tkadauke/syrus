@@ -45,6 +45,14 @@ class ChatTurnJob < ApplicationJob
     return if chat.deleted?
 
     user_message = chat.messages.find(user_message_id)
+    if chat.respond_to?(:with_agent_operation_lock) && !Thread.current[:syrus_coworker_operation_locked]
+      return chat.with_agent_operation_lock(user_message) do
+        Thread.current[:syrus_coworker_operation_locked] = true
+        perform(chat_session_id, user_message_id)
+      ensure
+        Thread.current[:syrus_coworker_operation_locked] = nil
+      end
+    end
     return unless chat.begin_turn_for!(user_message)
 
     @chat = chat

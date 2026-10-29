@@ -29,6 +29,26 @@ module Api
           render_error("validation_failed", error.message, status: :unprocessable_content)
         end
 
+        def update
+          coworker = find_coworker
+          authorize coworker, :update?, policy_class: CoworkerPolicy
+          Coworkers::BranchLifecycle.new(coworker).rename!(handle: params.require(:handle))
+          render json: { coworker: detail_json(coworker.reload) }
+        rescue Coworkers::OperationLock::Busy => error
+          render_error("coworker_busy", error.message, status: :conflict)
+        rescue ActiveRecord::RecordInvalid, ArgumentError => error
+          render_error("validation_failed", error.message, status: :unprocessable_content)
+        end
+
+        def destroy
+          coworker = find_coworker
+          authorize coworker, :destroy?, policy_class: CoworkerPolicy
+          branch = Coworkers::BranchLifecycle.new(coworker).archive!
+          render json: { archived_branch: branch }
+        rescue Coworkers::OperationLock::Busy => error
+          render_error("coworker_busy", error.message, status: :conflict)
+        end
+
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy

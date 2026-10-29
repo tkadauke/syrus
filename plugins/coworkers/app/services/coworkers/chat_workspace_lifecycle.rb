@@ -58,6 +58,7 @@ class Coworkers::ChatWorkspaceLifecycle
   def home_branch = "coworkers/#{@coworker.handle}"
   def chat_branch = "coworkers/chat/#{@coworker.id}-#{@chat.id}"
   def identity = Coworkers::GitIdentity.new(name: @coworker.name, handle: @coworker.handle)
+  def push_guard = (@push_guard ||= Coworkers::PushGuard.new(coworker: @coworker))
   def checkout_path = ChatWorkspace.repo_path_for(@chat, @repository)
 
   def workspace_repository
@@ -73,6 +74,7 @@ class Coworkers::ChatWorkspaceLifecycle
     Dir.mktmpdir("syrus-coworker-chat-") do |dir|
       clone_branch!(home_branch, dir)
       @git.run("switch", "-c", chat_branch, chdir: dir)
+      push_guard.allow!(chat_branch)
       @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: dir, env: @env)
     end
   rescue GitRunner::GitError
@@ -89,6 +91,7 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def push_chat_branch!(path)
+    push_guard.allow!(chat_branch)
     @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: path.to_s, env: @env)
   end
 
@@ -108,7 +111,7 @@ class Coworkers::ChatWorkspaceLifecycle
       merge = @git.capture("merge", "--no-edit", "origin/coworker-chat", chdir: dir, env: @env)
       return report_conflict!(dir, merge) unless merge.success?
 
-      @git.run("push", @remote_url, "HEAD:refs/heads/#{home_branch}", chdir: dir, env: @env)
+      @git.run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(home_branch)}", chdir: dir, env: @env)
       :merged
     rescue GitRunner::GitError => error
       raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
