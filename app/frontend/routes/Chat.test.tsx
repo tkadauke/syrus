@@ -2702,12 +2702,14 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(jsonResponse({
-          bookmarks: [
-            { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
-            { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            bookmarks: [
+              { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
+              { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
+            ]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -2760,9 +2762,11 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(jsonResponse({
-          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -2817,9 +2821,11 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(jsonResponse({
-          bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
