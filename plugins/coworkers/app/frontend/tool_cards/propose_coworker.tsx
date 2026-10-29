@@ -54,7 +54,7 @@ function CoworkerProposalCard({ context }: { context: ToolCardContext }) {
         <Avatar
           avatarKey={displayValue(card.coworker.avatar_key) || null}
           avatarUrl={null}
-          colorKey={displayValue(card.coworker.color_key) || null}
+          accentHex={displayValue(card.coworker.accent_hex) || null}
           name={displayValue(card.coworker.name) || ""}
         />
         <div className="min-w-0 flex-1">
@@ -164,7 +164,7 @@ const exampleResult = {
     workspace_repo: "https://github.com/acme/coworkers.git",
     branch: "coworkers/maya",
     about: "Research lead",
-    color_key: "coral-deep",
+    accent_hex: "#E5484D",
     avatar_key: "comet",
     chat_provider: "codex",
     chat_model: "gpt-5.6-sol",

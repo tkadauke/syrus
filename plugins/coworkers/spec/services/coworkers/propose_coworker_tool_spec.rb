@@ -25,7 +25,7 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
   let(:remote) { ProposalCoworkerRemote.new(owner) }
   let(:fields) do
     { name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/coworker-homes.git",
-      about: "Research lead\nCurious and concise.", color_key: "coral-deep", chat_provider: "codex",
+      about: "Research lead\nCurious and concise.", accent_hex: "#E5484D", chat_provider: "codex",
       chat_model: "gpt-5.6-sol", chat_effort: "high", grants: [ "workspace.files", "syrus.read_jobs" ] }
   end
 
@@ -65,7 +65,7 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
 
     expect(action.confirm!).to be true
     coworker = Coworkers::Coworker.find_by!(handle: "maya")
-    expect(coworker).to have_attributes(fields.slice(:name, :color_key, :chat_provider, :chat_model, :chat_effort))
+    expect(coworker).to have_attributes(fields.slice(:name, :accent_hex, :chat_provider, :chat_model, :chat_effort))
     expect(coworker.workspace_repo).to eq("https://github.com/acme/coworker-homes.git")
     expect(coworker.grants.pluck(:capability)).to contain_exactly(*fields[:grants])
     expect(remote.seeded_files.fetch("SOUL.md")).to include(fields[:about])

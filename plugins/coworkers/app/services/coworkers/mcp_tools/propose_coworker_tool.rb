@@ -10,7 +10,7 @@ module Coworkers::McpTools
     input_schema(
       properties: {
         name: { type: "string" }, handle: { type: "string" }, workspace_repo: { type: "string" },
-        about: { type: "string" }, color_key: { type: "string" }, avatar_key: { type: "string" },
+        about: { type: "string" }, accent_hex: { type: "string" }, avatar_key: { type: "string" },
         chat_provider: { type: "string" }, chat_model: { type: "string" }, chat_effort: { type: "string" },
         grants: { type: "array", items: { type: "string" } },
         test_push: { type: "boolean", description: "Test push access during preflight (defaults to true)." }
@@ -19,12 +19,12 @@ module Coworkers::McpTools
     )
 
     class << self
-      def call(name:, handle:, workspace_repo:, grants:, server_context:, about: nil, color_key: nil,
+      def call(name:, handle:, workspace_repo:, grants:, server_context:, about: nil, accent_hex: nil,
                avatar_key: nil, chat_provider: nil, chat_model: nil, chat_effort: nil, test_push: true)
         chat = server_context.fetch(:chat_session)
         fields = { "name" => name.to_s.strip, "handle" => HandleRegistry.normalize(handle),
           "workspace_repo" => workspace_repo.to_s.strip, "about" => about.to_s.strip.presence,
-          "color_key" => color_key, "avatar_key" => avatar_key, "chat_provider" => chat_provider,
+          "accent_hex" => accent_hex, "avatar_key" => avatar_key, "chat_provider" => chat_provider,
           "chat_model" => chat_model, "chat_effort" => chat_effort,
           "grants" => Array(grants).map(&:to_s).uniq }.compact
         preflight_fields = fields.except("about")

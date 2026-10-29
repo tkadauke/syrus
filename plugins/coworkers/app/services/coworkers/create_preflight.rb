@@ -1,14 +1,14 @@
 class Coworkers::CreatePreflight
   Result = Data.define(:handle, :remote, :grants)
 
-  def initialize(owner:, name:, handle:, workspace_repo:, color_key: nil, avatar_key: nil,
+  def initialize(owner:, name:, handle:, workspace_repo:, accent_hex: nil, avatar_key: nil,
                  chat_provider: nil, chat_model: nil, chat_effort: nil, grants: nil,
                  remote_workspace: nil, test_push: true)
     @owner = owner
     @name = name
     @handle = HandleRegistry.normalize(handle)
     @workspace_repo = workspace_repo
-    @attributes = { color_key: color_key, avatar_key: avatar_key, chat_provider: chat_provider,
+    @attributes = { accent_hex: accent_hex, avatar_key: avatar_key, chat_provider: chat_provider,
                     chat_model: chat_model, chat_effort: chat_effort }.compact
     @requested_grants = grants
     @remote_workspace = remote_workspace

@@ -33,7 +33,7 @@ function context(livePendingAction: ChatPendingActionInline): ToolCardContext {
         workspace_repo: "https://github.com/acme/homes.git",
         branch: "coworkers/maya",
         about: "Research lead",
-        color_key: "coral-deep",
+        accent_hex: "#E5484D",
         avatar_key: "comet",
         chat_provider: "codex",
         chat_model: "gpt-5.6-sol",
