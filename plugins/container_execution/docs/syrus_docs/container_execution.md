@@ -20,6 +20,14 @@ The backend maps the execution request onto the container invocation:
 Configuration:
 
 - `SYRUS_CONTAINER_EXECUTION_IMAGE`: container image used for grader commands.
+- `SYRUS_CONTAINER_EXECUTION_DEVCONTAINER`: opt in to repository seed images.
+  When true, Syrus reads `.devcontainer/devcontainer.json` and then
+  `.devcontainer.json` from the repository's default branch through the
+  repository-content providers. An `image` is pulled if it is not already
+  local; a `build` declaration is built from the checked-out workspace. This
+  replaces only the base image for container-backed graders. The normal
+  `.syrus.yml` prepare commands and prepared-workspace archive still apply on
+  top, and local execution is unchanged. Defaults to false.
 - `SYRUS_CONTAINER_EXECUTION_DOCKER`: Docker-compatible CLI path, default
   `docker`.
 - `SYRUS_CONTAINER_EXECUTION_DOCKER_SOCKET`: Docker socket path to check when
