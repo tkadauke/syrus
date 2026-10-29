@@ -38,6 +38,8 @@ import {
 import { deleteJson } from "../api/client"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
+import { ColorPicker } from "../components/ColorPicker"
+import { defaultAccentSelection, type AccentSelection } from "../lib/appearance"
 import { useConfirm } from "../hooks/useConfirm"
 import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, registerPasskey, type PasskeyRecord } from "../api/passkeys"
 import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
@@ -231,6 +233,7 @@ function CredentialsForm({
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
+  const [accentPreview, setAccentPreview] = useState<AccentSelection>(() => defaultAccentSelection())
 
   const resetTours = useMutation({
     mutationFn: () => deleteJson("/api/v1/app/tours/reset"),
@@ -271,6 +274,13 @@ function CredentialsForm({
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <form className="space-y-5" onSubmit={submit}>
         {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("account_settings.save_error"))}</PanelMessage> : null}
+
+        {section === "agent" ? (
+          <div className="space-y-2">
+            <p className="text-xs text-text-secondary">{t("account_settings.accent_picker_preview")}</p>
+            <ColorPicker accentRef={accentPreview.accentRef} name={payload.user.display_name} onChange={setAccentPreview} value={accentPreview.accentHex} />
+          </div>
+        ) : null}
 
         {section === "profile" ? (
           <>

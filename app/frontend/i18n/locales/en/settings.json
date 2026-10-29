@@ -1136,6 +1136,7 @@
     "credentials_description": "Encrypted provider and GitHub credentials for Syrus runs.",
     "profile_description": "Your public team profile details.",
     "agent_settings_description": "Default agent behavior for new Syrus work.",
+    "accent_picker_preview": "Preview the coworker accent picker. This preview is not saved.",
     "preferences_description": "Account-level behavior preferences.",
     "display_name": "Display name",
     "first_name": "First name",

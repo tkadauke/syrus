@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { Avatar } from "./Avatar"
 import { AvatarPicker } from "./AvatarPicker"
@@ -10,11 +10,14 @@ import {
   THEME_COLORS,
   accentDark,
   accentRamp,
+  accentVariant,
   colorDistance,
+  defaultAccentSelection,
   isCloseToTheme,
   luminance,
   mixHex,
   onColor,
+  resolveAccentSelection,
   worstCaseDistance
 } from "../lib/appearance"
 
@@ -54,27 +57,85 @@ describe("appearance helpers", () => {
     expect(isCloseToTheme("#0090FF", "#B6492E")).toBe(false)
   })
 
-  it("renders aligned tone rows and a separate Naturals row", () => {
+  it("selects tones, hues, Naturals, and fine-tune variants", () => {
     const onChange = vi.fn()
-    render(<ColorPicker ariaLabel="Coworker color" onChange={onChange} value="#b6492e" />)
+    const irisLight = accentVariant("#6E56CF", 1)
+    render(
+      <ColorPicker
+        accentRef={{ family: "vivid", index: 9, shade: 1 }}
+        ariaLabel="Coworker color"
+        name="Atlas"
+        initial="A"
+        onChange={onChange}
+        value={irisLight}
+      />
+    )
 
-    expect(screen.getAllByRole("radio")).toHaveLength(72)
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
-    expect(screen.getAllByText(/^(Pastel|Dusty|Vivid|Electric|Jewel|Naturals)$/).map((node) => node.textContent)).toEqual([
-      "Pastel",
-      "Dusty",
-      "Vivid",
-      "Electric",
-      "Jewel",
-      "Naturals"
-    ])
-    expect(within(screen.getByText("Pastel").parentElement!).getAllByRole("radio")).toHaveLength(12)
-    expect(within(screen.getByText("Naturals").parentElement!).getAllByRole("radio")).toHaveLength(12)
-    expect(screen.getByText("Red")).toBeInTheDocument()
-    expect(screen.getByText("Pink")).toBeInTheDocument()
-    expect(screen.getByRole("radio", { name: "Terracotta" })).toHaveAttribute("aria-checked", "true")
-    fireEvent.click(screen.getByRole("radio", { name: "Azure" }))
-    expect(onChange).toHaveBeenCalledWith("#0090FF")
+    expect(screen.getByText(`Iris +1 · ${irisLight}`)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Vivid" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Iris" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "+1 Light" })).toHaveStyle({ color: onColor(irisLight) })
+    expect(screen.getByText("Ready when you are.")).toHaveStyle({ backgroundColor: irisLight, color: onColor(irisLight) })
+    expect(screen.getByText("A")).toBeInTheDocument()
+    expect(screen.getByText("@Atlas")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Dusty" }))
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#8E7BA8", 1), accentRef: { family: "dusty", index: 9, shade: 1 } })
+    fireEvent.click(screen.getByRole("button", { name: "Denim" }))
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#5D7FA8", 1), accentRef: { family: "dusty", index: 7, shade: 1 } })
+    fireEvent.click(screen.getByRole("button", { name: "Terracotta" }))
+    expect(screen.getByRole("button", { name: "Dusty" })).toHaveAttribute("aria-pressed", "false")
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#b6492e", 1), accentRef: { family: "earth", index: 0, shade: 1 } })
+    fireEvent.click(screen.getByRole("button", { name: "0 Base" }))
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: "#B6492E", accentRef: { family: "earth", index: 0, shade: 0 } })
+  })
+
+  it("reopens from a valid reference and falls back to the nearest base color", () => {
+    const irisLight = accentVariant("#6E56CF", 1)
+    expect(resolveAccentSelection(irisLight, { family: "vivid", index: 9, shade: 1 })).toEqual({
+      accentHex: irisLight,
+      accentRef: { family: "vivid", index: 9, shade: 1 }
+    })
+    expect(resolveAccentSelection("#6F57CE", { family: "earth", index: 0, shade: 2 })).toEqual({
+      accentHex: "#6E56CF",
+      accentRef: { family: "vivid", index: 9, shade: 0 }
+    })
+  })
+
+  it("uses the first unused color in the default order", () => {
+    expect(defaultAccentSelection(["#0090ff", "#F5A524"]).accentHex).toBe("#9B1C31")
+  })
+
+  it("uses roving tabindex and arrow keys within swatch rows", () => {
+    const onChange = vi.fn()
+    render(<ColorPicker accentRef={{ family: "vivid", index: 0, shade: 0 }} onChange={onChange} value="#E5484D" />)
+    const poppy = screen.getByRole("button", { name: "Poppy" })
+    const tangerine = screen.getByRole("button", { name: "Tangerine" })
+    expect(poppy).toHaveAttribute("tabindex", "0")
+    expect(tangerine).toHaveAttribute("tabindex", "-1")
+    poppy.focus()
+    fireEvent.keyDown(poppy, { key: "ArrowRight" })
+    expect(tangerine).toHaveFocus()
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: "#F2711C", accentRef: { family: "vivid", index: 1, shade: 0 } })
+
+    const vivid = screen.getByRole("button", { name: "Vivid" })
+    vivid.focus()
+    fireEvent.keyDown(vivid, { key: "ArrowRight" })
+    expect(screen.getByRole("button", { name: "Electric" })).toHaveFocus()
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: "#FF6A00", accentRef: { family: "electric", index: 1, shade: 0 } })
+
+    const base = screen.getByRole("button", { name: "0 Base" })
+    base.focus()
+    fireEvent.keyDown(base, { key: "ArrowRight" })
+    expect(screen.getByRole("button", { name: "+1 Light" })).toHaveFocus()
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#FF6A00", 1), accentRef: { family: "electric", index: 1, shade: 1 } })
+  })
+
+  it("renders in explicit light and dark preview modes", () => {
+    const { container, rerender } = render(<ColorPicker mode="light" onChange={vi.fn()} value="#0090FF" />)
+    expect(container.querySelector("section")).not.toHaveClass("dark")
+    rerender(<ColorPicker mode="dark" onChange={vi.fn()} value="#0090FF" />)
+    expect(container.querySelector("section")).toHaveClass("dark")
   })
 
   it("selects bundled avatars", () => {
