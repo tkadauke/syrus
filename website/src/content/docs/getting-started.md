@@ -363,7 +363,12 @@ are blocked before their first Run, and Job cards explain whether they are
 waiting on dependencies, Epic readiness, main branch health, or an active
 urgent Job. Dashboard view and sort choices are remembered per
 smart folder, so returning to views like Landing queue or All Epics restores
-the layout and ordering that fit that folder.
+the layout and ordering that fit that folder. A built-in folder also seeds the
+shared filter bar. Dashboard Job folders expose their named Preset together
+with separately editable Job type and ownership or approval controls; other
+folder definitions can present one named Preset chip. Adding, editing, or
+removing any visible chip changes the complete effective filter while the
+sidebar continues to show which folder supplied the starting view.
 
 Main branch health warnings distinguish severity: `broken` health can pause
 repository work while Syrus opens or offers repair, while `inconclusive`

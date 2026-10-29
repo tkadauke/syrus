@@ -18,6 +18,7 @@ module App
     SECTIONS = %w[full chrome rows].freeze
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
+    FILTER_CLASSES = { "job" => Jobs::Filter, "epic" => Epics::Filter, "workflow" => Workflows::Filter }.freeze
     FOLDER_PREFERENCE_DEFAULTS = {
       [ "epic", "null" ] => { "view" => "kanban" },
       [ "epic", "epics_mine" ] => { "view" => "kanban" },
@@ -70,14 +71,14 @@ module App
         preferences: PerformanceLogging.phase("dashboard_chrome.preferences", subject: subject) { preferences_json },
         controls: PerformanceLogging.phase("dashboard_chrome.controls", subject: subject) { controls_json },
         ownership: PerformanceLogging.phase("dashboard_chrome.ownership", subject: subject) { ownership_json },
-        filter: current_filter.to_h,
+        filter: smart_folder_resolution.filter.to_h,
         landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_chrome_json },
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
         broken_repositories: health_blocked_repositories,
         health_blocked_repositories: health_blocked_repositories,
         ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
-        active_smart_folder_id: active_smart_folder&.id,
+        active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
         setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) },
         paths: paths_json
       }
@@ -93,8 +94,8 @@ module App
         total: result.fetch(:total),
         total_pages: total_pages(result.fetch(:total)),
         total_estimated: result.fetch(:total_estimated, false),
-        active_smart_folder_id: active_smart_folder&.id,
-        filter: current_filter.to_h,
+        active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
+        filter: smart_folder_resolution.filter.to_h,
         preferences: PerformanceLogging.phase("dashboard_rows.preferences", subject: subject) { preferences_json },
         controls: PerformanceLogging.phase("dashboard_rows.controls", subject: subject) { rows_controls_json },
         landing_queue: PerformanceLogging.phase("dashboard_rows.landing_queue", subject: subject, view: view) { landing_queue_json },
@@ -135,14 +136,7 @@ module App
     end
 
     def current_filter
-      case subject
-      when "job"
-        jobs_filter
-      when "workflow"
-        workflows_filter
-      else
-        epics_filter
-      end
+      smart_folder_resolution.filter
     end
 
     def subject
@@ -401,7 +395,7 @@ module App
     end
 
     def jobs_filter
-      @jobs_filter ||= Jobs::Filter.from_params(params, smart_folder: active_smart_folder_for_filter, user: user)
+      smart_folder_resolution.filter
     end
 
     def filtered_jobs_scope
@@ -409,7 +403,7 @@ module App
     end
 
     def epics_filter
-      @epics_filter ||= Epics::Filter.from_params(params, smart_folder: active_smart_folder_for_filter, user: user)
+      smart_folder_resolution.filter
     end
 
     def filtered_epics_scope
@@ -421,22 +415,21 @@ module App
     end
 
     def workflows_filter
-      @workflows_filter ||= Workflows::Filter.from_params(params, smart_folder: active_smart_folder_for_filter, user: user)
+      smart_folder_resolution.filter
     end
 
-    def active_smart_folder_for_filter
-      url_filter.active? ? nil : active_smart_folder
+    def smart_folder_resolution
+      @smart_folder_resolution ||= Filters::SmartFolderResolution.call(
+        filter_class: dashboard_filter_class,
+        subject: subject,
+        params: params,
+        active_smart_folder: active_smart_folder,
+        user: user
+      )
     end
 
-    def url_filter
-      @url_filter ||= case subject
-      when "job"
-        Jobs::Filter.from_params(params, user: user)
-      when "workflow"
-        Workflows::Filter.from_params(params, user: user)
-      else
-        Epics::Filter.from_params(params, user: user)
-      end
+    def dashboard_filter_class
+      FILTER_CLASSES.fetch(subject)
     end
 
     def filtered_workflows_scope

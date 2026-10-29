@@ -100,7 +100,7 @@ module Admin
           base = SolidQueue::FailedExecution.joins(:job)
           filter = display_filter(:failed, active_folder)
           filtered = filter.apply(base)
-          since = failed_since(filter)
+          since = failed_since(filter, active_folder)
           total = PerformanceLogging.phase("admin_queue.failed.total") { filtered.count }
           failures = PerformanceLogging.phase("admin_queue.failed.query") {
             apply_sql_sort(filtered, :failed)
@@ -268,10 +268,14 @@ module Admin
       end
 
       def display_filter(tab, active_folder)
-        url_filter = ::Admin::Queue::Filter.from_params(params, user: user, tab: tab)
-        return url_filter if url_filter.active? && (active_folder.nil? || params[Filters::QueryParam::PARAM_NAME].present?)
-
-        queue_filter(tab, active_folder)
+        Filters::SmartFolderResolution.call(
+          filter_class: ::Admin::Queue::Filter,
+          subject: :admin_queue,
+          params: params,
+          active_smart_folder: active_folder,
+          user: user,
+          filter_options: { tab: tab }
+        ).filter
       end
 
       def smart_folder_payload(tab, base_scope, active_folder, filter:)
@@ -360,14 +364,28 @@ module Admin
         ((end_time - start_time) / 1.minute).ceil.clamp(1, (::Admin::WorkerHealthPayload::MAX_MINUTE_BUCKET_WINDOW / 1.minute).to_i)
       end
 
-      def failed_since(filter)
-        failed_since_from_tree(filter.to_h) || 24.hours.ago
+      def failed_since(filter, active_folder)
+        tree = filter.to_h
+        uses_active_preset = active_folder&.builtin? &&
+          tree.deep_stringify_keys == Filters::SmartFolderResolution.preset_tree(active_folder.builtin_key)
+        expanded_tree = if uses_active_preset
+          active_folder.filter
+        else
+          tree
+        end
+        failed_since_from_tree(expanded_tree) || 24.hours.ago
       end
 
       def failed_since_from_tree(node)
         case node
         when Hash
-          if node["field"].to_s == "failed_since"
+          node = node.deep_stringify_keys
+          field = node["field"]
+          value = node["value"]
+          if field.to_s == Filters::SmartFolderResolution::PRESET_FIELD
+            definition = SmartFolder.builtins_for_subject(:admin_queue).find { |candidate| candidate.fetch(:key).to_s == value.to_s }
+            failed_since_from_tree(definition&.fetch(:filter, nil))
+          elsif field.to_s == "failed_since"
             failed_since_from_chip(node)
           else
             Array(node["and"] || node["or"]).filter_map { |child| failed_since_from_tree(child) }.first ||
@@ -379,11 +397,11 @@ module Admin
       end
 
       def failed_since_from_chip(chip)
-        case chip["op"].to_s
+        case (chip["op"] || chip[:op]).to_s
         when "after"
-          parse_time(chip["value"])
+          parse_time(chip["value"] || chip[:value])
         when "within_last"
-          duration_from_filter_value(chip["value"]).ago
+          duration_from_filter_value(chip["value"] || chip[:value]).ago
         end
       end
 

@@ -9,7 +9,8 @@ RSpec.describe GithubSource::IssuesFilter do
     it "exposes the repository issue FilterBar fields" do
       fields = described_class.schema.index_by { |field| field.fetch("field") }
 
-      expect(fields.keys).to eq(%w[query author label delegated state])
+      expect(fields.keys).to eq(%w[preset query author label delegated state])
+      expect(fields.fetch("preset")).to include("bucket" => "preset", "operators" => [ "is" ])
       expect(fields.fetch("query")).to include("free_text_search" => true, "bucket" => "string", "operators" => [ "contains" ])
       expect(fields.fetch("author")).to include("bucket" => "string", "operators" => [ "contains" ])
       expect(fields.fetch("label")).to include("bucket" => "string", "operators" => [ "contains" ])
@@ -67,6 +68,20 @@ RSpec.describe GithubSource::IssuesFilter do
       filter = described_class.from_params(ActionController::Parameters.new)
 
       expect(filter.to_h).to eq({ "and" => [] })
+    end
+  end
+
+
+  describe ".for_request" do
+    it "uses a named preset only while q is absent" do
+      preset = described_class.for_request(ActionController::Parameters.new, folder: "delegated")
+      explicit = described_class.for_request(ActionController::Parameters.new(q: encoded({ "and" => [] })), folder: "delegated")
+
+      expect(preset.to_h).to eq({ "and" => [ { "field" => "preset", "op" => "is", "value" => "delegated" } ] })
+      expect(preset.delegated).to be(true)
+      expect(preset.state).to eq("open")
+      expect(explicit.to_h).to eq({ "and" => [] })
+      expect(explicit.delegated).to be_nil
     end
   end
 end

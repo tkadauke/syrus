@@ -12,8 +12,8 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
-import { FilterBar } from "../components/FilterBar"
-import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
+import { SmartFolderFilterBar } from "../components/SmartFolderFilterBar"
+import { linkFromSearch } from "../components/filterBar/helpers"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import {
   fetchAdminQueue,
@@ -180,15 +180,16 @@ function QueueContent({
   const { t } = useT("admin")
   const smartFolders = "smart_folders" in payload ? payload.smart_folders : []
   const activeFolderId = "active_smart_folder_id" in payload ? payload.active_smart_folder_id : null
-  const activeUserFolderId = smartFolders.find((folder) => folder.id === activeFolderId && folder.kind === "user_defined")?.id
   const activeFolderLabel = smartFolders.find((folder) => folder.id === activeFolderId)?.name ?? t("queue.all_queue")
   const filterBar = isFilteredQueuePayload(payload) ? (
-    <FilterBar
+    <SmartFolderFilterBar
+      activeSmartFolderId={activeFolderId}
       filter={payload.filter}
       filterSchema={payload.controls.filter_schema}
-      buildLink={adminSmartFolderFilterLinkBuilder(activeUserFolderId)}
+      buildLink={linkFromSearch}
       pathname={pathname}
       search={search}
+      smartFolders={smartFolders}
     />
   ) : null
 
@@ -226,7 +227,19 @@ function isFilteredQueuePayload(payload: AdminQueuePayload): payload is ActiveQu
   return "filter" in payload && "controls" in payload
 }
 
-function QueueTabPanel({ onNavigate, pathname, search, tab, payload }: { onNavigate: (path: string) => void; pathname: string; search: string; tab: QueueTab; payload: unknown }) {
+function QueueTabPanel({
+  onNavigate,
+  pathname,
+  search,
+  tab,
+  payload
+}: {
+  onNavigate: (path: string) => void
+  pathname: string
+  search: string
+  tab: QueueTab
+  payload: unknown
+}) {
   const { t } = useT("admin")
 
   function navigateWithParams(params: URLSearchParams) {
@@ -253,7 +266,14 @@ function QueueTabPanel({ onNavigate, pathname, search, tab, payload }: { onNavig
     case "failed":
       return <FailuresTable onNavigate={navigateWithParams} payload={payload as FailedQueuePayload} search={search} />
     case "recurring":
-      return <RecurringTable onNavigate={navigateWithParams} search={search} sort={(payload as RecurringQueuePayload).sort} tasks={(payload as RecurringQueuePayload).tasks ?? []} />
+      return (
+        <RecurringTable
+          onNavigate={navigateWithParams}
+          search={search}
+          sort={(payload as RecurringQueuePayload).sort}
+          tasks={(payload as RecurringQueuePayload).tasks ?? []}
+        />
+      )
     case "workers":
       return <WorkersPanel onNavigate={navigateWithParams} payload={payload as WorkersQueuePayload} search={search} />
   }
@@ -279,10 +299,29 @@ function PendingTable({ onNavigate, payload, search }: { onNavigate: (params: UR
 
 function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Array<AdminEventLogTableColumn<QueueJob>> {
   const columns: Array<AdminEventLogTableColumn<QueueJob>> = [
-    { key: "job_id", header: t("queue.col_job_id"), sort: "job_id", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (job) => `#${job.id}` },
-    { key: "class", header: t("queue.col_class"), required: true, sort: "class", className: "font-medium text-gray-900 dark:text-gray-100", render: (job) => job.class_name },
+    {
+      key: "job_id",
+      header: t("queue.col_job_id"),
+      sort: "job_id",
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (job) => `#${job.id}`
+    },
+    {
+      key: "class",
+      header: t("queue.col_class"),
+      required: true,
+      sort: "class",
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (job) => job.class_name
+    },
     { key: "queue", header: t("queue.col_queue"), sort: "queue", className: "text-gray-700 dark:text-gray-200", render: (job) => job.queue_name },
-    { key: "priority", header: t("queue.col_priority"), sort: "priority", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (job) => job.priority },
+    {
+      key: "priority",
+      header: t("queue.col_priority"),
+      sort: "priority",
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (job) => job.priority
+    },
     {
       key: "arguments",
       header: t("queue.col_arguments"),
@@ -388,8 +427,20 @@ function FailuresTable({ onNavigate, payload, search }: { onNavigate: (params: U
       className: "text-gray-600 dark:text-gray-300",
       render: (failure) => <RelativeTimestamp value={failure.created_at} />
     },
-    { key: "class", header: t("queue.col_class"), sort: "class", className: "font-medium text-gray-900 dark:text-gray-100", render: (failure) => failure.class_name || "-" },
-    { key: "priority", header: t("queue.col_priority"), sort: "priority", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (failure) => failure.priority ?? "-" },
+    {
+      key: "class",
+      header: t("queue.col_class"),
+      sort: "class",
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (failure) => failure.class_name || "-"
+    },
+    {
+      key: "priority",
+      header: t("queue.col_priority"),
+      sort: "priority",
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (failure) => failure.priority ?? "-"
+    },
     {
       key: "scheduled",
       header: t("queue.col_scheduled"),
@@ -425,15 +476,38 @@ function FailuresTable({ onNavigate, payload, search }: { onNavigate: (params: U
   )
 }
 
-function RecurringTable({ onNavigate, search, sort, tasks }: { onNavigate: (params: URLSearchParams) => void; search: string; sort?: QueueSort; tasks: QueueRecurringTask[] }) {
+function RecurringTable({
+  onNavigate,
+  search,
+  sort,
+  tasks
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  search: string
+  sort?: QueueSort
+  tasks: QueueRecurringTask[]
+}) {
   const { t } = useT("admin")
 
   if (tasks.length === 0) return <PanelMessage>{t("queue.no_recurring")}</PanelMessage>
 
   const columns: Array<AdminEventLogTableColumn<QueueRecurringTask>> = [
-    { key: "key", header: t("queue.col_key"), required: true, sort: "key", className: "font-medium text-gray-900 dark:text-gray-100", render: (task) => task.key },
+    {
+      key: "key",
+      header: t("queue.col_key"),
+      required: true,
+      sort: "key",
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (task) => task.key
+    },
     { key: "class", header: t("queue.col_class"), sort: "class", className: "text-gray-700 dark:text-gray-200", render: (task) => task.class_name || "-" },
-    { key: "schedule", header: t("queue.col_schedule"), sort: "schedule", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (task) => task.schedule },
+    {
+      key: "schedule",
+      header: t("queue.col_schedule"),
+      sort: "schedule",
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (task) => task.schedule
+    },
     {
       key: "last_run",
       header: t("queue.col_last_run"),
@@ -619,7 +693,10 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         {capabilityEntries.length > 0 ? (
           <div className="mb-3 flex flex-wrap items-center gap-1.5" aria-label={t("queue.worker_capabilities")}>
             {capabilityEntries.map((entry) => (
-              <span className="rounded border border-border bg-surface-subtle px-2 py-0.5 font-mono text-xs text-text-secondary" key={`${entry.dimension}:${entry.value}`}>
+              <span
+                className="rounded border border-border bg-surface-subtle px-2 py-0.5 font-mono text-xs text-text-secondary"
+                key={`${entry.dimension}:${entry.value}`}
+              >
                 {entry.dimension}:{entry.value}
               </span>
             ))}
@@ -701,7 +778,10 @@ function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   return (
     <div className="flex flex-wrap gap-1" title={workerCapabilitiesText(capabilities)}>
       {entries.map((entry) => (
-        <span className="rounded border border-border bg-surface-subtle px-1.5 py-0.5 font-mono text-2xs text-text-secondary" key={`${entry.dimension}:${entry.value}`}>
+        <span
+          className="rounded border border-border bg-surface-subtle px-1.5 py-0.5 font-mono text-2xs text-text-secondary"
+          key={`${entry.dimension}:${entry.value}`}
+        >
           {entry.dimension}:{entry.value}
         </span>
       ))}
@@ -884,7 +964,17 @@ function HealthStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function WorkerTable({ onNavigate, search, sort, workers }: { onNavigate: (params: URLSearchParams) => void; search: string; sort?: QueueSort; workers: QueueWorker[] }) {
+function WorkerTable({
+  onNavigate,
+  search,
+  sort,
+  workers
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  search: string
+  sort?: QueueSort
+  workers: QueueWorker[]
+}) {
   const { t } = useT("admin")
 
   if (workers.length === 0) return <PanelMessage>{t("queue.no_workers")}</PanelMessage>
@@ -912,7 +1002,13 @@ function WorkerTable({ onNavigate, search, sort, workers }: { onNavigate: (param
       className: "min-w-48 text-gray-700 dark:text-gray-200",
       render: (worker) => <CapabilityBadges capabilities={worker.capabilities} />
     },
-    { key: "threads", header: t("queue.col_threads"), sort: "threads", className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.threads ?? "-" },
+    {
+      key: "threads",
+      header: t("queue.col_threads"),
+      sort: "threads",
+      className: "text-gray-700 dark:text-gray-200",
+      render: (worker) => worker.threads ?? "-"
+    },
     {
       key: "heartbeat",
       header: t("queue.col_heartbeat"),
@@ -955,7 +1051,14 @@ function ProcessTable({ onNavigate, processes, search }: { onNavigate: (params: 
   if (processes.length === 0) return <PanelMessage>{t("queue.no_processes")}</PanelMessage>
 
   const columns: Array<AdminEventLogTableColumn<QueueProcess>> = [
-    { key: "kind", header: t("queue.col_kind"), required: true, sort: "kind", className: "font-medium text-gray-900 dark:text-gray-100", render: (process) => process.kind },
+    {
+      key: "kind",
+      header: t("queue.col_kind"),
+      required: true,
+      sort: "kind",
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (process) => process.kind
+    },
     { key: "host", header: t("queue.col_host"), sort: "host", className: "text-gray-700 dark:text-gray-200", render: (process) => process.hostname || "-" },
     { key: "pid", header: t("queue.col_pid"), sort: "pid", className: "text-gray-700 dark:text-gray-200", render: (process) => process.pid },
     {
@@ -1004,11 +1107,12 @@ function MacosDrainBadge({ drain }: { drain?: QueueWorker["macos_worker_drain"] 
   const { t } = useT("admin")
   if (!drain || drain.state === "none") return null
 
-  const tone = drain.state === "failed"
-    ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"
-    : drain.force_terminate
-      ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
-      : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200"
+  const tone =
+    drain.state === "failed"
+      ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"
+      : drain.force_terminate
+        ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200"
 
   return <span className={`rounded px-2 py-0.5 text-xs font-medium ${tone}`}>{macosDrainLabel(drain, t)}</span>
 }
@@ -1042,16 +1146,23 @@ function queuePanel(
   search = ""
 ) {
   return {
-    pagination: pagination && onNavigate ? {
-      ariaLabel: t("queue.pagination_aria"),
-      label: t("queue.page_label", { page: pagination.page, total: pagination.total_pages }),
-      nextLabel: t("queue.next"),
-      onNavigate,
-      pagination,
-      previousLabel: t("queue.previous"),
-      search
-    } : undefined,
-    summary: t("queue.showing_items", { first: count > 0 ? ((pagination?.page ?? 1) - 1) * (pagination?.per_page ?? count) + 1 : 0, last: count > 0 ? ((pagination?.page ?? 1) - 1) * (pagination?.per_page ?? count) + count : 0, total })
+    pagination:
+      pagination && onNavigate
+        ? {
+            ariaLabel: t("queue.pagination_aria"),
+            label: t("queue.page_label", { page: pagination.page, total: pagination.total_pages }),
+            nextLabel: t("queue.next"),
+            onNavigate,
+            pagination,
+            previousLabel: t("queue.previous"),
+            search
+          }
+        : undefined,
+    summary: t("queue.showing_items", {
+      first: count > 0 ? ((pagination?.page ?? 1) - 1) * (pagination?.per_page ?? count) + 1 : 0,
+      last: count > 0 ? ((pagination?.page ?? 1) - 1) * (pagination?.per_page ?? count) + count : 0,
+      total
+    })
   }
 }
 

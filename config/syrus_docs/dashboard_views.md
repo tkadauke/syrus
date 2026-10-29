@@ -260,7 +260,25 @@ section, applying the field's own configured operator (its first declared
 operator) and the typed text directly on click -- no field/operator picker.
 At most one field per subject/definition should set this flag.
 
-**SmartFolder floor vs. ad hoc chip-bar filter.** `Filters::BaseFilter.from_params`
+**Canonical SmartFolder/FilterBar contract.** Resolve a SmartFolder-backed
+surface through `Filters::SmartFolderResolution`, passing its filter class,
+subject, active folder, request params, and user. The returned `filter` is both
+the editable AST sent to the client and the exact predicate applied to the
+result scope; navigation state retains the selected folder independently.
+
+With no explicit `q=`, a built-in folder seeds its registered filter AST.
+Definitions may opt into an opaque named `Preset is …` chip with
+`filter_bar_preset: true`; its wire value is the stable built-in key, and the
+compiler safely expands that definition when applying the filter. Unknown,
+recursive, and non-opted-in preset keys are rejected. Dashboard Job folders
+deliberately remain expanded: their existing `attention` chip (labelled
+`Preset`) and separate `job_type`, `owner_user_id`, or `eligible_approver`
+chips are independent operator controls. Persisted user-defined folders also
+seed their saved AST directly. Any explicit `q=`, including an encoded empty
+AST, is the complete source of truth, so editing or removing a visible chip
+cannot silently reapply the selected folder.
+
+At the lower level, `Filters::BaseFilter.from_params`
 always ANDs a given `smart_folder:` argument with the request's `q=`/legacy
 params -- that low-level AND is unconditional by design. Any controller that
 resolves `current_filter` for a SmartFolder-backed FilterBar surface must
@@ -276,8 +294,15 @@ leaves the pre-edit value alongside the new one, and removing the chip bar's
 last chip resurrects it. `active_smart_folder_id` in the response is
 unaffected by this guard and keeps reflecting the selected folder for UI
 purposes (breadcrumb/sidebar highlighting) even once its filter floor has
-been dropped. Mirrors `App::DashboardPayload#active_smart_folder_for_filter`,
-which predates and inspired the shared helper.
+been dropped. New surfaces should use the resolution object rather than
+assembling this precedence and navigation state independently.
+
+Plugin SmartFolder subjects declare `effective_filter_contract:
+:smart_folder_resolution` when calling `SmartFolder.register_subject!`. The
+registration inventory spec requires that declaration for every installed
+subject, so a new SmartFolder-backed FilterBar surface cannot bypass this
+contract accidentally. FilterBar-only subjects that do not register with
+`SmartFolder` are outside this inventory.
 
 `FilterBar.tsx`'s `applyTree` seeds its editable draft chip list from the
 server's already-merged `filter`, so a chip-bar Add/Edit always resends

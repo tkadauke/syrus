@@ -13,7 +13,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { linkFromSearch } from "../components/filterBar/helpers"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
-import { FilterBar } from "../components/FilterBar"
+import { SmartFolderFilterBar } from "../components/SmartFolderFilterBar"
 import { useMediaQuery } from "./dashboard/components"
 import {
   DataTableColumnCells,
@@ -455,29 +455,17 @@ function smartFolderIdFromSearch(search: string): number | null {
 // wire format every other FilterBar-backed subject uses.
 function RepositoryFilterBar({ payload, pathname, search }: { payload: RepositoriesPayload; pathname: string; search: string }) {
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
-  const activeFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
-  // Editing the chip bar while a built-in folder (All/Recent/Archived) is
-  // selected drops that folder's floor server-side (see
-  // Repositories::Filter.smart_folder_floor), so keep the URL in sync by
-  // dropping smart_folder_id too -- otherwise the sidebar would keep
-  // highlighting a folder whose condition no longer applies. A user-defined
-  // folder is the one case worth keeping selected while its own filter is
-  // being edited (mirrors Dashboard's DashboardFilterBar).
-  const keepSmartFolderOnFilter = activeFolder?.kind === "user_defined"
 
   return (
-    <FilterBar
-      buildLink={(path, currentSearch, updates) => {
-        const nextUpdates = { ...updates }
-        if (nextUpdates.smart_folder_id != null && !keepSmartFolderOnFilter) nextUpdates.smart_folder_id = null
-
-        return linkFromSearch(path, currentSearch, nextUpdates)
-      }}
+    <SmartFolderFilterBar
+      activeSmartFolderId={activeSmartFolderId}
+      buildLink={linkFromSearch}
       filter={payload.filter}
       filterSchema={payload.filter_schema}
       legacyFilterKeys={REPOSITORY_LEGACY_FILTER_KEYS}
       pathname={pathname}
       search={search}
+      smartFolders={payload.smart_folders}
     />
   )
 }
@@ -676,7 +664,10 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
         <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
           <RelativeTimestamp value={repository.last_poll_started_at || latest.recorded_at} />
         </span>
-        <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-amber-700 dark:text-amber-300" title={`#${latest.issue_number}: ${latest.error_message}`}>
+        <div
+          className="mt-0.5 max-w-xs truncate font-mono text-xs text-amber-700 dark:text-amber-300"
+          title={`#${latest.issue_number}: ${latest.error_message}`}
+        >
           #{latest.issue_number}: {latest.error_message}
         </div>
       </div>

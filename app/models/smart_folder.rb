@@ -113,7 +113,7 @@ class SmartFolder < ApplicationRecord
     { key: "epics_stalled",       name: "Stalled",       visibility: :when_present, filter: epic_attention_with_owner("stalled") },
     { key: "epics_empty",         name: "Empty",         visibility: :on_demand,    filter: epic_attention_with_owner("empty") },
     { key: "epics_recently_done", name: "Recently done", visibility: :on_demand,    filter: epic_attention_with_owner("recently_done") },
-    { key: "epics_archived",      name: "Archived",      visibility: :on_demand,    filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "archived" } ] } }
+    { key: "epics_archived",      name: "Archived",      visibility: :on_demand,    filter_bar_preset: true, filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "archived" } ] } }
   ].freeze
 
   WORKFLOW_BUILTINS = [
@@ -128,7 +128,7 @@ class SmartFolder < ApplicationRecord
     { key: "missing_github_token", name: "Missing GitHub token", visibility: :when_present, filter: { "and" => [ { "field" => "has_github_token", "op" => "is", "value" => false } ] } },
     { key: "missing_claude_token", name: "Missing Claude token", visibility: :when_present, filter: { "and" => [ { "field" => "has_claude_token", "op" => "is", "value" => false } ] } },
     { key: "gh_rate_low",          name: "Rate limit low",       visibility: :when_present, filter: { "and" => [ { "field" => "gh_rate", "op" => "is", "value" => "low" } ] } }
-  ].freeze
+  ].map { |definition| definition.merge(filter_bar_preset: true).freeze }.freeze
 
   SPAWNED_PROCESS_BUILTINS = [
     { key: "running",         name: "Running",         visibility: :always,       filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] } },
@@ -138,7 +138,7 @@ class SmartFolder < ApplicationRecord
     # folder could never match. Being :when_present, it was then hidden on
     # every render — silently invisible rather than visibly broken.
     { key: "recently_failed", name: "Recently failed", visibility: :when_present, filter: { "and" => [ { "field" => "outcome", "op" => "is", "value" => "failed" }, { "field" => "started_at", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } }
-  ].freeze
+  ].map { |definition| definition.merge(filter_bar_preset: true).freeze }.freeze
 
   ADMIN_QUEUE_BUILTINS = [
     { key: "failed_today",     name: "Failed today",     visibility: :always,       filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } } ] } },
@@ -152,7 +152,7 @@ class SmartFolder < ApplicationRecord
     { key: "admin_queue_indexing", name: "Indexing", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "indexing" } ] } },
     { key: "admin_queue_cleanup", name: "Cleanup", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "cleanup" } ] } },
     { key: "admin_queue_low_priority_maintenance", name: "Low-priority maintenance", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "low_priority_maintenance" } ] } }
-  ].freeze
+  ].map { |definition| definition.merge(filter_bar_preset: true).freeze }.freeze
 
   # Repositories index folders. "All" is a real (unfiltered) builtin row here
   # rather than the bypass-link pattern Dashboard's "All jobs"/etc. use, so
@@ -183,13 +183,18 @@ class SmartFolder < ApplicationRecord
   # only removes the *definition*; any rows already materialised by
   # ensure_builtins! stay, because disabling a plugin must not delete data
   # (Principle 6 — purge is the separate, explicit step).
-  def self.register_subject!(subject, builtins: [], path: nil, label: nil)
+  def self.register_subject!(subject, builtins: [], path: nil, label: nil, effective_filter_contract:)
+    unless effective_filter_contract == :smart_folder_resolution
+      raise ArgumentError, "SmartFolder subjects must use the smart_folder_resolution effective-filter contract"
+    end
+
     key = subject.to_s
     previous = @registered_subjects[key]
     @registered_subjects[key] = {
-      builtins: Array(builtins).freeze,
+      builtins: Array(builtins).map { |definition| definition.reverse_merge(filter_bar_preset: true).freeze }.freeze,
       path: path,
-      label: label
+      label: label,
+      effective_filter_contract: effective_filter_contract
     }.freeze
 
     -> { previous ? @registered_subjects[key] = previous : @registered_subjects.delete(key) }
@@ -210,6 +215,27 @@ class SmartFolder < ApplicationRecord
 
   def self.builtins_for_subject(subject)
     builtins_by_subject.fetch(subject.to_s)
+  end
+
+  # Filter subjects and persisted-folder subjects normally share a name. A
+  # few older plugin surfaces predate that convention, so preset compilation
+  # may fall back to a globally unique registered key. Stable preset keys are
+  # therefore part of the registration contract; an ambiguous key is not a
+  # valid cross-subject fallback.
+  def self.builtin_definition(subject:, key:)
+    direct = begin
+      builtins_for_subject(subject).find { |candidate| candidate.fetch(:key).to_s == key.to_s }
+    rescue KeyError
+      nil
+    end
+    return direct if direct
+
+    matches = builtins_by_subject.values.flatten.select { |candidate| candidate.fetch(:key).to_s == key.to_s }
+    matches.one? ? matches.first : nil
+  end
+
+  def self.filter_bar_preset?(definition)
+    definition[:filter_bar_preset] == true
   end
 
   def self.path_for_subject(subject, **query)

@@ -2,9 +2,9 @@ import { getJson, postJson } from "@app/api/client"
 import type { RepositoryDetailRecord, RepositoryTab } from "@app/api/repositories"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
-export type IssueFolder = "inbox" | "delegated" | "open" | "closed"
+export type IssueFolder = "all" | "inbox" | "delegated" | "open" | "closed"
 
-export const ISSUE_FOLDERS: IssueFolder[] = [ "inbox", "delegated", "open", "closed" ]
+export const ISSUE_FOLDERS: IssueFolder[] = ["all", "inbox", "delegated", "open", "closed"]
 
 export type RepositoryIssuesPayload = {
   message?: string | null
@@ -15,6 +15,7 @@ export type RepositoryIssuesPayload = {
   query: string | null
   filter: Record<string, unknown>
   filter_schema: FilterSchemaField[]
+  untouched_preset: boolean
   sort: {
     column: string
     direction: "asc" | "desc"
@@ -62,32 +63,47 @@ export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterPar
   return getJson<RepositoryIssuesPayload>(`/api/v1/app/repositories/${id}/issues?${params}`)
 }
 
-export function closeRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }) {
+export function closeRepositoryIssue(
+  path: string,
+  values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }
+) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.filterParam,
+    ...(values.filterParam ? { q: values.filterParam } : {}),
     sort: values.sort.column,
     direction: values.sort.direction
   })
 }
 
-export function delegateRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }) {
+export function delegateRepositoryIssue(
+  path: string,
+  values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }
+) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.filterParam,
+    ...(values.filterParam ? { q: values.filterParam } : {}),
     sort: values.sort.column,
     direction: values.sort.direction
   })
 }
 
-export function bulkRepositoryIssues(path: string, values: { issueNumbers: number[]; bulkAction: "close" | "delegate"; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }) {
+export function bulkRepositoryIssues(
+  path: string,
+  values: {
+    issueNumbers: number[]
+    bulkAction: "close" | "delegate"
+    folder: IssueFolder
+    filterParam: string
+    sort: { column: string; direction: "asc" | "desc" }
+  }
+) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_numbers: values.issueNumbers,
     bulk_action: values.bulkAction,
     folder: values.folder,
-    q: values.filterParam,
+    ...(values.filterParam ? { q: values.filterParam } : {}),
     sort: values.sort.column,
     direction: values.sort.direction
   })

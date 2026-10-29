@@ -5902,7 +5902,7 @@ describe("App", () => {
     }
   })
 
-  it("clears built-in dashboard folder scope when applying filters", async () => {
+  it("clears built-in dashboard folder navigation when applying filters", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -5931,18 +5931,32 @@ describe("App", () => {
               subject: "job",
               view: "list",
               active_smart_folder_id: hasSmartFolder ? 1 : null,
-              filter: url.searchParams.get("q") ? decodeFilterQueryParam(url.searchParams.get("q")!) : { and: [] },
+              filter: url.searchParams.get("q")
+                ? decodeFilterQueryParam(url.searchParams.get("q")!)
+                : {
+                    and: [
+                      { field: "attention", op: "is", value: "inbox" },
+                      { field: "job_type", op: "is", value: "user" },
+                      { field: "eligible_approver", op: "is", value: "me" }
+                    ]
+                  },
               smart_folders: [
                 {
                   id: 1,
                   name: "Inbox",
-                  kind: "attention_preset",
+                  kind: "builtin",
                   position: 0,
                   subject_type: "job",
                   visibility: "primary",
                   count: 1,
                   active: hasSmartFolder,
-                  filter: { and: [{ field: "attention", op: "is", value: "inbox" }] },
+                  filter: {
+                    and: [
+                      { field: "attention", op: "is", value: "inbox" },
+                      { field: "job_type", op: "is", value: "user" },
+                      { field: "eligible_approver", op: "is", value: "me" }
+                    ]
+                  },
                   path: "/dashboard/jobs?view=list&smart_folder_id=1"
                 }
               ],
@@ -5967,6 +5981,7 @@ describe("App", () => {
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
       expect(within(smartFoldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Preset is Inbox" })).toBeInTheDocument()
 
       fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
       fireEvent.click(screen.getByRole("button", { name: "Kind list" }))
@@ -5977,8 +5992,14 @@ describe("App", () => {
         const url = new URL(latestRequest!, "http://example.test")
         expect(url.searchParams.has("q")).toBe(true)
         expect(url.searchParams.has("smart_folder_id")).toBe(false)
+        const qTree = decodeFilterQueryParam(url.searchParams.get("q")!)
+        expect(qTree.and.filter((chip) => chip.field === "attention")).toHaveLength(1)
+        expect(qTree.and.filter((chip) => chip.field === "job_type")).toHaveLength(1)
+        expect(qTree.and.filter((chip) => chip.field === "eligible_approver")).toHaveLength(1)
+        expect(qTree.and.filter((chip) => chip.field === "kind")).toHaveLength(1)
       })
       expect(within(smartFoldersPanel).getByLabelText("Folder name")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Preset is Inbox" })).toBeInTheDocument()
     } finally {
       script.remove()
     }

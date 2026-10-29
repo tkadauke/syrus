@@ -114,11 +114,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     body = parse_body
     expect(body["active_smart_folder_id"]).to eq(folder.id)
     expect(body["jobs"].map { |job| job["queue_name"] }).to eq([ "runs" ])
-    expect(body["filter"]).to eq(
-      "and" => [
-        { "field" => "queue_name", "op" => "is", "value" => "runs" }
-      ]
-    )
+    expect(body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree(folder.builtin_key))
     expect(body["smart_folders"].find { |row| row["id"] == folder.id }).to include("active" => true, "count" => 1)
   end
 
@@ -168,6 +164,33 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     body = parse_body
     expect(body["filter"]).to eq(folder_tree)
     expect(body["jobs"].map { |job| job["queue_name"] }).to eq([ "runs" ])
+  end
+
+  it "exposes a built-in folder as editable filter state and honors last-chip removal" do
+    sign_in_as(admin)
+    SmartFolder.ensure_admin_queue_builtins!
+    folder = SmartFolder.for_subject(:admin_queue).find_by!(name: "Runs")
+
+    get "/api/v1/app/admin/queue/active", params: { smart_folder_id: folder.id }
+    expect(parse_body["filter"]).to eq(Filters::SmartFolderResolution.preset_tree(folder.builtin_key))
+
+    added = { "and" => [
+      { "field" => "smart_folder_preset", "op" => "is", "value" => folder.builtin_key },
+      { "field" => "queue_name", "op" => "is", "value" => "runs" }
+    ] }
+    edited = { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "merges" } ] }
+    contradictory = { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "default" } ] }
+
+    [ added, edited, contradictory ].each do |tree|
+      get "/api/v1/app/admin/queue/active", params: { smart_folder_id: folder.id, q: Filters::QueryParam.encode(tree) }
+      expect(parse_body["filter"]).to eq(tree)
+    end
+
+    get "/api/v1/app/admin/queue/active", params: {
+      smart_folder_id: folder.id,
+      q: Filters::QueryParam.encode("and" => [])
+    }
+    expect(parse_body["filter"]).to eq("and" => [])
   end
 
   it "returns only the URL queue filter when a user-defined folder also has q" do

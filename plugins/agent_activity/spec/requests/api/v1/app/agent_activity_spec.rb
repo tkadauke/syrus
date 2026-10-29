@@ -42,6 +42,32 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
   end
 
   describe "GET /sessions" do
+    describe "SmartFolder/FilterBar conformance" do
+      let!(:contract_running) do
+        agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 2.minutes.ago })
+      end
+      let!(:contract_failed) do
+        agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "failed", started_at: 4.minutes.ago, finished_at: 3.minutes.ago })
+      end
+      let(:smart_folder_contract_subject) { AgentActivity::SmartFolders::SUBJECT }
+      let(:smart_folder_contract_folder) do
+        SmartFolder.ensure_builtins_for_subject!(smart_folder_contract_subject)
+        SmartFolder.builtins(smart_folder_contract_subject).find_by!(name: "Running")
+      end
+      let(:smart_folder_contract_seed_filter) { Filters::SmartFolderResolution.preset_tree("agent_activity_running") }
+      let(:smart_folder_contract_seed_ids) { [ contract_running.id ] }
+      let(:smart_folder_contract_replacement_filter) { { "and" => [ { "field" => "status", "op" => "is", "value" => "failed" } ] } }
+      let(:smart_folder_contract_replacement_ids) { [ contract_failed.id ] }
+      let(:smart_folder_contract_unfiltered_ids) { [ contract_running.id, contract_failed.id ] }
+      let(:smart_folder_contract_request) { ->(params) { get "/api/v1/app/agent_activity/sessions", params: params } }
+      let(:smart_folder_contract_body) { parse_body }
+      let(:smart_folder_contract_result_ids) { smart_folder_contract_body.fetch("sessions").map { |row| row.dig("job", "id") } }
+
+      before { sign_in_as(operator) }
+
+      include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :operator
+    end
+
     it "requires authentication" do
       get "/api/v1/app/agent_activity/sessions"
 
@@ -130,6 +156,9 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
       expect(response).to have_http_status(:ok)
       running_folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "Running")
       expect(parse_body.fetch("active_smart_folder_id")).to eq(running_folder.id)
+      expect(parse_body.fetch("filter")).to eq(
+        Filters::SmartFolderResolution.preset_tree("agent_activity_running")
+      )
       expect(parse_body.fetch("sessions").map { |row| row.dig("job", "id") }).to eq([ running_job.id ])
       folders = parse_body.fetch("smart_folders")
       expect(folders.map { |folder| folder.fetch("name") }).to include("All", "Running", "Failed")
@@ -252,7 +281,7 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(
-        %w[ repository_id job_id step_kind agent_provider status window ]
+        %w[ smart_folder_preset repository_id job_id step_kind agent_provider status window ]
       )
       status_field = parse_body.fetch("filter_schema").find { |field| field.fetch("field") == "status" }
       expect(status_field.fetch("operators")).to include("is", "is_one_of")
