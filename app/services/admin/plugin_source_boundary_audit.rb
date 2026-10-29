@@ -9,13 +9,13 @@ module Admin
       end
     end
     ReferenceMatcher = Data.define(:frontend_dir_pattern, :gem_pattern, :constant_pattern) do
-      def candidate?(line)
+      def candidate?(line, unquoted_line:)
         return true if line.include?("plugins/")
         return true if frontend_module_key_candidate?(line)
         return true if gem_pattern&.match?(line)
         return false unless line.match?(/[A-Z]/)
 
-        constant_pattern&.match?(line.gsub(/"[^"]*"|'[^']*'/, ""))
+        constant_pattern&.match?(unquoted_line)
       end
 
       private
@@ -102,17 +102,18 @@ module Admin
 
     def core_violations
       manifests = bundled_manifests
-      scan_files(core_source_files, manifests).flat_map do |path, line_number, line|
+      scan_files(core_source_files, manifests).flat_map do |path, line_number, line, unquoted_line|
+        relative_path = relative(path)
         manifests.filter_map do |manifest|
-          next if allowed_core_reference?(path, manifest, line)
+          next if allowed_core_reference?(path, relative_path, manifest, line)
 
-          reason = reference_reason(line, manifest)
+          reason = reference_reason(line, unquoted_line, manifest)
           next unless reason
 
           Violation.new(
             source: "core",
             target: manifest.name,
-            path: relative(path),
+            path: relative_path,
             line: line_number,
             evidence: line,
             reason: reason
@@ -126,12 +127,12 @@ module Admin
 
       manifests.flat_map do |source_manifest|
         allowed_targets = graph.dependencies_for(source_manifest.name).to_set
-        scan_files(plugin_source_files_under(source_manifest.path), manifests).flat_map do |path, line_number, line|
+        scan_files(plugin_source_files_under(source_manifest.path), manifests).flat_map do |path, line_number, line, unquoted_line|
           manifests.filter_map do |target_manifest|
             next if target_manifest.name == source_manifest.name
             next if allowed_targets.include?(target_manifest.name)
 
-            reason = reference_reason(line, target_manifest)
+            reason = reference_reason(line, unquoted_line, target_manifest)
             next unless reason
 
             Violation.new(
@@ -305,9 +306,10 @@ module Admin
       paths.flat_map do |path|
         File.readlines(path).each_with_index.filter_map do |line, index|
           next if line.match?(COMMENT_ONLY)
-          next unless reference_matcher.candidate?(line)
+          unquoted_line = line.gsub(/"[^"]*"|'[^']*'/, "")
+          next unless reference_matcher.candidate?(line, unquoted_line: unquoted_line)
 
-          [ path, index + 1, line ]
+          [ path, index + 1, line, unquoted_line ]
         end
       end
     end
@@ -330,12 +332,11 @@ module Admin
       Regexp.new("#{prefix}#{Regexp.union(tokens).source}#{suffix}")
     end
 
-    def reference_reason(line, manifest)
+    def reference_reason(line, unquoted_line, manifest)
       return "plugin source path" if line.include?("plugins/#{manifest.dir_name}/")
       return "plugin frontend module key" if frontend_module_key_reference?(line, manifest)
       return "plugin gem name" if manifest.gem_name.present? && line.match?(/gem\s+["']#{Regexp.escape(manifest.gem_name)}["']/)
 
-      unquoted_line = line.gsub(/"[^"]*"|'[^']*'/, "")
       return nil unless constant_pattern_for(manifest)&.match?(unquoted_line)
 
       constant = manifest.constants.find { |name| unquoted_line.match?(/\b#{Regexp.escape(name)}\b/) }
@@ -358,12 +359,11 @@ module Admin
       line.match?(/(?<![A-Za-z0-9_])#{Regexp.escape(manifest.dir_name)}\//)
     end
 
-    def allowed_core_reference?(path, manifest, line)
-      rel = relative(path)
-      return true if CORE_PATH_EXCEPTIONS.any? { |pattern| rel.match?(pattern) }
-      return true if LEGACY_FRONTEND_IMPORT_EXCEPTIONS.any? { |pattern| rel.match?(pattern) } && line.include?("@plugins/")
+    def allowed_core_reference?(path, relative_path, manifest, line)
+      return true if CORE_PATH_EXCEPTIONS.any? { |pattern| relative_path.match?(pattern) }
+      return true if LEGACY_FRONTEND_IMPORT_EXCEPTIONS.any? { |pattern| relative_path.match?(pattern) } && line.include?("@plugins/")
 
-      guarded = GUARDED_CORE_CONSTANTS.fetch(rel, [])
+      guarded = GUARDED_CORE_CONSTANTS.fetch(relative_path, [])
       guarded.any? do |constant|
         manifest.constants.include?(constant) &&
           line.match?(/\b#{Regexp.escape(constant)}\b/) &&

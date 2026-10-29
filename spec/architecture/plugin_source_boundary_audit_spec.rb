@@ -77,13 +77,14 @@ RSpec.describe "Plugin source boundaries" do
       services = root.join("app/services")
       services.mkpath
       services.join("tracked_core_file.rb").write("Rails.logger.info('ok')\n")
+      services.join("quoted_plugin_name.rb").write("Rails.logger.info('SyrusDev is optional')\n")
       services.join("untracked_core_file.rb").write("SyrusDev::SqlExplain.call(sql: 'select 1')\n")
       # The audit reads manifests from <root>/plugins; point that at the real
       # ones so SyrusDev is a plugin it actually knows about.
       File.symlink(Rails.root.join("plugins").to_s, root.join("plugins").to_s)
 
       Open3.capture2("git", "-C", dir, "init", "-q")
-      Open3.capture2("git", "-C", dir, "add", "app/services/tracked_core_file.rb")
+      Open3.capture2("git", "-C", dir, "add", "app/services/tracked_core_file.rb", "app/services/quoted_plugin_name.rb")
 
       audit = Admin::PluginSourceBoundaryAudit.new(root: root)
       expect(audit.core_violations).to eq([])
