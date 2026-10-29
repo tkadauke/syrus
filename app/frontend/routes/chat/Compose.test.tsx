@@ -169,7 +169,7 @@ describe("Compose mention autocomplete", () => {
             kind: "coworker",
             avatar_url: null,
             avatar_key: null,
-            color_key: "rose-soft",
+            accent_hex: "#E5484D",
             add_to_chat: false
           },
           {
@@ -180,7 +180,7 @@ describe("Compose mention autocomplete", () => {
             kind: "syrus",
             avatar_url: null,
             avatar_key: null,
-            color_key: "coral-deep",
+            accent_hex: "#FBCFD3",
             add_to_chat: false
           }
         ]

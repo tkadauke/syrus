@@ -6,7 +6,7 @@ export type CoworkerSummary = {
   handle: string
   role_summary: string | null
   state: string
-  color_key: string
+  accent_hex: string
   avatar_key: string | null
   avatar_url: string | null
   path: string

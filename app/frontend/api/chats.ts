@@ -72,7 +72,7 @@ export type ChatRecord = {
   agent_appearance?: ChatAgentAppearance
 }
 
-export type ChatAgentAppearance = { name: string; color_key: string; avatar_key: string | null; avatar_url: string | null }
+export type ChatAgentAppearance = { name: string; accent_hex: string; avatar_key: string | null; avatar_url: string | null }
 
 export type ChatMentionable = {
   id: number | string
@@ -82,7 +82,7 @@ export type ChatMentionable = {
   kind: "human" | "coworker" | "syrus"
   avatar_url: string | null
   avatar_key: string | null
-  color_key: string | null
+  accent_hex: string | null
   add_to_chat: boolean
 }
 

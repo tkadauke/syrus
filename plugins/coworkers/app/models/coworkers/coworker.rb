@@ -21,11 +21,11 @@ class Coworkers::Coworker < ApplicationRecord
   validates :handle, presence: true, format: { with: Handle::FORMAT }, uniqueness: { case_sensitive: false }
   validates :state, inclusion: { in: STATES }
   validates :chat_effort, inclusion: { in: ChatSession::EFFORT_LEVELS }, allow_nil: true
-  validates :color_key, inclusion: { in: -> { Appearance::ColorPalette.keys } }
+  validates :accent_hex, format: { with: Appearance::ColorPalette::HEX_PATTERN }
   validates :avatar_key, inclusion: { in: AVATAR_KEYS }, allow_nil: true
   validate :avatar_is_image
 
-  before_validation :assign_default_color, if: -> { color_key.blank? && handle.present? }
+  before_validation :assign_default_color, if: -> { accent_hex.blank? && handle.present? }
   before_update :rename_handle!, if: :will_save_change_to_handle?
   after_create :claim_handle!
   after_destroy :release_handle!
@@ -34,7 +34,7 @@ class Coworkers::Coworker < ApplicationRecord
   def handle = self[:handle]
   def subtitle = role_summary
   def kind = "coworker"
-  def color_key = self[:color_key]
+  def accent_hex = self[:accent_hex]
   def agentic? = true
   def avatar_url = avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(avatar, only_path: true) : nil
   def avatar_key = self[:avatar_key]
@@ -51,7 +51,10 @@ class Coworkers::Coworker < ApplicationRecord
   end
   private
 
-  def assign_default_color = self.color_key = Appearance::ColorPalette.default_key(handle)
+  def assign_default_color
+    used = self.class.where(owner_user_id: owner_user_id).where.not(id: id).pluck(:accent_hex)
+    self.accent_hex = Appearance::ColorPalette.next_default_color(used) || Appearance::ColorPalette.default_agent_order.first
+  end
   def claim_handle! = HandleRegistry.claim!(handle: handle, owner: self)
   def rename_handle! = HandleRegistry.rename!(owner: self, handle: handle)
   def release_handle! = HandleRegistry.release!(owner: self)

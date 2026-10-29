@@ -52,7 +52,7 @@ module Mentionables
       {
         id: candidate.mentionable_id, handle: candidate.handle, display_name: candidate.display_name,
         subtitle: candidate.subtitle, kind: candidate.kind, avatar_url: candidate.avatar_url,
-        avatar_key: candidate.avatar_key, color_key: candidate.color_key, add_to_chat: add_to_chat
+        avatar_key: candidate.avatar_key, accent_hex: candidate.accent_hex, add_to_chat: add_to_chat
       }
     end
   end

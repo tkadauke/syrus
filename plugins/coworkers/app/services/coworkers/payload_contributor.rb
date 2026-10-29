@@ -8,7 +8,7 @@ module Coworkers
 
       coworker = link.coworker
       { agent_appearance: {
-        name: coworker.name, color_key: coworker.color_key, avatar_key: coworker.avatar_key,
+        name: coworker.name, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
         avatar_url: coworker.avatar_url
       } }
     end

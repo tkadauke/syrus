@@ -565,7 +565,7 @@ export function RecentChatsSidebar({
                           <Avatar
                             avatarUrl={chat.agent_appearance.avatar_url}
                             avatarKey={chat.agent_appearance.avatar_key}
-                            colorKey={chat.agent_appearance.color_key}
+                            accentHex={chat.agent_appearance.accent_hex}
                             name={chat.agent_appearance.name}
                             size="xs"
                           />

@@ -28,9 +28,10 @@ RSpec.describe Coworkers::Coworker do
     expect { create_coworker(handle: "syrus") }.to raise_error(ActiveRecord::RecordInvalid)
   end
 
-  it "defaults its color deterministically from the normalized handle" do
+  it "defaults to the first unused accent color for the owner" do
+    create_coworker(handle: "ada", accent_hex: "#0090FF")
     coworker = create_coworker(handle: "MAYA")
-    expect(coworker.color_key).to eq(Appearance::ColorPalette.default_key("maya"))
+    expect(coworker.accent_hex).to eq("#F5A524")
   end
 
   it "enforces unique capabilities per coworker" do
