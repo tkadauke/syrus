@@ -96,6 +96,14 @@ list, search, and read its own chats plus those shares; revoking a share
 removes access immediately. Coworkers are never offered the arbitrary
 `send_chat_message` tool.
 
+Background Jobs attributed to a coworker are private to that coworker's owner,
+even when the workspace repository is shared. Other repository members and
+repository administrators cannot list, search, count, or read those Jobs.
+Instance administrators retain their normal instance-wide visibility. This
+restriction is registered before the coworker background-Job kind can be
+introduced, so future scheduling cannot accidentally inherit repository-wide
+visibility.
+
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
 Rostered coworkers become addressable by every participant in that chat and
