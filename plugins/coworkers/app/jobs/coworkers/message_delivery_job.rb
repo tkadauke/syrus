@@ -5,6 +5,8 @@ module Coworkers
     discard_on ActiveRecord::RecordNotFound
 
     def perform(sender_id, receiver_id, text, delivery_context = {})
+      return unless valid_delivery_context?(delivery_context)
+
       sender = Coworkers::Coworker.find(sender_id)
       receiver = Coworkers::Coworker.find(receiver_id)
       return unless deliverable?(sender, receiver)
@@ -29,6 +31,12 @@ module Coworkers
     end
 
     private
+
+    def valid_delivery_context?(delivery_context)
+      delivery_context.is_a?(Hash) &&
+        Integer(delivery_context["origin_turn_id"], exception: false)&.positive? &&
+        Integer(delivery_context["hop_count"], exception: false)&.positive?
+    end
 
     def deliverable?(sender, receiver)
       sender.owner_user_id == receiver.owner_user_id && sender.id != receiver.id &&
