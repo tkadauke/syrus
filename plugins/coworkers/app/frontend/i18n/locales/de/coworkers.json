@@ -12,6 +12,8 @@
     "unavailable": "Die Erinnerungen dieses Coworkers sind gerade nicht erreichbar.",
     "empty": "Dieser Coworker hat noch keine Erinnerungen.",
     "no_results": "Keine Erinnerungsdatei passt zu dieser Suche.",
+    "search_incomplete": "Einige Erinnerungsinhalte konnten nicht durchsucht werden. Diese Ergebnisse können unvollständig sein.",
+    "partial": "Dieser Erinnerungsbaum ist groß oder unvollständig. Nur die verfügbaren Dateien werden angezeigt.",
     "owner_memories": "Deine Syrus-Erinnerungen öffnen",
     "truncated": "Diese große Datei wird nur teilweise angezeigt.",
     "categories": { "daily": "Täglich", "people": "Personen", "repos": "Repositorys", "banks": "Sammlungen" }
