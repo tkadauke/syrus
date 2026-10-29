@@ -2073,6 +2073,12 @@ function ChatColumn({
           </div>
         </header>
       ) : null}
+      {!landing && !isDesktop && (payload.agent_roster?.length ?? 0) > 0 ? (
+        <section className="mx-2 shrink-0 rounded-lg border border-border bg-surface px-3 py-2" data-testid="mobile-chat-agent-roster">
+          <h2 className="text-xs font-medium text-text-muted">{t("agent_roster")}</h2>
+          <ChatAgentRoster payload={payload} queryKey={queryKey} onNotice={onNotice} />
+        </section>
+      ) : null}
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
       ) : null}

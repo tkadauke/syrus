@@ -7698,6 +7698,37 @@ describe("shared chat recipient view", () => {
   })
 })
 
+describe("chat agent roster", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  const agentRoster = [{ id: 7, name: "Maya", handle: "maya", color_key: "rose-soft", avatar_key: null, avatar_url: null, removable: true }]
+
+  it("shows a removable roster affordance on mobile", async () => {
+    mockMobileViewport()
+    const payload = chatPayload({}, { agent_roster: agentRoster })
+    const requests: Array<{ path: string; method?: string }> = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      requests.push({ path, method: init?.method })
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/agents/7" && init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute()
+
+    const roster = await screen.findByTestId("mobile-chat-agent-roster")
+    expect(within(roster).getByText("Agents in this chat")).toBeInTheDocument()
+    expect(within(roster).getByText("@maya")).toBeInTheDocument()
+    fireEvent.click(within(roster).getByRole("button", { name: "Remove Maya from chat" }))
+
+    await waitFor(() => expect(screen.queryByTestId("mobile-chat-agent-roster")).not.toBeInTheDocument())
+    expect(requests).toContainEqual({ path: "/api/v1/app/chats/8/agents/7", method: "DELETE" })
+  })
+})
+
 function renderRoute(initialEntry = "/app-shell/chats/8") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
