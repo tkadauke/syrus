@@ -293,6 +293,34 @@ it("does not claim that an incomplete search has no matches", async () => {
   expect(screen.queryByText("No memory files match this search.")).not.toBeInTheDocument()
 })
 
+it("warns when the workspace tree and selected file are truncated", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.includes("/workspace"))
+        return jsonResponse({
+          remote: "https://github.com/acme/workspace.git",
+          branch: "coworkers/maya",
+          files: [{ path: "README.md", type: "file" }],
+          partial: true,
+          selected_file: path.includes("path=") ? { path: "README.md", content: "# Partial", truncated: true, binary: false } : null,
+          commits: [],
+          conflicts: []
+        })
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Workspace" }))
+
+  expect(await screen.findByText("This workspace tree is incomplete. Only the available files are shown.")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "README.md" }))
+  expect(await screen.findByText("This large file is shown in part.")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
+})
+
 it("renders Syrus without a workspace or main chat and links its fixed surfaces", async () => {
   const fetchSpy = vi.fn()
   vi.stubGlobal("fetch", fetchSpy)

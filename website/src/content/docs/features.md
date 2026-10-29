@@ -1704,6 +1704,12 @@ Markdown files on its home branch. It shows recent daily files first, links to
 the owner's existing Syrus memories, and reports empty and unreachable remotes
 separately. Large or provider-truncated trees remain browseable with an explicit
 partial-results warning, including when a content search cannot be complete.
+The Workspace tab similarly browses the home branch without edit controls. It
+shows the remote and branch, file previews (including rendered Markdown),
+available commit attribution, and unmerged chat branches holding conflicts.
+Incomplete trees and capped files are labeled. **Test push access** verifies
+credentials with a randomized throwaway `coworkers/` ref that is deleted
+immediately; it does not expose a general push path.
 Each coworker conversation has an isolated `coworkers/chat/...` branch cut
 from the coworker's home branch. Syrus merges and pushes it at turn end, uses
 union merges for concurrent memory appends, and posts linked conflict details
