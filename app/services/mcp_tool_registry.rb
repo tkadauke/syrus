@@ -116,7 +116,7 @@ class McpToolRegistry
     end
 
     def surfaces_for_context(context)
-      return [ :coworker ] if context.chat? && context.role == AgentRole::COWORKER_CHAT
+      return [ :coworker ] if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
       return [ :chat ] if context.chat?
       return [ :workflow, :agent_insight ] if context.run?
 
@@ -156,7 +156,8 @@ class McpToolRegistry
           entry.surface == :coworker && context.role == AgentRole::COWORKER_CHAT
       elsif context.run?
         entry.surface == :workflow && AgentRole::WORKFLOW_ROLES.include?(context.role) ||
-          entry.surface == :agent_insight && context.role == AgentRole::AGENT_INSIGHT
+          entry.surface == :agent_insight && context.role == AgentRole::AGENT_INSIGHT ||
+          entry.surface == :coworker && context.role == AgentRole::COWORKER
       else
         false
       end

@@ -1,5 +1,18 @@
 # Coworkers
 
+## Background runs
+
+The plugin contributes an infrastructure workflow for unattended coworker
+tasks. Each task uses the coworker's registered workspace repository and
+checks out its `coworkers/<handle>` home branch before running. Tasks for one
+coworker are serialized, and an agent step waits while that coworker's main
+chat has a turn in flight. Results are posted back to the main chat as a
+background-run message before the infrastructure Job closes.
+
+Background runs use the coworker's capability grants. They never receive the
+interactive-only tool surface, and a grant configured for live confirmation
+uses the queued approval policy during an unattended run.
+
 Coworkers is an experimental, instance-local capability for persistent named
 agents. It is disabled by default and requires beta mode before an administrator
 can enable it.

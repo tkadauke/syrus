@@ -19,6 +19,7 @@ module AgentRole
   # Infrastructure (future)
   INFRASTRUCTURE_MAIN_REPAIR = "infrastructure:main_repair"
   AGENT_INSIGHT               = "agent:insight"
+  COWORKER                    = "agent:coworker"
 
   # Helper roles — produce no agentic turn, expose no tools
   HELPER_INGESTION     = "helper:ingestion"
@@ -58,6 +59,7 @@ module AgentRole
   ALL_ROLES = (WORKFLOW_ROLES + CHAT_ROLES + HELPER_ROLES + [
     INFRASTRUCTURE_MAIN_REPAIR,
     AGENT_INSIGHT,
+    COWORKER,
     COWORKER_CHAT
   ]).freeze
 
