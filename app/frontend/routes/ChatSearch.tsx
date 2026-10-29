@@ -346,7 +346,7 @@ async function loadFilterOptions(signal: AbortSignal) {
     repository_id: repositoryOptions,
     epic_id: epicOptions,
     job_id: jobOptions,
-    pluginFields: schema.fields
+    pluginFields: schema.fields || []
   }
 }
 
