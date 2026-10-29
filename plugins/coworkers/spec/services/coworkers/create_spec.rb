@@ -81,7 +81,9 @@ RSpec.describe Coworkers::Create do
       ".gitattributes" => "memory/** merge=union\n",
       "memory/.gitkeep" => ""
     )
-    expect(remote.seeded_files.fetch("SOUL.md")).to include(
+    soul = remote.seeded_files.fetch("SOUL.md")
+    expect(soul).to start_with("role: not set up yet\nname: Maya\n")
+    expect(soul).to include(
       "name: Maya", "role: not set up yet", "Your name is Maya", "Interview Ada Lovelace"
     )
     expect(remote.seeded_files.fetch("USER.md")).to include("Your owner is Ada Lovelace")
@@ -133,7 +135,7 @@ RSpec.describe Coworkers::Create do
 
     coworker = create_service(about: "Research lead\nCurious and concise.").call
 
-    expect(remote.seeded_files.fetch("SOUL.md")).to eq("name: Maya\nrole: Research lead\n\nResearch lead\nCurious and concise.\n")
+    expect(remote.seeded_files.fetch("SOUL.md")).to eq("role: Research lead\nname: Maya\n\nResearch lead\nCurious and concise.\n")
     expect(remote.seeded_files.fetch("USER.md")).to include("Your owner is Ada Lovelace")
     expect(coworker.role_summary).to eq("Research lead")
     expect(coworker.chats.first.messages).to be_empty
