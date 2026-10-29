@@ -55,6 +55,25 @@ describe("skillInvocationFromContent", () => {
   })
 })
 
+describe("systemMessage", () => {
+  it("preserves an explicitly marked Markdown system body so file links render", () => {
+    const message = systemMessageItem({
+      text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+      content: {
+        text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+        body_format: "markdown",
+        prominent: true
+      }
+    })
+
+    expect(systemMessage(message)).toMatchObject({
+      body_format: "markdown",
+      prominent: true,
+      body: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)"
+    })
+  })
+})
+
 describe("goalContinuationFromContent", () => {
   it("renders goal continuation markers as compact goal system messages", () => {
     const result = goalContinuationFromContent(
