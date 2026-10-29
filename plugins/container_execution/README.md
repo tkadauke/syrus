@@ -20,3 +20,9 @@ graders on local execution.
 The plugin is intentionally scoped to graders first: grader commands are short,
 independent, and already describe their workspace, network profile, timeout,
 and resource limits through `ProcessRunner`.
+
+Set `SYRUS_CONTAINER_EXECUTION_DEVCONTAINER=true` to use a repository's
+`.devcontainer/devcontainer.json` (or root `.devcontainer.json`) as the seed
+image for container-backed graders. Syrus pulls `image` declarations and builds
+`build` declarations when the deterministic local image is missing. This does
+not replace `.syrus.yml` prepare commands or affect local execution.

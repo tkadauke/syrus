@@ -181,6 +181,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:execution_backend)
     end
 
+    it "includes :workflow_artifact_contributor" do
+      expect(described_class::EXTENSION_POINTS).to include(:workflow_artifact_contributor)
+    end
+
     it "includes :workspace_tab" do
       expect(described_class::EXTENSION_POINTS).to include(:workspace_tab)
     end
@@ -222,6 +226,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :execution_backend to Syrus::Plugin::ExecutionBackend" do
       expect(described_class::INTERFACE_FOR[:execution_backend].call).to eq(Syrus::Plugin::ExecutionBackend)
+    end
+
+    it "maps :workflow_artifact_contributor to its interface" do
+      expect(described_class::INTERFACE_FOR[:workflow_artifact_contributor].call).to eq(Syrus::Plugin::WorkflowArtifactContributor)
     end
 
     it "maps :prompt_injector to Syrus::Plugin::PromptInjector" do
