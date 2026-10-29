@@ -7,7 +7,12 @@ tasks. Each task uses the coworker's registered workspace repository and
 checks out its `coworkers/<handle>` home branch before running. Tasks for one
 coworker are serialized, and an agent step waits while that coworker's main
 chat has a turn in flight. Results are posted back to the main chat as a
-background-run message before the infrastructure Job closes.
+collapsed background-run block with the summary, duration, and cost before the
+infrastructure Job closes. Workspace changes merge into the home branch through
+the same retrying merge path as chat turns; conflicts preserve the run branch
+and appear in the main chat for resolution. Failed scheduled runs post the same
+kind of block, count toward consecutive-failure auto-pause, and close their
+infrastructure Jobs so completed attempts do not accumulate.
 
 Background runs use the coworker's capability grants. They never receive the
 interactive-only tool surface, and a grant configured for live confirmation
