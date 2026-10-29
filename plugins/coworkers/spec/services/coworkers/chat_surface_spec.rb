@@ -182,16 +182,19 @@ RSpec.describe "Coworker chat surface" do
       .to raise_error(ArgumentError, /cannot safely run/)
   end
 
-  it "checks out the home branch and withholds owner invocation credentials" do
+  it "uses the coworker chat branch lifecycle and withholds owner invocation credentials" do
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)
     job.instance_variable_set(:@user_message, chat.messages.create!(role: "user", content: { "text" => "Hello" }))
     allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/coworker-root"))
-    allow(ChatWorkspace).to receive(:ensure_branch_checkout!)
-      .with(chat, repository, "coworkers/maya")
-      .and_return(Pathname("/tmp/coworker-home"))
+    lifecycle = class_double(Coworkers::ChatWorkspaceLifecycle, applies_to?: true)
+    allow(lifecycle).to receive(:prepare!).with(chat_session: chat).and_return(Pathname("/tmp/coworker-chat"))
+    allow(lifecycle).to receive(:finalize!).with(chat_session: chat)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_workspace_lifecycle).and_return([ lifecycle ])
 
-    expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/coworker-home"))
+    expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/coworker-chat"))
+    job.send(:finalize_plugin_workspace!)
+    expect(lifecycle).to have_received(:finalize!).with(chat_session: chat)
     expect(job.send(:cli_invocation_env, double(provider: "claude"))).to eq({})
     expect(GithubClient).not_to receive(:for)
     yielded = nil
