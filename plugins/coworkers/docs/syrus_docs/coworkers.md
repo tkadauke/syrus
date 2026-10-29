@@ -17,6 +17,16 @@ The coworker's owner receives write membership when a shared registration is
 reused, so workspace Jobs remain authorized for every coworker owner.
 The remote's default branch is never modified.
 
+Planner and ordinary Syrus chats can use `propose_coworker` to stage the same
+fields as the creation form, including About text and requested grants. The
+tool runs the handle, branch, model, grant, and remote checks without creating
+records or branches, then shows a pending-action confirmation. Confirmation
+rechecks the proposal and passes exactly the displayed fields to the normal
+creation service; rejection or withdrawal creates nothing. Coworker chats do
+not receive this tool. Adding capabilities to an existing coworker uses the
+separate `propose_coworker_grants` pending action; grants are unchanged until
+the owner confirms that escalation.
+
 Coworker chats use a separate, deny-by-default MCP surface. Administrator
 ownership does not add administrator or repair tools. Every core tool on the
 surface names the coworker grant required to advertise it, and interactive

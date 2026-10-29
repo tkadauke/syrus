@@ -841,7 +841,7 @@ describe("tool result rendering", () => {
     expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "README.md")
   })
 
-  it("wraps grouped tool summaries on narrow screens and truncates their detail", () => {
+  it("wraps grouped tool summaries and their detail on narrow screens", () => {
     const calls = [
       [1, "memory_id: 21", "Unpublished memory #21", false],
       [2, "memory_id: 999", "Memory unpublish failed: memory not found or not owned: 999", true],
@@ -867,8 +867,7 @@ describe("tool result rendering", () => {
     const count = screen.getByText("3")
 
     expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
-    expect(detail).toHaveClass("min-w-0", "flex-1", "truncate")
-    expect(detail).not.toHaveClass("basis-full", "break-words")
+    expect(detail).toHaveClass("min-w-0", "basis-full", "break-words", "[overflow-wrap:anywhere]", "sm:flex-1", "sm:truncate")
     expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
   })
 
@@ -961,6 +960,38 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Fehlgeschlagen").parentElement).toHaveClass("bg-danger-surface")
   })
 
+  it("treats a settled result with a live pending action as running", () => {
+    const call: ChatToolGroupItem["calls"][number] = {
+      message_id: 1,
+      tool_name: "propose_coworker",
+      raw_name: "propose_coworker",
+      detail: "",
+      display_label: "Propose coworker",
+      progress_label: "Proposing",
+      raw_payload: {},
+      result_body: "{}",
+      result_error: false,
+      result_kind: "record",
+      result_summary: "Proposed coworker @maya",
+      result_settled: true,
+      pending_action: {
+        id: 501,
+        action: "create_coworker",
+        state: "pending",
+        label: "Create coworker @maya",
+        detail: null,
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    }
+
+    render(<ToolGroup item={{ type: "tool_group", tool: "Propose coworker", calls: [call] }} />)
+
+    expect(screen.getByText("Running")).toBeVisible()
+    expect(screen.queryByText("Done")).not.toBeInTheDocument()
+    expect(screen.getAllByText("Propose coworker")[0]).toHaveClass("max-w-full", "break-words", "[overflow-wrap:anywhere]")
+  })
+
   it("wraps an 18-call group at a mobile viewport and preserves full expanded details", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
@@ -982,8 +1013,7 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={{ type: "tool_group", tool: "Read", summary_label: "Inspected 18 sources", calls }} />)
 
     const metadata = screen.getByText(Array(18).fill(`A long result summary · ${detail}`).join(", "))
-    expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
-    expect(metadata).not.toHaveClass("basis-full", "break-words")
+    expect(metadata).toHaveClass("min-w-0", "basis-full", "break-words", "[overflow-wrap:anywhere]", "sm:flex-1", "sm:truncate")
     expect(metadata.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
     expect(screen.getByText("Inspected 18 sources")).toBeVisible()
     expect(screen.getByText("Done")).toBeVisible()
@@ -1578,8 +1608,7 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
-    expect(summary).toHaveClass("min-w-0", "flex-1", "truncate")
-    expect(summary).not.toHaveClass("basis-full", "break-words")
+    expect(summary).toHaveClass("min-w-0", "basis-full", "break-words", "sm:flex-1", "sm:truncate")
 
     expandToolGroup("Git status")
 
@@ -1688,8 +1717,7 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const details = screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')
-    expect(details).toHaveClass("min-w-0", "flex-1", "truncate")
-    expect(details).not.toHaveClass("basis-full", "break-words")
+    expect(details).toHaveClass("min-w-0", "basis-full", "break-words", "sm:flex-1", "sm:truncate")
     expect(details.closest("summary")).toHaveClass("max-w-full", "flex-wrap", "sm:flex-nowrap")
     expect(details.closest("details")).toHaveClass("max-w-full", "overflow-hidden")
   })
@@ -2104,7 +2132,7 @@ describe("tool result rendering", () => {
     expect(summary).not.toHaveClass("shrink-0")
   })
 
-  it("wraps long registered-card summaries on mobile and keeps them truncated", () => {
+  it("wraps long registered-card summaries on mobile and truncates them on desktop", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
     const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
@@ -2132,8 +2160,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const resultSummary = screen.getByText(`${title} (running)`)
-    expect(resultSummary).toHaveClass("min-w-0", "flex-1", "truncate")
-    expect(resultSummary).not.toHaveClass("order-2", "basis-full", "break-words", "pl-5")
+    expect(resultSummary).toHaveClass("min-w-0", "basis-full", "break-words", "[overflow-wrap:anywhere]", "sm:flex-1", "sm:truncate")
+    expect(resultSummary).not.toHaveClass("order-2", "pl-5")
     expect(resultSummary.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
   })
 

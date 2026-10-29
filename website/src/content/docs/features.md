@@ -1699,6 +1699,15 @@ expose workspace execution screens. Disabling it removes its page,
 chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 
+An ordinary Syrus or planner chat can also propose a coworker. The proposal
+preflights the handle, model, requested capabilities, workspace branch, and
+optional push access, then shows every creation field for confirmation. No
+coworker, chat, repository record, or workspace branch is created until the
+owner confirms; rejecting or withdrawing the proposal leaves no creation
+behind. Later capability escalation is a separate confirmation and changes no
+grants before approval. Coworker conversations cannot propose additional
+coworkers or capability escalations.
+
 ## Tailscale
 
 The bundled `tailscale` plugin exposes a Syrus installation on the operator's

@@ -82,6 +82,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/confirm` | `api/v1/app/chats#confirm_pending_action_group` |
 | core | POST | `/api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/reject` | `api/v1/app/chats#reject_pending_action_group` |
 | core | DELETE | `/api/v1/app/chats/:id/pending_actions/:pending_action_id` | `api/v1/app/chats#destroy_pending_action` |
+| core | PATCH | `/api/v1/app/chats/:id/pending_actions/:pending_action_id` | `api/v1/app/chats#update_pending_action` |
 | core | POST | `/api/v1/app/chats/:id/pending_actions/:pending_action_id/confirm` | `api/v1/app/chats#confirm_pending_action` |
 | core | POST | `/api/v1/app/chats/:id/pending_actions/:pending_action_id/reject` | `api/v1/app/chats#destroy_pending_action` |
 | core | GET | `/api/v1/app/chats/:id/pins` | `api/v1/app/chats#pins` |

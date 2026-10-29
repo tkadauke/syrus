@@ -367,6 +367,8 @@ la:
     chats:
       groups:
         shared_with_me: "Mecum communicata"
+      messages:
+        coworker_about_updated: "Textus de collega renovatus est."
       errors:
         shared_read_only: "Chat communicata solum legi possunt."
         unknown_user_id: "ID usoris ignota."

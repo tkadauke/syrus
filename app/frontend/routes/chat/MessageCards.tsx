@@ -1059,7 +1059,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
     .filter(Boolean)
     .join(", ")
   const summary = item.summary_label || item.tool
-  const outcomeState = item.calls.some((call) => call.result_error) ? "failed" : item.calls.some((call) => !toolCallSettled(call)) ? "running" : "done"
+  const outcomeState = item.calls.some((call) => call.result_error || call.pending_action?.state === "failed")
+    ? "failed"
+    : item.calls.some((call) => !toolCallSettled(call) || ["queued", "pending", "confirming"].includes(call.pending_action?.state || ""))
+      ? "running"
+      : "done"
   const outcome = item.outcome_label || t(outcomeState === "failed" ? "system.failed" : outcomeState === "running" ? "running" : "system.done")
   const expanded = open
   return (
@@ -1072,11 +1076,13 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
         }}
       >
         <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="min-w-0 font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="min-w-0 max-w-full break-words font-medium text-gray-900 [overflow-wrap:anywhere] dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
+        <span className="min-w-0 basis-full whitespace-normal break-words font-mono text-gray-600 [overflow-wrap:anywhere] sm:basis-auto sm:flex-1 sm:truncate dark:text-gray-400">
+          {details}
+        </span>
         {item.calls.length > 1 ? (
           <Pill className="ml-auto shrink-0 text-xs" tone="neutral">
             {item.calls.length}

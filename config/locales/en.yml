@@ -427,6 +427,8 @@ en:
     chats:
       groups:
         shared_with_me: "Shared with me"
+      messages:
+        coworker_about_updated: "Coworker About text updated."
       errors:
         shared_read_only: "Shared chats are read-only."
         unknown_user_id: "Unknown user id."

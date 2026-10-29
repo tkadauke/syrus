@@ -94,10 +94,11 @@ RSpec.describe Coworkers::Create do
   end
 
   it "copies the complete coworker chat configuration to the main chat" do
-    coworker = create_service(chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high").call
+    allow(owner).to receive(:chat_provider_configured?).with("codex").and_return(true)
+    coworker = create_service(chat_provider: "codex", chat_model: "gpt-5.6-sol", chat_effort: "high").call
 
     expect(coworker.coworker_chats.find_by!(role: "main").chat_session).to have_attributes(
-      chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
+      chat_provider: "codex", chat_model: "gpt-5.6-sol", chat_effort: "high"
     )
   end
 
