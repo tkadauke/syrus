@@ -325,13 +325,17 @@ function CoworkerPage({ id }: { id: string }) {
                 <li className="rounded border border-border bg-surface-subtle p-3 text-sm" key={`${event.occurred_at}-${event.receiver_handle}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{t(`activity.${event.status}`, { handle: event.receiver_handle })}</span>
-                    <time className="text-text-secondary" dateTime={event.occurred_at}>{new Date(event.occurred_at).toLocaleString()}</time>
+                    <time className="text-text-secondary" dateTime={event.occurred_at}>
+                      {new Date(event.occurred_at).toLocaleString()}
+                    </time>
                   </div>
                   <p className="mt-1 text-text-secondary">{event.reason}</p>
                 </li>
               ))}
             </ul>
-          ) : <p className="mt-2 text-sm text-text-secondary">{t("activity.no_delivery_issues")}</p>}
+          ) : (
+            <p className="mt-2 text-sm text-text-secondary">{t("activity.no_delivery_issues")}</p>
+          )}
         </section>
       ) : null}
       {!["chat", "profile", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}

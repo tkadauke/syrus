@@ -32,7 +32,18 @@
     "workspace": "Workspace",
     "activity": "Aktivität"
   },
-  "activity": { "message_traffic": "Nachrichtenverkehr", "window": "Letzte {{count}} Tage", "sent": "Gesendet", "received": "Empfangen", "spend": "Gesamtausgaben", "spend_not_capped": "Nur zur Übersicht; nicht begrenzt.", "delivery_issues": "Zustellprobleme", "refused": "Nachricht an @{{handle}} abgelehnt", "rate_limited": "Nachricht an @{{handle}} begrenzt", "no_delivery_issues": "Keine abgelehnten oder begrenzten Zustellungen." },
+  "activity": {
+    "message_traffic": "Nachrichtenverkehr",
+    "window": "Letzte {{count}} Tage",
+    "sent": "Gesendet",
+    "received": "Empfangen",
+    "spend": "Gesamtausgaben",
+    "spend_not_capped": "Nur zur Übersicht; nicht begrenzt.",
+    "delivery_issues": "Zustellprobleme",
+    "refused": "Nachricht an @{{handle}} abgelehnt",
+    "rate_limited": "Nachricht an @{{handle}} begrenzt",
+    "no_delivery_issues": "Keine abgelehnten oder begrenzten Zustellungen."
+  },
   "detail": {
     "new_side_chat": "Neuer Nebenchat",
     "add_to_chat": "Zum Chat hinzufügen",
