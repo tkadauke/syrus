@@ -104,7 +104,14 @@ class JobStackResolver
   def pinned_base_artifacts(parent)
     return {} if parent&.branch_name.blank?
 
-    { RebaseTarget::BASE_BRANCH_ARTIFACT => parent.branch_name }
+    artifacts = { RebaseTarget::BASE_BRANCH_ARTIFACT => parent.branch_name }
+    if Feature.early_epic_dependency_execution_enabled? && parent.epic_id != @job.epic_id
+      artifacts.merge!(
+        "stack_parent_job_id" => parent.id,
+        "stack_parent_head_sha" => parent.head_sha
+      )
+    end
+    artifacts
   end
 
   def ready_result(parent, artifacts: {})
