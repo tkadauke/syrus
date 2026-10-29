@@ -108,13 +108,19 @@ function skipWhenRemote() {
 function createDeliveryFixture(): DeliveryFixture {
   const output = execFileSync("bin/rails", ["runner", deliveryFixtureScript()], {
     env: process.env
-  }).toString().trim()
+  })
+    .toString()
+    .trim()
 
   return JSON.parse(output) as DeliveryFixture
 }
 
 function deliveryFixtureScript(): string {
   const yml = `
+grade:
+  - name: delivery-e2e
+    run: "true"
+    phases: [review, landing, branch_health, hotfix_review, hotfix_landing, hotfix_health, promotion]
 delivery:
   tracks:
     default:
