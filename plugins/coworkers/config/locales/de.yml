@@ -9,3 +9,4 @@ de:
         Im Workspace des Coworkers gibt es Merge-Konflikte. Beide Versionen bleiben auf `%{branch}` erhalten. Löse die Konflikte in diesen Dateien:
 
         %{files}
+      workspace_conflict_label: "Workspace-Konflikt"

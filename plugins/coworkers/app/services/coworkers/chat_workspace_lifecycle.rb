@@ -133,6 +133,8 @@ class Coworkers::ChatWorkspaceLifecycle
         "text" => I18n.t("api.coworkers.workspace_conflict", branch: chat_branch, files: linked_files),
         "body_format" => "markdown",
         "prominent" => true,
+        "system_label" => I18n.t("api.coworkers.workspace_conflict_label"),
+        "system_tone" => "warning",
         "coworker_workspace_conflict" => { "branch" => chat_branch, "files" => files, "links" => links,
                                              "detail" => detail }
       }
