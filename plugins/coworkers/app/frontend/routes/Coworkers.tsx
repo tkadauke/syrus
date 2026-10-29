@@ -368,13 +368,17 @@ function CoworkerMemory({ id }: { id: string }) {
           pathname={location.pathname}
           search={location.search}
         />
-        <Link className="shrink-0 text-sm text-brand underline" to={`${prefix}/memories`}>{t("memory.owner_memories")}</Link>
+        <Link className="shrink-0 text-sm text-brand underline" to={`${prefix}/memories`}>
+          {t("memory.owner_memories")}
+        </Link>
       </div>
       {query.isPending ? <PanelMessage>{t("memory.loading")}</PanelMessage> : null}
       {query.isError ? <PanelMessage>{t("memory.unavailable")}</PanelMessage> : null}
       {query.data?.search_incomplete ? <PanelMessage>{t("memory.search_incomplete")}</PanelMessage> : null}
       {query.data?.partial && !query.data.search_incomplete ? <PanelMessage>{t("memory.partial")}</PanelMessage> : null}
-      {query.isSuccess && files.length === 0 && !query.data.search_incomplete ? <PanelMessage>{searchValue ? t("memory.no_results") : t("memory.empty")}</PanelMessage> : null}
+      {query.isSuccess && files.length === 0 && !query.data.search_incomplete ? (
+        <PanelMessage>{searchValue ? t("memory.no_results") : t("memory.empty")}</PanelMessage>
+      ) : null}
       {query.isSuccess && files.length > 0 ? (
         <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[15rem_minmax(0,1fr)]">
           <MemoryFileList files={files} selectedPath={selected?.path} setSelectedPath={setSelectedPath} />
@@ -392,7 +396,15 @@ function CoworkerMemory({ id }: { id: string }) {
   )
 }
 
-function MemoryFileList({ files, selectedPath, setSelectedPath }: { files: CoworkerMemoryFile[]; selectedPath?: string; setSelectedPath: (path: string) => void }) {
+function MemoryFileList({
+  files,
+  selectedPath,
+  setSelectedPath
+}: {
+  files: CoworkerMemoryFile[]
+  selectedPath?: string
+  setSelectedPath: (path: string) => void
+}) {
   const { t } = useT("coworkers")
   const categories = ["daily", "people", "repos", "banks"] as const
   return (
@@ -409,7 +421,9 @@ function MemoryFileList({ files, selectedPath, setSelectedPath }: { files: Cowor
                 key={file.path}
                 onClick={() => setSelectedPath(file.path)}
                 type="button"
-              >{file.name}</button>
+              >
+                {file.name}
+              </button>
             ))}
           </div>
         )
