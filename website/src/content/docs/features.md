@@ -1491,6 +1491,11 @@ a `/skill-name key=value ...` slash command, instead of launching a Job.
 Each user owns their own profile, credentials, defaults, and preferences:
 
 - **Profile** stores display name, role, GitHub handle, avatar, bio, and public team profile fields.
+- **Identity accents** use a shared library of 72 named colors arranged as five
+  tone rows across twelve aligned hues, plus a separate Naturals row. Syrus
+  stores one solid accent per agent and derives contrast-safe avatar text,
+  tints, borders, and interaction shades from that value; interface controls
+  continue to use the active app theme rather than an agent accent.
 - **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
 - **Credential Store** is the management surface for generic scoped credentials
   owned by the bundled `credential_store` plugin. It stores payload material as

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { Avatar } from "./Avatar"
 import { AvatarPicker } from "./AvatarPicker"
@@ -54,12 +54,24 @@ describe("appearance helpers", () => {
     expect(isCloseToTheme("#0090FF", "#B6492E")).toBe(false)
   })
 
-  it("renders the library without free-form input", () => {
+  it("renders aligned tone rows and a separate Naturals row", () => {
     const onChange = vi.fn()
     render(<ColorPicker ariaLabel="Coworker color" onChange={onChange} value="#b6492e" />)
 
     expect(screen.getAllByRole("radio")).toHaveLength(72)
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
+    expect(screen.getAllByText(/^(Pastel|Dusty|Vivid|Electric|Jewel|Naturals)$/).map((node) => node.textContent)).toEqual([
+      "Pastel",
+      "Dusty",
+      "Vivid",
+      "Electric",
+      "Jewel",
+      "Naturals"
+    ])
+    expect(within(screen.getByText("Pastel").parentElement!).getAllByRole("radio")).toHaveLength(12)
+    expect(within(screen.getByText("Naturals").parentElement!).getAllByRole("radio")).toHaveLength(12)
+    expect(screen.getByText("Red")).toBeInTheDocument()
+    expect(screen.getByText("Pink")).toBeInTheDocument()
     expect(screen.getByRole("radio", { name: "Terracotta" })).toHaveAttribute("aria-checked", "true")
     fireEvent.click(screen.getByRole("radio", { name: "Azure" }))
     expect(onChange).toHaveBeenCalledWith("#0090FF")
