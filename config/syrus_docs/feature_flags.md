@@ -210,6 +210,30 @@ newly materialized graders stay pinned to the workflow workspace and do not
 publish or fetch immutable source snapshots. The feature flag alone does not
 enable distributed execution for a repository until that repository opts in.
 
+## early_epic_dependency_execution
+
+**Category:** Labs · **Experimental:** yes · **Default:** disabled
+
+Allows an in-progress linear Epic to begin implementation before its upstream
+Epic lands when both Epics use the linear policy, belong to the same
+repository, and every upstream work Job has a branch and captured head SHA.
+Syrus anchors the downstream Epic's unique root Job to the upstream Epic's
+unique tail Job with the normal `parent_job` and `JobDependency` topology. The
+initial Workflow records the selected parent branch, Job ID, and head SHA so
+the fork boundary remains inspectable if the upstream stack later moves.
+
+This is only an execution-readiness exception. `Epic#dependencies_done?`
+remains strict, so approval and landing still wait for the upstream Epic to
+finish successfully. Missing branch/head identity, cross-repository
+dependencies, multiple unfinished upstream Epics, and ambiguous or nonlinear
+Job graphs remain blocked. Disabling the flag restores strict admission.
+
+Stack rebases and Epic restacks treat these anchored Epics as one continuous
+stack. Starting at an upstream root traverses dependent Epics in order, while
+starting at a downstream root preserves the current upstream tail as its base.
+The workflow locks every participating Job and Epic for the duration of the
+rebase. Disabling the flag restores single-Epic planning and locking.
+
 ## epicless_job_bundling
 
 **Category:** Labs

@@ -331,11 +331,12 @@ retries are unchanged.
 
 Rebases a chain of dependent PR branches in dependency order, then resumes landing for any approved stack Jobs.
 
-`stack_rebase` is an Epic-wide workflow when the Job belongs to an Epic. Only
-one Epic-wide workflow may be active for an Epic at a time, and it blocks
-ordinary child Job workflows while it runs. This prevents stack rebases from
-force-pushing member branches while a merge train is grading or landing a
-captured integration branch.
+`stack_rebase` is an Epic-wide workflow when the Job belongs to an Epic. With
+early Epic dependency execution enabled, an anchored same-repository linear
+dependency chain is traversed across Epic boundaries and each newly rebased
+tail becomes the next Epic root's base. The workflow locks every participating
+Job and Epic, blocking ordinary child workflows, downstream restacks, and
+merge trains while branches are being force-pushed.
 
 ## coding_handoff
 

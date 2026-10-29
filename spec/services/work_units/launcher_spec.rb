@@ -800,4 +800,26 @@ RSpec.describe WorkUnits::Launcher do
       "maintenance:stack_rebase:epic:#{epic.id}"
     )
   end
+
+  it "locks every Job and Epic participating in a cross-Epic stack rebase" do
+    allow(Feature).to receive(:early_epic_dependency_execution_enabled?).and_return(true)
+    upstream = Factories.epic(user: user, repository: repository, epic_dependency_policy: "linear")
+    downstream = Factories.epic(user: user, repository: repository, epic_dependency_policy: "linear")
+    EpicDependency.create!(epic: downstream, depends_on_epic: upstream)
+    parent = Factories.job_record(user: user, repository: repository, epic: upstream, branch_name: "upstream", pr_number: 71)
+    child = Factories.job_record(
+      user: user, repository: repository, epic: downstream, parent_job: parent,
+      branch_name: "downstream", pr_number: 72
+    )
+
+    workflow = described_class.instantiate(kind: "stack_rebase", job: child, base_branch: parent.branch_name)
+
+    expect(workflow.work_unit.work_unit_members.order(:id).pluck(:job_id)).to contain_exactly(parent.id, child.id)
+    expect(workflow.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly(
+      "maintenance:rebase:job:#{parent.id}",
+      "maintenance:rebase:job:#{child.id}",
+      "maintenance:stack_rebase:epic:#{upstream.id}",
+      "maintenance:stack_rebase:epic:#{downstream.id}"
+    )
+  end
 end

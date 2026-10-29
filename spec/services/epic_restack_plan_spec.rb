@@ -92,4 +92,61 @@ RSpec.describe EpicRestackPlan do
       [ blocked.id, "blocked" ]
     )
   end
+
+  it "plans dependent Epics as one stack while preserving the upstream tail base" do
+    allow(Feature).to receive(:early_epic_dependency_execution_enabled?).and_return(true)
+    downstream = Factories.epic(user: user, repository: repository, epic_dependency_policy: "linear")
+    leaf_epic = Factories.epic(user: user, repository: repository, epic_dependency_policy: "linear")
+    EpicDependency.create!(epic: downstream, depends_on_epic: epic)
+    EpicDependency.create!(epic: leaf_epic, depends_on_epic: downstream)
+    upstream_tail = child(issue_number: 31, mergeability_base_ref: repository.default_branch)
+    downstream_root = Factories.job_record(
+      user: user, repository: repository, epic: downstream, issue_number: 32,
+      branch_name: "syrus/issue-32", pr_number: 32, parent_job: upstream_tail,
+      mergeability_base_ref: upstream_tail.branch_name
+    )
+    leaf_root = Factories.job_record(
+      user: user, repository: repository, epic: leaf_epic, issue_number: 33,
+      branch_name: "syrus/issue-33", pr_number: 33, parent_job: downstream_root,
+      mergeability_base_ref: downstream_root.branch_name
+    )
+    JobDependency.create!(job: downstream_root, depends_on_job: upstream_tail, source: "manual")
+    JobDependency.create!(job: leaf_root, depends_on_job: downstream_root, source: "manual")
+
+    expect(described_class.for(epic).fetch("branch_order").map { |entry| [ entry["job_id"], entry["target_base"] ] }).to eq([
+      [ upstream_tail.id, repository.default_branch ],
+      [ downstream_root.id, upstream_tail.branch_name ],
+      [ leaf_root.id, downstream_root.branch_name ]
+    ])
+    downstream_plan = described_class.for(downstream)
+    expect(downstream_plan.fetch("branch_order").map { |entry| entry["job_id"] }).to eq([
+      downstream_root.id, leaf_root.id
+    ])
+    downstream_entry = downstream_plan.fetch("branch_order").first
+    expect(downstream_entry).to include(
+      "target_base" => upstream_tail.branch_name,
+      "target_parent_job_id" => upstream_tail.id,
+      "repair_reasons" => []
+    )
+  end
+
+  it "repairs a downstream root whose cross-Epic parent metadata is missing" do
+    allow(Feature).to receive(:early_epic_dependency_execution_enabled?).and_return(true)
+    downstream = Factories.epic(user: user, repository: repository, epic_dependency_policy: "linear")
+    EpicDependency.create!(epic: downstream, depends_on_epic: epic)
+    upstream_tail = child(issue_number: 34, mergeability_base_ref: repository.default_branch)
+    downstream_root = Factories.job_record(
+      user: user, repository: repository, epic: downstream, issue_number: 35,
+      branch_name: "syrus/issue-35", pr_number: 35, mergeability_base_ref: repository.default_branch
+    )
+
+    plan = described_class.for(epic)
+    entry = plan.fetch("branch_order").find { |candidate| candidate.fetch("job_id") == downstream_root.id }
+
+    expect(entry).to include(
+      "target_base" => upstream_tail.branch_name,
+      "target_parent_job_id" => upstream_tail.id,
+      "repair_reasons" => [ "parent_metadata", "base_ref" ]
+    )
+  end
 end

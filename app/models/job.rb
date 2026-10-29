@@ -732,7 +732,7 @@ class Job < ApplicationRecord
     end
 
     event :approve, before: :assign_approval_metadata do
-      transitions from: :implemented, to: :approved
+      transitions from: :implemented, to: :approved, guard: :strict_epic_dependencies_satisfied_for_approval?
     end
 
     event :restore_approved_after_landing_start_blocker, after: :clear_runaway_protection do
@@ -841,6 +841,7 @@ class Job < ApplicationRecord
 
   after_update_commit :rebase_stack_children_after_successful_parent_close, if: :saved_change_to_stack_parent_resolved_terminal?
   after_update_commit :start_dependent_jobs_after_implementation, if: :saved_change_to_implemented?
+  after_update_commit :refresh_execution_ready_dependent_epics, if: :saved_change_to_implemented?
   after_update_commit :enqueue_deferred_visual_diff_work_after_implementation, if: :saved_change_to_implemented?
   after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
@@ -1129,10 +1130,19 @@ class Job < ApplicationRecord
     ReviewPolicies.for(repository.review_policy).new(self).satisfied?
   end
 
+  # Early Epic dependency execution may release implementation against an
+  # unfinished upstream stack. That exception ends at review: every approval
+  # entry point flows through the AASM transition and therefore retains the
+  # strict successful-completion contract for Epic dependencies.
+  def strict_epic_dependencies_satisfied_for_approval?
+    epic.nil? || epic.landing_dependencies_satisfied?
+  end
+
   # Returns true when +user+ is eligible to add a JobApproval vote.
   # The creator (user_id) is blocked unless they are also the owner.
   def can_add_job_approval?(user)
     return false unless implemented?
+    return false unless strict_epic_dependencies_satisfied_for_approval?
 
     user.id == effective_owner_id || user.id != user_id
   end
@@ -1717,6 +1727,18 @@ class Job < ApplicationRecord
     return if branch_name.blank? || pr_number.blank?
 
     start_dependent_jobs_if_ready
+  end
+
+  def refresh_execution_ready_dependent_epics
+    return if branch_name.blank? || head_sha.blank? || epic_id.blank?
+
+    EpicDependency.where(depends_on_epic_id: epic_id).includes(:epic).find_each do |dependency|
+      dependent = dependency.epic
+      next unless dependent&.execution_dependencies_ready?
+
+      dependent.refresh_auto_state!
+      dependent.send(:unblock_child_jobs!) if dependent.in_progress?
+    end
   end
 
   def start_dependent_jobs_after_approval

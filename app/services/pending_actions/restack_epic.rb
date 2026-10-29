@@ -92,7 +92,13 @@ module PendingActions
     end
 
     def repair_action? = true
-    def repair_snapshot_targets = repair_action_epic_or_nil&.work_jobs&.to_a || []
+    def repair_snapshot_targets
+      epic = repair_action_epic_or_nil
+      return [] unless epic
+
+      ids = EpicRestackPlan.for(epic).fetch("branch_order").map { |entry| entry.fetch("job_id") }
+      Job.where(id: ids).order(:id).to_a
+    end
 
     private
 

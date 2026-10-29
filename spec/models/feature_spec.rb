@@ -233,6 +233,12 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
     end
 
+    it "declares early Epic dependency execution experimental and default-off" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "early_epic_dependency_execution" }
+
+      expect(declaration).to have_attributes(category: "Labs", experimental: true, default_enabled: false, type: :boolean)
+    end
+
     it "declares the emergency_land labs flag default-off in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "emergency_land" }
       expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)

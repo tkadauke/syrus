@@ -219,7 +219,7 @@ class Epic < ApplicationRecord
   end
 
   def releases_jobs_for_execution?
-    @releasing_jobs_for_execution || ((in_progress? || done?) && dependencies_done?)
+    @releasing_jobs_for_execution || ((in_progress? || done?) && execution_dependencies_ready?)
   end
 
   def sync_job_epic_titles
@@ -273,7 +273,7 @@ class Epic < ApplicationRecord
   end
 
   def ready_to_start?
-    jobs.exists? && dependencies_done? && child_jobs_confirmed?
+    jobs.exists? && execution_dependencies_ready? && child_jobs_confirmed?
   end
 
   def actor_can_advance?(actor: nil, user: nil)
@@ -396,7 +396,7 @@ class Epic < ApplicationRecord
 
     actor_user = epic_advancement_actor(actor)
     return false if claimed? && actor_user && !claimed_by?(actor_user)
-    return false unless dependencies_done?
+    return false unless execution_dependencies_ready?
     return false unless jobs.exists?
 
     # ready → start! flows through the graph. backlog must be graph-startable
@@ -449,7 +449,7 @@ class Epic < ApplicationRecord
   end
 
   def unblock_child_jobs!
-    return unless dependencies_done?
+    return unless execution_dependencies_ready?
 
     @releasing_jobs_for_execution = true
     begin
@@ -509,7 +509,7 @@ class Epic < ApplicationRecord
   end
 
   def block_queued_jobs_if_dependencies_unsatisfied!
-    return if dependencies_done?
+    return if execution_dependencies_ready?
     return unless in_progress?
 
     restore_child_epic_blocks!
@@ -529,7 +529,7 @@ class Epic < ApplicationRecord
     actor_user = epic_advancement_actor(actor)
     return I18n.t("api.epics.product_owner_forbidden") if actor_user&.product_owner?
     return I18n.t("api.epics.start_claimed_by_other") if (backlog? || ready?) && claimed? && actor_user && !claimed_by?(actor_user)
-    if (backlog? || ready?) && !dependencies_done?
+    if (backlog? || ready?) && !execution_dependencies_ready?
       return I18n.t("api.epics.start_blocked_by_dependencies", names: unfinished_dependency_names.to_sentence)
     end
     return I18n.t("api.epics.start_children_empty") if (backlog? || ready?) && jobs.none?
@@ -561,7 +561,7 @@ class Epic < ApplicationRecord
   end
 
   def release_child_jobs_if_ready!
-    return false unless dependencies_done?
+    return false unless execution_dependencies_ready?
     return false if @releasing_jobs_for_execution
     return false unless jobs.where(state: "blocked_by_epic").exists?
 
@@ -609,6 +609,19 @@ class Epic < ApplicationRecord
   def dependencies_done?
     dependencies.all?(&:dependency_succeeded?)
   end
+
+  def execution_dependencies_ready?
+    landing_dependencies_satisfied? || EpicDependencyExecutionPolicy::Linear.new(self).ready?
+  end
+  public :execution_dependencies_ready?
+
+  # Execution may be released speculatively across a same-repository Epic
+  # boundary. Approval, merge trains, landing, and completion must continue to
+  # use the strict dependency contract instead of that execution-only release.
+  def landing_dependencies_satisfied?
+    dependencies_done?
+  end
+  public :landing_dependencies_satisfied?
 
   def child_jobs_confirmed?
     jobs.where(state: "triaging").none?

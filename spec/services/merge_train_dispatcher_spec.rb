@@ -233,6 +233,35 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  it "refuses landing while an early-execution upstream Epic is unfinished" do
+    allow(Feature).to receive(:early_epic_dependency_execution_enabled?).and_return(true)
+    upstream = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Upstream")
+    upstream_job = Factories.job_record(
+      user: user, repository: repository, epic: upstream, issue_number: 90,
+      state: "implemented", pr_number: 590, branch_name: "syrus/upstream"
+    )
+    upstream_job.runs.create!(trigger_kind: "initial", agent_provider: upstream_job.agent_provider, head_sha: "a" * 40)
+    approved_child(1)
+    EpicDependency.create!(epic: epic, depends_on_epic: upstream, derived: false)
+
+    expect(epic.reload).to be_releases_jobs_for_execution
+    expect(epic).not_to be_landing_dependencies_satisfied
+    expect(described_class.blocker_reason(epic)).to eq("waiting for upstream Epic dependencies to complete")
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+  end
+
+  it "rechecks strict Epic dependencies while holding the dispatch lock" do
+    approved_child(1)
+    dispatcher = described_class.new(epic)
+    allow(dispatcher).to receive(:blocker_reason).and_return(nil)
+    allow(epic).to receive(:landing_dependencies_satisfied?).and_return(false)
+
+    expect(dispatcher.try_dispatch!).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(epic.jobs.reload.pluck(:state)).to all(eq("approved"))
+  end
+
   it "does nothing when the Epic is not ready (a child is unapproved)" do
     approved_child(1)
     Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2,
