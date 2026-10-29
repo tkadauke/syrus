@@ -14,7 +14,16 @@ import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { withRoutePrefix } from "@app/lib/routing"
 import { resolveAppearanceColor } from "@app/lib/appearance"
-import { createCoworker, createSideChat, fetchCoworker, fetchCoworkers, testCoworkerRemote, type CoworkerSummary } from "../api/coworkers"
+import {
+  addCoworkerToChat,
+  createCoworker,
+  createSideChat,
+  fetchCoworker,
+  fetchCoworkers,
+  removeCoworkerFromChat,
+  testCoworkerRemote,
+  type CoworkerSummary
+} from "../api/coworkers"
 
 export default function CoworkersRoute() {
   const { id } = useParams()
@@ -210,6 +219,12 @@ function CoworkerPage({ id }: { id: string }) {
   const [tab, setTab] = useState(id === "syrus" ? "chats" : "chat")
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
   const sideChat = useMutation({ mutationFn: () => createSideChat(Number(id)), onSuccess: (data) => navigate(withRoutePrefix(data.chat_path, prefix)) })
+  const [selectedChatId, setSelectedChatId] = useState("")
+  const roster = useMutation({
+    mutationFn: ({ chatId, add }: { chatId: number; add: boolean }) =>
+      add ? addCoworkerToChat(Number(id), chatId) : removeCoworkerFromChat(Number(id), chatId),
+    onSuccess: () => void query.refetch()
+  })
   if (id === "syrus") return <SyrusPage tab={tab} setTab={setTab} />
   if (query.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
   if (!query.data) return <PanelMessage>{t("error")}</PanelMessage>
@@ -231,6 +246,35 @@ function CoworkerPage({ id }: { id: string }) {
       <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "schedule", "memory", "workspace", "activity"]} />
       {tab === "chat" ? (
         <section className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-surface p-3">
+            <Select aria-label={t("detail.add_to_chat")} onChange={(event) => setSelectedChatId(event.target.value)} value={selectedChatId}>
+              <option value="">{t("detail.choose_chat")}</option>
+              {coworker.available_chats.map((chat) => (
+                <option key={chat.id} value={chat.id}>
+                  {chat.title}
+                  {chat.rostered ? ` — ${t("detail.on_roster")}` : ""}
+                </option>
+              ))}
+            </Select>
+            <button
+              className="rounded border border-border px-3 py-2 text-sm disabled:opacity-50"
+              disabled={!selectedChatId || roster.isPending || coworker.available_chats.find((chat) => chat.id === Number(selectedChatId))?.rostered}
+              onClick={() => roster.mutate({ chatId: Number(selectedChatId), add: true })}
+              type="button"
+            >
+              {t("detail.add_to_chat")}
+            </button>
+            {coworker.available_chats.find((chat) => chat.id === Number(selectedChatId))?.rostered ? (
+              <button
+                className="rounded border border-border px-3 py-2 text-sm"
+                disabled={roster.isPending}
+                onClick={() => roster.mutate({ chatId: Number(selectedChatId), add: false })}
+                type="button"
+              >
+                {t("detail.remove_from_chat")}
+              </button>
+            ) : null}
+          </div>
           <button className="rounded bg-brand px-3 py-2 text-sm text-white" onClick={() => sideChat.mutate()}>
             {t("detail.new_side_chat")}
           </button>

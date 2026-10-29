@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
@@ -51,6 +51,7 @@ const detailPayload = {
     workspace_repo: "https://github.com/acme/workspace.git",
     soul: "role: Researcher\n\nCurious and concise.",
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
+    available_chats: [{ id: 22, title: "Planning", rostered: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto" }]
   }
 }
@@ -153,6 +154,26 @@ it("shows remote-test and creation errors without navigating", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Create coworker" }))
   expect(await screen.findByText("Handle is unavailable")).toBeInTheDocument()
   expect(screen.getByRole("heading", { name: "New coworker" })).toBeInTheDocument()
+})
+
+it("adds a coworker to a selected chat from the coworker page", async () => {
+  const requests: string[] = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (init?.method === "POST") requests.push(path)
+      if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+      return jsonResponse({ agent: { id: 7 } }, 201)
+    })
+  )
+
+  renderRoute("/coworkers/7")
+  const selector = await screen.findByRole("combobox", { name: "Add to chat" })
+  fireEvent.change(selector, { target: { value: "22" } })
+  fireEvent.click(screen.getByRole("button", { name: "Add to chat" }))
+
+  await waitFor(() => expect(requests).toContain("/api/v1/app/chats/22/agents/7"))
 })
 
 it("renders the custom profile, creates side chats, and marks later tabs as stubs", async () => {

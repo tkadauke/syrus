@@ -198,4 +198,57 @@ describe("Compose mention autocomplete", () => {
 
     expect(composer).toHaveValue("Ask @syrus ")
   })
+
+  it("adds an own coworker to the roster before inserting it", async () => {
+    vi.mocked(useWalkthroughRecorder).mockReturnValue({
+      state: { phase: "idle" },
+      elapsed: 0,
+      start: vi.fn(),
+      stop: vi.fn(),
+      annotationAvailable: false,
+      annotationHold: false,
+      annotationReason: null,
+      displaySurface: null,
+      drawing: false
+    })
+    const requests: Array<{ path: string; method?: string }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input)
+        requests.push({ path, method: init?.method })
+        return {
+          ok: true,
+          status: init?.method === "POST" ? 201 : 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: async () =>
+            init?.method === "POST"
+              ? { agent: { id: 7 } }
+              : {
+                  mentionables: [
+                    {
+                      id: 7,
+                      handle: "maya",
+                      display_name: "Maya",
+                      subtitle: "Researcher",
+                      kind: "coworker",
+                      avatar_url: null,
+                      avatar_key: null,
+                      color_key: "rose-soft",
+                      add_to_chat: true
+                    }
+                  ]
+                }
+        } as Response
+      })
+    )
+
+    renderCompose()
+    const composer = screen.getByRole("textbox")
+    fireEvent.change(composer, { target: { value: "Ask @" } })
+    fireEvent.click(await screen.findByRole("option", { name: /@maya/ }))
+
+    expect(await screen.findByRole("textbox")).toHaveValue("Ask @maya ")
+    expect(requests).toContainEqual({ path: expect.stringContaining("/chats/1/agents/7"), method: "POST" })
+  })
 })

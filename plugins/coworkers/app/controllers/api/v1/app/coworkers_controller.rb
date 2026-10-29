@@ -48,6 +48,23 @@ module Api
           render json: { chat_path: "/chats/#{chat.id}" }, status: :created
         end
 
+        def add_to_chat
+          chat = owned_chat
+          coworker = find_coworker
+          entry = Coworkers::ChatAgent.create_or_find_by!(chat_session: chat, coworker: coworker) do |agent|
+            agent.added_by_user = Current.user
+          end
+          render json: { agent: roster_json(entry) }, status: :created
+        rescue ActiveRecord::RecordInvalid => error
+          render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
+        def remove_from_chat
+          entry = Coworkers::ChatAgent.find_by!(chat_session: owned_chat, coworker: find_coworker)
+          entry.destroy!
+          head :no_content
+        end
+
         def test_remote
           match = params.require(:workspace_repo).to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
           return render_error("validation_failed", I18n.t("api.coworkers.invalid_workspace_remote"), status: :unprocessable_content) unless match
@@ -71,6 +88,16 @@ module Api
           scope.includes(:grants, coworker_chats: :chat_session).find(params[:id])
         end
 
+        def owned_chat
+          ChatSession.active.find_by!(id: params[:chat_id], user_id: Current.user.id)
+        end
+
+        def roster_json(entry)
+          coworker = entry.coworker
+          { id: coworker.id, name: coworker.name, handle: coworker.handle, color_key: coworker.color_key,
+            avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url, removable: true }
+        end
+
         def create_params
           params.permit(:name, :handle, :workspace_repo, :about, :color_key, :avatar_key, :chat_provider, :chat_model, :chat_effort)
         end
@@ -88,6 +115,7 @@ module Api
             chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
             effective_model: coworker.chat_model,
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
+            available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
             grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy } }
           )
@@ -99,6 +127,17 @@ module Api
           content.read_if_present(content.resolve("coworkers/#{coworker.handle}"), "SOUL.md")&.text
         rescue ActiveRecord::RecordNotFound, RepositoryContent::Error
           nil
+        end
+
+        def available_chats_json(coworker)
+          chats = Current.user.chat_sessions.active.order(last_message_at: :desc, id: :desc).limit(100).to_a
+          chat_ids = chats.map(&:id)
+          rostered_ids = Coworkers::ChatAgent.where(coworker: coworker, chat_session_id: chat_ids).pluck(:chat_session_id).to_set
+          own_chat_ids = Coworkers::Chat.where(coworker: coworker, chat_session_id: chat_ids).pluck(:chat_session_id).to_set
+
+          chats.map do |chat|
+            { id: chat.id, title: chat.title.presence || "Chat ##{chat.id}", rostered: rostered_ids.include?(chat.id) || own_chat_ids.include?(chat.id) }
+          end
         end
 
         def workspace_repository(coworker)

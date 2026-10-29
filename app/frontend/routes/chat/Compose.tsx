@@ -38,6 +38,7 @@ import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import {
   branchChat,
+  addChatAgent,
   cancelChatShellCommand,
   clearChatHistory,
   createChat,
@@ -700,6 +701,14 @@ export function Compose({
     staleTime: 15_000
   })
   const mentionOptions = mentionables.data?.mentionables ?? []
+  const addMentionAgent = useMutation({
+    mutationFn: (coworkerId: number) => addChatAgent(chatId, coworkerId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["chat-mentionables", chatId] })
+      void queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error) => onNotice(errorMessage(error, t("mention_add_error")))
+  })
   const mentionPaletteOpen = mentionQuery != null && mentionOptions.length > 0 && pendingConfirmation == null
   useEffect(() => setActiveMentionIndex(0), [mentionQuery])
   const commandPaletteOpen =
@@ -1564,7 +1573,7 @@ export function Compose({
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (mentionPaletteOpen && (event.key === "Tab" || event.key === "Enter")) {
       event.preventDefault()
-      insertMention(mentionOptions[activeMentionIndex] || mentionOptions[0])
+      void selectMention(mentionOptions[activeMentionIndex] || mentionOptions[0])
       return
     }
     if (mentionPaletteOpen && event.key === "ArrowDown") {
@@ -1662,6 +1671,18 @@ export function Compose({
       textareaRef.current?.focus()
       textareaRef.current?.setSelectionRange(nextText.length, nextText.length)
     })
+  }
+
+  async function selectMention(mentionable: ChatMentionable | undefined) {
+    if (!mentionable) return
+    if (mentionable.add_to_chat && typeof mentionable.id === "number") {
+      try {
+        await addMentionAgent.mutateAsync(mentionable.id)
+      } catch (_error) {
+        return
+      }
+    }
+    insertMention(mentionable)
   }
 
   function updateText(nextText: string) {
@@ -2313,7 +2334,7 @@ export function Compose({
                     className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left ${index === activeMentionIndex ? "bg-surface-raised" : "hover:bg-surface-raised"}`}
                     key={`${mentionable.kind}-${mentionable.id}`}
                     onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => insertMention(mentionable)}
+                    onClick={() => void selectMention(mentionable)}
                     role="option"
                     type="button"
                   >

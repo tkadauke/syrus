@@ -29,6 +29,8 @@ module Coworkers
     route :get, "/api/v1/app/coworkers/sidebar_badge", to: "api/v1/app/coworkers#sidebar_badge"
     route :get, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#show"
     route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
+    route :post, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#add_to_chat"
+    route :delete, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#remove_from_chat"
     frontend routes: {
           "coworkers/Coworkers" => "app/frontend/routes/Coworkers.tsx"
         },

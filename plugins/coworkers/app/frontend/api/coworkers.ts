@@ -1,4 +1,4 @@
-import { getJson, postForm, postJson } from "@app/api/client"
+import { deleteJson, getJson, postForm, postJson } from "@app/api/client"
 
 export type CoworkerSummary = {
   id: number | "syrus"
@@ -21,6 +21,7 @@ export type CoworkerDetail = CoworkerSummary & {
   soul: string | null
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
   grants: { capability: string; approval_policy: string }[]
+  available_chats: { id: number; title: string; rostered: boolean }[]
 }
 export type CoworkerModelOptions = {
   provider: string
@@ -35,3 +36,5 @@ export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerD
 export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
 export const testCoworkerRemote = (workspaceRepo: string) =>
   postJson<{ message: string }>("/api/v1/app/coworkers/test_remote", { workspace_repo: workspaceRepo })
+export const addCoworkerToChat = (coworkerId: number, chatId: number) => postJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
+export const removeCoworkerFromChat = (coworkerId: number, chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)

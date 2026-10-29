@@ -4,13 +4,25 @@ module Coworkers
 
     def self.chat_payload(chat_session:, context:)
       link = Coworkers::Chat.includes(coworker: { avatar_attachment: :blob }).find_by(chat_session_id: chat_session.id)
-      return {} unless link
+      payload = { agent_roster: roster_json(chat_session) }
+      return payload unless link
 
       coworker = link.coworker
-      { agent_appearance: {
+      payload.merge(agent_appearance: {
         name: coworker.name, color_key: coworker.color_key, avatar_key: coworker.avatar_key,
         avatar_url: coworker.avatar_url
-      } }
+      })
+    end
+
+    def self.roster_json(chat_session)
+      Coworkers::ChatAgent.where(chat_session: chat_session).includes(coworker: { avatar_attachment: :blob }).order(:id).map do |entry|
+        coworker = entry.coworker
+        {
+          id: coworker.id, name: coworker.name, handle: coworker.handle,
+          color_key: coworker.color_key, avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url,
+          removable: chat_session.user_id == Current.user&.id
+        }
+      end
     end
   end
 end

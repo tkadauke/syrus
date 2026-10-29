@@ -1,6 +1,9 @@
 {
   "share_people": "Share",
   "mention_add_to_chat": "Add to chat",
+  "mention_add_error": "Could not add this coworker to the chat.",
+  "agent_roster": "Agents in this chat",
+  "remove_agent": "Remove {{name}} from chat",
   "mention_kind_human": "Person",
   "mention_kind_coworker": "Coworker",
   "mention_kind_syrus": "Syrus",

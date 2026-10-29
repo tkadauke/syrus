@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_140349) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_040624) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -420,6 +420,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_140349) do
     t.json "answers"
     t.index ["chat_session_id", "answered_at", "expired_at"], name: "idx_chat_agent_questions_active"
     t.index ["chat_session_id"], name: "index_chat_agent_questions_on_chat_session_id"
+  end
+
+  create_table "chat_agents", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.integer "coworker_id", null: false
+    t.integer "added_by_user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["added_by_user_id"], name: "index_chat_agents_on_added_by_user_id"
+    t.index ["chat_session_id", "coworker_id"], name: "index_chat_agents_on_chat_session_id_and_coworker_id", unique: true
+    t.index ["chat_session_id"], name: "index_chat_agents_on_chat_session_id"
+    t.index ["coworker_id"], name: "index_chat_agents_on_coworker_id"
   end
 
   create_table "chat_attachments", force: :cascade do |t|
