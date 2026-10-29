@@ -49,6 +49,20 @@ Current MVP limits, still explicit as of this writing:
 - **Trusted users, trusted repositories.** Isolation between mutually
   distrusting operators on one instance is not a design goal today.
 
+### OSS isolation, commercial tenancy
+
+Mode 4 (multi-tenant SaaS) keeps a deliberate boundary between execution
+isolation and tenancy. OSS Syrus ships the isolation mechanism through the
+`Execution::Backend` seam and its conformance kit, including containers, user
+namespaces, seccomp, dropped capabilities, Kubernetes `NetworkPolicy`, and
+gVisor support. Those controls are useful to self-hosters independently of
+SaaS tenancy.
+
+Tenant lifecycle, quota and billing, fleet orchestration, and per-tenant
+provisioning are commercial, closed-source scope. They will not have
+corresponding implementation Jobs in this repository. See [DOC-33
+§4](/design_docs/33) for the full reasoning behind this boundary.
+
 ---
 
 ## Hardening
