@@ -4,6 +4,7 @@ module Syrus
       agent_provider
       chat_provider
       mcp_tool_set
+      mcp_run_context_contributor
       input_source
       prompt_injector
       coverage_analyzer
@@ -70,6 +71,7 @@ module Syrus
       agent_provider:          -> { Syrus::Plugin::AgentProvider },
       chat_provider:           -> { Syrus::Plugin::ChatProvider },
       mcp_tool_set:            -> { Syrus::Plugin::McpToolSet },
+      mcp_run_context_contributor: -> { Syrus::Plugin::McpRunContextContributor },
       input_source:            -> { Syrus::Plugin::InputSource },
       prompt_injector:         -> { Syrus::Plugin::PromptInjector },
       coverage_analyzer:       -> { Syrus::Plugin::CoverageAnalyzer },

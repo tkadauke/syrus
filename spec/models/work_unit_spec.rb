@@ -45,6 +45,7 @@ RSpec.describe WorkUnit do
       auto_retry_backoff
       no_capable_worker
       visual_diff_obsolete
+      coworker_turn_in_flight
       preempted
     ]
 
@@ -94,6 +95,7 @@ RSpec.describe WorkUnit do
       "auto_retry_backoff",
       "no_capable_worker",
       "visual_diff_obsolete",
+      "coworker_turn_in_flight",
       "preempted"
     )
   end
