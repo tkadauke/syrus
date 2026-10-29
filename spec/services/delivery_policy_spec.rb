@@ -99,6 +99,10 @@ RSpec.describe DeliveryPolicy, :ci_only do
 
     before do
       write_bare_clone(repo, syrus_yml: <<~YAML)
+        grade:
+          - name: delivery-policy
+            run: "true"
+            phases: [review_minimal, landing_minimal, promotion]
         delivery:
           tracks:
             default:
@@ -376,6 +380,10 @@ RSpec.describe DeliveryPolicy, :ci_only do
 
     before do
       write_bare_clone(repo, syrus_yml: <<~YAML)
+        grade:
+          - name: delivery-policy
+            run: "true"
+            phases: [review_minimal, landing_minimal, promotion]
         delivery:
           tracks:
             default:
