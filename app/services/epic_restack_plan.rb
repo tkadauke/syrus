@@ -148,7 +148,7 @@ class EpicRestackPlan
 
   def same_epic_open_dependencies(job)
     job.dependencies.includes(:depends_on_job).filter_map(&:depends_on_job).select do |dependency|
-      participating_epic_ids.include?(dependency.epic_id) && !dependency.dependency_succeeded?
+      eligible_parent_epic?(job, dependency.epic) && !dependency.dependency_succeeded?
     end
   end
 
@@ -196,20 +196,39 @@ class EpicRestackPlan
     return if job.dependencies.includes(:depends_on_job).any? { |dependency| dependency.depends_on_job&.epic_id == job.epic_id }
 
     upstreams = job.epic.dependencies.includes(:depends_on_epic).filter_map(&:depends_on_epic).select do |upstream|
-      participating_epic_ids.include?(upstream.id) && !upstream.done?
+      eligible_parent_epic?(job, upstream) && !upstream.done?
     end
     return unless upstreams.one?
 
-    upstream_jobs = child_jobs.select { |candidate| candidate.epic_id == upstreams.first.id }
+    upstream_jobs = jobs_for_epic(upstreams.first)
     upstream_ids = upstream_jobs.map(&:id).to_set
     tails = upstream_jobs.reject do |candidate|
-      child_jobs.any? do |possible_child|
+      upstream_jobs.any? do |possible_child|
         possible_child.dependencies.any? do |dependency|
           dependency.depends_on_job_id == candidate.id && upstream_ids.include?(possible_child.id)
         end
       end
     end
     tails.one? ? tails.first : nil
+  end
+
+  def eligible_parent_epic?(job, candidate_epic)
+    return false unless candidate_epic
+    return true if participating_epic_ids.include?(candidate_epic.id)
+    return false unless job.epic_id == @epic.id
+
+    Feature.early_epic_dependency_execution_enabled? &&
+      candidate_epic.repository_id == @epic.repository_id &&
+      !candidate_epic.done? &&
+      candidate_epic.resolved_epic_dependency_policy == "linear" &&
+      @epic.resolved_epic_dependency_policy == "linear" &&
+      EpicDependency.exists?(epic_id: @epic.id, depends_on_epic_id: candidate_epic.id)
+  end
+
+  def jobs_for_epic(epic)
+    return child_jobs.select { |candidate| candidate.epic_id == epic.id } if participating_epic_ids.include?(epic.id)
+
+    epic.work_jobs.includes(dependencies: :depends_on_job).order(:id).to_a
   end
 
   def child_jobs
