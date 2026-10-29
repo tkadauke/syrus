@@ -120,6 +120,7 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(visible_text).to include("[SOUL.md](#{conflict.fetch('links').first})")
     expect(second.messages.last.content.fetch("body_format")).to eq("markdown")
     expect(second.messages.last.content.fetch("prominent")).to be(true)
+    expect(second.messages.last.content).to include("system_label" => "Workspace conflict", "system_tone" => "warning")
     expect(second_path.join("SOUL.md").read).to include("<<<<<<<", "role: first", "role: second")
     expect(home_file("SOUL.md")).to eq("role: first\n")
 
