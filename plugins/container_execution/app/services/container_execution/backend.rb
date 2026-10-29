@@ -17,12 +17,16 @@ module ContainerExecution
     end
 
     def run(request)
+      validate_request!(request)
       ProcessRunner.new(
         env: request.env,
         command: docker_command(request),
         mounts: request.mounts,
         network: "grader",
-        resource_limits: request.resource_limits,
+        # The limits are translated into the container command below. Applying
+        # them again to the short-lived Docker client would constrain the
+        # transport process instead of the workload.
+        resource_limits: nil,
         timeout: request.timeout,
         stdin_data: request.stdin_data,
         unsetenv_others: request.unsetenv_others,

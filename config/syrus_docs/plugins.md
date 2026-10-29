@@ -3002,6 +3002,39 @@ provider plugins stay removable.
 
 ## `execution_backend`
 
+### Stable backend contract and conformance kit
+
+`Execution::Backend` is a versioned extension contract. The current version is
+`Execution::Backend::CONTRACT_VERSION` (`1.0`). Implementations receive one
+`Execution::Request` in `#run` and return a `ProcessRunner::Result`. They must
+preserve mount access modes, enforce the named network profile, translate all
+resource limits, and expose the MCP daemon at the endpoint in
+`SYRUS_PERSISTENT_MCP_SOCKET`. Invalid request shapes raise
+`Execution::Backend::InvalidRequest`. A provider may decline work from
+`.available_for?`; the router tries the next provider and ultimately falls
+back to `Execution::Local`.
+
+Closed-source and in-tree backends run the public RSpec kit like this:
+
+```ruby
+require "execution/backend_test_kit"
+Execution::BackendTestKit.define_examples(
+  RSpec,
+  adapter: ->(example) { MyBackendContractAdapter.new(example) }
+)
+```
+
+The adapter implements `run(request)` and `fallback(request)`, plus four
+behavior probes: `verify_mount_semantics!`, `verify_network_profile!`,
+`verify_resource_limits!`, and `mcp_round_trip(payload)`. Probes must cross the
+backend's real enforcement or transport boundary; copying values out of the
+request is not conformance. In particular, the MCP probe must exchange bytes
+with a listening Unix-socket daemon through the endpoint the backend exposes.
+The kit owns the requests, malformed-request matrix, and assertions. Run the
+resulting spec with the backend's normal RSpec command. A contract-version
+change means the adapter and implementation must be reviewed before upgrading
+Syrus.
+
 Plugins can provide alternate process execution backends without making core
 name a specific implementation. `ProcessRunner` builds an `Execution::Request`
 from the same command, environment, mounts, network profile, timeout, callbacks,
