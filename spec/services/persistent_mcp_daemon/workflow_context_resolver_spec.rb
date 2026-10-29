@@ -31,5 +31,43 @@ RSpec.describe PersistentMcpDaemon::WorkflowContextResolver do
       expect { described_class.resolve(raw_context(token)) }
         .to raise_error(McpInvocationContext::Malformed, /not run/)
     end
+
+    it "does not authorize plugin workflow tools for a coworker run through direct dispatch" do
+      PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
+      coworker = Coworkers::Coworker.create!(
+        owner_user: user, name: "Maya", handle: "maya-resolver",
+        workspace_repo: repository.remote_url
+      )
+      main_chat = ChatSession.create!(user: user, repository: repository, title: "Maya")
+      Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+      coworker_job = Job.create!(
+        user: user, repository: repository, kind: "coworker_task", priority: "low",
+        origin: "coworkers", origin_id: coworker.id.to_s, issue_title: "Background task"
+      )
+      workflow = Coworkers::Workflow.instantiate(job: coworker_job)
+      step = workflow.steps.find_by!(kind: "coworker_run")
+      coworker_run = Run.create!(
+        job: coworker_job, user: user, step: step, trigger_kind: "coworker_run", agent_provider: "codex"
+      )
+      token = McpInvocationContext.issue_for_run(coworker_run, worker_id: worker_id, provider: "codex")
+      plugin_tool = Class.new(MCP::Tool) do
+        tool_name "unsafe_plugin_workflow_tool"
+
+        def self.call(server_context:)
+          Mcp::Tools.success(called: true)
+        end
+      end
+      allow(Mcp::Sidecar).to receive(:plugin_workflow_tools_for).with(have_attributes(role: AgentRole::COWORKER)).and_return([ plugin_tool ])
+
+      resolved = described_class.resolve(raw_context(token))
+      expect(resolved.allowed_tool_names).not_to include("unsafe_plugin_workflow_tool")
+      expect(Mcp::Sidecar).not_to have_received(:plugin_workflow_tools_for)
+
+      wrapped = PersistentMcpDaemon::WorkflowToolDispatch.wrap(plugin_tool)
+      response = wrapped.call(server_context: raw_context(token).merge(workflow_role: AgentRole::COWORKER))
+
+      expect(response).to be_error
+      expect(JSON.parse(response.content.first[:text])).to include("error" => "not_authorized")
+    end
   end
 end
