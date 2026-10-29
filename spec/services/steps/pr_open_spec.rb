@@ -788,6 +788,71 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(link.target_ref).to eq("main")
   end
 
+  it "falls back to the effective base when a derived PR base branch was deleted" do
+    workflow.set_artifact!(RebaseTarget::BASE_BRANCH_ARTIFACT, "syrus/parent-branch")
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    workspace = instance_double(WorkflowWorkspace, path: path)
+    git = instance_double(GitRunner)
+    missing_branch = GitRunner::GitError.new(
+      [ "fetch" ],
+      128,
+      "fatal: couldn't find remote ref refs/heads/syrus/parent-branch"
+    )
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:authenticated_git).and_yield("https://push.example/repo.git")
+    expect(git).to receive(:run).with(
+      "fetch",
+      "https://push.example/repo.git",
+      "+refs/heads/syrus/parent-branch:refs/remotes/origin/syrus/parent-branch",
+      chdir: path.to_s
+    ).and_raise(missing_branch)
+    expect(git).to receive(:run).with(
+      "fetch",
+      "https://push.example/repo.git",
+      "+refs/heads/main:refs/remotes/origin/main",
+      chdir: path.to_s
+    ).and_return("")
+
+    expect(handler.send(:fetch_pr_base_ref!, git, "syrus/parent-branch"))
+      .to eq("refs/remotes/origin/main")
+    expect(workflow.reload.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq("main")
+  end
+
+  it "does not fall back when the configured effective base branch is missing" do
+    job.update!(target_branch: "release/missing")
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    git = instance_double(GitRunner)
+    missing_branch = GitRunner::GitError.new(
+      [ "fetch" ],
+      128,
+      "fatal: couldn't find remote ref refs/heads/release/missing"
+    )
+
+    allow(handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, path: path))
+    allow(handler).to receive(:authenticated_git).and_yield("https://push.example/repo.git")
+    allow(git).to receive(:run).and_raise(missing_branch)
+
+    expect {
+      handler.send(:fetch_pr_base_ref!, git, "release/missing")
+    }.to raise_error(GitRunner::GitError, /couldn't find remote ref/)
+    expect(workflow.reload.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to be_nil
+  end
+
   context "when the Job is a fork contributing directly to its in-instance upstream" do
     let(:repo_owner) { user }
     let(:upstream) { Factories.repository(user: repo_owner, owner: "upstream-org", name: "project", default_branch: "main") }
