@@ -9,3 +9,4 @@ en:
         The coworker workspace has merge conflicts. Both versions remain on `%{branch}`. Resolve these files:
 
         %{files}
+      workspace_conflict_label: "Workspace conflict"
