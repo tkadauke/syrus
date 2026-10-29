@@ -1019,6 +1019,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_120000) do
     t.index ["owner_user_id"], name: "index_coworkers_on_owner_user_id"
   end
 
+  create_table "coworkers_chat_agents", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.integer "coworker_id", null: false
+    t.integer "added_by_user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["added_by_user_id"], name: "index_coworkers_chat_agents_on_added_by_user_id"
+    t.index ["chat_session_id", "coworker_id"], name: "idx_coworkers_chat_agents_unique_roster", unique: true
+    t.index ["chat_session_id"], name: "index_coworkers_chat_agents_on_chat_session_id"
+    t.index ["coworker_id"], name: "index_coworkers_chat_agents_on_coworker_id"
+  end
+
   create_table "credential_store_credential_access_events", force: :cascade do |t|
     t.integer "credential_id"
     t.integer "user_id"

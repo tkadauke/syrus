@@ -12,6 +12,7 @@ class Coworkers::Coworker < ApplicationRecord
   has_many :grants, class_name: "Coworkers::Grant", dependent: :destroy, inverse_of: :coworker
   has_many :coworker_chats, class_name: "Coworkers::Chat", dependent: :destroy, inverse_of: :coworker
   has_many :chats, through: :coworker_chats, source: :chat_session
+  has_many :chat_agents, class_name: "Coworkers::ChatAgent", dependent: :destroy, inverse_of: :coworker
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 
@@ -38,9 +39,19 @@ class Coworkers::Coworker < ApplicationRecord
   def agentic? = true
   def avatar_url = avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(avatar, only_path: true) : nil
   def avatar_key = self[:avatar_key]
-  def addressable_in?(chat) = Coworkers::Chat.exists?(coworker_id: id, chat_session_id: chat.id)
+  def addressable_in?(chat)
+    Coworkers::Chat.exists?(coworker_id: id, chat_session_id: chat.id) ||
+      Coworkers::ChatAgent.exists?(coworker_id: id, chat_session_id: chat.id)
+  end
   def schedules = ScheduledTasks::Task.none
   def chat_configuration = attributes.symbolize_keys.slice(:chat_provider, :chat_model, :chat_effort).compact
+
+  def workspace_repository
+    match = workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
+    return unless match
+
+    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
+  end
 
   # A coworker sees only its own conversations and chats explicitly shared
   # with it. The owner's role (including admin) must never widen this scope.

@@ -398,7 +398,7 @@ class ChatSession < ApplicationRecord
     daily_cost_usd.to_d
   end
 
-  def record_turn_usage!(result, at: Time.current)
+  def record_turn_usage!(result, at: Time.current, agent_provider: effective_chat_provider)
     updates = {}
     updates[:cumulative_input_tokens] = cumulative_input_tokens + result.input_tokens.to_i if result.input_tokens
     updates[:cumulative_output_tokens] = cumulative_output_tokens + result.output_tokens.to_i if result.output_tokens
@@ -416,7 +416,7 @@ class ChatSession < ApplicationRecord
           user: user,
           incurred_at: at,
           cost_usd: result.cost_usd,
-          agent_provider: effective_chat_provider
+          agent_provider: agent_provider
         )
       end
     end
@@ -632,7 +632,8 @@ class ChatSession < ApplicationRecord
 
   # Computed live from current human headcount, not a stored/toggleable
   # setting: chats with 0-1 participants always trigger the agent; chats
-  # with 2+ participants require an explicit @syrus mention on every message.
+  # with 2+ participants require an explicit mention of an addressable agent
+  # on every message.
   def should_trigger_agent?(message_or_mentions)
     chat_participants.count <= 1 || agent_addressed?(message_or_mentions)
   end
