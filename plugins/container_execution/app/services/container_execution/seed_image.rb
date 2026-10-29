@@ -7,10 +7,19 @@ module ContainerExecution
     class BuildError < StandardError; end
 
     BUILD_TIMEOUT = 15.minutes
+    BUILD_LOCK_TIMEOUT = BUILD_TIMEOUT + 5.minutes
+    BUILD_LOCK_POLL_INTERVAL = 0.25
 
-    def initialize(request, runner: Open3)
+    BuildLock = Data.define(:concurrency_key) do
+      def concurrency_limit = 1
+      def concurrency_duration = BUILD_LOCK_TIMEOUT
+    end
+
+    def initialize(request, runner: Open3, semaphore: SolidQueue::Semaphore, sleeper: ->(duration) { sleep(duration) })
       @request = request
       @runner = runner
+      @semaphore = semaphore
+      @sleeper = sleeper
     end
 
     def resolve
@@ -22,7 +31,7 @@ module ContainerExecution
 
     private
 
-    attr_reader :request, :runner
+    attr_reader :request, :runner, :semaphore, :sleeper
 
     def devcontainer_spec
       return unless Configuration.devcontainer_enabled? && request.job&.repository
@@ -52,6 +61,15 @@ module ContainerExecution
       tag = "syrus-devcontainer:#{spec.fingerprint.first(24)}"
       return tag if image_present?(tag)
 
+      with_build_lock(spec) do
+        return tag if image_present?(tag)
+
+        build_image(spec, tag)
+      end
+      tag
+    end
+
+    def build_image(spec, tag)
       build_config = spec.build.is_a?(Hash) ? spec.build : {}
       spec_directory = File.dirname(spec.source)
       dockerfile = build_config.fetch("dockerfile", "Dockerfile")
@@ -60,7 +78,23 @@ module ContainerExecution
       context_path = docker_host_path(workspace_path(spec_directory, context))
       args = build_config.fetch("args", {}).flat_map { |key, value| [ "--build-arg", "#{key}=#{value}" ] }
       run_docker!("build", "--tag", tag, "--file", dockerfile_path, *args, context_path)
-      tag
+    end
+
+    def with_build_lock(spec)
+      lock = BuildLock.new("devcontainer_build:#{request.job.repository.id}:#{spec.revision}")
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + BUILD_LOCK_TIMEOUT
+      acquired = false
+
+      until acquired = semaphore.wait(lock)
+        if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          raise BuildError, "timed out waiting for another Workflow to build the devcontainer seed image"
+        end
+        sleeper.call(BUILD_LOCK_POLL_INTERVAL)
+      end
+
+      yield
+    ensure
+      semaphore.signal(lock) if acquired
     end
 
     def workspace_path(base, relative)
