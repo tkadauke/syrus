@@ -732,7 +732,7 @@ class Job < ApplicationRecord
     end
 
     event :approve, before: :assign_approval_metadata do
-      transitions from: :implemented, to: :approved
+      transitions from: :implemented, to: :approved, guard: :strict_epic_dependencies_satisfied_for_approval?
     end
 
     event :restore_approved_after_landing_start_blocker, after: :clear_runaway_protection do
@@ -1130,10 +1130,19 @@ class Job < ApplicationRecord
     ReviewPolicies.for(repository.review_policy).new(self).satisfied?
   end
 
+  # Early Epic dependency execution may release implementation against an
+  # unfinished upstream stack. That exception ends at review: every approval
+  # entry point flows through the AASM transition and therefore retains the
+  # strict successful-completion contract for Epic dependencies.
+  def strict_epic_dependencies_satisfied_for_approval?
+    epic.nil? || epic.landing_dependencies_satisfied?
+  end
+
   # Returns true when +user+ is eligible to add a JobApproval vote.
   # The creator (user_id) is blocked unless they are also the owner.
   def can_add_job_approval?(user)
     return false unless implemented?
+    return false unless strict_epic_dependencies_satisfied_for_approval?
 
     user.id == effective_owner_id || user.id != user_id
   end

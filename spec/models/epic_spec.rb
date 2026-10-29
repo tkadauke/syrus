@@ -576,6 +576,26 @@ RSpec.describe Epic, :ci_only do
       expect(downstream.reload).not_to be_landing_dependencies_satisfied
     end
 
+    it "refuses downstream approval until the upstream Epic completes" do
+      upstream = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
+      materialized_job(epic: upstream, number: 25, branch: "syrus/upstream")
+      downstream = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
+      child = materialized_job(epic: downstream, number: 26, branch: "syrus/downstream")
+      EpicDependency.create!(epic: downstream, depends_on_epic: upstream, derived: false)
+
+      expect(downstream.reload).to be_execution_dependencies_ready
+      expect(child.reload.may_approve?).to be(false)
+      expect(child.can_add_job_approval?(user)).to be(false)
+      expect { child.approve!(via: "operator") }.to raise_error(AASM::InvalidTransition)
+
+      upstream.override_state!("done")
+
+      expect(child.reload.may_approve?).to be(true)
+      expect(child.can_add_job_approval?(user)).to be(true)
+      expect { child.approve!(via: "operator") }
+        .to change { child.reload.state }.from("implemented").to("approved")
+    end
+
     it "forms one continuous stack across three dependent Epics" do
       epic_a = described_class.create!(user: user, repository: repository, title: "A", state: "in_progress")
       job_a = materialized_job(epic: epic_a, number: 31, branch: "syrus/a")
