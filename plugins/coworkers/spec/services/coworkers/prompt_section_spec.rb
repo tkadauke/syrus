@@ -88,6 +88,21 @@ RSpec.describe Coworkers::PromptSection do
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 
     expect(section).to include(described_class::TRUNCATION_MARKER)
-    expect(section.bytesize).to be <= described_class::MAX_TOTAL_BYTES + 300
+    expect(section.bytesize).to be <= described_class::MAX_TOTAL_BYTES
+  end
+
+  it "counts headings and separators against the aggregate cap" do
+    people = 5_000.times.map { |index| instance_double(User, handle: "person-#{index.to_s.rjust(4, "0")}") }
+    allow(chat).to receive(:participants).and_return(people)
+    people.each do |person|
+      path = @root.join("memory/people/#{person.handle}.md")
+      path.dirname.mkpath
+      path.write("")
+    end
+
+    section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
+
+    expect(section.bytesize).to be <= described_class::MAX_TOTAL_BYTES
+    expect(section).to end_with(described_class::TRUNCATION_MARKER)
   end
 end
