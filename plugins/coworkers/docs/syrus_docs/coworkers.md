@@ -86,7 +86,8 @@ records an outgoing block, while the receiver's main chat gets a
 "message from @handle" block that waits behind any turn already in flight.
 Paused and archived coworkers, Syrus, the sender itself, and handles outside
 the owner's coworker list are refused. Deliveries carry their origin turn and
-hop count; a chain cannot continue beyond three hops.
+hop count; a chain cannot continue beyond three hops. Each pair of coworkers
+can queue at most ten messages in a ten-minute window, regardless of direction.
 
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
