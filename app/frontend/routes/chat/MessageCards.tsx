@@ -35,7 +35,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } from "../../toolCardSecurity"
-import { type ChatQueryKey } from "./constants"
+import { isChatRasterImage, type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
 import {
   NO_ARGUMENTS_SENTINEL,
@@ -446,7 +446,7 @@ function BoundedChatMarkdown({ text, ...props }: ComponentProps<typeof Markdown>
 }
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
-  const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => attachment.mime_type.startsWith("image/"))
+  const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => isChatRasterImage(attachment.mime_type))
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null)
   const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
   const previousLightboxImage = lightboxImageIndex != null && lightboxImageIndex > 0 ? images[lightboxImageIndex - 1] : null
@@ -495,20 +495,22 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
 // any other file) would otherwise show nothing, leaving a blank bubble when the
 // message has no text. Render each as a labeled chip so it's always visible.
 function MessageFileAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
-  const files = (attachments || []).filter((attachment) => !attachment.mime_type.startsWith("image/"))
+  const files = (attachments || []).filter((attachment) => !isChatRasterImage(attachment.mime_type))
   if (files.length === 0) return null
 
   return (
     <div className={`flex flex-wrap gap-2 ${align === "end" ? "justify-end" : "justify-start"}`}>
       {files.map((attachment, index) => (
-        <span
+        <a
           className="inline-flex max-w-[16rem] items-center gap-1.5 truncate rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+          download={attachment.name || "attachment"}
+          href={`data:application/octet-stream;base64,${attachment.data}`}
           key={`${attachment.name}-${index}`}
           title={attachment.name}
         >
           <span aria-hidden="true">📎</span>
           <span className="truncate">{attachment.name || "attachment"}</span>
-        </span>
+        </a>
       ))}
     </div>
   )

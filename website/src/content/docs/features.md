@@ -800,8 +800,20 @@ with an accept button. Tapping the button or pressing Tab fills the composer
 with the suggestion, typing anything hides it, and Escape dismisses it.
 Suggestions clear automatically when the operator sends a message or a new
 turn starts.
-The chat composer accepts image and PDF attachments through the plus button
-and sends them with the next message. Before sending, operators can click an
+The chat composer accepts JPEG, PNG, GIF, WebP, PDF, and a conservative set of
+readable text attachments through the plus button. Text support includes common
+documents and markup, structured data and configuration, logs and patches, and
+source files for Syrus's commonly used languages, plus recognized names such as
+`Dockerfile`, `Makefile`, `Gemfile`, and `Rakefile`. Filename and MIME checks
+allow normal browser fallbacks such as `text/plain` only for recognized files;
+archives, executables, Office files, media, and other binary formats remain
+unsupported. Each file is limited to 5 MB and attachments total 20 MB per
+message. HTML and SVG attachments are treated as untrusted source and download
+rather than rendering in the application origin. Every accepted file is saved
+under the chat workspace and its exact path is included in the agent prompt,
+so Claude, Codex, and Muse can inspect it with normal file tools.
+
+Before sending, operators can click an
 image thumbnail in the composer to mark it up with basic shapes, arrows,
 freehand strokes, text, and undo; Syrus flattens the result into a PNG
 attachment. Image attachments render as inline thumbnails in the transcript

@@ -5,16 +5,16 @@
 module ChatMessageParams
   private
 
-  CHAT_ATTACHMENT_ALLOWED_MIME_TYPES = JSON.parse(Rails.root.join("config/chat_attachment_mime_types.json").read).freeze
-  CHAT_ATTACHMENT_MAX_BASE64_BYTES = 7.megabytes
+  CHAT_ATTACHMENT_MAX_BYTES = 5.megabytes
+  CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20.megabytes
 
 
   def message_text
     (params[:content].presence || params.dig(:chat_message, :text)).to_s.strip
   end
 
-  # A message may carry media (image/PDF attachments) with no text — the
-  # media is the message. The blank-text guard uses this to allow that.
+  # A message may carry files with no text — the attachment is the message.
+  # The blank-text guard uses this to allow that.
   def message_has_attachments?
     params.dig(:chat_message, :attachments).present?
   end
@@ -37,7 +37,8 @@ module ChatMessageParams
       return
     end
 
-    attachments.map do |attachment|
+    total_bytes = 0
+    sanitized = attachments.map do |attachment|
       attributes = attachment.respond_to?(:to_unsafe_h) ? attachment.to_unsafe_h : attachment
       unless attributes.respond_to?(:[])
         render_error("validation_failed", "Attachments must be objects.", status: :unprocessable_content)
@@ -48,18 +49,41 @@ module ChatMessageParams
       mime_type = (attributes["mime_type"] || attributes[:mime_type]).to_s
       data = (attributes["data"] || attributes[:data]).to_s
 
-      unless CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.include?(mime_type)
-        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} is not a supported type (images or PDF).", status: :unprocessable_content)
+      policy = ChatAttachmentPolicy.check(filename: name, mime_type: mime_type)
+      unless policy.accepted?
+        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} is not a supported attachment type.", status: :unprocessable_content)
         return
       end
 
-      if data.bytesize > CHAT_ATTACHMENT_MAX_BASE64_BYTES
-        render_error("validation_failed", "Attachment data must be 7 MB or smaller.", status: :unprocessable_content)
+      begin
+        decoded = Base64.strict_decode64(data)
+      rescue ArgumentError
+        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} contains malformed Base64 data.", status: :unprocessable_content)
         return
       end
 
-      { "name" => name.to_s, "mime_type" => mime_type, "data" => data }
+      if decoded.bytesize > CHAT_ATTACHMENT_MAX_BYTES
+        render_error("validation_failed", "Each attachment must be 5 MB or smaller.", status: :unprocessable_content)
+        return
+      end
+
+      if policy.text? && !ChatAttachmentPolicy.valid_text?(decoded)
+        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} is not valid UTF-8 text.", status: :unprocessable_content)
+        return
+      end
+
+      total_bytes += decoded.bytesize
+
+      { "name" => ChatAttachmentPolicy.sanitize_filename(name), "mime_type" => policy.mime_type, "data" => Base64.strict_encode64(decoded) }
     end
+
+
+    if total_bytes > CHAT_ATTACHMENT_TOTAL_MAX_BYTES
+      render_error("validation_failed", "Attachments must total 20 MB or less.", status: :unprocessable_content)
+      return
+    end
+
+    sanitized
   end
 
   def chat_name
