@@ -345,14 +345,33 @@ module Steps
     def fetch_pr_base_ref!(git, base_branch)
       ref = "refs/remotes/origin/#{base_branch}"
       authenticated_git("git_pr_open_base_fetch", git: git, repository: pr_base_repository) do |fetch_url|
-        git.run(
-          "fetch",
-          fetch_url,
-          "+refs/heads/#{base_branch}:#{ref}",
-          chdir: workspace.path.to_s
-        )
+        begin
+          git.run(
+            "fetch",
+            fetch_url,
+            "+refs/heads/#{base_branch}:#{ref}",
+            chdir: workspace.path.to_s
+          )
+        rescue GitRunner::GitError => e
+          fallback_branch = job.effective_base_branch
+          raise unless missing_remote_ref?(e) && base_branch != fallback_branch
+
+          log("pr_open: derived base branch #{base_branch} no longer exists; falling back to #{fallback_branch}")
+          workflow.set_artifact!(RebaseTarget::BASE_BRANCH_ARTIFACT, fallback_branch)
+          ref = "refs/remotes/origin/#{fallback_branch}"
+          git.run(
+            "fetch",
+            fetch_url,
+            "+refs/heads/#{fallback_branch}:#{ref}",
+            chdir: workspace.path.to_s
+          )
+        end
       end
       ref
+    end
+
+    def missing_remote_ref?(error)
+      error.output.to_s.match?(/couldn't find remote ref|could not find remote ref|fatal:.*remote ref/i)
     end
 
     def pr_base_repository
