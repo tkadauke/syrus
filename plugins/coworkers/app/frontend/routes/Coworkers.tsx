@@ -270,7 +270,9 @@ function CoworkerMemory({ id }: { id: string }) {
     queryKey: ["coworkers", id, "memory", location.search],
     queryFn: () => fetchCoworkerMemory(id, location.search)
   })
-  const selectedPath = new URLSearchParams(location.search).get("path") || query.data?.selected_path
+  // The server validates the requested path against the filtered result set.
+  // A preserved path may no longer match after FilterBar changes the query.
+  const selectedPath = query.data?.selected_path
   const selected = query.data?.files.find((file) => file.path === selectedPath)
 
   function selectFile(path: string) {

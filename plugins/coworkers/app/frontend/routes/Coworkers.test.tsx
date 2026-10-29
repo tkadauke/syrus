@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
@@ -198,13 +198,18 @@ it("browses coworker memory as rendered Markdown with search and owner-memory li
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).includes("/memory")) {
+        const url = new URL(String(input), "http://test.host")
+        const filtered = url.searchParams.has("q")
+        const files = filtered ? [
+          { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." }
+        ] : [
+          { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." },
+          { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Owner notes" }
+        ]
         return jsonResponse({
-          files: [
-            { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." },
-            { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Owner notes" }
-          ],
-          selected_path: "memory/daily/2026-10-29.md",
-          filter: { and: [] },
+          files,
+          selected_path: filtered ? files[0].path : url.searchParams.get("path") || files[0].path,
+          filter: filtered ? { and: [{ field: "query", op: "contains", value: "orchard" }] } : { and: [] },
           filter_schema: [{ field: "query", label: "Search", bucket: "string", operators: ["contains"], values: [], free_text_search: true }]
         })
       }
@@ -220,6 +225,16 @@ it("browses coworker memory as rendered Markdown with search and owner-memory li
   expect(screen.getByRole("navigation", { name: "Memory files" })).toHaveTextContent("2026-10-29")
   expect(screen.getByRole("button", { name: /Add filter/i })).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Open your Syrus memories" })).toHaveAttribute("href", "/memories")
+
+  fireEvent.click(screen.getByRole("button", { name: "thomas" }))
+  expect(await screen.findByText("Owner notes")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+  fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "orchard" } })
+  fireEvent.click(screen.getByText("Search for orchard"))
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Search contains orchard" })).toBeInTheDocument())
+  expect(screen.getByRole("heading", { name: "Today" })).toBeInTheDocument()
+  expect(screen.queryByText("Select a memory file.")).not.toBeInTheDocument()
 })
 
 it("shows distinct empty and unavailable coworker memory states", async () => {
