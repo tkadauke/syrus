@@ -11,6 +11,10 @@ RSpec.describe "API: coworkers", type: :request do
       action: "create_coworker", requested_by: "agent",
       payload: { "name" => "Maya", "handle" => "maya", "workspace_repo" => "https://github.com/acme/homes.git", "about" => "Old role" }
     )
+    chat.messages.create!(
+      role: "tool_use", tool_name: "propose_coworker", tool_use_id: "coworker-1", pending_action: action,
+      content: { "type" => "tool_use", "id" => "coworker-1", "name" => "propose_coworker", "input" => {} }
+    )
     sign_in_as(owner)
 
     patch "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}", params: { about: "  role: Research director  " }
@@ -18,6 +22,8 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:ok)
     expect(action.reload.payload["about"]).to eq("role: Research director")
     expect(response.parsed_body.dig("pending_actions", 0, "app_update_path")).to end_with("/pending_actions/#{action.id}")
+    tool_message = response.parsed_body.fetch("messages").find { |message| message["tool_name"] == "propose_coworker" }
+    expect(tool_message.dig("pending_action", "review", "about")).to eq("role: Research director")
   end
 
   it "lists only the signed-in owner's coworkers with Syrus pinned separately" do

@@ -2,6 +2,8 @@ module PendingActions
   class Base
     DEFERRED_CONFIRMATION = Object.new.freeze
 
+    def self.preload_tool_card_outcomes(_actions) = {}
+
     def self.admin_only!
       @admin_only = true
     end
@@ -120,6 +122,10 @@ module PendingActions
     end
 
     def presentation_resource
+      nil
+    end
+
+    def tool_card_review
       nil
     end
 

@@ -56,11 +56,13 @@ module App
       @chat_shell_commands_by_id = {}
       @bridge_threads_by_id = {}
       @chat_titles_by_id = {}
+      @pending_action_outcomes = {}
     end
 
     def messages(messages)
       records = messages.to_a
       preload_message_associations(records)
+      preload_pending_action_outcomes(records)
       preload_mentionables(records)
       preload_chat_shell_commands(records)
       preload_cross_chat_bridges(records)
@@ -116,6 +118,15 @@ module App
         [ "human", user.id.to_s ]
       end
       @mentionables_by_key[[ "syrus", "syrus" ]] = Mentionables::Syrus.new
+    end
+
+    def preload_pending_action_outcomes(messages)
+      actions = messages.filter_map(&:pending_action).uniq
+      @pending_action_outcomes = actions.group_by do |action|
+        PendingActions.for(action.action.presence || action.action_type)
+      end.flat_map do |presenter_class, grouped_actions|
+        presenter_class.preload_tool_card_outcomes(grouped_actions).to_a
+      end.to_h
     end
 
     def preload_chat_shell_commands(messages)
@@ -267,14 +278,21 @@ module App
         execution_step: action.execution_step,
         execution_error: action.execution_error,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
-        app_update_path: action.action == "create_coworker" && action.pending? ? "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}" : nil,
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject"
       }
+      if action.action == "create_coworker" && action.pending?
+        base[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
+      end
       base[:reason] = action.reason if action.reason.present?
       base[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
       base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
       presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
-      if presenter.respond_to?(:tool_card_outcome) && (outcome = presenter.tool_card_outcome).present?
+      if (review = presenter.tool_card_review).present?
+        base[:review] = review
+      end
+      outcome = @pending_action_outcomes[action.id]
+      outcome ||= presenter.tool_card_outcome if presenter.respond_to?(:tool_card_outcome)
+      if outcome.present?
         base[:outcome] = outcome
       end
 
