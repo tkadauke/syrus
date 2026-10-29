@@ -115,6 +115,10 @@ function createDeliveryFixture(): DeliveryFixture {
 
 function deliveryFixtureScript(): string {
   const yml = `
+grade:
+  - name: delivery
+    run: bin/true
+    phases: [review, landing, branch_health, hotfix_review, hotfix_landing, hotfix_health, promotion]
 delivery:
   tracks:
     default:
