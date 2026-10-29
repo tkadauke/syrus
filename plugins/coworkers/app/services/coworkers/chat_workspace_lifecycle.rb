@@ -1,0 +1,154 @@
+require "fileutils"
+require "tmpdir"
+
+class Coworkers::ChatWorkspaceLifecycle
+  include Syrus::Plugin::ChatWorkspaceLifecycle
+  MAX_PUSH_ATTEMPTS = 3
+
+  class << self
+    def applies_to?(chat_session:)
+      chat_session.respond_to?(:coworker) && chat_session.coworker.kind == "coworker"
+    end
+
+    def prepare!(chat_session:)
+      new(chat_session).prepare!
+    end
+
+    def finalize!(chat_session:)
+      new(chat_session).finalize!
+    end
+  end
+
+  def initialize(chat_session, git: GitRunner.new, remote_url: nil, repository: nil)
+    @chat = chat_session
+    @coworker = chat_session.coworker
+    @repository = repository || workspace_repository
+    @git = git
+    @remote_url = remote_url || @repository.authenticated_url(user: @coworker.owner_user)
+    @env = { "GIT_TERMINAL_PROMPT" => "0" }
+  end
+
+  def prepare!
+    ensure_chat_branch!
+    ChatWorkspace.ensure_root!(@chat)
+    path = checkout_path
+    unless path.join(".git").directory?
+      FileUtils.rm_rf(path.to_s)
+      FileUtils.mkdir_p(path.dirname.to_s)
+      clone_branch!(chat_branch, path.to_s)
+      @chat.chat_attachments.find_or_create_by!(attachable: @repository)
+    end
+    @git.configure_author(identity, chdir: path.to_s)
+    path
+  end
+
+  def finalize!
+    path = checkout_path
+    return unless path.join(".git").directory?
+    conflicts = unmerged_files(path)
+    return post_conflict!(files: conflicts, detail: "Resolve the existing Git index conflicts before the workspace can merge.") if conflicts.any?
+
+    commit_turn!(path)
+    push_chat_branch!(path)
+    merge_into_home!
+  end
+
+  private
+
+  def home_branch = "coworkers/#{@coworker.handle}"
+  def chat_branch = "coworkers/chat/#{@coworker.id}-#{@chat.id}"
+  def identity = Coworkers::GitIdentity.new(name: @coworker.name, handle: @coworker.handle)
+  def checkout_path = ChatWorkspace.repo_path_for(@chat, @repository)
+
+  def workspace_repository
+    match = @coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
+    raise ActiveRecord::RecordNotFound, "coworker workspace repository is not registered" unless match
+
+    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first!
+  end
+
+  def ensure_chat_branch!
+    return if @git.run("ls-remote", "--heads", @remote_url, "refs/heads/#{chat_branch}", env: @env).present?
+
+    Dir.mktmpdir("syrus-coworker-chat-") do |dir|
+      clone_branch!(home_branch, dir)
+      @git.run("switch", "-c", chat_branch, chdir: dir)
+      @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: dir, env: @env)
+    end
+  rescue GitRunner::GitError
+    # Another worker may have created the immutable chat ref concurrently.
+    raise unless @git.run("ls-remote", "--heads", @remote_url, "refs/heads/#{chat_branch}", env: @env).present?
+  end
+
+  def commit_turn!(path)
+    return if @git.run("status", "--porcelain", chdir: path.to_s).blank?
+
+    @git.configure_author(identity, chdir: path.to_s)
+    @git.run("add", "--all", chdir: path.to_s)
+    @git.run("commit", "-m", "Update @#{@coworker.handle} from chat #{@chat.id}", chdir: path.to_s)
+  end
+
+  def push_chat_branch!(path)
+    @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: path.to_s, env: @env)
+  end
+
+  def merge_into_home!
+    MAX_PUSH_ATTEMPTS.times do |attempt|
+      outcome = merge_once
+      return outcome unless outcome == :retry
+      raise GitRunner::GitError.new([ "push", home_branch ], 1, "home branch kept moving") if attempt == MAX_PUSH_ATTEMPTS - 1
+    end
+  end
+
+  def merge_once
+    Dir.mktmpdir("syrus-coworker-merge-") do |dir|
+      clone_branch!(home_branch, dir)
+      @git.configure_author(identity, chdir: dir)
+      @git.run("fetch", @remote_url, "refs/heads/#{chat_branch}:refs/remotes/origin/coworker-chat", chdir: dir, env: @env)
+      merge = @git.capture("merge", "--no-edit", "origin/coworker-chat", chdir: dir, env: @env)
+      return report_conflict!(dir, merge) unless merge.success?
+
+      @git.run("push", @remote_url, "HEAD:refs/heads/#{home_branch}", chdir: dir, env: @env)
+      :merged
+    rescue GitRunner::GitError => error
+      raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
+      :retry
+    end
+  end
+
+  def report_conflict!(merge_path, merge)
+    files = unmerged_files(merge_path)
+    leave_conflict_in_chat_checkout!
+    post_conflict!(files: files, detail: merge.stderr.to_s.last(500))
+  end
+
+  def post_conflict!(files:, detail:)
+    links = files.map { |file| "/api/v1/app/chats/#{@chat.id}/source_file/raw?path=#{ERB::Util.url_encode(file)}" }
+    @chat.messages.create!(
+      role: "system",
+      content: {
+        "text" => "The coworker workspace has merge conflicts. Both versions remain on #{chat_branch}; resolve: #{files.join(', ')}",
+        "coworker_workspace_conflict" => { "branch" => chat_branch, "files" => files, "links" => links,
+                                             "detail" => detail }
+      }
+    )
+    :conflict
+  end
+
+  def unmerged_files(path)
+    @git.run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?)
+  end
+
+  def leave_conflict_in_chat_checkout!
+    path = checkout_path
+    @git.run("fetch", @remote_url, "refs/heads/#{home_branch}:refs/remotes/origin/coworker-home", chdir: path.to_s, env: @env)
+    @git.capture("merge", "--no-edit", "origin/coworker-home", chdir: path.to_s, env: @env)
+  end
+
+  def clone_branch!(branch, destination)
+    @git.run("clone", "--branch", branch, "--no-tags", @remote_url, destination, env: @env)
+    # Never leave the authenticated transport URL in a checkout exposed to the
+    # coworker's shell. Lifecycle operations pass it explicitly when needed.
+    @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: destination)
+  end
+end
