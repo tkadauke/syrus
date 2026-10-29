@@ -49,7 +49,9 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
 
     action = chat.pending_actions.last
     expect(action.payload).to eq(fields.deep_stringify_keys)
-    expect(response_payload(response).fetch("coworker")).to eq(action.payload)
+    expect(response_payload(response).fetch("coworker")).to include(
+      action.payload.merge("branch" => "coworkers/maya", "grant_policies" => { "workspace.files" => "auto", "syrus.read_jobs" => "auto" })
+    )
     expect(remote.push_tests).to eq(1)
 
     expect(action.confirm!).to be true
@@ -58,6 +60,9 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
     expect(coworker.workspace_repo).to eq("https://github.com/acme/coworker-homes.git")
     expect(coworker.grants.pluck(:capability)).to contain_exactly(*fields[:grants])
     expect(remote.seeded_files.fetch("SOUL.md")).to include(fields[:about])
+    expect(PendingActions::CreateCoworker.new(action.reload).tool_card_outcome).to eq(
+      coworker_id: coworker.id, chat_id: coworker.coworker_chats.find_by!(role: "main").chat_session_id
+    )
   end
 
   it "creates nothing when withdrawn or rejected" do

@@ -35,7 +35,10 @@ module Coworkers::McpTools
         Mcp::Tools.success(
           pending_confirmation_id: pending_action.id, pending_action_id: pending_action.id,
           state: pending_action.state, message: "Create coworker @#{fields['handle']}?",
-          coworker: fields
+          coworker: fields.merge(
+            "branch" => "coworkers/#{fields['handle']}",
+            "grant_policies" => fields.fetch("grants").index_with { |capability| Coworkers::Create::DEFAULT_GRANTS.fetch(capability) }
+          )
         )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)

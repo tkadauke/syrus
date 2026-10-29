@@ -20,7 +20,11 @@
     "account_default": "Kontostandard",
     "not_provided": "Nicht angegeben",
     "example_pending": "Ausstehender Mitarbeiter",
-    "example_grant_pending": "Ausstehende Fähigkeitserweiterung"
+    "example_grant_pending": "Ausstehende Fähigkeitserweiterung",
+    "save_about": "Über-Text speichern",
+    "about_saved": "Über-Text gespeichert",
+    "open_coworker": "Coworker öffnen",
+    "open_chat": "Hauptchat öffnen"
   },
   "fields": {
     "name": "Name",
@@ -29,6 +33,7 @@
     "provider": "Provider",
     "effort": "Denkaufwand",
     "remote": "Workspace-Remote",
+    "branch": "Branch",
     "color": "Farbe",
     "avatar": "Avatar",
     "grants": "Fähigkeiten",
