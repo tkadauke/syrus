@@ -136,7 +136,10 @@ module Api
           own_chat_ids = Coworkers::Chat.where(coworker: coworker, chat_session_id: chat_ids).pluck(:chat_session_id).to_set
 
           chats.map do |chat|
-            { id: chat.id, title: chat.title.presence || "Chat ##{chat.id}", rostered: rostered_ids.include?(chat.id) || own_chat_ids.include?(chat.id) }
+            {
+              id: chat.id, title: chat.title.presence || "Chat ##{chat.id}",
+              rostered: rostered_ids.include?(chat.id), implicit: own_chat_ids.include?(chat.id)
+            }
           end
         end
 

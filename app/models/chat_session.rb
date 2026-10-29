@@ -398,7 +398,7 @@ class ChatSession < ApplicationRecord
     daily_cost_usd.to_d
   end
 
-  def record_turn_usage!(result, at: Time.current)
+  def record_turn_usage!(result, at: Time.current, agent_provider: effective_chat_provider)
     updates = {}
     updates[:cumulative_input_tokens] = cumulative_input_tokens + result.input_tokens.to_i if result.input_tokens
     updates[:cumulative_output_tokens] = cumulative_output_tokens + result.output_tokens.to_i if result.output_tokens
@@ -416,7 +416,7 @@ class ChatSession < ApplicationRecord
           user: user,
           incurred_at: at,
           cost_usd: result.cost_usd,
-          agent_provider: effective_chat_provider
+          agent_provider: agent_provider
         )
       end
     end

@@ -51,7 +51,7 @@ const detailPayload = {
     workspace_repo: "https://github.com/acme/workspace.git",
     soul: "role: Researcher\n\nCurious and concise.",
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
-    available_chats: [{ id: 22, title: "Planning", rostered: false }],
+    available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto" }]
   }
 }
@@ -175,6 +175,26 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Add to chat" }))
 
   await waitFor(() => expect(requests).toContain("/api/v1/app/chats/22/agents/7"))
+})
+
+it("does not offer removal for the coworker's implicit own chat", async () => {
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      available_chats: [{ id: 12, title: "Maya", rostered: false, implicit: true }]
+    }
+  }
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => jsonResponse(payload))
+  )
+
+  renderRoute("/coworkers/7")
+  const selector = await screen.findByRole("combobox", { name: "Add to chat" })
+  fireEvent.change(selector, { target: { value: "12" } })
+
+  expect(screen.getByRole("button", { name: "Add to chat" })).toBeDisabled()
+  expect(screen.queryByRole("button", { name: "Remove from chat" })).not.toBeInTheDocument()
 })
 
 it("renders the custom profile, creates side chats, and marks later tabs as stubs", async () => {
