@@ -1,4 +1,4 @@
-# javascript
+# JavaScript
 
 `javascript` is a Syrus plugin gem that bundles Node/JS (and TS) prepare detection and dev-server preview hosting into a single `PluginRegistry.register` call. It lives at `plugins/javascript/` inside the Syrus repository. Named for language parity with `ruby`/`python` rather than `node`, since npm/yarn/pnpm/bun + `package.json` detection is identical for JS and TS repos.
 
