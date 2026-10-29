@@ -30,6 +30,7 @@
     "no_commits": "Kein Commit-Verlauf ist verfügbar.",
     "chat_source": "Chat {{id}}",
     "run_source": "Run {{id}}",
+    "unattributed_source": "Quelle nicht verfügbar",
     "conflict": "Nicht zusammengeführter Chat-Branch {{branch}}:",
     "test_push": "Push-Zugriff testen",
     "push_ok": "Push-Zugriff bestätigt"

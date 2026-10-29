@@ -393,7 +393,7 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
           {workspace.commits.map((commit) => (
             <li className="text-sm" key={commit.sha}>
               <code>{commit.sha.slice(0, 7)}</code> {commit.message}
-              {commit.source_id ? <span className="ml-2 text-text-muted">{t(`workspace.${commit.source}_source`, { id: commit.source_id })}</span> : null}
+              <span className="ml-2 text-text-muted">{t(`workspace.${commit.source}_source`, { id: commit.source_id })}</span>
             </li>
           ))}
         </ol>
