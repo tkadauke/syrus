@@ -75,6 +75,14 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     end
   end
 
+  it "records coworker-only decisions for coworker messaging" do
+    decisions = described_class::EXPLICIT_SURFACE_DECISIONS.fetch("coworker.message")
+
+    %i[user_api admin_api cli].each do |surface|
+      expect(decisions.fetch(surface).fetch(:reason)).to eq(described_class::COWORKER_MCP_REASON)
+    end
+  end
+
   it "records non-MCP decisions for the security review submission capability" do
     capability = described_class.capabilities.index_by(&:key).fetch("submit_security_review")
 

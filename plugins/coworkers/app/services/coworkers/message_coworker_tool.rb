@@ -1,6 +1,6 @@
 require "mcp"
 
-module Mcp::Tools
+module Coworkers
   class MessageCoworkerTool < MCP::Tool
     MAX_HOPS = 3
 

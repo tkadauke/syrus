@@ -164,6 +164,7 @@ module Admin
     COWORKER_MCP_CAPABILITIES = %w[
       chat.message_owner
       chats.read_shared
+      coworker.message
       syrus.propose_job
       syrus.read_jobs
     ].freeze
