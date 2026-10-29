@@ -406,7 +406,7 @@ attention on the next repairing tick. The app API endpoint is
 `/api/v1/app/admin/reconciler_activity`; the token admin API endpoint is
 `/api/v1/admin/reconciler_activity`. Both are paginated newest-first and accept
 `event_type`, `job_id`, `workflow_id`, and `run_id` filters.
-`WorkEngineReconcilerActivityPruneJob` keeps the activity table bounded to the
+The `work_engine_reconciler_activity` registry policy keeps the activity table bounded to the
 last 7 days.
 
 - `auto_repairable` when the plan is safe for automatic execution

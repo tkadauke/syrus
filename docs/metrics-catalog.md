@@ -54,6 +54,11 @@ are computed at read time with `rate()`.
 | `syrus_repositories_main_branch_broken_count` | gauge | — | no | Repositories whose default branch health is currently broken -- StepDispatcher pauses every workflow instance-wide, including landing, while this is nonzero (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_repository_commit_distance_lookups_total` | counter | `outcome` | no | Repository commit-distance lookups by outcome (cache_hit, cache_miss, refreshed, coalesced_wait), from every process (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_repository_content_reads_total` | counter | `provider`, `kind`, `outcome` | no | Repository content reads by provider asked (or cache), operation, and outcome, from every process (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_retention_prune_backlog` | gauge | `retention_key` | no | Whether eligible rows remain after a retention pass |
+| `syrus_retention_prune_duration_seconds` | histogram | `retention_key` | no | Duration of a database retention policy pass |
+| `syrus_retention_prune_failures_total` | counter | `retention_key` | no | Failed database retention policy passes |
+| `syrus_retention_prune_last_success_timestamp_seconds` | gauge | `retention_key` | no | Unix timestamp of the latest successful database retention policy pass |
+| `syrus_retention_rows_pruned_total` | counter | `retention_key` | no | Rows deleted or payload-cleared by database retention policy |
 | `syrus_run_duration_seconds` | histogram | `step_kind` | no | Run wall clock by step kind |
 | `syrus_runs_total` | counter | `state`, `trigger_kind` | no | Runs by terminal state |
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |

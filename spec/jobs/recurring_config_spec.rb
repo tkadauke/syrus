@@ -54,46 +54,17 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
-  it "prunes old notifications daily" do
+  it "runs one registry-driven database retention sweep every ten minutes" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 
-    expect(config.fetch("default").fetch("prune_old_notifications")).to include(
-      "class" => "PruneOldNotificationsJob",
+    expect(config.fetch("default").fetch("database_retention_sweep")).to include(
+      "class" => "RetentionSweepJob",
       "queue" => "cleanup",
-      "schedule" => "every day at 3:30am"
+      "schedule" => "every 10 minutes"
     )
-  end
-
-  it "schedules the metrics dashboard sample pruner daily" do
-    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
-
-    expect(config.fetch("default").fetch("prune_metrics_dashboard_samples")).to include(
-      "class" => "MetricsDashboard::PruneJob",
-      "queue" => "cleanup",
-      "schedule" => "every day at 3:19am"
-    )
-  end
-
-  it "schedules every core retention policy job" do
-    configured_classes = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
-      .fetch("default")
-      .values
-      .filter_map { |entry| entry["class"] }
-
-    RetentionPolicyRegistry::CORE_DEFINITIONS.filter_map(&:job_class).each do |job_class|
-      expect(configured_classes).to include(job_class), "#{job_class} has a retention policy but no recurring task"
-    end
-  end
-
-  it "prunes job logs daily and performance events hourly" do
-    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true).fetch("default")
-
-    expect(config.fetch("prune_job_logs")).to include(
-      "class" => "JobLogPruneJob", "queue" => "cleanup", "schedule" => "every day at 3:05am"
-    )
-    expect(config.fetch("prune_performance_log_events")).to include(
-      "class" => "PerformanceLogEventPruneJob", "queue" => "cleanup", "schedule" => "every hour"
-    )
+    retention_classes = RetentionPolicyRegistry::CORE_DEFINITIONS.filter_map(&:executor_class)
+    configured_classes = config.fetch("default").values.filter_map { |entry| entry["class"] }
+    expect(configured_classes & retention_classes).to be_empty
   end
 
   it "refreshes workflow step resource profiles hourly" do
@@ -123,36 +94,6 @@ RSpec.describe "recurring job configuration" do
       "class" => "WorkerHostHealthTelemetryCheckJob",
       "queue" => "cleanup",
       "schedule" => "every 5 minutes"
-    )
-  end
-
-  it "prunes run health snapshots daily" do
-    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
-
-    expect(config.fetch("default").fetch("prune_run_health_snapshots")).to include(
-      "class" => "RunHealthSnapshotPruneJob",
-      "queue" => "cleanup",
-      "schedule" => "every day at 3:22am"
-    )
-  end
-
-  it "prunes main branch health checks daily" do
-    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
-
-    expect(config.fetch("default").fetch("prune_main_branch_health_checks")).to include(
-      "class" => "MainBranchHealthCheckPruneJob",
-      "queue" => "cleanup",
-      "schedule" => "every day at 3:25am"
-    )
-  end
-
-  it "prunes stale workflow step resource profiles daily" do
-    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
-
-    expect(config.fetch("default").fetch("prune_workflow_step_resource_profiles")).to include(
-      "class" => "WorkflowStepResourceProfilePruneJob",
-      "queue" => "cleanup",
-      "schedule" => "every day at 3:55am"
     )
   end
 

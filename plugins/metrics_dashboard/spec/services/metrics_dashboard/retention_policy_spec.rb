@@ -1,6 +1,11 @@
 require "rails_helper"
 
-RSpec.describe MetricsDashboard::RetentionPolicy do
+RSpec.describe MetricsDashboard::RetentionPolicy, requires_plugin: "metrics_dashboard" do
+  before do
+    PluginRecord.find_or_create_by!(name: "metrics_dashboard").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+  end
+
   it "includes the Syrus::Plugin::RetentionPolicy interface" do
     expect(described_class).to include(Syrus::Plugin::RetentionPolicy)
   end
@@ -17,21 +22,18 @@ RSpec.describe MetricsDashboard::RetentionPolicy do
     expect(definition.setting_key).to eq(:metrics_dashboard_sample_retention_days)
     expect(definition.default_value).to eq(7)
     expect(definition.unit).to eq(:days)
-    expect(definition.job_class).to eq("MetricsDashboard::PruneJob")
+    expect(definition.executor_class).to be_nil
     expect(definition.description).to include("longest selectable window (7 days)")
   end
 
-  it "is registered with core's RetentionPolicyRegistry and merged into .definitions" do
-    expect(RetentionPolicyRegistry.definitions.map(&:key)).to include(:metrics_dashboard_sample)
+  it "does not become a core definition" do
     expect(RetentionPolicyRegistry::CORE_DEFINITIONS.map(&:key)).not_to include(:metrics_dashboard_sample)
-    expect(RetentionPolicyRegistry.fetch(:metrics_dashboard_sample).model_class).to eq(MetricsDashboard::Sample)
   end
 
-  it "is folded into AppSettingRegistry as an admin-editable setting" do
-    definition = AppSettingRegistry.fetch(:metrics_dashboard_sample_retention_days)
+  it "stores its effective value in canonical seconds" do
+    definition = described_class.retention_definitions.fetch(0)
 
-    expect(definition.type).to eq(:integer)
-    expect(definition.default).to eq(7)
-    expect(definition.admin_editable).to be true
+    expect(definition.default_seconds).to eq(7.days.to_i)
+    expect(definition.setting.archive_before_delete).to be_nil
   end
 end

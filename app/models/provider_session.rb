@@ -22,7 +22,7 @@ class ProviderSession < ApplicationRecord
 
   # Keep captured agent sessions for diagnostics and provider resume
   # rehydration after the parent Run reaches a terminal state (defaults to
-  # two weeks; 0 = infinite retention). After that, ProviderSessionPruneJob
+  # two weeks; 0 = infinite retention). After that, the retention policy worker
   # deletes them. Active Runs (queued/running) are never pruned.
   configurable_retention setting_key: :provider_session_retention_days, unit: :days
 

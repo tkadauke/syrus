@@ -16,7 +16,7 @@ RSpec.describe RetentionSizeSnapshotJob do
 
   describe "#perform" do
     it "caches row count, byte size, and the projected max byte size for a finite retention window" do
-      AppSetting.current.update!(notification_retention_days: 10)
+      set_retention(:notification, 10)
       allow(TableSizeEstimator).to receive(:estimate).with("notifications").and_return(
         TableSizeEstimator::Result.new(table_name: "notifications", row_count_estimate: 1000, byte_size_estimate: 200_000)
       )
@@ -35,7 +35,7 @@ RSpec.describe RetentionSizeSnapshotJob do
     end
 
     it "exposes the projection as unbounded/null when the configured retention is infinite" do
-      AppSetting.current.update!(notification_retention_days: 0)
+      set_retention(:notification, 0)
       allow(TableSizeEstimator).to receive(:estimate).and_return(
         TableSizeEstimator::Result.new(table_name: "notifications", row_count_estimate: 1000, byte_size_estimate: 200_000)
       )
@@ -49,7 +49,7 @@ RSpec.describe RetentionSizeSnapshotJob do
     end
 
     it "guards the divide-by-zero case when the table is currently empty" do
-      AppSetting.current.update!(notification_retention_days: 10)
+      set_retention(:notification, 10)
       allow(TableSizeEstimator).to receive(:estimate).and_return(
         TableSizeEstimator::Result.new(table_name: "notifications", row_count_estimate: 0, byte_size_estimate: 0)
       )

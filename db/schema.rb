@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_132935) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_143228) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -220,25 +220,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_132935) do
     t.integer "telegram_update_offset", default: 0
     t.text "discord_bot_token"
     t.boolean "show_work_unit_debug", default: false, null: false
-    t.integer "run_diagnostic_retention_days", default: 30, null: false
-    t.integer "run_resource_summary_retention_days", default: 30, null: false
-    t.integer "worker_host_health_sample_retention_days", default: 7, null: false
-    t.integer "work_engine_reconciler_activity_retention_days", default: 7, null: false
-    t.integer "provider_session_retention_days", default: 14, null: false
-    t.integer "spawned_process_retention_days", default: 7, null: false
-    t.integer "notification_retention_days", default: 30, null: false
-    t.integer "operational_log_event_retention_hours", default: 6, null: false
-    t.integer "metrics_dashboard_sample_retention_days", default: 7, null: false
-    t.integer "run_health_snapshot_retention_days", default: 7, null: false
-    t.integer "main_branch_health_check_retention_days", default: 7, null: false
-    t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
     t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
     t.integer "retention_available_space_override_gb", default: 0, null: false
-    t.boolean "run_diagnostic_archive_before_delete", default: false, null: false
-    t.boolean "work_engine_reconciler_activity_archive_before_delete", default: false, null: false
-    t.boolean "provider_session_archive_before_delete", default: false, null: false
-    t.boolean "run_health_snapshot_archive_before_delete", default: false, null: false
-    t.boolean "main_branch_health_check_archive_before_delete", default: false, null: false
     t.integer "singleton_key", default: 1, null: false
     t.json "macos_worker_desired_release"
     t.string "merge_train_failure_policy", default: "restart", null: false
@@ -249,10 +232,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_132935) do
     t.integer "prepared_layer_cache_gb", default: 10, null: false
     t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
     t.integer "security_review_rounds", default: 0, null: false
-    t.integer "job_log_retention_days", default: 30, null: false
-    t.boolean "job_log_archive_before_delete", default: false, null: false
-    t.integer "performance_log_event_retention_hours", default: 24, null: false
-    t.integer "test_insight_case_retention_days", default: 90, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -2966,6 +2945,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_132935) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["retention_key", "pruned_before"], name: "index_retention_archives_on_retention_key_and_pruned_before"
+  end
+
+  create_table "retention_policy_settings", force: :cascade do |t|
+    t.string "retention_key", null: false
+    t.bigint "retention_seconds"
+    t.boolean "archive_before_delete"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["retention_key"], name: "index_retention_policy_settings_on_retention_key", unique: true
   end
 
   create_table "run_checkpoints", force: :cascade do |t|

@@ -264,7 +264,7 @@ module OperationalLogging
 
   def ignored_job?(job, payload)
     job_class = job&.class&.name || payload[:job_class].to_s
-    job_class.in?([ "IndexOperationalLogEventJob", "IndexOperationalLogEventsJob", "PruneOperationalLogsJob" ])
+    job_class.in?([ "IndexOperationalLogEventJob", "IndexOperationalLogEventsJob", "RetentionPolicyPruneJob" ])
   end
 
   def ignored_successful_fast_job?(payload, duration_ms, level)

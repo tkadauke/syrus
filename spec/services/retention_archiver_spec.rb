@@ -24,7 +24,7 @@ RSpec.describe RetentionArchiver do
     end
 
     it "is a no-op and returns nil when cutoff is nil" do
-      AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+      set_retention_archive(:run_diagnostic, true)
       old = RunDiagnostic.create!(run: Factories.run, error_class: "X")
       old.update_columns(created_at: 10.years.ago)
 
@@ -35,7 +35,7 @@ RSpec.describe RetentionArchiver do
     end
 
     it "is a no-op and returns nil when the scope has no rows" do
-      AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+      set_retention_archive(:run_diagnostic, true)
       RunDiagnostic.create!(run: Factories.run, error_class: "X") # fresh, not in scope below
 
       result = described_class.call(retention_key: :run_diagnostic, scope: RunDiagnostic.none, cutoff: Time.current)
@@ -45,7 +45,7 @@ RSpec.describe RetentionArchiver do
     end
 
     it "archives the scope's rows to a decompressible JSONL attachment, without deleting them" do
-      AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+      set_retention_archive(:run_diagnostic, true)
       old_one = RunDiagnostic.create!(run: Factories.run, error_class: "OldOne")
       old_two = RunDiagnostic.create!(run: Factories.run, error_class: "OldTwo")
       [ old_one, old_two ].each { |r| r.update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago) }
@@ -69,7 +69,7 @@ RSpec.describe RetentionArchiver do
     end
 
     it "batches serialization via find_in_batches instead of loading the whole scope at once" do
-      AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+      set_retention_archive(:run_diagnostic, true)
       3.times { |n| RunDiagnostic.create!(run: Factories.run, error_class: "Batch#{n}").update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago) }
       scope = RunDiagnostic.prunable
 
@@ -81,7 +81,7 @@ RSpec.describe RetentionArchiver do
     end
 
     it "creates exactly one RetentionArchive row per call, regardless of batch count" do
-      AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+      set_retention_archive(:run_diagnostic, true)
       3.times { RunDiagnostic.create!(run: Factories.run, error_class: "X").update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago) }
 
       expect {

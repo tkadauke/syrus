@@ -6,7 +6,7 @@ module Metrics
   # resilience") recurring.
   #
   # Motivating incident: `provider_sessions` reached 6.0 GB, rows dating back
-  # over a month, because `prune_provider_sessions` had silently stopped --
+  # over a month, because the database retention sweep had silently stopped --
   # invisible outside a Rails console until someone went looking by hand. The
   # same shape as every other incident this metrics effort has instrumented.
   #

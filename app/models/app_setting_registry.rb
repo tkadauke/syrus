@@ -602,6 +602,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :workflow_step_resource_profile_input_retention_days,
+      type: :integer,
+      default: 180,
+      min: 0,
+      max: nil,
+      category: "Data retention",
+      operational_meaning: "Lookback window used when rebuilding workflow step resource profiles; this does not delete rows.",
+      zero_means: "Use the full available Run resource summary history.",
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :main_concern_report_threshold,
       type: :integer,
       default: 2,
@@ -616,20 +628,8 @@ class AppSettingRegistry
     )
   ].freeze
 
-  # RetentionPolicyRegistry is the declarative source of truth for
-  # per-table retention windows; folding its entries in here means the
-  # numericality validation and admin-editable metadata below apply to
-  # every retention setting automatically instead of being hand-listed.
-  #
-  # Recomputed on every call (RetentionPolicyRegistry.definitions itself
-  # recomputes, merging in plugin-contributed entries) rather than frozen
-  # once, so a plugin's retention setting is picked up whenever its
-  # `:retention_policy` provider is registered instead of only if that
-  # happened to already be true the one time this constant would otherwise
-  # have been evaluated.
   def self.definitions
-    BASE_DEFINITIONS + RetentionPolicyRegistry.definitions.map(&:as_app_setting_definition) +
-      RetentionPolicyRegistry.archive_app_setting_definitions
+    BASE_DEFINITIONS
   end
 
   def self.fetch(key)

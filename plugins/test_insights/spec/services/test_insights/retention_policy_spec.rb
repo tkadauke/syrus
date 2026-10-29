@@ -19,7 +19,7 @@ RSpec.describe TestInsights::RetentionPolicy do
     expect(definition.setting_key).to eq(:test_insight_case_retention_days)
     expect(definition.default_value).to eq(90)
     expect(definition.unit).to eq(:days)
-    expect(definition.job_class).to eq("TestInsights::PruneJob")
+    expect(definition.executor_class).to eq("TestInsights::RetentionExecutor")
   end
 
   it "is merged into the registry without becoming a core definition" do
@@ -28,11 +28,10 @@ RSpec.describe TestInsights::RetentionPolicy do
     expect(RetentionPolicyRegistry.fetch(:test_insight_case).model_class).to eq(TestInsights::TestCase)
   end
 
-  it "is folded into AppSettingRegistry as an admin-editable setting" do
-    definition = AppSettingRegistry.fetch(:test_insight_case_retention_days)
+  it "stores its effective value in canonical seconds" do
+    definition = RetentionPolicyRegistry.fetch(:test_insight_case)
 
-    expect(definition.type).to eq(:integer)
-    expect(definition.default).to eq(90)
-    expect(definition.admin_editable).to be true
+    expect(definition.default_seconds).to eq(90.days.to_i)
+    expect(definition.setting.archive_before_delete).to be_nil
   end
 end

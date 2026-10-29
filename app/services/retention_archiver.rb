@@ -26,7 +26,7 @@ class RetentionArchiver
   # Returns the created RetentionArchive, or nil when archiving didn't run
   # (setting off, no cutoff, or an empty batch).
   def call
-    return nil unless AppSetting.current.public_send(@definition.archive_setting_key)
+    return nil unless @definition.setting.archive_before_delete?
     return nil if @cutoff.nil?
     return nil if @scope.none?
 

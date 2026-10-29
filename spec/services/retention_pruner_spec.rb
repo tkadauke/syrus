@@ -15,7 +15,7 @@ RSpec.describe RetentionPruner do
     end
 
     it "archives and deletes the same selected IDs when rows change around the cutoff" do
-      AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+      set_retention_archive(:run_diagnostic, true)
       selected = RunDiagnostic.create!(run: Factories.run, error_class: "Selected")
       selected.update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago)
       original_call = RetentionArchiver.method(:call)
@@ -46,7 +46,7 @@ RSpec.describe RetentionPruner do
     end
 
     it "rolls back the archive when the batch cannot complete" do
-      AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+      set_retention_archive(:run_diagnostic, true)
       selected = RunDiagnostic.create!(run: Factories.run, error_class: "Selected")
       selected.update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago)
       original_call = RetentionArchiver.method(:call)
