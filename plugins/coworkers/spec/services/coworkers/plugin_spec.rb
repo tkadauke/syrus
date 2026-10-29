@@ -80,6 +80,9 @@ RSpec.describe "Coworkers plugin" do
   it "cleans plugin rows up with their core owners" do
     scope = Syrus::EffectScope.new(label: "spec")
     Coworkers::DataCleanup.install_into(scope)
+    branch_lifecycle = instance_double(Coworkers::BranchLifecycle)
+    allow(branch_lifecycle).to receive(:archive!) { |**_, &block| block.call }
+    allow(Coworkers::BranchLifecycle).to receive(:new).and_return(branch_lifecycle)
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "git@example.com:workspaces.git")
     chat = ChatSession.create!(user: owner, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
@@ -89,6 +92,7 @@ RSpec.describe "Coworkers plugin" do
 
     owner.destroy!
     expect(Coworkers::Coworker.where(id: coworker.id)).to be_empty
+    expect(branch_lifecycle).to have_received(:archive!).with(handle: "maya")
   ensure
     scope&.dispose
   end
