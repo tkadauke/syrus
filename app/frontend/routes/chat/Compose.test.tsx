@@ -117,7 +117,7 @@ describe("Compose walkthrough recorder errors", () => {
 })
 
 describe("Compose attachments", () => {
-  it("accepts recognized text files reported as text/plain", async () => {
+  it("leaves the native picker unfiltered so recognized extensionless files can be selected", async () => {
     vi.mocked(useWalkthroughRecorder).mockReturnValue({
       state: { phase: "idle" },
       elapsed: 0,
@@ -133,13 +133,12 @@ describe("Compose attachments", () => {
     renderCompose()
 
     const input = screen.getByLabelText("Chat attachments")
-    expect(input.getAttribute("accept")).toContain(".txt")
-    expect(input.getAttribute("accept")).toContain(".svg")
+    expect(input).not.toHaveAttribute("accept")
 
-    fireEvent.change(input, { target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] } })
+    fireEvent.change(input, { target: { files: [new File(["FROM ruby"], "Dockerfile", { type: "text/plain" })] } })
 
-    expect(await screen.findByTitle("notes.txt")).toBeInTheDocument()
-    expect(screen.queryByText("notes.txt is not a supported attachment type.")).not.toBeInTheDocument()
+    expect(await screen.findByTitle("Dockerfile")).toBeInTheDocument()
+    expect(screen.queryByText("Dockerfile is not a supported attachment type.")).not.toBeInTheDocument()
   })
 })
 
