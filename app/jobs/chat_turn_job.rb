@@ -283,11 +283,16 @@ class ChatTurnJob < ApplicationJob
     end
 
     if parent_session_id.present?
-      elaboration_guidance = Prompts::ChatSystem.new(repository: active_chat.repository, chat_session: @chat).elaboration_guidance
+      elaboration_guidance = Prompts::ChatSystem.new(
+        repository: active_chat.repository, chat_session: @chat, current_message: @user_message
+      ).elaboration_guidance
       return [ snapshot, elaboration_guidance.presence, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
     end
 
-    [ Prompts::ChatSystem.new(repository: active_chat.repository, chat_session: @chat).to_s, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
+    chat_system = Prompts::ChatSystem.new(
+      repository: active_chat.repository, chat_session: @chat, current_message: @user_message
+    )
+    [ chat_system.to_s, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
   end
 
   # Some messages are not really "the user said this" -- a walkthrough video is
@@ -315,7 +320,9 @@ class ChatTurnJob < ApplicationJob
   # Full system prompt for a fresh session; the compact elaboration guidance when
   # resuming (the resumed session already carries the full system context).
   def system_guidance(parent_session_id)
-    chat_system = Prompts::ChatSystem.new(repository: active_chat.repository, chat_session: @chat)
+    chat_system = Prompts::ChatSystem.new(
+      repository: active_chat.repository, chat_session: @chat, current_message: @user_message
+    )
     base = parent_session_id.present? ? chat_system.elaboration_guidance.presence : chat_system.to_s
     coding = coding_mode_guidance
     [ base, coding ].compact.join("\n\n")
