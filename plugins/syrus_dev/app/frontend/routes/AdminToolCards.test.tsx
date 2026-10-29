@@ -270,6 +270,24 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("Bash(ls)")).toBeInTheDocument()
   })
 
+  it("switches the default preview to phone when the browser is resized to a phone width", () => {
+    const originalWidth = window.innerWidth
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 })
+    const view = renderRoute("/admin/tool_cards?tool_name=Bash")
+
+    const switcher = screen.getByRole("tablist", { name: "Preview viewport" })
+    expect(within(switcher).getByRole("tab", { name: "Desktop (1280px)", selected: true })).toBeInTheDocument()
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+    fireEvent(window, new Event("resize"))
+
+    expect(within(switcher).getByRole("tab", { name: "Phone (390px)", selected: true })).toBeInTheDocument()
+    expect(within(screen.getByRole("region", { name: "Bash" })).getByLabelText(/Card preview constrained to/).style.width).toBe("390px")
+
+    view.unmount()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth })
+  })
+
   it("applies each preset's width as an explicit inline width, not a max-width, on the preview frame", () => {
     renderRoute("/admin/tool_cards?tool_name=Bash")
 
