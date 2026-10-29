@@ -85,9 +85,38 @@ describe("appearance helpers", () => {
     expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#5D7FA8", 1), accentRef: { family: "dusty", index: 7, shade: 1 } })
     fireEvent.click(screen.getByRole("button", { name: "Terracotta" }))
     expect(screen.getByRole("button", { name: "Dusty" })).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByRole("button", { name: "Rosewood" })).toHaveAttribute("aria-pressed", "false")
     expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#b6492e", 1), accentRef: { family: "earth", index: 0, shade: 1 } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Vivid" }))
+    expect(screen.getByRole("button", { name: "Terracotta" })).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByRole("button", { name: "Vivid" })).toHaveAttribute("aria-pressed", "true")
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#E5484D", 1), accentRef: { family: "vivid", index: 0, shade: 1 } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Terracotta" }))
+    fireEvent.click(screen.getByRole("button", { name: "Azure" }))
+    expect(screen.getByRole("button", { name: "Terracotta" })).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByRole("button", { name: "Vivid" })).toHaveAttribute("aria-pressed", "true")
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: accentVariant("#0090FF", 1), accentRef: { family: "vivid", index: 7, shade: 1 } })
+
     fireEvent.click(screen.getByRole("button", { name: "0 Base" }))
-    expect(onChange).toHaveBeenLastCalledWith({ accentHex: "#B6492E", accentRef: { family: "earth", index: 0, shade: 0 } })
+    expect(onChange).toHaveBeenLastCalledWith({ accentHex: "#0090FF", accentRef: { family: "vivid", index: 7, shade: 0 } })
+  })
+
+  it("uses a readable on-color label for every fine-tune variant", () => {
+    render(<ColorPicker accentRef={{ family: "vivid", index: 9, shade: 0 }} onChange={vi.fn()} value="#6E56CF" />)
+
+    const variants = [
+      { shade: -2 as const, label: "−2 Deeper" },
+      { shade: -1 as const, label: "−1 Deep" },
+      { shade: 0 as const, label: "0 Base" },
+      { shade: 1 as const, label: "+1 Light" },
+      { shade: 2 as const, label: "+2 Lighter" }
+    ]
+    for (const variant of variants) {
+      const hex = accentVariant("#6E56CF", variant.shade)
+      expect(screen.getByRole("button", { name: variant.label })).toHaveStyle({ backgroundColor: hex, color: onColor(hex) })
+    }
   })
 
   it("reopens from a valid reference and falls back to the nearest base color", () => {

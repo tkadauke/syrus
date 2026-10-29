@@ -1475,7 +1475,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   tone rows across twelve aligned hues, plus a separate Naturals row. Syrus
   stores one solid accent per agent and derives contrast-safe avatar text,
   tints, borders, and interaction shades from that value; interface controls
-  continue to use the active app theme rather than an agent accent.
+  continue to use the active app theme rather than an agent accent. The picker
+  combines tone and hue controls with five lightness adjustments and a live
+  avatar, message, mention, and presence preview. A non-persisted preview is
+  available under Agent Settings until coworker profile editing is available.
 - **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
 - **Credential Store** is the management surface for generic scoped credentials
   owned by the bundled `credential_store` plugin. It stores payload material as
