@@ -13,7 +13,8 @@
     "grant_summary": "Proposed capabilities for @{{handle}}",
     "account_default": "Account default",
     "not_provided": "Not provided",
-    "example_pending": "Pending coworker"
+    "example_pending": "Pending coworker",
+    "example_grant_pending": "Pending capability escalation"
   },
   "fields": {
     "name": "Name",

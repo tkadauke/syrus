@@ -19,7 +19,8 @@
     "grant_summary": "Facultates pro @{{handle}} propositae",
     "account_default": "Praedefinitum rationis",
     "not_provided": "Non datum",
-    "example_pending": "Collega pendens"
+    "example_pending": "Collega pendens",
+    "example_grant_pending": "Amplificatio facultatum pendens"
   },
   "fields": {
     "name": "Nomen",
