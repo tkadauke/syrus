@@ -10,8 +10,10 @@ import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
 import { PageHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { FilterBar, type FilterLinkBuilder, type FilterTree } from "@app/components/FilterBar"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
+import { Markdown } from "@app/lib/Markdown"
 import { withRoutePrefix } from "@app/lib/routing"
 import { defaultAccentSelection, type AccentSelection } from "@app/lib/appearance"
 import {
@@ -19,9 +21,11 @@ import {
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerMemory,
   fetchCoworkers,
   removeCoworkerFromChat,
   testCoworkerRemote,
+  type CoworkerMemoryFile,
   type CoworkerSummary
 } from "../api/coworkers"
 
@@ -308,8 +312,107 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
-      {!["chat", "profile"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {tab === "memory" ? <CoworkerMemory id={id} /> : null}
+      {!["chat", "profile", "memory"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
+  )
+}
+
+const memoryFilterSchema = (label: string) => [{ field: "search", label, bucket: "text", operators: ["contains"], values: [], free_text_search: true }]
+
+function memoryFilterTree(search: string): FilterTree {
+  const value = new URLSearchParams(search).get("search")?.trim()
+  return { and: value ? [{ field: "search", op: "contains", value }] : [] }
+}
+
+const memoryFilterLink: FilterLinkBuilder = (path, search, updates) => {
+  const params = new URLSearchParams(search)
+  if (typeof updates.q === "string" && updates.q) {
+    try {
+      const encoded = updates.q.replace(/-/g, "+").replace(/_/g, "/")
+      const tree = JSON.parse(atob(encoded)) as { and?: Array<{ field?: string; value?: unknown }> }
+      const value = tree.and?.find((chip) => chip.field === "search")?.value
+      if (typeof value === "string" && value.trim()) params.set("search", value.trim())
+      else params.delete("search")
+    } catch {
+      params.delete("search")
+    }
+  } else if (updates.q == null) params.delete("search")
+  const query = params.toString()
+  return query ? `${path}?${query}` : path
+}
+
+function CoworkerMemory({ id }: { id: string }) {
+  const { t } = useT("coworkers")
+  const location = useLocation()
+  const prefix = usePrefix()
+  const searchValue = new URLSearchParams(location.search).get("search")?.trim() || ""
+  const queryString = searchValue ? `?search=${encodeURIComponent(searchValue)}` : ""
+  const query = useQuery({ queryKey: ["coworkers", id, "memory", searchValue], queryFn: () => fetchCoworkerMemory(id, queryString) })
+  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const files = query.data?.files || []
+  const selected = files.find((file) => file.path === selectedPath) || files[0]
+
+  useEffect(() => {
+    if (files.length > 0 && !files.some((file) => file.path === selectedPath)) setSelectedPath(files[0].path)
+  }, [files, selectedPath])
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <FilterBar
+          buildLink={memoryFilterLink}
+          filter={memoryFilterTree(location.search)}
+          filterSchema={memoryFilterSchema(t("memory.search"))}
+          legacyFilterKeys={["search"]}
+          pathname={location.pathname}
+          search={location.search}
+        />
+        <Link className="shrink-0 text-sm text-brand underline" to={`${prefix}/memories`}>{t("memory.owner_memories")}</Link>
+      </div>
+      {query.isPending ? <PanelMessage>{t("memory.loading")}</PanelMessage> : null}
+      {query.isError ? <PanelMessage>{t("memory.unavailable")}</PanelMessage> : null}
+      {query.isSuccess && files.length === 0 ? <PanelMessage>{searchValue ? t("memory.no_results") : t("memory.empty")}</PanelMessage> : null}
+      {query.isSuccess && files.length > 0 ? (
+        <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[15rem_minmax(0,1fr)]">
+          <MemoryFileList files={files} selectedPath={selected?.path} setSelectedPath={setSelectedPath} />
+          <article className="min-w-0 border-t border-border p-5 md:border-l md:border-t-0">
+            <div className="mb-4 border-b border-border pb-3">
+              <h2 className="font-semibold text-text-primary">{selected?.name}</h2>
+              <p className="text-xs text-text-muted">{selected?.path}</p>
+            </div>
+            {selected?.truncated ? <p className="mb-3 text-sm text-warning">{t("memory.truncated")}</p> : null}
+            <Markdown className="chat-prose text-sm text-text-primary" text={selected?.content || ""} />
+          </article>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function MemoryFileList({ files, selectedPath, setSelectedPath }: { files: CoworkerMemoryFile[]; selectedPath?: string; setSelectedPath: (path: string) => void }) {
+  const { t } = useT("coworkers")
+  const categories = ["daily", "people", "repos", "banks"] as const
+  return (
+    <nav aria-label={t("memory.files")} className="p-3">
+      {categories.map((category) => {
+        const categoryFiles = files.filter((file) => file.category === category)
+        if (categoryFiles.length === 0) return null
+        return (
+          <div className="mb-4" key={category}>
+            <h3 className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t(`memory.categories.${category}`)}</h3>
+            {categoryFiles.map((file) => (
+              <button
+                className={`block w-full rounded px-2 py-1.5 text-left text-sm ${selectedPath === file.path ? "bg-brand-soft text-brand" : "text-text-secondary hover:bg-surface-subtle"}`}
+                key={file.path}
+                onClick={() => setSelectedPath(file.path)}
+                type="button"
+              >{file.name}</button>
+            ))}
+          </div>
+        )
+      })}
+    </nav>
   )
 }
 

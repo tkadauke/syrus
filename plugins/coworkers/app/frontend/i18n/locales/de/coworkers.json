@@ -5,6 +5,17 @@
   "error": "Mitarbeiter konnten nicht geladen werden.",
   "built_in": "Integriert · Entwickler",
   "coming_later": "Kommt später",
+  "memory": {
+    "search": "Erinnerungsdateien durchsuchen",
+    "files": "Erinnerungsdateien",
+    "loading": "Erinnerungen werden geladen…",
+    "unavailable": "Die Erinnerungen dieses Coworkers sind gerade nicht erreichbar.",
+    "empty": "Dieser Coworker hat noch keine Erinnerungen.",
+    "no_results": "Keine Erinnerungsdatei passt zu dieser Suche.",
+    "owner_memories": "Deine Syrus-Erinnerungen öffnen",
+    "truncated": "Diese große Datei wird nur teilweise angezeigt.",
+    "categories": { "daily": "Täglich", "people": "Personen", "repos": "Repositorys", "banks": "Sammlungen" }
+  },
   "new": {
     "action": "Neuer Mitarbeiter",
     "title": "Neuer Mitarbeiter",

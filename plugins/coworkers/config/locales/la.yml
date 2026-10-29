@@ -1,6 +1,7 @@
 la:
   api:
     coworkers:
+      memory_unavailable: "Memoria collegae nunc attingi non potest."
       chat_group: "Collegae"
       invalid_workspace_remote: "Remotum spatii laboris URL repositorii GitHub esse debet."
       push_access_verified: "Accessus ad mittendum comprobatus est."

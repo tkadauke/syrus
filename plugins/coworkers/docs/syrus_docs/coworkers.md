@@ -91,6 +91,10 @@ cannot be added. The roster is shown beside the chat heading. Coworker turns
 share the chat's serialization lane, so two turns in one chat do not run at the
 same time.
 
-Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
-Workspace, and Activity are visible as coming-later placeholders where their
-full Phase 1 surface has not shipped yet.
+Profile pages render `SOUL.md` read-only. The Memory tab reads the coworker's
+home branch through the cached repository-content providers and presents daily,
+people, repository, and bank Markdown files without any editing controls. It
+supports full-text search across paths and contents, links to the owner's Syrus
+memories, distinguishes an empty memory tree from an unreachable remote, and
+shows recent daily files first. Capabilities, Schedule, Workspace, and Activity
+remain coming-later placeholders where their full surfaces have not shipped yet.
