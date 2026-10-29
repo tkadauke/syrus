@@ -398,9 +398,10 @@ class Epic < ApplicationRecord
     return false if claimed? && actor_user && !claimed_by?(actor_user)
     return false unless execution_dependencies_ready?
     return false unless jobs.exists?
+    return false unless child_jobs_confirmed?
 
-    # ready → start! flows through the graph. backlog must be graph-startable
-    # (has confirmed children, so auto_ready → start works).
+    # ready → start! flows through the graph. backlog must additionally be
+    # graph-startable so auto_ready → start works.
     ready? || ready_to_start?
   end
 
@@ -533,7 +534,9 @@ class Epic < ApplicationRecord
       return I18n.t("api.epics.start_blocked_by_dependencies", names: unfinished_dependency_names.to_sentence)
     end
     return I18n.t("api.epics.start_children_empty") if (backlog? || ready?) && jobs.none?
-    return I18n.t("api.epics.start_children_unconfirmed") if backlog? && jobs.exists? && !child_jobs_confirmed?
+    if (backlog? || ready?) && jobs.exists? && !child_jobs_confirmed?
+      return I18n.t("api.epics.start_children_unconfirmed")
+    end
 
     I18n.t("api.epics.not_startable", state: state)
   end
