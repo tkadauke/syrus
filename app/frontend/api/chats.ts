@@ -462,6 +462,7 @@ export type ChatPendingActionInline = {
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
   outcome?: Record<string, unknown>
+  review?: Record<string, unknown>
   resource_title?: string
   resource_url?: string
   document?: ChatPendingActionDocument

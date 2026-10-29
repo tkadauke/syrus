@@ -40,6 +40,15 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
     JSON.parse(response.content.first.fetch(:text))
   end
 
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "preflights but creates nothing before confirmation, then creates exactly the shown fields" do
     response = propose
     expect(response).not_to be_error
@@ -60,8 +69,10 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
     expect(coworker.workspace_repo).to eq("https://github.com/acme/coworker-homes.git")
     expect(coworker.grants.pluck(:capability)).to contain_exactly(*fields[:grants])
     expect(remote.seeded_files.fetch("SOUL.md")).to include(fields[:about])
-    expect(PendingActions::CreateCoworker.new(action.reload).tool_card_outcome).to eq(
-      coworker_id: coworker.id, chat_id: coworker.coworker_chats.find_by!(role: "main").chat_session_id
+    action.reload
+    expect(PendingActions::CreateCoworker.new(action).tool_card_outcome).to eq(coworker_id: coworker.id)
+    expect(PendingActions::CreateCoworker.preload_tool_card_outcomes([ action ])).to eq(
+      action.id => { coworker_id: coworker.id, chat_id: coworker.coworker_chats.find_by!(role: "main").chat_session_id }
     )
   end
 
@@ -107,6 +118,30 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
 
     expect(Coworkers::ChatToolSet.available_for?(chat, tier: :deferred)).to be false
+  end
+
+  it "batch-loads confirmed coworker main-chat outcomes" do
+    expected_chat_ids = []
+    messages = 3.times.map do |index|
+      coworker = Coworkers::Coworker.create!(
+        owner_user: owner, name: "Coworker #{index}", handle: "batch-#{index}", workspace_repo: "git@example.com:workspaces.git"
+      )
+      main_chat = ChatSession.create!(user: owner, title: coworker.name)
+      expected_chat_ids << main_chat.id
+      Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+      action = chat.pending_actions.create!(action: "create_coworker", payload: fields.deep_stringify_keys, state: "confirmed", result: coworker)
+      chat.messages.create!(
+        role: "tool_use", tool_name: "propose_coworker", tool_use_id: "batch-#{index}", pending_action: action,
+        content: { "type" => "tool_use", "id" => "batch-#{index}", "name" => "propose_coworker", "input" => {} }
+      )
+    end
+
+    queries = capture_sql do
+      outcomes = App::ChatMessagePayload.messages(messages, repository: nil).map { |payload| payload.dig(:pending_action, :outcome) }
+      expect(outcomes.pluck(:chat_id)).to match_array(expected_chat_ids)
+    end
+
+    expect(queries.grep(/FROM ["`]?coworker_chats["`]?/i).size).to eq(1)
   end
 end
 
