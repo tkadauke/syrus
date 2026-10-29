@@ -33,5 +33,15 @@
     "soul_unavailable": "SOUL.md is unavailable.",
     "engineer_capabilities": "Fixed engineer capabilities",
     "existing_link": "Open this feature from its existing Syrus page."
+  },
+  "memory": {
+    "loading": "Loading memory…",
+    "unavailable": "Memory is temporarily unavailable because the workspace remote could not be reached.",
+    "empty": "This coworker has no memory yet.",
+    "no_results": "No memory files match this search.",
+    "files": "Memory files",
+    "select_file": "Select a memory file.",
+    "owner_memories": "Open your Syrus memories",
+    "categories": { "daily": "Daily", "people": "People", "repos": "Repositories", "banks": "Banks" }
   }
 }

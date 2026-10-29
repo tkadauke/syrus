@@ -87,6 +87,51 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "browses and searches the coworker's cached home-branch memory read-only" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/maya", files: {
+      "memory/daily/2026-10-28.md" => "Yesterday",
+      "memory/daily/2026-10-29.md" => "Today decided on orchards",
+      "memory/people/thomas.md" => "Owner notes",
+      "memory/repos/acme__orchard.md" => "Repository notes",
+      "memory/banks/opinions.md" => "Strong opinions",
+      "SOUL.md" => "not memory"
+    })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("files").pluck("path")).to eq([
+      "memory/daily/2026-10-29.md", "memory/daily/2026-10-28.md", "memory/people/thomas.md",
+      "memory/repos/acme__orchard.md", "memory/banks/opinions.md"
+    ])
+    expect(response.parsed_body.fetch("selected_path")).to eq("memory/daily/2026-10-29.md")
+    expect(response.parsed_body.fetch("filter_schema").first).to include("field" => "query", "free_text_search" => true)
+
+    filter = Filters::QueryParam.encode("and" => [ { "field" => "query", "op" => "contains", "value" => "orchards" } ])
+    get "/api/v1/app/coworkers/#{coworker.id}/memory", params: { q: filter }
+    expect(response.parsed_body.fetch("files").pluck("path")).to contain_exactly("memory/daily/2026-10-29.md")
+  end
+
+  it "distinguishes an empty memory tree from an unreachable remote" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/maya", files: { "SOUL.md" => "role: Researcher" })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("files" => [], "selected_path" => nil)
+
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("remote offline"))
+    Rails.cache.clear
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.parsed_body.dig("error", "code")).to eq("remote_unavailable")
+  end
+
   it "offers only the owner's coworkers as typed read-only share targets" do
     mine = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git")
     other_owner = Factories.user(email_address: "other-owner@example.com")

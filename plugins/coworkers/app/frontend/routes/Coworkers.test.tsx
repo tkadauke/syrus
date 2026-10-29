@@ -192,3 +192,54 @@ it("renders Syrus without a workspace or main chat and links its fixed surfaces"
   expect(screen.getByRole("link", { name: "Memory" })).toHaveAttribute("href", "/memories")
   expect(fetchSpy).not.toHaveBeenCalled()
 })
+
+it("browses coworker memory as rendered Markdown with search and owner-memory links", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/memory")) {
+        return jsonResponse({
+          files: [
+            { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\n**Important** orchard notes." },
+            { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Owner notes" }
+          ],
+          selected_path: "memory/daily/2026-10-29.md",
+          filter: { and: [] },
+          filter_schema: [{ field: "query", label: "Search", bucket: "string", operators: ["contains"], values: [], free_text_search: true }]
+        })
+      }
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+
+  expect(await screen.findByRole("heading", { name: "Today" })).toBeInTheDocument()
+  expect(screen.getByText("Important").tagName).toBe("STRONG")
+  expect(screen.getByRole("navigation", { name: "Memory files" })).toHaveTextContent("2026-10-29")
+  expect(screen.getByRole("button", { name: /Add filter/i })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open your Syrus memories" })).toHaveAttribute("href", "/memories")
+})
+
+it("shows distinct empty and unavailable coworker memory states", async () => {
+  let memoryStatus = 200
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/memory")) return memoryStatus === 200 ? jsonResponse({ files: [], selected_path: null, filter: { and: [] }, filter_schema: [] }) : jsonResponse({ code: "remote_unavailable" }, 503)
+      return jsonResponse(detailPayload)
+    })
+  )
+  const first = renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  expect(await screen.findByText("This coworker has no memory yet.")).toBeInTheDocument()
+
+  first.unmount()
+  memoryStatus = 503
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  expect(await screen.findByText(/workspace remote could not be reached/)).toBeInTheDocument()
+})

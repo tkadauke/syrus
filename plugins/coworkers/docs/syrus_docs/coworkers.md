@@ -66,6 +66,12 @@ list, search, and read its own chats plus those shares; revoking a share
 removes access immediately. Coworkers are never offered the arbitrary
 `send_chat_message` tool.
 
-Profile pages render `SOUL.md` read-only. Capabilities, Schedule, Memory,
-Workspace, and Activity are visible as coming-later placeholders where their
-full Phase 1 surface has not shipped yet.
+Profile pages render `SOUL.md` read-only. The Memory tab reads Markdown files
+from the coworker's home branch through the cached repository-content
+providers. It groups recent daily files first, followed by people,
+repositories, and banks; renders the selected file as Markdown; searches file
+paths and contents; and links to the owner's existing Syrus memories. An empty
+workspace and a temporarily unreachable remote are presented as distinct
+states. The browser has no write controls. Capabilities, Schedule, Workspace,
+and Activity remain coming-later placeholders where their full surface has not
+shipped yet.

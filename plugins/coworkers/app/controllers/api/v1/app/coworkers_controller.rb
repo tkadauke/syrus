@@ -18,6 +18,17 @@ module Api
           render json: { coworker: detail_json(coworker) }
         end
 
+        def memory
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          payload = Coworkers::MemoryBrowser.new(
+            coworker: coworker, repository: workspace_repository(coworker), user: Current.user, params: params
+          ).call
+          render json: payload
+        rescue RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision => error
+          render_error("remote_unavailable", error.message, status: :service_unavailable)
+        end
+
         def create
           coworker = Coworkers::Coworker.new(owner_user: Current.user)
           authorize coworker, :create?, policy_class: CoworkerPolicy

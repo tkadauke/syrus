@@ -39,5 +39,15 @@
     "soul_unavailable": "SOUL.md ist nicht verfügbar.",
     "engineer_capabilities": "Feste Entwicklerfähigkeiten",
     "existing_link": "Öffne diese Funktion über ihre bestehende Syrus-Seite."
+  },
+  "memory": {
+    "loading": "Gedächtnis wird geladen…",
+    "unavailable": "Das Gedächtnis ist vorübergehend nicht verfügbar, da das Workspace-Remote nicht erreichbar ist.",
+    "empty": "Dieser Coworker hat noch kein Gedächtnis.",
+    "no_results": "Keine Gedächtnisdateien entsprechen dieser Suche.",
+    "files": "Gedächtnisdateien",
+    "select_file": "Wähle eine Gedächtnisdatei aus.",
+    "owner_memories": "Deine Syrus-Erinnerungen öffnen",
+    "categories": { "daily": "Täglich", "people": "Personen", "repos": "Repositories", "banks": "Sammlungen" }
   }
 }

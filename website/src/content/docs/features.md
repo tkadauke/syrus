@@ -1652,7 +1652,11 @@ Coworkers is installed but disabled by default. A self-hosted instance must
 enable beta mode before an administrator can enable it from **Admin →
 Plugins**. When enabled, it exposes a Coworkers page for creating named agents,
 choosing their appearance and capabilities, opening their main and side chats,
-and viewing their read-only identity profile. Coworker conversations are kept
+viewing their read-only identity profile, and browsing their Markdown memory.
+The Memory tab groups daily, people, repository, and bank files from the
+coworker's home branch, provides content search, and links to the owner's Syrus
+memories. It is read-only and reports an unreachable workspace separately from
+an empty memory tree. Coworker conversations are kept
 in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. A chat owner can share a conversation read-only with one of their

@@ -1,4 +1,5 @@
 import { getJson, postForm, postJson } from "@app/api/client"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type CoworkerSummary = {
   id: number | "syrus"
@@ -27,10 +28,18 @@ export type CoworkerModelOptions = {
   provider_label: string
   models: { id: string; label: string }[]
 }
+export type CoworkerMemoryPayload = {
+  files: { path: string; category: "daily" | "people" | "repos" | "banks"; name: string; content: string }[]
+  selected_path: string | null
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+}
 
 export const fetchCoworkers = () =>
   getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")
 export const fetchCoworker = (id: string) => getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
+export const fetchCoworkerMemory = (id: string, search: string) =>
+  getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
 export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
 export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
 export const testCoworkerRemote = (workspaceRepo: string) =>

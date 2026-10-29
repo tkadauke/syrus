@@ -39,5 +39,15 @@
     "soul_unavailable": "SOUL.md praesto non est.",
     "engineer_capabilities": "Facultates machinatoriae fixae",
     "existing_link": "Hanc facultatem ex pagina Syrus iam exstante aperi."
+  },
+  "memory": {
+    "loading": "Memoria oneratur…",
+    "unavailable": "Memoria ad tempus praesto non est quia repositorium remotum attingi non potest.",
+    "empty": "Hic collega memoriam nondum habet.",
+    "no_results": "Nulla fascicula memoriae huic quaestioni respondent.",
+    "files": "Fascicula memoriae",
+    "select_file": "Fasciculum memoriae elige.",
+    "owner_memories": "Memorias tuas Syrus aperi",
+    "categories": { "daily": "Diaria", "people": "Personae", "repos": "Repositoria", "banks": "Thesauri" }
   }
 }

@@ -5,6 +5,7 @@ import { Avatar } from "@app/components/Avatar"
 import { AvatarPicker } from "@app/components/AvatarPicker"
 import { ColorPicker } from "@app/components/ColorPicker"
 import { Checkbox } from "@app/components/Checkbox"
+import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
@@ -14,7 +15,8 @@ import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { withRoutePrefix } from "@app/lib/routing"
 import { resolveAppearanceColor } from "@app/lib/appearance"
-import { createCoworker, createSideChat, fetchCoworker, fetchCoworkers, testCoworkerRemote, type CoworkerSummary } from "../api/coworkers"
+import { Markdown } from "@app/lib/Markdown"
+import { createCoworker, createSideChat, fetchCoworker, fetchCoworkerMemory, fetchCoworkers, testCoworkerRemote, type CoworkerSummary } from "../api/coworkers"
 
 export default function CoworkersRoute() {
   const { id } = useParams()
@@ -253,8 +255,82 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
-      {!["chat", "profile"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {tab === "memory" ? <CoworkerMemory id={id} /> : null}
+      {!["chat", "profile", "memory"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
+  )
+}
+
+function CoworkerMemory({ id }: { id: string }) {
+  const { t } = useT("coworkers")
+  const prefix = usePrefix()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const query = useQuery({
+    queryKey: ["coworkers", id, "memory", location.search],
+    queryFn: () => fetchCoworkerMemory(id, location.search)
+  })
+  const selectedPath = new URLSearchParams(location.search).get("path") || query.data?.selected_path
+  const selected = query.data?.files.find((file) => file.path === selectedPath)
+
+  function selectFile(path: string) {
+    const params = new URLSearchParams(location.search)
+    params.set("path", path)
+    navigate({ pathname: location.pathname, search: `?${params.toString()}` })
+  }
+
+  if (query.isPending) return <PanelMessage>{t("memory.loading")}</PanelMessage>
+  if (query.isError) return <PanelMessage>{t("memory.unavailable")}</PanelMessage>
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <FilterBar
+          filter={query.data.filter}
+          filterSchema={query.data.filter_schema}
+          pathname={location.pathname}
+          search={location.search}
+        />
+        <Link className="shrink-0 text-sm text-brand underline" to={`${prefix}/memories`}>
+          {t("memory.owner_memories")}
+        </Link>
+      </div>
+      {query.data.files.length === 0 ? (
+        <PanelMessage>{t(new URLSearchParams(location.search).has("q") ? "memory.no_results" : "memory.empty")}</PanelMessage>
+      ) : (
+        <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[16rem_minmax(0,1fr)]">
+          <nav aria-label={t("memory.files")} className="border-b border-border p-2 md:border-r md:border-b-0">
+            {(["daily", "people", "repos", "banks"] as const).map((category) => {
+              const files = query.data.files.filter((file) => file.category === category)
+              if (files.length === 0) return null
+              return (
+                <div className="mb-3" key={category}>
+                  <h3 className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-text-muted">{t(`memory.categories.${category}`)}</h3>
+                  {files.map((file) => (
+                    <button
+                      className={`block w-full truncate rounded px-2 py-1.5 text-left text-sm ${selectedPath === file.path ? "bg-brand/10 font-medium text-brand" : "hover:bg-surface-subtle"}`}
+                      key={file.path}
+                      onClick={() => selectFile(file.path)}
+                      type="button"
+                    >
+                      {file.name}
+                    </button>
+                  ))}
+                </div>
+              )
+            })}
+          </nav>
+          <article className="min-w-0 p-5">
+            {selected ? (
+              <>
+                <div className="mb-4 font-mono text-xs text-text-muted">{selected.path}</div>
+                <Markdown className="chat-prose text-sm text-text-primary break-words" text={selected.content} />
+              </>
+            ) : <PanelMessage>{t("memory.select_file")}</PanelMessage>}
+          </article>
+        </div>
+      )}
+    </section>
   )
 }
 
