@@ -1372,6 +1372,9 @@ describe("App", () => {
       if (path.startsWith("/api/v1/app/filters/fk_options")) {
         return Promise.resolve(new Response(JSON.stringify({ options: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
+      if (path === "/api/v1/app/filters/schema?subject=chat_message") {
+        return Promise.resolve(new Response(JSON.stringify({ fields: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
       if (path === "/api/v1/app/chats/search?q=needle") {
         return Promise.resolve(new Response(JSON.stringify(chatSearchPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
