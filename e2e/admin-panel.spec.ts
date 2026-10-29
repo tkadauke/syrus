@@ -34,7 +34,9 @@ test("admin renders queue, stuck jobs, plugin registry, and process inventory", 
   await openAdminNav(page, "Queue")
   await expect(page.getByRole("heading", { name: "Queue" })).toBeVisible()
   await expect(page.getByRole("navigation", { name: "Queue tabs" }).getByRole("link", { name: "Active" })).toBeVisible()
-  await expect(page.getByRole("navigation", { name: "Admin queue smart folders" })).toBeVisible()
+  // Smart folders load from a separate request after the queue shell. On a
+  // contended isolated run that request can outlive Playwright's 5s default.
+  await expect(page.getByRole("navigation", { name: "Admin queue smart folders" })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole("row").filter({ hasText: fixture.queueClass })).toContainText("runs")
 
   await openAdminNav(page, "Stuck")

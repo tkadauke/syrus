@@ -19,4 +19,8 @@ RSpec.describe "CI workflow" do
       )
     )
   end
+
+  it "gives the React coverage gate the same budget as the CI grader" do
+    expect(workflow.dig("jobs", "react", "timeout-minutes")).to eq(30)
+  end
 end
