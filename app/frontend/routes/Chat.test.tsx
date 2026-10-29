@@ -4365,7 +4365,9 @@ describe("chat message image attachments", () => {
                 bookmarkable: true,
                 attachments: [
                   { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
-                  { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+                  { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" },
+                  { name: "untrusted.svg", mime_type: "image/svg+xml", data: "PHN2Zz48L3N2Zz4=" },
+                  { name: "page.html", mime_type: "text/html", data: "PGgxPkhlbGxvPC9oMT4=" }
                 ]
               }
             ]
@@ -4381,6 +4383,10 @@ describe("chat message image attachments", () => {
     // Non-image attachments (a PDF) render as a labeled chip, not a thumbnail, so
     // they never leave a blank bubble and are always visible in the transcript.
     expect(screen.getByText("notes.pdf")).toBeInTheDocument()
+    expect(screen.queryByAltText("untrusted.svg")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /untrusted.svg/ })).toHaveAttribute("download", "untrusted.svg")
+    expect(screen.getByRole("link", { name: /untrusted.svg/ })).toHaveAttribute("href", "data:application/octet-stream;base64,PHN2Zz48L3N2Zz4=")
+    expect(screen.getByRole("link", { name: /page.html/ })).toHaveAttribute("download", "page.html")
 
     fireEvent.click(thumbnail)
 

@@ -783,6 +783,24 @@ declarative-metadata-plus-glob-discovery design rationale.
 
 ## Media attachments
 
+The composer accepts raster images (JPEG, PNG, GIF, and WebP), PDFs, and a
+conservative allowlist of readable text, markup, structured-data,
+configuration, diagnostic, changeset, and source-code files. The shared
+`config/chat_attachment_policy.json` policy combines recognized extensions or
+extensionless build filenames with compatible MIME types; this permits the
+`text/plain` and `application/octet-stream` values browsers commonly assign to
+source files without permitting arbitrary binary uploads. Text payloads must
+be strictly Base64 encoded, NUL-free valid UTF-8. Each attachment is limited to
+5 MB and a message's attachments to 20 MB total.
+
+Every accepted file is materialized under the chat workspace's `attachments/`
+directory with a collision-safe prefix and a sanitized recognizable basename.
+The agent prompt names the display file and its exact path for every provider.
+Provider-native image input and Claude PDF input remain optional optimizations;
+they are not the compatibility contract. HTML and SVG remain source text in the
+transcript and are offered only as downloads, never rendered in the application
+origin.
+
 `propose_job`, `propose_epic_with_jobs`, and `submit_chat_feedback` all accept
 an optional `media` array of refs in the form `snapshot:ID` (a whiteboard
 snapshot saved via `save_canvas`), `chat_image:ID` (a pasted/attached chat

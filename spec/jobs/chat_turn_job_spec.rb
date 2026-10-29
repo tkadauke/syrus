@@ -806,10 +806,10 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(image_path.dirname).to eq(workspace_path.join("attachments"))
     expect(image_path.extname).to eq(".png")
     expect(File.binread(image_path)).to eq(payload)
-    expect(received[:prompt]).to include("Attached image: capture.png")
+    expect(received[:prompt]).to include("Attached file: capture.png")
     expect(received[:prompt]).to include("saved at #{image_path}")
     expect(received[:prompt]).not_to include("saved at attachments/#{image_path.basename}")
-    expect(received[:prompt]).to include("Use the Read tool to inspect it")
+    expect(received[:prompt]).to include("Use your normal file-reading tools to inspect it")
     expect(received[:file_paths]).to eq([])
   end
 
@@ -838,8 +838,31 @@ RSpec.describe ChatTurnJob, :ci_only do
 
     expect(received[:image_paths]).to eq([])
     expect(received[:file_paths]).to eq([])
-    expect(received[:prompt]).to include("[Attached PDF: brief.pdf]\nRead this")
+    pdf_path = Pathname(Dir[workspace_path.join("attachments", "*.pdf").to_s].sole)
+    expect(pdf_path.basename.to_s).to end_with("-brief.pdf")
+    expect(received[:prompt]).to include("[Attached file: brief.pdf saved at #{pdf_path}.")
+    expect(received[:prompt]).to include("Read this")
     expect(Dir[workspace_path.join("attachments", "*.pdf").to_s].size).to eq(1)
+  end
+
+  it "materializes generic files with recognizable safe names and prompt paths" do
+    source_message = chat.messages.create!(
+      role: "user",
+      content: {
+        text: "Review this source",
+        attachments: [ { name: "../../handler.rb", mime_type: "text/plain", data: Base64.strict_encode64("puts :ok\n") } ]
+      }
+    )
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) { received.merge!(kwargs); result_fixture(session_id: "chat-session-1", transcript_jsonl: "x") }
+
+    described_class.perform_now(chat.id, source_message.id)
+
+    source_path = Pathname(Dir[workspace_path.join("attachments", "*-handler.rb").to_s].sole)
+    expect(File.read(source_path)).to eq("puts :ok\n")
+    expect(received[:prompt]).to include("Attached file: handler.rb saved at #{source_path}")
+    expect(received[:image_paths]).to be_empty
+    expect(received[:file_paths]).to be_empty
   end
 
   it "can run a top-level chat before any repository is attached" do
