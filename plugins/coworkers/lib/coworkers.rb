@@ -19,6 +19,7 @@ module Coworkers
     depends_on [ "scheduled_tasks" ]
     provides mentionable: "Coworkers::MentionableProvider",
              chat_mcp_tool_set: "Coworkers::ChatToolSet",
+             job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
              chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
