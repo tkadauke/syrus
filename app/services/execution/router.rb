@@ -5,6 +5,7 @@ module Execution
     end
 
     def run(request)
+      validate_request!(request)
       backend_for(request).run(request)
     end
 

@@ -1156,7 +1156,7 @@ class ProcessRunner
     )
     attempt = Thread.current[:syrus_current_job_classification_attempt]
     attempt&.update_columns(spawned_process_id: process.id) if attempt&.spawned_process_id.blank?
-    @cgroup = SpawnedProcessCgroup.new(spawned_process: process)
+    @cgroup = SpawnedProcessCgroup.new(spawned_process: process, resource_limits: @resource_limits)
     process.update_column(:resource_attribution, current_resource_attribution)
     process
   rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => error

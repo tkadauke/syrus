@@ -1,6 +1,7 @@
 require "rails_helper"
 require "socket"
 require "tmpdir"
+require "execution/backend_test_kit"
 
 RSpec.describe ContainerExecution::Backend do
   around do |example|
@@ -181,3 +182,112 @@ RSpec.describe ContainerExecution::Backend do
     )
   end
 end
+
+class ContainerBackendContractAdapter
+  def initialize(example)
+    @example = example
+    ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"] = "syrus-worker:test"
+    ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "/host=/host"
+    ENV["SYRUS_PERSISTENT_MCP_SOCKET"] = "/host/mcp.sock"
+  end
+
+  def verify_mount_semantics!
+    command, = capture(probe_request)
+    mounts = values_after(command, "--mount")
+    mounts.include?("type=bind,src=/host/work,dst=/work") &&
+      mounts.include?("type=bind,src=/host/cache,dst=/cache,readonly") &&
+      mounts.include?("type=bind,src=/host/artifacts,dst=/artifacts")
+  end
+
+  def verify_network_profile!
+    command, = capture(probe_request)
+    value_after(command, "--network") == "none"
+  end
+
+  def verify_resource_limits!
+    command, = capture(probe_request(resource_limits: Execution::BackendTestKit.limits))
+    value_after(command, "--memory") == "268435456" &&
+      value_after(command, "--cpu-quota") == "50000" &&
+      value_after(command, "--cpu-period") == "100000" &&
+      value_after(command, "--blkio-weight") == "200"
+  end
+
+  def mcp_round_trip(payload)
+    Dir.mktmpdir("container-backend-mcp") do |dir|
+      socket_path = File.join(dir, "mcp.sock")
+      ENV["SYRUS_PERSISTENT_MCP_SOCKET"] = socket_path
+      ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "/host=/host,#{dir}=#{dir}"
+      server = UNIXServer.new(socket_path)
+      thread = Thread.new do
+        client = server.accept
+        client.gets == "#{payload}\n" && client.puts(Execution::BackendTestKit::PROBE_REPLY)
+        client.close
+      end
+      command, = capture(probe_request)
+      socket_mount = values_after(command, "--mount").find { |value| value.include?("dst=/run/syrus/mcp.sock") }
+      raise "MCP socket was not mounted read-only" unless socket_mount&.end_with?(",readonly")
+      raise "MCP endpoint was not advertised" unless values_after(command, "--env")
+        .include?("SYRUS_PERSISTENT_MCP_SOCKET=/run/syrus/mcp.sock")
+
+      source = socket_mount.split(",").find { |field| field.start_with?("src=") }.delete_prefix("src=")
+      client = UNIXSocket.new(source)
+      client.puts(payload)
+      reply = client.gets&.strip
+      client.close
+      thread.value
+      reply
+    ensure
+      server&.close
+      thread&.kill if thread&.alive?
+      ENV["SYRUS_PERSISTENT_MCP_SOCKET"] = "/host/mcp.sock"
+      ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "/host=/host"
+    end
+  end
+
+  def run(request)
+    _, result = capture(request)
+    result
+  end
+
+  def fallback(request)
+    raise "container backend unexpectedly accepted a non-grader request" if ContainerExecution::Backend.available_for?(request.with(kind: "agent"))
+
+    local = Object.new
+    local.define_singleton_method(:run) { |_value| Execution::BackendTestKit.success_result }
+    Execution::Router.new(local: local).run(request.with(kind: "agent"))
+  end
+
+  private
+
+  def capture(request)
+    command = nil
+    runner = @example.instance_double(ProcessRunner, run: Execution::BackendTestKit.success_result)
+    @example.allow(ProcessRunner).to @example.receive(:new) do |kwargs|
+      command = kwargs.fetch(:command)
+      runner
+    end
+    result = ContainerExecution::Backend.new.run(request)
+    [ command, result ]
+  end
+
+  def probe_request(**overrides)
+    mounts = ProcessRunner::Mounts.new(
+      workdir: "/host/work",
+      read_write: ProcessRunner::Mount.new(host_path: "/host/work", mount_path: "/work"),
+      read_only: ProcessRunner::Mount.new(host_path: "/host/cache", mount_path: "/cache"),
+      artifacts: ProcessRunner::Mount.new(host_path: "/host/artifacts", mount_path: "/artifacts")
+    )
+    Execution::BackendTestKit.request(**{ chdir: "/host/work", mounts: mounts }.merge(overrides))
+  end
+
+  def values_after(command, flag)
+    command.each_index.filter_map { |index| command[index + 1] if command[index] == flag }
+  end
+
+  def value_after(command, flag) = command[command.index(flag) + 1]
+end
+
+Execution::BackendTestKit.define_examples(
+  RSpec,
+  adapter: ->(example) { ContainerBackendContractAdapter.new(example) }
+)
