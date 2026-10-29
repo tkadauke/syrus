@@ -7720,6 +7720,7 @@ describe("chat agent roster", () => {
     renderRoute()
 
     const roster = await screen.findByTestId("mobile-chat-agent-roster")
+    expect(roster).toHaveClass("mt-[var(--mobile-chrome-visible-top-inset,0px)]")
     expect(within(roster).getByText("Agents in this chat")).toBeInTheDocument()
     expect(within(roster).getByText("@maya")).toBeInTheDocument()
     fireEvent.click(within(roster).getByRole("button", { name: "Remove Maya from chat" }))
