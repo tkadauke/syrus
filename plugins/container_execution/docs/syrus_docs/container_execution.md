@@ -27,7 +27,9 @@ Configuration:
   local; a `build` declaration is built from the checked-out workspace. This
   replaces only the base image for container-backed graders. The normal
   `.syrus.yml` prepare commands and prepared-workspace archive still apply on
-  top, and local execution is unchanged. Defaults to false.
+  top, and local execution is unchanged. Build contexts and Dockerfiles are
+  translated through `SYRUS_CONTAINER_EXECUTION_HOST_PATHS`, just like bind
+  mounts, and an unmapped build path is rejected. Defaults to false.
 - `SYRUS_CONTAINER_EXECUTION_DOCKER`: Docker-compatible CLI path, default
   `docker`.
 - `SYRUS_CONTAINER_EXECUTION_DOCKER_SOCKET`: Docker socket path to check when

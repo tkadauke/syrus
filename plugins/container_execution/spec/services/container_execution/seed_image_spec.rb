@@ -48,6 +48,7 @@ RSpec.describe ContainerExecution::SeedImage do
 
   it "builds a deterministic image from a declared Dockerfile and context" do
     enable_devcontainer
+    ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "#{@workspace}=#{@workspace}"
     FileUtils.mkdir_p(File.join(@workspace, ".devcontainer"))
     spec = instance_double(
       ContainerExecution::DevcontainerSpec::Result,
@@ -65,6 +66,43 @@ RSpec.describe ContainerExecution::SeedImage do
       "--file", File.join(@workspace, ".devcontainer", "Dockerfile.dev"),
       "--build-arg", "RUBY_VERSION=3.4", @workspace
     )
+  end
+
+  it "translates devcontainer build paths into the Docker host namespace" do
+    enable_devcontainer
+    host_workspace = "/docker-host/workflows/123"
+    ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "#{@workspace}=#{host_workspace}"
+    spec = instance_double(
+      ContainerExecution::DevcontainerSpec::Result,
+      image: nil,
+      source: ".devcontainer/devcontainer.json",
+      fingerprint: "b" * 64,
+      build: { "dockerfile" => "Dockerfile", "context" => ".." }
+    )
+    allow(ContainerExecution::DevcontainerSpec).to receive(:for_job).and_return(spec)
+    runner = runner_returning(failure, success)
+
+    expect(described_class.new(request, runner: runner).resolve).to eq("syrus-devcontainer:#{'b' * 24}")
+    expect(runner).to have_received(:capture3).with(
+      "/usr/bin/docker", "build", "--tag", "syrus-devcontainer:#{'b' * 24}",
+      "--file", "#{host_workspace}/.devcontainer/Dockerfile", host_workspace
+    )
+  end
+
+  it "rejects a build path that is not mapped into the Docker host namespace" do
+    enable_devcontainer
+    spec = instance_double(
+      ContainerExecution::DevcontainerSpec::Result,
+      image: nil,
+      source: ".devcontainer/devcontainer.json",
+      fingerprint: "c" * 64,
+      build: { "dockerfile" => "Dockerfile", "context" => ".." }
+    )
+    allow(ContainerExecution::DevcontainerSpec).to receive(:for_job).and_return(spec)
+    runner = runner_returning(failure)
+
+    expect { described_class.new(request, runner: runner).resolve }
+      .to raise_error(ContainerExecution::SeedImage::BuildError, /not visible to the Docker host/)
   end
 
   def enable_devcontainer
