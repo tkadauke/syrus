@@ -1136,6 +1136,7 @@
     "credentials_description": "Verschlüsselte Anbieter- und GitHub-Zugangsdaten für Syrus-Läufe.",
     "profile_description": "Deine öffentlichen Team-Profildetails.",
     "agent_settings_description": "Standardmäßiges Agentenverhalten für neue Syrus-Arbeit.",
+    "accent_picker_preview": "Vorschau der Akzentfarbauswahl für Coworker. Diese Vorschau wird nicht gespeichert.",
     "preferences_description": "Verhaltenseinstellungen auf Kontoebene.",
     "display_name": "Anzeigename",
     "first_name": "Vorname",

@@ -518,7 +518,21 @@
     }
   },
   "accent_picker": {
+    "color": "Color",
     "tone": "Tonus",
+    "hue": "Color",
+    "naturals": "Naturales",
+    "fine_tune": "Temperatio",
+    "preview": "Praevisio viva",
+    "preview_message": "Paratus sum.",
+    "online": "Praesens",
+    "variants": {
+      "deeper": "Profundior",
+      "deep": "Profundus",
+      "base": "Basis",
+      "light": "Clarus",
+      "lighter": "Clarior"
+    },
     "families": {
       "pastel": "Pastellus",
       "dusty": "Temperatus",

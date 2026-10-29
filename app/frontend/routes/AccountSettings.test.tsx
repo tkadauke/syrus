@@ -246,6 +246,8 @@ describe("AccountSettings form primitives", () => {
     const fallback = await screen.findByLabelText("Auto-approval fallback")
     const help = screen.getByText("No direct rule.")
     expect(fallback).toHaveAttribute("aria-describedby", help.id)
+    expect(screen.getByText("Preview the coworker accent picker. This preview is not saved.")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Color" })).toHaveTextContent("Azure · #0090FF")
   })
 
   it("cross-links agent settings to chat credentials and repository overrides", async () => {
