@@ -8,6 +8,10 @@ describe("viewportPresetFromSearch", () => {
     expect(viewportPresetFromSearch("").id).toBe("desktop")
   })
 
+  it("defaults to the phone preview when the catalog itself is opened on a phone", () => {
+    expect(viewportPresetFromSearch("", 390).id).toBe("phone")
+  })
+
   it("resolves a recognized viewport param", () => {
     expect(viewportPresetFromSearch("?viewport=wide").id).toBe("wide")
   })

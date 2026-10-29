@@ -938,6 +938,38 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Fehlgeschlagen").parentElement).toHaveClass("bg-danger-surface")
   })
 
+  it("treats a settled result with a live pending action as running", () => {
+    const call: ChatToolGroupItem["calls"][number] = {
+      message_id: 1,
+      tool_name: "propose_coworker",
+      raw_name: "propose_coworker",
+      detail: "",
+      display_label: "Propose coworker",
+      progress_label: "Proposing",
+      raw_payload: {},
+      result_body: "{}",
+      result_error: false,
+      result_kind: "record",
+      result_summary: "Proposed coworker @maya",
+      result_settled: true,
+      pending_action: {
+        id: 501,
+        action: "create_coworker",
+        state: "pending",
+        label: "Create coworker @maya",
+        detail: null,
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    }
+
+    render(<ToolGroup item={{ type: "tool_group", tool: "Propose coworker", calls: [call] }} />)
+
+    expect(screen.getByText("Running")).toBeVisible()
+    expect(screen.queryByText("Done")).not.toBeInTheDocument()
+    expect(screen.getAllByText("Propose coworker")[0]).toHaveClass("max-w-full", "break-words", "[overflow-wrap:anywhere]")
+  })
+
   it("wraps an 18-call group at a mobile viewport and preserves full expanded details", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })

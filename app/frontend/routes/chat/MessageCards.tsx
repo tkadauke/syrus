@@ -976,7 +976,11 @@ export const ToolGroup = memo(function ToolGroup({
     .filter(Boolean)
     .join(", ")
   const summary = item.summary_label || item.tool
-  const outcomeState = item.calls.some((call) => call.result_error) ? "failed" : item.calls.some((call) => !toolCallSettled(call)) ? "running" : "done"
+  const outcomeState = item.calls.some((call) => call.result_error || call.pending_action?.state === "failed")
+    ? "failed"
+    : item.calls.some((call) => !toolCallSettled(call) || ["queued", "pending", "confirming"].includes(call.pending_action?.state || ""))
+      ? "running"
+      : "done"
   const outcome = item.outcome_label || t(outcomeState === "failed" ? "system.failed" : outcomeState === "running" ? "running" : "system.done")
   const expanded = open
   return (
@@ -989,7 +993,7 @@ export const ToolGroup = memo(function ToolGroup({
         }}
       >
         <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="min-w-0 font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="min-w-0 max-w-full break-words font-medium text-gray-900 [overflow-wrap:anywhere] dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
