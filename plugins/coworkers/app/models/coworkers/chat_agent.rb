@@ -1,5 +1,5 @@
 class Coworkers::ChatAgent < ApplicationRecord
-  self.table_name = "chat_agents"
+  self.table_name = "coworkers_chat_agents"
 
   belongs_to :chat_session
   belongs_to :coworker, class_name: "Coworkers::Coworker"

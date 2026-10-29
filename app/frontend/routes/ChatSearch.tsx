@@ -232,7 +232,7 @@ function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOpt
     { field: "epic_id", label: t("search.filter_epic"), bucket: "select", operators: ["is"], values: options?.epic_id || [] },
     { field: "job_id", label: t("search.filter_job"), bucket: "select", operators: ["is"], values: options?.job_id || [] }
   ]
-  const coworker = options?.pluginFields.find((field) => field.field === "coworker_id")
+  const coworker = options?.pluginFields?.find((field) => field.field === "coworker_id")
   if (coworker) fields.push({ ...coworker, bucket: "select" })
   return fields
 }
@@ -346,7 +346,7 @@ async function loadFilterOptions(signal: AbortSignal) {
     repository_id: repositoryOptions,
     epic_id: epicOptions,
     job_id: jobOptions,
-    pluginFields: schema.fields
+    pluginFields: schema.fields || []
   }
 }
 
