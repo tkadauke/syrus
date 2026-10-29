@@ -59,7 +59,7 @@ describe("isLowPrioritySystemMessage", () => {
       }
     })
 
-    expect(countIncomingVisibleMessages([ conflict ], 0, false)).toBe(1)
+    expect(countIncomingVisibleMessages([conflict], 0, false)).toBe(1)
   })
 
   it("does not hide goal continuation control messages by default", () => {
