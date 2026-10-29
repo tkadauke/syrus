@@ -144,10 +144,15 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     )
 
     expect(outcome).to eq(:conflict)
-    expect(session.messages.last.content.fetch("coworker_workspace_conflict")).to include(
+    conflict = session.messages.last.content.fetch("coworker_workspace_conflict")
+    expect(conflict).to include(
       "branch" => "coworkers/run/#{coworker.id}-47", "files" => [ "SOUL.md" ]
     )
+    expect(conflict.fetch("ref")).to match(/\A[0-9a-f]{40}\z/)
+    expect(conflict.fetch("links").first).to include("ref=#{conflict.fetch('ref')}")
     expect(background_path.join("SOUL.md").read).to include("<<<<<<<", "role: foreground", "role: background")
+    preserved = run_git("show", "#{conflict.fetch('ref')}:SOUL.md", chdir: @remote)
+    expect(preserved).to include("<<<<<<<", "role: foreground", "role: background")
     expect(home_file("SOUL.md")).to eq("role: foreground\n")
   end
 

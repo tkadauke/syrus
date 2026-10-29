@@ -10,6 +10,7 @@ RSpec.describe "Coworker background runs" do
     )
   end
   let(:main_chat) { ChatSession.create!(user: owner, repository: repository, title: "Maya") }
+  let(:lifecycle) { instance_double(Coworkers::ChatWorkspaceLifecycle, finalize_background!: :merged) }
   let(:job) do
     Job.create!(
       user: owner, repository: repository, kind: "coworker_task", priority: "low",
@@ -21,7 +22,6 @@ RSpec.describe "Coworker background runs" do
   before do
     PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
     Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
-    lifecycle = instance_double(Coworkers::ChatWorkspaceLifecycle, finalize_background!: :merged)
     allow(Coworkers::ChatWorkspaceLifecycle).to receive(:new).with(main_chat).and_return(lifecycle)
   end
 
@@ -116,7 +116,11 @@ RSpec.describe "Coworker background runs" do
     expect { Coworkers::Workflow.after_fail(workflow) }.to change(main_chat.messages, :count).by(1)
 
     expect(main_chat.messages.order(:id).last.content.fetch("background_run")).to include(
-      "run_id" => source_run.id, "state" => "failed"
+      "run_id" => source_run.id, "state" => "failed", "merge_state" => "merged"
+    )
+    expect(lifecycle).to have_received(:finalize_background!).with(
+      path: StepWorkspace.for(source_step, run: source_run).path,
+      workflow: workflow
     )
     expect(job.reload).to have_attributes(state: "closed", closure_reason: "coworker_task")
   end

@@ -1350,13 +1350,19 @@ module Api
 
         def source_file_raw
           chat_session = find_chat_session
-          return unless validate_source_preview_request!(chat_session)
 
           file_path = params[:path].to_s.strip
           if file_path.blank?
             render_error("validation_failed", t("api.chats.errors.path_required"), status: :unprocessable_content)
             return
           end
+
+          if params[:ref].present?
+            render_repository_source_file_at_ref(chat_session, file_path, params[:ref].to_s)
+            return
+          end
+
+          return unless validate_source_preview_request!(chat_session)
 
           relay_response = proxy_to_coding_relay_response(
             chat_session, "file", params: { path: file_path, repository_id: params[:repository_id] }.compact
@@ -1383,6 +1389,27 @@ module Api
               filename: File.basename(file_path)
           end
         end
+
+        def render_repository_source_file_at_ref(chat_session, file_path, ref)
+          repository = chat_session.repository
+          requested_repository_id = params[:repository_id].presence&.to_i
+          repository = nil if requested_repository_id && repository&.id != requested_repository_id
+          raise ActiveRecord::RecordNotFound unless repository
+
+          content = RepositoryContent.for(repository, user: Current.user)
+          blob = content.read_if_present(content.resolve(ref), file_path)
+          unless blob
+            render_error("not_found", t("api.chats.errors.repository_file_not_found"), status: :not_found)
+            return
+          end
+
+          send_secure_file blob.bytes, filename: File.basename(file_path), type: "text/plain; charset=utf-8"
+        rescue RepositoryContent::UnknownRevision, RepositoryContent::NotFound
+          render_error("not_found", t("api.chats.errors.repository_file_not_found"), status: :not_found)
+        rescue RepositoryContent::Error
+          render_error("source_unavailable", t("api.chats.errors.source_relay_unavailable"), status: :service_unavailable)
+        end
+        private :render_repository_source_file_at_ref
 
         def workspace_file_raw
           chat_session = find_chat_session
