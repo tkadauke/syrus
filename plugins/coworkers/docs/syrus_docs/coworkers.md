@@ -81,6 +81,8 @@ Paused and archived coworkers, Syrus, the sender itself, and handles outside
 the owner's coworker list are refused. Deliveries carry their origin turn and
 hop count; a chain cannot continue beyond three hops. Each pair of coworkers
 can queue at most ten messages in a ten-minute window, regardless of direction.
+Hop-limit refusals and rate-limited attempts are recorded in the sender's main
+chat and listed in the sender's Activity tab.
 
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
@@ -94,7 +96,8 @@ cannot be added. The roster is shown beside the chat heading. Coworker turns
 share the chat's serialization lane, so two turns in one chat do not run at the
 same time.
 
-Profile pages render `SOUL.md` read-only. The Activity tab reports sent and
-received coworker-message traffic for the last 30 days. Capabilities, Schedule,
+Profile pages render `SOUL.md` read-only. The Activity tab reports total
+uncapped spend, sent and received coworker-message traffic for the last 30
+days, plus recent refused and rate-limited deliveries. Capabilities, Schedule,
 Memory, and Workspace are visible as coming-later placeholders where their
 full Phase 1 surface has not shipped yet.
