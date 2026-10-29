@@ -18,6 +18,7 @@ module Coworkers
     disableable true
     depends_on [ "scheduled_tasks" ]
     provides mentionable: "Coworkers::MentionableProvider",
+             mcp_run_context_contributor: "Coworkers::RunContextContributor",
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              chat_result_decorator: "Coworkers::ChatResultDecorator",
