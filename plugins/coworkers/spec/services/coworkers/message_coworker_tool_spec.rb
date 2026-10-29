@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::MessageCoworkerTool do
+RSpec.describe Coworkers::MessageCoworkerTool do
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:sender) { Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url) }

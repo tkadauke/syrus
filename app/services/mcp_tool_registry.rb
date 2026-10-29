@@ -353,7 +353,6 @@ class McpToolRegistry
         coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::ProposeJobTool, capability: "syrus.propose_job", mutation: true),
-        coworker(Mcp::Tools::MessageCoworkerTool, capability: "coworker.message", mutation: true),
         coworker(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
         coworker(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
         coworker(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared")
