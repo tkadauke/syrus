@@ -70,9 +70,10 @@ RSpec.describe "Coworkers plugin" do
     job.instance_variable_set(:@user_message, message)
     job.instance_variable_set(:@agent_chat, context)
     allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/roster-chat"))
-    expect(ChatWorkspace).to receive(:ensure_branch_checkout!)
-      .with(chat, repository, "coworkers/maya-turn")
-      .and_return(Pathname("/tmp/roster-coworker"))
+    lifecycle = class_double(Coworkers::ChatWorkspaceLifecycle, applies_to?: true)
+    allow(lifecycle).to receive(:prepare!).with(chat_session: chat).and_return(Pathname("/tmp/roster-coworker"))
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_workspace_lifecycle).and_return([ lifecycle ])
 
     expect(job.send(:chat_provider)).to have_attributes(provider: "codex")
     expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/roster-coworker"))

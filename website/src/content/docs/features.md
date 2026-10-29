@@ -1709,6 +1709,10 @@ from the coworker's home branch. Syrus merges and pushes it at turn end, uses
 union merges for concurrent memory appends, and posts linked conflict details
 without choosing either side when a normal Git merge conflicts. Worker-local
 checkouts are disposable and are re-cloned from the durable remote when lost.
+Renaming a coworker moves its home branch while no turn is running. Deleting
+one archives that branch under `coworkers/archived/` and releases the handle
+for reuse. Coworker pushes are restricted to that coworker's home, chat, and
+archive refs as a navigation guard, not as a security boundary.
 Coworker conversations are kept
 in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
