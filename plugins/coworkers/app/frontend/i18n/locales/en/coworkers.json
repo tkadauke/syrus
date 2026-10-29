@@ -14,7 +14,11 @@
     "account_default": "Account default",
     "not_provided": "Not provided",
     "example_pending": "Pending coworker",
-    "example_grant_pending": "Pending capability escalation"
+    "example_grant_pending": "Pending capability escalation",
+    "save_about": "Save About text",
+    "about_saved": "About text saved",
+    "open_coworker": "Open coworker",
+    "open_chat": "Open main chat"
   },
   "fields": {
     "name": "Name",
@@ -23,6 +27,7 @@
     "provider": "Provider",
     "effort": "Reasoning effort",
     "remote": "Workspace remote",
+    "branch": "Branch",
     "color": "Color",
     "avatar": "Avatar",
     "grants": "Capabilities",

@@ -887,6 +887,20 @@ module Api
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
+        def update_pending_action
+          chat_session = find_chat_session
+          pending_action = find_pending_action(chat_session)
+          unless pending_action.pending? && pending_action.action == "create_coworker"
+            render_error("validation_failed", t("api.chats.errors.pending_action_inactive"), status: :unprocessable_content)
+            return
+          end
+
+          pending_action.update!(payload: pending_action.payload.to_h.merge("about" => params[:about].to_s.strip.presence))
+          render json: chat_payload(chat_session.reload, message: "Coworker About text updated.")
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
         def destroy_pending_action
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)

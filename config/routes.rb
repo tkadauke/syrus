@@ -316,6 +316,7 @@ Rails.application.routes.draw do
         post "chats/:id/proposals/:proposal_id/confirm", to: "chats#confirm_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/proposals/:proposal_id/reject", to: "chats#reject_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/pending_actions/:pending_action_id/confirm", to: "chats#confirm_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
+        patch "chats/:id/pending_actions/:pending_action_id", to: "chats#update_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         post "chats/:id/pending_actions/:pending_action_id/reject", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         delete "chats/:id/pending_actions/:pending_action_id", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         post "chats/:id/pending_action_groups/:pending_action_group_id/confirm", to: "chats#confirm_pending_action_group", constraints: { id: /\d+/, pending_action_group_id: /\d+/ }

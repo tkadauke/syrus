@@ -20,7 +20,11 @@
     "account_default": "Praedefinitum rationis",
     "not_provided": "Non datum",
     "example_pending": "Collega pendens",
-    "example_grant_pending": "Amplificatio facultatum pendens"
+    "example_grant_pending": "Amplificatio facultatum pendens",
+    "save_about": "Textum de persona serva",
+    "about_saved": "Textus de persona servatus",
+    "open_coworker": "Collaboratorem aperi",
+    "open_chat": "Colloquium principale aperi"
   },
   "fields": {
     "name": "Nomen",
@@ -29,6 +33,7 @@
     "provider": "Provisor",
     "effort": "Labor ratiocinandi",
     "remote": "Repositorium spatii",
+    "branch": "Ramus",
     "color": "Color",
     "avatar": "Effigies",
     "grants": "Facultates",

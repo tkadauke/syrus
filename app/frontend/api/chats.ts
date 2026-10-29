@@ -466,6 +466,7 @@ export type ChatPendingActionInline = {
   resource_url?: string
   document?: ChatPendingActionDocument
   app_confirm_path: string
+  app_update_path?: string | null
   app_reject_path: string
   app_cancel_path?: string
 }
@@ -566,6 +567,7 @@ export type ChatPendingAction = {
   resource_url?: string
   document?: ChatPendingActionDocument
   app_confirm_path: string
+  app_update_path?: string | null
   app_reject_path: string
   app_cancel_path: string
 }

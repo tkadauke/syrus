@@ -267,6 +267,7 @@ module App
         execution_step: action.execution_step,
         execution_error: action.execution_error,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
+        app_update_path: action.action == "create_coworker" && action.pending? ? "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}" : nil,
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject"
       }
       base[:reason] = action.reason if action.reason.present?
