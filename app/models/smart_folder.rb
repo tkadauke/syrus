@@ -128,7 +128,7 @@ class SmartFolder < ApplicationRecord
     { key: "missing_github_token", name: "Missing GitHub token", visibility: :when_present, filter: { "and" => [ { "field" => "has_github_token", "op" => "is", "value" => false } ] } },
     { key: "missing_claude_token", name: "Missing Claude token", visibility: :when_present, filter: { "and" => [ { "field" => "has_claude_token", "op" => "is", "value" => false } ] } },
     { key: "gh_rate_low",          name: "Rate limit low",       visibility: :when_present, filter: { "and" => [ { "field" => "gh_rate", "op" => "is", "value" => "low" } ] } }
-  ].freeze
+  ].map { |definition| definition.merge(filter_bar_preset: true).freeze }.freeze
 
   SPAWNED_PROCESS_BUILTINS = [
     { key: "running",         name: "Running",         visibility: :always,       filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] } },
@@ -138,7 +138,7 @@ class SmartFolder < ApplicationRecord
     # folder could never match. Being :when_present, it was then hidden on
     # every render — silently invisible rather than visibly broken.
     { key: "recently_failed", name: "Recently failed", visibility: :when_present, filter: { "and" => [ { "field" => "outcome", "op" => "is", "value" => "failed" }, { "field" => "started_at", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } }
-  ].freeze
+  ].map { |definition| definition.merge(filter_bar_preset: true).freeze }.freeze
 
   ADMIN_QUEUE_BUILTINS = [
     { key: "failed_today",     name: "Failed today",     visibility: :always,       filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } } ] } },
@@ -152,7 +152,7 @@ class SmartFolder < ApplicationRecord
     { key: "admin_queue_indexing", name: "Indexing", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "indexing" } ] } },
     { key: "admin_queue_cleanup", name: "Cleanup", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "cleanup" } ] } },
     { key: "admin_queue_low_priority_maintenance", name: "Low-priority maintenance", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "low_priority_maintenance" } ] } }
-  ].freeze
+  ].map { |definition| definition.merge(filter_bar_preset: true).freeze }.freeze
 
   # Repositories index folders. "All" is a real (unfiltered) builtin row here
   # rather than the bypass-link pattern Dashboard's "All jobs"/etc. use, so
@@ -191,7 +191,7 @@ class SmartFolder < ApplicationRecord
     key = subject.to_s
     previous = @registered_subjects[key]
     @registered_subjects[key] = {
-      builtins: Array(builtins).freeze,
+      builtins: Array(builtins).map { |definition| definition.reverse_merge(filter_bar_preset: true).freeze }.freeze,
       path: path,
       label: label,
       effective_filter_contract: effective_filter_contract
@@ -232,6 +232,10 @@ class SmartFolder < ApplicationRecord
 
     matches = builtins_by_subject.values.flatten.select { |candidate| candidate.fetch(:key).to_s == key.to_s }
     matches.one? ? matches.first : nil
+  end
+
+  def self.filter_bar_preset?(definition)
+    definition[:filter_bar_preset] == true
   end
 
   def self.path_for_subject(subject, **query)

@@ -70,7 +70,7 @@ module Filters
       return unless active_smart_folder&.builtin? && active_smart_folder.builtin_key.present?
 
       SmartFolder.builtins_for_subject(subject).find do |definition|
-        definition[:filter_bar_preset] && definition.fetch(:key).to_s == active_smart_folder.builtin_key
+        SmartFolder.filter_bar_preset?(definition) && definition.fetch(:key).to_s == active_smart_folder.builtin_key
       end
     end
   end

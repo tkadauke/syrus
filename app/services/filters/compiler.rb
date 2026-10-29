@@ -80,7 +80,7 @@ module Filters
       raise ArgumentError, "recursive smart folder preset: #{key.inspect}" if @preset_stack.include?(key)
 
       definition = SmartFolder.builtin_definition(subject: @subject.name, key: key)
-      definition = nil unless definition&.dig(:filter_bar_preset)
+      definition = nil unless definition && SmartFolder.filter_bar_preset?(definition)
       raise ArgumentError, "unknown smart folder preset: #{key.inspect}" unless definition
 
       ast = Filters::Ast.parse(definition.fetch(:filter))

@@ -5,8 +5,9 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { FilterBar } from "@app/components/FilterBar"
+import { SmartFolderFilterBar } from "@app/components/SmartFolderFilterBar"
+import { linkFromSearch } from "@app/components/filterBar/helpers"
 import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
-import { adminSmartFolderFilterLinkBuilder } from "@app/lib/adminSmartFolderLinks"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
@@ -58,18 +59,29 @@ export function WorkerTimelineMacroView() {
     navigate(withRoutePrefix(`/worker_timeline/workflow?id=${workflowId}`, prefix))
   }
 
-  const activeUserFolderId = macro.data?.smart_folders.find((folder) => folder.id === macro.data?.active_smart_folder_id && folder.kind === "user_defined")?.id
-  const filterBar = (
-    <FilterBar
-      filter={(activeTab === "live" ? live.data?.filter : macro.data?.filter) ?? null}
-      filterSchema={(activeTab === "live" ? live.data?.filter_schema : macro.data?.filter_schema) ?? []}
-      buildLink={activeTab === "timeline" ? adminSmartFolderFilterLinkBuilder(activeUserFolderId) : undefined}
-      onFilterApplied={(tree) => void recordWorkerTimelineFilterUsage({ filter: tree as Record<string, unknown> }).catch(() => {})}
-      pathname={location.pathname}
-      search={location.search}
-      suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
-    />
-  )
+  const filterBar =
+    activeTab === "timeline" ? (
+      <SmartFolderFilterBar
+        activeSmartFolderId={macro.data?.active_smart_folder_id}
+        buildLink={linkFromSearch}
+        filter={macro.data?.filter ?? null}
+        filterSchema={macro.data?.filter_schema ?? []}
+        onFilterApplied={(tree) => void recordWorkerTimelineFilterUsage({ filter: tree as Record<string, unknown> }).catch(() => {})}
+        pathname={location.pathname}
+        search={location.search}
+        smartFolders={macro.data?.smart_folders ?? []}
+        suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
+      />
+    ) : (
+      <FilterBar
+        filter={(activeTab === "live" ? live.data?.filter : macro.data?.filter) ?? null}
+        filterSchema={(activeTab === "live" ? live.data?.filter_schema : macro.data?.filter_schema) ?? []}
+        onFilterApplied={(tree) => void recordWorkerTimelineFilterUsage({ filter: tree as Record<string, unknown> }).catch(() => {})}
+        pathname={location.pathname}
+        search={location.search}
+        suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
+      />
+    )
   return (
     <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
@@ -167,11 +179,7 @@ function LiveWorkers({ payload, prefix }: { payload: WorkerTimelineLivePayload; 
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <h2 className="truncate text-sm font-semibold">{worker.hostname || worker.worker_storage_key || t("unknown_storage_key")}</h2>
-                  <StatusPill
-                    capacityExceeded={worker.capacity_exceeded}
-                    criticalDimensions={worker.critical_dimensions}
-                    status={worker.status}
-                  />
+                  <StatusPill capacityExceeded={worker.capacity_exceeded} criticalDimensions={worker.critical_dimensions} status={worker.status} />
                 </div>
                 <Text className="mt-1 truncate" variant="caption" tone="muted">
                   {worker.worker_storage_key || t("unknown_storage_key")}

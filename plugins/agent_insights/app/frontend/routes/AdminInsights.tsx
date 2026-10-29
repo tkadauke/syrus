@@ -4,9 +4,9 @@ import { TonePill } from "@app/components/StatusPill"
 import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
 import { AdminEventLogTable, AdminEventPanelMessage, type AdminDataTablePanelConfig, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
-import { FilterBar } from "@app/components/FilterBar"
+import { SmartFolderFilterBar } from "@app/components/SmartFolderFilterBar"
+import { linkFromSearch } from "@app/components/filterBar/helpers"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { adminSmartFolderFilterLinkBuilder } from "@app/lib/adminSmartFolderLinks"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -100,18 +100,19 @@ function AdminInsightsContent({
   search: string
 }) {
   const { t } = useT("agent_insights")
-  const activeUserFolderId = payload.smart_folders.find((folder) => folder.id === payload.active_smart_folder_id && folder.kind === "user_defined")?.id
   const activeFolderLabel = payload.smart_folders.find((folder) => folder.id === payload.active_smart_folder_id)?.name ?? t("smart_folder_agent_insights_all")
 
   return (
     <AdminFiltersLayout
       filterBar={
-        <FilterBar
+        <SmartFolderFilterBar
+          activeSmartFolderId={payload.active_smart_folder_id}
+          buildLink={linkFromSearch}
           filter={payload.filter}
           filterSchema={payload.filter_schema}
-          buildLink={adminSmartFolderFilterLinkBuilder(activeUserFolderId)}
           pathname={pathname}
           search={search}
+          smartFolders={payload.smart_folders}
         />
       }
       mobileSummaryLabel={activeFolderLabel}
@@ -263,7 +264,9 @@ function adminInsightColumns(
       header: t("col_proposal_type"),
       sort: "proposal_type",
       defaultVisible: false,
-      render: (suggestion) => <TonePill tone={suggestion.proposal_type === "remove_memory" ? "red" : "gray"}>{t(`proposal_${suggestion.proposal_type}`)}</TonePill>
+      render: (suggestion) => (
+        <TonePill tone={suggestion.proposal_type === "remove_memory" ? "red" : "gray"}>{t(`proposal_${suggestion.proposal_type}`)}</TonePill>
+      )
     },
     {
       key: "state",
@@ -285,7 +288,7 @@ function adminInsightColumns(
       sort: "accepted_at",
       defaultVisible: false,
       className: "text-xs text-text-secondary",
-      render: (suggestion) => suggestion.accepted_at ? <RelativeTimestamp value={suggestion.accepted_at} /> : "—"
+      render: (suggestion) => (suggestion.accepted_at ? <RelativeTimestamp value={suggestion.accepted_at} /> : "—")
     },
     {
       key: "dismissed_at",
@@ -293,7 +296,7 @@ function adminInsightColumns(
       sort: "dismissed_at",
       defaultVisible: false,
       className: "text-xs text-text-secondary",
-      render: (suggestion) => suggestion.dismissed_at ? <RelativeTimestamp value={suggestion.dismissed_at} /> : "—"
+      render: (suggestion) => (suggestion.dismissed_at ? <RelativeTimestamp value={suggestion.dismissed_at} /> : "—")
     },
     {
       key: "retired_at",
@@ -301,7 +304,7 @@ function adminInsightColumns(
       sort: "retired_at",
       defaultVisible: false,
       className: "text-xs text-text-secondary",
-      render: (suggestion) => suggestion.retired_at ? <RelativeTimestamp value={suggestion.retired_at} /> : "—"
+      render: (suggestion) => (suggestion.retired_at ? <RelativeTimestamp value={suggestion.retired_at} /> : "—")
     },
     {
       key: "target_ids",
@@ -354,10 +357,7 @@ function supersededIds(suggestion: AdminInsightSuggestion) {
 }
 
 function insightFlags(t: (key: string, options?: Record<string, unknown>) => string, suggestion: AdminInsightSuggestion) {
-  const flags = [
-    suggestion.has_memory_suggestion ? t("flag_memory") : null,
-    suggestion.suggested_prompt ? t("flag_proposal") : null
-  ].filter(Boolean)
+  const flags = [suggestion.has_memory_suggestion ? t("flag_memory") : null, suggestion.suggested_prompt ? t("flag_proposal") : null].filter(Boolean)
   return flags.length ? flags.join(", ") : "—"
 }
 
