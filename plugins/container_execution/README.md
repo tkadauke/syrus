@@ -25,4 +25,7 @@ Set `SYRUS_CONTAINER_EXECUTION_DEVCONTAINER=true` to use a repository's
 `.devcontainer/devcontainer.json` (or root `.devcontainer.json`) as the seed
 image for container-backed graders. Syrus pulls `image` declarations and builds
 `build` declarations when the deterministic local image is missing. This does
-not replace `.syrus.yml` prepare commands or affect local execution.
+not replace `.syrus.yml` prepare commands or affect local execution. Build
+contexts and Dockerfiles must be covered by
+`SYRUS_CONTAINER_EXECUTION_HOST_PATHS` so the Docker host receives its own path
+rather than the worker-container path.
