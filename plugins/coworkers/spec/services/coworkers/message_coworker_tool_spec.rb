@@ -35,6 +35,18 @@ RSpec.describe Mcp::Tools::MessageCoworkerTool do
     expect(response.content.first[:text]).to include("3-hop limit")
   end
 
+  it "refuses a pair after its delivery rate limit is reached" do
+    receiver = Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin", workspace_repo: repository.remote_url)
+    refusal = Coworkers::MessageRateLimiter::Result.new(allowed: false, retry_after_seconds: 37)
+    expect(Coworkers::MessageRateLimiter).to receive(:reserve).with(sender: sender, receiver: receiver).and_return(refusal)
+
+    response = nil
+    expect { response = call("rin") }.not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("rate limit reached for @maya and @rin", "try again in 37 seconds")
+  end
+
   it "refuses Syrus, self, unknown, foreign, paused, and archived targets with clear results" do
     other_owner = Factories.user(email_address: "other-coworker@example.com")
     Coworkers::Coworker.create!(owner_user: other_owner, name: "Foreign", handle: "foreign", workspace_repo: repository.remote_url)

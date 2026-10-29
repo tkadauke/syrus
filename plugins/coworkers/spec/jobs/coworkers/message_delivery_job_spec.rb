@@ -29,6 +29,7 @@ RSpec.describe Coworkers::MessageDeliveryJob do
                        "coworker_message" => include("direction" => "incoming", "sender_handle" => "maya", "origin_turn_id" => 42, "hop_count" => 2))
     )
     expect(receiver_chat.reload).to be_turn_in_flight
+    expect(sender_chat.reload).not_to be_turn_in_flight
   end
 
   it "queues delivery behind a receiver turn already in flight" do
@@ -47,5 +48,17 @@ RSpec.describe Coworkers::MessageDeliveryJob do
       "coworker_message" => include("direction" => "incoming")
     )
     expect(receiver_chat.messages.map(&:extract_text_from_content)).not_to include(a_string_including("Wait your turn"))
+  end
+
+  it "sets skip_turn_trigger explicitly on the sender-side block" do
+    sender, sender_chat = create_coworker(name: "Maya", handle: "maya")
+    receiver, receiver_chat = create_coworker(name: "Rin", handle: "rin")
+    job = described_class.new
+    allow(job).to receive(:main_chat) { |coworker| coworker.id == sender.id ? sender_chat : receiver_chat }
+    expect(sender_chat.messages).to receive(:create!)
+      .with(hash_including(role: "system", skip_turn_trigger: true))
+      .and_call_original
+
+    job.perform(sender.id, receiver.id, "Explicitly non-triggering.")
   end
 end
