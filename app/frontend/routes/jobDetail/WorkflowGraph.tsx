@@ -2103,6 +2103,7 @@ function RunRow({
       ) : null}
       {isRunArtifactView && artifacts.data ? (
         <RunArtifactsPanel
+          agentic={agentic}
           onClose={() => setArtifactView(null)}
           onTranscriptPageChange={setTranscriptPage}
           payload={artifacts.data}
@@ -2182,11 +2183,13 @@ function TestFailureLabel({ failure }: { failure: RunTestFailureSummary["failure
 // Workspace and Source tabs (see DiffReviewFeedback.tsx), so this panel never
 // wires up useDiffReviewFeedback.
 function RunArtifactsPanel({
+  agentic,
   payload,
   view,
   onClose,
   onTranscriptPageChange
 }: {
+  agentic: boolean
   payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>
   view: "transcript" | "diff" | "step_diff"
   onClose: () => void
@@ -2235,7 +2238,7 @@ function RunArtifactsPanel({
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_transcript")}</ArtifactPanelHeader>
       {payload.logs && payload.logs.length > 0 ? (
-        <RunTranscriptLogs logs={payload.logs} />
+        <RunTranscriptLogs agentic={agentic} logs={payload.logs} />
       ) : (
         <p className="p-3 text-sm text-text-muted">{t("artifact_no_transcript")}</p>
       )}

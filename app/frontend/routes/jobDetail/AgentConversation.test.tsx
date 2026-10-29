@@ -113,6 +113,8 @@ describe("AgentConversationTab", () => {
     expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("min-h-0", "flex-1", "max-h-none")
     expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveClass("max-h-[32rem]")
     expect(screen.getByText("Wrote the greeting helper.")).toBeInTheDocument()
+    expect(screen.getByTestId("run-transcript-log-assistant")).toBeInTheDocument()
+    expect(screen.queryByTestId("run-transcript-log-compact")).not.toBeInTheDocument()
     expect(screen.getByText("Older transcript rows are not shown.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Older" }))
     expect(await screen.findByText("Started the implementation.")).toBeInTheDocument()

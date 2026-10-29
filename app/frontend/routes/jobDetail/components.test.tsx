@@ -181,6 +181,7 @@ describe("RunTranscriptLogs", () => {
     render(
       <MemoryRouter>
         <RunTranscriptLogs
+          agentic
           logs={[
             { id: 1, sequence: 1, kind: "assistant_text", chunk: "**Done** with JOB-42", created_at: null },
             { id: 2, sequence: 2, kind: "system", chunk: "System notice", created_at: null },
@@ -228,5 +229,28 @@ describe("RunTranscriptLogs", () => {
     expect(stream).not.toHaveTextContent("[codex command]")
     expect(stream).not.toHaveTextContent("/bin/bash -lc")
     expect(systemRows[1]).toHaveTextContent(/branch-name-without/)
+  })
+
+  it("coalesces non-agentic chunks into compact ANSI-aware log rows", () => {
+    render(
+      <MemoryRouter>
+        <RunTranscriptLogs
+          agentic={false}
+          logs={[
+            { id: 1, sequence: 1, kind: "system", chunk: "starting grader", created_at: null },
+            { id: 2, sequence: 2, kind: "stdout", chunk: "\u001b[32mpassed", created_at: null },
+            { id: 3, sequence: 3, kind: "stdout", chunk: "all examples\u001b[0m", created_at: null }
+          ]}
+        />
+      </MemoryRouter>
+    )
+
+    const stream = screen.getByTestId("run-transcript-log-stream")
+    expect(stream).toHaveClass("space-y-1")
+    expect(stream).not.toHaveClass("space-y-4")
+    expect(screen.getAllByTestId("run-transcript-log-compact")).toHaveLength(2)
+    expect(screen.getAllByTestId("run-transcript-compact-output")[1]).toHaveTextContent("passed all examples")
+    expect(stream.textContent).not.toContain("\u001b[")
+    expect(screen.queryByTestId("run-transcript-log-system")).not.toBeInTheDocument()
   })
 })

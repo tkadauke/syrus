@@ -270,7 +270,7 @@ function TranscriptDrawer({ session }: { session: AgentActivitySession }) {
       {transcript.isError ? <p className="px-4 pb-3 text-sm text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("error_loading"))}</p> : null}
       {transcript.data ? (
         transcript.data.logs.length > 0 ? (
-          <RunTranscriptLogs logs={transcript.data.logs} />
+          <RunTranscriptLogs agentic logs={transcript.data.logs} />
         ) : (
           <p className="px-4 pb-3 text-sm text-gray-400 dark:text-gray-500">{t("no_transcript")}</p>
         )

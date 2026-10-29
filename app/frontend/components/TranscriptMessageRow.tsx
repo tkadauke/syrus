@@ -1,4 +1,4 @@
-import { ChatAssistantMarkdownSurface, SharedMessageRenderer, SystemMessage } from "../routes/chat/MessageCards"
+import { ChatCommandOutputSurface } from "../routes/chat/MessageCards"
 
 type TranscriptMessageRowProps = {
   chunk: string
@@ -9,18 +9,9 @@ type TranscriptMessageRowProps = {
 
 export function TranscriptMessageRow({ chunk, kind, label, sequence }: TranscriptMessageRowProps) {
   const displayLabel = label || `#${sequence}`
-
-  if (kind === "assistant_text" || kind === "assistant") {
-    return (
-      <SharedMessageRenderer as="li" readOnly testId="run-transcript-log-assistant">
-        <ChatAssistantMarkdownSurface text={chunk} />
-      </SharedMessageRenderer>
-    )
-  }
-
   return (
-    <SharedMessageRenderer as="li" readOnly testId="run-transcript-log-system">
-      <SystemMessage item={{ tone: "neutral", label: displayLabel, body: chunk, prominent: true }} prefix="" renderAnsi />
-    </SharedMessageRenderer>
+    <li className="min-w-0" data-kind={kind || "log"} data-testid="run-transcript-log-compact">
+      <ChatCommandOutputSurface command={displayLabel} compact emptyLabel="" output={chunk} testId="run-transcript-compact-output" />
+    </li>
   )
 }
