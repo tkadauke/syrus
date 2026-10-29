@@ -896,7 +896,7 @@ module Api
           end
 
           pending_action.update!(payload: pending_action.payload.to_h.merge("about" => params[:about].to_s.strip.presence))
-          render json: chat_payload(chat_session.reload, message: "Coworker About text updated.")
+          render json: chat_payload(chat_session.reload, message: t("api.chats.messages.coworker_about_updated"))
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end

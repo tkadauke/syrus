@@ -367,6 +367,8 @@ de:
     chats:
       groups:
         shared_with_me: "Mit mir geteilt"
+      messages:
+        coworker_about_updated: "Coworker-Infotext aktualisiert."
       errors:
         shared_read_only: "Geteilte Chats sind schreibgeschützt."
         unknown_user_id: "Unbekannte Benutzer-ID."
