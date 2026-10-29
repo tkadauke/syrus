@@ -44,14 +44,17 @@ class Coworkers::Create
     @grants = grants
     @attributes = { accent_hex: accent_hex, avatar_key: avatar_key, chat_provider: chat_provider,
                     chat_model: chat_model, chat_effort: chat_effort }.compact
-    remote_owner, remote_name = parse_remote(workspace_repo)
-    @remote = remote_workspace || Coworkers::RemoteWorkspace.new(owner: remote_owner, name: remote_name, user: owner)
+    @remote_workspace = remote_workspace
   end
 
   def call
-    validate_handle!
-    raise BranchExists, "#{branch} already exists" if @remote.branch_exists?(branch)
-    @remote.test_push_access!
+    checked = Coworkers::CreatePreflight.new(
+      owner: @owner, name: @name, handle: @handle, workspace_repo: @workspace_repo,
+      grants: @grants, remote_workspace: @remote_workspace, **@attributes
+    ).call
+    @handle = checked.handle
+    @remote = checked.remote
+    @selected_grants = checked.grants
 
     pushed = false
     coworker = begin
@@ -73,11 +76,6 @@ class Coworkers::Create
   private
 
   def branch = "coworkers/#{@handle}"
-
-  def validate_handle!
-    candidate = Handle.new(handle: @handle)
-    raise ActiveRecord::RecordInvalid, candidate unless candidate.valid?
-  end
 
   def register_repository!
     existing = Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", @remote.repository.owner.downcase, @remote.repository.name.downcase).first
@@ -139,14 +137,6 @@ class Coworkers::Create
   end
 
   def selected_grants
-    return DEFAULT_GRANTS unless @grants
-
-    DEFAULT_GRANTS.slice(*Array(@grants).map(&:to_s))
-  end
-
-  def parse_remote(value)
-    match = value.to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
-    raise InvalidRemote, "workspace_repo must be a GitHub repository URL" unless match
-    [ match[1], match[2] ]
+    @selected_grants
   end
 end
