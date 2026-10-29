@@ -670,7 +670,7 @@ RSpec.describe Prompts::ChatSystem do
         include Syrus::Plugin::ChatPromptInjector
 
         class_attribute :section
-        def self.chat_prompt_section(chat_session:, repository:) = section
+        def self.chat_prompt_section(chat_session:, repository:, message: nil) = section
       end.tap { |klass| klass.section = text }
     end
 
@@ -685,6 +685,18 @@ RSpec.describe Prompts::ChatSystem do
 
       expect(described_class.new(repository: repo, chat_session: chat).to_s)
         .to include("Use the flux capacitor sparingly.")
+    end
+
+    it "passes the incoming message to prompt injectors" do
+      provider = injector("turn context")
+      message = chat.messages.build(role: "user", sender_user: repo.user, content: { "text" => "hello" })
+      register(provider)
+
+      expect(provider).to receive(:chat_prompt_section)
+        .with(chat_session: chat, repository: repo, message: message)
+        .and_return("turn context")
+
+      described_class.new(repository: repo, chat_session: chat, current_message: message).to_s
     end
 
     # A plugin whose tools this chat cannot call should not spend prompt budget

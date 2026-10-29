@@ -3,7 +3,7 @@ module Mockups
   module PromptSection
     include Syrus::Plugin::ChatPromptInjector
 
-    def self.chat_prompt_section(chat_session:, repository:)
+    def self.chat_prompt_section(chat_session:, repository:, message: nil)
       <<~TEXT.strip
         For UI mockups, HTML mockups, prototypes, interactive interface
         sketches, screenshot-driven interface redesigns, "open the preview",
