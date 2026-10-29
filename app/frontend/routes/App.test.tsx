@@ -12952,10 +12952,7 @@ describe("App", () => {
     const addAttachment = screen.getByRole("button", { name: "Add attachment" })
     expect(addAttachment).toHaveTextContent("+")
     expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
-    expect(screen.getByLabelText("Chat attachments")).toHaveAttribute(
-      "accept",
-      "image/jpeg,image/png,image/gif,image/webp,application/pdf,video/webm,video/mp4,video/quicktime"
-    )
+    expect(screen.getByLabelText("Chat attachments")).not.toHaveAttribute("accept")
   })
 
   it("gates video intake behind the walkthroughs labs flag", async () => {
@@ -12975,8 +12972,9 @@ describe("App", () => {
 
     await screen.findByPlaceholderText("Ask about this repository...")
 
-    // No video types offered by the picker, no Record entry in the + menu.
-    expect(screen.getByLabelText("Chat attachments")).toHaveAttribute("accept", "image/jpeg,image/png,image/gif,image/webp,application/pdf")
+    // The picker stays unfiltered so exact extensionless filenames such as
+    // Dockerfile remain selectable; validation still rejects disabled video.
+    expect(screen.getByLabelText("Chat attachments")).not.toHaveAttribute("accept")
     fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
     expect(await screen.findByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
     expect(screen.queryByText("Record a walkthrough")).not.toBeInTheDocument()
