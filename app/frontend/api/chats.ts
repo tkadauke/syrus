@@ -919,6 +919,7 @@ export type CodingDiffPayload = {
 
 export type ChatPayload = {
   message?: string | null
+  coworker_chat?: boolean
   agent_appearance?: ChatAgentAppearance
   agent_roster?: ChatAgentRosterItem[]
   chat: ChatRecord
