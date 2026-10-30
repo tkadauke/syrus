@@ -87,6 +87,26 @@ RSpec.describe "ChatTurnJob plugin turn orientation" do
     expect(prompt).not_to include("not typed directly by the human operator")
   end
 
+  it "tells a coworker to use the reply tool for a bridged turn" do
+    coworker = instance_double("Coworkers::Coworker", kind: "coworker")
+    chat.define_singleton_method(:coworker) { coworker }
+    origin_chat = ChatSession.create!(user: user, title: "Owner chat")
+    thread = ChatBridgeThread.create!(origin_chat_session: origin_chat, target_chat_session: chat, opened_by_user: user)
+    bridged_message = ChatMessage.create!(
+      chat_session: chat,
+      role: "user",
+      content: { "text" => "Any update?", "requested_by" => "cross_chat", "thread_id" => thread.id }
+    )
+
+    prompt = ChatSession::CrossChatTurnOrientation.chat_turn_orientation(
+      chat_session: chat, message: bridged_message, user_note: "Any update?"
+    )
+
+    expect(prompt).to include("call `reply_in_chat_thread` with that thread id")
+    expect(prompt).to include("Plain text written only in this coworker chat is not delivered")
+    expect(prompt).to include("bridge thread ##{thread.id}")
+  end
+
   def build_job_for_prompt(prompt_message)
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)

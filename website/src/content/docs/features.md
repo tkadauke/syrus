@@ -1733,6 +1733,13 @@ the same home-branch merge and conflict reporting as chat turns; failed runs
 also count toward schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
+When an owner opens a cross-chat bridge thread to a coworker's chat, the
+coworker can reply through that existing thread without an additional grant or
+confirmation. The reply tool cannot open threads or address arbitrary chats:
+the coworker's chat must already be a member, the owner must have opened the
+thread, and the other chat must belong to that owner. Replies retain the
+bridge's hop limit and automatic closure. The coworker must call the reply tool;
+plain text written only in its own chat is not relayed to the owner chat.
 Coworker conversations are kept
 in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
