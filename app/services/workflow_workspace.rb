@@ -515,6 +515,11 @@ class WorkflowWorkspace
       return
     end
 
+    # `git clone --branch` already created and checked out this local branch.
+    # Fetching the same ref into it below is both redundant and rejected by
+    # Git because the destination branch is currently checked out.
+    return if @required_branch.present? && clone_checkout_branch == @required_branch
+
     remote_sha = nil
     unless skip_existing_branch_checkout?
       # Check whether the target branch already exists on origin
@@ -577,6 +582,13 @@ class WorkflowWorkspace
   end
 
   def validate_clone_checkout_branch!
+    # A required branch is the workflow's declared source of truth. Prefer it
+    # at clone time when it is already published so repositories that contain
+    # only that branch (such as coworker workspaces) do not depend on a usable
+    # default branch. When it is absent, keep cloning the ordinary base branch:
+    # merge-train workflows may still restore the required tip from a
+    # checkpoint after the clone.
+    @clone_checkout_branch = @required_branch if @required_branch.present? && remote_branch_exists?(@required_branch)
     branch = clone_checkout_branch
     return if remote_branch_exists?(branch)
     return if remote_repo_empty?
@@ -1006,6 +1018,7 @@ class WorkflowWorkspace
   # the fork's own default here (guaranteed to exist even when it differs from
   # the upstream's default branch name).
   def clone_checkout_branch
+    return @clone_checkout_branch if @clone_checkout_branch.present?
     return default_branch_snapshot_branch if default_branch_snapshot?
     return @repository.default_branch if commit_sha_revision? || base_on_upstream_default?
 
