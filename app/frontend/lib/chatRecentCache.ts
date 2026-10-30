@@ -18,15 +18,17 @@ export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: nu
     const targetIndex = groups.findIndex((group) => group.key === targetKey)
     const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
     const nextGroup = { ...targetGroup, chats: [updated, ...targetGroup.chats] }
-    const nextGroups = targetIndex >= 0
-      ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)]
-      : [nextGroup, ...groups]
+    const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
 
     return { ...current, groups: nextGroups }
   })
 }
 
-export function updateRecentChatTurnCache(queryClient: QueryClient, chatId: number | string, updates: Pick<ChatRecord, "turn_in_flight"> & Partial<Pick<ChatRecord, "agent_busy">>) {
+export function updateRecentChatTurnCache(
+  queryClient: QueryClient,
+  chatId: number | string,
+  updates: Pick<ChatRecord, "turn_in_flight"> & Partial<Pick<ChatRecord, "agent_busy">>
+) {
   queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
@@ -34,9 +36,7 @@ export function updateRecentChatTurnCache(queryClient: QueryClient, chatId: numb
       ...current,
       groups: current.groups.map((group) => ({
         ...group,
-        chats: group.chats.map((chat) => (
-          String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat
-        ))
+        chats: group.chats.map((chat) => (String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat))
       }))
     }
   })
@@ -50,9 +50,7 @@ export function updateRecentChatScratchpadCache(queryClient: QueryClient, chatId
       ...current,
       groups: current.groups.map((group) => ({
         ...group,
-        chats: group.chats.map((chat) => (
-          String(chat.id) === String(chatId) ? { ...chat, scratchpad_items_count: scratchpadItemsCount } : chat
-        ))
+        chats: group.chats.map((chat) => (String(chat.id) === String(chatId) ? { ...chat, scratchpad_items_count: scratchpadItemsCount } : chat))
       }))
     }
   })
