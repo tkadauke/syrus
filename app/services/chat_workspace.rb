@@ -109,6 +109,11 @@ class ChatWorkspace
     false
   end
 
+  def self.rebase_in_progress?(path)
+    git_dir = Pathname.new(path).join(".git")
+    git_dir.join("rebase-merge").directory? || git_dir.join("rebase-apply").directory?
+  end
+
   def self.coding_checkout_snapshot(chat_session, repository)
     path = repo_path_for(chat_session, repository)
     git_dir = path.join(".git")
@@ -154,8 +159,8 @@ class ChatWorkspace
     new(chat_session).ensure_job_branch_checkout!(repository, branch_name)
   end
 
-  def self.ensure_branch_checkout!(chat_session, repository, branch_name)
-    new(chat_session).ensure_branch_checkout!(repository, branch_name)
+  def self.ensure_branch_checkout!(chat_session, repository, branch_name, preserve_local_commits: false)
+    new(chat_session).ensure_branch_checkout!(repository, branch_name, preserve_local_commits: preserve_local_commits)
   end
 
   # Returns { files: ["path/to/file", ...], checkout_branch: "..." }
@@ -461,13 +466,19 @@ class ChatWorkspace
     path
   end
 
-  def ensure_branch_checkout!(repository, branch_name)
+  def ensure_branch_checkout!(repository, branch_name, preserve_local_commits: false)
     ensure_root!
     path = self.class.repo_path_for(@chat_session, repository)
+    if preserve_local_commits && path.join(".git").directory? && self.class.rebase_in_progress?(path)
+      @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+      GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
+      return path
+    end
+
     current_branch = self.class.git_value(path, "branch", "--show-current")
 
     if path.join(".git").directory? && current_branch == branch_name
-      fast_forward_branch!(repository, path, branch_name)
+      fast_forward_branch!(repository, path, branch_name, preserve_local_commits: preserve_local_commits)
     else
       FileUtils.rm_rf(path.to_s)
       full_clone_at_branch!(repository, path, branch_name)
@@ -1075,7 +1086,7 @@ class ChatWorkspace
     fast_forward_branch!(repository, path, repository.default_branch)
   end
 
-  def fast_forward_branch!(repository, path, branch)
+  def fast_forward_branch!(repository, path, branch, preserve_local_commits: false)
     refspec = "+refs/heads/#{branch}:refs/remotes/origin/#{branch}"
 
     fetch_via_transport!(
@@ -1086,6 +1097,11 @@ class ChatWorkspace
     end
 
     @git.run("switch", "--", branch, chdir: path.to_s)
+    if preserve_local_commits
+      ahead = @git.run("rev-list", "--count", "origin/#{branch}..HEAD", chdir: path.to_s).strip.to_i
+      return GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY) if ahead.positive?
+    end
+
     @git.run("merge", "--ff-only", "origin/#{branch}", chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end
