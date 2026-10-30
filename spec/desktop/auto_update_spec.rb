@@ -648,8 +648,15 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(workflow.dig("jobs", "publish-website", "uses")).to eq("./.github/workflows/deploy-website.yml")
 
     deploy = read(repo_root, ".github/workflows/deploy-website.yml")
-    triggers = YAML.safe_load(deploy)[true] # `on:` parses as the boolean key
+    deploy_workflow = YAML.safe_load(deploy)
+    triggers = deploy_workflow[true] # `on:` parses as the boolean key
     expect(triggers.keys).to include("workflow_call", "workflow_dispatch", "push")
+    expect(deploy_workflow.dig("jobs", "deploy-website", "steps")).to include(
+      a_hash_including(
+        "uses" => "actions/setup-node@v7",
+        "with" => a_hash_including("node-version" => 22)
+      )
+    )
     expect(deploy).to include("website/**") # push path filter
     expect(deploy).to include("actions/deploy-pages")
   end
