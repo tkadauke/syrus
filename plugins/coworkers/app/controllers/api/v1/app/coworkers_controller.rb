@@ -13,7 +13,9 @@ module Api
           render json: {
             coworkers: coworkers.map { |coworker| summary_json(coworker, weekly_spend_usd: weekly_spend.fetch(coworker.id)) },
             syrus: syrus_json,
-            model_options: model_options_json
+            model_options: model_options_json,
+            provisioning_attempts: Coworkers::ProvisioningAttempt.where(owner_user: Current.user)
+              .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status)
           }
         end
 
@@ -25,12 +27,30 @@ module Api
         def create
           coworker = Coworkers::Coworker.new(owner_user: Current.user)
           authorize coworker, :create?, policy_class: CoworkerPolicy
-          created = Coworkers::Create.call(owner: Current.user, **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: params[:grants])
+          created = Coworkers::Create.call(owner: Current.user, idempotency_key: request.headers["Idempotency-Key"] || params[:idempotency_key],
+            **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: params[:grants])
           render json: { coworker: detail_json(created), redirect_to: "/coworkers/#{created.id}" }, status: :created
         rescue ActiveRecord::RecordInvalid => error
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue Coworkers::Create::InvalidRemote, Coworkers::Create::BranchExists, ArgumentError => error
           render_error("validation_failed", error.message, status: :unprocessable_content)
+        rescue Coworkers::Create::CreationFailed => error
+          render_error(error.outcome.to_s, error.message, status: error.outcome == :cleanup_pending ? :accepted : :unprocessable_content)
+        end
+
+        def retry_provisioning_cleanup
+          attempt = provisioning_attempt
+          Coworkers::ProvisioningCleanupJob.perform_later(attempt.id)
+          render json: { provisioning_attempt: attempt.public_status }, status: :accepted
+        end
+
+        def acknowledge_provisioning_cleanup
+          attempt = provisioning_attempt
+          unless attempt.state == "manual_attention"
+            return render_error("invalid_state", "only manual-attention cleanup can be acknowledged", status: :unprocessable_content)
+          end
+          attempt.update!(acknowledged_at: Time.current, acknowledged_by: Current.user)
+          render json: { provisioning_attempt: attempt.public_status }
         end
 
         def update
@@ -216,6 +236,10 @@ module Api
         end
 
         private
+
+        def provisioning_attempt
+          Coworkers::ProvisioningAttempt.where(owner_user: Current.user).find(params[:attempt_id])
+        end
 
         def scope = CoworkerPolicy::Scope.new(Current.user, Coworkers::Coworker.all).resolve
 

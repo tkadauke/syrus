@@ -6,6 +6,7 @@
   "built_in": "Integriert · Entwickler",
   "card": { "weekly_spend": "${{amount}} diese Woche" },
   "coming_later": "Kommt später",
+  "provisioning": { "title": "Bereinigung der Bereitstellung", "retry": "Bereinigung wiederholen", "acknowledge": "Bestätigen", "states": { "provisioning": "Wird bereitgestellt", "cleanup_pending": "Bereinigung ausstehend", "cleaned": "Bereinigt", "manual_attention": "Manuelle Prüfung erforderlich" } },
   "memory": {
     "search": "Erinnerungsdateien durchsuchen",
     "files": "Erinnerungsdateien",
