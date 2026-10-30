@@ -32,6 +32,22 @@ RSpec.describe "Coworker background runs" do
     expect(workflow.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT)).to eq("coworkers/maya-background")
   end
 
+  it "runs prepare through a workspace pinned to the coworker's home branch" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "prepare")
+    run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.mktmpdir("coworker-prepare")))
+    handler = Steps::Prepare.new(run)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return({})
+
+    expect { handler.call }.not_to raise_error
+    expect(workspace).to have_received(:setup)
+    expect(workflow.reload.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT)).to eq("coworkers/maya-background")
+  ensure
+    FileUtils.rm_rf(workspace.path) if workspace
+  end
+
   it "uses a coworker mutex without taking the repository mutex" do
     definition = Coworkers::WorkDefinition.new
 

@@ -129,6 +129,23 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(ws.path.join("integration.txt")).to exist
     end
 
+    it "clones a published required branch when the remote has no default branch and reuses it on retry" do
+      seed_remote_branch(required, "integration work")
+      sh("git --git-dir=#{bare_remote_dir} branch -D main")
+
+      ws = described_class.new(workflow)
+      ws.setup
+
+      expect(current_branch(ws)).to eq(required)
+      expect(ws.path.join("integration.txt")).to exist
+
+      File.write(ws.path.join("retry-debris.txt"), "discard me")
+      described_class.new(workflow).setup
+
+      expect(current_branch(ws)).to eq(required)
+      expect(ws.path.join("retry-debris.txt")).not_to exist
+    end
+
     it "refuses to invent the branch when it is not on the remote" do
       ws = described_class.new(workflow)
 
