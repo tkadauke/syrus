@@ -2,7 +2,9 @@ class ApplicationJob < ActiveJob::Base
   queue_as :control_plane
 
   around_perform do |job, block|
-    PerformanceLogging.around_job(job) { block.call }
+    AppSetting.with_current_cache do
+      PerformanceLogging.around_job(job) { block.call }
+    end
   end
 
   # Automatically retry jobs that encountered a deadlock
