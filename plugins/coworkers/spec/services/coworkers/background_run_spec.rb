@@ -89,7 +89,10 @@ RSpec.describe "Coworker background runs" do
 
     expect(response).not_to be_error
     expect(action).to be_pending
-    expect(action.payload).to include("run_id" => run.id, "tool_name" => "propose_job", "arguments" => include("title" => "Prepare the report"))
+    expect(action.payload).to include(
+      "run_id" => run.id, "tool_name" => "propose_job", "approval_policy" => "queue", "approval_inbox" => true,
+      "arguments" => include("title" => "Prepare the report")
+    )
     expect { action.confirm!(user: owner) }.to change(main_chat.proposals, :count).by(1)
     expect(action.reload).to be_confirmed
 
@@ -99,6 +102,7 @@ RSpec.describe "Coworker background runs" do
     )
     queued_action = main_chat.pending_actions.find(JSON.parse(queued.content.first[:text]).fetch("pending_action_id"))
     expect(queued_action).to be_pending
+    expect(queued_action.payload).to include("approval_policy" => "queue", "approval_inbox" => true)
     expect(JSON.parse(queued.content.first[:text])).to include("approval_policy" => "queue")
 
     expired = main_chat.pending_actions.create!(

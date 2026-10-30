@@ -353,13 +353,17 @@ RSpec.describe "API: coworkers", type: :request do
     Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
     approval = main_chat.pending_actions.create!(
       action: "coworker_tool_call", requested_by: "agent",
-      payload: { "tool_name" => "ask_user_question", "arguments" => { "questions" => [ { "question" => "Proceed?" } ] }, "run_id" => 42 }
+      payload: { "tool_name" => "ask_user_question", "arguments" => { "questions" => [ { "question" => "Proceed?" } ] }, "run_id" => 42, "approval_policy" => "queue", "approval_inbox" => true }
+    )
+    interactive_confirmation = main_chat.pending_actions.create!(
+      action: "coworker_tool_call", requested_by: "agent",
+      payload: { "tool_name" => "ask_user_question", "arguments" => { "questions" => [ { "question" => "Live confirmation?" } ] }, "approval_policy" => "confirm", "approval_inbox" => false }
     )
     other = Factories.user(email_address: "other-approvals@example.com")
     other_coworker = Coworkers::Coworker.create!(owner_user: other, name: "Other", handle: "other-approval-agent", workspace_repo: "https://github.com/acme/other.git")
     other_chat = ChatSession.create!(user: other, title: "Other")
     Coworkers::Chat.create!(coworker: other_coworker, chat_session: other_chat, role: "main")
-    other_chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {} })
+    other_chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {}, "approval_policy" => "queue", "approval_inbox" => true })
     sign_in_as(owner)
 
     get "/api/v1/app/coworkers/#{coworker.id}/approvals"
@@ -367,6 +371,7 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.fetch("approvals")).to contain_exactly(include(
       "id" => approval.id, "tool_name" => "ask_user_question", "tool_input" => { "questions" => [ { "question" => "Proceed?" } ] }, "run_id" => 42
     ))
+    expect(response.parsed_body.fetch("approvals").pluck("id")).not_to include(interactive_confirmation.id)
 
     get "/api/v1/app/coworkers/sidebar_badge"
     expect(response.parsed_body).to eq("count" => 1)
@@ -383,7 +388,7 @@ RSpec.describe "API: coworkers", type: :request do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-private-approval", workspace_repo: "https://github.com/acme/workspace.git")
     chat = ChatSession.create!(user: owner, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
-    approval = chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {} })
+    approval = chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {}, "approval_policy" => "queue", "approval_inbox" => true })
     sign_in_as(Factories.user(email_address: "approval-intruder@example.com"))
 
     post "/api/v1/app/coworkers/#{coworker.id}/approvals/#{approval.id}/reject"
