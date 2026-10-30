@@ -297,6 +297,11 @@ module CredentialStore
         lsb_release nproc pgrep ps pwd readlink realpath stat tail test true
         uname uptime wc which who whoami
       ].freeze
+      READ_ONLY_COMMAND_FORMS = [
+        %w[hostname],
+        %w[date -Is],
+        %w[ha core info]
+      ].freeze
       COMMAND_WRAPPERS = %w[command].freeze
 
       class << self
@@ -332,7 +337,9 @@ module CredentialStore
           words = unwrap_command_wrapper(words)
           executable = words.first.to_s
 
-          executable == command_name(executable) && READ_ONLY_COMMANDS.include?(executable.downcase)
+          return false unless executable == command_name(executable)
+
+          READ_ONLY_COMMANDS.include?(executable.downcase) || READ_ONLY_COMMAND_FORMS.include?(words)
         end
 
         def nested_command_fragment?(token)

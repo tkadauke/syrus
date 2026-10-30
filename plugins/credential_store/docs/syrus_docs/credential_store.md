@@ -344,8 +344,11 @@ constraint unless a workflow caller explicitly sets
 diagnostic commands runs without confirmation; shell expansion, globbing,
 redirection, and every command outside that allowlist are refused unless a
 workflow caller supplies `allow_risky_command: true`. Chat-surface calls cannot
-self-authorize either bypass; they fail instead of executing. All access
-attempts are audited by the broker, including denials for revoked credentials,
+self-authorize either bypass; they fail instead of executing. The exact
+read-only diagnostics `hostname`, `date -Is`, and `ha core info` are allowed;
+mutating variants and compound commands containing anything outside the
+allowlist remain refused. All access attempts are audited by the broker,
+including denials for revoked credentials,
 wrong credential types,
 surface/tool policy mismatches, SSH metadata mismatches, unconstrained
 credentials, and target constraint failures.
