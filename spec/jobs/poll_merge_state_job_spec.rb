@@ -53,6 +53,20 @@ RSpec.describe PollMergeStateJob, :ci_only do
     expect(job.approved_at).to be_present
   end
 
+  it "wakes landing exactly once when fresh evidence clears a required rebase" do
+    job.approve!(via: "github_review")
+    job.update!(github_mergeable_state: "dirty", mergeability_checked_at: Time.current)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to change { job.workflows.where(trigger_kind: "auto_merge").count }.by(1)
+
+    described_class.perform_now(job.id)
+
+    expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
+    expect(job.reload).to be_landing
+  end
+
   it "short-circuits when polling is paused, even if the child job was already queued" do
     AppSetting.current.update!(polling_paused: true)
 
@@ -695,6 +709,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
     it "still applies all existing guards inside dispatch_rebase" do
       AppSetting.current.update!(proactive_rebase_commit_threshold: 20)
+      allow(LandingQueueProcessor).to receive(:try_land!)
       job.update_columns(state: "approved", approved_at: 1.minute.ago, approved_via: "operator")
       LandingQueueProcessor::REBASE_PREFETCH_DEPTH.times do |i|
         sibling = Factories.job(user: user, repository: repository, pr_number: 100 + i, branch_name: "syrus/sib-#{100 + i}")

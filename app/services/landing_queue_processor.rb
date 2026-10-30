@@ -1,6 +1,7 @@
 class LandingQueueProcessor
   MERGEABILITY_RECHECK_DELAY = 1.minute
   MERGEABILITY_WAIT_REASON = { key: "waiting_github_mergeability" }.freeze
+  REBASE_REQUIRED_MERGEABLE_STATES = %w[ behind dirty ].freeze
   TRY_LAND_LOCK_RETRIES = 2
   TRY_LAND_LOCK_ERRORS = [
     ActiveRecord::Deadlocked,
@@ -139,6 +140,11 @@ class LandingQueueProcessor
     # land them together as one bundle instead of racing each other for
     # the repo's single landing slot.
     return JobBundleDispatcher.try_dispatch!(job.repository) if bundle_eligible_epicless_job?(job)
+
+    if mergeability_refresh_required?(job)
+      PollMergeStateJob.perform_later(job.id)
+      return
+    end
 
     return unless blockage_for(job)[:blocked_reason].blank?
 
@@ -532,6 +538,7 @@ class LandingQueueProcessor
   def land(job)
     workflow = nil
     landed = false
+    refresh_mergeability = false
     Job.transaction do
       job.lock!
       raise ActiveRecord::Rollback if landing_in_progress_for_job?(job)
@@ -547,6 +554,16 @@ class LandingQueueProcessor
       @epic_work_jobs_by_epic_id&.delete(job.epic_id) if job.epic_id
       raise ActiveRecord::Rollback unless blockage_for(job, consume_override: true)[:blocked_reason].blank?
 
+      # Approval and merge-state polling are independent wakeups. Make the
+      # final landing decision while holding the Job lock so cached evidence
+      # that already requires a rebase cannot briefly create an auto_merge
+      # WorkUnit before the poller dispatches that rebase. The poller remains
+      # the sole owner of rebase selection and all of its guards.
+      unless mergeability_admits_landing?(job)
+        refresh_mergeability = true
+        raise ActiveRecord::Rollback
+      end
+
       job.landing_failure_reason = nil
       job.landing_failure_code = nil
       job.start_landing!
@@ -557,10 +574,29 @@ class LandingQueueProcessor
       WorkflowActivity.landing_workflow_dispatched!(job, workflow)
       landed = true
     end
+    PollMergeStateJob.perform_later(job.id) if refresh_mergeability
     return unless landed
 
     WorkUnits::Launcher.start!(workflow)
     workflow
+  end
+
+  def mergeability_admits_landing?(job)
+    return true if job.external_pr?
+    return false if mergeability_refresh_required?(job)
+
+    state = job.github_mergeable_state
+    return false if REBASE_REQUIRED_MERGEABLE_STATES.include?(state)
+
+    true
+  end
+
+  def mergeability_refresh_required?(job)
+    return false if job.external_pr?
+    return true if job.mergeability_checked_at.blank?
+    return true if job.mergeability_checked_at <= MERGEABILITY_RECHECK_DELAY.ago
+
+    job.github_mergeable_state.blank? || job.github_mergeable_state == "unknown"
   end
 
   # Whether the landing slot `job` would occupy is already taken — keyed by
