@@ -144,6 +144,7 @@
     "policy_for": "Approval policy for {{capability}}",
     "confirm_escalation": "This gives the coworker more access. Confirm this grant change?",
     "confirm_paths": "Always confirm edits to these paths (comma-separated)",
+    "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Save constraints",
     "integrations": { "gmail": "Gmail", "calendar": "Calendar" },
     "coming_later": "Coming later"

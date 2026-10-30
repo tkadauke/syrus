@@ -150,6 +150,7 @@
     "policy_for": "Genehmigungsregel für {{capability}}",
     "confirm_escalation": "Dadurch erhält der Coworker mehr Zugriff. Grant-Änderung bestätigen?",
     "confirm_paths": "Bearbeitungen dieser Pfade immer bestätigen (kommagetrennt)",
+    "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Einschränkungen speichern",
     "integrations": { "gmail": "Gmail", "calendar": "Kalender" },
     "coming_later": "Kommt später"

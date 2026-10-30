@@ -1,31 +1,17 @@
 class Coworkers::GrantPolicy
-  ORDER = %w[off queue confirm auto].freeze
+  RANKS = {
+    "off" => 0,
+    "queue" => 1,
+    "confirm" => 2,
+    "auto" => 3
+  }.freeze
 
   def self.for(name)
-    {
-      "off" => Off,
-      "queue" => Queue,
-      "confirm" => Confirm,
-      "auto" => Auto
-    }.fetch(name.to_s).new
+    new(RANKS.fetch(name.to_s))
   end
 
+  def initialize(rank) = @rank = rank
   def escalation_from?(current) = rank > self.class.for(current).rank
-  def rank = self.class::RANK
 
-  class Off < Coworkers::GrantPolicy
-    RANK = 0
-  end
-
-  class Queue < Coworkers::GrantPolicy
-    RANK = 1
-  end
-
-  class Confirm < Coworkers::GrantPolicy
-    RANK = 2
-  end
-
-  class Auto < Coworkers::GrantPolicy
-    RANK = 3
-  end
+  attr_reader :rank
 end

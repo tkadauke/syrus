@@ -447,7 +447,12 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                   <div>
                     <label className="mt-2 block text-xs text-text-secondary">
                       {t("capabilities.confirm_paths")}
-                      <Input className="mt-1" onChange={(event) => setPaths(event.target.value)} placeholder="SOUL.md, AGENTS.md" value={paths} />
+                      <Input
+                        className="mt-1"
+                        onChange={(event) => setPaths(event.target.value)}
+                        placeholder={t("capabilities.confirm_paths_placeholder")}
+                        value={paths}
+                      />
                     </label>
                     <button
                       className="mt-2 rounded border border-border px-2 py-1 text-xs disabled:opacity-50"

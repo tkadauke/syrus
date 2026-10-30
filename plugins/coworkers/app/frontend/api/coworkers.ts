@@ -109,7 +109,9 @@ export function fetchCoworkerWorkspace(id: string, path?: string) {
 export function fetchCoworkerActivity(id: string) {
   return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
 }
-export const fetchCoworkerApprovals = (id: string) => getJson<{ approvals: CoworkerApproval[] }>(`/api/v1/app/coworkers/${id}/approvals`)
+export function fetchCoworkerApprovals(id: string) {
+  return getJson<{ approvals: CoworkerApproval[] }>(`/api/v1/app/coworkers/${id}/approvals`)
+}
 export const decideCoworkerApproval = (coworkerId: string, approvalId: number, decision: "approve" | "reject") =>
   postJson<{ approval: CoworkerApproval }>(`/api/v1/app/coworkers/${coworkerId}/approvals/${approvalId}/${decision}`)
 export const createCoworkerSchedule = (id: string, schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>

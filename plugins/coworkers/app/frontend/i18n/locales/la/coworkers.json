@@ -150,6 +150,7 @@
     "policy_for": "Ratio approbationis pro {{capability}}",
     "confirm_escalation": "Hoc collegae maiorem aditum dat. Mutationem concessionis confirmas?",
     "confirm_paths": "Mutationes horum itinerum semper confirma (commatibus separata)",
+    "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Fines serva",
     "integrations": { "gmail": "Gmail", "calendar": "Calendarium" },
     "coming_later": "Postea adveniet"
