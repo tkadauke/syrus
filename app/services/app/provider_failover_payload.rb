@@ -20,7 +20,8 @@ module App
     attr_reader :workflow, :configured_provider
 
     def automatic_payload
-      decision = workflow.artifacts.to_h["provider_failover_decision"]
+      artifacts = workflow.artifacts.to_h
+      decision = artifacts["provider_failover_decision"] || artifacts["agent_provider_routing_decision"]
       return nil unless decision.is_a?(Hash)
 
       original = decision["original_provider"].presence
