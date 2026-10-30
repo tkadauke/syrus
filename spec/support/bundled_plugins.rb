@@ -135,15 +135,18 @@ module Syrus
       end
 
       def with_default_beta_mode(example)
-        return yield if beta_mode_excluded?(example)
-
         begin
           return yield unless defined?(AppSetting) && AppSetting.respond_to?(:current)
           return yield unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
 
+          # The before(:suite) call establishes true as the common baseline.
+          # Transactional examples roll their own changes back to that value,
+          # so ordinary core and plugin specs should not pay for two writes to
+          # the singleton settings row. Only default-policy specs toggle it.
           settings = AppSetting.current
           previous = settings.beta_mode_enabled?
-          settings.update!(beta_mode_enabled: true) unless previous
+          desired = !beta_mode_excluded?(example)
+          settings.update!(beta_mode_enabled: desired) unless previous == desired
         rescue ActiveRecord::ActiveRecordError
           return yield
         end
@@ -151,6 +154,16 @@ module Syrus
         yield
       ensure
         settings&.update!(beta_mode_enabled: previous) if defined?(settings) && settings && settings.beta_mode_enabled? != previous
+      end
+
+      def establish_default_beta_mode
+        return unless defined?(AppSetting) && AppSetting.respond_to?(:current)
+        return unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
+
+        settings = AppSetting.current
+        settings.update!(beta_mode_enabled: true) unless settings.beta_mode_enabled?
+      rescue ActiveRecord::ActiveRecordError
+        nil
       end
     end
   end
@@ -180,6 +193,7 @@ RSpec.configure do |config|
     Struct.new(:metadata).new({ file_path: "./spec/support/bundled_plugins.rb" }).then do |example|
       Syrus::SpecSupport::BundledPlugins.with_default_beta_mode(example, &restore_test_provider_records)
     end
+    Syrus::SpecSupport::BundledPlugins.establish_default_beta_mode
   end
 
   config.around do |example|
