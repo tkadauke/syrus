@@ -491,14 +491,12 @@ RSpec.describe CredentialStore::SshExec do
     expect(runner).not_to have_received(:call)
   end
 
-  it "allows read-only diagnostic commands and pipelines without explicit allowance" do
+  it "allows single read-only diagnostic commands without explicit allowance" do
     credential = create_credential
     allow(runner).to receive(:call).and_return(CredentialStore::SshRunner::Result.new(stdout: "", stderr: "", status: 0))
 
     [
       "uptime",
-      "df -h && free -m",
-      "ps aux | grep worker",
       "command uptime",
       "ls -la /tmp",
       "hostname",
@@ -510,7 +508,7 @@ RSpec.describe CredentialStore::SshExec do
       }.not_to raise_error
     end
 
-    expect(runner).to have_received(:call).exactly(8).times
+    expect(runner).to have_received(:call).exactly(6).times
   end
 
   it "does not broaden diagnostic commands into mutating or compound forms" do
@@ -521,7 +519,11 @@ RSpec.describe CredentialStore::SshExec do
       "hostname replacement.example.com",
       "date -s tomorrow",
       "ha core restart",
-      "ha core info && ha core restart"
+      "hostname && date -Is",
+      "hostname; date -Is",
+      "hostname | date -Is",
+      "df -h && free -m",
+      "ps aux | grep worker"
     ].each do |command|
       expect {
         described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
