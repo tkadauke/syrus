@@ -57,6 +57,15 @@ export type CoworkerActivityPayload = {
   }[]
   side_chats: { id: number; title: string | null; path: string; cost_usd: number }[]
 }
+export type CoworkerApproval = {
+  id: number
+  tool_name: string
+  tool_input: Record<string, unknown>
+  run_id: number | null
+  chat_id: number
+  created_at: string
+  state: string
+}
 export type CoworkerModelOptions = {
   provider: string
   provider_label: string
@@ -100,6 +109,9 @@ export function fetchCoworkerWorkspace(id: string, path?: string) {
 export function fetchCoworkerActivity(id: string) {
   return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
 }
+export const fetchCoworkerApprovals = (id: string) => getJson<{ approvals: CoworkerApproval[] }>(`/api/v1/app/coworkers/${id}/approvals`)
+export const decideCoworkerApproval = (coworkerId: string, approvalId: number, decision: "approve" | "reject") =>
+  postJson<{ approval: CoworkerApproval }>(`/api/v1/app/coworkers/${coworkerId}/approvals/${approvalId}/${decision}`)
 export const createCoworkerSchedule = (id: string, schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
   postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
 export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, command: "pause" | "resume" | "fire_now") =>

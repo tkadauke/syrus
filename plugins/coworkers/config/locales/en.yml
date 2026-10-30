@@ -1,6 +1,7 @@
 en:
   api:
     coworkers:
+      approval_inactive: "This approval is no longer pending."
       memory_unavailable: "The coworker's memory cannot be reached right now."
       chat_group: "Coworkers"
       invalid_workspace_remote: "Workspace remote must be a GitHub repository URL."

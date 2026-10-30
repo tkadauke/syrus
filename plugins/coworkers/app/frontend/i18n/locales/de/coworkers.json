@@ -81,10 +81,19 @@
     "chats": "Chats",
     "profile": "Profil",
     "capabilities": "Fähigkeiten",
+    "approvals": "Genehmigungen",
     "schedule": "Zeitplan",
     "memory": "Gedächtnis",
     "workspace": "Workspace",
     "activity": "Aktivität"
+  },
+  "approvals": {
+    "loading": "Genehmigungen werden geladen…",
+    "empty": "Keine Aktionen warten auf deine Genehmigung.",
+    "run": "Ursprünglicher Run {{id}}",
+    "chat": "Ursprünglicher Chat {{id}}",
+    "approve": "Genehmigen",
+    "reject": "Ablehnen"
   },
   "activity": {
     "loading": "Aktivität wird geladen…",

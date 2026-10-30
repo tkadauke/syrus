@@ -1,6 +1,7 @@
 la:
   api:
     coworkers:
+      approval_inactive: "Haec approbatio iam non pendet."
       memory_unavailable: "Memoria collegae nunc attingi non potest."
       chat_group: "Collegae"
       invalid_workspace_remote: "Remotum spatii laboris URL repositorii GitHub esse debet."

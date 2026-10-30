@@ -347,6 +347,51 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "lists and decides owner-scoped queued approvals and counts them in the nav badge" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-approvals", workspace_repo: "https://github.com/acme/workspace.git")
+    main_chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+    approval = main_chat.pending_actions.create!(
+      action: "coworker_tool_call", requested_by: "agent",
+      payload: { "tool_name" => "ask_user_question", "arguments" => { "questions" => [ { "question" => "Proceed?" } ] }, "run_id" => 42 }
+    )
+    other = Factories.user(email_address: "other-approvals@example.com")
+    other_coworker = Coworkers::Coworker.create!(owner_user: other, name: "Other", handle: "other-approval-agent", workspace_repo: "https://github.com/acme/other.git")
+    other_chat = ChatSession.create!(user: other, title: "Other")
+    Coworkers::Chat.create!(coworker: other_coworker, chat_session: other_chat, role: "main")
+    other_chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {} })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/approvals"
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("approvals")).to contain_exactly(include(
+      "id" => approval.id, "tool_name" => "ask_user_question", "tool_input" => { "questions" => [ { "question" => "Proceed?" } ] }, "run_id" => 42
+    ))
+
+    get "/api/v1/app/coworkers/sidebar_badge"
+    expect(response.parsed_body).to eq("count" => 1)
+
+    expect {
+      post "/api/v1/app/coworkers/#{coworker.id}/approvals/#{approval.id}/reject"
+    }.to have_enqueued_job(ChatTurnJob)
+    expect(response).to have_http_status(:ok)
+    expect(approval.reload).to be_rejected
+    expect(main_chat.messages.last.extract_text_from_content).to include("Pending action rejected")
+  end
+
+  it "does not let another owner decide a coworker's approval" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-private-approval", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    approval = chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {} })
+    sign_in_as(Factories.user(email_address: "approval-intruder@example.com"))
+
+    post "/api/v1/app/coworkers/#{coworker.id}/approvals/#{approval.id}/reject"
+
+    expect(response).to have_http_status(:not_found)
+    expect(approval.reload).to be_pending
+  end
+
   it "browses and searches the owner's coworker memory from the cached repository content surface" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)

@@ -81,10 +81,19 @@
     "chats": "Colloquia",
     "profile": "Forma",
     "capabilities": "Facultates",
+    "approvals": "Approbationes",
     "schedule": "Ordo",
     "memory": "Memoria",
     "workspace": "Spatium",
     "activity": "Acta"
+  },
+  "approvals": {
+    "loading": "Approbationes onerantur…",
+    "empty": "Nullae actiones approbationem exspectant.",
+    "run": "Cursus originis {{id}}",
+    "chat": "Colloquium originis {{id}}",
+    "approve": "Approbare",
+    "reject": "Reicere"
   },
   "activity": {
     "loading": "Acta onerantur…",

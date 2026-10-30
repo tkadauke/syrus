@@ -80,10 +80,10 @@ class McpToolContext
   # Build from a raw MCP server_context hash. Supports both run-sidecar
   # shape ({ run_id: }) and chat-sidecar shape ({ chat_session: }).
   def self.from_server_context(server_context)
-    if server_context.key?(:chat_session)
-      from_chat_session(server_context[:chat_session], evaluator: server_context[:evaluator] == true)
-    elsif server_context.key?(:run)
+    if server_context.key?(:run)
       from_run(server_context[:run])
+    elsif server_context.key?(:chat_session)
+      from_chat_session(server_context[:chat_session], evaluator: server_context[:evaluator] == true)
     else
       Mcp::Tools.with_database_connection do
         from_run(Run.find(server_context.fetch(:run_id)))
