@@ -500,14 +500,35 @@ RSpec.describe CredentialStore::SshExec do
       "df -h && free -m",
       "ps aux | grep worker",
       "command uptime",
-      "ls -la /tmp"
+      "ls -la /tmp",
+      "hostname",
+      "date -Is",
+      "ha core info"
     ].each do |command|
       expect {
         described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
       }.not_to raise_error
     end
 
-    expect(runner).to have_received(:call).exactly(5).times
+    expect(runner).to have_received(:call).exactly(8).times
+  end
+
+  it "does not broaden diagnostic commands into mutating or compound forms" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    [
+      "hostname replacement.example.com",
+      "date -s tomorrow",
+      "ha core restart",
+      "ha core info && ha core restart"
+    ].each do |command|
+      expect {
+        described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/), command
+    end
+
+    expect(runner).not_to have_received(:call)
   end
 
   it "defaults commands outside the read-only allowlist to requiring explicit allowance" do
