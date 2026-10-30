@@ -161,6 +161,11 @@ class PollMergeStateJob < ApplicationJob
   end
 
   def approve_for_landing
+    if @job.approved?
+      LandingQueueProcessor.try_land!(@job)
+      return
+    end
+
     return unless @job.may_approve?
 
     sync_github_review_approvals
