@@ -44,7 +44,8 @@ when its owner is an administrator.
 The `syrus.propose_job` grant exposes both `propose_job` and
 `propose_epic_with_jobs`. They create the same pending proposal cards as an
 ordinary Syrus Chat, retain the originating coworker as audit provenance, and
-still require an operator to confirm before any Job or Epic exists. Proposal
+show that coworker's name and handle on the proposal card. They still require
+an operator to confirm before any Job or Epic exists. Proposal
 placement and repository-write checks are unchanged: every child declares
 explicit planned execution capabilities, and a coworker cannot target a
 repository its owner cannot write. A missing grant keeps the tools absent;

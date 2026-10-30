@@ -1728,7 +1728,8 @@ coworkers or capability escalations.
 A coworker granted permission to propose Syrus work can draft either a Job or
 an Epic with child Jobs in its chats. These drafts use the normal proposal
 cards and record which coworker authored them. Drafting never creates or files
-the work: an operator must still confirm the card, and the usual repository
+the work; the card shows the coworker's name and handle so the operator can
+verify its origin. An operator must still confirm the card, and the usual repository
 visibility and explicit execution-capability checks apply.
 
 ## Tailscale

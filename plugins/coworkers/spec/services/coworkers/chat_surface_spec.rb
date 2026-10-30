@@ -77,6 +77,12 @@ RSpec.describe "Coworker chat surface" do
     expect(response).not_to be_error
     proposal = ChatProposal.find(response_payload(response).fetch("id"))
     expect(proposal).to have_attributes(chat_session: chat, proposer: coworker, state: "proposed")
+    expect(response_payload(response).fetch("proposer")).to eq(
+      "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya"
+    )
+    expect(App::ChatMessagePayload.proposal(proposal, chat_session: chat, repository: repository).fetch(:proposer)).to eq(
+      type: "coworker", id: coworker.id, label: "Maya", handle: "maya"
+    )
     expect(proposal.messages).to contain_exactly(have_attributes(role: "assistant"))
     expect(Job.where(issue_title: "Improve release notes")).to be_empty
   end
@@ -103,6 +109,9 @@ RSpec.describe "Coworker chat surface" do
     expect(response).not_to be_error
     proposal = ChatProposal.find(response_payload(response).fetch("id"))
     expect(proposal).to have_attributes(chat_session: chat, proposer: coworker, state: "proposed")
+    expect(response_payload(response).fetch("proposer")).to eq(
+      "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya"
+    )
     expect(proposal.child_proposals.sole).to have_attributes(proposer: coworker, state: "proposed")
     expect(proposal.messages).to contain_exactly(have_attributes(role: "assistant"))
     expect(Epic.where(title: "Release readiness")).to be_empty
