@@ -326,6 +326,7 @@ it("confirms before removing a protected workspace path", async () => {
 })
 
 it("shows pending approvals with the originating run and tool input and allows rejection", async () => {
+  const invalidateQueries = vi.spyOn(QueryClient.prototype, "invalidateQueries")
   const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input)
     if (path.endsWith("/approvals") && !init?.method) {
@@ -357,6 +358,7 @@ it("shows pending approvals with the originating run and tool input and allows r
   fireEvent.click(screen.getByRole("button", { name: "Reject" }))
 
   await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/approvals/91/reject", expect.objectContaining({ method: "POST" })))
+  await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["sidebar_badge", "coworkers.index"] }))
 })
 
 it("browses, searches, and renders coworker memory without write controls", async () => {

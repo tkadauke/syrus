@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FormEvent, useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Avatar } from "@app/components/Avatar"
@@ -336,10 +336,14 @@ function CoworkerPage({ id }: { id: string }) {
 
 function CoworkerApprovals({ id }: { id: string }) {
   const { t } = useT("coworkers")
+  const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ["coworkers", id, "approvals"], queryFn: () => fetchCoworkerApprovals(id) })
   const decision = useMutation({
     mutationFn: ({ approvalId, value }: { approvalId: number; value: "approve" | "reject" }) => decideCoworkerApproval(id, approvalId, value),
-    onSuccess: () => void query.refetch()
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["coworkers", id, "approvals"] })
+      void queryClient.invalidateQueries({ queryKey: ["sidebar_badge", "coworkers.index"] })
+    }
   })
   if (query.isPending) return <PanelMessage>{t("approvals.loading")}</PanelMessage>
   if (!query.data?.approvals.length) return <PanelMessage>{t("approvals.empty")}</PanelMessage>
