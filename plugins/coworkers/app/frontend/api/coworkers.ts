@@ -1,4 +1,4 @@
-import { deleteJson, getJson, postForm, postJson } from "@app/api/client"
+import { deleteJson, getJson, patchJson, postForm, postJson } from "@app/api/client"
 
 export type CoworkerSummary = {
   id: number | "syrus"
@@ -21,7 +21,7 @@ export type CoworkerDetail = CoworkerSummary & {
   soul: string | null
   spend_usd: number
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
-  grants: { capability: string; approval_policy: string }[]
+  grants: { capability: string; approval_policy: string; constraints: { confirm_paths?: string[] } }[]
   schedules: CoworkerSchedule[]
   available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]
   message_traffic: {
@@ -113,3 +113,10 @@ export const testCoworkerRemote = (workspaceRepo: string) =>
   postJson<{ message: string }>("/api/v1/app/coworkers/test_remote", { workspace_repo: workspaceRepo })
 export const addCoworkerToChat = (coworkerId: number, chatId: number) => postJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
 export const removeCoworkerFromChat = (coworkerId: number, chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
+export const updateCoworkerGrant = (id: string, capability: string, approvalPolicy: string, constraints: Record<string, unknown>, confirmed = false) =>
+  patchJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}/grants`, {
+    capability,
+    approval_policy: approvalPolicy,
+    constraints,
+    confirmed
+  })

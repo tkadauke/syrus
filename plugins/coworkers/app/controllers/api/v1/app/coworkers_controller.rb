@@ -53,6 +53,21 @@ module Api
           render_error("coworker_busy", error.message, status: :conflict)
         end
 
+        def update_grant
+          coworker = find_coworker
+          authorize coworker, :manage_grants?, policy_class: CoworkerPolicy
+          Coworkers::GrantUpdate.call(
+            owner: Current.user, coworker: coworker, capability: params[:capability],
+            approval_policy: params.require(:approval_policy), constraints: grant_constraints,
+            confirmed: params[:confirmed]
+          )
+          render json: { coworker: detail_json(coworker.reload) }
+        rescue Coworkers::GrantUpdate::ConfirmationRequired => error
+          render_error("confirmation_required", error.message, status: :conflict)
+        rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
+          render_error("validation_failed", error.message, status: :unprocessable_content)
+        end
+
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy
@@ -197,6 +212,10 @@ module Api
           params.permit(:name, :handle, :workspace_repo, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model, :chat_effort)
         end
 
+        def grant_constraints
+          params.permit(constraints: { confirm_paths: [] })[:constraints]&.to_h || {}
+        end
+
         def summary_json(coworker, weekly_spend_usd: nil)
           weekly_spend_usd ||= Coworkers::Activity.new(coworker: coworker, user: Current.user).week_spend
           {
@@ -214,9 +233,9 @@ module Api
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
-            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy } },
-            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker),
+            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints } },
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
+            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
           )
         end
 

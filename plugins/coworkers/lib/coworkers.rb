@@ -37,6 +37,7 @@ module Coworkers
     route :get, "/api/v1/app/coworkers/sidebar_badge", to: "api/v1/app/coworkers#sidebar_badge"
     route :get, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#show"
     route :patch, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#update"
+    route :patch, "/api/v1/app/coworkers/:id/grants", to: "api/v1/app/coworkers#update_grant"
     route :delete, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#destroy"
     route :get, "/api/v1/app/coworkers/:id/memory", to: "api/v1/app/coworkers#memory"
     route :get, "/api/v1/app/coworkers/:id/workspace", to: "api/v1/app/coworkers#workspace"

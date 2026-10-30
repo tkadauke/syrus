@@ -110,6 +110,26 @@
     "resume": "Perge",
     "run_now": "Nunc exsequere"
   },
+  "capabilities": {
+    "sentences": {
+      "chat_message_owner": "Hic collega domino nuntiare potest.",
+      "chats_read_shared": "Hic collega colloquia sibi communicata legere potest.",
+      "coworker_message": "Hic collega aliis collegis nuntiare potest.",
+      "coworker_spawn_chat": "Hic collega colloquia lateralia creare potest.",
+      "schedule_manage_self": "Hic collega suum calendarium administrare potest.",
+      "workspace_files": "Hic collega fasciculos spatii laboris legere et mutare potest.",
+      "workspace_shell": "Hic collega mandata in spatio laboris exsequi potest.",
+      "syrus_read_jobs": "Hic collega Opera Syri legere potest.",
+      "syrus_propose_job": "Hic collega Opera Syro proponere potest."
+    },
+    "policies": { "auto": "Sponte", "confirm": "Confirma", "queue": "Ordo", "off": "Clausum" },
+    "policy_for": "Ratio approbationis pro {{capability}}",
+    "confirm_escalation": "Hoc collegae maiorem aditum dat. Mutationem concessionis confirmas?",
+    "confirm_paths": "Mutationes horum itinerum semper confirma (commatibus separata)",
+    "save_constraints": "Fines serva",
+    "integrations": { "gmail": "Gmail", "calendar": "Calendarium" },
+    "coming_later": "Postea adveniet"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",
