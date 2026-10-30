@@ -14,7 +14,10 @@ const readCoworkerToolCard: ToolCardRenderer = {
     const workspace = isPlainObject(coworker.workspace) ? coworker.workspace : {}
     return (
       <CardShell>
-        <div className="flex items-center gap-2"><StatePill state={displayValue(coworker.state)} /><span className="text-sm font-medium">{displayValue(coworker.name)}</span></div>
+        <div className="flex items-center gap-2">
+          <StatePill state={displayValue(coworker.state)} />
+          <span className="text-sm font-medium">{displayValue(coworker.name)}</span>
+        </div>
         <Row label={i18n.t("coworkers:fields.handle")} value={`@${displayValue(coworker.handle)}`} />
         <Row label={i18n.t("coworkers:fields.remote")} value={displayValue(workspace.repository)} />
         <Row label={i18n.t("coworkers:fields.branch")} value={displayValue(workspace.home_branch)} />
