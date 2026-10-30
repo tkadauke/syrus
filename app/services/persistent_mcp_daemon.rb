@@ -199,8 +199,8 @@ class PersistentMcpDaemon
     )
   end
 
-  # The full known chat MCP tool surface (every surface: :chat entry in
-  # McpToolRegistry plus enabled plugin chat tool definitions), each wrapped so
+  # The full known chat MCP tool surface (every :chat and :coworker registry
+  # entry plus enabled plugin chat tool definitions), each wrapped so
   # a call resolves its own per-invocation chat_session/tier/role from the
   # signed McpInvocationContext token in that request's `_meta` -- see
   # PersistentMcpDaemon::ChatToolDispatch for why a single static tool list
@@ -208,7 +208,12 @@ class PersistentMcpDaemon
   # PersistentMcpDaemon::ChatContextResolver for how the security-relevant
   # tiering/role/feature-flag gate is still enforced per call.
   def chat_tools
-    @chat_tools ||= unique_tools(McpToolRegistry.tools(surface: :chat) + evaluator_chat_tools + plugin_chat_tools)
+    @chat_tools ||= unique_tools(
+      McpToolRegistry.tools(surface: :chat) +
+        McpToolRegistry.tools(surface: :coworker) +
+        evaluator_chat_tools +
+        plugin_chat_tools
+    )
       .map { |tool| PersistentMcpDaemon::ChatToolDispatch.wrap(tool) }
   end
 

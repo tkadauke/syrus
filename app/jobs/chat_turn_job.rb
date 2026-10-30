@@ -694,17 +694,25 @@ class ChatTurnJob < ApplicationJob
   # daemon failure" is greppable via read_syrus_logs, not just via manual
   # inspection.
   def log_chat_mcp_transport_decision!(decision)
+    exposed_tools = %i[essential deferred].to_h do |tier|
+      names = Mcp::Sidecar.chat_tool_names(@chat, tier: tier).sort
+      [ tier.to_s, { "count" => names.size, "names" => names } ]
+    end
     @chat.set_artifact!("mcp_transport", {
       "transport" => decision.transport.to_s,
       "reason" => decision.reason,
       "stdio_fallback" => decision.stdio? ? "proxy" : nil,
+      "exposed_tools" => exposed_tools,
       "checked_at" => Time.current.utc.iso8601
     }.compact)
 
+    tool_diagnostics = exposed_tools.map do |tier, payload|
+      "#{tier}_tool_count=#{payload.fetch('count')} #{tier}_tools=#{payload.fetch('names').join(',')}"
+    end.join(" ")
     if decision.persistent?
-      Rails.logger.info("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')}")
+      Rails.logger.info("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')} #{tool_diagnostics}")
     else
-      Rails.logger.warn("[ChatTurnJob] mcp_transport=stdio chat_id=#{@chat.id} reason=#{decision.reason}")
+      Rails.logger.warn("[ChatTurnJob] mcp_transport=stdio chat_id=#{@chat.id} reason=#{decision.reason} #{tool_diagnostics}")
     end
   rescue StandardError => e
     Rails.logger.warn("[ChatTurnJob] failed to record mcp transport decision for chat ##{@chat.id}: #{e.class}: #{e.message}")

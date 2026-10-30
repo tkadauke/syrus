@@ -292,6 +292,60 @@ RSpec.describe PersistentMcpDaemon do
         end
       end
 
+      it "lists and dispatches the deny-by-default coworker surface" do
+        scope = Syrus::EffectScope.new(label: "persistent daemon coworker surface")
+        Coworkers::ChatExtension.install_into(scope)
+        PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+        Syrus::PluginRegistry.clear_plugin_record_cache!
+        allow(AgentMemory).to receive(:enabled?).and_return(true)
+        coworker = Coworkers::Coworker.create!(
+          owner_user: user, name: "Maya", handle: "maya-persistent", workspace_repo: repository.remote_url
+        )
+        coworker_chat = ChatSession.create!(user: user, repository: repository, title: "Maya")
+        Coworkers::Chat.create!(coworker: coworker, chat_session: coworker_chat, role: "main")
+        Coworkers::Create::DEFAULT_GRANTS.each do |capability, approval_policy|
+          coworker.grants.create!(capability: capability, approval_policy: approval_policy)
+        end
+
+        essential = persistent_chat_tool_names(coworker_chat, tier: :essential)
+        deferred = persistent_chat_tool_names(coworker_chat, tier: :deferred)
+        all_names = essential + deferred
+        expect(essential).to include(*%w[
+          write_coworker_file edit_coworker_file move_coworker_file delete_coworker_file
+          message_coworker manage_coworker_schedule read_memory
+        ])
+        expect(deferred).to include("search_memories", "list_memories")
+        forbidden_names = all_names.grep(/\A(?:mysql_db_browser_|k8s_cluster_|credential_store_|admin_)/)
+        forbidden_names += all_names.grep(/(?:theme|preview|canvas|scene|draw_|element)/)
+        expect(forbidden_names).to be_empty
+
+        unsafe_coworker_definitions = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |tool_set|
+          next [] unless tool_set.respond_to?(:available_for_coworker?)
+
+          %i[essential deferred].flat_map do |tier|
+            next [] unless tool_set.available_for_coworker?(coworker_chat, tier: tier)
+
+            definitions = if tool_set.method(:tool_definitions).parameters.any? { |type, name| [ :key, :keyreq ].include?(type) && name == :chat_session }
+              tool_set.tool_definitions(tier: tier, chat_session: coworker_chat)
+            else
+              tool_set.tool_definitions(tier: tier)
+            end
+            definitions.select do |definition|
+              all_names.include?((definition[:name] || definition["name"]).to_s) &&
+                !(definition[:coworker_safe] || definition["coworker_safe"])
+            end
+          end
+        end
+        expect(unsafe_coworker_definitions).to be_empty
+
+        response = call_tool(
+          "list_jobs", token: chat_token(coworker_chat, tier: :essential), arguments: {}
+        )
+        expect(json_body(response).dig("result", "isError")).to be_falsey
+      ensure
+        scope&.dispose
+      end
+
       it "advertises Mockups plugin tools to planning chats in essential and deferred tiers" do
         expected_names = %w[write_preview_file edit_preview_file show_preview close_preview]
 
