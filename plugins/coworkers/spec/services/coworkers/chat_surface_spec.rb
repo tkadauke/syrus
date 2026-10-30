@@ -214,31 +214,31 @@ RSpec.describe "Coworker chat surface" do
     expect(result).to include("chat_session_id" => chat.id, "coworker_name" => "Maya")
   end
 
-  it "enforces auto, confirm, and queue approval policies" do
+  it "runs interactive question and suggestion helpers without grant-policy approval" do
     message = chat.messages.create!(role: "user", content: { "text" => "Hello" })
     chat.update_columns(current_turn_message_id: message.id, turn_in_flight: true)
     context = { chat_session: chat, current_message: message }
     questions = [ { question: "Proceed?" } ]
 
-    grant = coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
-    tool = Mcp::Sidecar.chat_tools(chat).find { |candidate| McpToolRegistry.tool_name_for(candidate) == "ask_user_question" }
-    expect { tool.call(server_context: context, questions: questions) }.to change(chat.agent_questions, :count).by(1)
+    coworker.grants.create!(capability: "chat.message_owner", approval_policy: "confirm")
+    question_tool = coworker_tool("ask_user_question")
+    suggestion_tool = coworker_tool("suggest_next_step")
 
-    grant.update!(approval_policy: "confirm")
-    question_count = chat.agent_questions.count
-    expect { tool.call(server_context: context, questions: questions) }
-      .to change { chat.pending_actions.where(action: "coworker_tool_call").count }.by(1)
-    expect(chat.agent_questions.count).to eq(question_count)
-    pending = chat.pending_actions.where(action: "coworker_tool_call").last
-    expect(pending.payload).to include("approval_policy" => "confirm", "approval_inbox" => false)
-    expect { pending.confirm!(user: owner) }.to change(chat.agent_questions, :count).by(1)
-    expect(pending.reload).to be_confirmed
+    expect { question_tool.call(server_context: context, questions: questions) }
+      .to change(chat.agent_questions, :count).by(1)
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
 
-    grant.update!(approval_policy: "queue")
-    response = tool.call(server_context: context, questions: questions)
-    expect(JSON.parse(response.content.first[:text])).to include("approval_policy" => "queue")
-    expect(chat.pending_actions.last).to be_pending
-    expect(chat.pending_actions.last.payload).to include("approval_policy" => "queue", "approval_inbox" => false)
+    response = suggestion_tool.call(server_context: context, text: "Draft the follow-up")
+
+    expect(response_payload(response)).to include("suggested_next_step" => "Draft the follow-up")
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+    expect(chat.reload.suggested_next_step).to eq("Draft the follow-up")
+
+    chat.messages.create!(role: "assistant", content: { "text" => "Done" })
+    expect(chat.reload.suggested_next_step).to eq("Draft the follow-up")
+
+    chat.messages.create!(role: "user", content: { "text" => "Draft the follow-up" })
+    expect(chat.reload.suggested_next_step).to be_nil
   end
 
   it "offers only read-only memory tools without a grant" do

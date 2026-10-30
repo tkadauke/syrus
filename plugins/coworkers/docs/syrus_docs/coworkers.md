@@ -84,7 +84,10 @@ Coworker chats use a separate, deny-by-default MCP surface. Administrator
 ownership does not add administrator or repair tools. Every core tool on the
 surface names the coworker grant required to advertise it, and interactive
 question/suggestion tools are present only while handling an owner-authored
-turn. Plugin chat tools are excluded unless their tool set and definitions
+turn. Those two helpers run immediately even when the `chat.message_owner`
+grant otherwise requires confirmation: asking within the active turn or
+putting a hint in its composer is not an outbound message to an absent owner.
+Plugin chat tools are excluded unless their tool set and definitions
 explicitly opt into coworker use. The Agent Memory plugin opts in only its
 read, search, and list tools, without requiring a grant. Those tools expose
 the owner's user/global, repository, and instance memories plus published
