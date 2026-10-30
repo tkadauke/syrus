@@ -58,6 +58,19 @@ not receive this tool. Adding capabilities to an existing coworker uses the
 separate `propose_coworker_grants` pending action; grants are unchanged until
 the owner confirms that escalation.
 
+The complete owner-facing coworker tool inventory is `list_coworkers`,
+`read_coworker`, `propose_coworker`, and `propose_coworker_grants`. The list
+and read tools are read-only and strictly owner-scoped; they accept bounded
+discovery filters and an ID or handle respectively. Grant proposals likewise
+accept either owner-scoped identifier. These deferred tools are available to
+planner and ordinary Syrus chats, never to coworker chats.
+
+The coworker-facing inventory is `message_coworker`,
+`manage_coworker_schedule`, and the bounded `write_coworker_file`,
+`edit_coworker_file`, `move_coworker_file`, and `delete_coworker_file` tools.
+Those essential tools remain governed by the coworker's grants and workspace
+boundary; coworkers do not receive owner control-plane tools.
+
 Coworker chats use a separate, deny-by-default MCP surface. Administrator
 ownership does not add administrator or repair tools. Every core tool on the
 surface names the coworker grant required to advertise it, and interactive
