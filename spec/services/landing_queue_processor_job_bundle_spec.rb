@@ -8,7 +8,8 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
     Factories.job_record(
       user: user, owner_user: owner_user, repository: repository,
       issue_number: issue_number, state: "approved", priority: priority,
-      pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}"
+      pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}",
+      github_mergeable_state: "clean", mergeability_checked_at: Time.current
     )
   end
 

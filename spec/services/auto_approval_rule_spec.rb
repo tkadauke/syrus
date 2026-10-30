@@ -54,7 +54,9 @@ RSpec.describe AutoApprovalRule do
     # pr_number required so landing-queue blockage check passes (no
     # PR = no merge target). Same reasoning as auto_merge_enabled.
     Factories.job_record(**{ user: user, repository: repository, state: "queued",
-                              pr_number: 100 + rand(10_000) }.merge(attrs))
+                              pr_number: 100 + rand(10_000),
+                              github_mergeable_state: "clean",
+                              mergeability_checked_at: Time.current }.merge(attrs))
   end
 
   it "auto-approves, lands, AND dispatches a merge-train workflow when repo-committed graders pass" do

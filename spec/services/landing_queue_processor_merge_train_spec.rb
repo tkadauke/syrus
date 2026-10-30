@@ -9,7 +9,8 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
     Factories.job_record(
       user: user, repository: repository, epic: epic,
       issue_number: issue_number, state: "approved",
-      pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}"
+      pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}",
+      github_mergeable_state: "clean", mergeability_checked_at: Time.current
     )
   end
 
@@ -67,7 +68,8 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
       loose = Factories.job_record(
         user: user, repository: repository,
         issue_number: 9, state: "implemented",
-        pr_number: 509, branch_name: "syrus/issue-9"
+        pr_number: 509, branch_name: "syrus/issue-9",
+        github_mergeable_state: "clean", mergeability_checked_at: Time.current
       )
       loose.approve!(via: "operator")
       loose.update!(approved_at: 1.minute.ago, priority: "urgent")
