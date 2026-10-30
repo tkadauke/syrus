@@ -97,7 +97,9 @@ RSpec.describe Coworkers::Create do
     )
     expect(remote.seeded_files.fetch("USER.md")).to include("Your owner is Ada Lovelace")
     expect(remote.seeded_files.fetch("AGENTS.md")).to include(
-      "append-oriented", "one entry per event", "@handle", "at most 64 KiB", Coworkers::PromptSection::TRUNCATION_MARKER
+      "During every turn", "without asking permission", "Before replying",
+      "memory/repos/<owner>__<name>.md", "memory/banks/*", "Never store credentials",
+      "one entry per event", "@handle", "at most 64 KiB", Coworkers::PromptSection::TRUNCATION_MARKER
     )
     expect(remote.seeded_identity).to have_attributes(git_name: "Maya (@maya)", git_email: "maya@coworkers.syrus.invalid")
     expect(coworker).to have_attributes(accent_hex: "#0090FF", role_summary: "not set up yet")
@@ -173,7 +175,8 @@ RSpec.describe Coworkers::Create do
     expect(coworker.role_summary).to eq("Research lead")
     expect(message.extract_text_from_content).to include(
       "already described your identity in SOUL.md", "briefly greet your owner in your own voice",
-      "small number of concrete questions", "If nothing is unclear"
+      "small number of concrete questions", "Keep your identity and memory files current during every turn",
+      "without asking permission", "save durable details before your final reply", "If nothing is unclear"
     )
     expect(message.extract_text_from_content).not_to include("identity has not been set up yet")
     expect(chat.last_message_at).to eq(message.created_at)
@@ -190,7 +193,8 @@ RSpec.describe Coworkers::Create do
     expect(message.extract_text_from_content).to eq(
       "You are Maya, and your owner is Ada Lovelace. Your identity has not been set up yet. " \
       "Interview your owner about your role, personality, working preferences, and boundaries, " \
-      "then update your workspace identity files with the answers."
+      "then update your workspace identity files with the answers. Keep your identity and memory " \
+      "files current during every turn without asking permission, and save durable details before your final reply."
     )
     expect(ChatTurnJob).to have_received(:perform_later).with(chat.id, message.id)
   end

@@ -1750,10 +1750,17 @@ its own and shared chats, but cannot post to arbitrary chats. Coworker chats
 have no Planning/Coding mode selector: every turn can update identity and
 memory files through tools confined to that coworker's workspace. Attached
 product repositories remain read-only, and Syrus owns workspace commits and
-pushes. The plugin does not yet expose workspace execution screens. Chat owners can add an owned coworker to
-an agent roster from its page or from mention autocomplete, see the roster in
-the chat heading, and remove it later. Disabling the plugin removes its page,
-chat grouping, and other runtime contributions while
+pushes. The system prompt makes memory maintenance a standing duty: before
+replying, coworkers save durable facts, preferences, decisions, commitments,
+opinions, lessons, and project context without asking permission. Updates are
+short, factual, append-oriented, never contain credentials or secrets, and are
+reported as saved only after the workspace tool succeeds. Newly created
+coworkers receive the same expectation in their kickoff and seeded operating
+rules; existing workspaces retain their old seeded rules but receive the current
+system prompt. The plugin does not yet expose workspace execution screens.
+Chat owners can add an owned coworker to an agent roster from its page or from
+mention autocomplete, see the roster in the chat heading, and remove it later.
+Disabling the plugin removes its page, chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 
 Coworker cards show current-week spend. Each coworker's Activity tab combines
