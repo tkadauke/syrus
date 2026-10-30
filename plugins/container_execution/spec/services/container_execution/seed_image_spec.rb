@@ -198,8 +198,8 @@ RSpec.describe ContainerExecution::SeedImage do
     end
   end
 
-  def success = Status.new(success?: true, exitstatus: 0)
-  def failure = Status.new(success?: false, exitstatus: 1)
+  def success = Status.new(true, 0)
+  def failure = Status.new(false, 1)
 
   class ConcurrentSemaphore
     attr_reader :keys
@@ -255,8 +255,8 @@ RSpec.describe ContainerExecution::SeedImage do
 
     private
 
-    def success = Status.new(success?: true, exitstatus: 0)
-    def failure = Status.new(success?: false, exitstatus: 1)
+    def success = Status.new(true, 0)
+    def failure = Status.new(false, 1)
   end
 
   class ConcurrentImageStore
@@ -301,7 +301,7 @@ RSpec.describe ContainerExecution::SeedImage do
 
     private
 
-    def success = Status.new(success?: true, exitstatus: 0)
-    def failure = Status.new(success?: false, exitstatus: 1)
+    def success = Status.new(true, 0)
+    def failure = Status.new(false, 1)
   end
 end
