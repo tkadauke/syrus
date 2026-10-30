@@ -73,11 +73,12 @@ boundary; coworkers do not receive owner control-plane tools.
 
 `reply_in_chat_thread` is the narrow exception to grant approval: it is
 grantless and needs no per-reply confirmation when the coworker's owner opened
-the bridge thread and both the coworker's chat and another chat belonging to
-that owner are its members. It can only reply to that existing thread; it
-cannot open a thread or target an arbitrary chat. The bridge hop limit and
-automatic closure still apply. A coworker must call the tool to deliver its
-answer; plain text left in the coworker's own chat is not relayed.
+the bridge thread and both the coworker's chat and an ordinary, non-coworker
+chat belonging to that owner are its members. It can only reply to that
+existing thread; it cannot open a thread or target an arbitrary chat. The
+bridge hop limit and automatic closure still apply. A coworker must call the
+tool to deliver its answer; plain text left in the coworker's own chat is not
+relayed.
 
 Coworker chats use a separate, deny-by-default MCP surface. Administrator
 ownership does not add administrator or repair tools. Every core tool on the

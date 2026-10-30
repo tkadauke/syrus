@@ -55,8 +55,10 @@ module Coworkers
       end
 
       def owner_thread?(thread, chat_session, coworker)
+        counterpart = thread.counterpart(chat_session)
         thread.opened_by_user_id == coworker.owner_user_id &&
-          thread.counterpart(chat_session).user_id == coworker.owner_user_id
+          counterpart.user_id == coworker.owner_user_id &&
+          !Coworkers::Chat.exists?(chat_session_id: counterpart.id)
       end
 
       def inaccessible
