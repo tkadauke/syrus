@@ -661,6 +661,62 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).not_to include("## Local Mode")
   end
 
+  describe "coworker memory duty" do
+    def coworker_prompt(grants)
+      owner = Factories.user
+      repository = Factories.repository(user: owner, owner: "acme", name: "coworker-home")
+      coworker = Coworkers::Coworker.create!(
+        owner_user: owner, name: "Maya", handle: "maya-memory", workspace_repo: repository.remote_url
+      )
+      grants.each do |capability, approval_policy|
+        coworker.grants.create!(capability: capability, approval_policy: approval_policy)
+      end
+      chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+      Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+      scope = Syrus::EffectScope.new(label: "coworker prompt memory duty spec")
+      Coworkers::ChatExtension.install_into(scope)
+
+      described_class.new(repository: repository, chat_session: chat).to_s
+    ensure
+      scope&.dispose
+    end
+
+    def expect_standing_memory_duty(prompt)
+      expect(prompt).to include("Keeping them current is a standing duty on every turn")
+      expect(prompt).to include("Before your final reply, check whether anything durable came up")
+      expect(prompt).to include("Do this without asking permission")
+      expect(prompt).to include("Saved to memory:")
+      expect(prompt).to include(
+        "`memory/daily/YYYY-MM-DD.md`", "`memory/people/<handle>.md`",
+        "`memory/repos/<owner>__<name>.md`", "`memory/banks/*`",
+        "`USER.md`", "`SOUL.md`", "`AGENTS.md`"
+      )
+      expect(prompt).to include("Never store credentials, tokens, or secrets")
+      expect(prompt).to include("do not claim it was saved unless the workspace tool\n  returned success")
+      expect(prompt).to include("Never commit, merge, push, open pull requests, deploy")
+      expect(prompt).to include("Attached product repositories are read-only")
+      expect(prompt).to include("Git metadata, commits, merges, and pushes are orchestrator-owned")
+      expect(prompt).to include("never run Git persistence commands yourself")
+      expect(prompt).not_to include("when useful", "when they will help future work")
+    end
+
+    it "instructs a coworker with only workspace files to maintain memory every turn" do
+      expect_standing_memory_duty(coworker_prompt("workspace.files" => "auto"))
+    end
+
+    it "gives the same standing duty to a coworker with every default grant" do
+      expect_standing_memory_duty(coworker_prompt(Coworkers::Create::DEFAULT_GRANTS))
+    end
+
+    it "does not add the coworker memory duty to ordinary chat prompts" do
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+
+      prompt = described_class.new(repository: repo, chat_session: chat).to_s
+
+      expect(prompt).not_to include("Keeping them current is a standing duty on every turn", "Saved to memory:")
+    end
+  end
+
   describe "plugin-contributed sections" do
     let(:repo) { Factories.repository }
     let(:chat) { ChatSession.create!(repository: repo, user: repo.user) }
