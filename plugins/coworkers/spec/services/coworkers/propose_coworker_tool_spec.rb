@@ -183,6 +183,15 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
     expect(coworker.grants).to be_empty
   end
 
+  it "accepts an owner-scoped handle without changing confirmation behavior" do
+    coworker
+    response = described_class.call(handle: "@maya-grants", grants: [ "workspace.shell" ], server_context: { chat_session: chat })
+
+    expect(response).not_to be_error
+    expect(chat.pending_actions.last.payload).to include("coworker_id" => coworker.id, "handle" => coworker.handle)
+    expect(coworker.grants).to be_empty
+  end
+
   it "rechecks escalation races at confirmation" do
     propose([ "workspace.shell" ])
     action = chat.pending_actions.last

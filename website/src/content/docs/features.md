@@ -1773,6 +1773,13 @@ behind. Later capability escalation is a separate confirmation and changes no
 grants before approval. Coworker conversations cannot propose additional
 coworkers or capability escalations.
 
+Ordinary and planner chats can also list the signed-in owner's coworkers and
+read one by numeric ID or handle. These read-only tools return compact identity,
+model, workspace, capability, chat, and active-schedule configuration without
+credentials or another user's records. The owner control-plane tools are not
+available inside coworker conversations; capability proposals accept the same
+owner-scoped ID or handle references and retain their confirmation step.
+
 A coworker granted permission to propose Syrus work can draft either a Job or
 an Epic with child Jobs in its chats. These drafts use the normal proposal
 cards and record which coworker authored them. Drafting never creates or files
