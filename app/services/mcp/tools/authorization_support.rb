@@ -61,7 +61,13 @@ module Mcp::Tools
           action: "coworker_tool_call",
           state: "pending",
           requested_by: "agent",
-          payload: { "tool_name" => entry.tool_name, "arguments" => arguments.stringify_keys }
+          payload: {
+            "tool_name" => entry.tool_name,
+            "arguments" => arguments.stringify_keys,
+            "run_id" => context.run&.id,
+            "approval_policy" => policy,
+            "approval_inbox" => context.run? && policy == "queue"
+          }.compact
         )
         server_context[:current_message]&.update_columns(pending_action_id: action.id)
         Mcp::Tools.success(

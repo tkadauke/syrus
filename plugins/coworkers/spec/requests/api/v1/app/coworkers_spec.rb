@@ -5,6 +5,34 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "requires explicit owner confirmation for grant escalation and returns the updated tool surface" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-grant-api", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(owner)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: { capability: "workspace.files", approval_policy: "confirm" }
+    expect(response).to have_http_status(:conflict)
+    expect(response.parsed_body.dig("error", "code")).to eq("confirmation_required")
+    expect(coworker.grants).to be_empty
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: {
+      capability: "workspace.files", approval_policy: "confirm", confirmed: true,
+      constraints: { confirm_paths: [ "SOUL.md", "AGENTS.md" ] }
+    }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig("coworker", "grants")).to contain_exactly(
+      "capability" => "workspace.files", "approval_policy" => "confirm",
+      "constraints" => { "confirm_paths" => %w[SOUL.md AGENTS.md] }
+    )
+  end
+
+  it "does not let another user change coworker grants" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-grant-owner", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(Factories.user)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: { capability: "workspace.files", approval_policy: "off" }
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "creates coworker schedules and includes them on the shared Schedules page" do
     repository = Factories.repository(user: owner, owner: "acme", name: "maya-workspace")
     coworker = Coworkers::Coworker.create!(
@@ -351,6 +379,56 @@ RSpec.describe "API: coworkers", type: :request do
     expect(chat).to have_attributes(
       repository: repository, chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
     )
+  end
+
+  it "lists and decides owner-scoped queued approvals and counts them in the nav badge" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-approvals", workspace_repo: "https://github.com/acme/workspace.git")
+    main_chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+    approval = main_chat.pending_actions.create!(
+      action: "coworker_tool_call", requested_by: "agent",
+      payload: { "tool_name" => "ask_user_question", "arguments" => { "questions" => [ { "question" => "Proceed?" } ] }, "run_id" => 42, "approval_policy" => "queue", "approval_inbox" => true }
+    )
+    interactive_confirmation = main_chat.pending_actions.create!(
+      action: "coworker_tool_call", requested_by: "agent",
+      payload: { "tool_name" => "ask_user_question", "arguments" => { "questions" => [ { "question" => "Live confirmation?" } ] }, "approval_policy" => "confirm", "approval_inbox" => false }
+    )
+    other = Factories.user(email_address: "other-approvals@example.com")
+    other_coworker = Coworkers::Coworker.create!(owner_user: other, name: "Other", handle: "other-approval-agent", workspace_repo: "https://github.com/acme/other.git")
+    other_chat = ChatSession.create!(user: other, title: "Other")
+    Coworkers::Chat.create!(coworker: other_coworker, chat_session: other_chat, role: "main")
+    other_chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {}, "approval_policy" => "queue", "approval_inbox" => true })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/approvals"
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("approvals")).to contain_exactly(include(
+      "id" => approval.id, "tool_name" => "ask_user_question", "tool_input" => { "questions" => [ { "question" => "Proceed?" } ] }, "run_id" => 42
+    ))
+    expect(response.parsed_body.fetch("approvals").pluck("id")).not_to include(interactive_confirmation.id)
+
+    get "/api/v1/app/coworkers/sidebar_badge"
+    expect(response.parsed_body).to eq("count" => 1)
+
+    expect {
+      post "/api/v1/app/coworkers/#{coworker.id}/approvals/#{approval.id}/reject"
+    }.to have_enqueued_job(ChatTurnJob)
+    expect(response).to have_http_status(:ok)
+    expect(approval.reload).to be_rejected
+    expect(main_chat.messages.last.extract_text_from_content).to include("Pending action rejected")
+  end
+
+  it "does not let another owner decide a coworker's approval" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-private-approval", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    approval = chat.pending_actions.create!(action: "coworker_tool_call", requested_by: "agent", payload: { "tool_name" => "ask_user_question", "arguments" => {}, "approval_policy" => "queue", "approval_inbox" => true })
+    sign_in_as(Factories.user(email_address: "approval-intruder@example.com"))
+
+    post "/api/v1/app/coworkers/#{coworker.id}/approvals/#{approval.id}/reject"
+
+    expect(response).to have_http_status(:not_found)
+    expect(approval.reload).to be_pending
   end
 
   it "browses and searches the owner's coworker memory from the cached repository content surface" do

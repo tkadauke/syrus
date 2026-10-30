@@ -230,6 +230,7 @@ RSpec.describe "Coworker chat surface" do
       .to change { chat.pending_actions.where(action: "coworker_tool_call").count }.by(1)
     expect(chat.agent_questions.count).to eq(question_count)
     pending = chat.pending_actions.where(action: "coworker_tool_call").last
+    expect(pending.payload).to include("approval_policy" => "confirm", "approval_inbox" => false)
     expect { pending.confirm!(user: owner) }.to change(chat.agent_questions, :count).by(1)
     expect(pending.reload).to be_confirmed
 
@@ -237,6 +238,7 @@ RSpec.describe "Coworker chat surface" do
     response = tool.call(server_context: context, questions: questions)
     expect(JSON.parse(response.content.first[:text])).to include("approval_policy" => "queue")
     expect(chat.pending_actions.last).to be_pending
+    expect(chat.pending_actions.last.payload).to include("approval_policy" => "queue", "approval_inbox" => false)
   end
 
   it "offers only read-only memory tools without a grant" do

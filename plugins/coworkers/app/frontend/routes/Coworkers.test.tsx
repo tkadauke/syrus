@@ -54,7 +54,7 @@ const detailPayload = {
     spend_usd: 1.25,
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
-    grants: [{ capability: "workspace.files", approval_policy: "auto" }],
+    grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
     schedules: [
       {
         id: 31,
@@ -259,7 +259,7 @@ it("does not offer removal for the coworker's implicit own chat", async () => {
   expect(screen.queryByRole("button", { name: "Remove from chat" })).not.toBeInTheDocument()
 })
 
-it("renders the custom profile, creates side chats, and marks later tabs as stubs", async () => {
+it("renders the custom profile, editable capabilities, and creates side chats", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -274,10 +274,100 @@ it("renders the custom profile, creates side chats, and marks later tabs as stub
   expect(screen.getByText("gpt-6.1-sol")).toBeInTheDocument()
   expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(screen.getByText("Coming later")).toBeInTheDocument()
+  expect(screen.getByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
+  expect(screen.getByText("Gmail")).toBeInTheDocument()
+  expect(screen.getAllByText("Coming later")).toHaveLength(2)
   fireEvent.click(screen.getByRole("button", { name: "Chat" }))
   fireEvent.click(screen.getByRole("button", { name: "New side chat" }))
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
+})
+
+it("confirms grant escalation and refreshes the live tool surface", async () => {
+  const confirm = vi.fn(() => true)
+  vi.stubGlobal("confirm", confirm)
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "PATCH") return jsonResponse(detailPayload)
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for workspace.shell" }), { target: { value: "confirm" } })
+
+  expect(confirm).toHaveBeenCalledOnce()
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/grants",
+      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"confirmed":true') })
+    )
+  )
+  await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7")).toHaveLength(2))
+})
+
+it("confirms before removing a protected workspace path", async () => {
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      grants: [{ capability: "workspace.files", approval_policy: "confirm", constraints: { confirm_paths: ["SOUL.md", "AGENTS.md"] } }]
+    }
+  }
+  const confirm = vi.fn(() => true)
+  vi.stubGlobal("confirm", confirm)
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "PATCH") return jsonResponse(payload)
+    return jsonResponse(payload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  fireEvent.change(screen.getByPlaceholderText("SOUL.md, AGENTS.md"), { target: { value: "SOUL.md" } })
+  fireEvent.click(screen.getByRole("button", { name: "Save constraints" }))
+
+  expect(confirm).toHaveBeenCalledOnce()
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/grants",
+      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"confirmed":true') })
+    )
+  )
+})
+
+it("shows pending approvals with the originating run and tool input and allows rejection", async () => {
+  const invalidateQueries = vi.spyOn(QueryClient.prototype, "invalidateQueries")
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input)
+    if (path.endsWith("/approvals") && !init?.method) {
+      return jsonResponse({
+        approvals: [
+          {
+            id: 91,
+            tool_name: "propose_job",
+            tool_input: { title: "Investigate" },
+            run_id: 44,
+            chat_id: 12,
+            created_at: "2026-10-29T10:00:00Z",
+            state: "pending"
+          }
+        ]
+      })
+    }
+    if (path.endsWith("/reject")) return jsonResponse({ approval: { id: 91, state: "rejected" } })
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+
+  fireEvent.click(screen.getByRole("button", { name: "Approvals" }))
+  expect(await screen.findByRole("heading", { name: "propose_job" })).toBeInTheDocument()
+  expect(screen.getByText("Originating run 44")).toBeInTheDocument()
+  expect(screen.getByText(/Investigate/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+
+  await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/approvals/91/reject", expect.objectContaining({ method: "POST" })))
+  await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["sidebar_badge", "coworkers.index"] }))
 })
 
 it("browses, searches, and renders coworker memory without write controls", async () => {

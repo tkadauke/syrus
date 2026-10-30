@@ -16,7 +16,10 @@ infrastructure Jobs so completed attempts do not accumulate.
 
 Background runs use the coworker's capability grants. They never receive the
 interactive-only tool surface, and a grant configured for live confirmation
-uses the queued approval policy during an unattended run.
+uses the queued approval policy during an unattended run. Queued mutations
+appear on that coworker's Approvals tab with their originating run and tool
+input. Approving replays the tool in its original run context; rejecting posts
+the outcome to the coworker's main chat.
 
 The Schedule tab creates recurring or one-shot tasks on the coworker's
 workspace Repository and lists their current state. Owners can pause, resume,
@@ -86,6 +89,16 @@ tool boundary. Claude can deny file and shell tools independently; providers
 without that separation fail closed rather than starting with permissions
 they cannot enforce.
 
+Owners edit these grants on the coworker's Capabilities tab. Every registered
+capability appears as a sentence with an `auto`, `confirm`, `queue`, or `off`
+policy. Moving to a more permissive policy, or turning on a new capability,
+requires a separate confirmation; reductions apply directly. File grants can
+record paths such as `SOUL.md` and `AGENTS.md` that always require confirmation.
+Integration tiles are visible but disabled until those integrations ship.
+Capabilities that affect anything outside the workspace default to `confirm`
+or `queue`; messaging the owner defaults to `confirm`. Removing a protected
+file path is also an escalation and requires confirmation.
+
 Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's
 `coworkers/<handle>` home branch. At turn end Syrus commits with the coworker's
@@ -125,7 +138,8 @@ other coworker workspaces are outside that boundary. The tools only mutate the
 working tree; branch commits, merges, pushes, and conflict recovery remain part
 of the orchestrated coworker branch lifecycle.
 
-When enabled, the plugin adds a Coworkers page and unread badge. Syrus is
+When enabled, the plugin adds a Coworkers page and a badge counting pending
+approvals across the signed-in owner's coworkers. Syrus is
 pinned first as the built-in engineer; custom coworkers show their configured
 color and avatar. The creation form collects the workspace remote, appearance,
 model, grants, and optional About text. Uploaded avatars are size-limited and

@@ -72,6 +72,48 @@ RSpec.describe "Coworker background runs" do
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
   end
 
+  it "queues confirm and queue mutations from unattended runs and replays an approval in its run context" do
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step: step, trigger_kind: "coworker_run", agent_provider: "codex")
+    arguments = {
+      repo: repository.slug, title: "Prepare the report", description: "Create the requested report.",
+      planned_execution: { capabilities: { os: [ "linux" ] } }
+    }
+
+    response = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(
+      Mcp::Tools::ProposeJobTool, { run: run }, arguments
+    )
+    action = main_chat.pending_actions.find(JSON.parse(response.content.first[:text]).fetch("pending_action_id"))
+
+    expect(response).not_to be_error
+    expect(action).to be_pending
+    expect(action.payload).to include(
+      "run_id" => run.id, "tool_name" => "propose_job", "approval_policy" => "queue", "approval_inbox" => true,
+      "arguments" => include("title" => "Prepare the report")
+    )
+    expect { action.confirm!(user: owner) }.to change(main_chat.proposals, :count).by(1)
+    expect(action.reload).to be_confirmed
+
+    coworker.grants.find_by!(capability: "syrus.propose_job").update!(approval_policy: "queue")
+    queued = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(
+      Mcp::Tools::ProposeJobTool, { run: run }, arguments.merge(title: "Queue the report")
+    )
+    queued_action = main_chat.pending_actions.find(JSON.parse(queued.content.first[:text]).fetch("pending_action_id"))
+    expect(queued_action).to be_pending
+    expect(queued_action.payload).to include("approval_policy" => "queue", "approval_inbox" => true)
+    expect(JSON.parse(queued.content.first[:text])).to include("approval_policy" => "queue")
+
+    expired = main_chat.pending_actions.create!(
+      action: "coworker_tool_call", requested_by: "agent",
+      payload: { "tool_name" => "propose_job", "arguments" => arguments.stringify_keys, "run_id" => -1 }
+    )
+    expect { expired.confirm!(user: owner) }.to raise_error(ArgumentError, "originating run is no longer available")
+    expect(expired.reload).to be_failed
+    expect(expired.execution_error).to include("originating run is no longer available")
+  end
+
   it "posts a completed result to the main chat without triggering a turn" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     source_step = workflow.steps.find_by!(kind: "coworker_run")

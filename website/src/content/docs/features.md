@@ -1740,6 +1740,22 @@ the chat heading, and remove it later. Disabling the plugin removes its page,
 chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 
+Coworker cards show current-week spend. Each coworker's Activity tab combines
+weekly and total chat and background-Run spend with Run status, tool-call
+counts, side-chat costs, and coworker-message traffic. These figures are
+informational and do not impose a budget or add coworker data to the instance
+Spending page.
+
+The Capabilities tab lists every coworker grant as a plain-language sentence.
+Owners can choose `auto`, `confirm`, `queue`, or `off`; enabling a capability
+or making its policy more permissive asks for a separate confirmation. The
+workspace-files grant can also mark paths such as `SOUL.md` and `AGENTS.md` as
+always requiring confirmation. Gmail and Calendar are shown as disabled,
+coming-later integrations.
+Capabilities with effects outside the workspace default to `confirm` or
+`queue`; messaging the owner defaults to `confirm`. Removing a path from the
+workspace-files confirmation list also requires confirmation.
+
 An ordinary Syrus or planner chat can also propose a coworker. The proposal
 preflights the handle, model, requested capabilities, workspace branch, and
 optional push access, then shows every creation field for confirmation. No

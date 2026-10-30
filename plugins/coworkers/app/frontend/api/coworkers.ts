@@ -1,4 +1,4 @@
-import { deleteJson, getJson, postForm, postJson } from "@app/api/client"
+import { deleteJson, getJson, patchJson, postForm, postJson } from "@app/api/client"
 
 export type CoworkerSummary = {
   id: number | "syrus"
@@ -22,7 +22,7 @@ export type CoworkerDetail = CoworkerSummary & {
   soul: string | null
   spend_usd: number
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
-  grants: { capability: string; approval_policy: string }[]
+  grants: { capability: string; approval_policy: string; constraints: { confirm_paths?: string[] } }[]
   schedules: CoworkerSchedule[]
   available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]
   message_traffic: {
@@ -56,6 +56,15 @@ export type CoworkerActivityPayload = {
     cost_usd: number
   }[]
   side_chats: { id: number; title: string | null; path: string; cost_usd: number }[]
+}
+export type CoworkerApproval = {
+  id: number
+  tool_name: string
+  tool_input: Record<string, unknown>
+  run_id: number | null
+  chat_id: number
+  created_at: string
+  state: string
 }
 export type CoworkerModelOptions = {
   provider: string
@@ -100,6 +109,11 @@ export function fetchCoworkerWorkspace(id: string, path?: string) {
 export function fetchCoworkerActivity(id: string) {
   return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
 }
+export function fetchCoworkerApprovals(id: string) {
+  return getJson<{ approvals: CoworkerApproval[] }>(`/api/v1/app/coworkers/${id}/approvals`)
+}
+export const decideCoworkerApproval = (coworkerId: string, approvalId: number, decision: "approve" | "reject") =>
+  postJson<{ approval: CoworkerApproval }>(`/api/v1/app/coworkers/${coworkerId}/approvals/${approvalId}/${decision}`)
 export const createCoworkerSchedule = (id: string, schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
   postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
 export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, command: "pause" | "resume" | "fire_now") =>
@@ -116,3 +130,10 @@ export const testCoworkerRemote = (workspaceRepo: string) =>
   postJson<{ message: string }>("/api/v1/app/coworkers/test_remote", { workspace_repo: workspaceRepo })
 export const addCoworkerToChat = (coworkerId: number, chatId: number) => postJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
 export const removeCoworkerFromChat = (coworkerId: number, chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
+export const updateCoworkerGrant = (id: string, capability: string, approvalPolicy: string, constraints: Record<string, unknown>, confirmed = false) =>
+  patchJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}/grants`, {
+    capability,
+    approval_policy: approvalPolicy,
+    constraints,
+    confirmed
+  })

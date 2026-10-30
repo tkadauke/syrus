@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FormEvent, useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Avatar } from "@app/components/Avatar"
@@ -24,11 +24,14 @@ import {
   createSideChat,
   fetchCoworker,
   fetchCoworkerActivity,
+  fetchCoworkerApprovals,
   fetchCoworkerMemory,
   fetchCoworkerWorkspace,
   fetchCoworkers,
   removeCoworkerFromChat,
+  decideCoworkerApproval,
   testCoworkerRemote,
+  updateCoworkerGrant,
   type CoworkerDetail,
   type CoworkerMemoryFile,
   type CoworkerSummary
@@ -266,7 +269,7 @@ function CoworkerPage({ id }: { id: string }) {
           </div>
         </div>
       </Page.Header>
-      <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "schedule", "memory", "workspace", "activity"]} />
+      <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"]} />
       {tab === "chat" ? (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-surface p-3">
@@ -320,12 +323,174 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
+      {tab === "capabilities" ? <CoworkerCapabilities coworker={coworker} onChanged={() => void query.refetch()} /> : null}
+      {tab === "approvals" ? <CoworkerApprovals id={id} /> : null}
       {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void query.refetch()} /> : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
       {tab === "activity" ? <CoworkerActivity id={id} traffic={coworker.message_traffic} /> : null}
-      {!["chat", "profile", "schedule", "memory", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {!["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"].includes(tab) ? (
+        <PanelMessage>{t("coming_later")}</PanelMessage>
+      ) : null}
     </Page.Root>
+  )
+}
+
+function CoworkerApprovals({ id }: { id: string }) {
+  const { t } = useT("coworkers")
+  const queryClient = useQueryClient()
+  const query = useQuery({ queryKey: ["coworkers", id, "approvals"], queryFn: () => fetchCoworkerApprovals(id) })
+  const decision = useMutation({
+    mutationFn: ({ approvalId, value }: { approvalId: number; value: "approve" | "reject" }) => decideCoworkerApproval(id, approvalId, value),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["coworkers", id, "approvals"] })
+      void queryClient.invalidateQueries({ queryKey: ["sidebar_badge", "coworkers.index"] })
+    }
+  })
+  if (query.isPending) return <PanelMessage>{t("approvals.loading")}</PanelMessage>
+  if (!query.data?.approvals.length) return <PanelMessage>{t("approvals.empty")}</PanelMessage>
+  return (
+    <section className="space-y-3">
+      {query.data.approvals.map((approval) => (
+        <article className="rounded border border-border bg-surface p-4" key={approval.id}>
+          <h2 className="font-semibold">{approval.tool_name}</h2>
+          <div className="mt-1 text-sm text-text-secondary">
+            {approval.run_id ? t("approvals.run", { id: approval.run_id }) : t("approvals.chat", { id: approval.chat_id })}
+          </div>
+          <pre className="mt-3 overflow-x-auto rounded bg-surface-subtle p-3 text-xs">{JSON.stringify(approval.tool_input, null, 2)}</pre>
+          <div className="mt-3 flex gap-2">
+            <button
+              className="rounded bg-brand px-3 py-2 text-sm text-white"
+              disabled={decision.isPending}
+              onClick={() => decision.mutate({ approvalId: approval.id, value: "approve" })}
+            >
+              {t("approvals.approve")}
+            </button>
+            <button
+              className="rounded border border-border px-3 py-2 text-sm"
+              disabled={decision.isPending}
+              onClick={() => decision.mutate({ approvalId: approval.id, value: "reject" })}
+            >
+              {t("approvals.reject")}
+            </button>
+          </div>
+        </article>
+      ))}
+    </section>
+  )
+}
+
+const CAPABILITIES = [
+  "chat.message_owner",
+  "chats.read_shared",
+  "coworker.message",
+  "coworker.spawn_chat",
+  "schedule.manage_self",
+  "workspace.files",
+  "workspace.shell",
+  "syrus.read_jobs",
+  "syrus.propose_job"
+] as const
+const POLICY_RANK = { off: 0, queue: 1, confirm: 2, auto: 3 } as const
+
+function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
+  const { t } = useT("coworkers")
+  const [paths, setPaths] = useState(coworker.grants.find((grant) => grant.capability === "workspace.files")?.constraints.confirm_paths?.join(", ") || "")
+  const mutation = useMutation({
+    mutationFn: ({ capability, policy, confirmed }: { capability: string; policy: string; confirmed: boolean }) =>
+      updateCoworkerGrant(
+        String(coworker.id),
+        capability,
+        policy,
+        capability === "workspace.files"
+          ? {
+              confirm_paths: paths
+                .split(",")
+                .map((path) => path.trim())
+                .filter(Boolean)
+            }
+          : {},
+        confirmed
+      ),
+    onSuccess: onChanged
+  })
+
+  function changePolicy(capability: string, policy: keyof typeof POLICY_RANK) {
+    const current = (coworker.grants.find((grant) => grant.capability === capability)?.approval_policy || "off") as keyof typeof POLICY_RANK
+    const escalation = POLICY_RANK[policy] > POLICY_RANK[current]
+    if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
+    mutation.mutate({ capability, policy, confirmed: escalation })
+  }
+
+  function saveFileConstraints(grant: CoworkerDetail["grants"][number]) {
+    const nextPaths = new Set(
+      paths
+        .split(",")
+        .map((path) => path.trim())
+        .filter(Boolean)
+    )
+    const removesProtection = (grant.constraints.confirm_paths || []).some((path) => !nextPaths.has(path))
+    if (removesProtection && !window.confirm(t("capabilities.confirm_escalation"))) return
+    mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: removesProtection })
+  }
+
+  return (
+    <section className="space-y-5">
+      <div className="divide-y divide-border rounded border border-border bg-surface">
+        {CAPABILITIES.map((capability) => {
+          const grant = coworker.grants.find((entry) => entry.capability === capability)
+          return (
+            <div className="space-y-3 p-4 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:space-y-0" key={capability}>
+              <div>
+                <p className="text-sm">{t(`capabilities.sentences.${capability.replaceAll(".", "_")}`)}</p>
+                {capability === "workspace.files" ? (
+                  <div>
+                    <label className="mt-2 block text-xs text-text-secondary">
+                      {t("capabilities.confirm_paths")}
+                      <Input
+                        className="mt-1"
+                        onChange={(event) => setPaths(event.target.value)}
+                        placeholder={t("capabilities.confirm_paths_placeholder")}
+                        value={paths}
+                      />
+                    </label>
+                    <button
+                      className="mt-2 rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
+                      disabled={!grant || mutation.isPending}
+                      onClick={() => grant && saveFileConstraints(grant)}
+                      type="button"
+                    >
+                      {t("capabilities.save_constraints")}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <Select
+                aria-label={t("capabilities.policy_for", { capability })}
+                disabled={mutation.isPending}
+                onChange={(event) => changePolicy(capability, event.target.value as keyof typeof POLICY_RANK)}
+                value={grant?.approval_policy || "off"}
+              >
+                {(["auto", "confirm", "queue", "off"] as const).map((policy) => (
+                  <option key={policy} value={policy}>
+                    {t(`capabilities.policies.${policy}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )
+        })}
+      </div>
+      {mutation.isError ? <PanelMessage>{mutation.error.message}</PanelMessage> : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {(["gmail", "calendar"] as const).map((integration) => (
+          <div aria-disabled="true" className="rounded border border-border bg-surface-subtle p-4 opacity-60" key={integration}>
+            <div className="font-medium">{t(`capabilities.integrations.${integration}`)}</div>
+            <div className="text-sm text-text-secondary">{t("capabilities.coming_later")}</div>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

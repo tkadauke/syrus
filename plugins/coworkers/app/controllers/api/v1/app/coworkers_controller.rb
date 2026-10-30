@@ -53,6 +53,21 @@ module Api
           render_error("coworker_busy", error.message, status: :conflict)
         end
 
+        def update_grant
+          coworker = find_coworker
+          authorize coworker, :manage_grants?, policy_class: CoworkerPolicy
+          Coworkers::GrantUpdate.call(
+            owner: Current.user, coworker: coworker, capability: params[:capability],
+            approval_policy: params.require(:approval_policy), constraints: grant_constraints,
+            confirmed: params[:confirmed]
+          )
+          render json: { coworker: detail_json(coworker.reload) }
+        rescue Coworkers::GrantUpdate::ConfirmationRequired => error
+          render_error("confirmation_required", error.message, status: :conflict)
+        rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
+          render_error("validation_failed", error.message, status: :unprocessable_content)
+        end
+
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy
@@ -116,6 +131,32 @@ module Api
           render json: Coworkers::Activity.new(coworker: coworker, user: Current.user).call
         end
 
+        def approvals
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          render json: { approvals: Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.map { |action| approval_json(action) } }
+        end
+
+        def approve
+          action = find_approval
+          if action.enqueue_confirmation!(user: Current.user)
+            render json: { approval: approval_json(action.reload) }, status: :accepted
+          else
+            render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
+          end
+        rescue ActiveRecord::RecordInvalid, ArgumentError => error
+          render_error("approval_expired", error.message, status: :unprocessable_content)
+        end
+
+        def reject
+          action = find_approval
+          if action.reject!(user: Current.user)
+            render json: { approval: approval_json(action.reload) }
+          else
+            render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
+          end
+        end
+
         def create_schedule
           coworker = find_coworker
           authorize coworker, :update?, policy_class: CoworkerPolicy
@@ -171,8 +212,7 @@ module Api
         end
 
         def sidebar_badge
-          ids = Coworkers::Chat.joins(:coworker).where(coworkers: { owner_user_id: Current.user.id }).select(:chat_session_id)
-          render json: { count: ChatSession.where(id: ids).where("last_message_at IS NOT NULL AND (last_read_at IS NULL OR last_message_at > last_read_at)").count }
+          render json: { count: Coworkers::PendingApprovals.new(owner: Current.user).count }
         end
 
         private
@@ -187,6 +227,20 @@ module Api
           ChatSession.active.find_by!(id: params[:chat_id], user_id: Current.user.id)
         end
 
+        def find_approval
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.find(params[:approval_id])
+        end
+
+        def approval_json(action)
+          {
+            id: action.id, tool_name: action.payload["tool_name"], tool_input: action.payload["arguments"],
+            run_id: action.payload["run_id"], chat_id: action.chat_session_id,
+            created_at: action.created_at.iso8601, state: action.state
+          }
+        end
+
         def roster_json(entry)
           coworker = entry.coworker
           { id: coworker.id, name: coworker.name, handle: coworker.handle, accent_hex: coworker.accent_hex,
@@ -195,6 +249,10 @@ module Api
 
         def create_params
           params.permit(:name, :handle, :workspace_repo, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model, :chat_effort)
+        end
+
+        def grant_constraints
+          params.permit(constraints: { confirm_paths: [] })[:constraints]&.to_h || {}
         end
 
         def summary_json(coworker, weekly_spend_usd: nil)
@@ -214,9 +272,9 @@ module Api
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
-            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy } },
-            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker),
+            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints } },
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
+            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
           )
         end
 
