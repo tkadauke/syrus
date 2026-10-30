@@ -199,6 +199,16 @@ RSpec.describe WorkflowWorkspace, :ci_only do
     end
   end
 
+  describe "ordinary clone branch validation" do
+    it "fails loudly when a non-empty remote has no configured default branch" do
+      seed_remote_branch("coworkers/maya", "coworker home")
+      sh("git --git-dir=#{bare_remote_dir} branch -D main")
+
+      expect { described_class.new(workflow).setup }
+        .to raise_error(GitRunner::GitError, /remote branch main does not exist.*non-retryable/)
+    end
+  end
+
   describe "#setup" do
     context "fresh workflow (no prior workspace)" do
       it "creates a clone on the workflow's branch" do
