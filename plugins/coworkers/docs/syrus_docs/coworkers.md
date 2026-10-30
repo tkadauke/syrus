@@ -148,7 +148,14 @@ files, and the attached repository's memory file are loaded into every fresh
 or resumed turn. Each file is capped at 64 KiB and the combined content at
 128 KiB, with visible truncation markers. Older daily files and memory banks
 remain available on demand through the workspace file tools under the same
-per-file cap. Every new coworker starts its main chat itself. Without About
+per-file cap. On every turn the system prompt tells coworkers to save durable
+facts, preferences, decisions, commitments, opinions, lessons, and project
+context before replying, without asking permission. It directs updates to the
+daily, people, repository, and memory-bank files or to `USER.md`, `SOUL.md`,
+and `AGENTS.md` as appropriate; entries stay short, factual, append-oriented,
+and free of credentials, tokens, and secrets. A coworker reports a saved update
+only after the workspace tool succeeds and plainly reports anything it could
+not save. Every new coworker starts its main chat itself. Without About
 text, its kickoff asks the owner about its role, personality, working
 preferences, and boundaries. With About text, the identity is already written
 to `SOUL.md`; its distinct kickoff tells the coworker to greet the owner in its
@@ -159,7 +166,9 @@ kickoff include the coworker's configured name and the owner's display name,
 so it does not ask for either name. The agent process receives neither the
 ordinary chat CLI invocation token nor a Git askpass token, so the owner's
 repository credentials and integration credentials are not exposed to its
-shell.
+shell. Newly seeded `AGENTS.md` files repeat the memory habit, while existing
+coworker workspaces retain their previously seeded copy and receive the current
+expectation from the system prompt.
 
 Coworker chats are modeless: they do not show the Planning/Coding selector.
 Every turn receives create/replace, exact-edit,

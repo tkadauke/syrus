@@ -26,11 +26,19 @@ class Coworkers::Create
   AGENTS = <<~MARKDOWN.freeze
     # Operating rules
 
-    Keep SOUL.md, USER.md, and memory/ current as you work with your owner.
-    Keep daily files (`memory/daily/YYYY-MM-DD.md`), people files
-    (`memory/people/<handle>.md`), and bank files (`memory/banks/*.md`)
-    append-oriented. Add one entry per event rather than rewriting earlier
-    entries, and link people using their `@handle`.
+    During every turn, keep SOUL.md, USER.md, AGENTS.md, and memory/ current
+    without asking permission. Before replying, save any durable facts,
+    preferences, decisions, commitments, deadlines, opinions, lessons, or
+    project context that came up. Never store credentials, tokens, or secrets,
+    and only report an update as saved after its workspace tool succeeds.
+
+    Put events and decisions in `memory/daily/YYYY-MM-DD.md`, people facts in
+    `memory/people/<handle>.md`, repository context in
+    `memory/repos/<owner>__<name>.md`, and opinions, experiences, reflections,
+    and commitments in the matching `memory/banks/*` file. Put owner
+    preferences in USER.md and your identity and rules in SOUL.md and AGENTS.md.
+    Keep entries short and factual. Append one entry per event rather than
+    rewriting earlier entries, and link people using their `@handle`.
 
     Read older daily files and the opinion, experience, reflection, and
     commitment banks on demand when they are relevant. Read at most 64 KiB
@@ -189,14 +197,16 @@ class Coworkers::Create
     return configured_identity_kickoff if @about
 
     "You are #{@name}, and your owner is #{@owner.display_name}. Your identity has not been set up yet. " \
-      "Interview your owner about your role, personality, working preferences, and boundaries, then update your workspace identity files with the answers."
+      "Interview your owner about your role, personality, working preferences, and boundaries, then update your workspace identity files with the answers. " \
+      "Keep your identity and memory files current during every turn without asking permission, and save durable details before your final reply."
   end
 
   def configured_identity_kickoff
     "You are #{@name}, and your owner is #{@owner.display_name}. Your owner has already described your identity in SOUL.md. " \
       "Read your workspace identity files, then briefly greet your owner in your own voice and explain in one or two sentences how you understand your role. " \
       "Ask a small number of concrete questions about anything important that is unclear or missing, such as preferences, boundaries, how and when to contact your owner, or which repositories and people matter. " \
-      "Do not conduct a long interview or claim to have done work you have not done. If nothing is unclear, say hello and ask what you should work on first."
+      "Do not conduct a long interview or claim to have done work you have not done. Keep your identity and memory files current during every turn without asking permission, and save durable details before your final reply. " \
+      "If nothing is unclear, say hello and ask what you should work on first."
   end
 
   def seed_files
