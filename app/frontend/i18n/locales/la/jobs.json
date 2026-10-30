@@ -493,8 +493,15 @@
     "start_blocked": "Initium cursus impeditur: {{reason}}.",
     "host_admission_deferred": "Admissio hospitis cursum propter {{reason}} distulit ({{deferralCount}} dilationes, ab {{deferred}}). {{binding}}",
     "binding_compute": "unitates computationis {{active}} + {{candidate}} capacitatem {{capacity}} excedunt",
-    "binding_reservation": "reservatio memoriae {{active}} + {{candidate}} modum {{budget}} excedit",
-    "binding_measured": "memoria mensa {{current}} + reservatio {{candidate}} modum {{budget}} excedit",
+    "binding_reservation": "reservatio memoriae {{active}} + {{candidate}} ({{evidence}}) modum {{budget}} excedit",
+    "binding_measured": "memoria mensa {{current}} + reservatio {{candidate}} ({{evidence}}) modum {{budget}} excedit",
+    "memory_context": "argumentum memoriae: mensa {{measured}}, reservationes activae {{active}}, candidatus {{candidate}}, modus efficax {{budget}}, fons {{evidence}}",
+    "memory_evidence": {
+      "command_attributed": "argumentum mandato attributum",
+      "deterministic_compute_fallback": "substitutio finita computationis determinatae",
+      "capacity_unit_fallback": "substitutio unitatis capacitatis",
+      "unknown": "argumentum ignotum"
+    },
     "unknown": "Exsecutio in ordine est, sed Syrus causam exspectationis cognoscere non potuit.",
     "check": "Inspice",
     "pending_link": "Admin → Ordo → Pendentia",

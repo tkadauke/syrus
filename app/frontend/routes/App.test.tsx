@@ -12039,10 +12039,11 @@ describe("App", () => {
         resource_guard_binding_terms: ["memory_reservation"],
         active_reserved_memory_bytes: 4294967296,
         candidate_reserved_memory_bytes: 8589934592,
+        candidate_memory_evidence_source: "command_attributed",
         host_memory_budget_bytes: 15032385536,
         grader_memory_reserve_bytes: 4294967296
       },
-      "budget 10240.0 MB",
+      "command-attributed evidence",
       "bg-warning-surface",
       "workers"
     ],

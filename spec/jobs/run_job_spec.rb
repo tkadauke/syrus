@@ -1160,8 +1160,29 @@ RSpec.describe RunJob, :ci_only do
 
       guidance = JobLog.where(run: run).where("chunk LIKE ?", "host memory admission is binding;%")
       expect(guidance.pluck(:chunk)).to eq([
-        "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change per-run reservation or increase the Docker memory setting"
+        "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change capacity-unit reservations or increase the Docker memory setting"
       ])
+    end
+
+    it "does not recommend changing CPU limits for deterministic memory fallback" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      decision = RunHostAdmission::Decision.new(
+        action: "defer", reason: "host_resource_semaphore_busy", delay: 30.seconds,
+        details: {
+          "hostname" => "worker-a",
+          "resource_guard_binding_terms" => [ "measured_memory" ],
+          "candidate_memory_evidence_source" => "deterministic_compute_fallback"
+        }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(decision)
+
+      RunJob.perform_now(run.id)
+
+      expect(JobLog.where(run: run).pluck(:chunk)).to include(
+        "host memory admission is binding; collect command resource samples to replace the bounded deterministic fallback or increase the Docker memory setting"
+      )
     end
 
     it "drops storage affinity after a pinned Run exhausts its host admission deferral budget" do
