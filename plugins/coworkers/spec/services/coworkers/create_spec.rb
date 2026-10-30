@@ -25,10 +25,12 @@ RSpec.describe Coworkers::Create do
 
     def branch_sha(_branch) = "a" * 40
 
-    def delete!(branch)
+    def delete_if_matches!(branch, expected_sha:)
       raise delete_error if delete_error
+      raise Coworkers::RemoteWorkspace::RefChanged, "changed" unless expected_sha == branch_sha(branch)
 
       deleted_branches << branch
+      @branch_exists = false
     end
   end
 

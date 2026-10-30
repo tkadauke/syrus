@@ -2,6 +2,7 @@ require "fileutils"
 require "tmpdir"
 
 class Coworkers::RemoteWorkspace
+  RefChanged = Class.new(StandardError)
   attr_reader :repository
 
   def initialize(owner:, name:, user:, git: GitRunner.new)
@@ -68,6 +69,22 @@ class Coworkers::RemoteWorkspace
     with_seed_checkout do |path|
       @git.run("push", authenticated_url, ":refs/heads/#{branch}", chdir: path)
     end
+  end
+
+  # Deletes only when the server still has the commit we proved belongs to the
+  # provisioning attempt. The explicit lease makes the proof and deletion one
+  # atomic ref update at the remote.
+  def delete_if_matches!(branch, expected_sha:)
+    validate_coworker_namespace!(branch)
+    ref = "refs/heads/#{branch}"
+    with_seed_checkout do |path|
+      @git.run("push", "--force-with-lease=#{ref}:#{expected_sha}", authenticated_url, ":#{ref}", chdir: path)
+    end
+  rescue GitRunner::GitError => error
+    current = branch_sha(branch)
+    return if current.nil? # Another cleanup already removed the proven ref.
+    raise RefChanged, "the remote ref changed before cleanup could delete it" if current.present? && current != expected_sha
+    raise
   end
 
   private
