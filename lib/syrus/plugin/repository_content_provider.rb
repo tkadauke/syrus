@@ -155,6 +155,10 @@ module Syrus
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list commit history"
       end
 
+      def commits(_revision_id, limit:)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list commits for a revision"
+      end
+
       def tree_sha(_revision_id)
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not read commit tree SHAs"
       end

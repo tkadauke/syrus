@@ -49,6 +49,15 @@ export type CoworkerMemoryPayload = {
   partial: boolean
   search_incomplete: boolean
 }
+export type CoworkerWorkspacePayload = {
+  remote: string
+  branch: string
+  files: { path: string; type: string }[]
+  partial: boolean
+  selected_file: { path: string; content: string; truncated: boolean; binary: boolean } | null
+  commits: { sha: string; message: string; authored_at: string | null; source: "chat" | "run" | "unattributed"; source_id: number | null }[]
+  conflicts: { branch: string; files: string[]; detail: string | null }[]
+}
 
 export const fetchCoworkers = () =>
   getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")
@@ -57,6 +66,9 @@ export function fetchCoworker(id: string) {
 }
 export function fetchCoworkerMemory(id: string, search: string) {
   return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
+}
+export function fetchCoworkerWorkspace(id: string, path?: string) {
+  return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
 }
 export function createCoworker(form: FormData) {
   return postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)

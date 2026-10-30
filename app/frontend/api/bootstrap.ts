@@ -158,6 +158,8 @@ export function fetchBootstrap() {
 }
 
 export function readInitialBootstrap() {
+  if (typeof document === "undefined") return null
+
   const element = document.getElementById("syrus-bootstrap-data")
   if (!element?.textContent) return null
 

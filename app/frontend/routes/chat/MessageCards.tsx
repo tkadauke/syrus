@@ -1404,6 +1404,8 @@ export function SystemMessage({
             <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed [overflow-wrap:anywhere]">
               <AnsiText text={item.body} />
             </pre>
+          ) : item.body_format === "markdown" ? (
+            <Markdown className="break-words leading-relaxed" text={item.body} linkifyUrls />
           ) : (
             <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
           )}

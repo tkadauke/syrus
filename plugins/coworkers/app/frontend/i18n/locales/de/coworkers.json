@@ -18,6 +18,23 @@
     "truncated": "Diese große Datei wird nur teilweise angezeigt.",
     "categories": { "daily": "Täglich", "people": "Personen", "repos": "Repositorys", "banks": "Sammlungen" }
   },
+  "workspace": {
+    "loading": "Workspace wird geladen…",
+    "unavailable": "Der Workspace dieses Coworkers ist gerade nicht erreichbar.",
+    "files": "Workspace-Dateien",
+    "choose_file": "Wähle eine Datei für die Vorschau.",
+    "binary": "Binärdateien können nicht angezeigt werden.",
+    "partial": "Dieser Workspace-Baum ist unvollständig. Nur die verfügbaren Dateien werden angezeigt.",
+    "truncated": "Diese große Datei wird nur teilweise angezeigt.",
+    "history": "Commit-Verlauf",
+    "no_commits": "Kein Commit-Verlauf ist verfügbar.",
+    "chat_source": "Chat {{id}}",
+    "run_source": "Run {{id}}",
+    "unattributed_source": "Quelle nicht verfügbar",
+    "conflict": "Nicht zusammengeführter Chat-Branch {{branch}}:",
+    "test_push": "Push-Zugriff testen",
+    "push_ok": "Push-Zugriff bestätigt"
+  },
   "new": {
     "action": "Neuer Mitarbeiter",
     "title": "Neuer Mitarbeiter",

@@ -18,6 +18,23 @@
     "truncated": "This large file is shown in part.",
     "categories": { "daily": "Daily", "people": "People", "repos": "Repositories", "banks": "Banks" }
   },
+  "workspace": {
+    "loading": "Loading workspace…",
+    "unavailable": "This coworker's workspace cannot be reached right now.",
+    "files": "Workspace files",
+    "choose_file": "Choose a file to preview.",
+    "binary": "Binary files cannot be previewed.",
+    "partial": "This workspace tree is incomplete. Only the available files are shown.",
+    "truncated": "This large file is shown in part.",
+    "history": "Commit history",
+    "no_commits": "No commit history is available.",
+    "chat_source": "Chat {{id}}",
+    "run_source": "Run {{id}}",
+    "unattributed_source": "Source unavailable",
+    "conflict": "Unmerged chat branch {{branch}}:",
+    "test_push": "Test push access",
+    "push_ok": "Push access verified"
+  },
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
   "tool_card": {
     "title": "Proposed coworker",

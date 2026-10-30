@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 import type { ChatCrossChatBridge, ChatMessageItem, ChatRenderItem } from "../../api/chats"
 import { isLowPrioritySystemMessage } from "./messageDisplay"
-import { chatTurnRetryFromContent, crossChatBridgeSystemMessage, goalContinuationFromContent, skillInvocationFromContent, systemMessage, wakeupAutomationFromContent } from "./systemMessages"
+import {
+  chatTurnRetryFromContent,
+  crossChatBridgeSystemMessage,
+  goalContinuationFromContent,
+  skillInvocationFromContent,
+  systemMessage,
+  wakeupAutomationFromContent
+} from "./systemMessages"
 
 function systemText(text: string): ChatMessageItem {
   return {
@@ -51,6 +58,29 @@ describe("skillInvocationFromContent", () => {
     })
     expect(skillInvocationFromContent({ skill_invocation: { status: "invalid_args" } }, "`/investigate` needs valid arguments.")).toMatchObject({
       tone: "warning"
+    })
+  })
+})
+
+describe("systemMessage", () => {
+  it("preserves an explicitly marked Markdown system body so file links render", () => {
+    const message = systemMessageItem({
+      text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+      content: {
+        text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+        body_format: "markdown",
+        prominent: true,
+        system_label: "Workspace conflict",
+        system_tone: "warning"
+      }
+    })
+
+    expect(systemMessage(message)).toMatchObject({
+      body_format: "markdown",
+      prominent: true,
+      label: "Workspace conflict",
+      tone: "warning",
+      body: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)"
     })
   })
 })
@@ -130,7 +160,9 @@ describe("goalContinuationFromContent", () => {
 
 describe("chatTurnRetryFromContent", () => {
   it("renders chat turn retry wakeups as retry system messages", () => {
-    expect(chatTurnRetryFromContent({ source: "chat_turn_retry", text: "Retrying the previous assistant turn now." }, "Retrying the previous assistant turn now.")).toEqual({
+    expect(
+      chatTurnRetryFromContent({ source: "chat_turn_retry", text: "Retrying the previous assistant turn now." }, "Retrying the previous assistant turn now.")
+    ).toEqual({
       tone: "neutral",
       label: "Retry",
       body: "Retrying the previous assistant turn now."

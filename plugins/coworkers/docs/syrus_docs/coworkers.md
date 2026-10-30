@@ -48,8 +48,25 @@ tool boundary. Claude can deny file and shell tools independently; providers
 without that separation fail closed rather than starting with permissions
 they cannot enforce.
 
-In the Phase 1 workspace model, a turn runs directly in a checkout of the
-coworker's `coworkers/<handle>` home branch. `SOUL.md`, `AGENTS.md`,
+Each coworker chat runs in its own disposable checkout and immutable-id branch,
+`coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's
+`coworkers/<handle>` home branch. At turn end Syrus commits with the coworker's
+git identity, pushes the chat branch, and merges it into the home branch. Clean
+and file-disjoint changes merge automatically; append-oriented files under
+`memory/` use Git's union merge driver. A conflict keeps both refs and the
+conflicted local checkout intact and posts the affected file links into the
+chat. A missing local checkout is re-cloned from the canonical remote.
+
+Changing a coworker's handle moves its home branch in the same locked
+operation. Deleting a coworker preserves the home branch under
+`coworkers/archived/<handle>-<date>` (with a numeric suffix when that name is
+already occupied) and releases the handle for reuse. Syrus guards coworker
+pushes so an individual coworker can target only its own home branch, immutable
+chat branches, and archive branches. This keeps an agent from straying into
+unrelated refs; repository permissions, not this convenience guard, remain the
+security boundary.
+
+`SOUL.md`, `AGENTS.md`, and
 `USER.md`, today's and yesterday's daily memory, participant and sender people
 files, and the attached repository's memory file are loaded into every fresh
 or resumed turn. Each file is capped at 64 KiB and the combined content at
@@ -91,6 +108,14 @@ can queue at most ten messages in a ten-minute window, regardless of direction.
 Hop-limit refusals and rate-limited attempts are recorded in the sender's main
 chat and listed in the sender's Activity tab.
 
+Background Jobs attributed to a coworker are private to that coworker's owner,
+even when the workspace repository is shared. Other repository members and
+repository administrators cannot list, search, count, or read those Jobs.
+Instance administrators retain their normal instance-wide visibility. This
+restriction is registered before the coworker background-Job kind can be
+introduced, so future scheduling cannot accidentally inherit repository-wide
+visibility.
+
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
 Rostered coworkers become addressable by every participant in that chat and
@@ -112,6 +137,14 @@ shows recent daily files first. Provider-truncated or exceptionally large trees
 return their available files with a partial-results notice; searches also warn
 when capped file contents mean the result set cannot be complete. The Activity
 tab reports total uncapped spend, sent and received coworker-message traffic for
-the last 30 days, plus recent refused and rate-limited deliveries. Capabilities,
-Schedule, and Workspace remain coming-later placeholders where their full
-surfaces have not shipped yet.
+the last 30 days, plus recent refused and rate-limited deliveries. Capabilities
+and Schedule remain coming-later placeholders where their full surfaces have
+not shipped yet.
+
+The Workspace tab is a read-only view of the coworker's home branch through
+the same cached repository-content providers. It shows the remote and branch,
+the file tree with plain-text or Markdown previews, available commit history,
+and chat branches with unresolved merge conflicts. Partial trees and capped
+files are marked explicitly. The only remote action is **Test push access**,
+which creates and immediately deletes a randomized throwaway ref beneath
+`coworkers/`; file edits and arbitrary pushes are not exposed in the UI.

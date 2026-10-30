@@ -8,6 +8,7 @@
 #   stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
 #   stub_repository_changes(repository, head: "feature", paths: %w[app/a.rb])
 #   stub_repository_history(repository, base: "main", head: "feature", commits: [{ sha: "a" * 40, message: "m" }])
+#   stub_repository_commits(repository, ref: "orphan", commits: [{ sha: "a" * 40, message: "m" }])
 #
 # Re-stubbing a ref points it at a new revision; the old revision stays
 # readable, as a real commit would. A repository nothing has stubbed reads as
@@ -57,6 +58,11 @@ class FakeRepositoryContentProvider
       @histories ||= {}
     end
 
+    # { revision_id => [Commit] }
+    def commits
+      @commits ||= {}
+    end
+
     # { revision_id => tree_sha }
     def tree_shas
       @tree_shas ||= {}
@@ -79,6 +85,7 @@ class FakeRepositoryContentProvider
       @changed_paths = {}
       @diffs = {}
       @histories = {}
+      @commits = {}
       @tree_shas = {}
       @failures = {}
       @calls = []
@@ -173,6 +180,11 @@ class FakeRepositoryContentProvider
     entry[:history]
   end
 
+  def commits(revision_id, limit:)
+    record(:commits, revision_id, limit)
+    Array(self.class.commits[revision_id]).first(limit)
+  end
+
   # The tree SHA stubbed for this revision with stub_repository_tree_sha, or
   # Unsupported -- the default every real provider falls back to -- when
   # nothing has stubbed one.
@@ -259,6 +271,16 @@ module RepositoryContentHelpers
     history = RepositoryContent::CommitHistory.new(commits: history_commits, merge_base_id: merge_base_sha)
     FakeRepositoryContentProvider.histories[[ base_id, head_id ]] = { history: history, truncated: truncated }
     history
+  end
+
+  # Commits reachable from one ref, including an orphan branch with no merge
+  # base against the repository default branch.
+  def stub_repository_commits(repository, ref:, commits: [])
+    use_fake_repository_content!
+    revision_id = ensure_fake_ref(repository, ref)
+    FakeRepositoryContentProvider.commits[revision_id] = commits.map do |commit|
+      RepositoryContent::Commit.new(sha: commit[:sha], message: commit[:message], authored_at: commit[:date])
+    end
   end
 
   # Fails the example the moment anything asks for changes -- as an RSpec

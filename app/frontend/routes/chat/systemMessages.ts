@@ -82,7 +82,12 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
     }
   }
 
-  return { tone: "neutral", label: i18n.t("chat:system.system"), body: text }
+  const content = contentRecord(message.content)
+  const bodyFormat = content?.body_format === "markdown" ? "markdown" : undefined
+  const requestedTone = stringValue(content?.system_tone)
+  const tone = requestedTone === "success" || requestedTone === "warning" || requestedTone === "error" ? requestedTone : "neutral"
+  const label = stringValue(content?.system_label) || i18n.t("chat:system.system")
+  return { tone, label, body: text, body_format: bodyFormat, prominent: content?.prominent === true }
 }
 
 // The outbound (sender-side) and hop-limit closure-notice system messages

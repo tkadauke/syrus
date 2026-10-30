@@ -1124,6 +1124,28 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#commits_for" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "reads a bounded history directly from an orphan-capable ref" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits")
+        .with(query: { "per_page" => "2", "sha" => "coworkers/maya" })
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [
+            { sha: "new", commit: { message: "Newest\n\nBody", committer: { date: "2026-10-29T12:00:00Z" } } },
+            { sha: "old", commit: { message: "Seed", committer: { date: "2026-10-28T12:00:00Z" } } }
+          ].to_json
+        )
+
+      expect(client.commits_for("acme/widgets", "coworkers/maya", limit: 2)).to eq([
+        { sha: "new", message: "Newest", date: Time.zone.parse("2026-10-29T12:00:00Z") },
+        { sha: "old", message: "Seed", date: Time.zone.parse("2026-10-28T12:00:00Z") }
+      ])
+    end
+  end
+
   describe "#compare_divergence" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

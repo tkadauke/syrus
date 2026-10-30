@@ -5,3 +5,8 @@ la:
       chat_group: "Collegae"
       invalid_workspace_remote: "Remotum spatii laboris URL repositorii GitHub esse debet."
       push_access_verified: "Accessus ad mittendum comprobatus est."
+      workspace_conflict: |-
+        In spatio laboris collegae conflictus coniunctionis sunt. Utraque versio in `%{branch}` manet. Hos fasciculos corrige:
+
+        %{files}
+      workspace_conflict_label: "Conflictus spatii laboris"

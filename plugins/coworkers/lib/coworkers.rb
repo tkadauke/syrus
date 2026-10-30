@@ -19,8 +19,10 @@ module Coworkers
     depends_on [ "scheduled_tasks" ]
     provides mentionable: "Coworkers::MentionableProvider",
              chat_mcp_tool_set: "Coworkers::ChatToolSet",
+             job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
+             chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
@@ -30,7 +32,10 @@ module Coworkers
     route :post, "/api/v1/app/coworkers/test_remote", to: "api/v1/app/coworkers#test_remote"
     route :get, "/api/v1/app/coworkers/sidebar_badge", to: "api/v1/app/coworkers#sidebar_badge"
     route :get, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#show"
+    route :patch, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#update"
+    route :delete, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#destroy"
     route :get, "/api/v1/app/coworkers/:id/memory", to: "api/v1/app/coworkers#memory"
+    route :get, "/api/v1/app/coworkers/:id/workspace", to: "api/v1/app/coworkers#workspace"
     route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
     route :post, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#add_to_chat"
     route :delete, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#remove_from_chat"

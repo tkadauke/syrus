@@ -10,6 +10,23 @@ RSpec.describe "Coworkers plugin" do
     expect(manifest).not_to be_default_enabled
   end
 
+  it "registers the owner-only Job visibility restriction before contributing coworker tasks" do
+    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
+    restriction = manifest.provides.fetch(:job_visibility_restriction)
+
+    expect(restriction).to eq(Coworkers::JobVisibilityRestriction)
+    expect(restriction).to include(Syrus::Plugin::JobVisibilityRestriction)
+    expect(restriction.origin_key).to eq("coworkers")
+  end
+
+  it "does not allow the coworker task kind to exist without its visibility restriction" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    next expect(Job::Kind.values).not_to include("coworker_task") unless Job::Kind.values.include?("coworker_task")
+
+    restrictions = Syrus::PluginRegistry.providers_for(:job_visibility_restriction)
+    expect(restrictions.map(&:origin_key)).to include("coworkers")
+  end
+
   it "resolves an unlinked chat to the built-in Syrus coworker" do
     chat = ChatSession.create!(user: owner, title: "Existing chat")
     scope = Syrus::EffectScope.new(label: "spec")
@@ -70,9 +87,10 @@ RSpec.describe "Coworkers plugin" do
     job.instance_variable_set(:@user_message, message)
     job.instance_variable_set(:@agent_chat, context)
     allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/roster-chat"))
-    expect(ChatWorkspace).to receive(:ensure_branch_checkout!)
-      .with(chat, repository, "coworkers/maya-turn")
-      .and_return(Pathname("/tmp/roster-coworker"))
+    lifecycle = class_double(Coworkers::ChatWorkspaceLifecycle, applies_to?: true)
+    allow(lifecycle).to receive(:prepare!).with(chat_session: chat).and_return(Pathname("/tmp/roster-coworker"))
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_workspace_lifecycle).and_return([ lifecycle ])
 
     expect(job.send(:chat_provider)).to have_attributes(provider: "codex")
     expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/roster-coworker"))

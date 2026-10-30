@@ -17,6 +17,7 @@ module Syrus
       chat_payload_contributor
       chat_prompt_injector
       chat_turn_orientation
+      chat_workspace_lifecycle
       adjudicator
       source_control_provider
       artifact_renderer
@@ -82,6 +83,7 @@ module Syrus
       chat_payload_contributor: -> { Syrus::Plugin::ChatPayloadContributor },
       chat_prompt_injector:    -> { Syrus::Plugin::ChatPromptInjector },
       chat_turn_orientation:   -> { Syrus::Plugin::ChatTurnOrientation },
+      chat_workspace_lifecycle: -> { Syrus::Plugin::ChatWorkspaceLifecycle },
       adjudicator:             -> { Syrus::Plugin::Adjudicator },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },

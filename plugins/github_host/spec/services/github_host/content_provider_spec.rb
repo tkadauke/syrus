@@ -211,6 +211,17 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  describe "#commits" do
+    it "lists commits from one revision without requiring a merge base" do
+      allow(client).to receive(:commits_for).with("acme/widgets", sha, limit: 50).and_return([
+        { sha: sha, message: "Create coworker home", date: "2026-10-29T12:00:00Z" }
+      ])
+
+      expect(provider.commits(sha, limit: 50).sole)
+        .to have_attributes(sha: sha, message: "Create coworker home", authored_at: "2026-10-29T12:00:00Z")
+    end
+  end
+
   describe "#tree_sha" do
     it "reads the commit's root tree SHA" do
       allow(client).to receive(:commit_tree_sha).with("acme/widgets", sha).and_return("t" * 40)

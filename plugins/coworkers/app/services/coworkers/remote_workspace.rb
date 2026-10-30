@@ -25,6 +25,7 @@ class Coworkers::RemoteWorkspace
   end
 
   def seed!(branch:, files:, identity:)
+    validate_coworker_namespace!(branch)
     with_seed_checkout do |path|
       files.each do |relative_path, content|
         absolute_path = File.join(path, relative_path)
@@ -36,13 +37,35 @@ class Coworkers::RemoteWorkspace
     end
   end
 
+  def copy!(source:, destination:, guard:)
+    source = guard.allow!(source)
+    destination = guard.allow!(destination)
+    raise ArgumentError, "destination branch already exists" if branch_exists?(destination)
+
+    raise ArgumentError, "source branch does not exist" unless branch_exists?(source)
+
+    Dir.mktmpdir("syrus-coworker-ref-") do |path|
+      @git.run("clone", "--branch", source, "--single-branch", "--no-tags", authenticated_url, path)
+      @git.run("push", authenticated_url, "HEAD:refs/heads/#{destination}", chdir: path)
+    end
+  end
+
+  def guarded_delete!(branch, guard:)
+    delete!(guard.allow!(branch))
+  end
+
   def delete!(branch)
+    validate_coworker_namespace!(branch)
     @git.run("push", authenticated_url, ":refs/heads/#{branch}")
   end
 
   private
 
   def authenticated_url = repository.authenticated_url(user: @user)
+
+  def validate_coworker_namespace!(branch)
+    raise ArgumentError, "coworker pushes may only target refs under coworkers/" unless branch.to_s.start_with?("coworkers/")
+  end
 
   def with_seed_checkout
     Dir.mktmpdir("syrus-coworker-") do |path|

@@ -536,6 +536,21 @@ describe("cross-chat bridge rendering", () => {
     expect(within(details).getByRole("listitem")).toHaveTextContent("Follow-up result: use SyrusBrowser::LoopbackGuard for JOB-42")
     expect(within(details).getByText("SyrusBrowser::LoopbackGuard").closest("code")).toBeInTheDocument()
   })
+
+  it("renders a prominent Markdown file link in workspace conflict details", () => {
+    const href = "/api/v1/app/chats/7/source_file/raw?path=SOUL.md&repository_id=2"
+    renderChatMessageItem(
+      systemMessageItem({
+        tone: "warning",
+        label: "Workspace conflict",
+        body: `Resolve this file:\n\n- [SOUL.md](${href})`,
+        body_format: "markdown",
+        prominent: true
+      })
+    )
+
+    expect(screen.getByRole("link", { name: "SOUL.md" })).toHaveAttribute("href", href)
+  })
 })
 
 describe("shell command rendering", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ChatMessageItem, ChatRenderItem } from "../../api/chats"
-import { isLowPrioritySystemMessage, retryTextByMessageId } from "./messageDisplay"
+import { countIncomingVisibleMessages, isLowPrioritySystemMessage, retryTextByMessageId } from "./messageDisplay"
 
 function message(overrides: Partial<ChatMessageItem> & { id: number; role: ChatMessageItem["role"] }): ChatMessageItem {
   return {
@@ -24,6 +24,44 @@ function renderMessage(overrides: Partial<Extract<ChatRenderItem, { type: "messa
 }
 
 describe("isLowPrioritySystemMessage", () => {
+  it("does not hide a prominent workspace conflict", () => {
+    const item = renderMessage({
+      text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+      content: {
+        body_format: "markdown",
+        prominent: true,
+        system_label: "Workspace conflict",
+        system_tone: "warning"
+      },
+      system: {
+        tone: "warning",
+        label: "Workspace conflict",
+        body: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+        body_format: "markdown",
+        prominent: true
+      }
+    })
+
+    expect(isLowPrioritySystemMessage(item)).toBe(false)
+  })
+
+  it("counts a raw workspace conflict as visible while generic system messages are collapsed", () => {
+    const conflict = message({
+      id: 2,
+      role: "system",
+      text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+      content: {
+        text: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)",
+        body_format: "markdown",
+        prominent: true,
+        system_label: "Workspace conflict",
+        system_tone: "warning"
+      }
+    })
+
+    expect(countIncomingVisibleMessages([conflict], 0, false)).toBe(1)
+  })
+
   it("does not hide goal continuation control messages by default", () => {
     const item = renderMessage({
       text: "Goal continuation started.",

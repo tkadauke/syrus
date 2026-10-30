@@ -20,6 +20,13 @@ module Coworkers
           rostered ? Coworkers::TurnChatContext.new(self, rostered) : self
         end
 
+        ChatSession.define_method(:with_agent_operation_lock) do |message, &block|
+          agent = agent_turn_context(message).coworker
+          return block.call unless agent.respond_to?(:kind) && agent.kind == "coworker"
+
+          Coworkers::OperationLock.with(agent, wait: 30.minutes.to_i, &block)
+        end
+
         ChatSession.define_method(:workspace_file_read_policy) do |relative_path|
           next unless Coworkers::Chat.exists?(chat_session_id: id)
 
@@ -27,7 +34,7 @@ module Coworkers
         end
 
         -> do
-          %i[coworker coworker_roster_mention agent_turn_context workspace_file_read_policy].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end

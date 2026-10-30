@@ -5,3 +5,8 @@ de:
       chat_group: "Mitarbeiter"
       invalid_workspace_remote: "Die Workspace-Remote-URL muss auf ein GitHub-Repository verweisen."
       push_access_verified: "Push-Zugriff bestätigt."
+      workspace_conflict: |-
+        Im Workspace des Coworkers gibt es Merge-Konflikte. Beide Versionen bleiben auf `%{branch}` erhalten. Löse die Konflikte in diesen Dateien:
+
+        %{files}
+      workspace_conflict_label: "Workspace-Konflikt"

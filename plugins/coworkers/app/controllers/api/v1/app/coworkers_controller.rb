@@ -29,17 +29,32 @@ module Api
           render_error("validation_failed", error.message, status: :unprocessable_content)
         end
 
+        def update
+          coworker = find_coworker
+          authorize coworker, :update?, policy_class: CoworkerPolicy
+          Coworkers::BranchLifecycle.new(coworker).rename!(handle: params.require(:handle))
+          render json: { coworker: detail_json(coworker.reload) }
+        rescue Coworkers::OperationLock::Busy => error
+          render_error("coworker_busy", error.message, status: :conflict)
+        rescue ActiveRecord::RecordInvalid, ArgumentError => error
+          render_error("validation_failed", error.message, status: :unprocessable_content)
+        end
+
+        def destroy
+          coworker = find_coworker
+          authorize coworker, :destroy?, policy_class: CoworkerPolicy
+          branch = Coworkers::BranchLifecycle.new(coworker).archive!
+          render json: { archived_branch: branch }
+        rescue Coworkers::OperationLock::Busy => error
+          render_error("coworker_busy", error.message, status: :conflict)
+        end
+
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy
-          repository = workspace_repository(coworker)
           chat = ApplicationRecord.transaction do
-            # Phase 1 intentionally works directly from the coworker's home
-            # branch. Phase 3 replaces this with per-chat branches merged at
-            # turn end; keep side chats attached to the workspace Repository
-            # until that branch lifecycle exists.
             session = ChatSession.create!(
-              user: Current.user, repository: repository, title: coworker.name,
+              user: Current.user, repository: workspace_repository(coworker), title: coworker.name,
               **coworker.chat_configuration
             )
             Coworkers::Chat.create!(coworker: coworker, chat_session: session, role: "side")
@@ -77,6 +92,18 @@ module Api
             Rails.logger.info("[Coworkers::MemoryBrowser] memory unavailable: #{error.class}: #{error.message}")
             render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
           end
+        end
+
+        def workspace
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          payload = Coworkers::WorkspaceBrowser.new(
+            coworker: coworker, repository: workspace_repository(coworker), user: Current.user
+          ).call(path: params[:path])
+          render json: payload
+        rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
+          Rails.logger.info("[Coworkers::WorkspaceBrowser] workspace unavailable: #{error.class}: #{error.message}")
+          render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
         end
 
         def test_remote
