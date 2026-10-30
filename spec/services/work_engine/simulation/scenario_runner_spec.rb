@@ -374,6 +374,14 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
       expect(result).to be_success
       expect(Job.where(id: result.job_ids).pluck(:state)).to all(eq("closed"))
       expect(result.events.join("\n")).to include(expected_event)
+      if scenario == "happy_path_single_job_lands"
+        expect(Job.find(result.job_ids.first)).to have_attributes(
+          github_mergeable: true,
+          github_mergeable_state: "clean",
+          pr_mergeable: true,
+          mergeability_checked_at: be_present
+        )
+      end
     end
   end
 

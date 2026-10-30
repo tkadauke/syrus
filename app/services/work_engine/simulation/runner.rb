@@ -44,7 +44,12 @@ module WorkEngine
               pr_number: job.pr_number.presence || job.id + 10_000,
               pr_checks_state: "passing",
               pr_checks_sha: sha,
-              mergeability_head_sha: sha
+              mergeability_head_sha: sha,
+              github_mergeable: true,
+              github_mergeable_state: "clean",
+              pr_mergeable: true,
+              pr_mergeable_checked_at: Time.current,
+              mergeability_checked_at: Time.current
             )
           end
         end
