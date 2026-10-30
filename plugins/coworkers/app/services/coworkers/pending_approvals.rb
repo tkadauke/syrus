@@ -12,6 +12,7 @@ module Coworkers
 
       ChatPendingAction.pending
         .where(user: owner, chat_session_id: chat_ids, action: "coworker_tool_call")
+        .where("json_extract(chat_pending_actions.payload, '$.approval_inbox') = ?", true)
         .order(created_at: :asc, id: :asc)
     end
 
