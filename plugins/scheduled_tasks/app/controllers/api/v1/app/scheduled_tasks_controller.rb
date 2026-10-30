@@ -229,6 +229,7 @@ module Api
             last_fired_at: task.last_fired_at&.iso8601,
             archived_at: task.archived_at&.iso8601,
             consecutive_failure_count: task.consecutive_failure_count,
+            coworker_id: task.attributes["coworker_id"],
             scheduled_task_path: "/scheduled_tasks/#{task.id}"
           }
         end

@@ -43,7 +43,7 @@ class Coworkers::Coworker < ApplicationRecord
     Coworkers::Chat.exists?(coworker_id: id, chat_session_id: chat.id) ||
       Coworkers::ChatAgent.exists?(coworker_id: id, chat_session_id: chat.id)
   end
-  def schedules = ScheduledTasks::Task.none
+  def schedules = ScheduledTasks::Task.where(coworker_id: id)
   def chat_configuration = attributes.symbolize_keys.slice(:chat_provider, :chat_model, :chat_effort).compact
 
   def workspace_repository

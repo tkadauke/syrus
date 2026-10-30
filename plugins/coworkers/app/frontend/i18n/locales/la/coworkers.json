@@ -96,6 +96,20 @@
     "rate_limited": "Nuntius ad @{{handle}} finitus",
     "no_delivery_issues": "Nullae traditiones recusatae aut finitae."
   },
+  "schedule": {
+    "add": "Consilium adde",
+    "name": "Nomen",
+    "kind": "Genus",
+    "recurring": "Recurrens",
+    "one_shot": "Semel",
+    "cadence": "Frequentia",
+    "fire_at": "Exsequere hora",
+    "prompt": "Mandata",
+    "empty": "Nulla consilia adhuc.",
+    "pause": "Siste",
+    "resume": "Perge",
+    "run_now": "Nunc exsequere"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",

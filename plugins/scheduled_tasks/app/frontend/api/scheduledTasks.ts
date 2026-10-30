@@ -20,6 +20,7 @@ export type ScheduledTaskRow = {
   last_fired_at: string | null
   archived_at: string | null
   consecutive_failure_count: number
+  coworker_id: number | null
   scheduled_task_path: string
 }
 

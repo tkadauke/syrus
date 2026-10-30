@@ -7,6 +7,12 @@ module Coworkers
         end
       end
 
+      scope.effect("coworker schedules") do
+        Syrus::DataCleanup.register("Coworkers::Coworker", "coworkers.schedules") do |coworker|
+          ScheduledTasks::Task.where(coworker_id: coworker.id).find_each(&:destroy!)
+        end
+      end
+
       scope.effect("coworker chats") do
         Syrus::DataCleanup.register("ChatSession", "coworkers.chat_links") do |chat|
           Coworkers::Chat.where(chat_session_id: chat.id).find_each(&:destroy)

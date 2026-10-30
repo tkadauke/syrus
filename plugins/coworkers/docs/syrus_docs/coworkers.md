@@ -18,6 +18,16 @@ Background runs use the coworker's capability grants. They never receive the
 interactive-only tool surface, and a grant configured for live confirmation
 uses the queued approval policy during an unattended run.
 
+The Schedule tab creates recurring or one-shot tasks on the coworker's
+workspace Repository and lists their current state. Owners can pause, resume,
+or run a task immediately there. The shared cadence parser enforces a minimum
+one-hour recurring interval. Every fire rechecks that the owner still has
+write access to the workspace Repository; a missing grant auto-pauses the
+task. Coworkers with the `schedule.manage_self` grant can manage only their own
+schedules through `manage_coworker_schedule`; the grant requires confirmation
+by default. Coworker schedules do not use PR pile-up or PR auto-approval
+policies, and their results are posted to the coworker's main chat.
+
 Coworkers is an experimental, instance-local capability for persistent named
 agents. It is disabled by default and requires beta mode before an administrator
 can enable it.
@@ -114,6 +124,14 @@ list, search, and read its own chats plus those shares; revoking a share
 removes access immediately. Coworkers are never offered the arbitrary
 `send_chat_message` tool.
 
+Background Jobs attributed to a coworker are private to that coworker's owner,
+even when the workspace repository is shared. Other repository members and
+repository administrators cannot list, search, count, or read those Jobs.
+Instance administrators retain their normal instance-wide visibility. This
+restriction is registered before the coworker background-Job kind can be
+introduced, so future scheduling cannot accidentally inherit repository-wide
+visibility.
+
 Coworkers with the `coworker.message` grant can use
 `message_coworker(handle, text)` to contact another active coworker owned by
 the same user. Delivery is queued on the chat queue. The sender's main chat
@@ -125,14 +143,6 @@ hop count; a chain cannot continue beyond three hops. Each pair of coworkers
 can queue at most ten messages in a ten-minute window, regardless of direction.
 Hop-limit refusals and rate-limited attempts are recorded in the sender's main
 chat and listed in the sender's Activity tab.
-
-Background Jobs attributed to a coworker are private to that coworker's owner,
-even when the workspace repository is shared. Other repository members and
-repository administrators cannot list, search, count, or read those Jobs.
-Instance administrators retain their normal instance-wide visibility. This
-restriction is registered before the coworker background-Job kind can be
-introduced, so future scheduling cannot accidentally inherit repository-wide
-visibility.
 
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
@@ -155,9 +165,10 @@ shows recent daily files first. Provider-truncated or exceptionally large trees
 return their available files with a partial-results notice; searches also warn
 when capped file contents mean the result set cannot be complete. The Activity
 tab reports total uncapped spend, sent and received coworker-message traffic for
-the last 30 days, plus recent refused and rate-limited deliveries. Capabilities
-and Schedule remain coming-later placeholders where their full surfaces have
-not shipped yet.
+the last 30 days, plus recent refused and rate-limited deliveries.
+The Schedule tab uses the shared scheduled-task cadence and lifecycle controls.
+Capabilities remain a coming-later placeholder where its full surface has not
+shipped yet.
 
 The Workspace tab is a read-only view of the coworker's home branch through
 the same cached repository-content providers. It shows the remote and branch,
