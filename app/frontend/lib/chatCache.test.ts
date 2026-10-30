@@ -41,9 +41,7 @@ describe("mergeChatPayloadUpdate", () => {
     const merged = mergeChatPayloadUpdate(queryClient, queryKey, latestPage)
     const olderMessageIds = Array.from({ length: 70 }, (_, index) => index + 1)
 
-    expect([...olderMessageIds, ...merged.messages.map((message) => message.id)]).toEqual(
-      Array.from({ length: 140 }, (_, index) => index + 1)
-    )
+    expect([...olderMessageIds, ...merged.messages.map((message) => message.id)]).toEqual(Array.from({ length: 140 }, (_, index) => index + 1))
   })
 
   it("allows an empty full payload to clear the cached transcript", () => {
@@ -200,11 +198,15 @@ describe("updateRecentChatCache", () => {
       })
     }
 
-    updateRecentChatCache(queryClient, {
-      ...chatRecord({ id: 2, title: "Fresh direct chat", lastMessageAt: null }),
-      chat_type: "agent",
-      conversation_kind: "direct"
-    }, { prepend: true })
+    updateRecentChatCache(
+      queryClient,
+      {
+        ...chatRecord({ id: 2, title: "Fresh direct chat", lastMessageAt: null }),
+        chat_type: "agent",
+        conversation_kind: "direct"
+      },
+      { prepend: true }
+    )
 
     expect(queryClient.getQueryData<ChatsIndexPayload>(defaultKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
     expect(queryClient.getQueryData<ChatsIndexPayload>(agentKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
