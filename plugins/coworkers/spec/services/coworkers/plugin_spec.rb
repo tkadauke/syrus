@@ -129,8 +129,10 @@ RSpec.describe "Coworkers plugin" do
     linked_message = linked_chat.messages.create!(role: "user", content: { "text" => "linked" })
     syrus_message = syrus_chat.messages.create!(role: "user", content: { "text" => "syrus" })
     scope = Syrus::EffectScope.new(label: "coworker filter spec")
-    # Reconcile a plugin enable/disable from an earlier transactional example
-    # before layering this explicitly scoped registration over the baseline.
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    # Reconcile the disabled baseline before layering this explicitly scoped
+    # registration over the process-wide installer.
     Filters.subject(:chat_message)
     Coworkers::SearchExtension.install_into(scope)
     chip = Filters::Registry.find("coworker_id", subject: :chat_message)

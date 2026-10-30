@@ -15,6 +15,9 @@ RSpec.describe "Coworker chat surface" do
   before do
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     Coworkers::ChatExtension.install_into(scope)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    Filters.subject(:chat_message)
     Coworkers::SearchExtension.install_into(scope)
   end
 
