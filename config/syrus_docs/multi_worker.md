@@ -690,9 +690,14 @@ data root.
   `SYRUS_DATA_ROOT` is unset).
 - Each worker consumes `resume-<worker-storage-key>` for that durable id
   (declared in `config/queue*.yml`).
-- When a `RunJob` runs a workflow it records both diagnostics hostname
-  (`workflows.worker_hostname`) and routing key
-  (`workflows.worker_storage_key`).
+- Claiming a generic capability-queue entry does not establish durable
+  workspace affinity. A never-started Run can fail host admission and return
+  to the fleet-eligible queue without recording either worker identity.
+- After host admission and the execution lease succeed, immediately before a
+  mutable Step handler can create or change the workspace, `RunJob` records
+  both diagnostics hostname (`workflows.worker_hostname`) and routing key
+  (`workflows.worker_storage_key`). Existing workspace owners retain that
+  identity across later Steps, retries, process restarts, and worker crashes.
 - On reopen / post-crash re-enqueue, `Run#enqueue_run_job` routes to
   `resume-<worker-storage-key>` only when a fresh Solid Queue worker advertises
   that queue and, for capability-specific work, advertises compatible

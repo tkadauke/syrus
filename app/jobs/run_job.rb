@@ -108,13 +108,6 @@ class RunJob < ApplicationJob
     @job = @run.job
     return if defer_for_macos_worker_drain?
 
-    # Record the worker pod for diagnostics and the durable storage key for
-    # later resume routing to a worker that can see the on-disk workspace.
-    # Distributed immutable-source runs use throwaway per-step checkouts on
-    # arbitrary workers; they must not steal ownership of the mutable workflow
-    # workspace from the prepare/agent/landing chain.
-    @workflow&.record_worker_identity! unless @run.distributed_parallel_run?
-
     @shutdown_requested = false
     prior_trap = Signal.trap("TERM") do
       @shutdown_requested = true
@@ -455,6 +448,8 @@ class RunJob < ApplicationJob
       return
     end
 
+    record_mutable_workspace_identity!
+
     target = @job.cron? ? "scheduled task ##{@job.origin_id}" : "#{@job.repository.slug}##{@job.issue_number}"
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")
 
@@ -489,6 +484,15 @@ class RunJob < ApplicationJob
 
     record_successful_step!
     log("step #{@step.kind} done (#{@workflow.slug})")
+  end
+
+  # Queue pickup is not workspace ownership. Commit affinity only after host
+  # admission and the execution lease succeed, immediately before a mutable
+  # handler can create or change the workflow workspace. Distributed runs use
+  # immutable per-step checkouts and must not steal the mutable workspace's
+  # existing identity.
+  def record_mutable_workspace_identity!
+    @workflow.record_worker_identity! unless @run.distributed_parallel_run?
   end
 
   def defer_until_step_dependencies_settle
