@@ -1737,7 +1737,8 @@ When an owner opens a cross-chat bridge thread to a coworker's chat, the
 coworker can reply through that existing thread without an additional grant or
 confirmation. The reply tool cannot open threads or address arbitrary chats:
 the coworker's chat must already be a member, the owner must have opened the
-thread, and the other chat must belong to that owner. Replies retain the
+thread, and the other chat must be an ordinary, non-coworker chat belonging to
+that owner. Replies retain the
 bridge's hop limit and automatic closure. The coworker must call the reply tool;
 plain text written only in its own chat is not relayed to the owner chat.
 Coworker conversations are kept
