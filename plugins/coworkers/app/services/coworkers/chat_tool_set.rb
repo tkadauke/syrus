@@ -14,7 +14,7 @@ module Coworkers
       WorkspaceFileTools::Move,
       WorkspaceFileTools::Delete
     ].freeze
-    TOOL_CLASSES = ([ MessageCoworkerTool, ManageScheduleTool ] + WORKSPACE_TOOLS).freeze
+    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool ] + WORKSPACE_TOOLS).freeze
 
     def self.available_for?(chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
@@ -35,12 +35,14 @@ module Coworkers
             coworker_safe: true,
             capability: if workspace_tool
               "workspace.files"
+                        elsif klass == ReplyInChatThreadTool
+              "chat.reply_owner_thread"
                         elsif klass == ManageScheduleTool
               "schedule.manage_self"
                         else
               "coworker.message"
                         end,
-            coworker_grantless: workspace_tool,
+            coworker_grantless: workspace_tool || klass == ReplyInChatThreadTool,
             mutation: true
           }
         end
