@@ -108,7 +108,10 @@ RSpec.describe Coworkers::Create do
 
   it "returns the completed coworker for duplicate delivery without duplicating records or branches" do
     key = "confirmation-42"
+    allow(ChatTurnJob).to receive(:perform_later).and_call_original
     first = create_service(idempotency_key: key, about: "Engineer").call
+    first_chat = first.chats.first
+    first_message = first_chat.messages.find_by!(role: "system")
     expect(remote).not_to receive(:seed!)
 
     second = create_service(idempotency_key: key, about: "Engineer").call
@@ -116,6 +119,8 @@ RSpec.describe Coworkers::Create do
     expect(second).to eq(first)
     expect(Coworkers::Coworker.where(handle: "maya").count).to eq(1)
     expect(Coworkers::ProvisioningAttempt.where(idempotency_key: key).count).to eq(1)
+    expect(first_chat.messages.where(role: "system").count).to eq(1)
+    expect(ChatTurnJob).to have_received(:perform_later).once.with(first_chat.id, first_message.id)
   end
 
   it "copies the complete coworker chat configuration to the main chat" do
@@ -156,15 +161,23 @@ RSpec.describe Coworkers::Create do
     )
   end
 
-  it "uses About for the soul and skips the kickoff" do
-    expect(ChatTurnJob).not_to receive(:perform_later)
+  it "uses About for the soul and opens the chat with a configured-identity kickoff" do
+    allow(ChatTurnJob).to receive(:perform_later).and_call_original
 
     coworker = create_service(about: "Research lead\nCurious and concise.").call
+    chat = coworker.chats.first
+    message = chat.messages.find_by!(role: "system")
 
     expect(remote.seeded_files.fetch("SOUL.md")).to eq("role: Research lead\nname: Maya\n\nResearch lead\nCurious and concise.\n")
     expect(remote.seeded_files.fetch("USER.md")).to include("Your owner is Ada Lovelace")
     expect(coworker.role_summary).to eq("Research lead")
-    expect(coworker.chats.first.messages).to be_empty
+    expect(message.extract_text_from_content).to include(
+      "already described your identity in SOUL.md", "briefly greet your owner in your own voice",
+      "small number of concrete questions", "If nothing is unclear"
+    )
+    expect(message.extract_text_from_content).not_to include("identity has not been set up yet")
+    expect(chat.last_message_at).to eq(message.created_at)
+    expect(ChatTurnJob).to have_received(:perform_later).with(chat.id, message.id)
   end
 
   it "opens the placeholder chat with a system kickoff that triggers the first turn" do
@@ -174,8 +187,10 @@ RSpec.describe Coworkers::Create do
     chat = coworker.chats.first
     message = chat.messages.find_by!(role: "system")
 
-    expect(message.extract_text_from_content).to include(
-      "You are Maya", "your owner is Ada Lovelace", "Interview your owner about your role"
+    expect(message.extract_text_from_content).to eq(
+      "You are Maya, and your owner is Ada Lovelace. Your identity has not been set up yet. " \
+      "Interview your owner about your role, personality, working preferences, and boundaries, " \
+      "then update your workspace identity files with the answers."
     )
     expect(ChatTurnJob).to have_received(:perform_later).with(chat.id, message.id)
   end
@@ -240,7 +255,8 @@ RSpec.describe Coworkers::Create do
   it "rolls back every record and deletes the branch when kickoff enqueue fails" do
     allow(ChatTurnJob).to receive(:perform_later).and_return(false)
 
-    expect { create_service.call }.to raise_error(Coworkers::Create::CreationFailed, /cleanup completed/)
+    expect { create_service(about: "Research lead").call }
+      .to raise_error(Coworkers::Create::CreationFailed, /cleanup completed/)
 
     expect_creation_to_be_absent
   end

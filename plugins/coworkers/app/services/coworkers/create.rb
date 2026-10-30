@@ -90,7 +90,7 @@ class Coworkers::Create
       @attempt.update!(expected_seeded_commit: sha, seeded_at: Time.current)
       ApplicationRecord.transaction do
         coworker = create_records!(register_repository!)
-        create_kickoff!(coworker) unless @about
+        create_kickoff!(coworker)
         @attempt.update!(state: "completed", coworker: coworker, completed_at: Time.current, last_error: nil)
         coworker
       end
@@ -186,8 +186,17 @@ class Coworkers::Create
   def user = "# Owner\n\nYour owner is #{@owner.display_name}. Learn more about them during your first conversation.\n"
 
   def kickoff
+    return configured_identity_kickoff if @about
+
     "You are #{@name}, and your owner is #{@owner.display_name}. Your identity has not been set up yet. " \
       "Interview your owner about your role, personality, working preferences, and boundaries, then update your workspace identity files with the answers."
+  end
+
+  def configured_identity_kickoff
+    "You are #{@name}, and your owner is #{@owner.display_name}. Your owner has already described your identity in SOUL.md. " \
+      "Read your workspace identity files, then briefly greet your owner in your own voice and explain in one or two sentences how you understand your role. " \
+      "Ask a small number of concrete questions about anything important that is unclear or missing, such as preferences, boundaries, how and when to contact your owner, or which repositories and people matter. " \
+      "Do not conduct a long interview or claim to have done work you have not done. If nothing is unclear, say hello and ask what you should work on first."
   end
 
   def seed_files
