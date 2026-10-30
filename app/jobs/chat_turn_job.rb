@@ -1,5 +1,6 @@
 require "base64"
 require "fileutils"
+require "net/http"
 require "open3"
 require "securerandom"
 require "tempfile"
@@ -694,28 +695,76 @@ class ChatTurnJob < ApplicationJob
   # daemon failure" is greppable via read_syrus_logs, not just via manual
   # inspection.
   def log_chat_mcp_transport_decision!(decision)
-    exposed_tools = %i[essential deferred].to_h do |tier|
+    expected_tools = %i[essential deferred].to_h do |tier|
       names = Mcp::Sidecar.chat_tool_names(@chat, tier: tier).sort
       [ tier.to_s, { "count" => names.size, "names" => names } ]
     end
+    exposed_tools = decision.persistent? ? persistent_mcp_exposed_tools(decision) : expected_tools
+    comparison = compare_mcp_tool_surfaces(expected_tools, exposed_tools)
     @chat.set_artifact!("mcp_transport", {
       "transport" => decision.transport.to_s,
       "reason" => decision.reason,
       "stdio_fallback" => decision.stdio? ? "proxy" : nil,
+      "expected_tools" => expected_tools,
       "exposed_tools" => exposed_tools,
+      "tool_surface_match" => comparison.values.all? { |tier| tier["match"] },
+      "tool_surface_comparison" => comparison,
       "checked_at" => Time.current.utc.iso8601
     }.compact)
 
     tool_diagnostics = exposed_tools.map do |tier, payload|
       "#{tier}_tool_count=#{payload.fetch('count')} #{tier}_tools=#{payload.fetch('names').join(',')}"
     end.join(" ")
-    if decision.persistent?
+    if decision.persistent? && comparison.values.any? { |tier| !tier["match"] }
+      Rails.logger.warn("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')} tool_surface_mismatch=#{comparison.to_json} #{tool_diagnostics}")
+    elsif decision.persistent?
       Rails.logger.info("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')} #{tool_diagnostics}")
     else
       Rails.logger.warn("[ChatTurnJob] mcp_transport=stdio chat_id=#{@chat.id} reason=#{decision.reason} #{tool_diagnostics}")
     end
   rescue StandardError => e
     Rails.logger.warn("[ChatTurnJob] failed to record mcp transport decision for chat ##{@chat.id}: #{e.class}: #{e.message}")
+  end
+
+  def persistent_mcp_exposed_tools(decision)
+    %i[essential deferred].to_h do |tier|
+      token = mint_chat_invocation_context_token(decision, tier: tier)
+      uri = URI(persistent_chat_mcp_url)
+      request = Net::HTTP::Post.new(uri)
+      request["Content-Type"] = "application/json"
+      request["Accept"] = "application/json, text/event-stream"
+      request[PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER] = token
+      request.body = { jsonrpc: "2.0", id: "tool-inventory-#{tier}", method: "tools/list" }.to_json
+      response = Net::HTTP.start(
+        uri.hostname, uri.port, use_ssl: uri.scheme == "https",
+        open_timeout: PersistentMcpTransportSelector::OPEN_TIMEOUT,
+        read_timeout: PersistentMcpTransportSelector::READ_TIMEOUT
+      ) { |http| http.request(request) }
+      raise "daemon tool inventory returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+
+      payload = JSON.parse(response.body)
+      raise "daemon tool inventory failed: #{payload['error'].inspect}" if payload["error"]
+
+      names = Array(payload.dig("result", "tools")).filter_map { |tool| tool["name"].presence }.sort
+      names -= %w[daemon_ping daemon_invocation_context]
+      [ tier.to_s, { "count" => names.size, "names" => names } ]
+    rescue StandardError => e
+      [ tier.to_s, { "count" => 0, "names" => [], "error" => "#{e.class}: #{e.message}" } ]
+    end
+  end
+
+  def compare_mcp_tool_surfaces(expected_tools, exposed_tools)
+    expected_tools.each_with_object({}) do |(tier, expected), comparison|
+      exposed = exposed_tools.fetch(tier)
+      missing = expected.fetch("names") - exposed.fetch("names")
+      unexpected = exposed.fetch("names") - expected.fetch("names")
+      comparison[tier] = {
+        "match" => exposed["error"].blank? && missing.empty? && unexpected.empty?,
+        "missing" => missing,
+        "unexpected" => unexpected,
+        "error" => exposed["error"]
+      }.compact
+    end
   end
 
   def unavailable_chat_mcp_env(server_name:)

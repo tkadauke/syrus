@@ -2686,6 +2686,7 @@ RSpec.describe ChatTurnJob, :ci_only do
 
   describe "persistent MCP transport (chat routing)" do
     let(:daemon_health_url) { "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}" }
+    let(:daemon_mcp_url) { "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}" }
 
     def mark_agent_busy!(chat_session, workdir: workspace_path)
       SpawnedProcess.create!(
@@ -2778,6 +2779,50 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(resolved_deferred.tier).to eq("deferred")
 
       expect(chat.reload.artifact("mcp_transport")).to include("transport" => "persistent")
+    end
+
+    it "records the daemon-advertised inventory and makes resolver drift visible" do
+      set_persistent_mcp_feature(true)
+      stub_healthy_daemon!
+      expected_essential = Mcp::Sidecar.chat_tool_names(chat, tier: :essential)
+      expected_deferred = Mcp::Sidecar.chat_tool_names(chat, tier: :deferred)
+      omitted = expected_essential.first
+      unexpected = "unsafe_plugin_tool"
+      stub_request(:post, daemon_mcp_url).with do |request|
+        JSON.parse(request.body)["id"] == "tool-inventory-essential" &&
+          request.headers[PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER].present?
+      end.to_return(
+        status: 200,
+        body: { jsonrpc: "2.0", id: "tool-inventory-essential", result: {
+          tools: (expected_essential - [ omitted ] + [ unexpected ]).map { |name| { name: name } }
+        } }.to_json
+      )
+      stub_request(:post, daemon_mcp_url).with do |request|
+        JSON.parse(request.body)["id"] == "tool-inventory-deferred" &&
+          request.headers[PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER].present?
+      end.to_return(
+        status: 200,
+        body: { jsonrpc: "2.0", id: "tool-inventory-deferred", result: {
+          tools: expected_deferred.map { |name| { name: name } }
+        } }.to_json
+      )
+      allow(Rails.logger).to receive(:warn).and_call_original
+      ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      artifact = chat.reload.artifact("mcp_transport")
+      expect(artifact).to include("transport" => "persistent", "tool_surface_match" => false)
+      expect(artifact.dig("expected_tools", "essential", "names")).to include(omitted)
+      expect(artifact.dig("exposed_tools", "essential", "names")).not_to include(omitted)
+      expect(artifact.dig("exposed_tools", "essential", "names")).to include(unexpected)
+      expect(artifact.dig("tool_surface_comparison", "essential")).to include(
+        "match" => false,
+        "missing" => [ omitted ],
+        "unexpected" => [ unexpected ]
+      )
+      expect(artifact.dig("tool_surface_comparison", "deferred", "match")).to be(true)
+      expect(Rails.logger).to have_received(:warn).with(a_string_including("tool_surface_mismatch="))
     end
 
     it "skips transcript-derived MCP usage recording for a persistent-transport turn, leaving the daemon's own dispatch boundary as the authoritative source" do
