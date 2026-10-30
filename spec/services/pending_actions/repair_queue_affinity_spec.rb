@@ -122,15 +122,11 @@ RSpec.describe PendingActions::RepairQueueAffinity do
 
     allow(SyrusVersion).to receive(:hostname).and_return("worker-new")
     allow(WorkerStorageIdentity).to receive(:queue_key).and_return("new-storage")
-    allow_any_instance_of(RunJob).to receive(:perform_step) do |run_job|
-      started = run_job.instance_variable_get(:@run)
-      started.start!
-      started.save!
-    end
+    allow_any_instance_of(Steps::Manual).to receive(:call)
 
     RunJob.perform_now(run.id)
 
-    expect(run.reload).to be_running
+    expect(run.reload).to be_succeeded
     expect(workflow.reload.worker_hostname).to eq("worker-new")
     expect(workflow.worker_storage_key).to eq("new-storage")
   end
