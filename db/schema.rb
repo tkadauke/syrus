@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_001423) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3360,7 +3360,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_120000) do
     t.string "legacy_cron_expression"
     t.string "skill_name"
     t.json "skill_args"
+    t.integer "coworker_id"
     t.index ["archived_at"], name: "index_scheduled_tasks_on_archived_at"
+    t.index ["coworker_id"], name: "index_scheduled_tasks_on_coworker_id"
     t.index ["cron_template_id"], name: "index_scheduled_tasks_on_cron_template_id"
     t.index ["repository_id"], name: "index_scheduled_tasks_on_repository_id"
     t.index ["state", "archived_at"], name: "index_scheduled_tasks_on_state_and_archived_at"

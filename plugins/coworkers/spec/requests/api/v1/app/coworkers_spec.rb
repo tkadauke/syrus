@@ -5,6 +5,47 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "creates coworker schedules and includes them on the shared Schedules page" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "maya-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-schedule-api",
+      workspace_repo: repository.remote_url
+    )
+    sign_in_as(owner)
+
+    post "/api/v1/app/coworkers/#{coworker.id}/schedules", params: {
+      schedule: { name: "Morning briefing", prompt: "Prepare it.", kind: "cron", schedule_input: "Every day at 9:00 AM" }
+    }
+
+    expect(response).to have_http_status(:created)
+    task_id = response.parsed_body.dig("schedule", "id")
+    get "/api/v1/app/scheduled_tasks"
+    expect(response.parsed_body.fetch("active_tasks")).to include(
+      include("id" => task_id, "coworker_id" => coworker.id, "name" => "Morning briefing")
+    )
+  end
+
+  it "does not pause or resume a fired coworker one-shot" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "one-shot-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-one-shot-api",
+      workspace_repo: repository.remote_url
+    )
+    task = coworker.schedules.create!(
+      user: owner, repository: repository, name: "Once", prompt: "Run once.",
+      kind: "one_shot", fire_at: 1.hour.from_now, pr_pileup_policy: "skip", auto_approve_mode: "never"
+    )
+    task.update!(state: "fired")
+    sign_in_as(owner)
+
+    post "/api/v1/app/coworkers/#{coworker.id}/schedules/#{task.id}/pause"
+    expect(response).to have_http_status(:unprocessable_content)
+    post "/api/v1/app/coworkers/#{coworker.id}/schedules/#{task.id}/resume"
+    expect(response).to have_http_status(:unprocessable_content)
+
+    expect(task.reload).to be_fired
+  end
+
   it "updates proposed About text while the coworker action is pending" do
     chat = ChatSession.create!(user: owner)
     action = chat.pending_actions.create!(
@@ -42,6 +83,28 @@ RSpec.describe "API: coworkers", type: :request do
     expect(body.fetch("model_options")).to include(
       include("provider" => "codex", "models" => include(include("id" => AgentProviders::Codex.available_models.first.id)))
     )
+  end
+
+  it "loads weekly card spend with collection-wide aggregates" do
+    3.times do |index|
+      Coworkers::Coworker.create!(
+        owner_user: owner, name: "Coworker #{index}", handle: "card-spend-#{index}",
+        workspace_repo: "https://github.com/acme/workspace.git"
+      )
+    end
+    sign_in_as(owner)
+
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      get "/api/v1/app/coworkers"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(queries.grep(/FROM ["`]chat_spend_entries["`]/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]runs["`]/i).size).to eq(1)
   end
 
   it "groups coworker chats and includes their appearance in the chat list" do

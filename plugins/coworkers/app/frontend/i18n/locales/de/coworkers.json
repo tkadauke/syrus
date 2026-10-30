@@ -4,6 +4,7 @@
   "loading": "Mitarbeiter werden geladen…",
   "error": "Mitarbeiter konnten nicht geladen werden.",
   "built_in": "Integriert · Entwickler",
+  "card": { "weekly_spend": "${{amount}} diese Woche" },
   "coming_later": "Kommt später",
   "memory": {
     "search": "Erinnerungsdateien durchsuchen",
@@ -59,7 +60,8 @@
     "save_about": "Über-Text speichern",
     "about_saved": "Über-Text gespeichert",
     "open_coworker": "Coworker öffnen",
-    "open_chat": "Hauptchat öffnen"
+    "open_chat": "Hauptchat öffnen",
+    "no_schedules": "Keine Zeitpläne."
   },
   "fields": {
     "name": "Name",
@@ -85,6 +87,8 @@
     "activity": "Aktivität"
   },
   "activity": {
+    "loading": "Aktivität wird geladen…",
+    "unavailable": "Aktivität konnte nicht geladen werden.",
     "message_traffic": "Nachrichtenverkehr",
     "window": "Letzte {{count}} Tage",
     "sent": "Gesendet",
@@ -94,7 +98,32 @@
     "delivery_issues": "Zustellprobleme",
     "refused": "Nachricht an @{{handle}} abgelehnt",
     "rate_limited": "Nachricht an @{{handle}} begrenzt",
-    "no_delivery_issues": "Keine abgelehnten oder begrenzten Zustellungen."
+    "no_delivery_issues": "Keine abgelehnten oder begrenzten Zustellungen.",
+    "this_week": "Diese Woche",
+    "total": "Gesamt",
+    "runs": "Hintergrundläufe",
+    "run_label": "RUN-{{id}}",
+    "tool_calls_one": "{{count}} Werkzeugaufruf",
+    "tool_calls_other": "{{count}} Werkzeugaufrufe",
+    "no_runs": "Noch keine Hintergrundläufe.",
+    "side_chats": "Nebenchats",
+    "no_side_chats": "Noch keine Nebenchats.",
+    "untitled_chat": "Unbenannter Chat"
+  },
+  "schedule": {
+    "add": "Zeitplan hinzufügen",
+    "name": "Name",
+    "kind": "Art",
+    "recurring": "Wiederkehrend",
+    "one_shot": "Einmalig",
+    "cadence": "Rhythmus",
+    "cadence_placeholder": "Jeden Montag um 9:00 Uhr",
+    "fire_at": "Ausführen um",
+    "prompt": "Anweisungen",
+    "empty": "Noch keine Zeitpläne.",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "run_now": "Jetzt ausführen"
   },
   "detail": {
     "soul_heading": "SOUL.md",

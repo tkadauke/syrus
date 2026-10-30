@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
@@ -27,7 +27,8 @@ const summaryPayload = {
       accent_hex: "#E5484D",
       avatar_key: "comet",
       avatar_url: null,
-      path: "/coworkers/7"
+      path: "/coworkers/7",
+      weekly_spend_usd: 0.75
     }
   ],
   model_options: [
@@ -54,6 +55,32 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto" }],
+    schedules: [
+      {
+        id: 31,
+        name: "Morning briefing",
+        prompt: "Prepare it",
+        kind: "cron",
+        state: "scheduled",
+        schedule_input: "Every day at 9:00 AM",
+        schedule_explanation: "Every day at 9:00 AM UTC",
+        fire_at: null,
+        next_fire_at: "2026-10-30T09:00:00Z",
+        last_fired_at: null
+      },
+      {
+        id: 32,
+        name: "Completed one-shot",
+        prompt: "Prepare it once",
+        kind: "one_shot",
+        state: "fired",
+        schedule_input: null,
+        schedule_explanation: null,
+        fire_at: "2026-10-29T09:00:00Z",
+        next_fire_at: null,
+        last_fired_at: "2026-10-29T09:00:00Z"
+      }
+    ],
     message_traffic: {
       sent: 4,
       received: 7,
@@ -61,6 +88,12 @@ const detailPayload = {
       delivery_events: [{ status: "refused", receiver_handle: "rin", reason: "Three-hop limit reached", occurred_at: "2026-10-29T10:00:00Z" }]
     }
   }
+}
+
+const activityPayload = {
+  spend: { week_usd: 0.75, total_usd: 1.25 },
+  runs: [],
+  side_chats: []
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -187,13 +220,15 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => jsonResponse(detailPayload))
+    vi.fn(async (input: RequestInfo | URL) =>
+      jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload)
+    )
   )
   renderRoute("/coworkers/7")
 
   fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
 
-  expect(screen.getByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
   expect(screen.getByRole("heading", { name: "Delivery issues" })).toBeInTheDocument()
   expect(screen.getByText("$1.25")).toBeInTheDocument()
   expect(screen.getByText("Shown for visibility; not capped.")).toBeInTheDocument()
@@ -376,6 +411,26 @@ it("renders chat, run, and unavailable commit provenance honestly", async () => 
   expect(await screen.findByText("Chat 91")).toBeInTheDocument()
   expect(screen.getByText("Run 42")).toBeInTheDocument()
   expect(screen.getByText("Source unavailable")).toBeInTheDocument()
+})
+
+it("lists and manages schedules on the coworker page", async () => {
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "POST") return jsonResponse({ schedule: detailPayload.coworker.schedules[0] })
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Schedule" }))
+
+  expect(screen.getByText("Morning briefing")).toBeInTheDocument()
+  expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
+  const firedRow = screen.getByText("Completed one-shot").closest("li")
+  expect(firedRow).not.toBeNull()
+  expect(within(firedRow!).queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
+  expect(within(firedRow!).queryByRole("button", { name: "Run now" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Run now" }))
+  await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/schedules/31/fire_now", expect.objectContaining({ method: "POST" })))
 })
 
 it("renders Syrus without a workspace or main chat and links its fixed surfaces", async () => {

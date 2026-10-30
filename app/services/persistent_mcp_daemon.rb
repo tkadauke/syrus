@@ -73,7 +73,7 @@ class PersistentMcpDaemon
   CAPABILITIES = [ CHAT_TOOLS_CAPABILITY, WORKFLOW_TOOLS_CAPABILITY ].freeze
   @ensure_started_mutex = Mutex.new
 
-  WORKFLOW_TOOL_ROLES = (AgentRole::WORKFLOW_ROLES + [ AgentRole::AGENT_INSIGHT ]).freeze
+  WORKFLOW_TOOL_ROLES = (AgentRole::WORKFLOW_ROLES + [ AgentRole::AGENT_INSIGHT, AgentRole::COWORKER ]).freeze
   WORKFLOW_ROLE_PATH_TOKENS = WORKFLOW_TOOL_ROLES.index_with { |role| role.to_s.tr(":", "_") }.freeze
   WORKFLOW_ROLE_BY_PATH_TOKEN = WORKFLOW_ROLE_PATH_TOKENS.invert.freeze
 
@@ -250,7 +250,8 @@ class PersistentMcpDaemon
     @workflow_tools ||= {}
     @workflow_tools.fetch(role) do
       tools = workflow_tool_contexts_for(role).flat_map do |context|
-        McpToolPolicy.for(context) + Mcp::Sidecar.plugin_workflow_tools_for(context)
+        policy_tools = McpToolPolicy.for(context)
+        role.to_s == AgentRole::COWORKER ? policy_tools : policy_tools + Mcp::Sidecar.plugin_workflow_tools_for(context)
       end
       @workflow_tools[role] = tools.uniq { |tool| McpToolRegistry.tool_name_for(tool) }
         .map { |tool| PersistentMcpDaemon::WorkflowToolDispatch.wrap(tool) }
@@ -497,7 +498,9 @@ class PersistentMcpDaemon
       role: role,
       user: WORKFLOW_CONTEXT_USER.new(false),
       repository: repository,
-      run: run
+      run: run,
+      granted_capabilities: role.to_s == AgentRole::COWORKER ? McpToolRegistry.entries(surface: :coworker).filter_map(&:capability).uniq : [],
+      interactive: false
     )
   end
 

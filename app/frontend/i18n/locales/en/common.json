@@ -359,7 +359,8 @@
     "no_capable_worker": "Waiting on worker capability",
     "visual_diff_obsolete": "Comparison no longer needed",
     "preempted": "Preempted",
-    "landing_paused": "Landing paused"
+    "landing_paused": "Landing paused",
+    "coworker_turn_in_flight": "Coworker turn in progress"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "A required job or Epic dependency ended without a successful resolution. Override or remove the dependency to continue.",
@@ -385,7 +386,8 @@
     "no_capable_worker": "No live worker currently advertises the capabilities required for this work.",
     "visual_diff_obsolete": "The job moved past the state this comparison was queued for.",
     "preempted": "A higher-priority work unit replaced this one.",
-    "landing_paused": "Landing is paused for this repository."
+    "landing_paused": "Landing is paused for this repository.",
+    "coworker_turn_in_flight": "This background run is waiting for the coworker's active chat turn to finish."
   },
   "admission_diagnostics_link": "View pressure diagnostics",
   "blocked_reasons": {

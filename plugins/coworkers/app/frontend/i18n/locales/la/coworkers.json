@@ -4,6 +4,7 @@
   "loading": "Collegae onerantur…",
   "error": "Collegae onerari non potuerunt.",
   "built_in": "Inclusus · machinator",
+  "card": { "weekly_spend": "${{amount}} hac hebdomade" },
   "coming_later": "Postea veniet",
   "memory": {
     "search": "Scrutare fasciculos memoriae",
@@ -59,7 +60,8 @@
     "save_about": "Textum de persona serva",
     "about_saved": "Textus de persona servatus",
     "open_coworker": "Collaboratorem aperi",
-    "open_chat": "Colloquium principale aperi"
+    "open_chat": "Colloquium principale aperi",
+    "no_schedules": "Nulla consilia."
   },
   "fields": {
     "name": "Nomen",
@@ -85,6 +87,8 @@
     "activity": "Acta"
   },
   "activity": {
+    "loading": "Acta onerantur…",
+    "unavailable": "Acta onerari non potuerunt.",
     "message_traffic": "Commercium nuntiorum",
     "window": "Diebus {{count}} proximis",
     "sent": "Missi",
@@ -94,7 +98,32 @@
     "delivery_issues": "Vitium traditionis",
     "refused": "Nuntius ad @{{handle}} recusatus",
     "rate_limited": "Nuntius ad @{{handle}} finitus",
-    "no_delivery_issues": "Nullae traditiones recusatae aut finitae."
+    "no_delivery_issues": "Nullae traditiones recusatae aut finitae.",
+    "this_week": "Hac hebdomade",
+    "total": "Omnino",
+    "runs": "Cursus posteriores",
+    "run_label": "RUN-{{id}}",
+    "tool_calls_one": "{{count}} vocatio instrumenti",
+    "tool_calls_other": "{{count}} vocationes instrumentorum",
+    "no_runs": "Nulli cursus posteriores adhuc.",
+    "side_chats": "Colloquia secundaria",
+    "no_side_chats": "Nulla colloquia secundaria adhuc.",
+    "untitled_chat": "Colloquium sine titulo"
+  },
+  "schedule": {
+    "add": "Consilium adde",
+    "name": "Nomen",
+    "kind": "Genus",
+    "recurring": "Recurrens",
+    "one_shot": "Semel",
+    "cadence": "Frequentia",
+    "cadence_placeholder": "Quaque Lunae die hora nona",
+    "fire_at": "Exsequere hora",
+    "prompt": "Mandata",
+    "empty": "Nulla consilia adhuc.",
+    "pause": "Siste",
+    "resume": "Perge",
+    "run_now": "Nunc exsequere"
   },
   "detail": {
     "soul_heading": "SOUL.md",

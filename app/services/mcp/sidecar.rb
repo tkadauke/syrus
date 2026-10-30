@@ -83,7 +83,8 @@ module Mcp
         tools: lambda {
           Tools.with_database_connection do
             context = McpToolContext.from_run(Run.includes(:step, job: :repository).find(run_id))
-            McpToolPolicy.for(context) + plugin_workflow_tools_for(context)
+            tools = McpToolPolicy.for(context)
+            context.role == AgentRole::COWORKER ? tools : tools + plugin_workflow_tools_for(context)
           end
         },
         server_context: -> { { run_id: run_id } }

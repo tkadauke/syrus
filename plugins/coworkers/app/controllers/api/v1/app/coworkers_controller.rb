@@ -6,8 +6,12 @@ module Api
         include AgentProviderCatalogOptions
 
         def index
+          coworkers = scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).to_a
+          weekly_spend = Coworkers::Activity.weekly_spend_by_coworker(
+            coworkers: coworkers, user: Current.user
+          )
           render json: {
-            coworkers: scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).map { |coworker| summary_json(coworker) },
+            coworkers: coworkers.map { |coworker| summary_json(coworker, weekly_spend_usd: weekly_spend.fetch(coworker.id)) },
             syrus: syrus_json,
             model_options: model_options_json
           }
@@ -106,6 +110,56 @@ module Api
           render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
         end
 
+        def activity
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          render json: Coworkers::Activity.new(coworker: coworker, user: Current.user).call
+        end
+
+        def create_schedule
+          coworker = find_coworker
+          authorize coworker, :update?, policy_class: CoworkerPolicy
+          repository = workspace_repository(coworker)
+          return unless authorize_repository_write!(repository)
+
+          task = coworker.schedules.new(
+            schedule_params.merge(
+              user: Current.user, repository: repository,
+              pr_pileup_policy: "skip", auto_approve_mode: "never"
+            )
+          )
+          if task.save
+            render json: { schedule: schedule_json(task) }, status: :created
+          else
+            render_error("validation_failed", task.errors.full_messages.to_sentence, status: :unprocessable_content)
+          end
+        end
+
+        def pause_schedule
+          task = find_schedule
+          return unless task
+          return render_error("not_pausable", "Only an enabled task can be paused.", status: :unprocessable_content) unless task.active?
+
+          task.pause!(reason: "operator")
+          render json: { schedule: schedule_json(task.reload) }
+        end
+
+        def resume_schedule
+          task = find_schedule
+          return unless task
+          return render_error("not_resumable", "A fired one-shot task cannot be resumed.", status: :unprocessable_content) if task.fired?
+
+          task.resume!
+          render json: { schedule: schedule_json(task.reload) }
+        end
+
+        def fire_schedule
+          task = find_schedule
+          return unless task
+
+          result = ScheduledTasks::Fire.new(task).call
+          render json: { schedule: schedule_json(task.reload), fired: result.fired?, reason: result.reason, job_id: result.job&.id }
+        end
         def test_remote
           match = params.require(:workspace_repo).to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
           return render_error("validation_failed", I18n.t("api.coworkers.invalid_workspace_remote"), status: :unprocessable_content) unless match
@@ -143,11 +197,13 @@ module Api
           params.permit(:name, :handle, :workspace_repo, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model, :chat_effort)
         end
 
-        def summary_json(coworker)
+        def summary_json(coworker, weekly_spend_usd: nil)
+          weekly_spend_usd ||= Coworkers::Activity.new(coworker: coworker, user: Current.user).week_spend
           {
             id: coworker.id, name: coworker.name, handle: coworker.handle, role_summary: coworker.role_summary,
             state: coworker.state, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
-            avatar_url: coworker.avatar_url, path: "/coworkers/#{coworker.id}"
+            avatar_url: coworker.avatar_url, path: "/coworkers/#{coworker.id}",
+            weekly_spend_usd: weekly_spend_usd
           }
         end
 
@@ -159,8 +215,31 @@ module Api
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
             grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy } },
-            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
+            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker),
+            schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
           )
+        end
+
+        def schedule_json(task)
+          {
+            id: task.id, name: task.name, prompt: task.prompt, kind: task.kind, state: task.state,
+            schedule_input: task.schedule_input, schedule_explanation: task.schedule_explanation,
+            fire_at: task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,
+            last_fired_at: task.last_fired_at&.iso8601
+          }
+        end
+
+        def schedule_params
+          params.expect(schedule: %i[name prompt kind schedule_input cron_expression fire_at])
+        end
+
+        def find_schedule
+          coworker = find_coworker
+          authorize coworker, :update?, policy_class: CoworkerPolicy
+          task = coworker.schedules.alive.find(params[:schedule_id])
+          return task if authorize_repository_write!(task.repository)
+
+          nil
         end
 
         def spend_usd(coworker)

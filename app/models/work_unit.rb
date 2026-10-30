@@ -38,6 +38,7 @@ class WorkUnit < ApplicationRecord
     auto_retry_backoff
     no_capable_worker
     visual_diff_obsolete
+    coworker_turn_in_flight
     preempted
   ].freeze
 

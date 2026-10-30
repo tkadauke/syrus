@@ -37,6 +37,7 @@ type StartBlockedReason =
   | "main_branch_broken"
   | "workflow_admission_budget"
   | "landing_paused"
+  | "coworker_turn_in_flight"
 
 const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   admission_control: "amber",
@@ -62,7 +63,8 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   preempted: "gray",
   main_branch_broken: "red",
   workflow_admission_budget: "amber",
-  landing_paused: "gray"
+  landing_paused: "gray",
+  coworker_turn_in_flight: "gray"
 }
 
 const THROTTLE_URGENCY_THRESHOLD_MS = 30 * 60 * 1000

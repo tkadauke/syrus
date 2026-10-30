@@ -171,6 +171,20 @@ function renderChatMessageItem(
   )
 }
 
+it("renders background run metadata in a collapsed result block", () => {
+  const item = assistantMessage("Calendar reviewed.")
+  item.content = {
+    text: "Calendar reviewed.",
+    background_run: { state: "succeeded", summary: "Calendar reviewed.", duration_seconds: 12.5, cost_usd: "0.04" }
+  }
+
+  renderChatMessageItem(item)
+
+  const summary = screen.getByText("Background run completed")
+  expect(summary.closest("details")).not.toHaveAttribute("open")
+  expect(summary.parentElement).toHaveTextContent("12.5s · $0.04")
+})
+
 function systemMessageItem(
   system: ChatSystemMessage,
   overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}

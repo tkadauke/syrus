@@ -4,6 +4,7 @@
   "loading": "Loading coworkers…",
   "error": "Coworkers could not be loaded.",
   "built_in": "Built-in · engineer",
+  "card": { "weekly_spend": "${{amount}} this week" },
   "coming_later": "Coming later",
   "memory": {
     "search": "Search memory files",
@@ -53,7 +54,8 @@
     "save_about": "Save About text",
     "about_saved": "About text saved",
     "open_coworker": "Open coworker",
-    "open_chat": "Open main chat"
+    "open_chat": "Open main chat",
+    "no_schedules": "No schedules."
   },
   "fields": {
     "name": "Name",
@@ -79,6 +81,8 @@
     "activity": "Activity"
   },
   "activity": {
+    "loading": "Loading activity…",
+    "unavailable": "Activity could not be loaded.",
     "message_traffic": "Message traffic",
     "window": "Last {{count}} days",
     "sent": "Sent",
@@ -88,7 +92,32 @@
     "delivery_issues": "Delivery issues",
     "refused": "Message to @{{handle}} refused",
     "rate_limited": "Message to @{{handle}} rate limited",
-    "no_delivery_issues": "No refused or rate-limited deliveries."
+    "no_delivery_issues": "No refused or rate-limited deliveries.",
+    "this_week": "This week",
+    "total": "All time",
+    "runs": "Background runs",
+    "run_label": "RUN-{{id}}",
+    "tool_calls_one": "{{count}} tool call",
+    "tool_calls_other": "{{count}} tool calls",
+    "no_runs": "No background runs yet.",
+    "side_chats": "Side chats",
+    "no_side_chats": "No side chats yet.",
+    "untitled_chat": "Untitled chat"
+  },
+  "schedule": {
+    "add": "Add schedule",
+    "name": "Name",
+    "kind": "Kind",
+    "recurring": "Recurring",
+    "one_shot": "One shot",
+    "cadence": "Cadence",
+    "cadence_placeholder": "Every Monday at 9:00 AM",
+    "fire_at": "Run at",
+    "prompt": "Instructions",
+    "empty": "No schedules yet.",
+    "pause": "Pause",
+    "resume": "Resume",
+    "run_now": "Run now"
   },
   "detail": {
     "soul_heading": "SOUL.md",

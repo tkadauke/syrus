@@ -33,16 +33,20 @@ class McpToolContext
   end
 
   def self.from_run(run)
+    role = role_for_run(run)
+    contributed = run_context_attributes(run, role)
     new(
       surface:                :run,
-      role:                   role_for_run(run),
+      role:                   role,
       user:                   run.job.user,
       repository:             run.job.repository,
       job:                    run.job,
       workflow:               run.workflow,
       run:                    run,
       allowed_memory_scopes:  [ "repository" ],
-      allowed_repository_ids: [ run.job.repository_id ].compact
+      allowed_repository_ids: [ run.job.repository_id ].compact,
+      interactive: false,
+      **contributed
     )
   end
 
@@ -120,6 +124,16 @@ class McpToolContext
 
     coworker = chat_session.coworker
     coworker if coworker.respond_to?(:kind) && coworker.kind == "coworker"
+  end
+
+  private_class_method def self.run_context_attributes(run, role)
+    Syrus::PluginRegistry.providers_for(:mcp_run_context_contributor).each_with_object({}) do |provider, attributes|
+      contributed = provider.context_attributes(run: run, role: role).to_h.symbolize_keys
+      duplicate = attributes.keys & contributed.keys
+      raise ArgumentError, "duplicate MCP run context attributes: #{duplicate.join(', ')}" if duplicate.any?
+
+      attributes.merge!(contributed)
+    end
   end
 
   private_class_method def self.interactive_turn?(chat_session)

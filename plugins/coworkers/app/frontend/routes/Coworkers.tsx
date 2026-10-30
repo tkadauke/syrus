@@ -18,14 +18,18 @@ import { withRoutePrefix } from "@app/lib/routing"
 import { defaultAccentSelection, type AccentSelection } from "@app/lib/appearance"
 import {
   addCoworkerToChat,
+  commandCoworkerSchedule,
+  createCoworkerSchedule,
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerActivity,
   fetchCoworkerMemory,
   fetchCoworkerWorkspace,
   fetchCoworkers,
   removeCoworkerFromChat,
   testCoworkerRemote,
+  type CoworkerDetail,
   type CoworkerMemoryFile,
   type CoworkerSummary
 } from "../api/coworkers"
@@ -78,6 +82,9 @@ function CoworkerCard({ coworker, prefix }: { coworker: CoworkerSummary; prefix:
           <div className="font-semibold text-text-primary">{coworker.name}</div>
           <div className="text-sm text-text-secondary">@{coworker.handle}</div>
           <div className="mt-2 text-sm text-text-secondary">{coworker.role_summary}</div>
+          {coworker.weekly_spend_usd != null ? (
+            <div className="mt-2 text-sm font-medium text-text-primary">{t("card.weekly_spend", { amount: coworker.weekly_spend_usd.toFixed(2) })}</div>
+          ) : null}
           {coworker.built_in ? <span className="mt-2 inline-block rounded bg-surface-subtle px-2 py-0.5 text-xs">{t("built_in")}</span> : null}
         </div>
       </div>
@@ -313,49 +320,202 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
+      {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void query.refetch()} /> : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
-      {tab === "activity" ? (
-        <section className="rounded border border-border bg-surface p-5">
-          <h2 className="font-semibold">{t("activity.message_traffic")}</h2>
-          <p className="mt-1 text-sm text-text-secondary">{t("activity.window", { count: coworker.message_traffic.window_days })}</p>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded bg-surface-subtle p-3">
-              <dt className="text-sm text-text-secondary">{t("activity.sent")}</dt>
-              <dd className="text-2xl font-semibold">{coworker.message_traffic.sent}</dd>
-            </div>
-            <div className="rounded bg-surface-subtle p-3">
-              <dt className="text-sm text-text-secondary">{t("activity.received")}</dt>
-              <dd className="text-2xl font-semibold">{coworker.message_traffic.received}</dd>
-            </div>
-            <div className="rounded bg-surface-subtle p-3">
-              <dt className="text-sm text-text-secondary">{t("activity.spend")}</dt>
-              <dd className="text-2xl font-semibold">${coworker.spend_usd.toFixed(2)}</dd>
-              <dd className="mt-1 text-xs text-text-secondary">{t("activity.spend_not_capped")}</dd>
-            </div>
-          </dl>
-          <h3 className="mt-6 font-semibold">{t("activity.delivery_issues")}</h3>
-          {coworker.message_traffic.delivery_events.length ? (
-            <ul className="mt-3 space-y-2">
-              {coworker.message_traffic.delivery_events.map((event) => (
-                <li className="rounded border border-border bg-surface-subtle p-3 text-sm" key={`${event.occurred_at}-${event.receiver_handle}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{t(`activity.${event.status}`, { handle: event.receiver_handle })}</span>
-                    <time className="text-text-secondary" dateTime={event.occurred_at}>
-                      {new Date(event.occurred_at).toLocaleString()}
-                    </time>
-                  </div>
-                  <p className="mt-1 text-text-secondary">{event.reason}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-2 text-sm text-text-secondary">{t("activity.no_delivery_issues")}</p>
-          )}
-        </section>
-      ) : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
-      {!["chat", "profile", "memory", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {tab === "activity" ? <CoworkerActivity id={id} traffic={coworker.message_traffic} /> : null}
+      {!["chat", "profile", "schedule", "memory", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
+  )
+}
+
+function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
+  const { t } = useT("coworkers")
+  const [kind, setKind] = useState("cron")
+  const create = useMutation({
+    mutationFn: (schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
+      createCoworkerSchedule(String(coworker.id), schedule),
+    onSuccess: onChanged
+  })
+  const command = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "pause" | "resume" | "fire_now" }) => commandCoworkerSchedule(String(coworker.id), id, action),
+    onSuccess: onChanged
+  })
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    create.mutate({
+      name: String(data.get("name") || ""),
+      prompt: String(data.get("prompt") || ""),
+      kind,
+      schedule_input: kind === "cron" ? String(data.get("schedule_input") || "") : undefined,
+      fire_at: kind === "one_shot" ? new Date(String(data.get("fire_at") || "")).toISOString() : undefined
+    })
+  }
+  return (
+    <section className="space-y-5">
+      <form className="space-y-3 rounded border border-border bg-surface p-5" onSubmit={submit}>
+        <h2 className="font-semibold">{t("schedule.add")}</h2>
+        <Field label={t("schedule.name")} name="name" required />
+        <label className="block text-sm font-medium">
+          {t("schedule.kind")}
+          <Select className="mt-1" onChange={(event) => setKind(event.target.value)} value={kind}>
+            <option value="cron">{t("schedule.recurring")}</option>
+            <option value="one_shot">{t("schedule.one_shot")}</option>
+          </Select>
+        </label>
+        {kind === "cron" ? (
+          <Field label={t("schedule.cadence")} name="schedule_input" placeholder={t("schedule.cadence_placeholder")} required />
+        ) : (
+          <Field label={t("schedule.fire_at")} name="fire_at" required type="datetime-local" />
+        )}
+        <label className="block text-sm font-medium">
+          {t("schedule.prompt")}
+          <Textarea className="mt-1 min-h-24" name="prompt" required />
+        </label>
+        {create.isError ? <PanelMessage>{create.error.message}</PanelMessage> : null}
+        <button className="rounded bg-brand px-3 py-2 text-sm font-medium text-white" disabled={create.isPending}>
+          {t("schedule.add")}
+        </button>
+      </form>
+      {coworker.schedules.length === 0 ? (
+        <PanelMessage>{t("schedule.empty")}</PanelMessage>
+      ) : (
+        <ul className="divide-y divide-border rounded border border-border bg-surface">
+          {coworker.schedules.map((schedule) => (
+            <li className="flex flex-wrap items-center justify-between gap-3 p-4" key={schedule.id}>
+              <div>
+                <div className="font-medium">{schedule.name}</div>
+                <div className="text-sm text-text-secondary">
+                  {schedule.schedule_explanation || schedule.fire_at} · {schedule.state}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {schedule.state === "scheduled" ? (
+                  <button
+                    className="rounded border border-border px-3 py-1.5 text-sm"
+                    disabled={command.isPending}
+                    onClick={() => command.mutate({ id: schedule.id, action: "pause" })}
+                  >
+                    {t("schedule.pause")}
+                  </button>
+                ) : null}
+                {["paused", "auto_paused"].includes(schedule.state) ? (
+                  <button
+                    className="rounded border border-border px-3 py-1.5 text-sm"
+                    disabled={command.isPending}
+                    onClick={() => command.mutate({ id: schedule.id, action: "resume" })}
+                  >
+                    {t("schedule.resume")}
+                  </button>
+                ) : null}
+                {schedule.state !== "fired" ? (
+                  <button
+                    className="rounded border border-border px-3 py-1.5 text-sm"
+                    disabled={command.isPending}
+                    onClick={() => command.mutate({ id: schedule.id, action: "fire_now" })}
+                  >
+                    {t("schedule.run_now")}
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail["message_traffic"] }) {
+  const { t } = useT("coworkers")
+  const query = useQuery({ queryKey: ["coworkers", id, "activity"], queryFn: () => fetchCoworkerActivity(id) })
+  if (query.isPending) return <PanelMessage>{t("activity.loading")}</PanelMessage>
+  if (query.isError || !query.data) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
+  const activity = query.data
+  return (
+    <section className="space-y-6 rounded border border-border bg-surface p-5">
+      <div>
+        <h2 className="font-semibold">{t("activity.spend")}</h2>
+        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.this_week")}</dt>
+            <dd className="text-2xl font-semibold">${activity.spend.week_usd.toFixed(2)}</dd>
+          </div>
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.total")}</dt>
+            <dd className="text-2xl font-semibold">${activity.spend.total_usd.toFixed(2)}</dd>
+            <dd className="mt-1 text-xs text-text-secondary">{t("activity.spend_not_capped")}</dd>
+          </div>
+        </dl>
+      </div>
+      <div>
+        <h2 className="font-semibold">{t("activity.runs")}</h2>
+        {activity.runs.length ? (
+          <ul className="mt-3 divide-y divide-border rounded border border-border">
+            {activity.runs.map((run) => (
+              <li className="grid gap-2 p-3 text-sm sm:grid-cols-4" key={run.id}>
+                <span>{t("activity.run_label", { id: run.id })}</span>
+                <span>{t(`activity.status.${run.state}`, { defaultValue: run.state })}</span>
+                <span>{t("activity.tool_calls", { count: run.tool_calls_count })}</span>
+                <span className="sm:text-right">${run.cost_usd.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_runs")}</p>
+        )}
+      </div>
+      <div>
+        <h2 className="font-semibold">{t("activity.side_chats")}</h2>
+        {activity.side_chats.length ? (
+          <ul className="mt-3 space-y-2">
+            {activity.side_chats.map((chat) => (
+              <li className="flex justify-between rounded border border-border p-3 text-sm" key={chat.id}>
+                <Link className="text-brand" to={chat.path}>
+                  {chat.title || t("activity.untitled_chat")}
+                </Link>
+                <span>${chat.cost_usd.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_side_chats")}</p>
+        )}
+      </div>
+      <div>
+        <h2 className="font-semibold">{t("activity.message_traffic")}</h2>
+        <p className="mt-1 text-sm text-text-secondary">{t("activity.window", { count: traffic.window_days })}</p>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.sent")}</dt>
+            <dd className="text-2xl font-semibold">{traffic.sent}</dd>
+          </div>
+          <div className="rounded bg-surface-subtle p-3">
+            <dt className="text-sm text-text-secondary">{t("activity.received")}</dt>
+            <dd className="text-2xl font-semibold">{traffic.received}</dd>
+          </div>
+        </dl>
+        <h3 className="mt-6 font-semibold">{t("activity.delivery_issues")}</h3>
+        {traffic.delivery_events.length ? (
+          <ul className="mt-3 space-y-2">
+            {traffic.delivery_events.map((event) => (
+              <li className="rounded border border-border bg-surface-subtle p-3 text-sm" key={`${event.occurred_at}-${event.receiver_handle}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{t(`activity.${event.status}`, { handle: event.receiver_handle })}</span>
+                  <time className="text-text-secondary" dateTime={event.occurred_at}>
+                    {new Date(event.occurred_at).toLocaleString()}
+                  </time>
+                </div>
+                <p className="mt-1 text-text-secondary">{event.reason}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_delivery_issues")}</p>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -371,34 +531,34 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
   if (query.isPending) return <PanelMessage>{t("workspace.loading")}</PanelMessage>
   if (query.isError || !query.data) return <PanelMessage>{t("workspace.unavailable")}</PanelMessage>
   const workspace = query.data
-
   return (
-    <section className="overflow-hidden rounded border border-border bg-surface">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4 text-sm">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-surface p-3 text-sm">
         <div>
           <div className="font-medium text-text-primary">{workspace.remote}</div>
           <div className="text-text-muted">{workspace.branch}</div>
         </div>
         <div>
-          <button className="rounded border border-border px-3 py-2 hover:bg-surface-subtle" onClick={() => pushTest.mutate()} type="button">
+          <button className="rounded border border-border px-3 py-2" disabled={pushTest.isPending} onClick={() => pushTest.mutate()} type="button">
             {t("workspace.test_push")}
           </button>
           {pushTest.isSuccess ? <span className="ml-2 text-success">{t("workspace.push_ok")}</span> : null}
+          {pushTest.isError ? <span className="ml-2 text-danger">{pushTest.error.message}</span> : null}
         </div>
-      </header>
+      </div>
       {workspace.partial ? <PanelMessage>{t("workspace.partial")}</PanelMessage> : null}
       {workspace.conflicts.map((conflict) => (
-        <div className="border-b border-warning/40 bg-warning/10 p-3 text-sm" key={conflict.branch}>
+        <PanelMessage key={conflict.branch}>
           {t("workspace.conflict", { branch: conflict.branch })} {conflict.files.join(", ")}
-        </div>
+        </PanelMessage>
       ))}
-      <div className="grid min-h-80 md:grid-cols-[16rem_1fr]">
+      <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[18rem_minmax(0,1fr)]">
         <nav aria-label={t("workspace.files")} className="border-b border-border p-3 md:border-b-0 md:border-r">
           {workspace.files
             .filter((file) => file.type !== "directory")
             .map((file) => (
               <button
-                className={`block w-full truncate rounded px-2 py-1 text-left text-sm ${selectedPath === file.path ? "bg-accent/10 text-accent" : "hover:bg-surface-subtle"}`}
+                className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
                 key={file.path}
                 onClick={() => setSelectedPath(file.path)}
                 type="button"
@@ -407,7 +567,7 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
               </button>
             ))}
         </nav>
-        <div className="min-w-0 p-4">
+        <article className="min-w-0 p-5">
           {workspace.selected_file ? (
             <>
               <h2 className="mb-3 font-semibold">{workspace.selected_file.path}</h2>
@@ -423,7 +583,7 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
           ) : (
             <PanelMessage>{t("workspace.choose_file")}</PanelMessage>
           )}
-        </div>
+        </article>
       </div>
       <div className="rounded border border-border bg-surface p-4">
         <h2 className="mb-3 font-semibold">{t("workspace.history")}</h2>
