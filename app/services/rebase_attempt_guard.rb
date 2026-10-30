@@ -20,6 +20,23 @@ class RebaseAttemptGuard
     recent_failed_agent_workflow(job, pr: pr, since: cooldown.ago).present?
   end
 
+  # True when retrying cannot help, as distinct from `cooling_down?`, where
+  # waiting might.
+  #
+  # The difference matters to callers that legitimately bypass the time-based
+  # cooldown because something in the world actually changed -- main health
+  # recovering, say, which gives a red PR a new base worth re-checking. That
+  # reasoning holds for a transient failure and collapses for a deterministic
+  # one: a `force_push` refusing to publish a branch missing its latest
+  # handoff fix fails identically no matter how many times the base moves, so
+  # a sweep that ignores every guard turns one broken branch into an agent run
+  # every few minutes for days.
+  def self.permanently_blocked?(job, pr: nil)
+    return true if permanently_blocked_by_provider_configuration?(job)
+
+    permanently_blocked_by?(consecutive_failed_agent_rebase_workflows(job, pr: pr))
+  end
+
   def self.cooling_down?(job, pr: nil)
     return true if permanently_blocked_by_provider_configuration?(job)
 

@@ -215,6 +215,40 @@ RSpec.describe RebaseAttemptGuard do
       expect(described_class.cooling_down?(job)).to be(true)
     end
 
+    describe ".permanently_blocked?" do
+      # The seam MainHealthChangedService's recovery sweep consults. That sweep
+      # deliberately bypasses the time-based cooldown, because main recovering
+      # is new information; it must not bypass a decided outcome. Separating
+      # the two is what stops a branch that can never be published from being
+      # re-dispatched on every main-health flap.
+      it "is true for a deterministic late-step failure" do
+        failed_late_step!
+
+        expect(described_class.permanently_blocked?(job)).to be(true)
+      end
+
+      it "is false for a retryable failure" do
+        failed_late_step!(retryable: true, classification: "worker_died")
+
+        expect(described_class.permanently_blocked?(job)).to be(false)
+      end
+
+      # The distinction the recovery sweep depends on: a deterministic failure
+      # is permanently blocked *and* cooling down, so honouring only the
+      # cooldown would not have stopped the sweep -- it bypasses that by
+      # design. Only the permanent signal does.
+      it "is narrower than cooling_down? for a deterministic failure" do
+        failed_late_step!
+
+        expect(described_class.cooling_down?(job)).to be(true)
+        expect(described_class.permanently_blocked?(job)).to be(true)
+      end
+
+      it "is false for a Job with no failed rebase history" do
+        expect(described_class.permanently_blocked?(job)).to be(false)
+      end
+    end
+
     # A dead worker in a late step genuinely may succeed next time, so it must
     # not accumulate toward a permanent block.
     it "does not count a retryable failure in a later step" do

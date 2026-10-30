@@ -1425,6 +1425,53 @@ RSpec.describe MainHealthChangedService, :ci_only do
         expect(WorkUnits::Launcher).to have_received(:start!).with(rebase_workflow)
       end
 
+      # Regression: this sweep bypasses RebaseAttemptGuard on purpose, because
+      # main recovering is new information worth another attempt. But it
+      # bypassed the permanent block too, so a Job whose force_push refused to
+      # publish a branch missing its latest handoff fix was re-dispatched on
+      # every main-health flap -- a full rebase plus an agent run every few
+      # minutes for two days, on a branch that could never be published,
+      # because nothing about a moving base could supply the missing fix.
+      it "does not rebase a Job whose last rebase failed non-retryably" do
+        blocked_job = Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-permanently-blocked",
+          pr_number: 11,
+          pr_checks_state: "failing"
+        )
+        allow(RebaseAttemptGuard).to receive(:permanently_blocked?).and_call_original
+        allow(RebaseAttemptGuard).to receive(:permanently_blocked?).with(blocked_job).and_return(true)
+
+        expect(RebaseWorkflowSelector).not_to receive(:instantiate)
+        described_class.recovered!(repository)
+      end
+
+      # The bypass itself must survive: a Job merely cooling down, or capped on
+      # transient failures, still gets its shot against the healthy base.
+      it "still rebases a Job that is not permanently blocked" do
+        retryable_job = Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-retryable",
+          pr_number: 12,
+          pr_checks_state: "failing"
+        )
+        allow(RebaseAttemptGuard).to receive(:permanently_blocked?).and_call_original
+        allow(RebaseAttemptGuard).to receive(:permanently_blocked?).with(retryable_job).and_return(false)
+
+        rebase_workflow = instance_double(Workflow)
+        allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(rebase_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
+
+        described_class.recovered!(repository)
+
+        expect(RebaseWorkflowSelector).to have_received(:instantiate).with(
+          job: retryable_job,
+          artifacts: hash_including("repair_reason")
+        )
+      end
+
       it "does not rebase Jobs whose pr_checks_state is not failing" do
         Factories.job_record(
           repository: repository,

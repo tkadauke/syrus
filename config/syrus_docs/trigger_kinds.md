@@ -430,8 +430,19 @@ repository's open Jobs where `pr_checks_state == "failing"` (kept fresh on
 every PR poll, so no extra GitHub calls are needed to find candidates). For
 each one without an already-active rebase or merge train
 (`RebaseWorkflowSelector.active_for_stack?` / `active_merge_train_for_stack?`),
-it dispatches a mechanical `rebase` workflow the same way the admin
-"force rebase" repair action does. This exists because GitHub does not
+and that is not permanently blocked from rebasing
+(`RebaseAttemptGuard.permanently_blocked?`), it dispatches a mechanical
+`rebase` workflow the same way the admin "force rebase" repair action does.
+
+The sweep still bypasses the attempt cap and its cooldown on purpose — main
+recovering is new information, so a Job that had exhausted its retries against
+the broken base deserves another against the healthy one. It does not bypass a
+*decided* outcome. A rebase whose last failure was classified non-retryable
+fails identically however often the base moves, and sweeping those in turned
+one such Job into a full rebase plus an agent run every few minutes for two
+days on a branch that could never be published (its `force_push` was correctly
+refusing to publish a branch missing its latest `coding_handoff_fix`, which no
+amount of rebasing could supply). This exists because GitHub does not
 silently re-run stale failed check results just because the base branch
 changed — without an explicit nudge, PRs left on the broken base would sit red
 until something else touched them. Since `rebase`'s `auto_rebase` step tries a

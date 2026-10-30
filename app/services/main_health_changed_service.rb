@@ -370,8 +370,21 @@ class MainHealthChangedService
   # ci_failure if the PR's own diff is genuinely still broken. Deliberately
   # queries live pr_checks_state instead of a persisted "deferred" marker so
   # it sweeps up every red-CI Job regardless of which guard skipped its
-  # repair (the main-health ci_failure gate, the pre-existing cap, or a race
-  # window), with no bookkeeping to fall out of sync.
+  # repair (the main-health ci_failure gate, an attempt cap that was counting
+  # transient failures, or a race window), with no bookkeeping to fall out of
+  # sync.
+  #
+  # Bypassing the attempt cap is the point: the cap is time-and-count based
+  # and main recovering is new information, so a Job that had exhausted its
+  # retries deserves another against the healthy base. That argument only
+  # holds where a retry could plausibly differ. It does not hold for a
+  # deterministic failure, and sweeping those produced a Job that rebased,
+  # refused to publish, and got swept in again every few minutes for two days
+  # -- each pass burning an agent run on a branch that could never be
+  # published, because the thing blocking it was a missing handoff fix rather
+  # than anything about the base. `permanently_blocked?` is the narrow
+  # exception: still bypass the cooldown, never re-dispatch work whose
+  # outcome is already decided.
   def rebase_failing_ci_jobs!
     rebased = 0
 
@@ -380,6 +393,7 @@ class MainHealthChangedService
       next if job.branch_name.blank?
       next if RebaseWorkflowSelector.active_for_stack?(job)
       next if RebaseWorkflowSelector.active_merge_train_for_stack?(job)
+      next if permanently_blocked_from_rebase?(job)
 
       workflow = RebaseWorkflowSelector.instantiate(
         job: job,
@@ -400,6 +414,16 @@ class MainHealthChangedService
     end
 
     rebased
+  end
+
+  def permanently_blocked_from_rebase?(job)
+    return false unless RebaseAttemptGuard.permanently_blocked?(job)
+
+    Rails.logger.info(
+      "[MainHealthChangedService] #{@repository.slug} skipped recovery rebase for #{job.slug}; " \
+      "its last rebase failed non-retryably and re-dispatching cannot change that"
+    )
+    true
   end
 
   def spawn_fix_job!
