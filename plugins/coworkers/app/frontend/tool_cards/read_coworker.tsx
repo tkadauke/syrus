@@ -15,7 +15,7 @@ const readCoworkerToolCard: ToolCardRenderer = {
     return (
       <CardShell>
         <div className="flex items-center gap-2">
-          <StatePill state={displayValue(coworker.state)} />
+          <StatePill state={displayValue(coworker.state) || "unknown"} />
           <span className="text-sm font-medium">{displayValue(coworker.name)}</span>
         </div>
         <Row label={i18n.t("coworkers:fields.handle")} value={`@${displayValue(coworker.handle)}`} />
