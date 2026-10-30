@@ -43,6 +43,7 @@ export type ProposalOutcome = {
   plannedExecutionText: string | null
   capabilitiesText: string | null
   goalProvenanceText: string | null
+  proposerText: string | null
   media: ProposalMedia[]
   materialized: MaterializedOutcome
 }
@@ -132,6 +133,14 @@ function objectSummary(value: unknown): string | null {
     .join(" · ")
 }
 
+function proposerText(value: unknown): string | null {
+  if (!isPlainObject(value)) return null
+  const label = displayValue(value.label)
+  if (!label) return null
+  const handle = displayValue(value.handle)
+  return i18n.t("chat:proposal_authored_by", { name: label, handle: handle ? `@${handle}` : "" })
+}
+
 function proposalMedia(references: string[], presentation?: ToolCardContext["presentation"]): ProposalMedia[] {
   return references.map((reference) => {
     const [kind, rawId] = reference.split(":", 2)
@@ -216,6 +225,7 @@ export function parseProposalOutcome(
     plannedExecutionText: objectSummary(value.planned_execution ?? input.planned_execution),
     capabilitiesText: plannedExecutionCapabilitiesText(value.planned_execution ?? input.planned_execution),
     goalProvenanceText: objectSummary(value.goal_provenance),
+    proposerText: proposerText(value.proposer),
     media: proposalMedia(stringList(input.media), presentation),
     materialized: parseMaterialized(value.materialized)
   }
@@ -297,7 +307,8 @@ export function ProposalOutcomeCard({ proposal, onLinkClick }: { proposal: Propo
     proposal.initialJobState ||
     proposal.providerSetting ||
     proposal.plannedExecutionText ||
-    proposal.goalProvenanceText
+    proposal.goalProvenanceText ||
+    proposal.proposerText
   return (
     <CardShell>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -330,6 +341,7 @@ export function ProposalOutcomeCard({ proposal, onLinkClick }: { proposal: Propo
               <EntityReference kind="repository" repositoryId={proposal.repositoryId} repositorySlug={proposal.repository} />
             </DetailValue>
           ) : null}
+          {proposal.proposerText ? <DetailValue label={i18n.t("chat:tool_card_proposer")}>{proposal.proposerText}</DetailValue> : null}
           {proposal.targetEpicLabel || proposal.targetEpicId ? (
             <DetailValue label={i18n.t("chat:target_epic")}>
               {proposal.targetEpicId ? (

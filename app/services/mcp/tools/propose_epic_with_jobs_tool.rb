@@ -634,6 +634,7 @@ module Mcp::Tools
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           depends_on_job_ids: proposal.depends_on_job_ids || [],
           goal_provenance: App::GoalProvenancePayload.for(proposal),
+          proposer: App::ChatMessagePayload.proposer_json(proposal),
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,
@@ -652,6 +653,7 @@ module Mcp::Tools
               media_previews: Array(child.media_ids).filter_map { |ref| media_previews[ref] },
               priority: child.priority,
               goal_provenance: App::GoalProvenancePayload.for(child),
+              proposer: App::ChatMessagePayload.proposer_json(child),
               depends_on: child.dependencies.order(:slug).pluck(:slug),
               materialized: Mcp::Tools.materialized_payload(child)
             }

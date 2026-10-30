@@ -14,6 +14,18 @@ module App
       proposal.title
     end
 
+    def self.proposer_json(proposal)
+      proposer = proposal.proposer
+      return unless proposer
+
+      {
+        type: proposer.try(:kind).presence || proposer.class.model_name.singular,
+        id: proposer.id,
+        label: proposer.try(:name).presence || proposer.try(:display_name).presence || proposer.to_s,
+        handle: proposer.try(:handle).presence
+      }
+    end
+
     def self.anchor_message_id(proposal)
       if proposal.message_anchors.loaded?
         proposal.message_anchors.max_by(&:id)&.id
@@ -95,6 +107,7 @@ module App
             :job,
             :epic,
             :target_epic,
+            :proposer,
             :message_anchors,
             { dependencies: [ :chat_session, :repository, :job, :epic, :message_anchors ] },
             { child_proposals: [
@@ -102,6 +115,7 @@ module App
               :repository,
               :job,
               :epic,
+              :proposer,
               :message_anchors,
               { dependencies: [ :chat_session, :repository, :job, :epic, :message_anchors ] }
             ] }
@@ -385,6 +399,7 @@ module App
         priority: proposal.priority,
         planned_execution: proposal.planned_execution_json,
         goal_provenance: App::GoalProvenancePayload.for(proposal),
+        proposer: self.class.proposer_json(proposal),
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject",
@@ -575,6 +590,7 @@ module App
         priority: proposal.priority,
         planned_execution: proposal.planned_execution_json,
         goal_provenance: App::GoalProvenancePayload.for(proposal),
+        proposer: self.class.proposer_json(proposal),
         media_ids: proposal.media_ids || [],
         dependency_details: dependency_records.map { |dependency| child_dependency_json(proposal, dependency) },
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
