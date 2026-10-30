@@ -213,13 +213,15 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => jsonResponse(detailPayload))
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/activity") ? jsonResponse({ spend: { week_usd: 0.75, total_usd: 1.25 }, runs: [], side_chats: [] }) : jsonResponse(detailPayload)
+    )
   )
   renderRoute("/coworkers/7")
 
   fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
 
-  expect(screen.getByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
   expect(screen.getByRole("heading", { name: "Delivery issues" })).toBeInTheDocument()
   expect(screen.getByText("$1.25")).toBeInTheDocument()
   expect(screen.getByText("Shown for visibility; not capped.")).toBeInTheDocument()
