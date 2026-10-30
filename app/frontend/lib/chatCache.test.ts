@@ -41,9 +41,7 @@ describe("mergeChatPayloadUpdate", () => {
     const merged = mergeChatPayloadUpdate(queryClient, queryKey, latestPage)
     const olderMessageIds = Array.from({ length: 70 }, (_, index) => index + 1)
 
-    expect([...olderMessageIds, ...merged.messages.map((message) => message.id)]).toEqual(
-      Array.from({ length: 140 }, (_, index) => index + 1)
-    )
+    expect([...olderMessageIds, ...merged.messages.map((message) => message.id)]).toEqual(Array.from({ length: 140 }, (_, index) => index + 1))
   })
 
   it("allows an empty full payload to clear the cached transcript", () => {
@@ -117,6 +115,40 @@ describe("updateRecentChatCache", () => {
     expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Launch review", "Newer"])
   })
 
+  it("keeps plugin-owned chats in their server-assigned group", () => {
+    const queryClient = new QueryClient()
+    const coworkerChat = {
+      ...chatRecord({ id: 2, title: "Maya", lastMessageAt: "2026-06-25T11:00:00Z" }),
+      repository: { id: 7, slug: "acme/coworker-workspace" }
+    } as ChatNavRecord
+    queryClient.setQueryData(["chats", "recent"], {
+      repositories: [],
+      groups: [
+        {
+          key: "coworkers",
+          label: "Coworkers",
+          repository_id: null,
+          group_by: "plugin",
+          group_value: "coworkers",
+          chats: [coworkerChat],
+          has_more: false
+        }
+      ]
+    })
+
+    updateRecentChatCache(queryClient, { ...coworkerChat, title: "Maya updated" }, { prepend: true })
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
+    expect(updated?.groups).toHaveLength(1)
+    expect(updated?.groups[0]).toEqual(
+      expect.objectContaining({
+        key: "coworkers",
+        group_by: "plugin",
+        chats: [expect.objectContaining({ id: 2, title: "Maya updated" })]
+      })
+    )
+  })
+
   it("updates non-default recent-chat sidebar caches", () => {
     const queryClient = new QueryClient()
     const sidebarKey = recentChatsQueryKey({ chat_types: ["agent", "group"] })
@@ -166,11 +198,15 @@ describe("updateRecentChatCache", () => {
       })
     }
 
-    updateRecentChatCache(queryClient, {
-      ...chatRecord({ id: 2, title: "Fresh direct chat", lastMessageAt: null }),
-      chat_type: "agent",
-      conversation_kind: "direct"
-    }, { prepend: true })
+    updateRecentChatCache(
+      queryClient,
+      {
+        ...chatRecord({ id: 2, title: "Fresh direct chat", lastMessageAt: null }),
+        chat_type: "agent",
+        conversation_kind: "direct"
+      },
+      { prepend: true }
+    )
 
     expect(queryClient.getQueryData<ChatsIndexPayload>(defaultKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
     expect(queryClient.getQueryData<ChatsIndexPayload>(agentKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
