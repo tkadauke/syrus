@@ -75,10 +75,19 @@
     "chats": "Chats",
     "profile": "Profile",
     "capabilities": "Capabilities",
+    "approvals": "Approvals",
     "schedule": "Schedule",
     "memory": "Memory",
     "workspace": "Workspace",
     "activity": "Activity"
+  },
+  "approvals": {
+    "loading": "Loading approvals…",
+    "empty": "No actions are waiting for approval.",
+    "run": "Originating run {{id}}",
+    "chat": "Originating chat {{id}}",
+    "approve": "Approve",
+    "reject": "Reject"
   },
   "activity": {
     "loading": "Loading activity…",
