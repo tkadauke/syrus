@@ -182,6 +182,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `search_chats` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
 | `ask_user_question` | coworker | essential | write | no | - | - | `chat.message_owner` | - |
 | `list_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
+| `propose_epic_with_jobs` | coworker | essential | write | no | - | - | `syrus.propose_job` | - |
 | `propose_job` | coworker | essential | write | no | - | - | `syrus.propose_job` | - |
 | `read_job` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
 | `search_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
