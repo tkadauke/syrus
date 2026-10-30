@@ -1101,6 +1101,51 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
     end
 
+    it "keeps a never-started prepare fleet-eligible until another worker passes host admission" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      current_worker = { hostname: "worker-a", storage_key: "storage-a" }
+      rejected = RunHostAdmission::Decision.new(
+        action: "defer",
+        reason: "host_resource_semaphore_busy",
+        delay: 30.seconds,
+        details: { "hostname" => "worker-a", "worker_storage_key" => "storage-a" }
+      )
+      admitted = RunHostAdmission::Decision.new(
+        action: "admit",
+        reason: "host_resources_available",
+        delay: nil,
+        details: { "hostname" => "worker-b", "worker_storage_key" => "storage-b" }
+      )
+      allow(SyrusVersion).to receive(:hostname) { current_worker.fetch(:hostname) }
+      allow(WorkerStorageIdentity).to receive(:queue_key) { current_worker.fetch(:storage_key) }
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(rejected, admitted)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+      expect(run.reload).to be_queued
+      expect(wf.reload).to have_attributes(worker_hostname: nil, worker_storage_key: nil)
+      expect(wf.artifact("run_host_admission")).to include("deferral_count" => 1)
+
+      current_worker.replace(hostname: "worker-b", storage_key: "storage-b")
+      identity_seen_by_prepare = nil
+      allow_any_instance_of(Steps::Prepare).to receive(:call) do
+        identity_seen_by_prepare = wf.reload.slice(:worker_hostname, :worker_storage_key)
+        raise Steps::Base::CannotProceed, "stop after affinity assertion"
+      end
+
+      RunJob.perform_now(run.id)
+
+      expect(identity_seen_by_prepare).to eq(
+        "worker_hostname" => "worker-b",
+        "worker_storage_key" => "storage-b"
+      )
+      expect(wf.reload).to have_attributes(worker_hostname: "worker-b", worker_storage_key: "storage-b")
+    end
+
     it "immediately reroutes host-rejected work while preserving urgent priority" do
       job.update!(priority: "urgent")
       wf = job.workflows.last
