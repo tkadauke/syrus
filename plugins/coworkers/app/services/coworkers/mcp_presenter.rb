@@ -52,8 +52,10 @@ module Coworkers
     end
 
     def safe_workspace_repository
-      match = coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
-      return coworker.workspace_repo unless match
+      match = coworker.workspace_repo.match(
+        %r{\A(?:https://(?:[^/@]+@)?github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i
+      )
+      return unless match
 
       "https://github.com/#{match[1]}/#{match[2]}.git"
     end
