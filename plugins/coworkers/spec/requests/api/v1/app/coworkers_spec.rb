@@ -5,6 +5,34 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "requires explicit owner confirmation for grant escalation and returns the updated tool surface" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-grant-api", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(owner)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: { capability: "workspace.files", approval_policy: "confirm" }
+    expect(response).to have_http_status(:conflict)
+    expect(response.parsed_body.dig("error", "code")).to eq("confirmation_required")
+    expect(coworker.grants).to be_empty
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: {
+      capability: "workspace.files", approval_policy: "confirm", confirmed: true,
+      constraints: { confirm_paths: [ "SOUL.md", "AGENTS.md" ] }
+    }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig("coworker", "grants")).to contain_exactly(
+      "capability" => "workspace.files", "approval_policy" => "confirm",
+      "constraints" => { "confirm_paths" => %w[SOUL.md AGENTS.md] }
+    )
+  end
+
+  it "does not let another user change coworker grants" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-grant-owner", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(Factories.user)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: { capability: "workspace.files", approval_policy: "off" }
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "creates coworker schedules and includes them on the shared Schedules page" do
     repository = Factories.repository(user: owner, owner: "acme", name: "maya-workspace")
     coworker = Coworkers::Coworker.create!(

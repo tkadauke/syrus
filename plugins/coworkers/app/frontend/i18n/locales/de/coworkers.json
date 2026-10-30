@@ -125,6 +125,26 @@
     "resume": "Fortsetzen",
     "run_now": "Jetzt ausführen"
   },
+  "capabilities": {
+    "sentences": {
+      "chat_message_owner": "Dieser Coworker kann seinem Besitzer Nachrichten senden.",
+      "chats_read_shared": "Dieser Coworker kann mit ihm geteilte Chats lesen.",
+      "coworker_message": "Dieser Coworker kann anderen Coworkern Nachrichten senden.",
+      "coworker_spawn_chat": "Dieser Coworker kann Neben-Chats erstellen.",
+      "schedule_manage_self": "Dieser Coworker kann seinen eigenen Zeitplan verwalten.",
+      "workspace_files": "Dieser Coworker kann Workspace-Dateien lesen und bearbeiten.",
+      "workspace_shell": "Dieser Coworker kann Befehle in seinem Workspace ausführen.",
+      "syrus_read_jobs": "Dieser Coworker kann Syrus-Jobs lesen.",
+      "syrus_propose_job": "Dieser Coworker kann Syrus-Jobs vorschlagen."
+    },
+    "policies": { "auto": "Automatisch", "confirm": "Bestätigen", "queue": "Warteschlange", "off": "Aus" },
+    "policy_for": "Genehmigungsregel für {{capability}}",
+    "confirm_escalation": "Dadurch erhält der Coworker mehr Zugriff. Grant-Änderung bestätigen?",
+    "confirm_paths": "Bearbeitungen dieser Pfade immer bestätigen (kommagetrennt)",
+    "save_constraints": "Einschränkungen speichern",
+    "integrations": { "gmail": "Gmail", "calendar": "Kalender" },
+    "coming_later": "Kommt später"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Neuer Nebenchat",
