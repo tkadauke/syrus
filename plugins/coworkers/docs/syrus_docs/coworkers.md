@@ -69,6 +69,15 @@ remain unavailable. Shared-chat reads are restricted to the
 coworker's own chats and chats explicitly shared with that coworker, even
 when its owner is an administrator.
 
+The `syrus.propose_job` grant exposes both `propose_job` and
+`propose_epic_with_jobs`. They create the same pending proposal cards as an
+ordinary Syrus Chat, retain the originating coworker as audit provenance, and
+still require an operator to confirm before any Job or Epic exists. Proposal
+placement and repository-write checks are unchanged: every child declares
+explicit planned execution capabilities, and a coworker cannot target a
+repository its owner cannot write. A missing grant keeps the tools absent;
+an invalid target is returned as an authorization or validation error.
+
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner
 approval. Revoking either workspace grant also changes the provider-native

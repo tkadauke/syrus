@@ -1744,6 +1744,12 @@ behind. Later capability escalation is a separate confirmation and changes no
 grants before approval. Coworker conversations cannot propose additional
 coworkers or capability escalations.
 
+A coworker granted permission to propose Syrus work can draft either a Job or
+an Epic with child Jobs in its chats. These drafts use the normal proposal
+cards and record which coworker authored them. Drafting never creates or files
+the work: an operator must still confirm the card, and the usual repository
+visibility and explicit execution-capability checks apply.
+
 ## Tailscale
 
 The bundled `tailscale` plugin exposes a Syrus installation on the operator's

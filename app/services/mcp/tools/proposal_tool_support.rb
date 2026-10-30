@@ -111,6 +111,10 @@ module Mcp::Tools
       )
     end
 
+    def proposal_proposer(server_context)
+      McpToolContext.from_server_context(server_context).agent_actor
+    end
+
     def attach_pending_action_to_current_message!(server_context, pending_action)
       if (msg = server_context[:current_message])
         ChatMessage.transaction do
