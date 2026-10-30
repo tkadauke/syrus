@@ -43,4 +43,35 @@ RSpec.describe Coworkers::RemoteWorkspace do
     expect { remote.delete!("main") }
       .to raise_error(ArgumentError, "coworker pushes may only target refs under coworkers/")
   end
+
+
+  it "does not delete a ref that moves after its expected SHA was recorded" do
+    remote = remote_workspace
+    expected_sha = seed(remote)
+
+    Dir.mktmpdir("coworker-ref-race-") do |checkout|
+      GitRunner.new.run("clone", "--branch", "coworkers/maya", "--single-branch", @bare_remote, checkout)
+      File.write(File.join(checkout, "SOUL.md"), "role: changed\n")
+      git = GitRunner.new
+      git.configure_author(Coworkers::GitIdentity.new(name: "Maya", handle: "maya"), chdir: checkout)
+      git.run("add", "SOUL.md", chdir: checkout)
+      git.run("commit", "-m", "Claim branch", chdir: checkout)
+      git.run("push", @bare_remote, "HEAD:refs/heads/coworkers/maya", chdir: checkout)
+    end
+    changed_sha = remote.branch_sha("coworkers/maya")
+
+    expect {
+      remote.delete_if_matches!("coworkers/maya", expected_sha: expected_sha)
+    }.to raise_error(Coworkers::RemoteWorkspace::RefChanged)
+    expect(remote.branch_sha("coworkers/maya")).to eq(changed_sha)
+  end
+
+  it "deletes a ref atomically when its SHA still matches" do
+    remote = remote_workspace
+    expected_sha = seed(remote)
+
+    remote.delete_if_matches!("coworkers/maya", expected_sha: expected_sha)
+
+    expect(remote.branch_sha("coworkers/maya")).to be_nil
+  end
 end

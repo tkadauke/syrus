@@ -13,13 +13,15 @@ class Coworkers::ProvisioningCleanup
   def call
     @attempt.with_lock do
       return @attempt if %w[completed cleaned].include?(@attempt.state)
-      validate!
-      @remote.delete!(@attempt.branch)
+      branch_present = validate!
+      @remote.delete_if_matches!(@attempt.branch, expected_sha: @attempt.expected_seeded_commit) if branch_present
       @attempt.update!(state: "cleaned", cleaned_at: Time.current, last_error: nil)
     end
     @attempt
   rescue UnsafeCleanup => error
     fail_terminal!(error)
+  rescue Coworkers::RemoteWorkspace::RefChanged => error
+    fail_terminal!(UnsafeCleanup.new(error.message))
   rescue StandardError => error
     fail_retryable!(error)
   end
@@ -38,8 +40,9 @@ class Coworkers::ProvisioningCleanup
       raise UnsafeCleanup, "the branch is owned by a completed coworker"
     end
     current = @remote.branch_sha(@attempt.branch)
-    return if current.nil? # An already-absent ref is a successful idempotent cleanup.
+    return false if current.nil? # An already-absent ref is a successful idempotent cleanup.
     raise UnsafeCleanup, "the remote ref no longer points to the seeded commit" unless current == @attempt.expected_seeded_commit
+    true
   end
 
   def fail_terminal!(error)

@@ -5,8 +5,9 @@ RSpec.describe Coworkers::ProvisioningCleanup do
     attr_accessor :sha, :failure
     attr_reader :deleted
     def branch_sha(_branch) = sha
-    def delete!(branch)
+    def delete_if_matches!(branch, expected_sha:)
       raise failure if failure
+      raise Coworkers::RemoteWorkspace::RefChanged, "changed" unless sha == expected_sha
       @deleted = branch
       self.sha = nil
     end
@@ -35,6 +36,18 @@ RSpec.describe Coworkers::ProvisioningCleanup do
   it "refuses cleanup when the SHA changed" do
     remote.sha = "b" * 40
     expect(described_class.call(attempt, remote_workspace: remote).state).to eq("manual_attention")
+    expect(remote.deleted).to be_nil
+  end
+
+
+  it "refuses cleanup when the ref changes after inspection but before deletion" do
+    allow(remote).to receive(:delete_if_matches!) do |branch, expected_sha:|
+      remote.sha = "b" * 40
+      raise Coworkers::RemoteWorkspace::RefChanged, "the remote ref changed before cleanup could delete it" unless remote.sha == expected_sha
+    end
+
+    expect(described_class.call(attempt, remote_workspace: remote).state).to eq("manual_attention")
+    expect(remote.sha).to eq("b" * 40)
     expect(remote.deleted).to be_nil
   end
 
