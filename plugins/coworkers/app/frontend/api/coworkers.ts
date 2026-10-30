@@ -105,7 +105,9 @@ export type CoworkerWorkspacePayload = {
 }
 
 export const fetchCoworkers = () =>
-  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[]; provisioning_attempts: ProvisioningAttempt[] }>("/api/v1/app/coworkers")
+  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[]; provisioning_attempts: ProvisioningAttempt[] }>(
+    "/api/v1/app/coworkers"
+  )
 export const retryProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/retry`)
 export const acknowledgeProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/acknowledge`)
 export function fetchCoworker(id: string) {

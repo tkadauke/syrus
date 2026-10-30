@@ -57,7 +57,10 @@ function CoworkerList() {
   const query = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
   const queryClient = useQueryClient()
   const retryCleanup = useMutation({ mutationFn: retryProvisioningCleanup, onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coworkers"] }) })
-  const acknowledgeCleanup = useMutation({ mutationFn: acknowledgeProvisioningCleanup, onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coworkers"] }) })
+  const acknowledgeCleanup = useMutation({
+    mutationFn: acknowledgeProvisioningCleanup,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coworkers"] })
+  })
   return (
     <Page.Root gutter="responsive" size="wide">
       <Page.Header className="flex items-center justify-between">
@@ -79,8 +82,16 @@ function CoworkerList() {
                   {attempt.last_error ? <div className="text-text-secondary">{attempt.last_error}</div> : null}
                 </div>
                 <div className="flex gap-2">
-                  {attempt.state === "cleanup_pending" ? <button className="rounded border border-border px-2 py-1" onClick={() => retryCleanup.mutate(attempt.id)}>{t("provisioning.retry")}</button> : null}
-                  {attempt.state === "manual_attention" && !attempt.acknowledged_at ? <button className="rounded border border-border px-2 py-1" onClick={() => acknowledgeCleanup.mutate(attempt.id)}>{t("provisioning.acknowledge")}</button> : null}
+                  {attempt.state === "cleanup_pending" ? (
+                    <button className="rounded border border-border px-2 py-1" onClick={() => retryCleanup.mutate(attempt.id)}>
+                      {t("provisioning.retry")}
+                    </button>
+                  ) : null}
+                  {attempt.state === "manual_attention" && !attempt.acknowledged_at ? (
+                    <button className="rounded border border-border px-2 py-1" onClick={() => acknowledgeCleanup.mutate(attempt.id)}>
+                      {t("provisioning.acknowledge")}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}

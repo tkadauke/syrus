@@ -6,7 +6,12 @@
   "built_in": "Inclusus · machinator",
   "card": { "weekly_spend": "${{amount}} hac hebdomade" },
   "coming_later": "Postea veniet",
-  "provisioning": { "title": "Purgatio institutionis", "retry": "Purgationem repete", "acknowledge": "Agnosce", "states": { "provisioning": "Instituitur", "cleanup_pending": "Purgatio pendet", "cleaned": "Purgatum", "manual_attention": "Cura manualis requiritur" } },
+  "provisioning": {
+    "title": "Purgatio institutionis",
+    "retry": "Purgationem repete",
+    "acknowledge": "Agnosce",
+    "states": { "provisioning": "Instituitur", "cleanup_pending": "Purgatio pendet", "cleaned": "Purgatum", "manual_attention": "Cura manualis requiritur" }
+  },
   "memory": {
     "search": "Scrutare fasciculos memoriae",
     "files": "Fasciculi memoriae",
