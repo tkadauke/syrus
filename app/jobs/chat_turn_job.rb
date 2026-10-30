@@ -177,9 +177,25 @@ class ChatTurnJob < ApplicationJob
 
     finalize_plugin_workspace!
     ChatGoalIterationAuditor.after_turn!(chat_session: @chat, user_message: @user_message)
+    finalize_plugin_turns!
     @chat.end_turn_for!(@user_message) if @user_message
     clear_stop_request_and_broadcast_controls!
     ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat)
+  end
+
+  def finalize_plugin_turns!
+    Syrus::PluginRegistry.providers_for(:chat_turn_finalizer).each do |provider|
+      PerformanceLogging.plugin_call(extension_point: :chat_turn_finalizer, provider: provider, operation: :after_chat_turn) do
+        provider.after_chat_turn(chat_session: @chat, user_message: @user_message)
+      end
+    rescue StandardError => e
+      @chat.messages.create!(
+        role: "system",
+        content: { "text" => "Workspace changes are still recoverable locally, but Syrus could not save them to the coworker's home branch: #{e.message}" },
+        skip_turn_trigger: true
+      )
+      Rails.logger.error("[ChatTurnJob] chat_turn_finalizer #{provider}: #{e.class}: #{e.message}")
+    end
   end
 
   def ensure_workspace!

@@ -28,6 +28,7 @@ module Coworkers
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
+             chat_turn_finalizer: "Coworkers::HomeBranchPersistence",
              chat_mcp_tool_set: "Coworkers::ChatToolSet"
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :post, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#create"

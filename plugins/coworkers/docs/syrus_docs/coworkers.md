@@ -117,6 +117,14 @@ asking for either name. The agent process receives neither the ordinary chat
 CLI invocation token nor a Git askpass token, so the owner's repository
 credentials and integration credentials are not exposed to its shell.
 
+Coworker chats are modeless: they do not show the Planning/Coding selector.
+Every turn receives create/replace, exact-edit,
+move, and delete tools rooted at that coworker's current checkout. Absolute
+paths, traversal, symbolic links, `.git`, attached product repositories, and
+other coworker workspaces are outside that boundary. The tools only mutate the
+working tree; branch commits, merges, pushes, and conflict recovery remain part
+of the orchestrated coworker branch lifecycle.
+
 When enabled, the plugin adds a Coworkers page and unread badge. Syrus is
 pinned first as the built-in engineer; custom coworkers show their configured
 color and avatar. The creation form collects the workspace remote, appearance,
