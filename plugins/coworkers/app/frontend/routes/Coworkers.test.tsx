@@ -305,6 +305,35 @@ it("confirms grant escalation and refreshes the live tool surface", async () => 
   await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7")).toHaveLength(2))
 })
 
+it("confirms before removing a protected workspace path", async () => {
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      grants: [{ capability: "workspace.files", approval_policy: "confirm", constraints: { confirm_paths: ["SOUL.md", "AGENTS.md"] } }]
+    }
+  }
+  const confirm = vi.fn(() => true)
+  vi.stubGlobal("confirm", confirm)
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "PATCH") return jsonResponse(payload)
+    return jsonResponse(payload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  fireEvent.change(screen.getByPlaceholderText("SOUL.md, AGENTS.md"), { target: { value: "SOUL.md" } })
+  fireEvent.click(screen.getByRole("button", { name: "Save constraints" }))
+
+  expect(confirm).toHaveBeenCalledOnce()
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/grants",
+      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"confirmed":true') })
+    )
+  )
+})
+
 it("browses, searches, and renders coworker memory without write controls", async () => {
   const requests: string[] = []
   vi.stubGlobal(

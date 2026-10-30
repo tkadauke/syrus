@@ -19,7 +19,10 @@ class Coworkers::GrantUpdate
     target = Coworkers::GrantPolicy.for(@approval_policy)
     grant = @coworker.grants.find_by(capability: @capability)
     current = grant&.approval_policy || "off"
-    raise ConfirmationRequired, "grant escalation requires confirmation" if target.escalation_from?(current) && !@confirmed
+    constraints_escalated = constraints_more_permissive?(grant)
+    if (target.escalation_from?(current) || constraints_escalated) && !@confirmed
+      raise ConfirmationRequired, "grant escalation requires confirmation"
+    end
 
     Coworkers::Grant.transaction do
       if @approval_policy == "off"
@@ -38,5 +41,14 @@ class Coworkers::GrantUpdate
 
     paths = Array(@constraints["confirm_paths"] || @constraints[:confirm_paths]).map(&:to_s).map(&:strip).reject(&:blank?).uniq
     paths.empty? ? {} : { "confirm_paths" => paths }
+  end
+
+  def constraints_more_permissive?(grant)
+    return false if @approval_policy == "off"
+    return false unless @capability == "workspace.files" && grant
+
+    current_paths = Array(grant.constraints["confirm_paths"]).map(&:to_s).to_set
+    target_paths = Array(normalized_constraints["confirm_paths"]).map(&:to_s).to_set
+    (current_paths - target_paths).any?
   end
 end
