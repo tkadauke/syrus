@@ -33,8 +33,17 @@ class Coworkers::RemoteWorkspace
         write(path, relative_path, content)
       end
       commit!(path, identity, "Create @#{identity.git_email.split('@').first}'s coworker home")
+      sha = @git.run("rev-parse", "HEAD", chdir: path).strip
+      yield sha if block_given?
       @git.run("push", authenticated_url, "HEAD:refs/heads/#{branch}", chdir: path)
+      sha
     end
+  end
+
+  def branch_sha(branch)
+    validate_coworker_namespace!(branch)
+    line = @git.run("ls-remote", "--heads", authenticated_url, "refs/heads/#{branch}").lines.first
+    line&.split&.first
   end
 
   def copy!(source:, destination:, guard:)

@@ -2,6 +2,14 @@ class Coworkers::Create
   BranchExists = Class.new(StandardError)
   InvalidRemote = Class.new(ArgumentError)
   KickoffEnqueueFailed = Class.new(ActiveJob::EnqueueError)
+  class CreationFailed < StandardError
+    attr_reader :outcome, :attempt_id
+    def initialize(outcome:, attempt:, cause:)
+      @outcome = outcome
+      @attempt_id = attempt.id
+      super("coworker creation failed; remote cleanup #{outcome == :fully_rolled_back ? 'completed' : 'is pending'}: #{GitRunner.redact(cause.message)}")
+    end
+  end
 
   DEFAULT_GRANTS = {
     "chat.message_owner" => "confirm",
@@ -35,7 +43,8 @@ class Coworkers::Create
   def self.call(...) = new(...).call
 
   def initialize(owner:, name:, handle:, workspace_repo:, about: nil, accent_hex: nil, avatar_key: nil,
-                 chat_provider: nil, chat_model: nil, chat_effort: nil, avatar: nil, grants: nil, remote_workspace: nil)
+                 chat_provider: nil, chat_model: nil, chat_effort: nil, avatar: nil, grants: nil, remote_workspace: nil,
+                 idempotency_key: nil)
     @owner = owner
     @name = name
     @handle = HandleRegistry.normalize(handle)
@@ -46,9 +55,14 @@ class Coworkers::Create
     @attributes = { accent_hex: accent_hex, avatar_key: avatar_key, chat_provider: chat_provider,
                     chat_model: chat_model, chat_effort: chat_effort }.compact
     @remote_workspace = remote_workspace
+    @idempotency_key = idempotency_key.presence || SecureRandom.uuid
   end
 
   def call
+    prior = Coworkers::ProvisioningAttempt.find_by(owner_user: @owner, idempotency_key: @idempotency_key)
+    return prior.coworker if prior&.state == "completed" && prior.coworker
+    raise CreationFailed.new(outcome: :cleanup_pending, attempt: prior, cause: StandardError.new("an earlier delivery is still being reconciled")) if prior
+
     checked = Coworkers::CreatePreflight.new(
       owner: @owner, name: @name, handle: @handle, workspace_repo: @workspace_repo,
       grants: @grants, remote_workspace: @remote_workspace, **@attributes
@@ -56,19 +70,32 @@ class Coworkers::Create
     @handle = checked.handle
     @remote = checked.remote
     @selected_grants = checked.grants
+    @attempt = Coworkers::ProvisioningAttempt.create_or_find_by!(owner_user: @owner, idempotency_key: @idempotency_key) do |attempt|
+      attempt.remote_owner = @remote.repository.owner
+      attempt.remote_name = @remote.repository.name
+      attempt.handle = @handle
+      attempt.branch = branch
+    end
+    unless @attempt.previously_new_record?
+      return @attempt.coworker if @attempt.state == "completed" && @attempt.coworker
+      raise CreationFailed.new(outcome: :cleanup_pending, attempt: @attempt, cause: StandardError.new("an earlier delivery is still being reconciled"))
+    end
 
-    pushed = false
     coworker = begin
-      @remote.seed!(branch: branch, files: seed_files, identity: Coworkers::GitIdentity.new(name: @name, handle: @handle))
-      pushed = true
+      sha = @remote.seed!(branch: branch, files: seed_files, identity: Coworkers::GitIdentity.new(name: @name, handle: @handle)) do |expected_sha|
+        # Persist the proof before the network push so a process death immediately
+        # after the remote accepts it remains safely reconcilable.
+        @attempt.update!(expected_seeded_commit: expected_sha)
+      end
+      @attempt.update!(expected_seeded_commit: sha, seeded_at: Time.current)
       ApplicationRecord.transaction do
         coworker = create_records!(register_repository!)
         create_kickoff!(coworker) unless @about
+        @attempt.update!(state: "completed", coworker: coworker, completed_at: Time.current, last_error: nil)
         coworker
       end
     rescue StandardError => creation_error
-      rollback_seeded_branch(creation_error) if pushed
-      raise
+      compensate!(creation_error)
     end
 
     coworker
@@ -76,13 +103,21 @@ class Coworkers::Create
 
   private
 
-  def rollback_seeded_branch(creation_error)
-    @remote.delete!(branch)
-  rescue StandardError => cleanup_error
-    Rails.logger.error(
-      "[Coworkers::Create] coworker creation failed and seeded branch rollback also failed: " \
-      "creation=#{redacted_error(creation_error)} cleanup=#{redacted_error(cleanup_error)}"
-    )
+  def compensate!(creation_error)
+    unless @attempt.expected_seeded_commit.present?
+      @attempt.update!(state: "cleaned", cleaned_at: Time.current, last_error: redacted_error(creation_error))
+      raise CreationFailed.new(outcome: :fully_rolled_back, attempt: @attempt, cause: creation_error)
+    end
+
+    @attempt.update!(state: "cleanup_pending", cleanup_started_at: Time.current, last_error: redacted_error(creation_error))
+    begin
+      Coworkers::ProvisioningCleanup.call(@attempt, remote_workspace: @remote)
+    rescue StandardError => cleanup_error
+      Rails.logger.error("[Coworkers::Create] durable cleanup pending attempt_id=#{@attempt.id} error=#{redacted_error(cleanup_error)}")
+      Coworkers::ProvisioningCleanupJob.perform_later(@attempt.id)
+    end
+    outcome = @attempt.reload.state == "cleaned" ? :fully_rolled_back : :cleanup_pending
+    raise CreationFailed.new(outcome: outcome, attempt: @attempt, cause: creation_error)
   end
 
   def redacted_error(error)

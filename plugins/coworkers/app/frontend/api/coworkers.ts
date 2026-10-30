@@ -71,6 +71,15 @@ export type CoworkerModelOptions = {
   provider_label: string
   models: { id: string; label: string }[]
 }
+export type ProvisioningAttempt = {
+  id: number
+  handle: string
+  branch: string
+  state: string
+  retry_count: number
+  last_error: string | null
+  acknowledged_at: string | null
+}
 export type CoworkerMemoryFile = {
   path: string
   category: "daily" | "people" | "repos" | "banks"
@@ -96,7 +105,9 @@ export type CoworkerWorkspacePayload = {
 }
 
 export const fetchCoworkers = () =>
-  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[] }>("/api/v1/app/coworkers")
+  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[]; provisioning_attempts: ProvisioningAttempt[] }>("/api/v1/app/coworkers")
+export const retryProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/retry`)
+export const acknowledgeProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/acknowledge`)
 export function fetchCoworker(id: string) {
   return getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
 }

@@ -17,7 +17,7 @@ module PendingActions
 
     def execute
       progress!("Creating coworker...")
-      Coworkers::Create.call(owner: user, **payload.symbolize_keys)
+      Coworkers::Create.call(owner: user, idempotency_key: "pending-action-#{action.id}", **payload.symbolize_keys)
     end
 
     def validate_payload(errors)

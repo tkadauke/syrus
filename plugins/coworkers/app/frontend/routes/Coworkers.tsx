@@ -29,6 +29,8 @@ import {
   fetchCoworkerWorkspace,
   fetchCoworkers,
   removeCoworkerFromChat,
+  retryProvisioningCleanup,
+  acknowledgeProvisioningCleanup,
   decideCoworkerApproval,
   testCoworkerRemote,
   updateCoworkerGrant,
@@ -53,6 +55,9 @@ function CoworkerList() {
   const { t } = useT("coworkers")
   const prefix = usePrefix()
   const query = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
+  const queryClient = useQueryClient()
+  const retryCleanup = useMutation({ mutationFn: retryProvisioningCleanup, onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coworkers"] }) })
+  const acknowledgeCleanup = useMutation({ mutationFn: acknowledgeProvisioningCleanup, onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coworkers"] }) })
   return (
     <Page.Root gutter="responsive" size="wide">
       <Page.Header className="flex items-center justify-between">
@@ -63,6 +68,25 @@ function CoworkerList() {
       </Page.Header>
       {query.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {query.isError ? <PanelMessage>{t("error")}</PanelMessage> : null}
+      {query.data?.provisioning_attempts?.length ? (
+        <section className="mb-5 rounded border border-warning bg-surface p-4">
+          <h2 className="font-semibold text-text-primary">{t("provisioning.title")}</h2>
+          <div className="mt-3 space-y-3">
+            {query.data.provisioning_attempts.map((attempt) => (
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm" key={attempt.id}>
+                <div>
+                  <span className="font-medium">@{attempt.handle}</span> · {t(`provisioning.states.${attempt.state}`)}
+                  {attempt.last_error ? <div className="text-text-secondary">{attempt.last_error}</div> : null}
+                </div>
+                <div className="flex gap-2">
+                  {attempt.state === "cleanup_pending" ? <button className="rounded border border-border px-2 py-1" onClick={() => retryCleanup.mutate(attempt.id)}>{t("provisioning.retry")}</button> : null}
+                  {attempt.state === "manual_attention" && !attempt.acknowledged_at ? <button className="rounded border border-border px-2 py-1" onClick={() => acknowledgeCleanup.mutate(attempt.id)}>{t("provisioning.acknowledge")}</button> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {query.data ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <CoworkerCard coworker={query.data.syrus} prefix={prefix} />
@@ -105,6 +129,7 @@ function NewCoworker() {
   const [remote, setRemote] = useState("")
   const [modelSelection, setModelSelection] = useState("")
   const [colorPopupOpen, setColorPopupOpen] = useState(false)
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   const optionsQuery = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
   const mutation = useMutation({ mutationFn: createCoworker, onSuccess: (data) => navigate(withRoutePrefix(data.redirect_to, prefix)) })
   const remoteTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
@@ -115,6 +140,7 @@ function NewCoworker() {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     form.set("accent_hex", color.accentHex)
+    form.set("idempotency_key", idempotencyKey)
     if (modelSelection) {
       const [chatProvider, chatModel] = modelSelection.split(":", 2)
       form.set("chat_provider", chatProvider)

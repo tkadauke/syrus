@@ -19,6 +19,7 @@ module Coworkers
     disableable true
     depends_on [ "scheduled_tasks" ]
     provides mentionable: "Coworkers::MentionableProvider",
+             callbacks: "Coworkers::Callbacks",
              mcp_run_context_contributor: "Coworkers::RunContextContributor",
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
@@ -30,9 +31,12 @@ module Coworkers
              chat_payload_contributor: "Coworkers::PayloadContributor",
              chat_turn_finalizer: "Coworkers::HomeBranchPersistence",
              chat_mcp_tool_set: "Coworkers::ChatToolSet"
+    tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :post, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#create"
     route :post, "/api/v1/app/coworkers/test_remote", to: "api/v1/app/coworkers#test_remote"
+    route :post, "/api/v1/app/coworkers/provisioning_attempts/:attempt_id/retry", to: "api/v1/app/coworkers#retry_provisioning_cleanup"
+    route :post, "/api/v1/app/coworkers/provisioning_attempts/:attempt_id/acknowledge", to: "api/v1/app/coworkers#acknowledge_provisioning_cleanup"
     route :get, "/api/v1/app/coworkers/sidebar_badge", to: "api/v1/app/coworkers#sidebar_badge"
     route :get, "/api/v1/app/coworkers/:id/approvals", to: "api/v1/app/coworkers#approvals"
     route :post, "/api/v1/app/coworkers/:id/approvals/:approval_id/approve", to: "api/v1/app/coworkers#approve"

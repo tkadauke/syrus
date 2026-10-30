@@ -20,7 +20,10 @@ RSpec.describe Coworkers::Create do
       @seeded_branch = branch
       @seeded_files = files
       @seeded_identity = identity
+      ("a" * 40).tap { |sha| yield sha if block_given? }
     end
+
+    def branch_sha(_branch) = "a" * 40
 
     def delete!(branch)
       raise delete_error if delete_error
@@ -68,7 +71,7 @@ RSpec.describe Coworkers::Create do
   it "rolls repository registration back when seeding fails" do
     remote.fail_seed = true
 
-    expect { create_service.call }.to raise_error("seed failed")
+    expect { create_service.call }.to raise_error(Coworkers::Create::CreationFailed, /cleanup completed: seed failed/)
     expect(Coworkers::Coworker.count).to eq(0)
     expect(Repository.where(owner: "acme", name: "coworker-homes")).to be_empty
   end
@@ -99,6 +102,18 @@ RSpec.describe Coworkers::Create do
     expect(coworker.grants.pluck(:capability, :approval_policy).to_h).to eq(described_class::DEFAULT_GRANTS)
     expect(coworker.grants.find_by!(capability: "chat.message_owner")).to have_attributes(approval_policy: "confirm")
     expect(coworker.coworker_chats.find_by!(role: "main").chat_session.repository).to eq(repository)
+  end
+
+  it "returns the completed coworker for duplicate delivery without duplicating records or branches" do
+    key = "confirmation-42"
+    first = create_service(idempotency_key: key, about: "Engineer").call
+    expect(remote).not_to receive(:seed!)
+
+    second = create_service(idempotency_key: key, about: "Engineer").call
+
+    expect(second).to eq(first)
+    expect(Coworkers::Coworker.where(handle: "maya").count).to eq(1)
+    expect(Coworkers::ProvisioningAttempt.where(idempotency_key: key).count).to eq(1)
   end
 
   it "copies the complete coworker chat configuration to the main chat" do
@@ -166,7 +181,7 @@ RSpec.describe Coworkers::Create do
   it "deletes the pushed branch when database creation fails" do
     allow(Coworkers::Coworker).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(Coworkers::Coworker.new))
 
-    expect { create_service.call }.to raise_error(ActiveRecord::RecordInvalid)
+    expect { create_service.call }.to raise_error(Coworkers::Create::CreationFailed, /cleanup completed/)
     expect(remote.deleted_branches).to eq([ "coworkers/maya" ])
     expect(Repository.where(owner: "acme", name: "coworker-homes")).to be_empty
   end
@@ -188,7 +203,7 @@ RSpec.describe Coworkers::Create do
       )
 
       expect { Dir.chdir(caller_directory) { service.call } }
-        .to raise_error { |raised| expect(raised).to equal(creation_error) }
+        .to raise_error(Coworkers::Create::CreationFailed, /cleanup completed/)
       expect(real_remote.branch_exists?("coworkers/maya")).to be(false)
     end
   end
@@ -204,10 +219,10 @@ RSpec.describe Coworkers::Create do
     remote.delete_error = cleanup_error
     allow(Rails.logger).to receive(:error)
 
-    expect { create_service.call }.to raise_error { |raised| expect(raised).to equal(creation_error) }
+    expect { create_service.call }.to raise_error(Coworkers::Create::CreationFailed, /cleanup is pending/)
 
     expect(Rails.logger).to have_received(:error) do |message|
-      expect(message).to include("creation=ActiveRecord::RecordInvalid", "cleanup=GitRunner::GitError")
+      expect(message).to include("durable cleanup pending", "GitRunner::GitError")
       expect(message).not_to include("secret-token")
     end
   end
@@ -215,7 +230,7 @@ RSpec.describe Coworkers::Create do
   it "rolls back every record and deletes the branch when kickoff persistence fails" do
     allow_any_instance_of(ChatMessage).to receive(:record_chat_turn_state).and_raise(ActiveRecord::RecordInvalid.new(ChatMessage.new))
 
-    expect { create_service.call }.to raise_error(ActiveRecord::RecordInvalid)
+    expect { create_service.call }.to raise_error(Coworkers::Create::CreationFailed, /cleanup completed/)
 
     expect_creation_to_be_absent
   end
@@ -223,7 +238,7 @@ RSpec.describe Coworkers::Create do
   it "rolls back every record and deletes the branch when kickoff enqueue fails" do
     allow(ChatTurnJob).to receive(:perform_later).and_return(false)
 
-    expect { create_service.call }.to raise_error(Coworkers::Create::KickoffEnqueueFailed)
+    expect { create_service.call }.to raise_error(Coworkers::Create::CreationFailed, /cleanup completed/)
 
     expect_creation_to_be_absent
   end
