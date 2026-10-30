@@ -33,7 +33,11 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       state: "implemented"
     ).tap do |job|
       job.approve!(via: "github_review")
-      job.update!(approved_at: approved_at)
+      job.update!(
+        approved_at: approved_at,
+        github_mergeable_state: "clean",
+        mergeability_checked_at: Time.current
+      )
     end
   end
 
@@ -284,7 +288,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       state: "implemented"
     )
     fix_job.approve!(via: "operator")
-    fix_job.update!(approved_at: 1.minute.ago)
+    fix_job.update!(approved_at: 1.minute.ago, github_mergeable_state: "clean", mergeability_checked_at: Time.current)
     repository.update!(ci_health: "broken", landing_paused: true)
 
     workflow = described_class.call
@@ -633,7 +637,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       state: "implemented"
     )
     fix_job.approve!(via: "operator")
-    fix_job.update!(approved_at: 1.minute.ago)
+    fix_job.update!(approved_at: 1.minute.ago, github_mergeable_state: "clean", mergeability_checked_at: Time.current)
     repository.update!(ci_health: "broken", landing_paused: true)
 
     workflow = described_class.call
@@ -690,7 +694,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(entry.blocked_reason).to eq({ key: "waiting_github_mergeability" })
   end
 
-  it "retries approved Jobs after the GitHub mergeability cooldown expires" do
+  it "refreshes approved Jobs after the GitHub mergeability cooldown expires" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     job.update!(
       github_mergeable_state: "unknown",
@@ -699,10 +703,10 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       local_mergeable_state: "clean"
     )
 
-    workflow = described_class.call
-
-    expect(workflow.job).to eq(job)
-    expect(job.reload).to be_landing
+    expect {
+      expect(described_class.call).to be_nil
+    }.to have_enqueued_job(PollMergeStateJob).with(job.id)
+    expect(job.reload).to be_approved
   end
 
   it "blocks approved Jobs whose rebase cap is exhausted while GitHub still reports unmergeable" do
@@ -1654,6 +1658,55 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(job.reload).to be_landing
     end
 
+    %w[behind dirty].each do |mergeable_state|
+      it "defers a known #{mergeable_state} PR to merge-state polling before auto-merge" do
+        job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+        job.update!(github_mergeable_state: mergeable_state, mergeability_checked_at: Time.current)
+        auto_merge_count = job.workflows.where(trigger_kind: "auto_merge").count
+
+        expect {
+          expect(described_class.try_land!(job)).to be_nil
+        }.to have_enqueued_job(PollMergeStateJob).with(job.id)
+
+        expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(auto_merge_count)
+        expect(job.reload).to be_approved
+      end
+    end
+
+    it "refreshes stale mergeability instead of starting auto-merge" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(
+        github_mergeable_state: "clean",
+        mergeability_checked_at: described_class::MERGEABILITY_RECHECK_DELAY.ago - 1.second
+      )
+      auto_merge_count = job.workflows.where(trigger_kind: "auto_merge").count
+
+      expect {
+        expect(described_class.try_land!(job)).to be_nil
+      }.to have_enqueued_job(PollMergeStateJob).with(job.id)
+      expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(auto_merge_count)
+    end
+
+    it "refreshes unknown mergeability instead of starting auto-merge" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(github_mergeable_state: "unknown", mergeability_checked_at: Time.current)
+      auto_merge_count = job.workflows.where(trigger_kind: "auto_merge").count
+
+      expect {
+        expect(described_class.try_land!(job)).to be_nil
+      }.to have_enqueued_job(PollMergeStateJob).with(job.id)
+      expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(auto_merge_count)
+    end
+
+    it "still admits a fresh unstable PR to the existing landing preflight" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(github_mergeable_state: "unstable", mergeability_checked_at: Time.current)
+
+      workflow = described_class.try_land!(job)
+
+      expect(workflow).to have_attributes(job: job, trigger_kind: "auto_merge")
+    end
+
     it "retries a transient landing lock conflict for a specific Job" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       processor = instance_double(described_class)
@@ -2028,7 +2081,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
           state: "implemented"
         ).tap do |job|
           job.approve!(via: "github_review")
-          job.update!(approved_at: approved_at)
+          job.update!(approved_at: approved_at, github_mergeable_state: "clean", mergeability_checked_at: Time.current)
         end
       end
 
@@ -2129,7 +2182,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
           state: "implemented"
         ).tap do |job|
           job.approve!(via: "operator")
-          job.update!(approved_at: 1.minute.ago)
+          job.update!(approved_at: 1.minute.ago, github_mergeable_state: "clean", mergeability_checked_at: Time.current)
         end
       end
 
