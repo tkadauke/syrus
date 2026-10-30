@@ -1326,6 +1326,9 @@ function hasLongLine(value: string) {
   return value.split(/\r?\n/).some((line) => line.length >= TOOL_RESULT_PREVIEW_LINE_CHARS)
 }
 
+const STRUCTURED_TOOL_SUMMARY_CLASSES =
+  "flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100"
+
 function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallback: string }) {
   const name = tool?.display_label || tool?.name || "tool"
   const outcome = tool?.result_kind === "error" ? "Failed" : tool?.result_summary ? "Done" : null
@@ -1339,7 +1342,7 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
       open={open}
     >
       <summary
-        className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100"
+        className={STRUCTURED_TOOL_SUMMARY_CLASSES}
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
