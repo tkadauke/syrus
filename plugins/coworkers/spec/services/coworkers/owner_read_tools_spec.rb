@@ -72,6 +72,18 @@ RSpec.describe "owner-scoped coworker read tools" do
     expect(result.to_json).not_to match(/oauth-secret|token|credential|password|authenticated_remote/i)
   end
 
+  it "omits an authenticated non-GitHub workspace remote" do
+    coworker = create_coworker(name: "Legacy", handle: "legacy-remote")
+    coworker.update_column(:workspace_repo, "https://api-user:super-secret@example.com/org/repo.git")
+
+    result = payload(
+      Coworkers::McpTools::ReadCoworkerTool.call(server_context: context, coworker_id: coworker.id)
+    ).fetch("coworker")
+
+    expect(result.dig("workspace", "repository")).to be_nil
+    expect(result.to_json).not_to include("api-user", "super-secret", "example.com")
+  end
+
   it "requires exactly one reference" do
     expect(Coworkers::McpTools::ReadCoworkerTool.call(server_context: context)).to be_error
     expect(Coworkers::McpTools::ReadCoworkerTool.call(server_context: context, coworker_id: 1, handle: "maya")).to be_error
