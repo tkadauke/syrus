@@ -1,8 +1,8 @@
 class CreateCoworkerProvisioningAttempts < ActiveRecord::Migration[8.1]
   def change
-    create_table :coworker_provisioning_attempts do |t|
-      t.references :owner_user, null: false, foreign_key: { to_table: :users }
-      t.references :coworker, foreign_key: { to_table: :coworkers }
+    create_table :coworker_provisioning_attempts, if_not_exists: true do |t|
+      t.references :owner_user, null: false
+      t.references :coworker
       t.string :idempotency_key, null: false
       t.string :remote_owner, null: false
       t.string :remote_name, null: false
@@ -18,13 +18,11 @@ class CreateCoworkerProvisioningAttempts < ActiveRecord::Migration[8.1]
       t.datetime :cleaned_at
       t.datetime :manual_attention_at
       t.datetime :acknowledged_at
-      t.references :acknowledged_by, foreign_key: { to_table: :users }
+      t.references :acknowledged_by
       t.timestamps
     end
 
-    add_index :coworker_provisioning_attempts, [ :owner_user_id, :idempotency_key ], unique: true,
-      name: "idx_coworker_provisioning_attempts_idempotency"
-    add_index :coworker_provisioning_attempts, [ :state, :updated_at ],
-      name: "idx_coworker_provisioning_attempts_reconciliation"
+    add_index :coworker_provisioning_attempts, [ :owner_user_id, :idempotency_key ], unique: true, name: "idx_coworker_provisioning_attempts_idempotency" unless index_exists?(:coworker_provisioning_attempts, [ :owner_user_id, :idempotency_key ], name: "idx_coworker_provisioning_attempts_idempotency")
+    add_index :coworker_provisioning_attempts, [ :state, :updated_at ], name: "idx_coworker_provisioning_attempts_reconciliation" unless index_exists?(:coworker_provisioning_attempts, [ :state, :updated_at ], name: "idx_coworker_provisioning_attempts_reconciliation")
   end
 end
