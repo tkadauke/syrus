@@ -195,8 +195,81 @@ const cssVariablesTheme = createCssVariablesTheme({
 
 let highlighterPromise: Promise<HighlighterCore> | null = null
 const languagePromises = new Map<HighlighterLanguageId, Promise<void>>()
-const tokenizationPromises = new Map<string, Promise<ThemedToken[][]>>()
-const MAX_TOKENIZATION_CACHE_ENTRIES = 200
+
+type TokenizationCacheEntry = {
+  promise: Promise<ThemedToken[][]>
+  tokenSpans: number
+}
+
+// This cache is module-scoped and shared by every surface that highlights
+// code -- the diff review and chat's CodeBlock -- so it outlives any one view
+// and is never torn down. Two properties therefore have to hold, and an
+// earlier entry-counted version of this cache held neither:
+//
+//   1. It must be budgeted by what it actually retains. An entry count says
+//      nothing about memory, because one entry can be ten lines or ten
+//      thousand; 200 entries of review diffs is tens of MB of ThemedToken
+//      objects held for the life of the SPA session. iOS Safari enforces a
+//      hard per-tab ceiling and jetsams the web process when it is crossed,
+//      which presents as a reload loop on whichever page happened to be open
+//      -- not on the page that filled the cache.
+//
+//   2. The key must not be the source text. `${lang}\0${code}` allocates a
+//      fresh string per entry, so the keys alone retained a second full copy
+//      of every file ever highlighted.
+//
+// Budgeting by resolved token spans fixes (1) and a content hash fixes (2).
+const MAX_CACHED_TOKEN_SPANS = 20_000
+// Backstop for in-flight entries, whose span count is not known yet and so
+// cannot be budgeted. Deliberately far below what the span budget admits.
+const MAX_CACHED_ENTRIES = 64
+// A single file above this size is still tokenized and rendered -- it just is
+// not retained afterwards, so one large file cannot evict everything else.
+const MAX_CACHEABLE_CHARACTERS = 128 * 1024
+
+const tokenizationCache = new Map<string, TokenizationCacheEntry>()
+let cachedTokenSpans = 0
+
+// cyrb53: a fast non-cryptographic 53-bit hash. The key also carries the
+// language and the source length, so a collision would need the same length,
+// the same language and the same hash -- and the cost of one would be
+// mis-colored tokens, never incorrect content.
+function hashCode(value: string): string {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = 0; i < value.length; i++) {
+    const ch = value.charCodeAt(i)
+    h1 = Math.imul(h1 ^ ch, 2654435761)
+    h2 = Math.imul(h2 ^ ch, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)
+}
+
+function tokenizationCacheKey(code: string, lang: HighlighterLanguageId): string {
+  return `${lang}\u0000${code.length}\u0000${hashCode(code)}`
+}
+
+function forgetTokenization(key: string) {
+  const entry = tokenizationCache.get(key)
+  if (!entry) return
+
+  cachedTokenSpans -= entry.tokenSpans
+  tokenizationCache.delete(key)
+}
+
+// Evicts least-recently-used entries until the cache is inside both budgets.
+// Map preserves insertion order and a cache hit re-inserts, so iteration
+// order is LRU order.
+function evictTokenizationsOverBudget(keep: string) {
+  for (const key of tokenizationCache.keys()) {
+    if (cachedTokenSpans <= MAX_CACHED_TOKEN_SPANS && tokenizationCache.size <= MAX_CACHED_ENTRIES) return
+    if (key === keep) continue
+
+    forgetTokenization(key)
+  }
+}
 
 function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
@@ -231,9 +304,17 @@ export async function loadLanguage(lang: HighlighterLanguageId): Promise<void> {
 // correctly via Shiki's grammar continuation state, then returns one token
 // array per line, suitable for rendering as <span>s.
 export async function tokenizeLines(code: string, lang: HighlighterLanguageId, options: { performanceMarker?: string } = {}): Promise<ThemedToken[][]> {
-  const key = `${lang}\u0000${code}`
-  const existing = tokenizationPromises.get(key)
-  if (existing) return existing
+  const key = tokenizationCacheKey(code, lang)
+  const existing = tokenizationCache.get(key)
+  if (existing) {
+    // Re-insert so this entry becomes the newest, which is what makes
+    // iteration order LRU rather than insertion order. Without it a hot
+    // entry is evicted on its original schedule no matter how often the
+    // view re-renders against it.
+    tokenizationCache.delete(key)
+    tokenizationCache.set(key, existing)
+    return existing.promise
+  }
 
   const marker = options.performanceMarker ? startMarker(options.performanceMarker, { maxPerSession: 300 }) : null
   const promise = (async () => {
@@ -241,42 +322,51 @@ export async function tokenizeLines(code: string, lang: HighlighterLanguageId, o
     const highlighter = await getHighlighter()
     return highlighter.codeToTokensBase(code, { lang, theme: HIGHLIGHTER_THEME_NAME })
   })()
-  tokenizationPromises.set(key, promise)
-  trimTokenizationCache()
+
+  const retainable = code.length <= MAX_CACHEABLE_CHARACTERS
+  const entry: TokenizationCacheEntry = { promise, tokenSpans: 0 }
+  if (retainable) tokenizationCache.set(key, entry)
+
   promise.then(
-    (tokens) =>
-      marker &&
-      endMarker(marker, {
-        metadata: {
-          character_count: Math.min(code.length, 1_000_000),
-          language: lang,
-          line_count: Math.min(tokens.length, 100_000),
-          token_span_count: Math.min(
-            tokens.reduce((sum, line) => sum + line.length, 0),
-            1_000_000
-          )
-        }
-      }),
+    (tokens) => {
+      const tokenSpans = tokens.reduce((sum, line) => sum + line.length, 0)
+      // Only account spans if this entry is still the cached one: it may
+      // have been evicted, or reset, while tokenization was in flight.
+      if (tokenizationCache.get(key) === entry) {
+        entry.tokenSpans = tokenSpans
+        cachedTokenSpans += tokenSpans
+        evictTokenizationsOverBudget(key)
+      }
+      if (marker) {
+        endMarker(marker, {
+          metadata: {
+            character_count: Math.min(code.length, 1_000_000),
+            language: lang,
+            line_count: Math.min(tokens.length, 100_000),
+            token_span_count: Math.min(tokenSpans, 1_000_000)
+          }
+        })
+      }
+    },
     () => {
-      tokenizationPromises.delete(key)
+      forgetTokenization(key)
       if (marker) endMarker(marker, { metadata: { character_count: Math.min(code.length, 1_000_000), error: true, language: lang } })
     }
   )
   return promise
 }
 
-function trimTokenizationCache() {
-  while (tokenizationPromises.size > MAX_TOKENIZATION_CACHE_ENTRIES) {
-    const oldest = tokenizationPromises.keys().next().value
-    if (oldest === undefined) return
-    tokenizationPromises.delete(oldest)
-  }
-}
-
 export function resetHighlighterCachesForTest() {
   highlighterPromise = null
-  tokenizationPromises.clear()
+  tokenizationCache.clear()
+  cachedTokenSpans = 0
   languagePromises.clear()
+}
+
+// Lets the regression test assert on what the cache retains rather than on
+// how many times it was called -- the leak was invisible to call counts.
+export function highlighterCacheStatsForTest() {
+  return { entries: tokenizationCache.size, tokenSpans: cachedTokenSpans, maxTokenSpans: MAX_CACHED_TOKEN_SPANS, maxEntries: MAX_CACHED_ENTRIES }
 }
 
 const EXTENSION_LANGUAGE_MAP: Record<string, HighlighterLanguageId> = {

@@ -300,7 +300,18 @@ operator's complete note in the persisted user message.
   scrolling a file out of the mounted window and back doesn't lose expansion
   state or redo tokenization; Shiki tokens are cached by hunk id specifically
   (not raw line index) so the cache survives hidden-context expansion
-  reshuffling line positions. Selecting a file (Files popup, a comment's
+  reshuffling line positions. Beneath that per-view cache sits a second,
+  module-scoped one in `app/frontend/lib/highlighter.ts`, shared with chat's
+  `CodeBlock`. It outlives every view, so it is budgeted by the token spans it
+  actually retains rather than by a number of entries -- an entry count says
+  nothing about memory when one entry can be ten lines or ten thousand, and an
+  entry-counted version of this cache retained tens of MB of `ThemedToken`
+  objects for the life of a session. It is keyed by a content hash rather than
+  the source text (the key would otherwise hold a second full copy of every
+  file highlighted), refreshes on a hit so eviction is LRU, and declines to
+  retain any single file over its per-entry character cap. `token_span_count`
+  on the `diff_review.syntax_highlight` performance marker is how to size what
+  it is holding in production -- see `observability.md`. Selecting a file (Files popup, a comment's
   "View in diff", or any other `selectedPath` prop change) scrolls the
   virtualized list to it via `scrollToIndex`, bumping the file-count cap
   first if the target is beyond it — this replaced an earlier

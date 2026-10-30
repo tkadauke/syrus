@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import * as performanceMarkers from "./performanceMarkers"
-import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, resetHighlighterCachesForTest, tokenizeLines } from "./highlighter"
+import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, highlighterCacheStatsForTest, resetHighlighterCachesForTest, tokenizeLines } from "./highlighter"
 
 function textOf(line: { content: string }[]) {
   return line.map((token) => token.content).join("")
@@ -15,6 +15,85 @@ describe("tokenizeLines", () => {
 
     expect(secondResult).toBe(firstResult)
     expect(await tokenizeLines("class Job; end", "ruby")).toBe(firstResult)
+  })
+
+  // Regression: the tokenization cache was budgeted by entry count (200) and
+  // keyed by the full source text, at module scope with no release path. An
+  // entry count says nothing about retained memory -- one entry can be ten
+  // lines or ten thousand -- so a session that browsed enough review diffs or
+  // chat code blocks held tens of MB of ThemedToken objects, plus a second
+  // copy of every file's text in the keys, for as long as the tab lived. iOS
+  // Safari jetsams the web process at its per-tab ceiling, which surfaced as
+  // a reload loop on whichever page was open rather than on the pages that
+  // filled the cache -- and so looked like a problem with specific small
+  // diffs. These assert on what the cache *retains*, because the leak was
+  // invisible to call counts and to every result-correctness test above.
+  describe("cache budget", () => {
+    // Distinct, non-trivial sources so each one tokenizes to many spans.
+    function sourceFor(index: number) {
+      return Array.from({ length: 40 }, (_, line) => `def method_${index}_${line}(argument_${line}) = argument_${line}.to_s # note ${index}`).join("\n")
+    }
+
+    it("stays inside its token-span budget no matter how many distinct files are highlighted", async () => {
+      resetHighlighterCachesForTest()
+
+      for (let i = 0; i < 120; i++) {
+        await tokenizeLines(sourceFor(i), "ruby")
+      }
+
+      const stats = highlighterCacheStatsForTest()
+      expect(stats.tokenSpans).toBeLessThanOrEqual(stats.maxTokenSpans)
+      expect(stats.entries).toBeLessThanOrEqual(stats.maxEntries)
+      // The point of the budget is that it actually evicted: 120 files worth
+      // of spans must not all still be resident.
+      expect(stats.entries).toBeLessThan(120)
+    })
+
+    it("still returns the identical cached promise for a repeated file", async () => {
+      resetHighlighterCachesForTest()
+      const code = sourceFor(0)
+
+      const first = await tokenizeLines(code, "ruby")
+      const second = await tokenizeLines(code, "ruby")
+
+      expect(second).toBe(first)
+      expect(highlighterCacheStatsForTest().entries).toBe(1)
+    })
+
+    it("keeps a recently-used entry and evicts colder ones instead", async () => {
+      resetHighlighterCachesForTest()
+      const hot = sourceFor(9_000)
+      const hotTokens = await tokenizeLines(hot, "ruby")
+
+      for (let i = 0; i < 80; i++) {
+        await tokenizeLines(sourceFor(i), "ruby")
+        // Touching the hot entry re-inserts it as newest, so LRU order must
+        // spare it even though it was cached first.
+        await tokenizeLines(hot, "ruby")
+      }
+
+      expect(await tokenizeLines(hot, "ruby")).toBe(hotTokens)
+    })
+
+    it("does not retain a file larger than the per-entry cap", async () => {
+      resetHighlighterCachesForTest()
+      const huge = Array.from({ length: 4_000 }, (_, line) => `# padding line ${line} ${"x".repeat(60)}`).join("\n")
+      expect(huge.length).toBeGreaterThan(128 * 1024)
+
+      const tokens = await tokenizeLines(huge, "ruby")
+
+      expect(tokens.length).toBe(4_000)
+      // Tokenized and returned, simply not held afterwards.
+      expect(highlighterCacheStatsForTest().entries).toBe(0)
+    })
+
+    it("releases a failed tokenization instead of caching a rejected promise", async () => {
+      resetHighlighterCachesForTest()
+
+      await expect(tokenizeLines("whatever", "not-a-language" as never)).rejects.toThrow()
+
+      expect(highlighterCacheStatsForTest().entries).toBe(0)
+    })
   })
 
   it("attributes shared highlighter initialization once across concurrent callers", async () => {
