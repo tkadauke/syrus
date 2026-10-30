@@ -4,7 +4,7 @@ class Coworkers::Create
   KickoffEnqueueFailed = Class.new(ActiveJob::EnqueueError)
 
   DEFAULT_GRANTS = {
-    "chat.message_owner" => "auto",
+    "chat.message_owner" => "confirm",
     "workspace.files" => "auto",
     "workspace.shell" => "auto",
     "chats.read_shared" => "auto",

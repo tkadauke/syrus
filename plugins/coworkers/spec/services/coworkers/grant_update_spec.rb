@@ -23,6 +23,44 @@ RSpec.describe Coworkers::GrantUpdate do
     expect(coworker.grants.last.constraints).to eq("confirm_paths" => %w[SOUL.md AGENTS.md])
   end
 
+  it "requires confirmation before removing a protected file path" do
+    grant = coworker.grants.create!(
+      capability: "workspace.files", approval_policy: "confirm",
+      constraints: { "confirm_paths" => %w[SOUL.md AGENTS.md] }
+    )
+
+    expect {
+      described_class.call(owner: owner, coworker: coworker, capability: "workspace.files", approval_policy: "confirm",
+        constraints: { confirm_paths: [ "SOUL.md" ] })
+    }.to raise_error(Coworkers::GrantUpdate::ConfirmationRequired)
+    expect(grant.reload.constraints).to eq("confirm_paths" => %w[SOUL.md AGENTS.md])
+
+    described_class.call(owner: owner, coworker: coworker, capability: "workspace.files", approval_policy: "confirm",
+      constraints: { confirm_paths: [ "SOUL.md" ] }, confirmed: true)
+    expect(grant.reload.constraints).to eq("confirm_paths" => [ "SOUL.md" ])
+  end
+
+  it "adds a protected file path without escalation confirmation" do
+    grant = coworker.grants.create!(
+      capability: "workspace.files", approval_policy: "confirm",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] }
+    )
+
+    described_class.call(owner: owner, coworker: coworker, capability: "workspace.files", approval_policy: "confirm",
+      constraints: { confirm_paths: %w[SOUL.md AGENTS.md] })
+    expect(grant.reload.constraints).to eq("confirm_paths" => %w[SOUL.md AGENTS.md])
+  end
+
+  it "revokes a constrained file grant without escalation confirmation" do
+    coworker.grants.create!(
+      capability: "workspace.files", approval_policy: "confirm",
+      constraints: { "confirm_paths" => %w[SOUL.md AGENTS.md] }
+    )
+
+    described_class.call(owner: owner, coworker: coworker, capability: "workspace.files", approval_policy: "off")
+    expect(coworker.grants.find_by(capability: "workspace.files")).to be_nil
+  end
+
   it "does not let a coworker change its own grants" do
     expect { described_class.call(owner: coworker, coworker: coworker, capability: "workspace.files", approval_policy: "auto", confirmed: true) }
       .to raise_error(Pundit::NotAuthorizedError)

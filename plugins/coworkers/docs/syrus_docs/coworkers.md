@@ -92,6 +92,9 @@ policy. Moving to a more permissive policy, or turning on a new capability,
 requires a separate confirmation; reductions apply directly. File grants can
 record paths such as `SOUL.md` and `AGENTS.md` that always require confirmation.
 Integration tiles are visible but disabled until those integrations ship.
+Capabilities that affect anything outside the workspace default to `confirm`
+or `queue`; messaging the owner defaults to `confirm`. Removing a protected
+file path is also an escalation and requires confirmation.
 
 Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's
