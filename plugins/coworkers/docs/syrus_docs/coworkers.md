@@ -123,12 +123,18 @@ files, and the attached repository's memory file are loaded into every fresh
 or resumed turn. Each file is capped at 64 KiB and the combined content at
 128 KiB, with visible truncation markers. Older daily files and memory banks
 remain available on demand through the workspace file tools under the same
-per-file cap. The initial identity files and kickoff give the coworker its
-configured name and the owner's display name, so its first conversation can
-focus on role, personality, working preferences, and boundaries instead of
-asking for either name. The agent process receives neither the ordinary chat
-CLI invocation token nor a Git askpass token, so the owner's repository
-credentials and integration credentials are not exposed to its shell.
+per-file cap. Every new coworker starts its main chat itself. Without About
+text, its kickoff asks the owner about its role, personality, working
+preferences, and boundaries. With About text, the identity is already written
+to `SOUL.md`; its distinct kickoff tells the coworker to greet the owner in its
+own voice, briefly explain its understanding of the role, and ask only a few
+concrete questions about anything unclear or missing. If nothing needs
+clarification, it asks what to work on first. The initial identity files and
+kickoff include the coworker's configured name and the owner's display name,
+so it does not ask for either name. The agent process receives neither the
+ordinary chat CLI invocation token nor a Git askpass token, so the owner's
+repository credentials and integration credentials are not exposed to its
+shell.
 
 Coworker chats are modeless: they do not show the Planning/Coding selector.
 Every turn receives create/replace, exact-edit,
