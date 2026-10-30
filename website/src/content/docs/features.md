@@ -1539,7 +1539,9 @@ Each user owns their own profile, credentials, defaults, and preferences:
   it rejects option-like targets, whitespace, and control characters before
   invoking OpenSSH. SSH execution runs only read-only diagnostic commands by
   default; other commands and unsafe shell syntax require explicit workflow
-  authorization that chat callers cannot grant themselves.
+  authorization that chat callers cannot grant themselves. Safe diagnostics
+  include the exact forms `hostname`, `date -Is`, and `ha core info`; mutating
+  variants and all compound shell commands remain denied.
   The audit trail includes denied SSH attempts, bounded command evidence and
   completion status, credential create/update policy changes, and explicit
   un-revocation during rotation. Runtime wrapper completion events must match
@@ -1728,8 +1730,11 @@ in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. A chat owner can share a conversation read-only with one of their
 own coworkers; a coworker with the shared-chat grant can list, search, and read
-its own and shared chats, but cannot post to arbitrary chats. It does not yet
-expose workspace execution screens. Chat owners can add an owned coworker to
+its own and shared chats, but cannot post to arbitrary chats. Coworker chats
+have no Planning/Coding mode selector: every turn can update identity and
+memory files through tools confined to that coworker's workspace. Attached
+product repositories remain read-only, and Syrus owns workspace commits and
+pushes. The plugin does not yet expose workspace execution screens. Chat owners can add an owned coworker to
 an agent roster from its page or from mention autocomplete, see the roster in
 the chat heading, and remove it later. Disabling the plugin removes its page,
 chat grouping, and other runtime contributions while
@@ -1743,6 +1748,13 @@ owner confirms; rejecting or withdrawing the proposal leaves no creation
 behind. Later capability escalation is a separate confirmation and changes no
 grants before approval. Coworker conversations cannot propose additional
 coworkers or capability escalations.
+
+A coworker granted permission to propose Syrus work can draft either a Job or
+an Epic with child Jobs in its chats. These drafts use the normal proposal
+cards and record which coworker authored them. Drafting never creates or files
+the work; the card shows the coworker's name and handle so the operator can
+verify its origin. An operator must still confirm the card, and the usual repository
+visibility and explicit execution-capability checks apply.
 
 ## Tailscale
 

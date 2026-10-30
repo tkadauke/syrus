@@ -1,0 +1,2 @@
+module Coworkers::WorkspaceFileTools
+end

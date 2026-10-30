@@ -497,8 +497,15 @@
     "start_blocked": "Der Workflow-Start ist blockiert: {{reason}}.",
     "host_admission_deferred": "Die Host-Zulassung hat diesen Lauf wegen {{reason}} zurückgestellt ({{deferralCount}} Zurückstellungen, seit {{deferred}}). {{binding}}",
     "binding_compute": "Recheneinheiten {{active}} + {{candidate}} überschreiten Kapazität {{capacity}}",
-    "binding_reservation": "Speicherreservierung {{active}} + {{candidate}} überschreitet Budget {{budget}}",
-    "binding_measured": "Gemessener Speicher {{current}} + Reservierung {{candidate}} überschreitet Budget {{budget}}",
+    "binding_reservation": "Speicherreservierung {{active}} + {{candidate}} ({{evidence}}) überschreitet Budget {{budget}}",
+    "binding_measured": "Gemessener Speicher {{current}} + Reservierung {{candidate}} ({{evidence}}) überschreitet Budget {{budget}}",
+    "memory_context": "Speichergrundlage: gemessen {{measured}}, aktive Reservierungen {{active}}, Kandidat {{candidate}}, effektives Budget {{budget}}, Quelle {{evidence}}",
+    "memory_evidence": {
+      "command_attributed": "befehlsspezifische Messwerte",
+      "deterministic_compute_fallback": "begrenzter Ersatzwert für deterministische Berechnung",
+      "capacity_unit_fallback": "Ersatzwert pro Kapazitätseinheit",
+      "unknown": "unbekannte Datengrundlage"
+    },
     "unknown": "Der Lauf ist eingereiht, aber Syrus konnte nicht bestimmen, worauf er wartet.",
     "check": "Prüfen:",
     "pending_link": "Admin → Warteschlange → Ausstehend",

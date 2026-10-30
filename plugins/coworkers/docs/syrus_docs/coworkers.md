@@ -69,6 +69,16 @@ remain unavailable. Shared-chat reads are restricted to the
 coworker's own chats and chats explicitly shared with that coworker, even
 when its owner is an administrator.
 
+The `syrus.propose_job` grant exposes both `propose_job` and
+`propose_epic_with_jobs`. They create the same pending proposal cards as an
+ordinary Syrus Chat, retain the originating coworker as audit provenance, and
+show that coworker's name and handle on the proposal card. They still require
+an operator to confirm before any Job or Epic exists. Proposal
+placement and repository-write checks are unchanged: every child declares
+explicit planned execution capabilities, and a coworker cannot target a
+repository its owner cannot write. A missing grant keeps the tools absent;
+an invalid target is returned as an authorization or validation error.
+
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner
 approval. Revoking either workspace grant also changes the provider-native
@@ -106,6 +116,14 @@ focus on role, personality, working preferences, and boundaries instead of
 asking for either name. The agent process receives neither the ordinary chat
 CLI invocation token nor a Git askpass token, so the owner's repository
 credentials and integration credentials are not exposed to its shell.
+
+Coworker chats are modeless: they do not show the Planning/Coding selector.
+Every turn receives create/replace, exact-edit,
+move, and delete tools rooted at that coworker's current checkout. Absolute
+paths, traversal, symbolic links, `.git`, attached product repositories, and
+other coworker workspaces are outside that boundary. The tools only mutate the
+working tree; branch commits, merges, pushes, and conflict recovery remain part
+of the orchestrated coworker branch lifecycle.
 
 When enabled, the plugin adds a Coworkers page and unread badge. Syrus is
 pinned first as the built-in engineer; custom coworkers show their configured

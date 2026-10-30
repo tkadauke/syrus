@@ -1605,6 +1605,21 @@ plugins template SQL into a core statement. A contributor that would overwrite
 a key core already set raises `ChatPayloadContributions::KeyConflict` instead
 of silently winning.
 
+## `chat_turn_finalizer`
+
+Runs plugin-owned finalization after an agent turn and before the chat releases
+its serialization lock:
+
+```ruby
+.after_chat_turn(chat_session:, user_message:) # => void
+```
+
+The host catches each provider failure, records an actionable system message,
+and continues releasing the turn lock. The Coworkers plugin uses this hook to
+commit and push Phase 1 home-branch workspace changes. A later branch-lifecycle
+provider can replace that implementation without moving persistence logic into
+the generic chat job.
+
 ## `workspace_tab`
 
 Lets a plugin add a tab to the chat sidebar's workspace panel, generalizing

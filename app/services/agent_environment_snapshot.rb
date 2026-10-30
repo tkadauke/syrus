@@ -308,7 +308,13 @@ class AgentEnvironmentSnapshot
   end
 
   def chat_workspace_rule_lines
-    if Feature.coding_mode_enabled? && chat_session&.coding?
+    if chat_session && McpToolContext.from_chat_session(chat_session).role == AgentRole::COWORKER_CHAT
+      [
+        "- Tool availability: coworker file tools create, edit, move, and delete files only in the persistent coworker workspace.",
+        "- Repository checkout rule: attached product repositories are read-only; the coworker workspace is the only writable checkout.",
+        "- Persistence rule: never commit, merge, or push manually. Syrus persists coworker workspace changes after the turn."
+      ]
+    elsif Feature.coding_mode_enabled? && chat_session&.coding?
       [
         "- Tool availability: commit and push through Bash inside the coding checkout; handoff tools require operator confirmation before Syrus dispatches automation.",
         "- Repository checkout rule: the scoped Coding Mode checkout is writable. Other attached repository checkouts remain read-only.",

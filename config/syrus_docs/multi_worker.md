@@ -636,14 +636,26 @@ for non-grader candidates. A host with no active guarded Run ignores these soft
 memory estimates; only critical sampled memory, disk, or CPU pressure can defer
 the lone candidate.
 
-Per-run fallback memory reservation is the effective memory limit divided by
-host compute capacity, then multiplied by the Run's capacity units.
-`SYRUS_WORKER_CPU_LIMIT` controls that compute-capacity calculation when the
-container CPU quota is not the desired value. On Docker Desktop, a small CPU
-allocation can therefore make one Run reserve most of the container's memory;
-increase the Docker Desktop memory setting for real headroom, and set
-`SYRUS_WORKER_CPU_LIMIT` to the worker's intended CPU budget rather than using
-it to claim capacity the Docker VM does not have.
+Agentic and grader fallback memory reservation is the effective memory limit
+divided by host compute capacity, then multiplied by the Run's capacity units.
+Deterministic compute such as `prepare` instead uses command-attributed p90
+memory when a matching resource profile exists and a conservative fallback
+bounded at 1 GiB when it does not. Active reservations use the same evidence
+per Run, so several low-demand deterministic commands no longer each claim a
+full CPU-derived memory unit. Measured container working-set usage remains an
+independent binding term, and command evidence above the fallback is not
+clamped; either can still defer work that presents a credible OOM risk.
+
+The artifact records `candidate_memory_evidence_source` and tallies
+`active_memory_evidence_sources`; the queued-Run banner identifies the
+candidate source alongside measured usage, active and candidate reservations,
+and the effective budget. `SYRUS_WORKER_CPU_LIMIT` continues to control compute
+parallelism and the agentic/grader fallback, but no longer inflates a
+low-demand deterministic command's memory reservation. Operators should inspect
+the evidence source before changing CPU limits: increase the container memory
+limit for genuine measured or command-attributed pressure, while a repeated
+bounded fallback indicates that more command profile samples would sharpen the
+estimate.
 The Job detail payload uses that `run_id` to attach the admission block only to
 the Step that owns the queued Run. Worker-slot admission artifacts use their
 `step_id` the same way. This keeps one waiting distributed grader from making

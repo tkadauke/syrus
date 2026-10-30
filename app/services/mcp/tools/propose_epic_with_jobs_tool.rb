@@ -228,9 +228,10 @@ module Mcp::Tools
 
         proposal = nil
         ApplicationRecord.transaction do
-          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic, target_epic, goal_attrs)
+          proposer = proposal_proposer(server_context)
+          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic, target_epic, goal_attrs, proposer)
           replace_epic_dependency_edges(proposal, chat_session, normalized_epic[:depends_on])
-          child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs, goal_attrs)
+          child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs, goal_attrs, proposer)
           replace_dependency_edges(chat_session, child_by_slug, normalized_jobs)
           chat_session.messages.create!(
             role: "assistant",
@@ -541,7 +542,7 @@ module Mcp::Tools
         Epic.accessible_to(user).includes(:repository).find_by(id: epic_id)
       end
 
-      def upsert_epic_proposal(chat_session, repository, epic, target_epic, goal_attrs)
+      def upsert_epic_proposal(chat_session, repository, epic, target_epic, goal_attrs, proposer)
         proposal = chat_session.proposals.find_or_initialize_by(slug: epic[:slug])
         proposal.assign_attributes(
           repository: repository,
@@ -555,13 +556,14 @@ module Mcp::Tools
           epic_depends_on_tokens: JSON.generate(epic[:depends_on]),
           state: "proposed",
           edited_at: proposal.persisted? ? Time.current : nil,
+          proposer: proposer,
           **goal_attrs
         )
         proposal.save!
         proposal
       end
 
-      def upsert_child_proposals(chat_session, parent, repositories_by_slug, jobs, goal_attrs)
+      def upsert_child_proposals(chat_session, parent, repositories_by_slug, jobs, goal_attrs, proposer)
         child_by_slug = {}
         jobs.each_with_index do |job, index|
           child = chat_session.proposals.find_or_initialize_by(slug: job[:slug])
@@ -586,6 +588,7 @@ module Mcp::Tools
             media_ids: job[:media_ids],
             state: "proposed",
             edited_at: child.persisted? ? Time.current : nil,
+            proposer: proposer,
             **goal_attrs
           )
           child.save!
@@ -631,6 +634,7 @@ module Mcp::Tools
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           depends_on_job_ids: proposal.depends_on_job_ids || [],
           goal_provenance: App::GoalProvenancePayload.for(proposal),
+          proposer: App::ChatMessagePayload.proposer_json(proposal),
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,
@@ -649,6 +653,7 @@ module Mcp::Tools
               media_previews: Array(child.media_ids).filter_map { |ref| media_previews[ref] },
               priority: child.priority,
               goal_provenance: App::GoalProvenancePayload.for(child),
+              proposer: App::ChatMessagePayload.proposer_json(child),
               depends_on: child.dependencies.order(:slug).pluck(:slug),
               materialized: Mcp::Tools.materialized_payload(child)
             }

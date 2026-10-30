@@ -45,6 +45,7 @@ type Outcome = {
   epics: string[]
   jobs: string[]
   goalId: string | null
+  proposer: string | null
   children: Child[]
 }
 
@@ -78,6 +79,14 @@ function execution(value: unknown): Execution | null {
 
 function goalId(value: unknown) {
   return object(value) ? displayValue(value.chat_goal_id) : null
+}
+
+function proposer(value: unknown) {
+  if (!object(value)) return null
+  const label = displayValue(value.label)
+  if (!label) return null
+  const handle = displayValue(value.handle)
+  return i18n.t("chat:proposal_authored_by", { name: label, handle: handle ? `@${handle}` : "" })
 }
 
 function materialized(value: unknown): MaterializedJob | null {
@@ -169,6 +178,7 @@ function parse(context: ToolCardContext): Outcome | null {
     epics: dependencies.flatMap((token) => token.match(/^epic:(\d+)$/)?.[1] || []),
     jobs: strings(value.depends_on_job_ids),
     goalId: goalId(value.goal_provenance),
+    proposer: proposer(value.proposer),
     children: parseChildren(value.child_jobs)
   }
 }
@@ -337,6 +347,12 @@ function renderExpanded(context: ToolCardContext) {
           <div>
             <SectionLabel>{i18n.t("chat:tool_card_goal_provenance")}</SectionLabel>
             <span>{i18n.t("chat:tool_card_goal_number", { id: outcome.goalId })}</span>
+          </div>
+        ) : null}
+        {outcome.proposer ? (
+          <div>
+            <SectionLabel>{i18n.t("chat:tool_card_proposer")}</SectionLabel>
+            <span>{outcome.proposer}</span>
           </div>
         ) : null}
         <div className="min-w-0 sm:col-span-2">

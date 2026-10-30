@@ -75,6 +75,7 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         priority: "medium",
         planned_execution: default_planned_execution,
         goal_provenance: nil,
+        proposer: nil,
         target_epic: nil,
         materialized: nil
       },
@@ -100,6 +101,7 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         priority: "medium",
         planned_execution: default_planned_execution,
         goal_provenance: nil,
+        proposer: nil,
         target_epic: nil,
         materialized: {
           kind: "rejected",

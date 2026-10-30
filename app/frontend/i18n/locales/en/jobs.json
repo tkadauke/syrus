@@ -503,8 +503,15 @@
     "start_blocked": "Workflow start is blocked: {{reason}}.",
     "host_admission_deferred": "Host admission deferred this run for {{reason}} ({{deferralCount}} deferrals, since {{deferred}}). {{binding}}",
     "binding_compute": "compute units {{active}} + {{candidate}} exceed capacity {{capacity}}",
-    "binding_reservation": "memory reservation {{active}} + {{candidate}} exceeds budget {{budget}}",
-    "binding_measured": "measured memory {{current}} + reservation {{candidate}} exceeds budget {{budget}}",
+    "binding_reservation": "memory reservation {{active}} + {{candidate}} ({{evidence}}) exceeds budget {{budget}}",
+    "binding_measured": "measured memory {{current}} + reservation {{candidate}} ({{evidence}}) exceeds budget {{budget}}",
+    "memory_context": "memory evidence: measured {{measured}}, active reservations {{active}}, candidate {{candidate}}, effective budget {{budget}}, source {{evidence}}",
+    "memory_evidence": {
+      "command_attributed": "command-attributed evidence",
+      "deterministic_compute_fallback": "bounded deterministic-compute fallback",
+      "capacity_unit_fallback": "capacity-unit fallback",
+      "unknown": "unknown evidence"
+    },
     "unknown": "The Run is queued, but Syrus could not determine what it is waiting on.",
     "check": "Check",
     "pending_link": "Admin → Queue → Pending",

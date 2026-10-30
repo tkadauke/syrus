@@ -370,12 +370,12 @@ RSpec.describe RunHostAdmission do
     create_profile(step_kind: step_kind, grader_name: grader_name, duration: 10, cpu: 1.0)
   end
 
-  def process_attributed_grader_profile(grader_name:, io_bytes:, memory_bytes:)
+  def process_attributed_profile(step_kind: "grader", grader_name: "", io_bytes: 1.megabyte, memory_bytes:)
     WorkflowStepResourceProfile.create!(
       repository: repository,
       agent_provider: workflow.agent_provider,
       trigger_kind: workflow.trigger_kind,
-      step_kind: "grader",
+      step_kind: step_kind,
       grader_name: grader_name,
       job_kind: job.kind.to_s,
       sample_count: 30,
@@ -395,6 +395,23 @@ RSpec.describe RunHostAdmission do
       failure_rate: 0.0,
       last_observed_at: Time.current,
       profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
+    )
+  end
+
+  def process_attributed_grader_profile(grader_name:, io_bytes:, memory_bytes:)
+    process_attributed_profile(grader_name: grader_name, io_bytes: io_bytes, memory_bytes: memory_bytes)
+  end
+
+  def running_deterministic_run(kind: "prepare", issue_number:)
+    other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: issue_number)
+    other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
+    other_workflow.update!(state: "running", worker_hostname: "worker-a")
+    other_step = other_workflow.steps.find_by!(kind: kind)
+    other_step.update!(state: "running")
+    other_step.runs.create!(
+      job: other, trigger_kind: other_workflow.trigger_kind,
+      agent_provider: other_workflow.agent_provider,
+      state: "running", started_at: 5.minutes.ago
     )
   end
 
@@ -475,6 +492,64 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+    end
+
+    it "admits prepare on a large healthy host when only CPU-derived fallback reservations would reject it" do
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
+      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(33.65.gigabytes.to_i)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.5.gigabytes)
+      worker_sample(memory_used_percent: 10.4)
+      running_deterministic_run(issue_number: 801)
+      running_deterministic_run(issue_number: 802)
+
+      decision = described_class.call(run: run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("host_capacity_available")
+    end
+
+    it "defers prepare when measured working-set usage leaves no safe headroom" do
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
+      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(33.65.gigabytes.to_i)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(26.5.gigabytes)
+      worker_sample(memory_used_percent: 78.8)
+
+      decision = described_class.call(run: run)
+
+      expect(decision).to be_defer
+      expect(decision.details.fetch("resource_guard_binding_terms")).to include("measured_memory")
+      expect(decision.details).to include(
+        "candidate_reserved_memory_bytes" => 1.gigabyte,
+        "candidate_memory_evidence_source" => "deterministic_compute_fallback"
+      )
+    end
+
+    it "defers prepare when command-attributed evidence predicts high memory demand" do
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
+      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(33.65.gigabytes.to_i)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(20.gigabytes)
+      worker_sample(memory_used_percent: 59.4)
+      process_attributed_profile(step_kind: "prepare", memory_bytes: 8.gigabytes)
+
+      decision = described_class.call(run: run)
+
+      expect(decision).to be_defer
+      expect(decision.details).to include(
+        "candidate_reserved_memory_bytes" => 8.gigabytes,
+        "candidate_memory_evidence_source" => "command_attributed"
+      )
+      expect(decision.details.fetch("resource_guard_binding_terms")).to include("measured_memory")
+    end
+
+    it "bounds missing-profile deterministic fallback under a cgroup memory limit" do
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(2)
+      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(4.gigabytes)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(2.1.gigabytes)
+      worker_sample(memory_used_percent: 52.5)
+
+      decision = described_class.call(run: run)
+
+      expect(decision).to be_admit
     end
 
     it "defers compute when measured container memory leaves no room for the candidate" do

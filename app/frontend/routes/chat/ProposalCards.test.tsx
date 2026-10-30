@@ -712,6 +712,20 @@ describe("ProposalCard media", () => {
   })
 })
 
+describe("ProposalCard provenance", () => {
+  it("renders the coworker who authored the proposal", () => {
+    renderProposalCard(proposal({ proposer: { type: "coworker", id: 7, label: "Maya", handle: "maya" } }))
+
+    expect(screen.getByTestId("proposal-proposer")).toHaveTextContent("Proposed by Maya @maya")
+  })
+
+  it("does not add an authorship label to ordinary chat proposals", () => {
+    renderProposalCard(proposal())
+
+    expect(screen.queryByTestId("proposal-proposer")).not.toBeInTheDocument()
+  })
+})
+
 describe("ProposalCard routing", () => {
   afterEach(() => vi.restoreAllMocks())
 

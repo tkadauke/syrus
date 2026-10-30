@@ -21,6 +21,7 @@ class ChatProposal < ApplicationRecord
   belongs_to :epic, optional: true
   belongs_to :chat_goal, optional: true
   belongs_to :target_epic, class_name: "Epic", optional: true
+  belongs_to :proposer, polymorphic: true, optional: true
   belongs_to :parent_proposal,
              class_name: "ChatProposal",
              optional: true,

@@ -597,6 +597,14 @@ export function ProposalCard({
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
               <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
+              {proposal.proposer ? (
+                <span className="text-xs text-text-muted" data-testid="proposal-proposer">
+                  {t("proposal_authored_by", {
+                    name: proposal.proposer.label,
+                    handle: proposal.proposer.handle ? `@${proposal.proposer.handle}` : ""
+                  })}
+                </span>
+              ) : null}
               <ProposalDependencyStrip
                 className="min-w-0 flex-auto"
                 dependencies={proposal.dependencies}
@@ -1196,7 +1204,9 @@ export function PendingActionGroupCard({
                 <li className="flex flex-wrap items-start justify-between gap-2" key={member.id}>
                   <span className="min-w-0 text-gray-700 dark:text-gray-300">
                     <span>{linkifySlugs(member.label)}</span>
-                    {member.detail ? <span className="mt-0.5 block break-words text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{member.detail}</span> : null}
+                    {member.detail ? (
+                      <span className="mt-0.5 block break-words text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{member.detail}</span>
+                    ) : null}
                   </span>
                   {member.outcome === "skipped" ? (
                     <span className="text-amber-700 dark:text-amber-300">{t("batch_outcome_skipped")}</span>

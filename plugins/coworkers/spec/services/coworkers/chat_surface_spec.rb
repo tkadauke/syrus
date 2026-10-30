@@ -25,6 +25,15 @@ RSpec.describe "Coworker chat surface" do
       .map { |tool| McpToolRegistry.tool_name_for(tool) }
   end
 
+  def coworker_tool(name)
+    Mcp::Sidecar.chat_tools(chat.reload, tier: :essential)
+      .find { |tool| McpToolRegistry.tool_name_for(tool) == name }
+  end
+
+  def response_payload(response)
+    JSON.parse(response.content.first.fetch(:text))
+  end
+
   it "never gives an admin-owned coworker admin, repair, coding, local, or runtime tools" do
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
 
@@ -43,6 +52,110 @@ RSpec.describe "Coworker chat surface" do
       coworker.grants.create!(capability: entry.capability.to_s, approval_policy: "auto")
       expect(names(tier: entry.tier)).to include(entry.tool_name)
     end
+  end
+
+  it "exposes both proposal tools with the proposal grant and keeps them absent without it" do
+    expect(names).not_to include("propose_job", "propose_epic_with_jobs")
+
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
+
+    expect(names).to include("propose_job", "propose_epic_with_jobs")
+    expect(names).not_to include("list_proposals", "confirm_proposal", "delete_proposal")
+  end
+
+  it "creates ordinary pending Job proposal cards with coworker provenance" do
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
+
+    response = coworker_tool("propose_job").call(
+      repo: repository.slug,
+      title: "Improve release notes",
+      description: "Make the release summary clearer.",
+      planned_execution: { capabilities: { os: [ "linux" ] } },
+      server_context: { chat_session: chat }
+    )
+
+    expect(response).not_to be_error
+    proposal = ChatProposal.find(response_payload(response).fetch("id"))
+    expect(proposal).to have_attributes(chat_session: chat, proposer: coworker, state: "proposed")
+    expect(response_payload(response).fetch("proposer")).to eq(
+      "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya"
+    )
+    expect(App::ChatMessagePayload.proposal(proposal, chat_session: chat, repository: repository).fetch(:proposer)).to eq(
+      type: "coworker", id: coworker.id, label: "Maya", handle: "maya"
+    )
+    expect(proposal.messages).to contain_exactly(have_attributes(role: "assistant"))
+    expect(Job.where(issue_title: "Improve release notes")).to be_empty
+  end
+
+  it "creates an ordinary pending Epic card and child cards with coworker provenance" do
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
+
+    response = coworker_tool("propose_epic_with_jobs").call(
+      epic: {
+        slug: "release-readiness",
+        title: "Release readiness",
+        description: "Prepare the release.",
+        target_repo: repository.slug
+      },
+      jobs: [ {
+        slug: "prepare-release",
+        title: "Prepare release",
+        description: "Build the release artifacts.",
+        planned_execution: { capabilities: { os: [ "linux" ] } }
+      } ],
+      server_context: { chat_session: chat }
+    )
+
+    expect(response).not_to be_error
+    proposal = ChatProposal.find(response_payload(response).fetch("id"))
+    expect(proposal).to have_attributes(chat_session: chat, proposer: coworker, state: "proposed")
+    expect(response_payload(response).fetch("proposer")).to eq(
+      "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya"
+    )
+    expect(proposal.child_proposals.sole).to have_attributes(proposer: coworker, state: "proposed")
+    expect(proposal.messages).to contain_exactly(have_attributes(role: "assistant"))
+    expect(Epic.where(title: "Release readiness")).to be_empty
+    expect(Job.where(issue_title: "Prepare release")).to be_empty
+  end
+
+  it "preserves proposal validation and repository visibility for coworkers" do
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
+    inaccessible = Factories.repository(user: Factories.user, owner: "private", name: "repo")
+
+    missing_placement = coworker_tool("propose_job").call(
+      repo: repository.slug, title: "Unplaced work", description: "Missing placement.",
+      server_context: { chat_session: chat }
+    )
+    inaccessible_target = coworker_tool("propose_job").call(
+      repo: inaccessible.slug,
+      title: "Private work",
+      description: "Must remain invisible.",
+      planned_execution: { capabilities: { os: [ "linux" ] } },
+      server_context: { chat_session: chat }
+    )
+
+    expect(missing_placement).to be_error
+    expect(missing_placement.content.first.fetch(:text)).to include("planned_execution.capabilities is required")
+    expect(inaccessible_target).to be_error
+    expect(inaccessible_target.content.first.fetch(:text)).to include("repository not found")
+    expect(chat.proposals).to be_empty
+  end
+
+  it "requires separate grant-policy approval before drafting when configured for confirmation" do
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
+
+    response = coworker_tool("propose_job").call(
+      repo: repository.slug,
+      title: "Confirm first",
+      description: "The owner must allow this draft.",
+      planned_execution: { capabilities: { os: [ "linux" ] } },
+      server_context: { chat_session: chat }
+    )
+
+    expect(response).not_to be_error
+    expect(response_payload(response)).to include("approval_policy" => "confirm")
+    expect(chat.proposals).to be_empty
+    expect(chat.pending_actions.last).to have_attributes(action: "coworker_tool_call", state: "pending")
   end
 
   it "offers interactive-only tools only for an interactive turn" do
@@ -177,6 +290,17 @@ RSpec.describe "Coworker chat surface" do
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("message_coworker")
   end
 
+  it "offers all workspace mutations on every coworker turn" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    tool_names = %w[write_coworker_file edit_coworker_file move_coworker_file delete_coworker_file]
+
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include(*tool_names)
+    coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
+
+    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include(*tool_names)
+  end
+
   it "turns revoked workspace grants into provider-native denials" do
     files = coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
     shell = coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
@@ -211,5 +335,28 @@ RSpec.describe "Coworker chat surface" do
     yielded = nil
     job.send(:with_git_askpass_env) { |env| yielded = env }
     expect(yielded).to eq("GIT_TERMINAL_PROMPT" => "0")
+  end
+
+  it "runs home-branch persistence before releasing the turn lock" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Remember this" })
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@user_message, message)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
+    allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn)
+
+    job.send(:finalize_plugin_turns!)
+
+    expect(Coworkers::HomeBranchPersistence).to have_received(:after_chat_turn).with(chat_session: chat, user_message: message)
+  end
+
+  it "keeps failed persistence recoverable and posts an actionable error" do
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
+    allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn).and_raise("push conflict")
+
+    expect { job.send(:finalize_plugin_turns!) }.to change(chat.messages.where(role: "system"), :count).by(1)
+    expect(chat.messages.order(:id).last.content.fetch("text")).to include("still recoverable locally", "push conflict")
   end
 end

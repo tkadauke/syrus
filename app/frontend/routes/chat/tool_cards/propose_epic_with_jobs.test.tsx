@@ -19,6 +19,7 @@ describe("propose_epic_with_jobs tool card", () => {
       slug: "tier-2-cards",
       state: "proposed",
       kind: "epic",
+      proposer: { type: "coworker", id: 7, label: "Maya", handle: "maya" },
       child_jobs: [
         { slug: "core-proposal-cards", state: "proposed" },
         { slug: "core-schedule-cards", state: "proposed" }
@@ -50,6 +51,7 @@ describe("propose_epic_with_jobs tool card", () => {
       description: "Build **complete** proposal cards.",
       state: "confirmed",
       kind: "epic",
+      proposer: { type: "coworker", id: 7, label: "Maya", handle: "maya" },
       target_epic: { id: 292, number: 292, label: "the pending-action tool-card work" },
       depends_on: ["prep-work", "epic:8"],
       depends_on_job_ids: [15],
@@ -93,6 +95,7 @@ describe("propose_epic_with_jobs tool card", () => {
 
     expect(screen.getByRole("link", { name: "the pending-action tool-card work" })).toHaveAttribute("href", "/epics/292")
     expect(screen.getByText("Tier 2 cards")).toBeInTheDocument()
+    expect(screen.getByText("Proposed by Maya @maya")).toBeInTheDocument()
     expect(screen.getByText("complete").tagName).toBe("STRONG")
     expect(screen.getByRole("link", { name: "EPIC-8" })).toHaveAttribute("href", "/epics/8")
     expect(screen.getByRole("link", { name: "JOB-15" })).toHaveAttribute("href", "/jobs/15")
