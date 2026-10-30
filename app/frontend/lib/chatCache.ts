@@ -86,7 +86,8 @@ export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord
         if (!existing && !recentChatBelongsInQuery(chat, query.queryKey)) return current
 
         const updated = recentChatRecord(chat, existing, options.occurredAt)
-        const targetKey = chatGroupKey(updated)
+        const sourceGroup = current.groups.find((group) => group.chats.some((item) => item.id === chat.id))
+        const targetKey = sourceGroup?.group_by === "plugin" ? sourceGroup.key : chatGroupKey(updated)
         const groups = withoutChat(current.groups, chat.id)
         const targetIndex = groups.findIndex((group) => group.key === targetKey)
         const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
