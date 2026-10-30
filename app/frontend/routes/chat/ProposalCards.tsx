@@ -1204,7 +1204,9 @@ export function PendingActionGroupCard({
                 <li className="flex flex-wrap items-start justify-between gap-2" key={member.id}>
                   <span className="min-w-0 text-gray-700 dark:text-gray-300">
                     <span>{linkifySlugs(member.label)}</span>
-                    {member.detail ? <span className="mt-0.5 block break-words text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{member.detail}</span> : null}
+                    {member.detail ? (
+                      <span className="mt-0.5 block break-words text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{member.detail}</span>
+                    ) : null}
                   </span>
                   {member.outcome === "skipped" ? (
                     <span className="text-amber-700 dark:text-amber-300">{t("batch_outcome_skipped")}</span>
