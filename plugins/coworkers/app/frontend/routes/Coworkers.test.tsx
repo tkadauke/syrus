@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
@@ -67,6 +67,18 @@ const detailPayload = {
         fire_at: null,
         next_fire_at: "2026-10-30T09:00:00Z",
         last_fired_at: null
+      },
+      {
+        id: 32,
+        name: "Completed one-shot",
+        prompt: "Prepare it once",
+        kind: "one_shot",
+        state: "fired",
+        schedule_input: null,
+        schedule_explanation: null,
+        fire_at: "2026-10-29T09:00:00Z",
+        next_fire_at: null,
+        last_fired_at: "2026-10-29T09:00:00Z"
       }
     ],
     message_traffic: {
@@ -417,6 +429,10 @@ it("lists and manages schedules on the coworker page", async () => {
 
   expect(screen.getByText("Morning briefing")).toBeInTheDocument()
   expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
+  const firedRow = screen.getByText("Completed one-shot").closest("li")
+  expect(firedRow).not.toBeNull()
+  expect(within(firedRow!).queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
+  expect(within(firedRow!).queryByRole("button", { name: "Run now" })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Run now" }))
   await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/schedules/31/fire_now", expect.objectContaining({ method: "POST" })))
 })

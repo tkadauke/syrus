@@ -138,6 +138,7 @@ module Api
         def pause_schedule
           task = find_schedule
           return unless task
+          return render_error("not_pausable", "Only an enabled task can be paused.", status: :unprocessable_content) unless task.active?
 
           task.pause!(reason: "operator")
           render json: { schedule: schedule_json(task.reload) }

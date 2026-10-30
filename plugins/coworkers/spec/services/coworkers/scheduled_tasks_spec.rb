@@ -97,4 +97,25 @@ RSpec.describe "Coworker scheduled tasks" do
     expect(coworker.schedules).to contain_exactly(have_attributes(name: "Weekly review", repository: repository))
     expect(Coworkers::ManageScheduleTool.call(action: "list", server_context: { chat_session: chat })).not_to be_error
   end
+
+  it "does not pause or resume a fired one-shot through the coworker tool" do
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    one_shot = task(
+      kind: "one_shot", schedule_input: nil, fire_at: 1.hour.from_now,
+      name: "Single briefing"
+    )
+    one_shot.update!(state: "fired")
+
+    pause = Coworkers::ManageScheduleTool.call(
+      action: "pause", scheduled_task_id: one_shot.id, server_context: { chat_session: chat }
+    )
+    resume = Coworkers::ManageScheduleTool.call(
+      action: "resume", scheduled_task_id: one_shot.id, server_context: { chat_session: chat }
+    )
+
+    expect(pause).to be_error
+    expect(resume).to be_error
+    expect(one_shot.reload).to be_fired
+  end
 end
