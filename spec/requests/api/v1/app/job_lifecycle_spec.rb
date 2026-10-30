@@ -916,6 +916,8 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       state: "implemented",
       pr_number: 7,
       branch_name: "syrus/issue-42",
+      github_mergeable_state: "clean",
+      mergeability_checked_at: Time.current,
       landing_failure_reason: "auto_merge: PR mergeable_state is \"dirty\" and rebase cap reached"
     )
     job.latest_workflow.update!(state: "succeeded")
