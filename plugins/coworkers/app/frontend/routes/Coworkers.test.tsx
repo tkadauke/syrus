@@ -27,7 +27,8 @@ const summaryPayload = {
       accent_hex: "#E5484D",
       avatar_key: "comet",
       avatar_url: null,
-      path: "/coworkers/7"
+      path: "/coworkers/7",
+      weekly_spend_usd: 0.75
     }
   ],
   model_options: [
@@ -87,6 +88,12 @@ const detailPayload = {
       delivery_events: [{ status: "refused", receiver_handle: "rin", reason: "Three-hop limit reached", occurred_at: "2026-10-29T10:00:00Z" }]
     }
   }
+}
+
+const activityPayload = {
+  spend: { week_usd: 0.75, total_usd: 1.25 },
+  runs: [],
+  side_chats: []
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -213,13 +220,15 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => jsonResponse(detailPayload))
+    vi.fn(async (input: RequestInfo | URL) =>
+      jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload)
+    )
   )
   renderRoute("/coworkers/7")
 
   fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
 
-  expect(screen.getByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Message traffic" })).toBeInTheDocument()
   expect(screen.getByRole("heading", { name: "Delivery issues" })).toBeInTheDocument()
   expect(screen.getByText("$1.25")).toBeInTheDocument()
   expect(screen.getByText("Shown for visibility; not capped.")).toBeInTheDocument()

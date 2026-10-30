@@ -12,6 +12,7 @@ export type CoworkerSummary = {
   path: string
   built_in?: boolean
   chat_model?: string | null
+  weekly_spend_usd?: number
 }
 export type CoworkerDetail = CoworkerSummary & {
   chat_provider: string | null

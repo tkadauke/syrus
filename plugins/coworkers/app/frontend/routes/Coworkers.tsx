@@ -82,7 +82,9 @@ function CoworkerCard({ coworker, prefix }: { coworker: CoworkerSummary; prefix:
           <div className="font-semibold text-text-primary">{coworker.name}</div>
           <div className="text-sm text-text-secondary">@{coworker.handle}</div>
           <div className="mt-2 text-sm text-text-secondary">{coworker.role_summary}</div>
-          <div className="mt-2 text-sm font-medium text-text-primary">{t("card.weekly_spend", { amount: coworker.weekly_spend_usd.toFixed(2) })}</div>
+          {coworker.weekly_spend_usd != null ? (
+            <div className="mt-2 text-sm font-medium text-text-primary">{t("card.weekly_spend", { amount: coworker.weekly_spend_usd.toFixed(2) })}</div>
+          ) : null}
           {coworker.built_in ? <span className="mt-2 inline-block rounded bg-surface-subtle px-2 py-0.5 text-xs">{t("built_in")}</span> : null}
         </div>
       </div>
