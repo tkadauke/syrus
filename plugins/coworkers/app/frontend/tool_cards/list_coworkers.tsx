@@ -14,7 +14,7 @@ const listCoworkersToolCard: ToolCardRenderer = {
       <CardShell>
         {context.parsedResult.coworkers.map((entry, index) => {
           if (!isPlainObject(entry)) return null
-          return <Row key={displayValue(entry.id) || index} label={displayValue(entry.name)} value={`@${displayValue(entry.handle)}`} />
+          return <Row key={displayValue(entry.id) || index} label={displayValue(entry.name) || "—"} value={`@${displayValue(entry.handle)}`} />
         })}
       </CardShell>
     )
