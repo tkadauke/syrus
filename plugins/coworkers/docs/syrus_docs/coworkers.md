@@ -76,6 +76,13 @@ tool boundary. Claude can deny file and shell tools independently; providers
 without that separation fail closed rather than starting with permissions
 they cannot enforce.
 
+Owners edit these grants on the coworker's Capabilities tab. Every registered
+capability appears as a sentence with an `auto`, `confirm`, `queue`, or `off`
+policy. Moving to a more permissive policy, or turning on a new capability,
+requires a separate confirmation; reductions apply directly. File grants can
+record paths such as `SOUL.md` and `AGENTS.md` that always require confirmation.
+Integration tiles are visible but disabled until those integrations ship.
+
 Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's
 `coworkers/<handle>` home branch. At turn end Syrus commits with the coworker's

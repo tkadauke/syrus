@@ -116,6 +116,26 @@
     "resume": "Resume",
     "run_now": "Run now"
   },
+  "capabilities": {
+    "sentences": {
+      "chat_message_owner": "This coworker can message its owner.",
+      "chats_read_shared": "This coworker can read chats shared with it.",
+      "coworker_message": "This coworker can message other coworkers.",
+      "coworker_spawn_chat": "This coworker can create side chats.",
+      "schedule_manage_self": "This coworker can manage its own schedule.",
+      "workspace_files": "This coworker can read and edit workspace files.",
+      "workspace_shell": "This coworker can run commands in its workspace.",
+      "syrus_read_jobs": "This coworker can read Syrus Jobs.",
+      "syrus_propose_job": "This coworker can propose Syrus Jobs."
+    },
+    "policies": { "auto": "Auto", "confirm": "Confirm", "queue": "Queue", "off": "Off" },
+    "policy_for": "Approval policy for {{capability}}",
+    "confirm_escalation": "This gives the coworker more access. Confirm this grant change?",
+    "confirm_paths": "Always confirm edits to these paths (comma-separated)",
+    "save_constraints": "Save constraints",
+    "integrations": { "gmail": "Gmail", "calendar": "Calendar" },
+    "coming_later": "Coming later"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",

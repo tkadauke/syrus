@@ -1741,6 +1741,13 @@ counts, side-chat costs, and coworker-message traffic. These figures are
 informational and do not impose a budget or add coworker data to the instance
 Spending page.
 
+The Capabilities tab lists every coworker grant as a plain-language sentence.
+Owners can choose `auto`, `confirm`, `queue`, or `off`; enabling a capability
+or making its policy more permissive asks for a separate confirmation. The
+workspace-files grant can also mark paths such as `SOUL.md` and `AGENTS.md` as
+always requiring confirmation. Gmail and Calendar are shown as disabled,
+coming-later integrations.
+
 An ordinary Syrus or planner chat can also propose a coworker. The proposal
 preflights the handle, model, requested capabilities, workspace branch, and
 optional push access, then shows every creation field for confirmation. No
