@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_30_021707) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_171655) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1002,6 +1002,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_021707) do
     t.datetime "updated_at", null: false
     t.index ["coworker_id", "capability"], name: "index_coworker_grants_on_coworker_id_and_capability", unique: true
     t.index ["coworker_id"], name: "index_coworker_grants_on_coworker_id"
+  end
+
+  create_table "coworker_provisioning_attempts", force: :cascade do |t|
+    t.integer "owner_user_id", null: false
+    t.integer "coworker_id"
+    t.string "idempotency_key", null: false
+    t.string "remote_owner", null: false
+    t.string "remote_name", null: false
+    t.string "handle", null: false
+    t.string "branch", null: false
+    t.string "expected_seeded_commit"
+    t.string "state", default: "provisioning", null: false
+    t.integer "retry_count", default: 0, null: false
+    t.text "last_error"
+    t.datetime "seeded_at"
+    t.datetime "completed_at"
+    t.datetime "cleanup_started_at"
+    t.datetime "cleaned_at"
+    t.datetime "manual_attention_at"
+    t.datetime "acknowledged_at"
+    t.integer "acknowledged_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_by_id"], name: "index_coworker_provisioning_attempts_on_acknowledged_by_id"
+    t.index ["coworker_id"], name: "index_coworker_provisioning_attempts_on_coworker_id"
+    t.index ["owner_user_id", "idempotency_key"], name: "idx_coworker_provisioning_attempts_idempotency", unique: true
+    t.index ["owner_user_id"], name: "index_coworker_provisioning_attempts_on_owner_user_id"
+    t.index ["state", "updated_at"], name: "idx_coworker_provisioning_attempts_reconciliation"
   end
 
   create_table "coworkers", force: :cascade do |t|

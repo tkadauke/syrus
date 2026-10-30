@@ -640,4 +640,34 @@ RSpec.describe "API: coworkers", type: :request do
     expect(Coworkers::SidebarPages.sidebar_pages).to be_present
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(Coworkers::SidebarPages)
   end
+
+  it "shows owner-scoped provisioning status and audits manual acknowledgement" do
+    attempt = Coworkers::ProvisioningAttempt.create!(owner_user: owner, idempotency_key: "visible",
+      remote_owner: "acme", remote_name: "homes", handle: "maya-cleanup", branch: "coworkers/maya-cleanup",
+      expected_seeded_commit: "a" * 40, state: "manual_attention", manual_attention_at: Time.current)
+    Coworkers::ProvisioningAttempt.create!(owner_user: Factories.user, idempotency_key: "hidden",
+      remote_owner: "acme", remote_name: "homes", handle: "other-cleanup", branch: "coworkers/other-cleanup",
+      state: "cleanup_pending")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers"
+    expect(response.parsed_body.fetch("provisioning_attempts").pluck("id")).to eq([ attempt.id ])
+
+    post "/api/v1/app/coworkers/provisioning_attempts/#{attempt.id}/acknowledge"
+    expect(response).to have_http_status(:ok)
+    expect(attempt.reload).to have_attributes(acknowledged_by: owner)
+    expect(attempt.acknowledged_at).to be_present
+  end
+
+  it "enqueues an owner-requested cleanup retry" do
+    attempt = Coworkers::ProvisioningAttempt.create!(owner_user: owner, idempotency_key: "retry",
+      remote_owner: "acme", remote_name: "homes", handle: "maya-retry", branch: "coworkers/maya-retry",
+      expected_seeded_commit: "a" * 40, state: "cleanup_pending")
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/coworkers/provisioning_attempts/#{attempt.id}/retry"
+    }.to have_enqueued_job(Coworkers::ProvisioningCleanupJob).with(attempt.id)
+    expect(response).to have_http_status(:accepted)
+  end
 end

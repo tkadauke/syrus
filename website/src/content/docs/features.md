@@ -1712,6 +1712,11 @@ available commit attribution, and unmerged chat branches holding conflicts.
 Incomplete trees and capped files are labeled. **Test push access** verifies
 credentials with a randomized throwaway `coworkers/` ref that is deleted
 immediately; it does not expose a general push path.
+Creation is tracked as a durable provisioning attempt. If database creation
+fails after the home branch is seeded, Syrus verifies and removes that exact
+commit or queues bounded cleanup retries. The Coworkers page shows cleanup
+that is pending or needs manual attention, with safe retry and acknowledge
+controls; cleanup never scans for arbitrary coworker branches.
 Each coworker conversation has an isolated `coworkers/chat/...` branch cut
 from the coworker's home branch. Syrus merges and pushes it at turn end, uses
 union merges for concurrent memory appends, and posts linked conflict details

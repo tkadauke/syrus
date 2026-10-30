@@ -209,3 +209,11 @@ and chat branches with unresolved merge conflicts. Partial trees and capped
 files are marked explicitly. The only remote action is **Test push access**,
 which creates and immediately deletes a randomized throwaway ref beneath
 `coworkers/`; file edits and arbitrary pushes are not exposed in the UI.
+
+Coworker creation records a durable provisioning attempt before it seeds the
+home branch. A failed database transaction either removes the exact seeded ref
+immediately or reports cleanup as pending and retries on the cleanup queue.
+Cleanup rechecks the recorded remote, handle, ownership, and seeded commit SHA;
+it never scans the remote for branches to remove. The Coworkers page lists
+non-completed attempts and lets the owner retry pending cleanup or acknowledge
+a terminal safety refusal. Persisted and displayed errors are credential-redacted.
