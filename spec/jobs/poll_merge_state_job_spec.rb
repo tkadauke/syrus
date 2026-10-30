@@ -53,17 +53,83 @@ RSpec.describe PollMergeStateJob, :ci_only do
     expect(job.approved_at).to be_present
   end
 
-  it "wakes landing exactly once when fresh evidence clears a required rebase" do
+  it "interleaves landing and merge-state ticks without a throwaway auto-merge or duplicate rebase" do
     job.approve!(via: "github_review")
     job.update!(github_mergeable_state: "dirty", mergeability_checked_at: Time.current)
+    poll_fetched = Queue.new
+    release_poll = Queue.new
+    errors = Queue.new
+    dirty_pr = pr(mergeable_state: "dirty", mergeable: false)
+    allow_any_instance_of(GithubClient).to receive(:pull_request) do
+      poll_fetched << true
+      release_poll.pop
+      dirty_pr
+    end
+
+    poller = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        described_class.perform_now(job.id)
+      rescue StandardError => e
+        errors << e
+      end
+    end
+    poll_fetched.pop
+
+    landing = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        LandingQueueProcessor.try_land!(Job.find(job.id))
+      rescue StandardError => e
+        errors << e
+      end
+    end
+    landing.join
+    release_poll << true
+    poller.join
+    raise errors.pop unless errors.empty?
+
+    # Repeated ticks race with the already-active rebase in production. Both
+    # paths must remain idempotent even when invoked directly in the spec.
+    LandingQueueProcessor.try_land!(job.reload)
+    described_class.perform_now(job.id)
+
+    expect(job.workflows.where(trigger_kind: "rebase").count).to eq(1)
+    expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(0)
+    expect(job.workflows.where(trigger_kind: "auto_merge", state: "cancelled")).to be_empty
+    expect(job.reload).to be_approved
+  end
+
+  it "lands exactly once after a required rebase succeeds and mergeability refreshes clean" do
+    job.approve!(via: "github_review")
+    job.update!(github_mergeable_state: "dirty", mergeability_checked_at: Time.current)
+    allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
+      pr(mergeable_state: "dirty", mergeable: false)
+    )
+
+    described_class.perform_now(job.id)
+    rebase = job.workflows.where(trigger_kind: "rebase").sole
+    expect(rebase).to be_queued
+    rebase.start!
+    rebase.save!
+    rebase.succeed!
+    rebase.save!
+
+    expect(job.reload).to be_approved
+    expect(job.workflows.where(trigger_kind: "auto_merge")).to be_empty
+
+    allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
+      pr(mergeable_state: "clean", mergeable: true)
+    )
 
     expect {
       described_class.perform_now(job.id)
     }.to change { job.workflows.where(trigger_kind: "auto_merge").count }.by(1)
 
+    LandingQueueProcessor.try_land!(job.reload)
     described_class.perform_now(job.id)
 
+    expect(job.workflows.where(trigger_kind: "rebase").count).to eq(1)
     expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
+    expect(job.workflows.where(trigger_kind: "auto_merge", state: "cancelled")).to be_empty
     expect(job.reload).to be_landing
   end
 
