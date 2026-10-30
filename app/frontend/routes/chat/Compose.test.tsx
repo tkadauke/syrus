@@ -93,6 +93,28 @@ function renderCompose(payload = makePayload()) {
   )
 }
 
+describe("Compose coworker mode", () => {
+  it("does not render the Coding/Planning selector for a coworker chat", () => {
+    vi.mocked(useWalkthroughRecorder).mockReturnValue({
+      state: { phase: "idle" },
+      elapsed: 0,
+      start: vi.fn(),
+      stop: vi.fn(),
+      annotationAvailable: false,
+      annotationHold: false,
+      annotationReason: null,
+      displaySurface: null,
+      drawing: false
+    })
+    const payload = makePayload()
+    payload.coding_mode_enabled = true
+    payload.coworker_chat = true
+    renderCompose(payload)
+
+    expect(screen.queryByRole("button", { name: "Change mode" })).not.toBeInTheDocument()
+  })
+})
+
 describe("Compose walkthrough recorder errors", () => {
   it("renders the recorder error in the composer attachment error slot", async () => {
     vi.mocked(useWalkthroughRecorder).mockReturnValue({

@@ -177,6 +177,17 @@ RSpec.describe "Coworker chat surface" do
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("message_coworker")
   end
 
+  it "offers all workspace mutations on every coworker turn" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    tool_names = %w[write_coworker_file edit_coworker_file move_coworker_file delete_coworker_file]
+
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include(*tool_names)
+    coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
+
+    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include(*tool_names)
+  end
+
   it "turns revoked workspace grants into provider-native denials" do
     files = coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
     shell = coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
@@ -208,5 +219,28 @@ RSpec.describe "Coworker chat surface" do
     yielded = nil
     job.send(:with_git_askpass_env) { |env| yielded = env }
     expect(yielded).to eq("GIT_TERMINAL_PROMPT" => "0")
+  end
+
+  it "runs home-branch persistence before releasing the turn lock" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Remember this" })
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@user_message, message)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
+    allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn)
+
+    job.send(:finalize_plugin_turns!)
+
+    expect(Coworkers::HomeBranchPersistence).to have_received(:after_chat_turn).with(chat_session: chat, user_message: message)
+  end
+
+  it "keeps failed persistence recoverable and posts an actionable error" do
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
+    allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn).and_raise("push conflict")
+
+    expect { job.send(:finalize_plugin_turns!) }.to change(chat.messages.where(role: "system"), :count).by(1)
+    expect(chat.messages.order(:id).last.content.fetch("text")).to include("still recoverable locally", "push conflict")
   end
 end

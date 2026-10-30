@@ -126,15 +126,7 @@ module Prompts
             #{repository_workspace_guidance}
           #{workspace_access_guidance}
           #{workspace_isolation_guidance}
-          - The workspace persists across turns. If you check out a
-            feature branch to investigate, the next turn starts there
-            — switch back to the default branch when you're done with
-            the digression.
-          - The workspace may drift behind origin. Feel free to run
-            `git fetch` or `git pull --ff-only` inside attached
-            repository checkouts whenever a current view would help
-            you answer the operator's question. Use `repo_info` when
-            you want a quick repository status summary.
+          #{workspace_continuity_guidance}
           - #{mcp_tool_availability_guidance}
 
         Your output:
@@ -249,7 +241,7 @@ module Prompts
     end
 
     def proposal_guidance
-      return "" if local_mode_chat? || coding_mode_chat?
+      return "" if coworker_chat? || local_mode_chat? || coding_mode_chat?
 
       <<~TEXT.strip
         What "proposing" means:
@@ -446,7 +438,7 @@ module Prompts
     end
 
     def role_context
-      return "" if local_mode_chat? || coding_mode_chat?
+      return "" if coworker_chat? || local_mode_chat? || coding_mode_chat?
       return "" unless @chat_session&.user&.product_owner?
 
       <<~TEXT.strip
@@ -476,7 +468,9 @@ module Prompts
     end
 
     def repository_workspace_guidance
-      if local_mode_chat?
+      if coworker_chat?
+        "Use the coworker workspace tools for identity and memory files. Treat every attached product repository as read-only."
+      elsif local_mode_chat?
         <<~TEXT.squish
           Local Mode uses the connected local repository exposed by
           `syrus local`; use the Local Mode tools for repository reads,
@@ -500,7 +494,9 @@ module Prompts
     end
 
     def syrus_role_description
-      if local_mode_chat?
+      if coworker_chat?
+        "you're a persistent named coworker whose writable home is separate from attached product repositories."
+      elsif local_mode_chat?
         "you're the Local Mode implementation surface that works directly in the operator's connected checkout when they ask for local work."
       elsif coding_mode_chat?
         "you're the Coding Mode implementation surface that works directly in the session's writable checkout."
@@ -510,7 +506,16 @@ module Prompts
     end
 
     def workspace_access_guidance
-      if local_mode_chat?
+      if coworker_chat?
+        <<~TEXT.strip
+          - Your coworker workspace is writable through `write_coworker_file`,
+            `edit_coworker_file`, `move_coworker_file`, and
+            `delete_coworker_file`. Keep identity and memory files current.
+          - Attached product repositories are read-only. Never modify them
+            through native filesystem or shell tools.
+          - Git metadata, commits, merges, and pushes are orchestrator-owned.
+        TEXT
+      elsif local_mode_chat?
         <<~TEXT.strip
           - Local Mode tools can read and write the connected local repository.
             Use `read_file`, `write_file`, `run_command`, `git_status`, and
@@ -553,7 +558,12 @@ module Prompts
     end
 
     def workspace_isolation_guidance
-      if local_mode_chat?
+      if coworker_chat?
+        <<~TEXT.strip
+          - Workspace changes persist across turns. Syrus commits and pushes
+            them after the turn; never run Git persistence commands yourself.
+        TEXT
+      elsif local_mode_chat?
         <<~TEXT.strip
           - The ordinary chat workspace is isolated. Local repository side
             effects happen only through Local Mode tools and only when the
@@ -574,7 +584,29 @@ module Prompts
       end
     end
 
+    def workspace_continuity_guidance
+      if coworker_chat?
+        return <<~TEXT.strip
+          - Stay on the coworker's home branch. Do not fetch, pull, switch
+            branches, or use Git to persist workspace changes.
+        TEXT
+      end
+
+      <<~TEXT.strip
+        - The workspace persists across turns. If you check out a
+          feature branch to investigate, the next turn starts there
+          — switch back to the default branch when you're done with
+          the digression.
+        - The workspace may drift behind origin. Feel free to run
+          `git fetch` or `git pull --ff-only` inside attached
+          repository checkouts whenever a current view would help
+          you answer the operator's question. Use `repo_info` when
+          you want a quick repository status summary.
+      TEXT
+    end
+
     def code_change_guidance
+      return "update your persistent coworker workspace through its scoped tools." if coworker_chat?
       return "use Local Mode tools directly, or create a coding Job with `create_coding_job` when the operator asks for a local Job." if local_mode_chat?
       return "make it directly in the writable Coding Mode checkout." if coding_mode_chat?
 
@@ -582,7 +614,9 @@ module Prompts
     end
 
     def mcp_tool_availability_guidance
-      if local_mode_chat?
+      if coworker_chat?
+        "Coworker workspace tools are available on every turn. If one fails, preserve the reported path error and tell the owner what could not be saved."
+      elsif local_mode_chat?
         <<~TEXT.squish
           MCP tools can be available, pending, or unavailable at turn start. If a
           Local Mode tool you need is unavailable or still pending, say that
@@ -620,6 +654,7 @@ module Prompts
     end
 
     def next_step_example
+      return "Update today's memory with this decision" if coworker_chat?
       return "Run the focused local test for this change" if local_mode_chat?
       return "Implement the fix and run its focused test" if coding_mode_chat?
 
@@ -627,6 +662,7 @@ module Prompts
     end
 
     def output_guidance
+      return coworker_output_guidance if coworker_chat?
       return local_mode_output_guidance if local_mode_chat?
       return coding_mode_output_guidance if coding_mode_chat?
 
@@ -694,6 +730,16 @@ module Prompts
       TEXT
     end
 
+    def coworker_output_guidance
+      <<~TEXT.strip
+        - Your durable product is the conversation plus useful updates to your
+          identity and memory files. Make those updates during the turn when
+          they will help future work.
+        - Never commit, merge, push, open pull requests, deploy, or perform
+          administrative actions. Syrus owns workspace persistence.
+      TEXT
+    end
+
     def coding_mode_output_guidance
       <<~TEXT.strip
         - The durable product of Coding Mode is committed code in the writable
@@ -722,7 +768,7 @@ module Prompts
     end
 
     def bookmark_guidance
-      return "" if local_mode_chat? || coding_mode_chat?
+      return "" if coworker_chat? || local_mode_chat? || coding_mode_chat?
 
       <<~TEXT.strip
         - Immediately before emitting a `propose_epic_with_jobs` card,
@@ -732,6 +778,7 @@ module Prompts
     end
 
     def admin_repair_guidance
+      return "" if coworker_chat?
       return "" unless @chat_session&.user&.admin?
 
       <<~TEXT.strip
@@ -787,7 +834,7 @@ module Prompts
     end
 
     def onboarding_guidance
-      return "" if coding_mode_chat?
+      return "" if coworker_chat? || coding_mode_chat?
       return "" unless @chat_session&.onboarding?
 
       "\n" + Prompts::ChatOnboarding.new(repository: @repository).to_s
@@ -800,7 +847,7 @@ module Prompts
     end
 
     def developer_elaboration_guidance
-      return "" if coding_mode_chat?
+      return "" if coworker_chat? || coding_mode_chat?
 
       epic = AgentEnvironmentSnapshot.chat_elaboration_epic(@chat_session)
       return "" unless epic
@@ -912,6 +959,18 @@ module Prompts
     end
 
     def memory_instructions
+      if coworker_chat?
+        return <<~TEXT.strip
+          ## Memory
+
+          Your workspace identity and `memory/**` files are your durable memory.
+          Update them with the coworker workspace tools when useful. The Syrus
+          memory MCP tools available to you are read-only context sources; do
+          not treat their generic chat guidance as a restriction on your own
+          workspace files.
+        TEXT
+      end
+
       Syrus::Memory.chat_instructions
     end
 

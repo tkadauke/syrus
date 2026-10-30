@@ -38,6 +38,17 @@ RSpec.describe Coworkers::PromptSection do
     end
   end
 
+  it "keeps ordinary planning guidance from overriding coworker workspace access" do
+    prompt = Prompts::ChatSystem.new(repository: repository, chat_session: chat).to_s
+
+    expect(prompt).to include("`write_coworker_file`", "Attached product repositories are read-only")
+    expect(prompt).to include("Syrus commits and pushes")
+    expect(prompt).to include("coworker file tools create, edit, move, and delete")
+    expect(prompt).not_to include("you're the planning surface")
+    expect(prompt).not_to include("The workspace is isolated. Nothing you do is ever pushed")
+    expect(prompt).not_to include("The durable products of this session are proposals")
+  end
+
   it "loads today and yesterday, participant and sender people files, and the attached repository file" do
     participant = Factories.user
     sender = Factories.user

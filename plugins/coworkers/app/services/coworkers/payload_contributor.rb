@@ -8,7 +8,7 @@ module Coworkers
       return payload unless link
 
       coworker = link.coworker
-      payload.merge(agent_appearance: {
+      payload.merge(coworker_chat: true, agent_appearance: {
         name: coworker.name, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
         avatar_url: coworker.avatar_url
       })
