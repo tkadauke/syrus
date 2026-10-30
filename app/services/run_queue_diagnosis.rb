@@ -55,6 +55,7 @@ class RunQueueDiagnosis
       "host_compute_capacity", "current_memory_bytes", "active_reserved_memory_bytes",
       "candidate_reserved_memory_bytes", "host_memory_budget_bytes",
       "host_memory_effective_budget_bytes", "grader_memory_reserve_bytes",
+      "active_memory_evidence_sources", "candidate_memory_evidence_source",
       "rejecting_worker", "rejecting_reason", "healthy_alternatives_considered",
       "routing_decision", "routed_worker", "routed_worker_storage_key", "routed_queue"
     ).symbolize_keys

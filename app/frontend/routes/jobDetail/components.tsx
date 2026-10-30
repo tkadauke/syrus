@@ -112,7 +112,12 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
     const grossMemoryBudget = wait.details.host_memory_budget_bytes ?? 0
     const memoryBudget = wait.details.host_memory_effective_budget_bytes ?? Math.max(grossMemoryBudget - (wait.details.grader_memory_reserve_bytes ?? 0), 0)
     const bindingTerms = wait.details.resource_guard_binding_terms ?? []
-    const binding = bindingTerms
+    const evidenceSource = wait.details.candidate_memory_evidence_source
+      ? t(`run_queue_wait.memory_evidence.${wait.details.candidate_memory_evidence_source}`, {
+          defaultValue: wait.details.candidate_memory_evidence_source
+        })
+      : t("run_queue_wait.memory_evidence.unknown")
+    const bindingSummary = bindingTerms
       .map((term) => {
         if (term === "compute_units")
           return t("run_queue_wait.binding_compute", {
@@ -124,17 +129,29 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
           return t("run_queue_wait.binding_reservation", {
             active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0),
             candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0),
-            budget: formatBytes(memoryBudget)
+            budget: formatBytes(memoryBudget),
+            evidence: evidenceSource
           })
         if (term === "measured_memory")
           return t("run_queue_wait.binding_measured", {
             current: formatBytes(wait.details.current_memory_bytes ?? 0),
             candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0),
-            budget: formatBytes(memoryBudget)
+            budget: formatBytes(memoryBudget),
+            evidence: evidenceSource
           })
         return term
       })
       .join("; ")
+    const memoryContext = bindingTerms.some((term) => term === "memory_reservation" || term === "measured_memory")
+      ? t("run_queue_wait.memory_context", {
+          measured: formatBytes(wait.details.current_memory_bytes ?? 0),
+          active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0),
+          candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0),
+          budget: formatBytes(memoryBudget),
+          evidence: evidenceSource
+        })
+      : ""
+    const binding = [bindingSummary, memoryContext].filter(Boolean).join("; ")
     const message =
       wait.kind === "start_blocked" && reason
         ? t("run_queue_wait.start_blocked", { reason: t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason }) })
