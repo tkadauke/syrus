@@ -219,6 +219,7 @@ module Mcp::Tools
             investigation: ActiveModel::Type::Boolean.new.cast(investigation),
             provider_setting: provider_setting,
             priority: priority,
+            proposer: proposal_proposer(server_context),
             **planned_execution_attrs,
             **goal_attrs
           )
