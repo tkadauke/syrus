@@ -863,10 +863,12 @@ describe("tool result rendering", () => {
 
     const { container } = render(<ToolGroup item={item} />)
     const summary = container.querySelector("summary")
+    const label = screen.getByText("Unpublish memory (3)")
     const detail = screen.getByText(/Unpublished memory #21/)
     const count = screen.getByText("3")
 
     expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
+    expect(label).toHaveClass("sm:max-w-1/2", "sm:shrink-0")
     expect(detail).toHaveClass("min-w-0", "basis-full", "break-words", "[overflow-wrap:anywhere]", "sm:flex-1", "sm:truncate")
     expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
   })
