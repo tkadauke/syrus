@@ -360,7 +360,11 @@ class RunJob < ApplicationJob
     binding_terms = Array(admission.details["resource_guard_binding_terms"])
     return unless binding_terms.intersect?(%w[memory_reservation measured_memory])
 
-    chunk = "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change per-run reservation or increase the Docker memory setting"
+    chunk = if admission.details["candidate_memory_evidence_source"] == "deterministic_compute_fallback"
+      "host memory admission is binding; collect command resource samples to replace the bounded deterministic fallback or increase the Docker memory setting"
+    else
+      "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change capacity-unit reservations or increase the Docker memory setting"
+    end
     JobLog.append!(run: @run, kind: "system", chunk: chunk) unless admission_deferral_log_exists?(chunk)
   end
 

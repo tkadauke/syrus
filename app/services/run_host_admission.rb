@@ -11,6 +11,7 @@ class RunHostAdmission
   # work against the container's effective CPU quota. This scales from laptops
   # to large workers instead of imposing one fleet-wide concurrency constant.
   IO_INTENSIVE_GRADER_BYTES = 1.gigabyte
+  DETERMINISTIC_COMPUTE_FALLBACK_BYTES = 1.gigabyte
   MEMORY_UTILIZATION = 0.8
 
   # visual_diff previews drive a headless browser against a spawned preview
@@ -102,6 +103,8 @@ class RunHostAdmission
       "current_memory_bytes" => current_memory_bytes,
       "active_reserved_memory_bytes" => active_reserved_memory_bytes,
       "candidate_reserved_memory_bytes" => candidate_reserved_memory_bytes,
+      "active_memory_evidence_sources" => active_memory_evidence_sources,
+      "candidate_memory_evidence_source" => memory_reservation_for(step).fetch(:source),
       "resource_guard_binding_terms" => resource_guard_binding_terms(reason),
       "resource_guard_kind" => resource_guard_kind,
       "active_grader_run_count" => grader_guard? ? active_grader_run_count : nil,
@@ -344,7 +347,7 @@ class RunHostAdmission
   end
 
   def candidate_reserved_memory_bytes
-    reservation = memory_reservation_for(step)
+    reservation = memory_reservation_for(step).fetch(:bytes)
     return reservation unless idle_agentic_host? && host_memory_budget_bytes
 
     [ reservation, host_memory_effective_budget_bytes ].min
@@ -352,8 +355,14 @@ class RunHostAdmission
 
   def active_reserved_memory_bytes
     @active_reserved_memory_bytes ||= active_run_scope.includes(step: { workflow: :job }).sum do |active_run|
-      memory_reservation_for(active_run.step)
+      memory_reservation_for(active_run.step).fetch(:bytes)
     end
+  end
+
+  def active_memory_evidence_sources
+    @active_memory_evidence_sources ||= active_run_scope.includes(step: { workflow: :job })
+      .map { |active_run| memory_reservation_for(active_run.step).fetch(:source) }
+      .tally
   end
 
   def memory_capacity_full?
@@ -409,7 +418,23 @@ class RunHostAdmission
   def memory_reservation_for(candidate_step)
     fallback = memory_unit_bytes.to_i * compute_units_for(candidate_step)
     attributed = process_attributed_memory_bytes_for(candidate_step)
-    [ attributed.to_i, fallback, 1 ].max
+    if attributed
+      bytes = deterministic_compute_step?(candidate_step) ? attributed : [ attributed, fallback, 1 ].max
+      return { bytes: bytes, source: "command_attributed" }
+    end
+
+    if deterministic_compute_step?(candidate_step)
+      return {
+        bytes: [ fallback, DETERMINISTIC_COMPUTE_FALLBACK_BYTES ].min.clamp(1, DETERMINISTIC_COMPUTE_FALLBACK_BYTES),
+        source: "deterministic_compute_fallback"
+      }
+    end
+
+    { bytes: [ fallback, 1 ].max, source: "capacity_unit_fallback" }
+  end
+
+  def deterministic_compute_step?(candidate_step)
+    !candidate_step.agentic? && !grader_step?(candidate_step)
   end
 
   def process_attributed_memory_bytes_for(candidate_step)

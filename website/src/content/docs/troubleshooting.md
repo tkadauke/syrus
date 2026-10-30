@@ -14,7 +14,9 @@ The queued-Run banner reports the admission reason, deferral count and start
 time. For `host_resource_semaphore_busy`, it also shows whether compute units,
 memory reservations, or measured memory reached the host budget. An idle worker
 always admits one Run unless its health sample reports critical memory, disk,
-or CPU pressure.
+or CPU pressure. Memory diagnostics include measured usage, active and candidate
+reservations, the effective budget, and whether the candidate reservation came
+from command-attributed evidence or a conservative fallback.
 
 An immutable-source distributed grader rejected for critical local pressure or
 a full host resource guard can move immediately to another live,
@@ -30,11 +32,14 @@ no CPU, memory-reservation, or staggering tuning by default. The guidance below
 applies when an admin has enabled admission control for a shared instance.
 
 In Docker Compose, `SYRUS_WORKER_CPU_LIMIT` determines host compute capacity and
-therefore the fallback memory reserved per Run: effective memory divided by
-compute capacity, multiplied by the Run's capacity units. A low Docker Desktop
-CPU allocation can make that reservation large. Set the variable to the CPU
-budget actually available to the worker, and increase Docker Desktop's memory
-setting when the measured working set is genuinely close to the limit.
+the capacity-unit fallback used by agentic and grader Runs. Deterministic
+compute such as `prepare` uses command-attributed memory evidence when available
+and otherwise a fallback bounded at 1 GiB, so lowering CPU parallelism does not
+make every prepare reserve most of the host's memory. Set the variable to the
+CPU budget actually available to the worker. Increase Docker Desktop's memory
+setting when measured or command-attributed demand is genuinely close to the
+limit; repeated bounded-fallback decisions indicate that more command profile
+samples would improve the estimate.
 
 ## A chat turn remains active after a worker dies
 
