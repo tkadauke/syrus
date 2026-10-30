@@ -131,6 +131,32 @@ module Api
           render json: Coworkers::Activity.new(coworker: coworker, user: Current.user).call
         end
 
+        def approvals
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          render json: { approvals: Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.map { |action| approval_json(action) } }
+        end
+
+        def approve
+          action = find_approval
+          if action.enqueue_confirmation!(user: Current.user)
+            render json: { approval: approval_json(action.reload) }, status: :accepted
+          else
+            render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
+          end
+        rescue ActiveRecord::RecordInvalid, ArgumentError => error
+          render_error("approval_expired", error.message, status: :unprocessable_content)
+        end
+
+        def reject
+          action = find_approval
+          if action.reject!(user: Current.user)
+            render json: { approval: approval_json(action.reload) }
+          else
+            render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
+          end
+        end
+
         def create_schedule
           coworker = find_coworker
           authorize coworker, :update?, policy_class: CoworkerPolicy
@@ -186,8 +212,7 @@ module Api
         end
 
         def sidebar_badge
-          ids = Coworkers::Chat.joins(:coworker).where(coworkers: { owner_user_id: Current.user.id }).select(:chat_session_id)
-          render json: { count: ChatSession.where(id: ids).where("last_message_at IS NOT NULL AND (last_read_at IS NULL OR last_message_at > last_read_at)").count }
+          render json: { count: Coworkers::PendingApprovals.new(owner: Current.user).count }
         end
 
         private
@@ -200,6 +225,20 @@ module Api
 
         def owned_chat
           ChatSession.active.find_by!(id: params[:chat_id], user_id: Current.user.id)
+        end
+
+        def find_approval
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.find(params[:approval_id])
+        end
+
+        def approval_json(action)
+          {
+            id: action.id, tool_name: action.payload["tool_name"], tool_input: action.payload["arguments"],
+            run_id: action.payload["run_id"], chat_id: action.chat_session_id,
+            created_at: action.created_at.iso8601, state: action.state
+          }
         end
 
         def roster_json(entry)

@@ -16,7 +16,10 @@ infrastructure Jobs so completed attempts do not accumulate.
 
 Background runs use the coworker's capability grants. They never receive the
 interactive-only tool surface, and a grant configured for live confirmation
-uses the queued approval policy during an unattended run.
+uses the queued approval policy during an unattended run. Queued mutations
+appear on that coworker's Approvals tab with their originating run and tool
+input. Approving replays the tool in its original run context; rejecting posts
+the outcome to the coworker's main chat.
 
 The Schedule tab creates recurring or one-shot tasks on the coworker's
 workspace Repository and lists their current state. Owners can pause, resume,
@@ -117,7 +120,8 @@ asking for either name. The agent process receives neither the ordinary chat
 CLI invocation token nor a Git askpass token, so the owner's repository
 credentials and integration credentials are not exposed to its shell.
 
-When enabled, the plugin adds a Coworkers page and unread badge. Syrus is
+When enabled, the plugin adds a Coworkers page and a badge counting pending
+approvals across the signed-in owner's coworkers. Syrus is
 pinned first as the built-in engineer; custom coworkers show their configured
 color and avatar. The creation form collects the workspace remote, appearance,
 model, grants, and optional About text. Uploaded avatars are size-limited and

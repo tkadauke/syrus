@@ -325,6 +325,40 @@ it("confirms before removing a protected workspace path", async () => {
   )
 })
 
+it("shows pending approvals with the originating run and tool input and allows rejection", async () => {
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input)
+    if (path.endsWith("/approvals") && !init?.method) {
+      return jsonResponse({
+        approvals: [
+          {
+            id: 91,
+            tool_name: "propose_job",
+            tool_input: { title: "Investigate" },
+            run_id: 44,
+            chat_id: 12,
+            created_at: "2026-10-29T10:00:00Z",
+            state: "pending"
+          }
+        ]
+      })
+    }
+    if (path.endsWith("/reject")) return jsonResponse({ approval: { id: 91, state: "rejected" } })
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+
+  fireEvent.click(screen.getByRole("button", { name: "Approvals" }))
+  expect(await screen.findByRole("heading", { name: "propose_job" })).toBeInTheDocument()
+  expect(screen.getByText("Originating run 44")).toBeInTheDocument()
+  expect(screen.getByText(/Investigate/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+
+  await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/approvals/91/reject", expect.objectContaining({ method: "POST" })))
+})
+
 it("browses, searches, and renders coworker memory without write controls", async () => {
   const requests: string[] = []
   vi.stubGlobal(
