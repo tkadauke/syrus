@@ -68,6 +68,26 @@ RSpec.describe Coworkers::ReplyInChatThreadTool do
     expect(ChatWakeup.count).to eq(0)
   end
 
+  it "refuses an owner-opened thread whose counterpart belongs to another coworker" do
+    other_coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Rin", handle: "rin-reply",
+      workspace_repo: repository.remote_url
+    )
+    other_coworker_chat = ChatSession.create!(user: owner, repository: repository, title: "Rin")
+    Coworkers::Chat.create!(coworker: other_coworker, chat_session: other_coworker_chat, role: "main")
+    bridge = ChatBridgeThread.create!(
+      origin_chat_session: coworker_chat,
+      target_chat_session: other_coworker_chat,
+      opened_by_user: owner
+    )
+
+    response = call(thread_id: bridge.id, text: "Not through this tool")
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("not found or not accessible")
+    expect(ChatWakeup.count).to eq(0)
+  end
+
   it "refuses a closed thread" do
     bridge = thread(state: "closed")
 
