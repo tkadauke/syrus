@@ -137,6 +137,7 @@ module Mcp
           repository_id: proposal.effective_repository&.id,
           repository: proposal.effective_repository&.slug,
           goal_provenance: App::GoalProvenancePayload.for(proposal),
+          proposer: App::ChatMessagePayload.proposer_json(proposal),
           target_epic: target_epic_payload(proposal),
           materialized: materialized_payload(proposal)
         }

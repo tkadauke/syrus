@@ -70,6 +70,20 @@ describe("propose_job tool card", () => {
     expect(screen.getByText("os: linux · arch: x86_64")).toBeInTheDocument()
   })
 
+  it("renders coworker provenance", () => {
+    const parsedResult = {
+      slug: "fix-output",
+      title: "Fix output",
+      kind: "job",
+      state: "proposed",
+      proposer: { type: "coworker", id: 7, label: "Maya", handle: "maya" }
+    }
+
+    render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("Proposed by Maya @maya")).toBeInTheDocument()
+  })
+
   it("renders markdown, labels, linked dependencies, routing, investigation, and provenance", () => {
     const parsedResult = {
       slug: "investigate-output",

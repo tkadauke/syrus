@@ -46,6 +46,40 @@ RSpec.describe "API: coworkers", type: :request do
     expect(task.reload).to be_fired
   end
 
+  it "lets only the signed-in owner confirm a coworker-authored proposal" do
+    repository = Factories.repository(user: owner)
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-proposer", workspace_repo: repository.remote_url
+    )
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    proposal = chat.proposals.create!(
+      repository: repository,
+      proposer: coworker,
+      slug: "job-owner-confirmed",
+      title: "Owner-confirmed work",
+      body: "Create this only after the owner confirms.",
+      kind: "job",
+      planned_execution_capabilities: { "os" => [ "linux" ] },
+      planned_execution_source: "explicit"
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Job proposal proposed." })
+
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).not_to include("confirm_proposal")
+    expect(Job.where(issue_title: proposal.title)).to be_empty
+
+    sign_in_as(owner)
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.to change(Job, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload).to have_attributes(state: "confirmed", proposer: coworker)
+    expect(response.parsed_body.dig("proposal", "proposer")).to eq(
+      "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya-proposer"
+    )
+  end
+
   it "updates proposed About text while the coworker action is pending" do
     chat = ChatSession.create!(user: owner)
     action = chat.pending_actions.create!(

@@ -552,6 +552,8 @@
   "proposal_investigation_value": "Nur lesend, kein PR erwartet",
   "proposal_provider": "Anbieter",
   "proposal_priority": "Priorität",
+  "proposal_authored_by": "Vorgeschlagen von {{name}} {{handle}}",
+  "tool_card_proposer": "Vorschlag von",
   "proposal_provider_default": "Standard",
   "proposal_capabilities": "Fähigkeiten",
   "aria_confirm_proposal_to_backlog": "Vorschlag für Backlog bestätigen",
