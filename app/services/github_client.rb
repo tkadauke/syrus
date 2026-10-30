@@ -934,6 +934,23 @@ class GithubClient
     raise
   end
 
+  # Commits reachable from one ref, newest-first. This is deliberately a
+  # single page: callers use it for bounded history displays, including refs
+  # whose orphan history cannot be read through GitHub's compare endpoint.
+  def commits_for(repo_slug, ref, limit: 50)
+    commits = track_rate_limits { @client.get("repos/#{repo_slug}/commits", sha: ref, per_page: limit) }
+    Array(commits).first(limit).map do |commit|
+      {
+        sha: commit.sha,
+        message: commit.commit.message.lines.first&.strip || "",
+        date: commit.commit.committer.date
+      }
+    end
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited listing commits on #{repo_slug} at #{ref}: #{e.message}")
+    raise
+  end
+
   # The commit SHA `ref` (a branch, tag, or SHA) points at. Raises
   # Octokit::NotFound when GitHub does not know the ref -- unlike most readers
   # here, absence is not folded into nil, because callers must tell an unknown

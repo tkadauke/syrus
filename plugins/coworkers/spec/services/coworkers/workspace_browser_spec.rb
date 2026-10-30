@@ -15,7 +15,6 @@ RSpec.describe Coworkers::WorkspaceBrowser do
       } }
     )
     stub_repository_content(repository, ref: "coworkers/maya-browser", files: { "README.md" => "hello" })
-    stub_repository_content(repository, ref: repository.default_branch, files: {})
 
     result = described_class.new(coworker: coworker, repository: repository, user: owner).call
 
@@ -27,8 +26,7 @@ RSpec.describe Coworkers::WorkspaceBrowser do
     run_sha = "b" * 40
     seed_sha = "c" * 40
     stub_repository_content(repository, ref: "coworkers/maya-browser", files: { "README.md" => "hello" })
-    stub_repository_content(repository, ref: repository.default_branch, files: {})
-    stub_repository_history(repository, base: repository.default_branch, head: "coworkers/maya-browser", commits: [
+    stub_repository_commits(repository, ref: "coworkers/maya-browser", commits: [
       { sha: chat_sha, message: "Update @maya-browser from chat 91" },
       { sha: run_sha, message: "Refresh research notes" },
       { sha: seed_sha, message: "Create coworker home" }
@@ -43,5 +41,7 @@ RSpec.describe Coworkers::WorkspaceBrowser do
       include(sha: run_sha, source: "run", source_id: run.id),
       include(sha: seed_sha, source: "unattributed", source_id: nil)
     )
+    expect(FakeRepositoryContentProvider.calls.any? { |call| call.first == :commits && call.last == 50 }).to be(true)
+    expect(FakeRepositoryContentProvider.calls.none? { |call| call.first == :history }).to be(true)
   end
 end

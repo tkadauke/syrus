@@ -182,6 +182,16 @@ module RepositoryContent
       result
     end
 
+    # Commits reachable from one revision, newest-first. Unlike #history,
+    # this does not require a merge base and therefore supports orphan refs.
+    def commits(revision:, limit: 50)
+      id = revision_id(revision)
+      limit = Integer(limit)
+      raise ArgumentError, "limit must be positive" unless limit.positive?
+
+      through_chain(:commits) { |provider| provider.commits(id, limit: limit) }
+    end
+
     # The id of a commit's root tree object -- what two revisions share when
     # they produced identical content, immutable per revision like #tree.
     def tree_sha(revision)

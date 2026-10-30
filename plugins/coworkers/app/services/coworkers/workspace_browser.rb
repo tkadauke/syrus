@@ -44,8 +44,7 @@ class Coworkers::WorkspaceBrowser
   end
 
   def commits(home)
-    base = @reader.resolve(@repository.default_branch)
-    history = @reader.history(base: base, head: home).commits
+    history = @reader.commits(revision: home, limit: 50)
     runs_by_sha = source_runs(history)
     history.map do |commit|
       chat_id = commit.message[/\bchat (\d+)\b/i, 1]

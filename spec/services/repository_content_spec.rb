@@ -5,7 +5,7 @@ RSpec.describe RepositoryContent do
   let(:repository) { Factories.repository(user: user) }
 
   # A scripted provider: each operation either returns its value or raises.
-  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, children: nil, read: nil, changes: nil, history: nil, tree_sha: nil, log: [])
+  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, children: nil, read: nil, changes: nil, history: nil, commits: nil, tree_sha: nil, log: [])
     Class.new do
       include Syrus::Plugin::RepositoryContentProvider
 
@@ -35,6 +35,9 @@ RSpec.describe RepositoryContent do
       end
       if history
         define_method(:history) { |base, head| answer.call(:history, history, base, head) }
+      end
+      if commits
+        define_method(:commits) { |id, limit:| answer.call(:commits, commits, id, limit) }
       end
       if tree_sha
         define_method(:tree_sha) { |id| answer.call(:tree_sha, tree_sha, id) }
@@ -326,6 +329,18 @@ RSpec.describe RepositoryContent do
 
       expect { described_class.for(repository, user: user).history(base: revision("b" * 40), head: revision) }
         .to raise_error(RepositoryContent::Truncated) { |error| expect(error.partial).to eq(partial) }
+    end
+  end
+
+  describe "#commits" do
+    it "falls through to a provider that can list a single ref's history" do
+      commit = RepositoryContent::Commit.new(sha: "c" * 40, message: "seed")
+      described_class.provider_classes_override = [
+        provider_class(:mirror, role: :replica),
+        provider_class(:github, commits: [ commit ])
+      ]
+
+      expect(described_class.for(repository, user: user).commits(revision: revision, limit: 50)).to eq([ commit ])
     end
   end
 
