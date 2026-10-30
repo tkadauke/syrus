@@ -56,7 +56,9 @@ class Coworkers::RemoteWorkspace
 
   def delete!(branch)
     validate_coworker_namespace!(branch)
-    @git.run("push", authenticated_url, ":refs/heads/#{branch}")
+    with_seed_checkout do |path|
+      @git.run("push", authenticated_url, ":refs/heads/#{branch}", chdir: path)
+    end
   end
 
   private
