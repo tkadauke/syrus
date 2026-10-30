@@ -6,7 +6,12 @@
   "built_in": "Built-in · engineer",
   "card": { "weekly_spend": "${{amount}} this week" },
   "coming_later": "Coming later",
-  "provisioning": { "title": "Provisioning cleanup", "retry": "Retry cleanup", "acknowledge": "Acknowledge", "states": { "provisioning": "Provisioning", "cleanup_pending": "Cleanup pending", "cleaned": "Cleaned", "manual_attention": "Manual attention required" } },
+  "provisioning": {
+    "title": "Provisioning cleanup",
+    "retry": "Retry cleanup",
+    "acknowledge": "Acknowledge",
+    "states": { "provisioning": "Provisioning", "cleanup_pending": "Cleanup pending", "cleaned": "Cleaned", "manual_attention": "Manual attention required" }
+  },
   "memory": {
     "search": "Search memory files",
     "files": "Memory files",
