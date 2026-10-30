@@ -97,7 +97,9 @@ export function fetchCoworkerMemory(id: string, search: string) {
 export function fetchCoworkerWorkspace(id: string, path?: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
 }
-export const fetchCoworkerActivity = (id: string) => getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
+export function fetchCoworkerActivity(id: string) {
+  return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
+}
 export const createCoworkerSchedule = (id: string, schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
   postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
 export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, command: "pause" | "resume" | "fire_now") =>

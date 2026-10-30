@@ -359,7 +359,8 @@
     "no_capable_worker": "Wartet auf Worker-Fähigkeit",
     "visual_diff_obsolete": "Vergleich nicht mehr nötig",
     "preempted": "Verdrängt",
-    "landing_paused": "Landing pausiert"
+    "landing_paused": "Landing pausiert",
+    "coworker_turn_in_flight": "Coworker-Unterhaltung läuft"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "Eine erforderliche Job- oder Epic-Abhängigkeit endete ohne erfolgreiche Auflösung. Überschreibe oder entferne die Abhängigkeit, um fortzufahren.",
@@ -385,7 +386,8 @@
     "no_capable_worker": "Kein aktiver Worker meldet derzeit die für diese Arbeit erforderlichen Fähigkeiten.",
     "visual_diff_obsolete": "Der Job hat den Zustand überschritten, für den dieser Vergleich eingeplant war.",
     "preempted": "Eine Arbeitseinheit mit höherer Priorität hat diese ersetzt.",
-    "landing_paused": "Landing ist für dieses Repository pausiert."
+    "landing_paused": "Landing ist für dieses Repository pausiert.",
+    "coworker_turn_in_flight": "Dieser Hintergrundlauf wartet, bis die aktive Unterhaltung des Coworkers beendet ist."
   },
   "admission_diagnostics_link": "Druckdiagnose anzeigen",
   "blocked_reasons": {

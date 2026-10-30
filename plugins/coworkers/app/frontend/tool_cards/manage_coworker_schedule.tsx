@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, EmptyState, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import i18n from "@app/i18n"
 
 function object(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null
@@ -31,7 +32,7 @@ const card: ToolCardRenderer = {
             )
           })
         ) : (
-          <EmptyState>No schedules.</EmptyState>
+          <EmptyState>{i18n.t("coworkers:tool_card.no_schedules")}</EmptyState>
         )}
       </CardShell>
     )

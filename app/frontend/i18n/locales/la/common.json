@@ -359,7 +359,8 @@
     "no_capable_worker": "Facultatem operarii exspectat",
     "visual_diff_obsolete": "Comparatio non iam necessaria",
     "preempted": "Praeoccupatum",
-    "landing_paused": "Descensus suspensus"
+    "landing_paused": "Descensus suspensus",
+    "coworker_turn_in_flight": "Colloquium collegae agitur"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "Opus vel Epicum necessarium sine exitu felici finitum est. Dependentiam remove vel praeteri ut pergas.",
@@ -385,7 +386,8 @@
     "no_capable_worker": "Nullus operarius vivus nunc facultates huic operi necessarias nuntiat.",
     "visual_diff_obsolete": "Opus statum praeteriit cui haec comparatio disposita erat.",
     "preempted": "Unitas operis potioris ordinis hanc substituit.",
-    "landing_paused": "Descensus huic receptaculo suspensus est."
+    "landing_paused": "Descensus huic receptaculo suspensus est.",
+    "coworker_turn_in_flight": "Hic cursus posterior exspectat dum colloquium activum collegae finiatur."
   },
   "admission_diagnostics_link": "Diagnostica oneris videre",
   "blocked_reasons": {

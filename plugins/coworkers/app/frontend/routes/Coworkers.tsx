@@ -365,7 +365,7 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
           </Select>
         </label>
         {kind === "cron" ? (
-          <Field label={t("schedule.cadence")} name="schedule_input" placeholder="Every Monday at 9:00 AM" required />
+          <Field label={t("schedule.cadence")} name="schedule_input" placeholder={t("schedule.cadence_placeholder")} required />
         ) : (
           <Field label={t("schedule.fire_at")} name="fire_at" required type="datetime-local" />
         )}
@@ -455,7 +455,7 @@ function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail
           <ul className="mt-3 divide-y divide-border rounded border border-border">
             {activity.runs.map((run) => (
               <li className="grid gap-2 p-3 text-sm sm:grid-cols-4" key={run.id}>
-                <span>RUN-{run.id}</span>
+                <span>{t("activity.run_label", { id: run.id })}</span>
                 <span>{t(`activity.status.${run.state}`, { defaultValue: run.state })}</span>
                 <span>{t("activity.tool_calls", { count: run.tool_calls_count })}</span>
                 <span className="sm:text-right">${run.cost_usd.toFixed(2)}</span>
