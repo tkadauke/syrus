@@ -373,6 +373,18 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
     mutation.mutate({ capability, policy, confirmed: escalation })
   }
 
+  function saveFileConstraints(grant: CoworkerDetail["grants"][number]) {
+    const nextPaths = new Set(
+      paths
+        .split(",")
+        .map((path) => path.trim())
+        .filter(Boolean)
+    )
+    const removesProtection = (grant.constraints.confirm_paths || []).some((path) => !nextPaths.has(path))
+    if (removesProtection && !window.confirm(t("capabilities.confirm_escalation"))) return
+    mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: removesProtection })
+  }
+
   return (
     <section className="space-y-5">
       <div className="divide-y divide-border rounded border border-border bg-surface">
@@ -391,7 +403,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                     <button
                       className="mt-2 rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
                       disabled={!grant || mutation.isPending}
-                      onClick={() => mutation.mutate({ capability, policy: grant?.approval_policy || "off", confirmed: false })}
+                      onClick={() => grant && saveFileConstraints(grant)}
                       type="button"
                     >
                       {t("capabilities.save_constraints")}
