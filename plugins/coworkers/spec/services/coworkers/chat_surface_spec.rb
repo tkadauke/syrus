@@ -223,9 +223,16 @@ RSpec.describe "Coworker chat surface" do
     coworker.grants.create!(capability: "chat.message_owner", approval_policy: "confirm")
     question_tool = coworker_tool("ask_user_question")
     suggestion_tool = coworker_tool("suggest_next_step")
+    helper_entries = McpToolRegistry.entries(surface: :coworker).select do |entry|
+      entry.tool.in?([ question_tool, suggestion_tool ])
+    end
 
-    expect { question_tool.call(server_context: context, questions: questions) }
+    expect(helper_entries).to all(have_attributes(mutation: true, read_only?: false, interactive_only: true))
+
+    question_response = nil
+    expect { question_response = question_tool.call(server_context: context, questions: questions) }
       .to change(chat.agent_questions, :count).by(1)
+    expect(response_payload(question_response)).to include("question_id" => chat.agent_questions.last.id)
     expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
 
     response = suggestion_tool.call(server_context: context, text: "Draft the follow-up")

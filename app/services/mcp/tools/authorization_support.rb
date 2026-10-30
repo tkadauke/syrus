@@ -54,6 +54,8 @@ module Mcp::Tools
 
         entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == tool }
         return unless entry&.mutation
+        return if entry.interactive_only && context.interactive
+
         policy = context.capability_approval_policies.fetch(entry.capability.to_s, "queue")
         return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
 
