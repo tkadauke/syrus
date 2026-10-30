@@ -2735,6 +2735,14 @@ RSpec.describe ChatTurnJob, :ci_only do
         "reason" => "feature_disabled",
         "stdio_fallback" => "proxy"
       )
+      expect(artifact.dig("exposed_tools", "essential")).to include(
+        "count" => be_positive,
+        "names" => include("list_jobs")
+      )
+      expect(artifact.dig("exposed_tools", "deferred")).to include(
+        "count" => be_positive,
+        "names" => include("read_workflow")
+      )
     end
 
     it "routes both tiers through the persistent daemon with distinct signed per-tier tokens when it is healthy" do

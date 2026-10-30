@@ -62,19 +62,12 @@ class PersistentMcpDaemon::ChatContextResolver
       chat_session.messages.find_by(id: current_message_id) || Mcp::Tools::CurrentMessage.new(chat_session)
     end
 
-    # Mirrors Mcp::Sidecar.chat_tools_for's gating exactly (McpToolPolicy for
-    # the evaluator role; McpToolRegistry.tools_for_context otherwise) so a
-    # tool that's off-limits for this session/tier/role is rejected
-    # identically regardless of transport.
+    # Keep the stdio sidecar as the single source of truth for role, surface,
+    # tier, plugin policy, coworker grants, and approval-policy wrapping. A
+    # second implementation here is security-sensitive drift waiting to
+    # happen because this set gates calls as well as tools/list.
     def allowed_tools_for(tool_context, tier:)
-      if tool_context.role == AgentRole::CHAT_EVALUATOR
-        return McpToolPolicy.for(tool_context) +
-          Mcp::Sidecar.plugin_tools_for(tool_context.chat_session, tier: :evaluator, policy: :evaluator)
-      end
-
-      registry_tier = tier.to_s == "deferred" ? :deferred : :essential
-      McpToolRegistry.tools_for_context(tool_context, surface: :chat, tier: registry_tier) +
-        Mcp::Sidecar.plugin_tools_for(tool_context.chat_session, tier: registry_tier)
+      Mcp::Sidecar.chat_tools(tool_context.chat_session, tier: tier)
     end
   end
 end

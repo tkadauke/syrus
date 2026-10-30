@@ -21,6 +21,13 @@ RSpec.describe PersistentMcpDaemon::ChatContextResolver do
     )
   end
 
+  def allowed_names_for(session, tier:, evaluator: false)
+    token = McpInvocationContext.issue_for_chat(
+      session, worker_id: worker_id, tier: tier, evaluator: evaluator
+    )
+    described_class.resolve(raw_context(token)).allowed_tool_names
+  end
+
   describe ".resolve" do
     it "rebuilds the stdio-equivalent server_context and scopes allowed_tools to the essential tier" do
       resolved = described_class.resolve(raw_context(token_for(tier: "essential", current_message: message)))
@@ -78,6 +85,36 @@ RSpec.describe PersistentMcpDaemon::ChatContextResolver do
 
       expect(resolved.server_context[:evaluator]).to be true
       expect(resolved.allowed_tools).to include(Mcp::Tools::ListJobsTool)
+    end
+
+    it "matches the stdio sidecar for every chat role and tier" do
+      scope = Syrus::EffectScope.new(label: "persistent resolver coworker parity")
+      Coworkers::ChatExtension.install_into(scope)
+      admin_chat = ChatSession.create!(user: bootstrap_admin, repository: Factories.repository(user: bootstrap_admin))
+      coding_chat = ChatSession.create!(user: user, repository: repository, mode: "coding")
+      local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+      coworker = Coworkers::Coworker.create!(
+        owner_user: user, name: "Maya", handle: "maya-daemon-parity", workspace_repo: repository.remote_url
+      )
+      coworker_chat = ChatSession.create!(user: user, repository: repository, title: "Maya")
+      Coworkers::Chat.create!(coworker: coworker, chat_session: coworker_chat, role: "main")
+      Coworkers::Create::DEFAULT_GRANTS.each do |capability, approval_policy|
+        coworker.grants.create!(capability: capability, approval_policy: approval_policy)
+      end
+
+      [ chat, admin_chat, coding_chat, local_chat, coworker_chat ].each do |session|
+        %i[essential deferred].each do |tier|
+          expect(allowed_names_for(session, tier: tier)).to match_array(
+            Mcp::Sidecar.chat_tool_names(session, tier: tier)
+          )
+        end
+      end
+
+      expect(allowed_names_for(chat, tier: :evaluator, evaluator: true)).to match_array(
+        Mcp::Sidecar.chat_tool_names(chat, tier: :evaluator)
+      )
+    ensure
+      scope&.dispose
     end
 
     it "raises Malformed for a token minted for the run surface" do
