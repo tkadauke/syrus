@@ -2,7 +2,12 @@ module Coworkers
   class ChatToolSet
     include Syrus::Plugin::ChatMcpToolSet
 
-    TOOLS = [ McpTools::ProposeCoworkerTool, McpTools::ProposeGrantEscalationTool ].freeze
+    TOOLS = [
+      McpTools::ListCoworkersTool,
+      McpTools::ReadCoworkerTool,
+      McpTools::ProposeCoworkerTool,
+      McpTools::ProposeGrantEscalationTool
+    ].freeze
     WORKSPACE_TOOLS = [
       WorkspaceFileTools::Write,
       WorkspaceFileTools::Edit,

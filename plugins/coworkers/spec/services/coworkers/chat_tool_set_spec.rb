@@ -13,6 +13,10 @@ RSpec.describe Coworkers::ChatToolSet do
     expect(described_class.available_for_coworker?(chat, tier: :essential)).to be(true)
     expect(described_class.available_for_coworker?(chat, tier: :deferred)).to be(false)
 
+    expect(described_class.tool_definitions(tier: :deferred).pluck(:name)).to include(
+      "list_coworkers", "read_coworker", "propose_coworker", "propose_coworker_grants"
+    )
+
     definitions = described_class.tool_definitions(tier: :essential)
     expect(definitions).to include(
       include(name: "message_coworker", coworker_safe: true, capability: "coworker.message", mutation: true),
