@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Coworkers::Create do
   class FakeCoworkerRemote
     attr_reader :repository, :seeded_files, :seeded_identity, :deleted_branches
-    attr_accessor :branch_exists, :fail_access, :fail_seed
+    attr_accessor :branch_exists, :fail_access, :fail_seed, :delete_error
 
     def initialize(user)
       @repository = Repository.new(owner: "acme", name: "coworker-homes", user: user)
@@ -22,7 +22,11 @@ RSpec.describe Coworkers::Create do
       @seeded_identity = identity
     end
 
-    def delete!(branch) = deleted_branches << branch
+    def delete!(branch)
+      raise delete_error if delete_error
+
+      deleted_branches << branch
+    end
   end
 
   let(:owner) { Factories.user(first_name: "Ada", last_name: "Lovelace") }
@@ -166,6 +170,46 @@ RSpec.describe Coworkers::Create do
     expect(Repository.where(owner: "acme", name: "coworker-homes")).to be_empty
   end
 
+  it "removes the real remote branch after a post-seed creation failure outside a Git repository" do
+    Dir.mktmpdir("coworker-create-spec-") do |root|
+      bare_remote = File.join(root, "coworker-homes.git")
+      caller_directory = File.join(root, "not-a-repository")
+      FileUtils.mkdir_p(caller_directory)
+      GitRunner.new.run("init", "--bare", bare_remote)
+      real_remote = Coworkers::RemoteWorkspace.new(owner: "acme", name: "coworker-homes", user: owner)
+      allow(real_remote).to receive(:authenticated_url).and_return(bare_remote)
+      creation_error = ActiveRecord::RecordInvalid.new(Coworkers::Coworker.new)
+      allow(Coworkers::Coworker).to receive(:create!).and_raise(creation_error)
+      service = described_class.new(
+        owner: owner, name: "Maya", handle: "maya",
+        workspace_repo: "https://github.com/acme/coworker-homes.git",
+        remote_workspace: real_remote
+      )
+
+      expect { Dir.chdir(caller_directory) { service.call } }
+        .to raise_error { |raised| expect(raised).to equal(creation_error) }
+      expect(real_remote.branch_exists?("coworkers/maya")).to be(false)
+    end
+  end
+
+  it "raises the creation failure and redacts rollback failure diagnostics" do
+    creation_error = ActiveRecord::RecordInvalid.new(Coworkers::Coworker.new)
+    cleanup_error = GitRunner::GitError.new(
+      [ "push", "https://x-access-token:secret-token@github.com/acme/coworker-homes.git" ],
+      128,
+      "fatal: unable to access 'https://x-access-token:secret-token@github.com/acme/coworker-homes.git'"
+    )
+    allow(Coworkers::Coworker).to receive(:create!).and_raise(creation_error)
+    remote.delete_error = cleanup_error
+    allow(Rails.logger).to receive(:error)
+
+    expect { create_service.call }.to raise_error { |raised| expect(raised).to equal(creation_error) }
+
+    expect(Rails.logger).to have_received(:error) do |message|
+      expect(message).to include("creation=ActiveRecord::RecordInvalid", "cleanup=GitRunner::GitError")
+      expect(message).not_to include("secret-token")
+    end
+  end
 
   it "rolls back every record and deletes the branch when kickoff persistence fails" do
     allow_any_instance_of(ChatMessage).to receive(:record_chat_turn_state).and_raise(ActiveRecord::RecordInvalid.new(ChatMessage.new))

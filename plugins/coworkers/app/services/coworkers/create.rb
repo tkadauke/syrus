@@ -66,8 +66,8 @@ class Coworkers::Create
         create_kickoff!(coworker) unless @about
         coworker
       end
-    rescue StandardError
-      @remote.delete!(branch) if pushed
+    rescue StandardError => creation_error
+      rollback_seeded_branch(creation_error) if pushed
       raise
     end
 
@@ -75,6 +75,19 @@ class Coworkers::Create
   end
 
   private
+
+  def rollback_seeded_branch(creation_error)
+    @remote.delete!(branch)
+  rescue StandardError => cleanup_error
+    Rails.logger.error(
+      "[Coworkers::Create] coworker creation failed and seeded branch rollback also failed: " \
+      "creation=#{redacted_error(creation_error)} cleanup=#{redacted_error(cleanup_error)}"
+    )
+  end
+
+  def redacted_error(error)
+    GitRunner.redact("#{error.class}: #{error.message}")
+  end
 
   def branch = "coworkers/#{@handle}"
 
