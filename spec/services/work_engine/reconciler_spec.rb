@@ -219,7 +219,9 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       pr_number: 2460,
       priority: "urgent",
       state: "implemented",
-      approved_at: 1.minute.ago
+      approved_at: 1.minute.ago,
+      github_mergeable_state: "clean",
+      mergeability_checked_at: Time.current
     )
     repair_job.approve!(via: "operator")
     repair_job
