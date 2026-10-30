@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query"
 import type { ChatRecord, ChatsIndexPayload } from "../api/chats"
-import { chatGroupFor, chatGroupKey } from "./chatCache"
+import { chatGroupFor, chatGroupKeyForUpdate } from "./chatCache"
 
 export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: number | string, updates: Partial<ChatRecord>) {
   queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
@@ -10,7 +10,7 @@ export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: nu
     if (!existing) return current
 
     const updated = { ...existing, ...updates }
-    const targetKey = chatGroupKey(updated)
+    const targetKey = chatGroupKeyForUpdate(updated, current.groups)
     const groups = current.groups.map((group) => ({
       ...group,
       chats: group.chats.filter((chat) => String(chat.id) !== String(chatId))

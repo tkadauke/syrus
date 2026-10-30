@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { ChatBookmark, ChatPayload } from "../api/chats"
+import type { ChatBookmark, ChatPayload, ChatsIndexPayload } from "../api/chats"
 import { applyAppEvent, queryKeysFor, recoverAppEventContinuity, recoverChatResourceContinuity, resetAppEventSequenceTracking } from "./appEvents"
 import { recentChatsQueryKey } from "./chatCache"
 import { readEntity, resetEntityStoreForTest, upsertEntity } from "./entityStore"
@@ -908,6 +908,51 @@ describe("applyAppEvent", () => {
     expect(recent?.groups[0].chats[0].title).toBe("Updated chat")
     expect(recent?.groups[0].chats[0].title_pending).toBe(false)
     expect(recent?.groups[0].chats[0].repository).toEqual({ id: 3, slug: "acme/widgets" })
+  })
+
+  it("keeps plugin-owned chats in their server-assigned group after header updates", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [
+        {
+          key: "coworkers",
+          label: "Coworkers",
+          repository_id: null,
+          group_by: "plugin",
+          group_value: "coworkers",
+          has_more: false,
+          chats: [
+            {
+              ...chatPayload([]).chat,
+              id: 9,
+              title: "Maya",
+              repository: { id: 3, slug: "acme/coworker-workspace" },
+              last_message_at: "2026-05-30T12:00:00Z",
+              unread: false
+            }
+          ]
+        }
+      ],
+      repositories: []
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_header",
+        chat: { title: "Maya updated" }
+      }
+    })
+
+    const recent = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
+    expect(recent?.groups).toHaveLength(1)
+    expect(recent?.groups[0]).toEqual(
+      expect.objectContaining({
+        key: "coworkers",
+        group_by: "plugin",
+        chats: [expect.objectContaining({ id: 9, title: "Maya updated" })]
+      })
+    )
   })
 
   it("applies chat header payloads when the cached recent chat list is missing", () => {

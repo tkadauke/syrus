@@ -86,8 +86,7 @@ export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord
         if (!existing && !recentChatBelongsInQuery(chat, query.queryKey)) return current
 
         const updated = recentChatRecord(chat, existing, options.occurredAt)
-        const sourceGroup = current.groups.find((group) => group.chats.some((item) => item.id === chat.id))
-        const targetKey = sourceGroup?.group_by === "plugin" ? sourceGroup.key : chatGroupKey(updated)
+        const targetKey = chatGroupKeyForUpdate(updated, current.groups)
         const groups = withoutChat(current.groups, chat.id)
         const targetIndex = groups.findIndex((group) => group.key === targetKey)
         const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
@@ -253,6 +252,11 @@ export function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
 
 export function chatGroupKey(chat: ChatNavRecord) {
   return chat.repository ? `repository-${chat.repository.id}` : "general"
+}
+
+export function chatGroupKeyForUpdate(chat: ChatNavRecord, groups: ChatGroupRecord[]) {
+  const sourceGroup = groups.find((group) => group.chats.some((item) => item.id === chat.id))
+  return sourceGroup?.group_by === "plugin" ? sourceGroup.key : chatGroupKey(chat)
 }
 
 function withoutChat(groups: ChatGroupRecord[], chatId: number) {
