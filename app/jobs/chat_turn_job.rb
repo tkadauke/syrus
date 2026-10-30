@@ -195,7 +195,8 @@ class ChatTurnJob < ApplicationJob
       # Phase 1 works directly on the coworker's home branch, one chat turn at
       # a time. Phase 3 replaces this with per-chat branches merged at turn end.
       workspace_path = ChatWorkspace.ensure_branch_checkout!(
-        @chat, active_chat.repository, "coworkers/#{active_chat.coworker.handle}"
+        @chat, active_chat.repository, "coworkers/#{active_chat.coworker.handle}",
+        preserve_local_commits: true
       )
     elsif coding_mode_active?
       ensure_coding_checkout!

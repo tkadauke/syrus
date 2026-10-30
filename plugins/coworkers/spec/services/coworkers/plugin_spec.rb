@@ -71,7 +71,7 @@ RSpec.describe "Coworkers plugin" do
     job.instance_variable_set(:@agent_chat, context)
     allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/roster-chat"))
     expect(ChatWorkspace).to receive(:ensure_branch_checkout!)
-      .with(chat, repository, "coworkers/maya-turn")
+      .with(chat, repository, "coworkers/maya-turn", preserve_local_commits: true)
       .and_return(Pathname("/tmp/roster-coworker"))
 
     expect(job.send(:chat_provider)).to have_attributes(provider: "codex")

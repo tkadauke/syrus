@@ -210,7 +210,7 @@ RSpec.describe "Coworker chat surface" do
     job.instance_variable_set(:@user_message, chat.messages.create!(role: "user", content: { "text" => "Hello" }))
     allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/coworker-root"))
     allow(ChatWorkspace).to receive(:ensure_branch_checkout!)
-      .with(chat, repository, "coworkers/maya")
+      .with(chat, repository, "coworkers/maya", preserve_local_commits: true)
       .and_return(Pathname("/tmp/coworker-home"))
 
     expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/coworker-home"))
