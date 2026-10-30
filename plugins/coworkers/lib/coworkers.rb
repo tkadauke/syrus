@@ -1,6 +1,7 @@
 require "coworkers/data_cleanup"
 require "coworkers/chat_extension"
 require "coworkers/search_extension"
+require "coworkers/schedule_extension"
 
 module Coworkers
   extend Syrus::PluginApi
@@ -38,6 +39,10 @@ module Coworkers
     route :get, "/api/v1/app/coworkers/:id/memory", to: "api/v1/app/coworkers#memory"
     route :get, "/api/v1/app/coworkers/:id/workspace", to: "api/v1/app/coworkers#workspace"
     route :get, "/api/v1/app/coworkers/:id/activity", to: "api/v1/app/coworkers#activity"
+    route :post, "/api/v1/app/coworkers/:id/schedules", to: "api/v1/app/coworkers#create_schedule"
+    route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/pause", to: "api/v1/app/coworkers#pause_schedule"
+    route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/resume", to: "api/v1/app/coworkers#resume_schedule"
+    route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/fire_now", to: "api/v1/app/coworkers#fire_schedule"
     route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
     route :post, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#add_to_chat"
     route :delete, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#remove_from_chat"
@@ -50,6 +55,7 @@ module Coworkers
     while_enabled do |scope|
       Coworkers::ChatExtension.install_into(scope)
       Coworkers::SearchExtension.install_into(scope)
+      Coworkers::ScheduleExtension.install_into(scope)
     end
   end
 end

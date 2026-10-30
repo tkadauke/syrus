@@ -18,6 +18,8 @@ import { withRoutePrefix } from "@app/lib/routing"
 import { defaultAccentSelection, type AccentSelection } from "@app/lib/appearance"
 import {
   addCoworkerToChat,
+  commandCoworkerSchedule,
+  createCoworkerSchedule,
   createCoworker,
   createSideChat,
   fetchCoworker,
@@ -316,11 +318,97 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
+      {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void query.refetch()} /> : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
       {tab === "activity" ? <CoworkerActivity id={id} traffic={coworker.message_traffic} /> : null}
-      {!["chat", "profile", "memory", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {!["chat", "profile", "schedule", "memory", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
+  )
+}
+
+function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
+  const { t } = useT("coworkers")
+  const [kind, setKind] = useState("cron")
+  const create = useMutation({
+    mutationFn: (schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
+      createCoworkerSchedule(String(coworker.id), schedule),
+    onSuccess: onChanged
+  })
+  const command = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "pause" | "resume" | "fire_now" }) => commandCoworkerSchedule(String(coworker.id), id, action),
+    onSuccess: onChanged
+  })
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    create.mutate({
+      name: String(data.get("name") || ""),
+      prompt: String(data.get("prompt") || ""),
+      kind,
+      schedule_input: kind === "cron" ? String(data.get("schedule_input") || "") : undefined,
+      fire_at: kind === "one_shot" ? new Date(String(data.get("fire_at") || "")).toISOString() : undefined
+    })
+  }
+  return (
+    <section className="space-y-5">
+      <form className="space-y-3 rounded border border-border bg-surface p-5" onSubmit={submit}>
+        <h2 className="font-semibold">{t("schedule.add")}</h2>
+        <Field label={t("schedule.name")} name="name" required />
+        <label className="block text-sm font-medium">
+          {t("schedule.kind")}
+          <Select className="mt-1" onChange={(event) => setKind(event.target.value)} value={kind}>
+            <option value="cron">{t("schedule.recurring")}</option>
+            <option value="one_shot">{t("schedule.one_shot")}</option>
+          </Select>
+        </label>
+        {kind === "cron" ? (
+          <Field label={t("schedule.cadence")} name="schedule_input" placeholder="Every Monday at 9:00 AM" required />
+        ) : (
+          <Field label={t("schedule.fire_at")} name="fire_at" required type="datetime-local" />
+        )}
+        <label className="block text-sm font-medium">
+          {t("schedule.prompt")}
+          <Textarea className="mt-1 min-h-24" name="prompt" required />
+        </label>
+        {create.isError ? <PanelMessage>{create.error.message}</PanelMessage> : null}
+        <button className="rounded bg-brand px-3 py-2 text-sm font-medium text-white" disabled={create.isPending}>
+          {t("schedule.add")}
+        </button>
+      </form>
+      {coworker.schedules.length === 0 ? (
+        <PanelMessage>{t("schedule.empty")}</PanelMessage>
+      ) : (
+        <ul className="divide-y divide-border rounded border border-border bg-surface">
+          {coworker.schedules.map((schedule) => (
+            <li className="flex flex-wrap items-center justify-between gap-3 p-4" key={schedule.id}>
+              <div>
+                <div className="font-medium">{schedule.name}</div>
+                <div className="text-sm text-text-secondary">
+                  {schedule.schedule_explanation || schedule.fire_at} · {schedule.state}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="rounded border border-border px-3 py-1.5 text-sm"
+                  disabled={command.isPending}
+                  onClick={() => command.mutate({ id: schedule.id, action: schedule.state === "scheduled" ? "pause" : "resume" })}
+                >
+                  {schedule.state === "scheduled" ? t("schedule.pause") : t("schedule.resume")}
+                </button>
+                <button
+                  className="rounded border border-border px-3 py-1.5 text-sm"
+                  disabled={command.isPending}
+                  onClick={() => command.mutate({ id: schedule.id, action: "fire_now" })}
+                >
+                  {t("schedule.run_now")}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 

@@ -18,6 +18,16 @@ Background runs use the coworker's capability grants. They never receive the
 interactive-only tool surface, and a grant configured for live confirmation
 uses the queued approval policy during an unattended run.
 
+The Schedule tab creates recurring or one-shot tasks on the coworker's
+workspace Repository and lists their current state. Owners can pause, resume,
+or run a task immediately there. The shared cadence parser enforces a minimum
+one-hour recurring interval. Every fire rechecks that the owner still has
+write access to the workspace Repository; a missing grant auto-pauses the
+task. Coworkers with the `schedule.manage_self` grant can manage only their own
+schedules through `manage_coworker_schedule`; the grant requires confirmation
+by default. Coworker schedules do not use PR pile-up or PR auto-approval
+policies, and their results are posted to the coworker's main chat.
+
 Coworkers is an experimental, instance-local capability for persistent named
 agents. It is disabled by default and requires beta mode before an administrator
 can enable it.
@@ -153,9 +163,8 @@ supports full-text search across paths and contents, links to the owner's Syrus
 memories, distinguishes an empty memory tree from an unreachable remote, and
 shows recent daily files first. Provider-truncated or exceptionally large trees
 return their available files with a partial-results notice; searches also warn
-when capped file contents mean the result set cannot be complete. Capabilities,
-Schedule remains a coming-later placeholder where its full surface has not
-shipped yet.
+when capped file contents mean the result set cannot be complete. The Schedule
+tab uses the shared scheduled-task cadence and lifecycle controls.
 
 The Workspace tab is a read-only view of the coworker's home branch through
 the same cached repository-content providers. It shows the remote and branch,

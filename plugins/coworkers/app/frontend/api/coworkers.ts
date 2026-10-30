@@ -22,6 +22,7 @@ export type CoworkerDetail = CoworkerSummary & {
   soul: string | null
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
   grants: { capability: string; approval_policy: string }[]
+  schedules: CoworkerSchedule[]
   available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]
   message_traffic: {
     sent: number
@@ -29,6 +30,18 @@ export type CoworkerDetail = CoworkerSummary & {
     window_days: number
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
+}
+export type CoworkerSchedule = {
+  id: number
+  name: string
+  prompt: string
+  kind: "cron" | "one_shot"
+  state: string
+  schedule_input: string | null
+  schedule_explanation: string | null
+  fire_at: string | null
+  next_fire_at: string | null
+  last_fired_at: string | null
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }
@@ -79,6 +92,12 @@ export const fetchCoworkerMemory = (id: string, search: string) => getJson<Cowor
 export const fetchCoworkerWorkspace = (id: string, path?: string) =>
   getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
 export const fetchCoworkerActivity = (id: string) => getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
+export const createCoworkerSchedule = (id: string, schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
+  postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
+export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, command: "pause" | "resume" | "fire_now") =>
+  postJson<{ schedule: CoworkerSchedule; fired?: boolean; reason?: string | null; job_id?: number | null }>(
+    `/api/v1/app/coworkers/${coworkerId}/schedules/${scheduleId}/${command}`
+  )
 export const createCoworker = (form: FormData) => postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
 export const createSideChat = (id: number) => postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)
 export const testCoworkerRemote = (workspaceRepo: string) =>

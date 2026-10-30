@@ -5,6 +5,26 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "creates coworker schedules and includes them on the shared Schedules page" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "maya-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-schedule-api",
+      workspace_repo: repository.remote_url
+    )
+    sign_in_as(owner)
+
+    post "/api/v1/app/coworkers/#{coworker.id}/schedules", params: {
+      schedule: { name: "Morning briefing", prompt: "Prepare it.", kind: "cron", schedule_input: "Every day at 9:00 AM" }
+    }
+
+    expect(response).to have_http_status(:created)
+    task_id = response.parsed_body.dig("schedule", "id")
+    get "/api/v1/app/scheduled_tasks"
+    expect(response.parsed_body.fetch("active_tasks")).to include(
+      include("id" => task_id, "coworker_id" => coworker.id, "name" => "Morning briefing")
+    )
+  end
+
   it "updates proposed About text while the coworker action is pending" do
     chat = ChatSession.create!(user: owner)
     action = chat.pending_actions.create!(

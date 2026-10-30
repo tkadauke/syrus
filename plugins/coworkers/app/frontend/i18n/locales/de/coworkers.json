@@ -108,6 +108,20 @@
     "rate_limited": "Nachricht an @{{handle}} begrenzt",
     "no_delivery_issues": "Keine abgelehnten oder begrenzten Zustellungen."
   },
+  "schedule": {
+    "add": "Zeitplan hinzufügen",
+    "name": "Name",
+    "kind": "Art",
+    "recurring": "Wiederkehrend",
+    "one_shot": "Einmalig",
+    "cadence": "Rhythmus",
+    "fire_at": "Ausführen um",
+    "prompt": "Anweisungen",
+    "empty": "Noch keine Zeitpläne.",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "run_now": "Jetzt ausführen"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Neuer Nebenchat",

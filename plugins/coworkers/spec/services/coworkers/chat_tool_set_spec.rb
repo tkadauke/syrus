@@ -7,14 +7,15 @@ RSpec.describe Coworkers::ChatToolSet do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
-  it "advertises message_coworker only on the essential coworker surface" do
+  it "advertises grant-gated coworker tools only on the essential coworker surface" do
     expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(described_class)
     expect(described_class.available_for?(chat, tier: :essential)).to be(false)
     expect(described_class.available_for_coworker?(chat, tier: :essential)).to be(true)
     expect(described_class.available_for_coworker?(chat, tier: :deferred)).to be(false)
 
     expect(described_class.tool_definitions(tier: :essential)).to contain_exactly(
-      include(name: "message_coworker", coworker_safe: true, capability: "coworker.message", mutation: true)
+      include(name: "message_coworker", coworker_safe: true, capability: "coworker.message", mutation: true),
+      include(name: "manage_coworker_schedule", coworker_safe: true, capability: "schedule.manage_self", mutation: true)
     )
     expect(described_class.tool_definitions(tier: :deferred).pluck(:name)).not_to include("message_coworker")
   end

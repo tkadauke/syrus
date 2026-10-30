@@ -55,6 +55,20 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto" }],
+    schedules: [
+      {
+        id: 31,
+        name: "Morning briefing",
+        prompt: "Prepare it",
+        kind: "cron",
+        state: "scheduled",
+        schedule_input: "Every day at 9:00 AM",
+        schedule_explanation: "Every day at 9:00 AM UTC",
+        fire_at: null,
+        next_fire_at: "2026-10-30T09:00:00Z",
+        last_fired_at: null
+      }
+    ],
     message_traffic: {
       sent: 4,
       received: 7,
@@ -389,6 +403,22 @@ it("renders chat, run, and unavailable commit provenance honestly", async () => 
   expect(await screen.findByText("Chat 91")).toBeInTheDocument()
   expect(screen.getByText("Run 42")).toBeInTheDocument()
   expect(screen.getByText("Source unavailable")).toBeInTheDocument()
+})
+
+it("lists and manages schedules on the coworker page", async () => {
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "POST") return jsonResponse({ schedule: detailPayload.coworker.schedules[0] })
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Schedule" }))
+
+  expect(screen.getByText("Morning briefing")).toBeInTheDocument()
+  expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Run now" }))
+  await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/schedules/31/fire_now", expect.objectContaining({ method: "POST" })))
 })
 
 it("renders Syrus without a workspace or main chat and links its fixed surfaces", async () => {

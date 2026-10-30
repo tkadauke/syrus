@@ -3,7 +3,7 @@ module Coworkers
     include Syrus::Plugin::ChatMcpToolSet
 
     TOOLS = [ McpTools::ProposeCoworkerTool, McpTools::ProposeGrantEscalationTool ].freeze
-    TOOL_CLASSES = [ MessageCoworkerTool ].freeze
+    TOOL_CLASSES = [ MessageCoworkerTool, ManageScheduleTool ].freeze
 
     def self.available_for?(chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
@@ -21,7 +21,7 @@ module Coworkers
             description: klass.description_value,
             input_schema: klass.input_schema_value.to_h,
             coworker_safe: true,
-            capability: "coworker.message",
+            capability: klass == ManageScheduleTool ? "schedule.manage_self" : "coworker.message",
             mutation: true
           }
         end
