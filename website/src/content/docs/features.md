@@ -1770,7 +1770,10 @@ always requiring confirmation. Gmail and Calendar are shown as disabled,
 coming-later integrations.
 Capabilities with effects outside the workspace default to `confirm` or
 `queue`; messaging the owner defaults to `confirm`. Removing a path from the
-workspace-files confirmation list also requires confirmation.
+workspace-files confirmation list also requires confirmation. During an
+owner-authored interactive turn, asking the owner a structured question or
+suggesting the owner's next chat message runs immediately: these in-turn
+helpers do not create a separate confirmation action.
 
 An ordinary Syrus or planner chat can also propose a coworker. The proposal
 preflights the handle, model, requested capabilities, workspace branch, and

@@ -348,8 +348,8 @@ class McpToolRegistry
     # never widens this surface.
     def coworker_entries
       [
-        coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
-        coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
+        coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true),
+        coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true),
         coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
