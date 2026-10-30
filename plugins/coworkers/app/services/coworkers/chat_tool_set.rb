@@ -30,11 +30,11 @@ module Coworkers
             coworker_safe: true,
             capability: if workspace_tool
               "workspace.files"
-            elsif klass == ManageScheduleTool
+                        elsif klass == ManageScheduleTool
               "schedule.manage_self"
-            else
+                        else
               "coworker.message"
-            end,
+                        end,
             coworker_grantless: workspace_tool,
             mutation: true
           }
