@@ -90,6 +90,20 @@
     "rate_limited": "Message to @{{handle}} rate limited",
     "no_delivery_issues": "No refused or rate-limited deliveries."
   },
+  "schedule": {
+    "add": "Add schedule",
+    "name": "Name",
+    "kind": "Kind",
+    "recurring": "Recurring",
+    "one_shot": "One shot",
+    "cadence": "Cadence",
+    "fire_at": "Run at",
+    "prompt": "Instructions",
+    "empty": "No schedules yet.",
+    "pause": "Pause",
+    "resume": "Resume",
+    "run_now": "Run now"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",
