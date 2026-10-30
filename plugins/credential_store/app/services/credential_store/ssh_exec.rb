@@ -289,9 +289,8 @@ module CredentialStore
     end
 
     class RiskyCommandClassifier
-      COMMAND_SEPARATORS = %w[; & |].freeze
       ASSIGNMENT_PATTERN = /\A[A-Za-z_][A-Za-z0-9_]*=/.freeze
-      UNSAFE_SHELL_SYNTAX_PATTERN = /[$`{}*?\[\],~<>\\\r\n]/.freeze
+      UNSAFE_SHELL_SYNTAX_PATTERN = /[$`{}*?\[\],~<>\\;&|\r\n]/.freeze
       READ_ONLY_COMMANDS = %w[
         arch basename cat cut df dirname du file free grep head id jq ls
         lsb_release nproc pgrep ps pwd readlink realpath stat tail test true
@@ -309,26 +308,16 @@ module CredentialStore
           source = command.to_s
           return true if source.match?(UNSAFE_SHELL_SYNTAX_PATTERN)
 
-          tokens = Shellwords.split(source.gsub(/([;&|])/, ' \1 '))
+          tokens = Shellwords.split(source)
           return true if tokens.empty?
           return true if tokens.any? { |token| nested_command_fragment?(token) }
 
-          command_segments(tokens).any? { |segment| !read_only_segment?(segment) }
+          !read_only_segment?(tokens)
         rescue ArgumentError
           true
         end
 
         private
-
-        def command_segments(tokens)
-          tokens.each_with_object([ [] ]) do |token, segments|
-            if COMMAND_SEPARATORS.include?(token)
-              segments << []
-            else
-              segments.last << token
-            end
-          end.reject(&:empty?)
-        end
 
         def read_only_segment?(segment)
           return false if segment.any? { |word| word.match?(ASSIGNMENT_PATTERN) }

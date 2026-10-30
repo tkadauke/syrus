@@ -1541,8 +1541,7 @@ Each user owns their own profile, credentials, defaults, and preferences:
   default; other commands and unsafe shell syntax require explicit workflow
   authorization that chat callers cannot grant themselves. Safe diagnostics
   include the exact forms `hostname`, `date -Is`, and `ha core info`; mutating
-  variants and compound commands containing anything outside the allowlist
-  remain denied.
+  variants and all compound shell commands remain denied.
   The audit trail includes denied SSH attempts, bounded command evidence and
   completion status, credential create/update policy changes, and explicit
   un-revocation during rotation. Runtime wrapper completion events must match
