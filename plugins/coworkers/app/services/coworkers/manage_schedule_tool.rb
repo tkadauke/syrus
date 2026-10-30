@@ -69,7 +69,7 @@ module Coworkers
 
         attr_reader :coworker, :attributes
 
-        def task = coworker.schedules.alive.find(attributes[:scheduled_task_id])
+        def task = @task ||= coworker.schedules.alive.find(attributes[:scheduled_task_id])
         def success(**extra) = ManageScheduleTool.send(:success, coworker, **extra)
       end
 
@@ -97,6 +97,8 @@ module Coworkers
 
       class Pause < Base
         def call
+          raise ArgumentError, "scheduled task is not enabled" unless task.active?
+
           task.pause!(reason: "operator")
           success(changed: task.id)
         end
@@ -104,6 +106,8 @@ module Coworkers
 
       class Resume < Base
         def call
+          raise ArgumentError, "scheduled task is not paused" unless task.paused? || task.auto_paused?
+
           task.resume!
           success(changed: task.id)
         end

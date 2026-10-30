@@ -25,6 +25,27 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "does not pause or resume a fired coworker one-shot" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "one-shot-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-one-shot-api",
+      workspace_repo: repository.remote_url
+    )
+    task = coworker.schedules.create!(
+      user: owner, repository: repository, name: "Once", prompt: "Run once.",
+      kind: "one_shot", fire_at: 1.hour.from_now, pr_pileup_policy: "skip", auto_approve_mode: "never"
+    )
+    task.update!(state: "fired")
+    sign_in_as(owner)
+
+    post "/api/v1/app/coworkers/#{coworker.id}/schedules/#{task.id}/pause"
+    expect(response).to have_http_status(:unprocessable_content)
+    post "/api/v1/app/coworkers/#{coworker.id}/schedules/#{task.id}/resume"
+    expect(response).to have_http_status(:unprocessable_content)
+
+    expect(task.reload).to be_fired
+  end
+
   it "updates proposed About text while the coworker action is pending" do
     chat = ChatSession.create!(user: owner)
     action = chat.pending_actions.create!(

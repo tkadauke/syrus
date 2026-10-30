@@ -389,20 +389,33 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
-                  className="rounded border border-border px-3 py-1.5 text-sm"
-                  disabled={command.isPending}
-                  onClick={() => command.mutate({ id: schedule.id, action: schedule.state === "scheduled" ? "pause" : "resume" })}
-                >
-                  {schedule.state === "scheduled" ? t("schedule.pause") : t("schedule.resume")}
-                </button>
-                <button
-                  className="rounded border border-border px-3 py-1.5 text-sm"
-                  disabled={command.isPending}
-                  onClick={() => command.mutate({ id: schedule.id, action: "fire_now" })}
-                >
-                  {t("schedule.run_now")}
-                </button>
+                {schedule.state === "scheduled" ? (
+                  <button
+                    className="rounded border border-border px-3 py-1.5 text-sm"
+                    disabled={command.isPending}
+                    onClick={() => command.mutate({ id: schedule.id, action: "pause" })}
+                  >
+                    {t("schedule.pause")}
+                  </button>
+                ) : null}
+                {["paused", "auto_paused"].includes(schedule.state) ? (
+                  <button
+                    className="rounded border border-border px-3 py-1.5 text-sm"
+                    disabled={command.isPending}
+                    onClick={() => command.mutate({ id: schedule.id, action: "resume" })}
+                  >
+                    {t("schedule.resume")}
+                  </button>
+                ) : null}
+                {schedule.state !== "fired" ? (
+                  <button
+                    className="rounded border border-border px-3 py-1.5 text-sm"
+                    disabled={command.isPending}
+                    onClick={() => command.mutate({ id: schedule.id, action: "fire_now" })}
+                  >
+                    {t("schedule.run_now")}
+                  </button>
+                ) : null}
               </div>
             </li>
           ))}
