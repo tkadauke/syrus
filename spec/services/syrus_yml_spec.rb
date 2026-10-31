@@ -758,6 +758,14 @@ RSpec.describe SyrusYml do
     expect(described_class.load_repo(@dir).grade.steps.first.run).to eq("bin/rspec")
   end
 
+  it "enables the security review for this repository" do
+    security_review = described_class.load_repo(Rails.root).security_review
+
+    expect(security_review.rounds).to eq(1)
+    expect(security_review.required).to be(false)
+    expect(security_review.criteria).not_to be_empty
+  end
+
   it "parses the two-source coverage config from the repo's own .syrus.yml" do
     write_config(<<~YAML)
       coverage:
