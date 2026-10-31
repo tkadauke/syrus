@@ -5,7 +5,7 @@ module Coworkers
 
     class << self
       def turn_admission(coworker)
-        return {} unless privileged_grant_held?(coworker)
+        return {} unless confinement_required?(coworker)
         return {} if current_worker_confined?
 
         worker = confined_workers.first
@@ -36,12 +36,12 @@ module Coworkers
         end
       end
 
-      private
-
-      def privileged_grant_held?(coworker)
+      def confinement_required?(coworker)
         privileged_names = Coworkers::GrantCatalog.all.select(&:privileged).map(&:name)
         coworker.grants.where(capability: privileged_names).exists?
       end
+
+      private
 
       def current_worker_confined?
         Array(WorkerCapabilities.current.dig(:capabilities, "runtime")).include?(CONFINEMENT_RUNTIME)

@@ -34,6 +34,21 @@ RSpec.describe Coworkers::PrivilegedGrantGate do
     expect(described_class.allowed_capabilities(coworker)).to be_empty
   end
 
+  it "requires confinement only while a privileged grant is held" do
+    owner = Factories.user
+    repository = Factories.repository(user: owner)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-routing", workspace_repo: repository.remote_url)
+    allow(Coworkers::GrantCatalog).to receive(:all).and_return([ descriptor ])
+
+    expect(described_class.confinement_required?(coworker)).to be(false)
+
+    grant = coworker.grants.create!(capability: "database.read", approval_policy: "confirm")
+    expect(described_class.confinement_required?(coworker)).to be(true)
+
+    grant.destroy!
+    expect(described_class.confinement_required?(coworker)).to be(false)
+  end
+
   it "fails over a privileged turn to a live confined worker and blocks when none remains" do
     owner = Factories.user
     repository = Factories.repository(user: owner)

@@ -37,6 +37,7 @@ RSpec.describe "Coworker background runs" do
       user: owner, id: 42, name: "Confined task", prompt: "Inspect production safely.")
     handler = Coworkers::ScheduledTaskFireHandler.new(task)
     allow(WorkUnits::Launcher).to receive(:start!)
+    allow(Coworkers::PrivilegedGrantGate).to receive(:confinement_required?).with(coworker).and_return(true)
 
     created = handler.fire!(now: Time.current)
 
@@ -44,6 +45,17 @@ RSpec.describe "Coworker background runs" do
       "os" => [ "linux" ], "runtime" => [ "confined_coworker" ]
     )
     expect(created.planned_execution_source).to eq("explicit")
+  end
+
+  it "keeps unprivileged scheduled runs on the ordinary Linux worker pool" do
+    task = instance_double(ScheduledTasks::Task, coworker_id: coworker.id, user_id: owner.id, repository: repository,
+      user: owner, id: 43, name: "Ordinary task", prompt: "Summarize the workspace.")
+    allow(WorkUnits::Launcher).to receive(:start!)
+
+    created = Coworkers::ScheduledTaskFireHandler.new(task).fire!(now: Time.current)
+
+    expect(created.planned_execution_capabilities).to eq("os" => [ "linux" ])
+    expect(created.planned_execution_source).to eq("defaulted")
   end
 
   it "runs prepare through a workspace pinned to the coworker's home branch" do
