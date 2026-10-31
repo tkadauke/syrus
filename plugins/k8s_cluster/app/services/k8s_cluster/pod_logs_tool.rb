@@ -71,7 +71,8 @@ module K8sCluster
             previous: !!previous,
             timestamps: !!timestamps
           )
-          result[:log] = ToolPayloadRedactor.redact_text(result[:log]) if Thread.current[:k8s_cluster_mcp_context]&.role == AgentRole::COWORKER_CHAT
+          context = Thread.current[:k8s_cluster_mcp_context]
+          result[:log] = ToolPayloadRedactor.redact_text(result[:log]) if context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
           result
         end
       end

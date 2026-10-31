@@ -17,24 +17,26 @@ RSpec.describe MysqlDbBrowser::AgenticAccess do
   end
 
   describe ".connection!" do
-    it "limits a coworker to the connection selected by its mysql.read grant" do
-      granted = scoped_connection(scope_type: "user", scope_id: owner.id)
-      outside_scope = scoped_connection(scope_type: "user", scope_id: owner.id)
-      coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-db",
-        workspace_repo: "https://github.com/example/workspace.git")
-      coworker_context = McpToolContext.new(surface: :chat, role: AgentRole::COWORKER_CHAT, user: owner,
-        granted_capabilities: [ "mysql.read" ], capability_scopes: { "mysql.read" => granted.id }, agent_actor: coworker)
+    it "limits interactive and background coworkers to the connection selected by their mysql.read grant" do
+      [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].each_with_index do |role, index|
+        granted = scoped_connection(scope_type: "user", scope_id: owner.id)
+        outside_scope = scoped_connection(scope_type: "user", scope_id: owner.id)
+        coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya #{index}", handle: "maya-db-#{index}",
+          workspace_repo: "https://github.com/example/workspace.git")
+        coworker_context = McpToolContext.new(surface: role == AgentRole::COWORKER_CHAT ? :chat : :run, role: role, user: owner,
+          granted_capabilities: [ "mysql.read" ], capability_scopes: { "mysql.read" => granted.id }, agent_actor: coworker)
 
-      expect(described_class.safe_connection_metadata(context: coworker_context).pluck(:id)).to eq([ granted.id ])
-      expect(described_class.connection!(granted.id, context: coworker_context)).to eq(granted)
-      expect {
-        described_class.connection!(outside_scope.id, context: coworker_context, tool_name: "mysql_db_browser_list_tables")
-      }.to raise_error(described_class::ConnectionNotFound)
-      expect(MysqlQueryAudit.last).to have_attributes(
-        mysql_connection: granted, user: owner, agent_actor: coworker, read_only: true, success: false,
-        statement: "/* MCP tool call: mysql_db_browser_list_tables */",
-        error_message: "Rejected: MySQL connection was not found or is outside the coworker grant scope."
-      )
+        expect(described_class.safe_connection_metadata(context: coworker_context).pluck(:id)).to eq([ granted.id ])
+        expect(described_class.connection!(granted.id, context: coworker_context)).to eq(granted)
+        expect {
+          described_class.connection!(outside_scope.id, context: coworker_context, tool_name: "mysql_db_browser_list_tables")
+        }.to raise_error(described_class::ConnectionNotFound)
+        expect(MysqlQueryAudit.last).to have_attributes(
+          mysql_connection: granted, user: owner, agent_actor: coworker, read_only: true, success: false,
+          statement: "/* MCP tool call: mysql_db_browser_list_tables */",
+          error_message: "Rejected: MySQL connection was not found or is outside the coworker grant scope."
+        )
+      end
     end
 
     it "returns the connection when agentic access is enabled" do

@@ -79,7 +79,7 @@ module K8sCluster
     end
 
     def self.coworker_cluster_in_scope?(cluster, context)
-      return true unless context&.role == AgentRole::COWORKER_CHAT
+      return true unless context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
       context.capability_scopes["k8s.read"].to_s == cluster.id.to_s
     end

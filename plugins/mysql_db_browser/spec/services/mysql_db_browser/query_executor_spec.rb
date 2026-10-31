@@ -87,6 +87,16 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect(audit.error_message).to include("read-only")
     end
 
+    it "keeps background coworkers read-only on write-enabled connections" do
+      connection.update!(allow_writes: true)
+      described_class.client_factory = ->(**) { raise "should not connect" }
+      context = McpToolContext.new(surface: :run, role: AgentRole::COWORKER, user: user)
+
+      expect {
+        described_class.new(connection, context: context).execute("DELETE FROM users", user: user)
+      }.to raise_error(described_class::WriteNotAllowed, /Coworker MySQL access is read-only/)
+    end
+
     it "allows writes once the connection opts in" do
       connection.update!(allow_writes: true)
       stub_client_factory(fake_client(affected_rows: 4))
