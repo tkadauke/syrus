@@ -347,6 +347,7 @@ RSpec.describe "Coworker chat surface" do
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)
     job.instance_variable_set(:@user_message, message)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
     allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn)
 
@@ -358,6 +359,7 @@ RSpec.describe "Coworker chat surface" do
   it "keeps failed persistence recoverable and posts an actionable error" do
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
     allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn).and_raise("push conflict")
 
