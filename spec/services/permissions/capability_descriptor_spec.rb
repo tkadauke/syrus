@@ -62,6 +62,15 @@ RSpec.describe Permissions::CapabilityDescriptorAdapter do
     expect(descriptor.redact(arguments)).to include("password" => "[REDACTED]", "nested" => include("api_key" => "[REDACTED]"))
   end
 
+  it "adapts MCP-valid tool names that cannot begin canonical identifiers" do
+    %w[1password _private -hidden .internal].each do |tool_name|
+      descriptor = described_class.for_plugin_definition(name: tool_name)
+
+      expect(descriptor.capability).to eq("legacy.#{tool_name}@v1")
+      expect(descriptor.operation).to eq("legacy.#{tool_name}/legacy.#{tool_name}@v1")
+    end
+  end
+
   it "accepts an explicit canonical descriptor from a plugin definition" do
     explicit = Permissions::CapabilityDescriptor.new(**{
       capability: "plugin.observe@v2", operation: "plugin.observe/read@v3", effects: [ :network_read ], risk: :low,
