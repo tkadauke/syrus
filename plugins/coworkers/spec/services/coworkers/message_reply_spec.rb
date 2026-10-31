@@ -45,7 +45,7 @@ RSpec.describe Coworkers::MessageReply do
     replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "First draft" } ])
     replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Final answer" } ])
 
-    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming) }
+    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming, turn_succeeded: true) }
       .to have_enqueued_job(Coworkers::MessageDeliveryJob)
       .with(replier.id, original_sender.id, "Final answer", { "origin_turn_id" => 42, "hop_count" => 2 })
   end
@@ -56,7 +56,7 @@ RSpec.describe Coworkers::MessageReply do
     incoming = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier)
     reply = replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "  NO_REPLY\n" } ])
 
-    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming) }
+    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming, turn_succeeded: true) }
       .not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
     expect(ChatMessage.exists?(reply.id)).to be(false)
   end
@@ -67,7 +67,7 @@ RSpec.describe Coworkers::MessageReply do
     incoming = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier)
     reply = replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => " \n" } ])
 
-    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming) }
+    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming, turn_succeeded: true) }
       .not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
     expect(ChatMessage.exists?(reply.id)).to be(false)
   end
@@ -78,7 +78,7 @@ RSpec.describe Coworkers::MessageReply do
     ordinary = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier, source: "owner")
     replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Not forwarded" } ])
 
-    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: ordinary) }
+    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: ordinary, turn_succeeded: true) }
       .not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
   end
 
@@ -88,7 +88,7 @@ RSpec.describe Coworkers::MessageReply do
     incoming = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier, hop_count: 3)
     replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "One hop too far" } ])
 
-    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming) }
+    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming, turn_succeeded: true) }
       .not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
     expect(replier_chat.messages.last.content).to include(
       "text" => include("reached its 3-hop limit"),
@@ -103,14 +103,16 @@ RSpec.describe Coworkers::MessageReply do
     incoming = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier)
     replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Answer" } ])
 
-    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming) }
+    expect { described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming, turn_succeeded: true) }
       .not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
     expect(replier_chat.messages.last.content.dig("coworker_message", "status")).to eq("refused")
 
     original_sender.update!(state: "active")
     allow(Coworkers::MessageRateLimiter).to receive(:reserve)
       .and_return(Coworkers::MessageRateLimiter::Result.new(allowed: false, retry_after_seconds: 12))
-    described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming)
+    second_incoming = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier)
+    replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Another answer" } ])
+    described_class.after_chat_turn(chat_session: replier_chat, user_message: second_incoming, turn_succeeded: true)
     expect(replier_chat.messages.last.content.dig("coworker_message", "status")).to eq("rate_limited")
   end
 
@@ -122,5 +124,59 @@ RSpec.describe Coworkers::MessageReply do
     orientation = described_class.chat_turn_orientation(chat_session: replier_chat, message: incoming, user_note: "Can you check?")
 
     expect(orientation).to include("@maya", "delivered to them automatically", "2 exchanges remain", "NO_REPLY")
+  end
+
+  it "does not forward partial replies from failed or cancelled turns" do
+    original_sender, = create_coworker(name: "Maya", handle: "maya")
+    replier, replier_chat = create_coworker(name: "Rin", handle: "rin")
+    incoming = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier)
+    replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Partial answer" } ])
+
+    expect {
+      described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming, turn_succeeded: false)
+      described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming)
+    }.not_to have_enqueued_job(Coworkers::MessageDeliveryJob)
+  end
+
+  it "claims an automatic reply once across turn retries" do
+    original_sender, = create_coworker(name: "Maya", handle: "maya")
+    replier, replier_chat = create_coworker(name: "Rin", handle: "rin")
+    incoming = incoming_message(chat: replier_chat, sender: original_sender, receiver: replier)
+    replier_chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Only once" } ])
+
+    2.times do
+      described_class.after_chat_turn(chat_session: replier_chat, user_message: incoming, turn_succeeded: true)
+    end
+
+    deliveries = enqueued_jobs.select { |job| job.fetch(:job) == Coworkers::MessageDeliveryJob }
+    expect(deliveries.one?).to be(true)
+    expect(incoming.reload.content.dig("coworker_message", "auto_reply_claimed")).to be(true)
+  end
+
+  it "runs a queued two-coworker exchange through three hops and then stops" do
+    maya, maya_chat = create_coworker(name: "Maya", handle: "maya")
+    rin, rin_chat = create_coworker(name: "Rin", handle: "rin")
+
+    Coworkers::MessageDeliveryJob.perform_now(maya.id, rin.id, "Start", { "origin_turn_id" => 42, "hop_count" => 1 })
+    clear_enqueued_jobs
+
+    [ [ rin, rin_chat ], [ maya, maya_chat ], [ rin, rin_chat ] ].each_with_index do |(_coworker, chat), index|
+      incoming = chat.messages.where(role: "user").order(:id).last
+      chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Reply #{index + 1}" } ])
+      described_class.after_chat_turn(chat_session: chat, user_message: incoming, turn_succeeded: true)
+      chat.end_turn_for!(incoming)
+
+      if index < 2
+        perform_enqueued_jobs(only: Coworkers::MessageDeliveryJob)
+        clear_enqueued_jobs
+      end
+    end
+
+    incoming_hops = [ maya_chat, rin_chat ].flat_map do |chat|
+      chat.messages.where(role: "user").filter_map { |message| message.content.dig("coworker_message", "hop_count") }
+    end.sort
+    expect(incoming_hops).to eq([ 1, 2, 3 ])
+    expect(enqueued_jobs).not_to include(hash_including(job: Coworkers::MessageDeliveryJob))
+    expect(rin_chat.messages.order(:id).last.content.fetch("text")).to include("reached its 3-hop limit")
   end
 end
