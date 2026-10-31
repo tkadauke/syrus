@@ -1,7 +1,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatJobStatusPayload, ChatJobStatusPendingProposal, ChatMessageItem, ChatParticipant, ChatPayload, ChatProposal, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import type { JobDetailPayload, JobRun, JobStep, JobWorkflow, JobWorkflowsPayload } from "../api/jobs"
-import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
+import { updateRecentChatHeaderCache, updateRecentChatMessageStateCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
 import { chatPinsQueryPrefix } from "../routes/chat/pins"
@@ -544,7 +544,9 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
         ? [["chats"]]
         : chatMediaChanged(event)
           ? [["chats"], ["chats", String(event.id)], ["chat_media", String(event.id)], ["whiteboard_snapshots", String(event.id)]]
-          : [["chats"], ["chats", String(event.id)]]
+          : chatMessageTailChanged(event)
+            ? [["chats", String(event.id)]]
+            : [["chats"], ["chats", String(event.id)]]
     case "provider_availability":
       return [["bootstrap"], ["dashboard"], ["chats"]]
     case "admin_overview":
@@ -557,6 +559,14 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
 function chatMediaChanged(event: AppEvent) {
   const changed = event.changed || []
   return changed.includes("media") || changed.includes("chat_images") || changed.includes("whiteboard_snapshots")
+}
+
+// Message-tail payloads are delivered only to tabs subscribed to this chat.
+// They update the open detail query, while a separate per-user event carries
+// the ordering/unread/activity metadata needed by every recent-chats sidebar.
+function chatMessageTailChanged(event: AppEvent) {
+  const changed = event.changed || []
+  return changed.length > 0 && changed.every((item) => item === "messages")
 }
 
 function jobQueryKeysFor(event: AppEvent): QueryKey[] {
@@ -794,6 +804,12 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const turnState = chatUpdateTurnStatePayload(event.payload)
   if (turnState) {
     updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: turnState.turn_in_flight, agent_busy: turnState.agent_busy })
+    return true
+  }
+
+  const sidebarMessageState = chatSidebarMessageStatePayload(event.payload)
+  if (sidebarMessageState) {
+    updateRecentChatMessageStateCache(queryClient, event.id, sidebarMessageState)
     return true
   }
 
@@ -1044,6 +1060,30 @@ type ChatUpdateTurnStatePayload = {
   action: "update_turn_state"
   turn_in_flight: boolean
   agent_busy?: boolean
+}
+
+type ChatSidebarMessageStatePayload = {
+  action: "update_sidebar_message_state"
+  turn_in_flight: boolean
+  agent_busy?: boolean
+  last_message_at: string
+  unread: boolean
+}
+
+function chatSidebarMessageStatePayload(payload: unknown): ChatSidebarMessageStatePayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatSidebarMessageStatePayload>
+  if (candidate.action !== "update_sidebar_message_state") return null
+  if (typeof candidate.turn_in_flight !== "boolean" || typeof candidate.last_message_at !== "string" || typeof candidate.unread !== "boolean") return null
+
+  return {
+    action: "update_sidebar_message_state",
+    turn_in_flight: candidate.turn_in_flight,
+    agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
+    last_message_at: candidate.last_message_at,
+    unread: candidate.unread
+  }
 }
 
 function chatUpdateTurnStatePayload(payload: unknown): ChatUpdateTurnStatePayload | null {

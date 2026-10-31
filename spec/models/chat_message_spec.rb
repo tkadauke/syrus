@@ -178,7 +178,7 @@ RSpec.describe ChatMessage do
       }.not_to raise_error
     end
 
-    it "broadcasts a lightweight turn-state event to the global per-user channel for the recent-chats sidebar" do
+    it "broadcasts message ordering and unread state to the global per-user channel for the recent-chats sidebar" do
       allow(AppEvents).to receive(:broadcast_chat_resource)
 
       expect(AppEvents).to receive(:broadcast) do |user:, type:, resource:, id:, changed:, payload:|
@@ -186,11 +186,36 @@ RSpec.describe ChatMessage do
         expect(type).to eq("updated")
         expect(resource).to eq("chat")
         expect(id).to eq(session.id)
-        expect(changed).to eq([ "messages" ])
-        expect(payload).to eq(action: "update_turn_state", turn_in_flight: true, agent_busy: false)
+        expect(changed).to eq([ "sidebar_message_state" ])
+        expect(payload).to eq(
+          action: "update_sidebar_message_state",
+          turn_in_flight: true,
+          agent_busy: false,
+          last_message_at: session.last_message_at.iso8601,
+          unread: true
+        )
       end
 
       described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
+    end
+
+    it "computes unread state for each participant" do
+      other_user = Factories.user
+      session.chat_participants.find_by!(user: session.user).update!(last_read_at: 1.day.from_now)
+      session.chat_participants.create!(user: other_user, role: "member", last_read_at: nil)
+      allow(AppEvents).to receive(:broadcast_chat_resource)
+      allow(AppEvents).to receive(:broadcast)
+
+      described_class.create!(chat_session: session, role: "assistant", content: { "text" => "For everyone" })
+
+      expect(AppEvents).to have_received(:broadcast).with(hash_including(
+        user: session.user,
+        payload: hash_including(action: "update_sidebar_message_state", unread: false)
+      ))
+      expect(AppEvents).to have_received(:broadcast).with(hash_including(
+        user: other_user,
+        payload: hash_including(action: "update_sidebar_message_state", unread: true)
+      ))
     end
   end
 
