@@ -26,7 +26,8 @@ module Coworkers
         return Mcp::Tools.invalid("manage_coworker_schedule is only available from a coworker's main chat") unless coworker
 
         ScheduleActions.for(action).new(
-          coworker, scheduled_task_id:, name:, prompt:, kind:, schedule_input:, fire_at:, after_run:
+          coworker, scheduled_task_id:, name:, prompt:, kind:, schedule_input:, fire_at:, after_run:,
+          scheduled_run_followup: AfterRunPolicy::Wake.followup_message?(server_context[:current_message])
         ).call
       rescue ActiveRecord::RecordInvalid => error
         Mcp::Tools.invalid(error.record.errors.full_messages.to_sentence)
@@ -118,6 +119,8 @@ module Coworkers
 
       class FireNow < Base
         def call
+          raise ArgumentError, "a scheduled-run follow-up cannot fire another scheduled run" if attributes[:scheduled_run_followup]
+
           result = ScheduledTasks::Fire.new(task).call
           success(changed: task.id, fired: result.fired?, reason: result.reason, job_id: result.job&.id)
         end

@@ -11,6 +11,17 @@ module Coworkers
     end
 
     class Wake < AfterRunPolicy
+      SOURCE = "coworker_scheduled_run_followup".freeze
+
+      def self.followup_message?(message)
+        content = message&.content
+        return false unless content.is_a?(Hash)
+
+        content["source"] == SOURCE || Array(content["notices"]).any? do |notice|
+          notice.is_a?(Hash) && notice["source"] == SOURCE
+        end
+      end
+
       def enqueue!(chat:, task:, source_run:, summary:, duration:)
         queued = false
         ApplicationRecord.transaction do
@@ -25,7 +36,7 @@ module Coworkers
             content: {
               ChatQueuedMessage::INTERNAL_ROLE_KEY => "system",
               "text" => "Your scheduled run \"#{task.name}\" finished. Follow up with your owner.",
-              "source" => "coworker_scheduled_run_followup",
+              "source" => SOURCE,
               "background_run_id" => source_run.id,
               "internal_prompt" => prompt
             }
