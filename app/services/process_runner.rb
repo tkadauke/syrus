@@ -476,6 +476,10 @@ class ProcessRunner
     Mounts.new(workdir: workdir, read_write: read_write || workdir, read_only: read_only, artifacts: artifacts)
   end
 
+  def self.agent_mounts(workdir, agent_home)
+    mounts(workdir, read_write: [ workdir, agent_home ])
+  end
+
   # Where a version/capability probe runs.
   #
   # `#capture` puts its named pipes in a temporary directory under the
@@ -663,6 +667,7 @@ class ProcessRunner
                  display_command: nil,
                  on_spawned_process: nil,
                  activity_probe: nil,
+                 workload_policy: Thread.current[:syrus_execution_workload_policy],
                  resource_attribution: {},
                  backend: self.class.backend)
     @env = env
@@ -695,6 +700,7 @@ class ProcessRunner
     @agent = agent
     @display_command = display_command
     @on_spawned_process = on_spawned_process
+    @workload_policy = workload_policy
     @initial_resource_attribution = resource_attribution.deep_stringify_keys
     @backend = backend
 
@@ -821,6 +827,7 @@ class ProcessRunner
       agent: @agent,
       display_command: @display_command,
       on_spawned_process: @on_spawned_process,
+      workload_policy: @workload_policy,
       local_runner: self
     )
   end

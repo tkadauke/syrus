@@ -37,6 +37,7 @@ class Coworkers::Coworker < ApplicationRecord
   def kind = "coworker"
   def accent_hex = self[:accent_hex]
   def agentic? = true
+  def execution_workload_policy = Coworkers::ExecutionWorkloadPolicy.new
   def avatar_url = avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(avatar, only_path: true) : nil
   def avatar_key = self[:avatar_key]
   def addressable_in?(chat)

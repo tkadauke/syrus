@@ -180,7 +180,7 @@ class CodexInvocation
       env: env,
       command: cmd,
       stdin_data: prompt,
-      mounts: ProcessRunner.mounts(workspace_path),
+      mounts: ProcessRunner.agent_mounts(workspace_path, codex_home),
       network: "agent",
       timeout: timeout,
       # See AgentInvocation::SILENT_TIMEOUT_SECONDS — same rationale
