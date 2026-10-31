@@ -458,6 +458,13 @@ RSpec.describe Mcp::Sidecar do
       expect(list.dig(:result, :tools).map { |tool| tool[:name] }).to include("chat_plugin_ping")
       expect(described_class.tool_names(chat_session, tier: :deferred)).to include("chat_plugin_ping")
 
+      adapted_tool = described_class.mcp_tools_for(stub_tool_set, tier: :deferred, chat_session: chat_session).sole
+      expect(adapted_tool.capability_descriptor).to have_attributes(
+        capability: "chat_plugin_ping@v1",
+        operation: "chat_plugin_ping/chat_plugin_ping@v1",
+        effects: [ :local_read ]
+      )
+
       response = call_tool(server, "chat_plugin_ping")
       expect(response.dig(:result, :content, 0, :text)).to eq("chat pong")
     end
