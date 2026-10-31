@@ -20,23 +20,42 @@ class PreparedWorkspaceArchive
   READ_CHUNK_SIZE = 1.megabyte
   ERROR_TAIL_BYTES = 64.kilobytes
   PREPARE_CACHE_FORMAT_VERSION = 3
+  PREPARE_INPUT_FILES = %w[
+    Gemfile
+    Gemfile.lock
+    package.json
+    package-lock.json
+    pnpm-lock.yaml
+    yarn.lock
+  ].freeze
 
-  def self.prepare_fingerprint_for(plan)
+  def self.prepare_fingerprint_for(plan, path: nil)
     Digest::SHA256.hexdigest(JSON.generate(
       "cache_format_version" => PREPARE_CACHE_FORMAT_VERSION,
       "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata,
       "source" => plan.source,
       "note" => plan.note,
       "guessed" => plan.guessed?,
-      "commands" => plan.commands
+      "commands" => plan.commands,
+      "inputs" => prepare_inputs(path)
     ))
+  end
+
+  def self.prepare_inputs(path)
+    return {} unless path
+
+    root = Pathname.new(path)
+    PREPARE_INPUT_FILES.each_with_object({}) do |relative_path, inputs|
+      file = root.join(relative_path)
+      inputs[relative_path] = Digest::SHA256.file(file).hexdigest if file.file?
+    end
   end
 
   def self.publish!(...)
     new(...).publish!
   end
 
-  def self.metadata(workflow:, snapshot:, plan:)
+  def self.metadata(workflow:, snapshot:, plan:, path: nil)
     {
       "workflow_id" => workflow.id,
       "source_snapshot_id" => snapshot.id,
@@ -44,7 +63,7 @@ class PreparedWorkspaceArchive
       "source_ref" => snapshot.source_ref,
       "tree_sha" => snapshot.tree_sha,
       "prepare_cache_format_version" => PREPARE_CACHE_FORMAT_VERSION,
-      "prepare_fingerprint" => prepare_fingerprint_for(plan),
+      "prepare_fingerprint" => prepare_fingerprint_for(plan, path: path),
       "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata,
       "prepare_source" => plan.source,
       "max_bytes" => MAX_BYTES,
@@ -124,7 +143,7 @@ class PreparedWorkspaceArchive
   end
 
   def metadata
-    self.class.metadata(workflow: @workflow, snapshot: @snapshot, plan: @plan)
+    self.class.metadata(workflow: @workflow, snapshot: @snapshot, plan: @plan, path: @path)
   end
 
   private
