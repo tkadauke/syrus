@@ -22,7 +22,6 @@ module Mcp::Tools
       include ChatDiscoveryPayload
 
       def call(server_context:, query:, limit: 10, coworker_id: nil)
-        chat_session = server_context.fetch(:chat_session)
         query = query.to_s.strip
         return Mcp::Tools.invalid("query is required") if query.blank?
 

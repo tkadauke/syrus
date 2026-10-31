@@ -75,6 +75,10 @@ module Mcp
         MCP::Tool::Response.new([ { type: "text", text: reason } ], error: true)
       end
 
+      def exception_response(exception)
+        tool_error("Tool failed with #{exception.class}. This is an unexpected Syrus tool error; report it to the operator and retry only after the underlying bug is fixed.")
+      end
+
       def with_execution_authority(response, authority)
         response.define_singleton_method(:execution_authority) { authority }
         response

@@ -22,7 +22,6 @@ module Mcp::Tools
       include ChatDiscoveryPayload
 
       def call(server_context:, page: 1, per_page: 20, mode: nil, job_id: nil, has_attached_jobs: nil)
-        chat_session = server_context.fetch(:chat_session)
         page = Mcp::Pagination.normalize_page(page)
         per_page = normalize_per_page(per_page)
         scope = accessible_chat_sessions_scope

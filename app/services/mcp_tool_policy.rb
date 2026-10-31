@@ -80,7 +80,9 @@ class McpToolPolicy
     when *AgentRole::CHAT_ROLES
       chat_tools
     when AgentRole::COWORKER_CHAT, AgentRole::COWORKER
-      McpToolRegistry.tools_for_context(@context, surface: :coworker)
+      McpToolRegistry.tools_for_context(@context, surface: :coworker).map do |tool|
+        Mcp::Sidecar.authorize_tool(tool)
+      end
     when AgentRole::AGENT_INSIGHT
       insight_tools
     when *AgentRole::HELPER_ROLES
