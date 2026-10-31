@@ -421,6 +421,17 @@ the describe GET - no editing, no apply.
 
 ## Agentic access
 
+Coworkers are deny-by-default. The plugin declares a scoped `k8s.read` grant
+with a default `confirm` approval policy. An owner may select one
+agentic-access-enabled cluster for the grant. The coworker then receives only
+the read-only cluster catalog, resource browsing, pod-log, and metrics tools
+listed below, and every lookup is restricted to that cluster. Secret browsing,
+raw `kubectl`, pod deletion, rollout restart, deployment scaling, and node
+cordon changes are permanently excluded from the coworker surface regardless
+of grants. Coworker pod logs retain the normal 1,000-line and 64 KiB limits and
+are redacted server-side before entering the tool response. Audit entries for
+every coworker call include both the coworker identity and owning user.
+
 Each `KubernetesCluster` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
 independent of the plugin's own enable/disable toggle. When set, that
@@ -459,7 +470,7 @@ mirroring `mysql_db_browser`'s own MCP tool sets:
   required once a pod has more than one container, `tail_lines` defaults to
   200 (maximum 1,000), responses are limited to 64 KiB, and
   `previous`/`timestamps` pass through to the same Kubernetes API flags the
-  Logs tab uses.
+  Logs tab uses. Coworker responses are additionally redacted server-side.
 - `k8s_cluster_overview` - the aggregate CPU/memory metrics overview via
   `Overview#call`; soft-fails per-section (`available: false`) rather than
   erroring when `metrics-server` isn't installed, same as the UI's Overview

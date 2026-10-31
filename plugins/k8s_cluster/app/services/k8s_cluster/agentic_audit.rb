@@ -16,13 +16,18 @@ module K8sCluster
   # (Deployments#scale, #restart_rollout, Pods#delete, Nodes#set_cordon)
   # include precisely so this line can show the mutation's effect.
   class AgenticAudit
-    def self.log!(cluster_id:, tool_name:, params:, result: nil, error: nil)
+    def self.log!(cluster_id:, tool_name:, params:, context: nil, result: nil, error: nil)
       entry = {
         event: "k8s_cluster_agentic_call",
         cluster_id: cluster_id,
         tool: tool_name,
         params: params
       }
+      if context&.agent_actor
+        entry[:agent_actor_type] = context.agent_actor.class.polymorphic_name
+        entry[:agent_actor_id] = context.agent_actor.id
+        entry[:owner_user_id] = context.user&.id
+      end
 
       if error
         entry[:outcome] = "error"

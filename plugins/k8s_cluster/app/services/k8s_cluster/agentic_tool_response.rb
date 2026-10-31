@@ -31,21 +31,22 @@ module K8sCluster
       Mcp::Tools.with_database_connection do
         previous_context = Thread.current[:k8s_cluster_mcp_context]
         previous_tool_name = Thread.current[:k8s_cluster_mcp_tool_name]
-        Thread.current[:k8s_cluster_mcp_context] = agentic_context_from(server_context)
+        context = agentic_context_from(server_context)
+        Thread.current[:k8s_cluster_mcp_context] = context
         Thread.current[:k8s_cluster_mcp_tool_name] = tool_name
         result = yield
-        AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, result: result)
+        AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, context: context, result: result)
         MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(result) } ])
       ensure
         Thread.current[:k8s_cluster_mcp_context] = previous_context
         Thread.current[:k8s_cluster_mcp_tool_name] = previous_tool_name
       end
     rescue *RESCUABLE_ERRORS => e
-      AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, error: e)
+      AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, context: context, error: e)
       MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.message}" } ], error: true)
     rescue StandardError => e
       Rails.logger.error("[K8sCluster::#{tool_name}] #{e.class}: #{e.message}")
-      AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, error: e)
+      AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, context: context, error: e)
       MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
     end
 
