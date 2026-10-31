@@ -50,6 +50,9 @@
     "push_ok": "Accessus mittendi probatus"
   },
   "tool_card": {
+    "spawn_chat_title": "Colloquium laterale collegae crea",
+    "spawn_chat_prompt": "Nuntius primus",
+    "spawn_chat_pending": "Colloquium laterale pendens",
     "title": "Collega propositus",
     "summary": "Collega @{{handle}} propositus",
     "grant_title": "Concessio facultatis proposita",

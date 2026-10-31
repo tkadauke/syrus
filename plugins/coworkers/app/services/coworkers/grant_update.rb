@@ -40,6 +40,17 @@ class Coworkers::GrantUpdate
   private
 
   def normalized_constraints
+    if @capability == "coworker.spawn_chat"
+      defaults = {
+        "max_spawns_per_run" => Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP,
+        "max_spawns_per_day" => Coworkers::SpawnChatTool::DEFAULT_PER_DAY_CAP
+      }
+      return defaults.each_with_object({}) do |(key, fallback), result|
+        value = Integer(@constraints[key] || @constraints[key.to_sym] || fallback, exception: false)
+        raise ArgumentError, "#{key} must be a positive integer" unless value&.positive?
+        result[key] = value
+      end
+    end
     return {} unless @capability == "workspace.files"
 
     paths = Array(@constraints["confirm_paths"] || @constraints[:confirm_paths]).map(&:to_s).map(&:strip).reject(&:blank?).uniq
@@ -48,7 +59,18 @@ class Coworkers::GrantUpdate
 
   def constraints_more_permissive?(grant)
     return false if @approval_policy == "off"
-    return false unless @capability == "workspace.files" && grant
+    return false unless grant
+    if @capability == "coworker.spawn_chat"
+      current = {
+        "max_spawns_per_run" => Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP,
+        "max_spawns_per_day" => Coworkers::SpawnChatTool::DEFAULT_PER_DAY_CAP
+      }.merge(grant.constraints.to_h)
+      target = normalized_constraints
+      return %w[max_spawns_per_run max_spawns_per_day].any? do |key|
+        target.fetch(key) > current.fetch(key, 0).to_i
+      end
+    end
+    return false unless @capability == "workspace.files"
 
     current_paths = Array(grant.constraints["confirm_paths"]).map(&:to_s).to_set
     target_paths = Array(normalized_constraints["confirm_paths"]).map(&:to_s).to_set

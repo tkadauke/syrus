@@ -15,7 +15,7 @@ module Coworkers
       WorkspaceFileTools::Move,
       WorkspaceFileTools::Delete
     ].freeze
-    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool ] + WORKSPACE_TOOLS).freeze
+    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool, SpawnChatTool ] + WORKSPACE_TOOLS).freeze
 
     def self.available_for?(chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
@@ -40,6 +40,8 @@ module Coworkers
               "chat.reply_owner_thread"
                         elsif klass == ManageScheduleTool
               "schedule.manage_self"
+                        elsif klass == SpawnChatTool
+              "coworker.spawn_chat"
                         else
               "coworker.message"
                         end,
@@ -52,6 +54,20 @@ module Coworkers
       return [] unless tier.to_sym == :deferred
 
       TOOLS.map { |tool| { name: tool.tool_name, description: tool.description_value, input_schema: tool.input_schema_value.to_h } }
+    end
+
+    def self.coworker_grants
+      [ {
+        name: "coworker.spawn_chat",
+        label: "Spawn side chats",
+        description: "Create another side chat for this coworker, subject to per-run and daily caps.",
+        default_policy: "confirm",
+        maximum_policy: "confirm",
+        tools: [ SpawnChatTool.tool_name ],
+        scope_options_callback: nil,
+        scope_label_callback: nil,
+        valid_scope_callback: nil
+      } ]
     end
 
     def handle(tool_name, params, server_context)
