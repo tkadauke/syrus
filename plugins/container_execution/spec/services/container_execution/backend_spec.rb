@@ -126,11 +126,13 @@ RSpec.describe ContainerExecution::Backend do
       captured = nil
       allow(ProcessRunner).to receive(:new) { |kwargs| captured = kwargs; runner }
 
+      configure_coworker_egress(provider)
+      chat = instance_double(ChatSession, effective_chat_provider: provider)
       coworker_request = request(
-        kind: "agent", network: "agent", chat_session: instance_double(ChatSession),
+        kind: "agent", network: "agent", chat_session: chat,
         workload_policy: policy,
         mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home),
-        env: { "HOME" => agent_home, "PROVIDER" => provider }
+        env: { "HOME" => agent_home, "PROVIDER" => provider, "HTTPS_PROXY" => "http://unsafe-host-proxy:8080" }
       )
 
       expect(described_class.available_for?(coworker_request)).to be(true)
@@ -140,6 +142,11 @@ RSpec.describe ContainerExecution::Backend do
 
       expect(command).to include("--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--security-opt", "seccomp=builtin", "--pids-limit", "256", "--memory", "4g", "--cpus", "2")
+      expect(command).to include("--network", "syrus-coworker-egress", "--dns", "192.0.2.53",
+        "--label", "io.syrus.egress-profile=#{provider}")
+      expect(command).to include("--env", "HTTPS_PROXY=http://egress-proxy:3128",
+        "--env", "NO_PROXY=")
+      expect(command).not_to include("HTTPS_PROXY", "HTTPS_PROXY=http://unsafe-host-proxy:8080")
       expect(command).to include("--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=256m")
       expect(mounts).to contain_exactly(
         "type=bind,src=#{@host_workspace},dst=#{@container_workspace}",
@@ -148,6 +155,18 @@ RSpec.describe ContainerExecution::Backend do
       )
       expect(mounts.join(" ")).not_to match(%r{/(?:workflows|agent_homes)/(?![^ ]*agent-home-#{provider})})
     end
+  end
+
+  it "fails closed when the provider egress profile is not configured" do
+    configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+    agent_home = File.join(@container_workspace, "agent-home")
+    FileUtils.mkdir_p(agent_home)
+    policy = instance_double(Coworkers::ExecutionWorkloadPolicy, custom_coworker?: true)
+    chat = instance_double(ChatSession, effective_chat_provider: "codex")
+    coworker_request = request(kind: "agent", chat_session: chat, workload_policy: policy,
+      mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home), env: { "HOME" => agent_home })
+
+    expect(described_class.available_for?(coworker_request)).to be(false)
   end
 
   it "rejects coworker requests whose writable mounts are not the checkout and declared provider home" do
@@ -175,6 +194,12 @@ RSpec.describe ContainerExecution::Backend do
     configure_docker_socket
     configure_host_paths(host_paths)
     ENV["SYRUS_PERSISTENT_MCP_SOCKET"] = "#{@container_workspace}/mcp.sock"
+  end
+
+  def configure_coworker_egress(provider)
+    ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_NETWORK"] = "syrus-coworker-egress"
+    ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_DNS"] = "192.0.2.53"
+    ENV["SYRUS_CONTAINER_EXECUTION_#{provider.upcase}_PROXY"] = "http://egress-proxy:3128"
   end
 
   def configure_docker_command

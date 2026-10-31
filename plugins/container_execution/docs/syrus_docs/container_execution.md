@@ -65,8 +65,55 @@ Configuration:
 - `SYRUS_CONTAINER_EXECUTION_COWORKER_CPUS`: coworker CPU limit, default `2`.
 - `SYRUS_CONTAINER_EXECUTION_COWORKER_TMPFS`: coworker `/tmp` size, default
   `256m`.
+- `SYRUS_CONTAINER_EXECUTION_COWORKER_NETWORK`: the operator-created,
+  per-turn-capable Docker network whose firewall permits traffic only to the
+  controlled resolver and egress proxy. `bridge`, `host`, and the cluster
+  application network are not suitable. Custom-coworker turns fail closed
+  when this is unset.
+- `SYRUS_CONTAINER_EXECUTION_COWORKER_DNS`: the controlled resolver address
+  reachable on that network. It must refuse or safely resolve private,
+  loopback, link-local, cluster, database, and cloud-metadata destinations.
+- `SYRUS_CONTAINER_EXECUTION_CODEX_PROXY`,
+  `SYRUS_CONTAINER_EXECUTION_CLAUDE_PROXY`,
+  `SYRUS_CONTAINER_EXECUTION_MUSE_PROXY`, and
+  `SYRUS_CONTAINER_EXECUTION_AGY_PROXY`: credential-free HTTP CONNECT proxy
+  URLs for the corresponding provider profile. URLs containing user info,
+  query strings, or fragments are rejected so secrets cannot enter Docker
+  metadata or process diagnostics.
 - `SYRUS_CONTAINER_EXECUTION_SECCOMP`: Docker seccomp profile, default
   `builtin`.
+
+## Coworker egress profiles
+
+Custom-coworker turns use a provider policy object selected from the pinned
+chat provider. The profile allows only that provider's maintained model and
+authentication hostnames. MCP stays on the mounted Unix socket and therefore
+needs no network destination. Git fetch, push, commit integration, and merge
+remain worker-owned lifecycle operations outside the turn container; GitHub is
+deliberately absent from every profile. Generic web browsing is not part of a
+provider profile. An installation that adds grant-backed web access must give
+it a separate hostname-aware proxy profile instead of widening these lists.
+
+The network is defense in depth around proxy environment variables: its
+firewall must make the controlled proxy and resolver the only reachable
+destinations, so a process cannot bypass policy by clearing `HTTPS_PROXY`.
+The proxy must resolve hostnames itself, reject literal and resolved private,
+loopback, link-local, cluster/service, database, and metadata addresses, and
+apply the `io.syrus.egress-profile` container label to its allowlist. Denials
+must be audited with timestamp, profile, and normalized destination hostname
+and port only. Never record URL paths, query strings, headers, request or
+response bodies, proxy credentials, or provider credentials.
+
+Endpoint lists live under
+`app/services/container_execution/egress_policy/`, one class per provider.
+When a provider changes endpoints, update its object and conformance example
+together, deploy the proxy allowlist first, and then deploy Syrus. A missing or
+malformed network, resolver, provider policy, or proxy URL makes the backend
+unavailable and the custom-coworker turn fails before its provider process
+starts. For diagnostics, inspect the worker's backend-unavailable error, then
+verify the named Docker network, resolver reachability, provider proxy setting,
+and sanitized proxy denial log. Do not temporarily attach the container to the
+worker, cluster, or default bridge network to diagnose a denial.
 
 The published Docker Compose worker intentionally does not mount the Docker
 socket; the `plugin-runtime` service is the only default container with Docker
