@@ -14,7 +14,7 @@ RSpec.describe Coworkers::ChatToolSet do
     expect(described_class.available_for_coworker?(chat, tier: :deferred)).to be(false)
 
     expect(described_class.tool_definitions(tier: :deferred).pluck(:name)).to include(
-      "list_coworkers", "read_coworker", "propose_coworker", "propose_coworker_grants"
+      "list_coworkers", "list_coworker_grants", "read_coworker", "propose_coworker", "propose_coworker_grants"
     )
 
     definitions = described_class.tool_definitions(tier: :essential)

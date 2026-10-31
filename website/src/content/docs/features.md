@@ -1769,7 +1769,10 @@ counts, side-chat costs, and coworker-message traffic. These figures are
 informational and do not impose a budget or add coworker data to the instance
 Spending page.
 
-The Capabilities tab lists every coworker grant as a plain-language sentence.
+The Capabilities tab lists every catalog grant with its plain-language
+description, current policy and scope, and the tools it unlocks. Owners can
+change policy or scope there; changes that widen access require a separate
+confirmation.
 When MySQL DB Browser is enabled, its `mysql.read` grant lets an owner select
 one agentic-access connection for a coworker. The coworker receives only that
 connection's discovery, schema, and query tools; queries stay read-only even
@@ -1800,16 +1803,21 @@ preflights the handle, model, requested capabilities, workspace branch, and
 optional push access, then shows every creation field for confirmation. No
 coworker, chat, repository record, or workspace branch is created until the
 owner confirms; rejecting or withdrawing the proposal leaves no creation
-behind. Later capability escalation is a separate confirmation and changes no
-grants before approval. Coworker conversations cannot propose additional
-coworkers or capability escalations.
+behind. Later grant changes are a separate confirmation and change nothing
+before approval. They can set a catalog-supported policy and scope, lower a
+policy, or use `off` to remove a grant. Coworker conversations cannot propose
+additional coworkers or grant changes.
 
-Ordinary and planner chats can also list the signed-in owner's coworkers and
+Ordinary and planner chats can also list the signed-in owner's coworkers, list
+every coworker's catalog grants with policy, scope, and unlocked tools, and
 read one by numeric ID or handle. These read-only tools return compact identity,
 model, workspace, capability, chat, and active-schedule configuration without
 credentials or another user's records. The owner control-plane tools are not
 available inside coworker conversations; capability proposals accept the same
 owner-scoped ID or handle references and retain their confirmation step.
+Each coworker's system prompt also summarizes the grants it holds and lacks,
+including the tools each catalog grant unlocks, so it can request a specific
+grant when a needed tool is absent.
 
 A coworker granted permission to propose Syrus work can draft either a Job or
 an Epic with child Jobs in its chats. These drafts use the normal proposal

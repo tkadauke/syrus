@@ -4,6 +4,7 @@ module Coworkers
 
     TOOLS = [
       McpTools::ListCoworkersTool,
+      McpTools::ListCoworkerGrantsTool,
       McpTools::ReadCoworkerTool,
       McpTools::ProposeCoworkerTool,
       McpTools::ProposeGrantEscalationTool
