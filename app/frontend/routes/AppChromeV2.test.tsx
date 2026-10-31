@@ -1515,6 +1515,41 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
+  it("uses the measured mobile bar height even when it is shorter than the startup fallback", async () => {
+    const restoreMatchMedia = mockNarrowViewport()
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 70,
+      height: 70,
+      left: 0,
+      right: 402,
+      top: 0,
+      width: 402,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+    vi.stubGlobal("ResizeObserver", class ResizeObserverStub {
+      constructor(callback: ResizeObserverCallback) {
+        callback([], this as unknown as ResizeObserver)
+      }
+
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    })
+
+    try {
+      renderAppChrome(<div>Job review diff</div>, { initialEntries: ["/jobs/42?tab=review"] })
+
+      await waitFor(() => {
+        expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("70px")
+      })
+    } finally {
+      restoreMatchMedia()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("positions the mobile top bar as an absolute chrome layer on chat routes", () => {
     const restoreMatchMedia = mockNarrowViewport()
 

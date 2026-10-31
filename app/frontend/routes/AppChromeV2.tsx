@@ -406,7 +406,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     const node = mobileAppHeaderRef.current
     if (!node || typeof ResizeObserver === "undefined") return
 
-    const updateHeight = () => setMobileChatAppHeaderHeight(Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, Math.round(node.getBoundingClientRect().height)))
+    const updateHeight = () => {
+      const measuredHeight = Math.round(node.getBoundingClientRect().height)
+      setMobileChatAppHeaderHeight(measuredHeight > 0 ? measuredHeight : MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT)
+    }
     updateHeight()
     const observer = new ResizeObserver(updateHeight)
     observer.observe(node)
