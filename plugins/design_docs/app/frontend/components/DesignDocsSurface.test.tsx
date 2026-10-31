@@ -2498,7 +2498,9 @@ describe("DesignDocsSurface", () => {
       if (url.pathname === "/api/v1/app/design_docs/4" && init?.method === "PATCH") {
         calls.push("autosave")
         autosavedMarkdown = JSON.parse(String(init.body)).design_doc.markdown
-        return new Promise<Response>((resolve) => { resolveAutosave = resolve })
+        return new Promise<Response>((resolve) => {
+          resolveAutosave = resolve
+        })
       }
       if (url.pathname.endsWith("/suggestions/31/accept")) {
         calls.push("accept-31")
@@ -2507,7 +2509,13 @@ describe("DesignDocsSurface", () => {
           "Nested .syrus.yml discovery should be automatic once a target graph exists."
         )
         return jsonResponse({
-          design_doc: { ...openQuestionsDocDetail, markdown: firstAcceptedMarkdown, rendered_markdown: firstAcceptedMarkdown, canonical_revision: "open-questions-revision-2", suggestions: openQuestionsDocDetail.suggestions.slice(1) },
+          design_doc: {
+            ...openQuestionsDocDetail,
+            markdown: firstAcceptedMarkdown,
+            rendered_markdown: firstAcceptedMarkdown,
+            canonical_revision: "open-questions-revision-2",
+            suggestions: openQuestionsDocDetail.suggestions.slice(1)
+          },
           suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" },
           message: "Suggestion accepted."
         })
@@ -2518,7 +2526,13 @@ describe("DesignDocsSurface", () => {
           .replace("Should nested .syrus.yml discovery be automatic or opt-in?", "Nested .syrus.yml discovery should be automatic once a target graph exists.")
           .replace("Should graders be first-class targets?", "Graders should be first-class targets with explicit ownership.")
         return jsonResponse({
-          design_doc: { ...openQuestionsDocDetail, markdown: secondAcceptedMarkdown, rendered_markdown: secondAcceptedMarkdown, canonical_revision: "open-questions-revision-3", suggestions: openQuestionsDocDetail.suggestions.slice(2) },
+          design_doc: {
+            ...openQuestionsDocDetail,
+            markdown: secondAcceptedMarkdown,
+            rendered_markdown: secondAcceptedMarkdown,
+            canonical_revision: "open-questions-revision-3",
+            suggestions: openQuestionsDocDetail.suggestions.slice(2)
+          },
           suggestion: { ...openQuestionsDocDetail.suggestions[1], state: "accepted" },
           message: "Suggestion accepted."
         })
@@ -2553,18 +2567,42 @@ describe("DesignDocsSurface", () => {
     expect(patchBody).not.toHaveProperty("repository_ids")
     expect(patchBody).not.toHaveProperty("collaborator_user_ids")
 
-    resolveAutosave?.(jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" }))
+    resolveAutosave?.(
+      jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" })
+    )
     await waitFor(() => expect(calls).toEqual(["autosave", "accept-31", "accept-32"]))
-    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Nested .syrus.yml discovery should be automatic once a target graph exists.")
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent(
+      "Nested .syrus.yml discovery should be automatic once a target graph exists."
+    )
     expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Use the target command.")
   })
 
   it.each([
-    ["an unordered-list item", '<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- item" data-serialized-original-markdown="item"><del data-review-original="true">item</del><ins data-review-decoration="true">replacement</ins></mark></li></ul>', "- item"],
-    ["a numbered strong item", '<ol><li value="5"><strong><mark data-inline-suggestion-state="pending" data-original-markdown="5. **Duration**" data-serialized-original-markdown="Duration"><del data-review-original="true">Duration</del><ins data-review-decoration="true">Timeline</ins></mark></strong></li></ol>', "5. **Duration**"],
-    ["a nested list item", '<ul><li>parent<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- child" data-serialized-original-markdown="child"><del data-review-original="true">child</del><ins data-review-decoration="true">nested</ins></mark></li></ul></li></ul>', "- parent\n   - child"],
-    ["an inline suggestion inside strong text", '<p><strong>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> bold</strong></p>', "**Keep this bold**"],
-    ["an inline suggestion inside emphasized text", '<p><em>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> emphasized</em></p>', "*Keep this emphasized*"],
+    [
+      "an unordered-list item",
+      '<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- item" data-serialized-original-markdown="item"><del data-review-original="true">item</del><ins data-review-decoration="true">replacement</ins></mark></li></ul>',
+      "- item"
+    ],
+    [
+      "a numbered strong item",
+      '<ol><li value="5"><strong><mark data-inline-suggestion-state="pending" data-original-markdown="5. **Duration**" data-serialized-original-markdown="Duration"><del data-review-original="true">Duration</del><ins data-review-decoration="true">Timeline</ins></mark></strong></li></ol>',
+      "5. **Duration**"
+    ],
+    [
+      "a nested list item",
+      '<ul><li>parent<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- child" data-serialized-original-markdown="child"><del data-review-original="true">child</del><ins data-review-decoration="true">nested</ins></mark></li></ul></li></ul>',
+      "- parent\n   - child"
+    ],
+    [
+      "an inline suggestion inside strong text",
+      '<p><strong>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> bold</strong></p>',
+      "**Keep this bold**"
+    ],
+    [
+      "an inline suggestion inside emphasized text",
+      '<p><em>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> emphasized</em></p>',
+      "*Keep this emphasized*"
+    ]
   ])("serializes decorated %s in its structural context", (_label, html, expected) => {
     const editor = document.createElement("div")
     editor.contentEditable = "true"
@@ -2578,7 +2616,8 @@ describe("DesignDocsSurface", () => {
 
   it("preserves an inline suggestion whose literal text begins with a list marker", () => {
     const editor = document.createElement("div")
-    editor.innerHTML = '<ul><li>Choose <mark data-inline-suggestion-state="pending" data-original-markdown="- literal" data-serialized-original-markdown="- literal"><del data-review-original="true">- literal</del><ins data-review-decoration="true">another value</ins></mark></li></ul>'
+    editor.innerHTML =
+      '<ul><li>Choose <mark data-inline-suggestion-state="pending" data-original-markdown="- literal" data-serialized-original-markdown="- literal"><del data-review-original="true">- literal</del><ins data-review-decoration="true">another value</ins></mark></li></ul>'
 
     expect(wysiwygHtmlToMarkdown(editor)).toBe("- Choose - literal")
   })
@@ -2593,7 +2632,7 @@ describe("DesignDocsSurface", () => {
     ["Accept", "an inline suggestion inside strong text", "**Keep this bold**", "this", "that"],
     ["Reject", "an inline suggestion inside strong text", "**Keep this bold**", "this", "that"],
     ["Accept", "an inline suggestion inside emphasized text", "*Keep this emphasized*", "this", "that"],
-    ["Reject", "an inline suggestion inside emphasized text", "*Keep this emphasized*", "this", "that"],
+    ["Reject", "an inline suggestion inside emphasized text", "*Keep this emphasized*", "this", "that"]
   ])("flushes a focused Rich Text edit before %s for %s", async (decision, _label, markdown, original, proposed) => {
     const startOffset = markdown.indexOf(original)
     const suggestion = {
@@ -2634,7 +2673,10 @@ describe("DesignDocsSurface", () => {
         const body = JSON.parse(String(init.body)).design_doc
         autosavedMarkdown = body.markdown
         expect(body.base_revision).toBe("review-revision-1")
-        return jsonResponse({ design_doc: { ...detail, markdown: body.markdown, rendered_markdown: body.markdown, canonical_revision: "review-revision-2" }, mode: "canonical" })
+        return jsonResponse({
+          design_doc: { ...detail, markdown: body.markdown, rendered_markdown: body.markdown, canonical_revision: "review-revision-2" },
+          mode: "canonical"
+        })
       }
       if (url.pathname === `/api/v1/app/design_docs/1/suggestions/9/${decision.toLowerCase()}`) {
         calls.push(decision.toLowerCase())
