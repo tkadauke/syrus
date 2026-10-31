@@ -32,19 +32,20 @@ module ContainerExecution
       # This mirrors the hostname-aware proxy contract and gives conformance
       # tests one policy surface. The proxy remains the enforcement point.
       def allows_destination?(destination)
-        host = normalized_host(destination)
-        return false if host.blank? || blocked_address?(host)
+        host, port = normalized_destination(destination)
+        return deny_destination(host, port) if host.blank? || blocked_address?(host)
 
-        endpoint_hosts.include?(host)
+        endpoint_hosts.include?(host) || deny_destination(host, port)
       end
 
       def proxy_env
-        {
+        uppercase = {
           "HTTP_PROXY" => proxy_url,
           "HTTPS_PROXY" => proxy_url,
           "ALL_PROXY" => proxy_url,
           "NO_PROXY" => ""
         }
+        uppercase.merge(uppercase.transform_keys(&:downcase))
       end
 
       private
@@ -56,21 +57,33 @@ module ContainerExecution
 
       def valid_proxy_url?
         uri = URI.parse(proxy_url.to_s)
-        uri.is_a?(URI::HTTP) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
-      rescue URI::InvalidURIError
+        uri.is_a?(URI::HTTP) && uri.hostname.present? && !blocked_address?(uri.hostname) &&
+          uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
+      rescue URI::Error
         false
       end
 
-      def normalized_host(destination)
+      def normalized_destination(destination)
         value = destination.to_s.strip
         uri = URI.parse(value.include?("://") ? value : "https://#{value}")
-        uri.host&.downcase&.delete_suffix(".")
-      rescue URI::InvalidURIError
-        nil
+        [ uri.hostname&.downcase&.delete_suffix("."), uri.port ]
+      rescue URI::Error
+        [ nil, nil ]
+      end
+
+      def deny_destination(host, port)
+        Rails.logger.info(
+          event: "coworker_egress_denied",
+          profile: profile,
+          destination_host: host.presence || "invalid",
+          destination_port: port
+        )
+        false
       end
 
       def blocked_address?(host)
         address = IPAddr.new(host)
+        address = address.native if address.ipv4_mapped?
         BLOCKED_NETWORKS.any? { |network| network.include?(address) }
       rescue IPAddr::InvalidAddressError
         false

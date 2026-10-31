@@ -99,10 +99,12 @@ firewall must make the controlled proxy and resolver the only reachable
 destinations, so a process cannot bypass policy by clearing `HTTPS_PROXY`.
 The proxy must resolve hostnames itself, reject literal and resolved private,
 loopback, link-local, cluster/service, database, and metadata addresses, and
-apply the `io.syrus.egress-profile` container label to its allowlist. Denials
-must be audited with timestamp, profile, and normalized destination hostname
-and port only. Never record URL paths, query strings, headers, request or
-response bodies, proxy credentials, or provider credentials.
+apply the `io.syrus.egress-profile` container label to its allowlist. Syrus's
+policy contract records denials as `coworker_egress_denied` events containing
+only the profile and normalized destination hostname and port. The enforcing
+proxy must emit the same sanitized fields at the network boundary, with its
+normal log timestamp. Neither layer records URL paths, query strings, headers,
+request or response bodies, proxy credentials, or provider credentials.
 
 Endpoint lists live under
 `app/services/container_execution/egress_policy/`, one class per provider.
