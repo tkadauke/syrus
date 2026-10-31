@@ -1,6 +1,25 @@
 require "rails_helper"
 
 RSpec.describe Mcp::Sidecar do
+  describe "stdio tool exceptions" do
+    it "returns the exception class and a useful operator hint" do
+      tool = Class.new(MCP::Tool) do
+        tool_name "broken_tool"
+
+        def self.call(server_context:)
+          raise KeyError, "missing context"
+        end
+      end
+      described_class.wrap_stdio_tool_dispatch(tool)
+
+      response = tool.call(server_context: {})
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("Tool failed with KeyError", "report it to the operator")
+      expect(response.content.first[:text]).not_to include("Internal error")
+    end
+  end
+
   before do
     feature = Feature.find_or_create_by!(slug: "video_walkthroughs") do |record|
       record.category = "Labs"
@@ -484,7 +503,7 @@ RSpec.describe Mcp::Sidecar do
       expect(sidecar.instance_variable_get(:@server_context).call[:current_message]).to eq(message)
     end
 
-    it "records escaped stdio tool exceptions with class and cleaned backtrace" do
+    it "records stdio tool exceptions and returns their class with an operator hint" do
       raising_tool = Class.new(MCP::Tool) do
         tool_name "explode_stdio"
         description "Raise for stdio usage recording."
@@ -503,7 +522,10 @@ RSpec.describe Mcp::Sidecar do
 
       response = call_tool(server, "explode_stdio")
 
-      expect(response[:error]).to be_present
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(response.dig(:result, :content, 0, :text)).to include(
+        "Tool failed with RuntimeError", "report it to the operator"
+      )
       usage = McpToolUsage.sole
       expect(usage).to have_attributes(
         surface: "chat",

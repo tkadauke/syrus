@@ -53,6 +53,8 @@ module PersistentMcpDaemon::ToolDispatch
         sidecar_mode: "persistent", daemon_identity: daemon_identity,
         error_class: e.class.name
       ) { Mcp::Tools.unauthorized("invocation context #{e.class.name.demodulize}: #{e.message}") }
+    rescue StandardError => e
+      Mcp::Tools.exception_response(e)
     end
 
     private
