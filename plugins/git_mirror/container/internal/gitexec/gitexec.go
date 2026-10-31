@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -20,6 +21,8 @@ import (
 )
 
 const defaultWaitDelay = 5 * time.Second
+
+var ErrOutputLimit = errors.New("git output exceeds limit")
 
 // Credential is HTTP basic auth for a fetch.
 type Credential struct {
@@ -54,6 +57,21 @@ type Runner struct {
 
 // Run executes git in dir (a bare repository, or "" for none).
 func (r Runner) Run(ctx context.Context, dir string, cred *Credential, args ...string) (Result, error) {
+	return r.run(ctx, dir, cred, nil, 0, args...)
+}
+
+// RunLimited executes git while enforcing a hard stdout ceiling.
+func (r Runner) RunLimited(ctx context.Context, dir string, cred *Credential, maxStdout int64, args ...string) (Result, error) {
+	return r.run(ctx, dir, cred, nil, maxStdout, args...)
+}
+
+// RunLimitedTo streams bounded stdout into destination rather than retaining
+// the complete command output in memory.
+func (r Runner) RunLimitedTo(ctx context.Context, dir string, cred *Credential, destination io.Writer, maxStdout int64, args ...string) (Result, error) {
+	return r.run(ctx, dir, cred, destination, maxStdout, args...)
+}
+
+func (r Runner) run(ctx context.Context, dir string, cred *Credential, destination io.Writer, maxStdout int64, args ...string) (Result, error) {
 	binary := r.Binary
 	if binary == "" {
 		binary = "git"
@@ -74,10 +92,20 @@ func (r Runner) Run(ctx context.Context, dir string, cred *Credential, args ...s
 		cmd.WaitDelay = defaultWaitDelay
 	}
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	if destination == nil {
+		destination = &stdout
+	}
+	stdoutWriter := &limitedWriter{destination: destination, remaining: maxStdout}
+	if maxStdout <= 0 {
+		stdoutWriter.remaining = -1
+	}
+	cmd.Stdout = stdoutWriter
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	res := Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}
+	if stdoutWriter.exceeded {
+		return res, ErrOutputLimit
+	}
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
@@ -86,6 +114,26 @@ func (r Runner) Run(ctx context.Context, dir string, cred *Credential, args ...s
 		return res, err
 	}
 	return res, nil
+}
+
+type limitedWriter struct {
+	destination io.Writer
+	remaining   int64
+	exceeded    bool
+}
+
+func (w *limitedWriter) Write(p []byte) (int, error) {
+	if w.remaining < 0 {
+		return w.destination.Write(p)
+	}
+	if int64(len(p)) > w.remaining {
+		_, _ = w.destination.Write(p[:w.remaining])
+		w.exceeded = true
+		return len(p), ErrOutputLimit
+	}
+	n, err := w.destination.Write(p)
+	w.remaining -= int64(n)
+	return n, err
 }
 
 func (r Runner) env(cred *Credential) []string {

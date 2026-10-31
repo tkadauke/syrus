@@ -77,6 +77,7 @@ module DiffReviewVersions
       Array(@files).map do |file|
         {
           "path" => value_for(file, :path).to_s,
+          "previous_path" => value_for(file, :previous_path),
           "status" => value_for(file, :status).to_s,
           "additions" => value_for(file, :additions).to_i,
           "deletions" => value_for(file, :deletions).to_i,

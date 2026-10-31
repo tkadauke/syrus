@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -617,12 +618,31 @@ func TestOversizedTextPatchIsDistinguishedAndRetrievableByPath(t *testing.T) {
 	if change.Patch != nil || change.PatchStatus != "oversized" || change.PatchBytes <= MaxPatchBytes {
 		t.Fatalf("oversized change metadata = %+v", change)
 	}
-	patch, err := s.FilePatch(context.Background(), "42", base, head, "large.txt")
-	if err != nil || !bytes.Contains(patch, []byte("+new line")) {
-		t.Fatalf("file patch: %v, %v", len(patch), err)
+	var patch bytes.Buffer
+	_, err = s.FilePatch(context.Background(), &patch, "42", base, head, "large.txt", "")
+	if err != nil || !bytes.Contains(patch.Bytes(), []byte("+new line")) {
+		t.Fatalf("file patch: %v, %v", patch.Len(), err)
 	}
-	if _, err := s.FilePatch(context.Background(), "42", base, head, "../large.txt"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.FilePatch(context.Background(), io.Discard, "42", base, head, "../large.txt", ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unsafe path error = %v", err)
+	}
+}
+
+func TestFilePatchIncludesBothSidesOfARename(t *testing.T) {
+	u := newUpstream(t)
+	base := u.commit(map[string]string{"old.txt": "one\ntwo\n"}, "base")
+	head := u.commit(map[string]string{"new.txt": "one\nchanged\n"}, "rename")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+
+	var patch bytes.Buffer
+	_, err := s.FilePatch(context.Background(), &patch, "42", base, head, "new.txt", "old.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := patch.String()
+	if !strings.Contains(text, "a/old.txt") || !strings.Contains(text, "b/new.txt") || !strings.Contains(text, "+changed") {
+		t.Fatalf("rename patch = %q", text)
 	}
 }
 

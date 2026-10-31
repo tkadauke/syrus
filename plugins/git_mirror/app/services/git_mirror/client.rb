@@ -80,8 +80,18 @@ module GitMirror
       json(request(Net::HTTP::Get, "/v1/repositories/#{id}/changes", query: query)).fetch("changes")
     end
 
-    def file_patch(id, base, head, path)
-      request(Net::HTTP::Get, "/v1/repositories/#{id}/patch", query: { base: base, head: head, path: path }, read_timeout: RESOLVE_TIMEOUT).body.to_s
+    def file_patch(id, base, head, path, previous_path: nil)
+      body = request(Net::HTTP::Get, "/v1/repositories/#{id}/patch",
+        query: { base: base, head: head, path: path, previous_path: previous_path }.compact,
+        read_timeout: RESOLVE_TIMEOUT).body.to_s
+      body.force_encoding(Encoding::UTF_8).scrub
+    end
+
+    def file_patch_to(io, id, base, head, path, previous_path: nil)
+      stream_request("/v1/repositories/#{id}/patch",
+        query: { base: base, head: head, path: path, previous_path: previous_path }.compact,
+        read_timeout: RESOLVE_TIMEOUT) { |chunk| io.write(chunk) }
+      io
     end
 
     def refs(id, pattern:, max_age:)
@@ -105,6 +115,27 @@ module GitMirror
     end
 
     private
+
+    def stream_request(path, query:, read_timeout:)
+      uri = @endpoint.dup
+      uri.path = path
+      uri.query = URI.encode_www_form(query)
+      req = Net::HTTP::Get.new(uri)
+      req["Authorization"] = "Bearer #{@token}"
+      Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: OPEN_TIMEOUT, read_timeout: read_timeout) do |http|
+        http.request(req) do |response|
+          unless response.is_a?(Net::HTTPSuccess)
+            error_body = +""
+            response.read_body { |chunk| error_body << chunk }
+            response.instance_variable_set(:@body, error_body)
+            raise_for(response)
+          end
+          response.read_body { |chunk| yield chunk }
+        end
+      end
+    rescue *NETWORK_ERRORS => e
+      raise RepositoryContent::Unavailable, "git mirror: #{e.class}: #{e.message}"
+    end
 
     def request(klass, path, query: nil, body: nil, read_timeout: READ_TIMEOUT)
       uri = @endpoint.dup

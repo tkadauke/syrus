@@ -49,6 +49,7 @@ import {
 
 export type ReviewableDiffFile = {
   path: string
+  previous_path?: string | null
   patch: string | null
   status?: string
   additions?: number
