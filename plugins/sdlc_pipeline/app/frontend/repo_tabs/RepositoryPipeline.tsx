@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
-import { Button, Input, Metric, Notice, PageHeading, Section, Text } from "@app/components/ui"
+import { Button, Input, Metric, Modal, Notice, PageHeading, Section, Text } from "@app/components/ui"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
@@ -29,7 +29,7 @@ function ItemCard({ item, releaseTail = false }: { item: PipelineItem; releaseTa
   const { t } = useT("sdlc_pipeline")
   const opacity = releaseTail ? Math.max(0.68, 1 - (item.age_seconds / (30 * 86_400)) * 0.32) : 1
   return (
-    <Link className={`${ITEM_CARD_CLASSES} ${item.needs_attention ? "border-l-4 border-l-danger" : ""}`} style={{ opacity }} to={`/jobs/${item.slug}`}>
+    <div className={`${ITEM_CARD_CLASSES} ${item.needs_attention ? "border-l-4 border-l-danger" : ""}`} style={{ opacity }}>
       <div className="flex items-center gap-2">
         <span className="font-mono text-2xs font-semibold text-text-secondary">{item.slug}</span>
         {item.pinned ? <TonePill tone="blue">{t("pinned")}</TonePill> : null}
@@ -40,7 +40,27 @@ function ItemCard({ item, releaseTail = false }: { item: PipelineItem; releaseTa
         {item.needs_attention ? <TonePill tone="amber">{item.attention_reason || t("attention")}</TonePill> : null}
         <span>{t(`evidence_${item.evidence.type}`)}</span>
       </div>
-    </Link>
+      <div className="mt-2 flex flex-wrap gap-2 text-2xs font-medium">
+        <Link className="text-brand hover:underline" to={item.paths.job}>
+          {t("job_details")}
+        </Link>
+        {item.paths.workflow ? (
+          <Link className="text-brand hover:underline" to={item.paths.workflow}>
+            {t("workflow_details")}
+          </Link>
+        ) : null}
+        {item.paths.delivery ? (
+          <Link className="text-brand hover:underline" to={item.paths.delivery}>
+            {t("deployment_details")}
+          </Link>
+        ) : null}
+        {releaseTail && item.paths.release ? (
+          <Link className="text-brand hover:underline" to={item.paths.release}>
+            {t("release_details")}
+          </Link>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -76,6 +96,7 @@ function StageColumn({ groups, onOpen, releaseTail, stage }: { groups: PipelineG
         <div className="flex items-center gap-2">
           <span aria-hidden className={`h-2 w-2 rounded-full ${stage.kind === "deployment" ? "bg-info" : "bg-text-subtle"}`} />
           <span className="font-semibold text-text-primary">{stage.label}</span>
+          {stage.release_tail ? <TonePill tone="blue">{t("recent_releases")}</TonePill> : null}
           <span className="ml-auto">
             <TonePill tone={stage.attention_count ? "amber" : "gray"}>{stage.total}</TonePill>
           </span>
@@ -111,15 +132,17 @@ function DrillDown({ onClose, repositoryId, stage }: { onClose: () => void; repo
   const [page, setPage] = useState(1)
   const result = useQuery({
     queryKey: ["repositories", repositoryId, "sdlc_pipeline", stage.key, page],
-    queryFn: () => fetchPipelineStage(repositoryId, stage.key, page)
+    queryFn: () => fetchPipelineStage(repositoryId, stage.key, page),
+    placeholderData: (previous) => previous
   })
   const drill = result.data?.drill_down
   return (
-    <div
-      aria-label={t("drill_down_aria", { stage: stage.label })}
-      aria-modal="true"
-      className="fixed inset-y-0 right-0 z-40 w-full max-w-md overflow-y-auto border-l border-border bg-surface p-5 shadow-xl"
-      role="dialog"
+    <Modal
+      backdropClassName="fixed inset-0 z-50 flex justify-end bg-black/30"
+      className="h-full w-full max-w-md overflow-y-auto border-l border-border bg-surface p-5 shadow-xl"
+      label={t("drill_down_aria", { stage: stage.label })}
+      onClose={onClose}
+      open
     >
       <div className="flex items-start gap-3">
         <div>
@@ -143,7 +166,7 @@ function DrillDown({ onClose, repositoryId, stage }: { onClose: () => void; repo
       ) : null}
       <div className="mt-5 space-y-2">
         {drill?.items.map((item) => (
-          <ItemCard item={item} key={item.id} />
+          <ItemCard item={item} key={item.id} releaseTail={Boolean(stage.release_tail)} />
         ))}
       </div>
       <div className="mt-4 flex items-center justify-between">
@@ -151,13 +174,13 @@ function DrillDown({ onClose, repositoryId, stage }: { onClose: () => void; repo
           {t("previous")}
         </Button>
         <Text variant="caption" tone="muted">
-          {t("page", { page, total: drill?.total || stage.total })}
+          {t("page", { page, pages: Math.max(1, Math.ceil((drill?.total || stage.total) / (drill?.limit || 25))), total: drill?.total || stage.total })}
         </Text>
         <Button disabled={!drill?.next_page} onClick={() => setPage((value) => value + 1)} size="sm" variant="secondary">
           {t("next")}
         </Button>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -169,12 +192,15 @@ function PipelineOverview({ payload, repositoryId }: { payload: PipelinePayload;
   const [edges, setEdges] = useState({ left: false, right: false })
   const stages = useMemo(
     () =>
-      payload.stages.filter(
-        (stage) =>
-          !query ||
-          stage.label.toLowerCase().includes(query.toLowerCase()) ||
-          stage.highlighted_items.some((item) => `${item.slug} ${item.title}`.toLowerCase().includes(query.toLowerCase()))
-      ),
+      payload.stages.map((stage) => {
+        if (!query) return stage
+        const normalized = query.toLowerCase()
+        const stageMatches = stage.label.toLowerCase().includes(normalized)
+        const highlighted_items = stageMatches
+          ? stage.highlighted_items
+          : stage.highlighted_items.filter((item) => `${item.slug} ${item.title}`.toLowerCase().includes(normalized))
+        return { ...stage, highlighted_items }
+      }),
     [payload.stages, query]
   )
   const active = payload.stages.find((stage) => stage.total > 0 && stage.kind === "lifecycle")
@@ -242,6 +268,11 @@ function PipelineOverview({ payload, repositoryId }: { payload: PipelinePayload;
             {t("no_deployment_config")}
           </Notice>
         ) : null}
+        {payload.evidence.status === "partial" ? (
+          <Notice className="mt-3" tone="warning">
+            {t("partial_evidence", { count: payload.evidence.incomplete_count })}
+          </Notice>
+        ) : null}
       </div>
       <div className="relative overflow-hidden border-y border-border bg-surface-subtle py-3">
         {edges.left ? (
@@ -279,14 +310,9 @@ function PipelineOverview({ payload, repositoryId }: { payload: PipelinePayload;
           role="region"
           tabIndex={0}
         >
-          {stages.map((stage, index) => (
+          {stages.map((stage) => (
             <div className="snap-start" key={stage.key}>
-              <StageColumn
-                groups={payload.groups}
-                onOpen={() => setSelected(stage)}
-                releaseTail={index === payload.stages.length - 1 && stage.kind === "deployment"}
-                stage={stage}
-              />
+              <StageColumn groups={payload.groups} onOpen={() => setSelected(stage)} releaseTail={Boolean(stage.release_tail)} stage={stage} />
             </div>
           ))}
           {!stages.length ? <Notice>{t("filter_empty")}</Notice> : null}

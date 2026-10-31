@@ -26,12 +26,30 @@ RSpec.describe SdlcPipeline::Projection do
 
     expect(payload[:stages].find { |stage| stage[:key] == "review" }[:total]).to eq(1)
     production = payload[:stages].find { |stage| stage[:key] == "deployment:production" }
+    expect(production[:release_tail]).to be(true)
     expect(production[:total]).to eq(1)
     expect(production[:highlighted_items].first[:evidence]).to include(
       type: "deployment_stage", stage_name: "production", tag_sha: "abc123"
     )
     expect(payload[:stages].sum { |stage| stage[:total] }).to eq(2)
     expect(payload[:groups]).to include(include(label: "Release train", total: 1), include(key: "ungrouped", total: 1))
+    expect(payload[:evidence]).to eq(status: "complete", incomplete_count: 0)
+    expect(production[:highlighted_items].first[:paths]).to include(
+      job: "/jobs/#{landed.slug}", delivery: "/jobs/#{landed.slug}", release: "/jobs/#{landed.slug}"
+    )
+  end
+
+  it "reports partial delivery evidence and links to the latest Workflow" do
+    landed = Factories.job_with_run(repository: repository, user: user, state: "running")
+    workflow = landed.latest_workflow
+    landed.update_columns(state: "closed", landed_sha: "abc123", finished_at: 1.hour.ago, updated_at: 1.hour.ago)
+    JobDeploymentStageStatus.create!(job: landed, stage_name: "staging", reached_at: 30.minutes.ago, tag_sha: "abc123")
+
+    payload = described_class.new(repository: repository, user: user).call
+    item = payload[:stages].find { |stage| stage[:key] == "deployment:staging" }[:highlighted_items].first
+
+    expect(payload[:evidence]).to eq(status: "partial", incomplete_count: 1)
+    expect(item[:paths][:workflow]).to eq("/jobs/#{landed.slug}?tab=workflows#workflow-#{workflow.id}")
   end
 
   it "bounds highlights, terminal history, and drill-down pages" do
@@ -96,5 +114,7 @@ RSpec.describe SdlcPipeline::Projection do
     expect(queries.grep(/FROM [\"`]?jobs/i).length).to be <= 2
     expect(queries.grep(/FROM [\"`]?epics/i).length).to be <= 2
     expect(queries.grep(/FROM [\"`]?job_deployment_stage_statuses/i).length).to be <= 2
+    expect(queries.grep(/FROM [\"`]?workflows/i).length).to eq(1)
+    expect(queries.grep(/FROM [\"`]?job_pins/i).length).to eq(1)
   end
 end
