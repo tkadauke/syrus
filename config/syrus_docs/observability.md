@@ -200,6 +200,12 @@ stored exception entry.
 
 ## Existing Streams
 
+Coworkers with the `ops.read_logs` grant can use the same read-only,
+size-capped and redacted operational-log, worker-health, backend-exception,
+browser-error, and performance-event queries exposed by the admin views. The
+grant defaults to confirmation and may be raised to automatic access; it never
+adds repair, retry, pause, process-control, or event-filing actions.
+
 `performance_log_events` contain slow request, slow SQL, slow phase, and browser
 trace diagnostics. They retain 24 hours and are surfaced by Admin -> Performance
 when the `performance_logging` feature is enabled. Phase SQL counts are

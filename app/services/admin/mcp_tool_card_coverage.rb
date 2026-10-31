@@ -23,7 +23,10 @@ module Admin
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",
       "reset_workspace" => "hidden",
-      "override_job_planned_execution" => "generic"
+      "override_job_planned_execution" => "generic",
+      "read_backend_exception_events" => "generic",
+      "read_browser_error_events" => "generic",
+      "read_performance_log_events" => "generic"
     }.freeze
 
     class << self

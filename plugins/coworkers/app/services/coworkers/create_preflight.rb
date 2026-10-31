@@ -62,7 +62,10 @@ class Coworkers::CreatePreflight
   end
 
   def selected_grants
-    return Coworkers::Create::DEFAULT_GRANTS.map { |name, policy| { capability: name, approval_policy: policy, scope: nil } } unless @requested_grants
+    unless @requested_grants
+      defaults = Coworkers::Create::DEFAULT_GRANTS.merge(McpToolRegistry.default_coworker_grants)
+      return defaults.map { |name, policy| { capability: name, approval_policy: policy, scope: nil } }
+    end
     normalized_requested_grants.map do |grant|
       name = grant.fetch(:capability)
       grant.merge(approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(name) { Coworkers::GrantCatalog.fetch(name).default_policy })

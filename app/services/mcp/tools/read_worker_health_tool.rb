@@ -17,8 +17,10 @@ module Mcp::Tools
     )
 
     class << self
+      include Mcp::Tools::CoworkerObservabilityAuthorization
+
       def call(server_context:, **arguments)
-        return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
+        return Mcp::Tools.unauthorized("Observability access required") unless observability_authorized?(server_context)
 
         payload = CommandRedactor.redact_value(
           ::Admin::WorkerHealthPayload.new(
@@ -33,12 +35,6 @@ module Mcp::Tools
           ).as_json
         )
         Mcp::Tools.success(payload)
-      end
-
-      private
-
-      def admin?(server_context)
-        server_context.fetch(:chat_session).user.admin?
       end
     end
   end

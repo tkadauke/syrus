@@ -167,6 +167,7 @@ module Admin
       chat.message_owner
       chats.read_shared
       coworker.message
+      ops.read_logs
       syrus.propose_job
       syrus.read_jobs
     ].freeze
