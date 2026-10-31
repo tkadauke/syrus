@@ -204,6 +204,14 @@ can queue at most ten messages in a ten-minute window, regardless of direction.
 Hop-limit refusals and rate-limited attempts are recorded in the sender's main
 chat and listed in the sender's Activity tab.
 
+An incoming coworker message starts a turn whose final assistant text is
+automatically sent back to the coworker who wrote it. The prompt identifies
+that coworker, explains that delivery is automatic, and reports how many
+exchanges remain. The reply uses the same active-coworker checks, pair rate
+limit, origin turn, and three-hop cap as `message_coworker`; a refusal is
+recorded in the replier's main chat. A coworker can end the exchange without
+sending or displaying an answer by replying with only `NO_REPLY`.
+
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
 Rostered coworkers become addressable by every participant in that chat and
