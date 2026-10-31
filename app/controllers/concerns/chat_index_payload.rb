@@ -222,6 +222,7 @@ module ChatIndexPayload
 
   def chat_index_context_for(chat_sessions)
     chat_sessions = Array(chat_sessions)
+    ChatSession.preload_primary_repository_overrides(chat_sessions)
     ids = chat_sessions.map(&:id)
     blank_title_ids = chat_sessions.select { |chat_session| chat_session.title.blank? }.map(&:id)
     workdirs_by_id = chat_sessions.to_h { |chat_session| [ chat_session.id, chat_session.workspace_root.to_s ] }

@@ -264,6 +264,10 @@ class ChatSession < ApplicationRecord
     repository&.id
   end
 
+  def self.preload_primary_repository_overrides(_chat_sessions)
+    nil
+  end
+
   # Read-or-default convenience for artifact access, mirroring
   # Workflow#artifact. Nil-safe against a freshly-created ChatSession
   # whose `artifacts` column hasn't been touched yet.

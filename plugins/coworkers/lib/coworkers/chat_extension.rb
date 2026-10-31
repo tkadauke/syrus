@@ -2,6 +2,8 @@ module Coworkers
   module ChatExtension
     def self.install_into(scope)
       scope.effect("chat coworker resolver") do
+        original_preloader = ChatSession.method(:preload_primary_repository_overrides)
+
         ChatSession.define_method(:coworker) do
           active = current_turn_message_id && messages.find_by(id: current_turn_message_id)
           rostered = active && coworker_roster_mention(active)
@@ -43,14 +45,39 @@ module Coworkers
         end
 
         ChatSession.define_method(:primary_repository_override) do
+          return @primary_repository_override if instance_variable_defined?(:@primary_repository_override)
+
           association = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: id)
-          association&.coworker&.workspace_repository
+          @primary_repository_override = association&.coworker&.workspace_repository
+        end
+
+        ChatSession.define_singleton_method(:preload_primary_repository_overrides) do |chat_sessions|
+          sessions_by_id = Array(chat_sessions).index_by(&:id)
+          links = Coworkers::Chat.includes(:coworker).where(chat_session_id: sessions_by_id.keys)
+          coordinates_by_chat_id = links.to_h do |link|
+            [ link.chat_session_id, link.coworker.workspace_repository_coordinates ]
+          end
+          coordinates = coordinates_by_chat_id.values.compact
+          repositories_by_coordinates = if coordinates.empty?
+            {}
+          else
+            owners, names = coordinates.transpose
+            Repository
+              .where("LOWER(owner) IN (?) AND LOWER(name) IN (?)", owners.uniq, names.uniq)
+              .index_by { |repository| [ repository.owner.downcase, repository.name.downcase ] }
+          end
+
+          sessions_by_id.each do |chat_session_id, chat_session|
+            repository = repositories_by_coordinates[coordinates_by_chat_id[chat_session_id]]
+            chat_session.instance_variable_set(:@primary_repository_override, repository)
+          end
         end
 
         -> do
           %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy coworker_workspace? coworker_workspace_repository_id primary_repository_override].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
+          ChatSession.define_singleton_method(:preload_primary_repository_overrides, original_preloader)
         end
       end
     end

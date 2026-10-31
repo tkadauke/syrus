@@ -47,10 +47,17 @@ class Coworkers::Coworker < ApplicationRecord
   def chat_configuration = attributes.symbolize_keys.slice(:chat_provider, :chat_model, :chat_effort).compact
 
   def workspace_repository
+    owner, name = workspace_repository_coordinates
+    return unless owner
+
+    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", owner, name).first
+  end
+
+  def workspace_repository_coordinates
     match = workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
     return unless match
 
-    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
+    [ match[1].downcase, match[2].downcase ]
   end
 
   # A coworker sees only its own conversations and chats explicitly shared
