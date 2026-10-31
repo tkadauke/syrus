@@ -64,11 +64,13 @@ RSpec.describe McpToolRegistry do
         capability: nil,
         interactive_only: false,
         mutation: false,
-        ungated: false
+        ungated: false,
+        descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(name: "plugin_ping")
       )
 
       expect(entry.tool_name).to eq("plugin_ping")
       expect(entry.to_h[:tool_name]).to eq("plugin_ping")
+      expect(entry.descriptor.capability).to eq("plugin_ping@v1")
     end
   end
 
@@ -243,5 +245,14 @@ RSpec.describe McpToolRegistry do
       capability: :submit_job_metadata,
       step_kinds: %w[refresh_job_metadata]
     )
+  end
+
+  it "adapts every existing core registration to the canonical descriptor contract" do
+    expect(described_class.entries).to all(satisfy do |entry|
+      descriptor = entry.descriptor
+      descriptor.is_a?(Permissions::CapabilityDescriptor) &&
+        descriptor.effects.any? &&
+        descriptor.requestable_roles.all? { |role| descriptor.defaults.key?(role) }
+    end)
   end
 end

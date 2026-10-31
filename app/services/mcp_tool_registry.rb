@@ -11,7 +11,8 @@ class McpToolRegistry
     :capability,
     :interactive_only,
     :mutation,
-    :ungated
+    :ungated,
+    :descriptor
   ) do
     def tool_name
       McpToolRegistry.tool_name_for(tool)
@@ -36,6 +37,7 @@ class McpToolRegistry
         interactive_only: interactive_only,
         mutation: mutation,
         ungated: ungated,
+        descriptor: descriptor,
         read_only: read_only?
       }
     end
@@ -493,7 +495,9 @@ class McpToolRegistry
     end
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
-              required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false, ungated: false)
+              required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false, ungated: false,
+              descriptor: nil)
+      tool_name = tool_name_for(tool)
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -506,7 +510,15 @@ class McpToolRegistry
         capability: capability&.to_sym,
         interactive_only: interactive_only,
         mutation: mutation,
-        ungated: ungated
+        ungated: ungated,
+        descriptor: Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+          tool_name: tool_name,
+          capability: capability,
+          mutation: mutation,
+          required_roles: required_roles,
+          admin_only: admin_only,
+          descriptor: descriptor
+        )
       )
     end
 
