@@ -159,25 +159,27 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
   end
 
   it "normalizes an escalation into its own pending action and grants exactly those capabilities on confirmation" do
-    response = propose([ "syrus.read_jobs", "workspace.shell", "syrus.read_jobs" ])
+    response = propose([ { capability: "syrus.read_jobs", policy: "confirm" }, { capability: "workspace.shell", policy: "queue" } ])
     action = chat.pending_actions.last
 
     expect(response).not_to be_error
     expect(action).to have_attributes(
       action: "escalate_coworker_grants",
-      payload: { "coworker_id" => coworker.id, "handle" => "maya-grants", "grants" => [ "syrus.read_jobs", "workspace.shell" ] }
+      payload: { "coworker_id" => coworker.id, "handle" => "maya-grants", "grants" => [
+        { "capability" => "syrus.read_jobs", "policy" => "confirm" }, { "capability" => "workspace.shell", "policy" => "queue" }
+      ] }
     )
     expect(coworker.grants).to be_empty
     expect(JSON.parse(response.content.first.fetch(:text)).fetch("grant_escalation")).to eq(action.payload)
 
     expect(action.confirm!).to be true
     expect(coworker.grants.reload.pluck(:capability, :approval_policy).to_h).to eq(
-      "syrus.read_jobs" => "auto", "workspace.shell" => "auto"
+      "syrus.read_jobs" => "confirm", "workspace.shell" => "queue"
     )
   end
 
   it "adds nothing when the escalation is rejected" do
-    propose([ "workspace.shell" ])
+    propose([ { capability: "workspace.shell", policy: "confirm" } ])
     chat.pending_actions.last.reject!
 
     expect(coworker.grants).to be_empty
@@ -185,7 +187,7 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
 
   it "accepts an owner-scoped handle without changing confirmation behavior" do
     coworker
-    response = described_class.call(handle: "@maya-grants", grants: [ "workspace.shell" ], server_context: { chat_session: chat })
+    response = described_class.call(handle: "@maya-grants", grants: [ { capability: "workspace.shell", policy: "confirm" } ], server_context: { chat_session: chat })
 
     expect(response).not_to be_error
     expect(chat.pending_actions.last.payload).to include("coworker_id" => coworker.id, "handle" => coworker.handle)
@@ -193,12 +195,12 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
   end
 
   it "rechecks escalation races at confirmation" do
-    propose([ "workspace.shell" ])
+    propose([ { capability: "workspace.shell", policy: "confirm" } ])
     action = chat.pending_actions.last
     coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
 
-    expect { action.confirm! }.to raise_error(ArgumentError, /already granted/)
-    expect(coworker.grants.where(capability: "workspace.shell").count).to eq(1)
+    expect(action.confirm!).to be true
+    expect(coworker.grants.find_by!(capability: "workspace.shell").approval_policy).to eq("confirm")
   end
 
   it "cannot escalate a coworker owned by another user" do
@@ -208,10 +210,41 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
     )
 
     response = described_class.call(
-      coworker_id: other_coworker.id, grants: [ "workspace.shell" ], server_context: { chat_session: chat }
+      coworker_id: other_coworker.id, grants: [ { capability: "workspace.shell", policy: "confirm" } ], server_context: { chat_session: chat }
     )
 
     expect(response).to be_error
     expect(chat.pending_actions).to be_empty
+  end
+
+
+  it "proposes lowering and removing grants through the same confirmation path" do
+    coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
+    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
+
+    response = propose([ { capability: "workspace.shell", policy: "queue" }, { capability: "syrus.read_jobs", policy: "off" } ])
+
+    expect(response).not_to be_error
+    expect(chat.pending_actions.last.confirm!).to be true
+    expect(coworker.grants.reload.pluck(:capability, :approval_policy)).to eq([ [ "workspace.shell", "queue" ] ])
+  end
+
+  it "requires an explicit scope when adding a scopeable grant" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "database.read", label: "Read database", description: "Read it", default_policy: "confirm", maximum_policy: "auto",
+      tools: [ "list_database_tables" ], scope_options_callback: ->(user:) { [ user.id ] },
+      scope_label_callback: ->(value) { "Connection #{value}" }, valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("database.read").and_return(descriptor)
+
+    missing_scope = propose([ { capability: "database.read", policy: "confirm" } ])
+    expect(missing_scope).to be_error
+    expect(missing_scope.content.first.fetch(:text)).to include("scope is required for database.read")
+    expect(chat.pending_actions).to be_empty
+
+    response = propose([ { capability: "database.read", policy: "confirm", scope: owner.id } ])
+    expect(response).not_to be_error
+    expect(chat.pending_actions.last.confirm!).to be true
+    expect(coworker.grants.find_by!(capability: "database.read")).to have_attributes(approval_policy: "confirm", scope: owner.id)
   end
 end

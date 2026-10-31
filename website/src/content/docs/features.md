@@ -1358,6 +1358,9 @@ pause, not the page, and would otherwise swamp real jank.
 Beyond those passive observers, `app/frontend/lib/performanceMarkers.ts` is a
 generic frontend performance marker API frontend code can use to place
 explicit timing markers, similar in spirit to the backend's `PerformanceLogging.phase`.
+Coworkers may be granted read-only operational observability through
+`ops.read_logs`; results use the same caps and redaction as the admin surfaces
+and do not expose operational write or process-control actions.
 It offers `measureSync`/`measureAsync` for timing a block of work,
 `startMarker`/`endMarker` for spans that don't fit one function call (e.g. a
 UI menu's open-to-render latency), `recordCount` for count-based context
@@ -1408,7 +1411,11 @@ through that plugin. Scheduled prompts that target Syrus performance work can
 ask the agent to call it before editing code. The tool uses the same
 current-revision/all-revisions filtering as the admin payload, returns bounded
 grouped summaries, and only includes sanitized raw recent events when
-explicitly requested.
+explicitly requested. Owners can grant coworkers the plugin-declared
+`syrus_dev.read_diagnostics` capability to expose that tool and
+`read_syrus_logs` with the same redaction and size bounds. The grant defaults
+to confirmation; without it, both tools stay absent, and the plugin never adds
+them to ordinary operator chats.
 
 ## Direct Jobs
 
@@ -1778,7 +1785,23 @@ counts, side-chat costs, and coworker-message traffic. These figures are
 informational and do not impose a budget or add coworker data to the instance
 Spending page.
 
-The Capabilities tab lists every coworker grant as a plain-language sentence.
+The Capabilities tab lists every catalog grant with its plain-language
+description, current policy and scope, and the tools it unlocks. Owners can
+change policy or scope there; changes that widen access require a separate
+confirmation.
+When MySQL DB Browser is enabled, its `mysql.read` grant lets an owner select
+one agentic-access connection for a coworker. The coworker receives only that
+connection's discovery, schema, and query tools; queries stay read-only even
+if operators enabled writes on the connection. MySQL audit records retain the
+coworker's identity as well as the owning user.
+
+When Kubernetes Cluster Viewer is enabled, its `k8s.read` grant similarly lets
+an owner select one agentic-access cluster. The coworker can browse namespaces,
+nodes, workloads, services, ingresses, persistent volume claims, events,
+ConfigMaps, capped and redacted pod logs, and the metrics overview for that
+cluster. Kubernetes Secrets, raw `kubectl`, and all mutation tools remain
+unavailable to coworkers under every grant. Calls are audited with the
+coworker's identity and owning user.
 Owners can choose `auto`, `confirm`, `queue`, or `off`; enabling a capability
 or making its policy more permissive asks for a separate confirmation. The
 workspace-files grant can also mark paths such as `SOUL.md` and `AGENTS.md` as
@@ -1790,22 +1813,31 @@ workspace-files confirmation list also requires confirmation. During an
 owner-authored interactive turn, asking the owner a structured question or
 suggesting the owner's next chat message runs immediately: these in-turn
 helpers do not create a separate confirmation action.
+Queued and confirmation-gated actions identify the coworker and show the real
+tool name plus readable arguments on both the chat card and the coworker's
+Approvals tab. Secret-like values are redacted, and long values can be expanded
+before the operator confirms or declines the action.
 
 An ordinary Syrus or planner chat can also propose a coworker. The proposal
 preflights the handle, model, requested capabilities, workspace branch, and
 optional push access, then shows every creation field for confirmation. No
 coworker, chat, repository record, or workspace branch is created until the
 owner confirms; rejecting or withdrawing the proposal leaves no creation
-behind. Later capability escalation is a separate confirmation and changes no
-grants before approval. Coworker conversations cannot propose additional
-coworkers or capability escalations.
+behind. Later grant changes are a separate confirmation and change nothing
+before approval. They can set a catalog-supported policy and scope, lower a
+policy, or use `off` to remove a grant. Coworker conversations cannot propose
+additional coworkers or grant changes.
 
-Ordinary and planner chats can also list the signed-in owner's coworkers and
+Ordinary and planner chats can also list the signed-in owner's coworkers, list
+every coworker's catalog grants with policy, scope, and unlocked tools, and
 read one by numeric ID or handle. These read-only tools return compact identity,
 model, workspace, capability, chat, and active-schedule configuration without
 credentials or another user's records. The owner control-plane tools are not
 available inside coworker conversations; capability proposals accept the same
 owner-scoped ID or handle references and retain their confirmation step.
+Each coworker's system prompt also summarizes the grants it holds and lacks,
+including the tools each catalog grant unlocks, so it can request a specific
+grant when a needed tool is absent.
 
 A coworker granted permission to propose Syrus work can draft either a Job or
 an Epic with child Jobs in its chats. These drafts use the normal proposal

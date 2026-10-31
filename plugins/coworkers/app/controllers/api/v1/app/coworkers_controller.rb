@@ -15,7 +15,8 @@ module Api
             syrus: syrus_json,
             model_options: model_options_json,
             provisioning_attempts: Coworkers::ProvisioningAttempt.where(owner_user: Current.user)
-              .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status)
+              .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status),
+            grant_catalog: grant_catalog_json
           }
         end
 
@@ -28,7 +29,7 @@ module Api
           coworker = Coworkers::Coworker.new(owner_user: Current.user)
           authorize coworker, :create?, policy_class: CoworkerPolicy
           created = Coworkers::Create.call(owner: Current.user, idempotency_key: request.headers["Idempotency-Key"] || params[:idempotency_key],
-            **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: params[:grants])
+            **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: requested_grants)
           render json: { coworker: detail_json(created), redirect_to: "/coworkers/#{created.id}" }, status: :created
         rescue ActiveRecord::RecordInvalid => error
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
@@ -78,7 +79,7 @@ module Api
           authorize coworker, :manage_grants?, policy_class: CoworkerPolicy
           Coworkers::GrantUpdate.call(
             owner: Current.user, coworker: coworker, capability: params[:capability],
-            approval_policy: params.require(:approval_policy), constraints: grant_constraints,
+            approval_policy: params.require(:approval_policy), constraints: grant_constraints, **grant_scope_argument,
             confirmed: params[:confirmed]
           )
           render json: { coworker: detail_json(coworker.reload) }
@@ -154,13 +155,13 @@ module Api
         def approvals
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
-          render json: { approvals: Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.map { |action| approval_json(action) } }
+          render json: { approvals: Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.map { |action| approval_json(action, coworker:) } }
         end
 
         def approve
           action = find_approval
           if action.enqueue_confirmation!(user: Current.user)
-            render json: { approval: approval_json(action.reload) }, status: :accepted
+            render json: { approval: approval_json(action.reload, coworker: find_coworker) }, status: :accepted
           else
             render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
           end
@@ -171,7 +172,7 @@ module Api
         def reject
           action = find_approval
           if action.reject!(user: Current.user)
-            render json: { approval: approval_json(action.reload) }
+            render json: { approval: approval_json(action.reload, coworker: find_coworker) }
           else
             render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
           end
@@ -257,11 +258,15 @@ module Api
           Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.find(params[:approval_id])
         end
 
-        def approval_json(action)
+        def approval_json(action, coworker:)
           {
             id: action.id, tool_name: action.payload["tool_name"], tool_input: action.payload["arguments"],
             run_id: action.payload["run_id"], chat_id: action.chat_session_id,
-            created_at: action.created_at.iso8601, state: action.state
+            created_at: action.created_at.iso8601, state: action.state,
+            actor: {
+              name: coworker.name, handle: coworker.handle, avatar_key: coworker.avatar_key,
+              avatar_url: coworker.avatar_url, accent_hex: coworker.accent_hex
+            }
           }
         end
 
@@ -277,6 +282,31 @@ module Api
 
         def grant_constraints
           params.permit(constraints: { confirm_paths: [] })[:constraints]&.to_h || {}
+        end
+
+        def grant_scope_argument
+          params.key?(:scope) ? { scope: params[:scope] } : {}
+        end
+
+        def requested_grants
+          return unless params.key?(:grants)
+          scopes = params[:grant_scopes].respond_to?(:to_unsafe_h) ? params[:grant_scopes].to_unsafe_h : params[:grant_scopes].to_h
+          Array(params[:grants]).map do |raw|
+            if raw.respond_to?(:to_unsafe_h) || raw.respond_to?(:to_h)
+              attributes = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw.to_h
+              { capability: attributes["capability"] || attributes[:capability], scope: attributes["scope"] || attributes[:scope] }
+            else
+              raw_scope = scopes[raw.to_s]
+              { capability: raw, scope: raw_scope.present? ? JSON.parse(raw_scope) : nil }
+            end
+          end
+        rescue JSON::ParserError
+          raise ArgumentError, "invalid grant scope"
+        end
+
+        def grant_catalog_json
+          defaults = Coworkers::Create::DEFAULT_GRANTS.keys.to_set
+          Coworkers::GrantCatalog.all.map { |descriptor| descriptor.as_json(user: Current.user).merge(default_enabled: defaults.include?(descriptor.name)) }
         end
 
         def summary_json(coworker, weekly_spend_usd: nil)
@@ -296,7 +326,11 @@ module Api
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
-            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints } },
+            grants: coworker.grants.order(:capability).map { |grant|
+              { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints }
+                .merge(grant.scope.nil? ? {} : { scope: grant.scope })
+            },
+            grant_catalog: grant_catalog_json,
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
             message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
           )

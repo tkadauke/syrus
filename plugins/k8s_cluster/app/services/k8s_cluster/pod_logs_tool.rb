@@ -63,7 +63,7 @@ module K8sCluster
 
         respond_with(cluster_id: cluster_id, params: params, server_context: server_context) do
           cluster = AgenticAccess.cluster!(cluster_id)
-          Pods.new(cluster).logs(
+          result = Pods.new(cluster).logs(
             name,
             namespace: namespace,
             container: container,
@@ -71,6 +71,9 @@ module K8sCluster
             previous: !!previous,
             timestamps: !!timestamps
           )
+          context = Thread.current[:k8s_cluster_mcp_context]
+          result[:log] = ToolPayloadRedactor.redact_text(result[:log]) if context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          result
         end
       end
     end

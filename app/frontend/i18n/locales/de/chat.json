@@ -1202,6 +1202,11 @@
   "raw_details": "Rohdetails",
   "redacted": "geschwärzt",
   "redaction_notice": "Geheimnisähnliche Werte werden vor Anzeige und Kopieren geschwärzt.",
+  "tool_approval_coworker": "Mitarbeiter",
+  "tool_approval_no_arguments": "Keine Argumente angegeben.",
+  "tool_approval_not_provided": "Nicht angegeben",
+  "tool_approval_show_less": "Weniger anzeigen",
+  "tool_approval_show_more": "Mehr anzeigen",
   "shared": {
     "file_count_one": "{{count}} Datei",
     "file_count_other": "{{count}} Dateien",

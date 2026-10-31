@@ -50,6 +50,28 @@ module Syrus
       end
 
       module ClassMethods
+        def coworker_grant(name:, label:, scope: nil, tools:, default_policy: "confirm", max_policy: "auto", description: nil)
+          @coworker_grant = {
+            name: name.to_s,
+            label: label,
+            description: description || label,
+            default_policy: default_policy.to_s,
+            maximum_policy: max_policy.to_s,
+            tools: Array(tools).map { |tool| tool.respond_to?(:tool_name) ? tool.tool_name : tool.to_s },
+            scope_options_callback: scope&.fetch(:options),
+            scope_label_callback: scope&.fetch(:label),
+            valid_scope_callback: scope&.fetch(:valid)
+          }
+        end
+
+        def coworker_grants
+          @coworker_grant ? [ @coworker_grant ] : []
+        end
+
+        def available_for_coworker?(chat_session, tier:)
+          @coworker_grant.present? && available_for?(chat_session, tier: tier)
+        end
+
         # Configures the gate every method below relies on: `plugin` answers
         # `.enabled?`, `model` answers `.exists?`. `label` names this tool
         # set in "Unknown ... tool" error text (required for a ChatToolSet;
@@ -91,7 +113,11 @@ module Syrus
           return gate_delegate.tool_definitions(tier: :essential) if gate_delegate
 
           tool_classes.map do |klass|
-            { name: klass.tool_name, description: klass.description_value, input_schema: klass.input_schema_value.to_h }
+            definition = { name: klass.tool_name, description: klass.description_value, input_schema: klass.input_schema_value.to_h }
+            if @coworker_grant && @coworker_grant.fetch(:tools).include?(klass.tool_name)
+              definition.merge!(coworker_safe: true, capability: @coworker_grant.fetch(:name))
+            end
+            definition
           end
         end
 

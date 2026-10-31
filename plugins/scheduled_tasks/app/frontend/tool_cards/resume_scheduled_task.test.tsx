@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import resumeScheduledTaskToolCard, { examples } from "./resume_scheduled_task"
@@ -48,17 +48,23 @@ describe("resume_scheduled_task tool card", () => {
   })
 
   it("renders state, repository, and relative, local, and UTC next-fire times", () => {
-    render(<>{resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult: detailed }))}</>)
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-10-23T03:00:00Z"))
+    try {
+      render(<>{resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult: detailed }))}</>)
 
-    expect(screen.getByText("scheduled")).toBeInTheDocument()
-    expect(screen.getByText("Enabled")).toBeInTheDocument()
-    expect(screen.getByText("Yes")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/8")
-    expect(screen.getByText("Next fire (relative)")).toBeInTheDocument()
-    expect(screen.getByText("Next fire (local)")).toBeInTheDocument()
-    expect(screen.getByText("Next fire (UTC)")).toBeInTheDocument()
-    expect(screen.getByText(/AM UTC|PM UTC/)).toBeInTheDocument()
-    expect(document.querySelector("time")).toHaveTextContent(/ago|yesterday|today|tomorrow|in /)
+      expect(screen.getByText("scheduled")).toBeInTheDocument()
+      expect(screen.getByText("Enabled")).toBeInTheDocument()
+      expect(screen.getByText("Yes")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/8")
+      expect(screen.getByText("Next fire (relative)")).toBeInTheDocument()
+      expect(screen.getByText("Next fire (local)")).toBeInTheDocument()
+      expect(screen.getByText("Next fire (UTC)")).toBeInTheDocument()
+      expect(screen.getByText(/AM UTC|PM UTC/)).toBeInTheDocument()
+      expect(document.querySelector("time")).toHaveTextContent("tomorrow")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it.each(["scheduled task is already enabled", "scheduled task not found: 404"])("renders a styled error and preserves the input task link: %s", (message) => {

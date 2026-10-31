@@ -29,6 +29,13 @@ module PendingActions
 
     def presentation_label = "Approve coworker action"
     def presentation_detail = payload["tool_name"].to_s.humanize
+    def tool_card_review
+      {
+        tool_name: payload["tool_name"],
+        arguments: payload["arguments"],
+        actor: payload["actor"]
+      }.compact
+    end
 
     private
 

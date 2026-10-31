@@ -55,6 +55,26 @@ RSpec.describe Syrus::Plugin::GatedToolSet do
       )
     end
 
+    it "expands a coworker grant into catalog callbacks and tool metadata" do
+      scope = {
+        options: ->(user:) { [ user.id ] },
+        label: ->(id) { "Connection #{id}" },
+        valid: ->(id, user:) { id == user.id }
+      }
+      chat_tool_set.coworker_grant(name: "database.read", label: "Read database", scope: scope,
+        tools: [ fake_tool_class ], default_policy: "confirm", max_policy: "auto")
+
+      expect(chat_tool_set.available_for_coworker?(nil, tier: :essential)).to be(true)
+      expect(chat_tool_set.tool_definitions(tier: :essential).first).to include(
+        coworker_safe: true, capability: "database.read"
+      )
+      expect(chat_tool_set.coworker_grants.first).to include(
+        name: "database.read", label: "Read database", default_policy: "confirm",
+        maximum_policy: "auto", tools: [ "fake_tool" ],
+        scope_options_callback: scope[:options], scope_label_callback: scope[:label], valid_scope_callback: scope[:valid]
+      )
+    end
+
     it "dispatches to the matching tool class with symbolized params" do
       response = chat_tool_set.new.handle("fake_tool", { "foo" => "bar" }, { ctx: 1 })
 

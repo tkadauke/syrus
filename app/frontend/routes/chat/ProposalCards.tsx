@@ -41,6 +41,7 @@ import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
+import { ToolApprovalDetails, type ToolApprovalActor } from "../../components/ToolApprovalDetails"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { DocumentPreviewModal } from "../../components/DocumentPreviewModal"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
@@ -995,6 +996,7 @@ export function PendingActionCard({
   const dismissPath = "app_cancel_path" in pendingAction ? pendingAction.app_cancel_path : null
   const canDismiss = pendingAction.state === "failed" && Boolean(dismissPath)
   const isEmergencyLand = actionKey === "emergency_land"
+  const coworkerReview = actionKey === "coworker_tool_call" ? pendingAction.review : null
   const statusClass =
     isEmergencyLand && (isPending || isConfirming)
       ? "bg-warning text-surface"
@@ -1081,7 +1083,15 @@ export function PendingActionCard({
             {isEmergencyLand && !terminalLabel ? (
               <p className="mt-2 break-words text-sm font-semibold text-warning-text">{t("pending_action_emergency_land_warning")}</p>
             ) : null}
-            {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
+            {coworkerReview ? (
+              <ToolApprovalDetails
+                actor={coworkerReview.actor as ToolApprovalActor | undefined}
+                args={coworkerReview.arguments}
+                toolName={typeof coworkerReview.tool_name === "string" ? coworkerReview.tool_name : pendingAction.detail}
+              />
+            ) : pendingAction.detail ? (
+              <PendingActionDetail detail={pendingAction.detail} />
+            ) : null}
             {pendingAction.reason ? (
               <p className="mt-2 break-words text-xs text-gray-600 dark:text-gray-300">
                 <span className="font-medium text-gray-700 dark:text-gray-200">Reason: </span>

@@ -39,6 +39,51 @@ RSpec.describe K8sCluster::PodLogsTool do
     expect(service).to have_received(:logs).with("web-1", namespace: "default", container: "sidecar", tail_lines: 50, previous: true, timestamps: true)
   end
 
+  it "redacts coworker pod logs and audits the coworker identity" do
+    owner = Factories.user(admin: true)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Gilfoyle", handle: "gilfoyle-logs",
+      workspace_repo: "https://github.com/example/workspace.git")
+    PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
+    coworker_chat = ChatSession.create!(user: owner)
+    coworker_chat.define_singleton_method(:coworker) { coworker }
+    service = instance_double(K8sCluster::Pods, logs: { available: true, log: "API_TOKEN=very-secret-token-value" })
+    allow(K8sCluster::Pods).to receive(:new).with(cluster).and_return(service)
+    allow(K8sCluster::AgenticAudit).to receive(:log!)
+
+    response = described_class.call(server_context: { chat_session: coworker_chat }, cluster_id: cluster.id,
+      name: "web-1", namespace: "default")
+
+    expect(response.content.first[:text]).to include(ToolPayloadRedactor::REDACTED)
+    expect(response.content.first[:text]).not_to include("very-secret-token-value")
+    expect(K8sCluster::AgenticAudit).to have_received(:log!).with(hash_including(context: have_attributes(agent_actor: coworker)))
+  end
+
+  it "audits the coworker identity when a cluster is outside the grant scope" do
+    owner = Factories.user(admin: true)
+    granted_cluster = Factories.kubernetes_cluster(agentic_access_enabled: true)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Gilfoyle", handle: "gilfoyle-log-errors",
+      workspace_repo: "https://github.com/example/workspace.git")
+    PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: granted_cluster.id)
+    coworker_chat = ChatSession.create!(user: owner)
+    coworker_chat.define_singleton_method(:coworker) { coworker }
+    allow(K8sCluster::AgenticAudit).to receive(:log!)
+
+    response = described_class.call(server_context: { chat_session: coworker_chat }, cluster_id: cluster.id,
+      name: "web-1", namespace: "default")
+
+    expect(response.error?).to be(true)
+    expect(response.content.first[:text]).to include("outside the coworker grant scope")
+    expect(K8sCluster::AgenticAudit).to have_received(:log!).with(hash_including(
+      cluster_id: cluster.id,
+      context: have_attributes(agent_actor: coworker),
+      error: an_instance_of(K8sCluster::AgenticAccess::ClusterNotFound)
+    ))
+  end
+
   it "publishes the maximum supported log tail" do
     tail_lines = described_class.input_schema_value.to_h.dig(:properties, :tail_lines)
 

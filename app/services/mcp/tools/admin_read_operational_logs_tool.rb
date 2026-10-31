@@ -14,20 +14,16 @@ module Mcp::Tools
     input_schema(properties: OperationalLogSearch::INPUT_SCHEMA_PROPERTIES)
 
     class << self
+      include Mcp::Tools::CoworkerObservabilityAuthorization
+
       def call(server_context:, query: nil, since: nil, level: nil, role: nil, hostname: nil, limit: 50)
-        return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
+        return observability_unauthorized(server_context) unless observability_authorized?(server_context)
         return OperationalLogSearch.disabled_response unless OperationalLogging.enabled_for_instance?
 
         OperationalLogSearch.search_response(query: query, since: since, level: level, role: role, hostname: hostname, limit: limit)
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::AdminReadOperationalLogsTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
-      end
-
-      private
-
-      def admin?(server_context)
-        server_context.fetch(:chat_session).user.admin?
       end
     end
   end

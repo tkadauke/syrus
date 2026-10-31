@@ -88,7 +88,24 @@ RSpec.describe Coworkers::PromptSection do
   end
 
   it "returns no section when every context file is missing" do
-    expect(described_class.chat_prompt_section(chat_session: chat, repository: repository)).to be_nil
+    section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
+
+    expect(section).to include("### Tool grants", "`workspace.files` — not held", "unlocks:")
+  end
+
+  it "lists held policy and scope alongside missing catalog grants" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "database.read", label: "Read database", description: "Read it", default_policy: "confirm", maximum_policy: "auto",
+      tools: [ "list_database_tables" ], scope_options_callback: ->(user:) { [ user.id ] },
+      scope_label_callback: ->(value) { "Connection #{value}" }, valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:all).and_return([ descriptor ])
+    coworker.grants.create!(capability: "database.read", approval_policy: "confirm", scope: owner.id)
+
+    section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
+
+    expect(section).to include("`database.read` — held (confirm; scope: Connection #{owner.id})")
+    expect(section).to include("unlocks: list_database_tables")
   end
 
   it "caps each file and the total context with visible markers" do

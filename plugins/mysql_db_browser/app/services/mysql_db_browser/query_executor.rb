@@ -45,7 +45,11 @@ module MysqlDbBrowser
     # before ever opening a connection, unless the connection allows writes.
     def execute(sql, user:, limit: DEFAULT_LIMIT)
       statement = sql.to_s.strip
-      raise BlankStatement, "SQL statement is blank" if statement.blank?
+      if statement.blank?
+        audit!(statement: "/* #{QueryAudit::TOOL_CALL_PREFIX}: #{tool_name} (blank statement) */", read_only: true,
+          user: user, success: false, error_message: "Rejected: SQL statement is blank")
+        raise BlankStatement, "SQL statement is blank"
+      end
 
       if filesystem_write_statement?(statement)
         message = "SELECT ... INTO OUTFILE/DUMPFILE writes a file to the MySQL server's filesystem rather than " \
@@ -58,6 +62,10 @@ module MysqlDbBrowser
 
       read_only = read_only_statement?(statement)
       unless read_only
+        if context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          audit!(statement: statement, read_only: false, user: user, success: false, error_message: "Rejected: coworker MySQL access is read-only.")
+          raise WriteNotAllowed, "Coworker MySQL access is read-only. Only SELECT, SHOW, DESCRIBE, EXPLAIN, and read-only CTE statements are permitted."
+        end
         begin
           AgenticAccess.connection_with_write_access!(connection)
         rescue AgenticAccess::WriteAccessDisabled
@@ -101,7 +109,7 @@ module MysqlDbBrowser
     end
 
     def run_and_audit(client, statement, read_only:, user:, limit:)
-      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
+      audit = QueryAudit.start!(connection: connection, user: user, actor: context&.agent_actor, statement: statement, read_only: read_only)
       started_at = monotonic_now
       begin
         payload = read_only ? run_read_only(client, statement, clamp_limit(limit)) : run_write(client, statement)
@@ -447,7 +455,7 @@ module MysqlDbBrowser
     end
 
     def audit!(statement:, read_only:, user:, success:, row_count: nil, error_message: nil, duration_ms: nil)
-      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
+      audit = QueryAudit.start!(connection: connection, user: user, actor: context&.agent_actor, statement: statement, read_only: read_only)
       if success
         QueryAudit.succeed!(audit, row_count: row_count, duration_ms: duration_ms)
       else

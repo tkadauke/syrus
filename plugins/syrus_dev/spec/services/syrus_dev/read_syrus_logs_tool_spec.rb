@@ -6,6 +6,8 @@ RSpec.describe SyrusDev::ReadSyrusLogsTool do
   let(:run) { Factories.job(repository: repository, user: user).initial_run }
 
   before do
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
     Feature.where(slug: "operational_log_indexing").delete_all
     Feature.create!(slug: "operational_log_indexing", category: "Operations", name: "Operational log indexing", enabled: true)
     Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
@@ -149,6 +151,22 @@ RSpec.describe SyrusDev::ReadSyrusLogsTool do
 
     expect(response).to be_error
     expect(response.content.first[:text]).to include("level must be one of")
+  end
+
+  it "allows a repository-less coworker only with the diagnostics grant" do
+    owner = Factories.user(admin: true)
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-logs",
+      workspace_repo: "https://github.com/example/workspace.git"
+    )
+    chat = ChatSession.create!(user: owner)
+    chat_coworker = coworker
+    chat.define_singleton_method(:coworker) { chat_coworker }
+
+    expect(described_class.call(server_context: { chat_session: chat })).to be_error
+
+    coworker.grants.create!(capability: "syrus_dev.read_diagnostics", approval_policy: "confirm")
+    expect(described_class.call(server_context: { chat_session: chat })).not_to be_error
   end
 
   def payload_from(response)

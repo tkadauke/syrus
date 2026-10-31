@@ -45,6 +45,22 @@ RSpec.describe K8sCluster::AgenticAudit do
       end
     end
 
+    it "includes the coworker identity and owner on coworker calls" do
+      owner = Factories.user
+      coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Gilfoyle", handle: "gilfoyle-audit",
+        workspace_repo: "https://github.com/example/workspace.git")
+      context = McpToolContext.new(surface: :chat, role: AgentRole::COWORKER_CHAT, user: owner, agent_actor: coworker)
+      allow(Rails.logger).to receive(:info)
+
+      described_class.log!(cluster_id: 7, tool_name: "k8s_cluster_pods", params: {}, context: context, result: {})
+
+      expect(Rails.logger).to have_received(:info) do |message|
+        expect(message).to include("\"agent_actor_type\":\"Coworkers::Coworker\"")
+        expect(message).to include("\"agent_actor_id\":#{coworker.id}")
+        expect(message).to include("\"owner_user_id\":#{owner.id}")
+      end
+    end
+
     it "never raises out of a logging failure" do
       allow(Rails.logger).to receive(:info).and_raise(StandardError, "boom")
       allow(Rails.logger).to receive(:error)

@@ -435,6 +435,31 @@ describe("PendingActionCard", () => {
     expect(screen.getByRole("link", { name: "Fix flaky spec" })).toHaveAttribute("href", "/jobs/2325")
   })
 
+  it("shows coworker identity, tool name, and redacted arguments", () => {
+    renderCard(
+      pendingAction({
+        action: "coworker_tool_call",
+        state: "pending",
+        execution_error: undefined,
+        label: "Approve coworker action",
+        detail: "Execute query",
+        review: {
+          tool_name: "execute_query",
+          arguments: { sql: "SELECT 1", api_token: "secret-token-value" },
+          actor: { name: "Gilfoyle", handle: "gilfoyle", avatar_key: "comet" }
+        }
+      })
+    )
+
+    expect(screen.getByText("Gilfoyle")).toBeInTheDocument()
+    expect(screen.getByText("Execute query")).toBeInTheDocument()
+    expect(screen.getAllByText("SELECT 1")).toHaveLength(2)
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
+    expect(screen.queryByText("secret-token-value")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument()
+  })
+
   it("does not render a reason line when the action has none", () => {
     renderCard(pendingAction({ state: "pending", execution_error: undefined, reason: undefined }))
 

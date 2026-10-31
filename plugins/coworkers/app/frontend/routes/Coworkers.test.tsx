@@ -4,6 +4,26 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
 
+const grantCatalog = [
+  "chat.message_owner",
+  "chats.read_shared",
+  "coworker.message",
+  "coworker.spawn_chat",
+  "schedule.manage_self",
+  "workspace.files",
+  "workspace.shell",
+  "syrus.read_jobs",
+  "syrus.propose_job"
+].map((name) => ({
+  name,
+  label: name,
+  description: name,
+  maximum_policy: "auto" as const,
+  tools: [],
+  scopeable: false,
+  default_enabled: true
+}))
+
 const summaryPayload = {
   syrus: {
     id: "syrus",
@@ -40,7 +60,9 @@ const summaryPayload = {
         { id: "gpt-6.1-terra", label: "GPT-6.1 Terra" }
       ]
     }
-  ]
+  ],
+  grant_catalog: grantCatalog,
+  provisioning_attempts: []
 }
 
 const detailPayload = {
@@ -55,6 +77,7 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
+    grant_catalog: grantCatalog,
     schedules: [
       {
         id: 31,
@@ -178,6 +201,45 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   expect(form.get("about")).toBe("Research lead")
 })
 
+it("selects and submits a scope when creating a scoped grant", async () => {
+  const scopedGrant = {
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: true,
+    scope_options: [
+      { value: 11, label: "Primary" },
+      { value: 22, label: "Reporting" }
+    ],
+    default_enabled: false
+  }
+  const requests: Array<{ path: string; init?: RequestInit }> = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      requests.push({ path, init })
+      if (path === "/api/v1/app/coworkers" && init?.method === "POST")
+        return jsonResponse({ coworker: detailPayload.coworker, redirect_to: "/coworkers/7" }, 201)
+      if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+      return jsonResponse({ ...summaryPayload, grant_catalog: [...grantCatalog, scopedGrant] })
+    })
+  )
+  renderRoute("/coworkers/new")
+  fill("Name", "Maya")
+  fill("Handle", "maya")
+  fill("Workspace remote", "https://github.com/acme/workspace")
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Database" }))
+  fireEvent.change(screen.getByRole("combobox", { name: "Scope for Database" }), { target: { value: "22" } })
+  fireEvent.click(screen.getByRole("button", { name: "Create coworker" }))
+  await screen.findByRole("heading", { name: "Maya" })
+
+  const form = requests.find(({ path, init }) => path === "/api/v1/app/coworkers" && init?.method === "POST")?.init?.body as FormData
+  expect(form.get("grant_scopes[database.read]")).toBe("22")
+})
+
 it("shows remote-test and creation errors without navigating", async () => {
   vi.stubGlobal(
     "fetch",
@@ -220,9 +282,7 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) =>
-      jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload)
-    )
+    vi.fn(async (input: RequestInfo | URL) => jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload))
   )
   renderRoute("/coworkers/7")
 
@@ -305,6 +365,96 @@ it("confirms grant escalation and refreshes the live tool surface", async () => 
   await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7")).toHaveLength(2))
 })
 
+it("preserves a scoped grant when changing its policy and allows disabling it", async () => {
+  const descriptor = {
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: true,
+    scope_options: [
+      { value: 11, label: "Primary" },
+      { value: 22, label: "Reporting" }
+    ],
+    default_enabled: false
+  }
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      grants: [{ capability: "database.read", approval_policy: "confirm", constraints: {}, scope: 22 }],
+      grant_catalog: [...grantCatalog, descriptor]
+    }
+  }
+  const requestBodies: Record<string, unknown>[] = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PATCH") requestBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
+      return jsonResponse(payload)
+    })
+  )
+
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("22")
+  expect(screen.getByText("Unlocks: read_database")).toBeInTheDocument()
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "queue" } })
+  await waitFor(() => expect(requestBodies).toContainEqual(expect.objectContaining({ capability: "database.read", approval_policy: "queue", scope: 22 })))
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "off" } })
+  await waitFor(() => expect(requestBodies).toContainEqual(expect.objectContaining({ capability: "database.read", approval_policy: "off", scope: 22 })))
+})
+
+it("sends the displayed default scope when enabling a scoped grant", async () => {
+  const descriptor = {
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: true,
+    scope_options: [
+      { value: 11, label: "Primary" },
+      { value: 22, label: "Reporting" }
+    ],
+    default_enabled: false
+  }
+  const payload = { coworker: { ...detailPayload.coworker, grants: [], grant_catalog: [...grantCatalog, descriptor] } }
+  const requestBodies: Record<string, unknown>[] = []
+  vi.stubGlobal(
+    "confirm",
+    vi.fn(() => true)
+  )
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PATCH") requestBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
+      return jsonResponse(payload)
+    })
+  )
+
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("11")
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "confirm" } })
+
+  await waitFor(() =>
+    expect(requestBodies).toContainEqual(
+      expect.objectContaining({
+        capability: "database.read",
+        approval_policy: "confirm",
+        confirmed: true,
+        scope: 11
+      })
+    )
+  )
+})
+
 it("confirms before removing a protected workspace path", async () => {
   const payload = {
     coworker: {
@@ -348,7 +498,8 @@ it("shows pending approvals with the originating run and tool input and allows r
             run_id: 44,
             chat_id: 12,
             created_at: "2026-10-29T10:00:00Z",
-            state: "pending"
+            state: "pending",
+            actor: { name: "Maya", handle: "maya", avatar_key: "comet", avatar_url: null, accent_hex: "#E5484D" }
           }
         ]
       })
@@ -361,9 +512,10 @@ it("shows pending approvals with the originating run and tool input and allows r
   await screen.findByRole("heading", { name: "Maya" })
 
   fireEvent.click(screen.getByRole("button", { name: "Approvals" }))
-  expect(await screen.findByRole("heading", { name: "propose_job" })).toBeInTheDocument()
+  expect(await screen.findByText("Propose job")).toBeInTheDocument()
+  expect(screen.getAllByText("Maya")).toHaveLength(2)
   expect(screen.getByText("Originating run 44")).toBeInTheDocument()
-  expect(screen.getByText(/Investigate/)).toBeInTheDocument()
+  expect(screen.getAllByText(/Investigate/)).toHaveLength(2)
   fireEvent.click(screen.getByRole("button", { name: "Reject" }))
 
   await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/approvals/91/reject", expect.objectContaining({ method: "POST" })))

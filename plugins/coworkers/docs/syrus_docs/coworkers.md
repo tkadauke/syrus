@@ -97,6 +97,15 @@ remain unavailable. Shared-chat reads are restricted to the
 coworker's own chats and chats explicitly shared with that coworker, even
 when its owner is an administrator.
 
+The MySQL DB Browser plugin declares the scoped `mysql.read` capability. An
+owner can grant one agentic-access-enabled MySQL connection; the coworker then
+receives connection discovery, schema inspection, and query tools for only
+that connection. Queries are always read-only for coworkers, including on a
+connection whose operator UI allows writes. For production investigations,
+`browser_error_events` answers browser-failure questions,
+`backend_exception_events` records backend exceptions, and
+`performance_log_events` contains backend timing diagnostics.
+
 The `syrus.propose_job` grant exposes both `propose_job` and
 `propose_epic_with_jobs`. They create the same pending proposal cards as an
 ordinary Syrus Chat, retain the originating coworker as audit provenance, and
@@ -109,13 +118,16 @@ an invalid target is returned as an authorization or validation error.
 
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner
-approval. Revoking either workspace grant also changes the provider-native
-tool boundary. Claude can deny file and shell tools independently; providers
-without that separation fail closed rather than starting with permissions
-they cannot enforce.
+approval. The card and the coworker's Approvals inbox identify the coworker,
+show the actual tool and readable redacted arguments, and collapse long values
+behind an expansion control. Revoking either workspace grant also changes the
+provider-native tool boundary. Claude can deny file and shell tools
+independently; providers without that separation fail closed rather than
+starting with permissions they cannot enforce.
 
 Owners edit these grants on the coworker's Capabilities tab. Every registered
-capability appears as a sentence with an `auto`, `confirm`, `queue`, or `off`
+capability appears with its description, unlocked tools, scope (when the grant
+owner declares one), and an `auto`, `confirm`, `queue`, or `off`
 policy. Moving to a more permissive policy, or turning on a new capability,
 requires a separate confirmation; reductions apply directly. File grants can
 record paths such as `SOUL.md` and `AGENTS.md` that always require confirmation.
@@ -123,6 +135,13 @@ Integration tiles are visible but disabled until those integrations ship.
 Capabilities that affect anything outside the workspace default to `confirm`
 or `queue`; messaging the owner defaults to `confirm`. Removing a protected
 file path is also an escalation and requires confirmation.
+
+Operator chat exposes the same aggregated catalog through
+`list_coworker_grants`. `propose_coworker_grants` accepts one or more desired
+capability, policy, and optional scope changes; `off` removes a grant and lower
+policies reduce it. The proposal remains inert until its pending-action card is
+confirmed. Coworker prompts list held and missing catalog grants with their
+unlocked tool names so a coworker can request the specific missing grant.
 
 Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's

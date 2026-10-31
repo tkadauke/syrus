@@ -42,6 +42,45 @@ module K8sCluster
       KubectlTool
     ].freeze
 
+    COWORKER_READ_TOOLS = [
+      ListClustersTool,
+      NamespacesTool,
+      NodesTool,
+      PodsTool,
+      PodLogsTool,
+      DeploymentsTool,
+      StatefulSetsTool,
+      DaemonSetsTool,
+      JobsTool,
+      CronJobsTool,
+      ServicesTool,
+      IngressesTool,
+      PersistentVolumeClaimsTool,
+      EventsTool,
+      ConfigMapsTool,
+      OverviewTool
+    ].freeze
+
+    coworker_grant(
+      name: "k8s.read",
+      label: "Read Kubernetes clusters",
+      description: "Browse selected agentic-access Kubernetes clusters with read-only, redacted tools.",
+      tools: COWORKER_READ_TOOLS,
+      default_policy: "confirm",
+      max_policy: "auto",
+      scope: {
+        options: lambda { |user:|
+          context = McpToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
+          AgenticAccess.safe_cluster_metadata(context: context).pluck(:id)
+        },
+        label: ->(id) { KubernetesCluster.find_by(id: id)&.label || "Kubernetes cluster #{id}" },
+        valid: lambda { |id, user:|
+          context = McpToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
+          AgenticAccess.safe_cluster_metadata(context: context).any? { |cluster| cluster.fetch(:id).to_s == id.to_s }
+        }
+      }
+    )
+
     def self.available_for?(_chat_session, tier:)
       %i[essential deferred].include?(tier.to_sym) && (gated? || credential_backed_tool_available?)
     end

@@ -12,7 +12,7 @@ class Coworkers::PromptSection
     return unless repository
 
     root = ChatWorkspace.repo_path_for(chat_session, repository)
-    rendered = HEADING.dup
+    rendered = HEADING + grant_section(coworker)
     paths_for(chat_session:, repository:, message:).each do |name|
       path = Syrus::PathJail.resolve!(root, name)
       next unless path.file?
@@ -26,8 +26,6 @@ class Coworkers::PromptSection
       end
       rendered = candidate
     end
-    return if rendered == HEADING
-
     rendered
   end
 
@@ -55,5 +53,20 @@ class Coworkers::PromptSection
     content.safe_byteslice(0, MAX_TOTAL_BYTES - suffix.bytesize) + suffix
   end
 
-  private_class_method :paths_for, :bounded_read, :truncate_aggregate
+  def self.grant_section(coworker)
+    held = coworker.grants.index_by(&:capability)
+    lines = Coworkers::GrantCatalog.all.sort_by(&:name).map do |descriptor|
+      grant = held[descriptor.name]
+      tools = descriptor.tools.presence&.join(", ") || "no tools currently registered"
+      if grant
+        scope = grant.scope.nil? ? "" : "; scope: #{descriptor.scope_label(grant.scope)}"
+        "- `#{descriptor.name}` — held (#{grant.approval_policy}#{scope}); unlocks: #{tools}"
+      else
+        "- `#{descriptor.name}` — not held; unlocks: #{tools}"
+      end
+    end
+    "### Tool grants\n\nYour available tools are still determined by these grants. If a needed tool is missing, ask your owner for the named grant.\n\n#{lines.join("\n")}"
+  end
+
+  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section
 end

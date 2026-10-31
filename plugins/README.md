@@ -190,7 +190,9 @@ PluginRecord.find_by!(name: "claude_agent").update!(enabled: false)
 
 Bundled `syrus_dev` is disabled by default and owns Syrus-development-only
 diagnostics, including the Performance admin page and the
-`read_performance_diagnostics` / `read_syrus_logs` workflow MCP tools.
+`read_performance_diagnostics` / `read_syrus_logs` workflow MCP tools. Coworkers
+may also receive those two tools through the plugin-declared
+`syrus_dev.read_diagnostics` grant; ordinary operator chats do not.
 
 ## Querying the registry
 

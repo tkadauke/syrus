@@ -345,6 +345,9 @@ module ChatSerialization
         payload[:reason] = action.reason if action.reason.present?
         payload[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
         payload[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
+        presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+        review = presenter.tool_card_review
+        payload[:review] = review if review.present?
         resource = pending_action_resource(action)
         payload.merge!(resource) if resource
       end

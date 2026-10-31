@@ -27,6 +27,25 @@ RSpec.describe "owner-scoped coworker read tools" do
     expect(payload(response).fetch("coworkers").pluck("id")).to eq([ first.id, same_name.id, second.id ])
   end
 
+  it "lists every catalog grant with each coworker's policy, scope, and tools" do
+    coworker = create_coworker(name: "Maya", handle: "maya-grant-list")
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "database.read", label: "Read database", description: "Read it", default_policy: "confirm", maximum_policy: "auto",
+      tools: [ "list_database_tables" ], scope_options_callback: ->(user:) { [ user.id ] },
+      scope_label_callback: ->(value) { "Connection #{value}" }, valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:all).and_return([ descriptor ])
+    coworker.grants.create!(capability: descriptor.name, approval_policy: "confirm", scope: owner.id)
+
+    result = payload(Coworkers::McpTools::ListCoworkerGrantsTool.call(server_context: context)).fetch("coworkers").sole
+
+    expect(result).to include("id" => coworker.id, "handle" => coworker.handle)
+    expect(result.fetch("grants").sole).to include(
+      "capability" => "database.read", "approval_policy" => "confirm", "scope" => owner.id,
+      "scope_label" => "Connection #{owner.id}", "tools" => [ "list_database_tables" ]
+    )
+  end
+
   it "filters by state and bounded text across name, handle, and role summary" do
     create_coworker(name: "Ada", handle: "ada-filter", role_summary: "Security researcher")
     paused = create_coworker(name: "Maya", handle: "maya-filter", role_summary: "QA lead", state: "paused")

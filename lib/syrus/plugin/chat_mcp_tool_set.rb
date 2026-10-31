@@ -29,6 +29,12 @@ module Syrus
     #   must additionally implement `.available_for_coworker?`; its absence is
     #   the deny-by-default behavior. Each safe definition must include a
     #   `capability:` value held by the coworker or it is still excluded.
+    #
+    # A provider may declare `.coworker_grants`, returning hashes accepted by
+    # `Coworkers::GrantCatalog::Descriptor`: name, label, description,
+    # maximum_policy, tools, and optional scope callbacks. Scopeable grants
+    # provide `scope_options_callback`, `scope_label_callback`, and
+    # `valid_scope_callback`. Only enabled providers are collected.
     module ChatMcpToolSet
     end
   end

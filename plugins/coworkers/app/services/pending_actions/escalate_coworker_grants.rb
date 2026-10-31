@@ -4,10 +4,16 @@ module PendingActions
     requires_chat_session!
 
     def execute
-      progress!("Granting coworker capabilities...")
-      Coworkers::GrantEscalation.call(
-        owner: user, coworker_id: payload.fetch("coworker_id"), grants: payload.fetch("grants")
-      )
+      progress!("Updating coworker grants...")
+      coworker = Coworkers::OwnerResolver.new(owner: user).find!(id: payload.fetch("coworker_id"))
+      Coworkers::Grant.transaction do
+        payload.fetch("grants").each do |change|
+          scope = change.key?("scope") ? { scope: change["scope"] } : {}
+          Coworkers::GrantUpdate.call(owner: user, coworker: coworker, capability: change.fetch("capability"),
+            approval_policy: change.fetch("policy"), confirmed: true, **scope)
+        end
+      end
+      nil
     end
 
     def validate_payload(errors)
@@ -15,7 +21,7 @@ module PendingActions
       errors.add(:payload, "grants are required") if Array(payload["grants"]).empty?
     end
 
-    def presentation_label = "Grant capabilities to @#{payload['handle']}"
-    def presentation_detail = Array(payload["grants"]).join(", ")
+    def presentation_label = "Change grants for @#{payload['handle']}"
+    def presentation_detail = Array(payload["grants"]).map { |grant| "#{grant['capability']}: #{grant['policy']}" }.join(", ")
   end
 end

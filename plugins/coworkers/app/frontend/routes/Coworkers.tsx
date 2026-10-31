@@ -10,6 +10,7 @@ import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
 import { PageHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { ToolApprovalDetails } from "@app/components/ToolApprovalDetails"
 import { FilterBar, type FilterLinkBuilder, type FilterTree } from "@app/components/FilterBar"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
@@ -248,8 +249,28 @@ function NewCoworker() {
         </div>
         <fieldset>
           <legend className="mb-2 text-sm font-medium">{t("fields.grants")}</legend>
-          {["chat.message_owner", "coworker.message", "workspace.files", "workspace.shell", "chats.read_shared", "syrus.read_jobs"].map((grant) => (
-            <Checkbox className="mb-2" defaultChecked key={grant} label={grant} name="grants[]" value={grant} />
+          {(optionsQuery.data?.grant_catalog || []).map((grant) => (
+            <div className="mb-3" key={grant.name}>
+              <Checkbox
+                defaultChecked={grant.default_enabled}
+                disabled={grant.scopeable && !grant.scope_options?.length}
+                label={grant.label}
+                name="grants[]"
+                value={grant.name}
+              />
+              {grant.scopeable && grant.scope_options?.length ? (
+                <label className="ml-6 mt-1 block text-xs text-text-secondary">
+                  {t("capabilities.scope_for", { capability: grant.label })}
+                  <Select className="mt-1" defaultValue={JSON.stringify(grant.scope_options[0].value)} name={`grant_scopes[${grant.name}]`}>
+                    {grant.scope_options.map((option) => (
+                      <option key={JSON.stringify(option.value)} value={JSON.stringify(option.value)}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              ) : null}
+            </div>
           ))}
         </fieldset>
         <label className="block text-sm font-medium">
@@ -390,11 +411,10 @@ function CoworkerApprovals({ id }: { id: string }) {
     <section className="space-y-3">
       {query.data.approvals.map((approval) => (
         <article className="rounded border border-border bg-surface p-4" key={approval.id}>
-          <h2 className="font-semibold">{approval.tool_name}</h2>
+          <ToolApprovalDetails actor={approval.actor} args={approval.tool_input} toolName={approval.tool_name} />
           <div className="mt-1 text-sm text-text-secondary">
             {approval.run_id ? t("approvals.run", { id: approval.run_id }) : t("approvals.chat", { id: approval.chat_id })}
           </div>
-          <pre className="mt-3 overflow-x-auto rounded bg-surface-subtle p-3 text-xs">{JSON.stringify(approval.tool_input, null, 2)}</pre>
           <div className="mt-3 flex gap-2">
             <button
               className="rounded bg-brand px-3 py-2 text-sm text-white"
@@ -417,24 +437,14 @@ function CoworkerApprovals({ id }: { id: string }) {
   )
 }
 
-const CAPABILITIES = [
-  "chat.message_owner",
-  "chats.read_shared",
-  "coworker.message",
-  "coworker.spawn_chat",
-  "schedule.manage_self",
-  "workspace.files",
-  "workspace.shell",
-  "syrus.read_jobs",
-  "syrus.propose_job"
-] as const
 const POLICY_RANK = { off: 0, queue: 1, confirm: 2, auto: 3 } as const
 
 function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
   const [paths, setPaths] = useState(coworker.grants.find((grant) => grant.capability === "workspace.files")?.constraints.confirm_paths?.join(", ") || "")
+  const [scopes, setScopes] = useState<Record<string, unknown>>(() => Object.fromEntries(coworker.grants.map((grant) => [grant.capability, grant.scope])))
   const mutation = useMutation({
-    mutationFn: ({ capability, policy, confirmed }: { capability: string; policy: string; confirmed: boolean }) =>
+    mutationFn: ({ capability, policy, confirmed, scope }: { capability: string; policy: string; confirmed: boolean; scope?: unknown }) =>
       updateCoworkerGrant(
         String(coworker.id),
         capability,
@@ -447,16 +457,28 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 .filter(Boolean)
             }
           : {},
-        confirmed
+        confirmed,
+        scope
       ),
     onSuccess: onChanged
   })
 
   function changePolicy(capability: string, policy: keyof typeof POLICY_RANK) {
     const current = (coworker.grants.find((grant) => grant.capability === capability)?.approval_policy || "off") as keyof typeof POLICY_RANK
+    const descriptor = coworker.grant_catalog.find((entry) => entry.name === capability)
+    const scope = scopes[capability] ?? descriptor?.scope_options?.[0]?.value
     const escalation = POLICY_RANK[policy] > POLICY_RANK[current]
     if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
-    mutation.mutate({ capability, policy, confirmed: escalation })
+    mutation.mutate({ capability, policy, confirmed: escalation, scope })
+  }
+
+  function changeScope(capability: string, encodedScope: string) {
+    const scope = JSON.parse(encodedScope) as unknown
+    const grant = coworker.grants.find((entry) => entry.capability === capability)
+    setScopes((current) => ({ ...current, [capability]: scope }))
+    if (!grant || JSON.stringify(grant.scope) === JSON.stringify(scope)) return
+    if (!window.confirm(t("capabilities.confirm_escalation"))) return
+    mutation.mutate({ capability, policy: grant.approval_policy, confirmed: true, scope })
   }
 
   function saveFileConstraints(grant: CoworkerDetail["grants"][number]) {
@@ -474,12 +496,17 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
   return (
     <section className="space-y-5">
       <div className="divide-y divide-border rounded border border-border bg-surface">
-        {CAPABILITIES.map((capability) => {
+        {coworker.grant_catalog.map((descriptor) => {
+          const capability = descriptor.name
           const grant = coworker.grants.find((entry) => entry.capability === capability)
           return (
             <div className="space-y-3 p-4 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:space-y-0" key={capability}>
               <div>
-                <p className="text-sm">{t(`capabilities.sentences.${capability.replaceAll(".", "_")}`)}</p>
+                <p className="text-sm font-medium">{descriptor.label}</p>
+                <p className="text-sm">{t(`capabilities.sentences.${capability.replaceAll(".", "_")}`, { defaultValue: descriptor.description })}</p>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {t("capabilities.unlocks", { tools: descriptor.tools.join(", ") || t("capabilities.no_tools") })}
+                </p>
                 {capability === "workspace.files" ? (
                   <div>
                     <label className="mt-2 block text-xs text-text-secondary">
@@ -501,6 +528,23 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                     </button>
                   </div>
                 ) : null}
+                {descriptor.scopeable && descriptor.scope_options?.length ? (
+                  <label className="mt-2 block text-xs text-text-secondary">
+                    {t("capabilities.scope_for", { capability: descriptor.label })}
+                    <Select
+                      className="mt-1"
+                      disabled={mutation.isPending}
+                      onChange={(event) => changeScope(capability, event.target.value)}
+                      value={JSON.stringify(scopes[capability] ?? descriptor.scope_options[0].value)}
+                    >
+                      {descriptor.scope_options.map((option) => (
+                        <option key={JSON.stringify(option.value)} value={JSON.stringify(option.value)}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                ) : null}
               </div>
               <Select
                 aria-label={t("capabilities.policy_for", { capability })}
@@ -508,11 +552,13 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 onChange={(event) => changePolicy(capability, event.target.value as keyof typeof POLICY_RANK)}
                 value={grant?.approval_policy || "off"}
               >
-                {(["auto", "confirm", "queue", "off"] as const).map((policy) => (
-                  <option key={policy} value={policy}>
-                    {t(`capabilities.policies.${policy}`)}
-                  </option>
-                ))}
+                {(["auto", "confirm", "queue", "off"] as const)
+                  .filter((policy) => POLICY_RANK[descriptor.maximum_policy] >= POLICY_RANK[policy])
+                  .map((policy) => (
+                    <option key={policy} value={policy}>
+                      {t(`capabilities.policies.${policy}`)}
+                    </option>
+                  ))}
               </Select>
             </div>
           )
