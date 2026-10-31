@@ -108,4 +108,17 @@ RSpec.describe DeploymentStageDetector do
 
     expect(count).to eq(0)
   end
+
+  it "skips a patterned stage when its refs cannot be resolved" do
+    expect(content).to receive(:refs).with(pattern: "deploy-prod-*", max_age: 0).and_raise(RepositoryContent::UnknownRevision)
+
+    count = described_class.new(
+      repository: repository,
+      deployment_stages: [ production ],
+      jobs: [ job ],
+      content: content
+    ).call
+
+    expect(count).to eq(0)
+  end
 end
