@@ -139,7 +139,7 @@ module SdlcPipeline
         "implementing" => -> { job.started_at },
         "landing" => -> { job.approved_at },
         "landed" => -> { job.finished_at }
-      }.fetch(stage_key, -> {}).call || activity_at(job)
+      }.fetch(stage_key, -> { }).call || activity_at(job)
     end
 
     def activity_at(job) = job.needs_attention_since || job.updated_at || job.created_at
