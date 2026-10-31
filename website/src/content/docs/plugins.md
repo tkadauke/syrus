@@ -234,6 +234,12 @@ and unknown identifiers receive the same result. Syrus canonicalizes and
 validates normalized scopes and treats any lookup or normalization failure as
 a closed authorization outcome.
 
+Typed resource scopes are provider-defined through a shared schema contract.
+Providers apply the caller's normal resource visibility during lookup; hidden
+and unknown identifiers receive the same result. Syrus canonicalizes and
+validates normalized scopes and treats any lookup or normalization failure as
+a closed authorization outcome.
+
 Tool usage is logged so operators can see which tools are active, failing, or
 worth consolidating.
 
