@@ -13,7 +13,7 @@ class Coworkers::SpawnChatLimiter
 
   def refusal
     return "Side-chat spawn cap reached: at most #{per_run_cap} per run." if run_actions.size >= per_run_cap
-    return "Side-chat spawn cap reached: at most #{per_day_cap} per day." if daily_actions.size >= per_day_cap
+    "Side-chat spawn cap reached: at most #{per_day_cap} per day." if daily_actions.size >= per_day_cap
   end
 
   private
