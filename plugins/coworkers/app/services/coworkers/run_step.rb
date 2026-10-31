@@ -4,7 +4,8 @@ module Coworkers
       workspace.setup
       run.update!(prompt: prompt) if run.prompt.blank?
       log("invoking coworker for background run (#{workflow.slug})")
-      run_agent(prompt: run.prompt)
+      result = run_agent(prompt: run.prompt)
+      run.update!(agent_summary: result.final_text.to_s.strip.presence)
     end
 
     private

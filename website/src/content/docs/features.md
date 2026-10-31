@@ -1739,8 +1739,9 @@ without choosing either side when a normal Git merge conflicts. Worker-local
 checkouts are disposable and are re-cloned from the durable remote when lost.
 Renaming a coworker moves its home branch while no turn is running. Deleting
 one archives that branch under `coworkers/archived/` and releases the handle
-for reuse. Scheduled background work posts a collapsed result block with its
-summary, duration, and cost into the coworker's main chat. By default, the
+for reuse. Scheduled background work posts the agent's final Markdown result,
+duration, and cost into the coworker's main chat, collapsing long results and
+posting only one card when delivery is retried. By default, the
 coworker then wakes for a normal, unattended chat turn to comment on the
 result with its full chat grants; this follow-up waits when another turn is
 active and never fires another schedule. A schedule can instead use quiet
