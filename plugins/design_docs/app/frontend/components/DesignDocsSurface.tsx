@@ -67,6 +67,7 @@ type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeS
 type WysiwygFenceStart = { marker: string; languageHint: string | null }
 type ToolbarBlockCommand = "paragraph" | "heading_1" | "heading_2" | "heading_3" | "heading_4" | "blockquote" | "fenced_code"
 type ReviewScrollSnapshot = { windowScrollX: number; windowScrollY: number; markdownScrollTop: number }
+type AutosaveSnapshot = { title: string; markdown: string; fingerprint: string; changeMode: ChangeMode }
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -655,7 +656,8 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const autosaveTimeoutRef = useRef<number | null>(null)
   const reviewQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const reviewFlushPromiseRef = useRef<Promise<void> | null>(null)
-  const reviewIntentRef = useRef(false)
+  const reviewInProgressRef = useRef(false)
+  const [reviewInProgress, setReviewInProgress] = useState(false)
   const failedAutosaveFingerprintRef = useRef<string | null>(null)
   const [autosaveError, setAutosaveError] = useState<string | null>(null)
   const [writeError, setWriteError] = useState<string | null>(null)
@@ -702,27 +704,27 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     onError: handleWriteError
   })
   const autosaveMutation = useMutation({
-    mutationFn: () => {
-      autosaveAttemptFingerprintRef.current = persistedDraftFingerprint(doc.id, title, draft)
-      return effectiveChangeMode === "edit"
+    mutationFn: (snapshot: AutosaveSnapshot) => {
+      autosaveAttemptFingerprintRef.current = snapshot.fingerprint
+      return snapshot.changeMode === "edit"
         ? updateDesignDoc(doc.id, {
-        title,
-        markdown: draft,
+        title: snapshot.title,
+        markdown: snapshot.markdown,
         base_revision: canonicalRevisionRef.current
       })
         : createDesignDocSuggestion(doc.id, {
         start_offset: 0,
         end_offset: doc.rendered_markdown.length,
         original_markdown: doc.rendered_markdown,
-        proposed_markdown: draft,
+        proposed_markdown: snapshot.markdown,
         autosave: true
         })
     },
-    onSuccess: (payload) => {
+    onSuccess: (payload, snapshot) => {
       canonicalRevisionRef.current = payload.design_doc.canonical_revision
       failedAutosaveFingerprintRef.current = null
       setAutosaveError(null)
-      persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
+      persistedDraftRef.current = snapshot.fingerprint
       onDocChange(payload.design_doc)
     },
     onError: (error) => {
@@ -755,19 +757,13 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     onError: handleWriteError
   })
   const reviewMutation = useMutation({
-    mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => {
-      reviewIntentRef.current = true
-      if (autosaveTimeoutRef.current != null) {
-        window.clearTimeout(autosaveTimeoutRef.current)
-        autosaveTimeoutRef.current = null
-      }
+    mutationFn: ({ id, decision, snapshot }: { id: number; decision: "accept" | "reject"; snapshot: AutosaveSnapshot }) => {
       reviewFlushPromiseRef.current ??= (async () => {
         await autosavePromiseRef.current
-        const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
-        if (fingerprint === persistedDraftRef.current) return
-        if (fingerprint === failedAutosaveFingerprintRef.current) throw new Error(autosaveError || t("error_write"))
+        if (snapshot.fingerprint === persistedDraftRef.current) return
+        if (snapshot.fingerprint === failedAutosaveFingerprintRef.current) throw new Error(autosaveError || t("error_write"))
 
-        const promise = autosaveMutation.mutateAsync()
+        const promise = autosaveMutation.mutateAsync(snapshot)
         autosavePromiseRef.current = promise
         try {
           await promise
@@ -785,7 +781,8 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       reviewQueueRef.current = queued
       queued.finally(() => {
         if (reviewQueueRef.current === queued) {
-          reviewIntentRef.current = false
+          reviewInProgressRef.current = false
+          setReviewInProgress(false)
           reviewFlushPromiseRef.current = null
         }
       })
@@ -823,6 +820,24 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, t("notice_thread_resolved")),
     onError: handleWriteError
   })
+
+  function reviewSuggestion(id: number, decision: "accept" | "reject") {
+    const markdown = editorMode === "rich_text" ? wysiwygHtmlToMarkdown(wysiwygRef.current) : draft
+    const snapshot = {
+      title,
+      markdown,
+      fingerprint: persistedDraftFingerprint(doc.id, title, markdown),
+      changeMode: effectiveChangeMode
+    }
+    setDraft(markdown)
+    reviewInProgressRef.current = true
+    setReviewInProgress(true)
+    if (autosaveTimeoutRef.current != null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+    reviewMutation.mutate({ id, decision, snapshot })
+  }
   const highlights = useMemo(() => buildAnchorHighlights(doc), [doc])
   const activeHighlights = useMemo(
     () => draft === (doc.rendered_markdown || doc.markdown) ? highlights : [],
@@ -1150,12 +1165,13 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     if (fingerprint === failedAutosaveFingerprintRef.current) return
     if (autosaveMutation.isPending) return
 
-    if (reviewIntentRef.current) return
+    if (reviewInProgressRef.current) return
 
     const timeout = window.setTimeout(() => {
       autosaveTimeoutRef.current = null
-      if (reviewIntentRef.current) return
-      const promise = autosaveMutation.mutateAsync()
+      if (reviewInProgressRef.current) return
+      const snapshot = { title, markdown: draft, fingerprint, changeMode: effectiveChangeMode }
+      const promise = autosaveMutation.mutateAsync(snapshot)
       autosavePromiseRef.current = promise
       promise.catch(() => undefined).finally(() => {
         if (autosavePromiseRef.current === promise) autosavePromiseRef.current = null
@@ -1166,7 +1182,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       window.clearTimeout(timeout)
       if (autosaveTimeoutRef.current === timeout) autosaveTimeoutRef.current = null
     }
-  }, [autosaveMutation.isPending, autosaveMutation.mutateAsync, doc.id, draft, effectiveChangeMode, isArchived, title])
+  }, [autosaveMutation.isPending, autosaveMutation.mutateAsync, doc.id, draft, effectiveChangeMode, isArchived, reviewInProgress, title])
 
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
@@ -1386,7 +1402,6 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
                   className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
                   contentEditable={!isArchived}
                   onBlur={() => {
-                    if (reviewIntentRef.current) return
                     setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
                     window.setTimeout(() => {
                       if (document.activeElement === newThreadComposerRef.current) return
@@ -1456,14 +1471,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
           }}
           onReplyChange={(threadId, body) => setReplyBodies((current) => ({ ...current, [threadId]: body }))}
           onResolve={(threadId) => resolveMutation.mutate(threadId)}
-          onReviewIntent={() => {
-            reviewIntentRef.current = true
-            if (autosaveTimeoutRef.current != null) {
-              window.clearTimeout(autosaveTimeoutRef.current)
-              autosaveTimeoutRef.current = null
-            }
-          }}
-          onReview={(id, decision) => reviewMutation.mutate({ id, decision })}
+          onReview={reviewSuggestion}
         />
       </aside>
       </div>
@@ -2067,7 +2075,7 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact, composerRef, doc, drawerDismissed, drawerOpen, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, narrowView, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onDismissDrawer, onDrawerOpenChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReviewIntent, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact, composerRef, doc, drawerDismissed, drawerOpen, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, narrowView, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onDismissDrawer, onDrawerOpenChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   canComment: boolean
   canReviewSuggestions: boolean
   commentPending: boolean
@@ -2098,7 +2106,6 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
   onResolve: (threadId: number) => void
-  onReviewIntent: () => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const { t } = useT("design_docs")
@@ -2217,7 +2224,6 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact
                 onFocus={onFocusSuggestion}
                 onReply={onReply}
                 onReplyChange={onReplyChange}
-                onReviewIntent={onReviewIntent}
                 onReview={onReview}
               />
             ))}
@@ -2278,7 +2284,6 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact
                 onFocus={onFocusSuggestion}
                 onReply={onReply}
                 onReplyChange={onReplyChange}
-                onReviewIntent={onReviewIntent}
                 onReview={onReview}
               />
             ))}
@@ -2365,7 +2370,7 @@ function CommentThreadCard({ focused, readOnly = false, replyBody, style, thread
   )
 }
 
-function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, style, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReviewIntent, onReview }: {
+function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, style, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
   canReview: boolean
   focused: boolean
   readOnly?: boolean
@@ -2376,7 +2381,6 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
   onFocus: (suggestionId: number) => void
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
-  onReviewIntent: () => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const { t } = useT("design_docs")
@@ -2407,7 +2411,6 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
       {readOnly ? null : canReview ? (
         <div className="mt-3 flex gap-2">
           <Button
-            onPointerDown={onReviewIntent}
             onClick={(event) => {
               event.stopPropagation()
               onReview(suggestion.id, "accept")
@@ -2418,7 +2421,6 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
             {t("accept")}
           </Button>
           <Button
-            onPointerDown={onReviewIntent}
             onClick={(event) => {
               event.stopPropagation()
               onReview(suggestion.id, "reject")
@@ -2812,7 +2814,7 @@ function renderWholeSuggestionBlockHtml(highlight: AnchorHighlight, focusedThrea
   const proposed = highlight.proposedMarkdown ?? ""
 
   return [
-    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-block-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-block-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}" data-serialized-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
     `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2" data-review-original="true">${sourceSpan(original, highlight.start)}</del>`,
     `<ins class="block whitespace-pre-wrap text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(proposed)}</ins>`,
     "</div>"
@@ -2899,23 +2901,7 @@ function inlineMarkdownChildren(node: HTMLElement) {
 }
 
 function originalMarkdownForSuggestionPreview(node: HTMLElement) {
-  let markdown = node.dataset.originalMarkdown ?? node.querySelector("[data-review-original]")?.textContent ?? node.querySelector("del")?.textContent ?? ""
-  const listItem = node.closest("li")
-  if (listItem) markdown = markdown.replace(/^\s*(?:[-+*]|\d+\.)\s+/, "")
-
-  for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
-    if (ancestor.tagName === "STRONG" || ancestor.tagName === "B") markdown = stripWrappingMarkdown(markdown, "**")
-    if (ancestor.tagName === "EM" || ancestor.tagName === "I") markdown = stripWrappingMarkdown(markdown, "*")
-    if (ancestor.contentEditable === "true") break
-  }
-
-  return markdown
-}
-
-function stripWrappingMarkdown(markdown: string, delimiter: string) {
-  return markdown.startsWith(delimiter) && markdown.endsWith(delimiter) && markdown.length >= delimiter.length * 2
-    ? markdown.slice(delimiter.length, -delimiter.length)
-    : markdown
+  return node.dataset.serializedOriginalMarkdown ?? node.dataset.originalMarkdown ?? node.querySelector("[data-review-original]")?.textContent ?? node.querySelector("del")?.textContent ?? ""
 }
 
 function isReviewOnlyElement(node: HTMLElement) {
@@ -3353,7 +3339,7 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
           const diff = inlineSuggestionDiff(original, segment.highlight.proposedMarkdown || "")
           if (diff.mode === "whole") context.renderedWholeSuggestionIds.add(suggestionKey)
           return [
-            `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+            `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}" data-serialized-original-markdown="${escapeHtml(segment.text)}"${suggestionAttrs}>`,
             renderInlineSuggestionDiffHtml(diff, original, baseOffset + segment.highlight.start),
             "</mark>"
           ].join("")
@@ -3366,7 +3352,7 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         const diff = inlineSuggestionDiff(original, segment.highlight.proposedMarkdown || "")
         if (diff.mode === "whole") context.renderedWholeSuggestionIds.add(suggestionKey)
         return [
-          `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+          `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}" data-serialized-original-markdown="${escapeHtml(segment.text)}"${suggestionAttrs}>`,
           renderInlineSuggestionDiffHtml(diff, original, baseOffset + segment.highlight.start),
           "</mark>"
         ].join("")
