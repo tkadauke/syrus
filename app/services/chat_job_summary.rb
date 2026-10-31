@@ -1,5 +1,11 @@
 class ChatJobSummary
   READY_STATES = %w[implemented approved landing].freeze
+  VISUAL_STATE_BY_JOB_STATE = {
+    "landing" => "approved",
+    "no_change_needed" => "implemented"
+  }.freeze
+  VISUAL_STATE_BY_CLOSURE_REASON = Epic::MERGED_JOB_CLOSURE_REASONS.index_with { "merged" }
+    .merge("no_changes" => "implemented").freeze
   # A chat owns Job visibility through either confirmed proposal lineage or the
   # Job attachment selected by Job#discussion_chat. Ordinary Job attachments
   # after the earliest one are context only and deliberately do not associate
@@ -60,9 +66,30 @@ class ChatJobSummary
   def epic_progress(epic_ids)
     return {} if epic_ids.empty?
 
-    totals = Job.where(epic_id: epic_ids).group(:epic_id).count
-    completed = Job.where(epic_id: epic_ids, state: %w[implemented approved landing closed no_change_needed]).group(:epic_id).count
-    epic_ids.to_h { |id| [ id, { completed: completed[id].to_i, total: totals[id].to_i } ] }
+    grouped_counts = Job.where(epic_id: epic_ids).group(:epic_id, :state, :closure_reason).count
+    attention_counts = Job.where(epic_id: epic_ids, needs_attention: true).group(:epic_id).count
+    epic_ids.to_h do |id|
+      counts = Hash.new(0)
+      total = 0
+      grouped_counts.each do |(epic_id, state, closure_reason), count|
+        next unless epic_id == id
+
+        total += count
+        visual_state = visual_state_for(state, closure_reason)
+        counts[visual_state] += count if visual_state
+      end
+      [ id, {
+        total: total,
+        state_counts: counts.to_h,
+        needs_attention: counts["failed"].positive? || attention_counts[id].to_i.positive?
+      } ]
+    end
+  end
+
+  def visual_state_for(state, closure_reason)
+    return VISUAL_STATE_BY_CLOSURE_REASON[closure_reason] if state == "closed"
+
+    VISUAL_STATE_BY_JOB_STATE.fetch(state, state)
   end
 
   def outcome_transition_times(job_ids)
@@ -91,7 +118,14 @@ class ChatJobSummary
       started_at: workflow&.started_at&.iso8601,
       finished_at: group.in?(%w[failed ready]) ? (transition_time || job.updated_at)&.iso8601 : nil,
       app_path: "/jobs/#{job.id}",
-      epic: job.epic && progress ? { id: job.epic.id, slug: job.epic.slug, completed: progress[:completed], total: progress[:total] } : nil
+      epic: job.epic && progress ? {
+        id: job.epic.id,
+        slug: job.epic.slug,
+        title: job.epic.title,
+        total: progress[:total],
+        state_counts: progress[:state_counts],
+        needs_attention: progress[:needs_attention]
+      } : nil
     }.compact
   end
 

@@ -6,6 +6,7 @@ class DeploymentStageDetector
     @deployment_stages = Array(deployment_stages)
     @jobs = Array(jobs)
     @content = content || RepositoryContent.for(repository)
+    @tag_cache = {}
     @refs_cache = {}
     @relation_cache = {}
   end
@@ -50,8 +51,16 @@ class DeploymentStageDetector
 
   def resolve_tag(stage)
     if stage.tag.present?
-      revision = content.resolve(stage.tag, max_age: 0)
-      RepositoryContent::Ref.new(name: stage.tag, revision_id: revision.id, observed_at: revision.observed_at)
+      @tag_cache.fetch(stage.tag) do
+        revision = content.resolve(stage.tag, max_age: 0)
+        @tag_cache[stage.tag] = RepositoryContent::Ref.new(
+          name: stage.tag,
+          revision_id: revision.id,
+          observed_at: revision.observed_at
+        )
+      rescue RepositoryContent::UnknownRevision
+        @tag_cache[stage.tag] = nil
+      end
     else
       refs_for(stage.tag_pattern).first
     end

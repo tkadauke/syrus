@@ -72,13 +72,48 @@ RSpec.describe ChatJobSummary do
     expect(summary[:outcome]).to be_nil
   end
 
-  it "includes aggregate Epic progress on each Job row" do
-    epic = Factories.epic(user: user, repository: repository)
+  it "includes the Epic title and exact mixed-state progress on each Job row" do
+    epic = Factories.epic(user: user, repository: repository, title: "Compact activity")
     job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "implemented", issue_number: 43)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 44)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic", issue_number: 45)
     proposal_for(job)
     Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
 
-    expect(summary[:jobs].first[:epic]).to include(slug: epic.slug, completed: 1, total: 2)
+    expect(summary[:jobs].first[:epic]).to include(
+      slug: epic.slug,
+      title: "Compact activity",
+      total: 4,
+      state_counts: { "running" => 1, "implemented" => 1, "approved" => 1, "blocked_by_epic" => 1 },
+      needs_attention: false
+    )
+  end
+
+  it "normalizes landed and no-change outcomes into visible Epic progress segments" do
+    epic = Factories.epic(user: user, repository: repository)
+    active = Factories.job_record(user: user, repository: repository, epic: epic, state: "running")
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged", issue_number: 43)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "external_pr_merged", issue_number: 44)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "no_changes", issue_number: 45)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "landing", issue_number: 46)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "no_change_needed", issue_number: 47)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "cancelled", issue_number: 48)
+    proposal_for(active)
+    Workflow.create!(job: active, trigger_kind: "initial", state: "queued")
+
+    expect(summary[:jobs].first[:epic]).to include(
+      total: 7,
+      state_counts: { "running" => 1, "merged" => 2, "implemented" => 2, "approved" => 1 }
+    )
+  end
+
+  it "marks an Epic for expansion when a non-failed child needs attention" do
+    epic = Factories.epic(user: user, repository: repository)
+    job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running", needs_attention: true)
+    proposal_for(job)
+    Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+
+    expect(summary[:jobs].first.dig(:epic, :needs_attention)).to be(true)
   end
 end

@@ -352,7 +352,10 @@
   "popover_scratchpad": "Notizblock",
   "popover_scratchpad_count_one": "{{count}} Eintrag",
   "popover_scratchpad_count_other": "{{count}} Einträge",
-  "popover_epic_progress": "{{slug}} · {{completed}}/{{total}} erledigt",
+  "popover_epic_progress": "{{progressed}}/{{total}} fortgeschritten",
+  "popover_epic_progress_label": "Epic-Job-Fortschritt",
+  "popover_epic_expand": "Jobs in {{slug}} ausklappen",
+  "popover_epic_collapse": "Jobs in {{slug}} einklappen",
   "popover_elapsed_one": "{{count}} Minute",
   "popover_elapsed_other": "{{count}} Minuten",
   "plugin_repo_tabs": {

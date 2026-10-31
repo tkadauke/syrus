@@ -80,4 +80,45 @@ RSpec.describe DeploymentStageDetector do
       [ other_job.id, "staging", "staging-sha" ]
     ])
   end
+
+  it "resolves a fixed stage tag once for all jobs in the poll" do
+    other_job = Factories.job_record(repository: repository, landed_sha: "other-merge-sha", state: "closed")
+    expect(content).to receive(:resolve).with("staging", max_age: 0).once.and_return(staging_revision)
+    allow(content).to receive(:revision) { |id| RepositoryContent::Revision.new(id: id) }
+    allow(content).to receive(:relation).and_return(:behind)
+
+    described_class.new(
+      repository: repository,
+      deployment_stages: [ staging ],
+      jobs: [ job, other_job ],
+      content: content
+    ).call
+  end
+
+  it "caches a missing fixed stage tag for all jobs in the poll" do
+    other_job = Factories.job_record(repository: repository, landed_sha: "other-merge-sha", state: "closed")
+    expect(content).to receive(:resolve).with("staging", max_age: 0).once.and_raise(RepositoryContent::UnknownRevision)
+
+    count = described_class.new(
+      repository: repository,
+      deployment_stages: [ staging ],
+      jobs: [ job, other_job ],
+      content: content
+    ).call
+
+    expect(count).to eq(0)
+  end
+
+  it "skips a patterned stage when its refs cannot be resolved" do
+    expect(content).to receive(:refs).with(pattern: "deploy-prod-*", max_age: 0).and_raise(RepositoryContent::UnknownRevision)
+
+    count = described_class.new(
+      repository: repository,
+      deployment_stages: [ production ],
+      jobs: [ job ],
+      content: content
+    ).call
+
+    expect(count).to eq(0)
+  end
 end

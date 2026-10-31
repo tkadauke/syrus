@@ -352,7 +352,10 @@
   "popover_scratchpad": "Scratch pad",
   "popover_scratchpad_count_one": "{{count}} entry",
   "popover_scratchpad_count_other": "{{count}} entries",
-  "popover_epic_progress": "{{slug}} · {{completed}}/{{total}} done",
+  "popover_epic_progress": "{{progressed}}/{{total}} progressed",
+  "popover_epic_progress_label": "Epic Job progress",
+  "popover_epic_expand": "Expand Jobs in {{slug}}",
+  "popover_epic_collapse": "Collapse Jobs in {{slug}}",
   "popover_elapsed_one": "{{count}} minute",
   "popover_elapsed_other": "{{count}} minutes",
   "plugin_repo_tabs": {

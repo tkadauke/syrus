@@ -163,7 +163,7 @@ export type ChatJobSummaryRow = {
   started_at?: string
   finished_at?: string
   app_path: string
-  epic?: { id: number; slug: string; completed: number; total: number }
+  epic?: { id: number; slug: string; title?: string | null; total: number; state_counts: Record<string, number>; needs_attention: boolean }
 }
 
 export type HiddenChatRecord = ChatNavRecord & {

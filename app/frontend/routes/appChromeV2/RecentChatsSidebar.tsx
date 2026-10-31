@@ -40,10 +40,12 @@ import { Input } from "../../components/Input"
 import { Avatar } from "../../components/Avatar"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
+import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { useChatBookmarks } from "../chat/bookmarks"
+import { EpicProgressSegments } from "../dashboard/components"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
 const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
@@ -1124,23 +1126,13 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
           return (
             <div key={group}>
               <div className="text-xs font-medium text-text-secondary">{t(`popover_job_${group}`)}</div>
-              {rows.map((job) => (
-                <div key={job.id}>
-                  <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.app_path, prefix)}>
-                    {job.slug}
-                  </Link>
-                  <span>
-                    {" "}
-                    · {job.step || job.state}
-                    {job.group === "running" && job.started_at ? ` · ${elapsedLabel(job.started_at, t)}` : ""}
-                  </span>
-                  {job.epic ? (
-                    <div className="text-xs text-text-secondary">
-                      {t("popover_epic_progress", { slug: job.epic.slug, completed: job.epic.completed, total: job.epic.total })}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+              <JobActivityRows
+                group={group}
+                onNestedOpenChange={(nestedOpen) => (nestedOpen ? cancelClose() : scheduleClose())}
+                prefix={prefix}
+                rows={rows}
+                t={t}
+              />
             </div>
           )
         })}
@@ -1216,6 +1208,119 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
         </FloatingPortal>
       ) : null}
     </>
+  )
+}
+
+function JobActivityRows({
+  group,
+  onNestedOpenChange,
+  prefix,
+  rows,
+  t
+}: {
+  group: "running" | "failed" | "ready"
+  onNestedOpenChange: (open: boolean) => void
+  prefix: string
+  rows: ChatJobSummary["jobs"]
+  t: TFunction<"nav">
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const epicRows = new Map<number, { epic: NonNullable<ChatJobSummary["jobs"][number]["epic"]>; jobs: ChatJobSummary["jobs"] }>()
+  const standalone: ChatJobSummary["jobs"] = []
+
+  rows.forEach((job) => {
+    if (!job.epic) {
+      standalone.push(job)
+      return
+    }
+    const entry = epicRows.get(job.epic.id)
+    if (entry) entry.jobs.push(job)
+    else epicRows.set(job.epic.id, { epic: job.epic, jobs: [job] })
+  })
+
+  return (
+    <div className="mt-1 space-y-1.5" data-testid={`job-group-${group}`}>
+      {Array.from(epicRows.values()).map(({ epic, jobs }) => {
+        const key = `${group}-${epic.id}`
+        const isExpanded = expanded[key] ?? epic.needs_attention
+        const progressed = ["merged", "approved", "implemented"].reduce((sum, state) => sum + (epic.state_counts[state] ?? 0), 0)
+        const stepCounts = jobs.reduce<Record<string, number>>((counts, job) => {
+          const label = job.step || job.state
+          counts[label] = (counts[label] ?? 0) + 1
+          return counts
+        }, {})
+        const stepSummary = Object.entries(stepCounts)
+          .map(([step, count]) => `${count} ${step.replace(/_/g, " ")}`)
+          .join(" · ")
+
+        return (
+          <div className="overflow-visible rounded-lg border border-border bg-surface" data-testid={`epic-job-group-${epic.id}`} key={key}>
+            <div className="p-2">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <SlugHoverCard href={withRoutePrefix(`/epics/${epic.slug}`, prefix)} id={epic.id} kind="epic" onOpenChange={onNestedOpenChange}>
+                  <Link className="shrink-0 font-mono font-semibold text-brand hover:underline" to={withRoutePrefix(`/epics/${epic.slug}`, prefix)}>
+                    {epic.slug}
+                  </Link>
+                </SlugHoverCard>
+                {epic.title ? <span className="min-w-0 flex-1 truncate text-text-secondary">{epic.title}</span> : <span className="flex-1" />}
+                <span className="shrink-0 text-[11px] font-medium text-text-secondary">{t("popover_epic_progress", { progressed, total: epic.total })}</span>
+                <button
+                  aria-expanded={isExpanded}
+                  aria-label={t(isExpanded ? "popover_epic_collapse" : "popover_epic_expand", { slug: epic.slug })}
+                  className="rounded p-0.5 text-text-secondary hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  onClick={() => setExpanded((current) => ({ ...current, [key]: !isExpanded }))}
+                  type="button"
+                >
+                  <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
+                </button>
+              </div>
+              <div
+                aria-label={t("popover_epic_progress_label")}
+                className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+                role="progressbar"
+              >
+                <EpicProgressSegments counts={epic.state_counts} total={epic.total} />
+              </div>
+              <div className="mt-1 text-[11px] text-text-secondary">{stepSummary}</div>
+            </div>
+            {isExpanded ? (
+              <div className="border-t border-border px-2 py-1">
+                {jobs.map((job) => (
+                  <JobActivityRow job={job} key={job.id} onNestedOpenChange={onNestedOpenChange} prefix={prefix} t={t} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )
+      })}
+      {standalone.map((job) => (
+        <JobActivityRow job={job} key={job.id} onNestedOpenChange={onNestedOpenChange} prefix={prefix} t={t} />
+      ))}
+    </div>
+  )
+}
+
+function JobActivityRow({
+  job,
+  onNestedOpenChange,
+  prefix,
+  t
+}: {
+  job: ChatJobSummary["jobs"][number]
+  onNestedOpenChange: (open: boolean) => void
+  prefix: string
+  t: TFunction<"nav">
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-1 py-0.5">
+      <SlugHoverCard href={withRoutePrefix(job.app_path, prefix)} id={job.id} kind="job" onOpenChange={onNestedOpenChange}>
+        <Link className="shrink-0 font-medium text-brand hover:underline" to={withRoutePrefix(job.app_path, prefix)}>
+          {job.slug}
+        </Link>
+      </SlugHoverCard>
+      <span className="truncate text-text-secondary">· {job.step || job.state}</span>
+      {job.group === "running" && job.started_at ? <span className="ml-auto shrink-0 text-text-secondary">· {elapsedLabel(job.started_at, t)}</span> : null}
+    </div>
   )
 }
 
