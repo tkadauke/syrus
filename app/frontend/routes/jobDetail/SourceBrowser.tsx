@@ -10,6 +10,8 @@ import {
   fetchJobSource,
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
+  fetchJobSourceFileDiff,
+  jobSourceFileDiffDownloadUrl,
   fetchWorkflowCoverageHitMap,
   type CoverageArtifact,
   type JobSourceDiffPayload,
@@ -547,6 +549,8 @@ export function SourceDiffBrowser({
               onCommentLine={feedback.onCommentLine}
               onDiscussComposing={feedback.onDiscussComposing}
               onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
+              onLoadFileDiff={payload.base_sha && payload.head_sha ? (file) => fetchJobSourceFileDiff(payload.job_id, payload.base_sha!, payload.head_sha!, file.path) : undefined}
+              fileDiffDownloadUrl={payload.base_sha && payload.head_sha ? (file) => jobSourceFileDiffDownloadUrl(payload.job_id, payload.base_sha!, payload.head_sha!, file.path) : undefined}
               onSaveComposing={feedback.onSaveComposing}
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}

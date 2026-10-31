@@ -57,6 +57,8 @@ export type ReviewableDiffFile = {
   generated_reason?: string | null
   generated_source?: string | null
   is_image?: boolean
+  patch_status?: "binary" | "oversized" | null
+  patch_bytes?: number | null
 }
 
 export type DiffLineSelection = {
@@ -109,6 +111,8 @@ export type ReviewableDiffProps = {
   // hide context-expansion affordances entirely (e.g. a standalone patch
   // view with no backing ref to fetch from).
   onLoadFileContext?: (file: ReviewableDiffFile) => Promise<string | null>
+  onLoadFileDiff?: (file: ReviewableDiffFile) => Promise<{ patch?: string; limitMessage?: string }>
+  fileDiffDownloadUrl?: (file: ReviewableDiffFile) => string
   onSaveComposing?: () => void
   onSaveEditThread?: () => void
   onSelectFile?: (path: string) => void
@@ -344,6 +348,8 @@ export function ReviewableDiff({
   onDeleteThread,
   onDiscussComposing,
   onLoadFileContext,
+  onLoadFileDiff,
+  fileDiffDownloadUrl,
   onSaveComposing,
   onSaveEditThread,
   onSelectFile,
@@ -658,6 +664,8 @@ export function ReviewableDiff({
           onDeleteThread={onDeleteThread}
           onDiscussComposing={onDiscussComposing}
           onLoadFileContext={onLoadFileContext}
+          onLoadFileDiff={onLoadFileDiff}
+          fileDiffDownloadUrl={fileDiffDownloadUrl}
           onSaveComposing={onSaveComposing}
           onSaveEditThread={onSaveEditThread}
           onStartEditThread={onStartEditThread}
@@ -1106,6 +1114,8 @@ function DiffFileSection({
   onDeleteThread,
   onDiscussComposing,
   onLoadFileContext,
+  onLoadFileDiff,
+  fileDiffDownloadUrl,
   onSaveComposing,
   onSaveEditThread,
   onStartEditThread,
@@ -1145,6 +1155,8 @@ function DiffFileSection({
   onDeleteThread?: (thread: DiffReviewThread) => void
   onDiscussComposing?: () => void
   onLoadFileContext?: (file: ReviewableDiffFile) => Promise<string | null>
+  onLoadFileDiff?: (file: ReviewableDiffFile) => Promise<{ patch?: string; limitMessage?: string }>
+  fileDiffDownloadUrl?: (file: ReviewableDiffFile) => string
   onSaveComposing?: () => void
   onSaveEditThread?: () => void
   onStartEditThread?: (thread: DiffReviewThread) => void
@@ -1161,15 +1173,21 @@ function DiffFileSection({
   showHeader: boolean
   unavailableState: ReactNode
 }) {
+  const [loadedPatch, setLoadedPatch] = useState<string | null>(null)
+  const [loadedPatchSource, setLoadedPatchSource] = useState<string | null>(null)
+  const [patchLoadState, setPatchLoadState] = useState<"idle" | "loading" | "error" | "limited">("idle")
+  const [patchLimitMessage, setPatchLimitMessage] = useState<string | null>(null)
+  const patchSource = `${file.patch ?? ""}:${file.patch_status ?? ""}:${file.patch_bytes ?? ""}`
+  const effectiveFile = loadedPatch === null || loadedPatchSource !== patchSource ? file : { ...file, patch: loadedPatch }
   const lines = useMemo(() => {
     const marker = startMarker("diff_review.parse_diff", { maxPerSession: 300, thresholdMs: 1 })
-    const parsed = parseUnifiedDiff(file.patch || "")
+    const parsed = parseUnifiedDiff(effectiveFile.patch || "")
     endMarker(marker, { metadata: { path: file.path, rows: parsed.length } })
     return parsed
-  }, [file.patch])
+  }, [effectiveFile.patch, effectiveFile.path])
   const hunks = useMemo(() => hunksFromLines(lines), [lines])
   const rowCount = lines.length
-  const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path, file.patch)
+  const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path, effectiveFile.patch)
   const forceLoaded = cacheEntry.forceLoaded
   const collapsed = cacheEntry.collapsed
   const contextState = cacheEntry.contextState
@@ -1244,7 +1262,26 @@ function DiffFileSection({
   // Removed files have no content at the diff's head ref to fetch context
   // from (the file is gone there), so `onLoadFileContext` would only ever
   // resolve null — never show controls that can't do anything.
-  const contextExpansionEnabled = Boolean(onLoadFileContext) && file.status !== "removed"
+  const contextExpansionEnabled = effectiveFile.patch !== null && Boolean(onLoadFileContext) && file.status !== "removed"
+
+  async function loadFullDiff() {
+    if (!onLoadFileDiff || patchLoadState === "loading") return
+    setPatchLoadState("loading")
+    try {
+      const result = await onLoadFileDiff(file)
+      if (result.patch != null) {
+        setLoadedPatch(result.patch)
+        setLoadedPatchSource(patchSource)
+        setForceLoaded(false)
+        setPatchLoadState("idle")
+      } else {
+        setPatchLimitMessage(result.limitMessage || null)
+        setPatchLoadState("limited")
+      }
+    } catch {
+      setPatchLoadState("error")
+    }
+  }
 
   useEffect(() => {
     if (
@@ -1364,7 +1401,7 @@ function DiffFileSection({
           showFilesPopupTrigger={showFilesPopupTrigger}
         />
       ) : null}
-      {file.patch !== null ? (
+      {effectiveFile.patch !== null ? (
         <UnifiedDiffTable
           annotations={annotations}
           comments={comments}
@@ -1377,7 +1414,7 @@ function DiffFileSection({
           editingThreadBody={editingThreadBody}
           editingThreadError={editingThreadError}
           editingThreadId={editingThreadId}
-          file={file}
+          file={effectiveFile}
           highlightedToken={highlightedToken}
           hunkControls={hunkControls}
           lines={mergedLines}
@@ -1401,10 +1438,28 @@ function DiffFileSection({
         />
       ) : file.is_image && renderImageDiff ? (
         renderImageDiff(file)
+      ) : file.patch_status === "oversized" && onLoadFileDiff ? (
+        <OmittedPatchPlaceholder
+          downloadUrl={fileDiffDownloadUrl?.(file)}
+          limitMessage={patchLimitMessage}
+          loadState={patchLoadState}
+          onLoad={loadFullDiff}
+        />
       ) : (
         <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
       )}
     </>
+  )
+}
+
+function OmittedPatchPlaceholder({ downloadUrl, limitMessage, loadState, onLoad }: { downloadUrl?: string; limitMessage: string | null; loadState: "idle" | "loading" | "error" | "limited"; onLoad: () => void }) {
+  const { t } = useT("common")
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 py-6 font-sans text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
+      <span className="w-full">{limitMessage || (loadState === "error" ? t("diff_review.full_diff_error") : t("diff_review.full_diff_omitted"))}</span>
+      {loadState !== "limited" ? <Button onClick={onLoad} size="sm" variant="secondary">{loadState === "loading" ? t("diff_review.loading_full_diff") : t("diff_review.load_full_diff")}</Button> : null}
+      {downloadUrl ? <a className="inline-flex min-h-9 items-center rounded border border-gray-300 px-3 text-sm font-medium dark:border-gray-700" href={downloadUrl}>{t("diff_review.download_raw_diff")}</a> : null}
+    </div>
   )
 }
 

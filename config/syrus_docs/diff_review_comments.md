@@ -269,6 +269,16 @@ operator's complete note in the persisted user message.
 
 `ReviewableDiff` guards against huge diffs without dropping any data:
 
+- **Omitted patch recovery** — initial repository comparisons and immutable
+  review snapshots keep each eager patch bounded to 256 KiB. An oversized
+  text patch is marked separately from binary content. "Load full diff"
+  retrieves only that path at the snapshot's exact base/head revisions; up to
+  10,000 newline-delimited rows and 10 MiB can render interactively through
+  the normal large-file gate, preserving line-comment anchors. Larger patches
+  offer an authenticated raw `.diff` attachment instead. Downloads have a
+  100 MiB operational ceiling and the fetched patch is never written back to
+  `DiffReviewVersion#files_snapshot`.
+
 - **Per-file large-diff gating** — a file whose *parsed* diff row count
   (`countDiffRows` in `diffRendering.ts`, not raw source file size) exceeds
   `largeFileRowThreshold` (default `DEFAULT_LARGE_FILE_ROW_THRESHOLD` = 300)

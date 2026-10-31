@@ -1,6 +1,7 @@
 package mirror
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -597,8 +598,31 @@ func TestChangesCarryLineCountsAndPatches(t *testing.T) {
 	if renamed := byPath["new.txt"]; renamed.Status != "renamed" || renamed.Additions == nil || *renamed.Additions != 0 {
 		t.Fatalf("rename: %+v", renamed)
 	}
-	if binary := byPath["logo.bin"]; binary.Additions != nil || binary.Patch != nil {
+	if binary := byPath["logo.bin"]; binary.Additions != nil || binary.Patch != nil || binary.PatchStatus != "binary" {
 		t.Fatalf("binary file should have no counts or patch: %+v", binary)
+	}
+}
+
+func TestOversizedTextPatchIsDistinguishedAndRetrievableByPath(t *testing.T) {
+	u := newUpstream(t)
+	base := u.commit(map[string]string{"large.txt": "old\n"}, "base")
+	head := u.commit(map[string]string{"large.txt": strings.Repeat("new line\n", 40_000)}, "large")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+	changes, err := s.Changes(context.Background(), "42", base, head, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := changes[0]
+	if change.Patch != nil || change.PatchStatus != "oversized" || change.PatchBytes <= MaxPatchBytes {
+		t.Fatalf("oversized change metadata = %+v", change)
+	}
+	patch, err := s.FilePatch(context.Background(), "42", base, head, "large.txt")
+	if err != nil || !bytes.Contains(patch, []byte("+new line")) {
+		t.Fatalf("file patch: %v, %v", len(patch), err)
+	}
+	if _, err := s.FilePatch(context.Background(), "42", base, head, "../large.txt"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unsafe path error = %v", err)
 	}
 }
 

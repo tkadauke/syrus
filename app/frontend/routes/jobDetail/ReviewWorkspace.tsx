@@ -16,6 +16,8 @@ import { useT } from "../../hooks/useT"
 import {
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
+  fetchJobSourceFileDiff,
+  jobSourceFileDiffDownloadUrl,
   fetchDiffReviewVersion,
   type DiffReviewAnnotationsPayload,
   type DiffReviewComment,
@@ -474,6 +476,8 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
               onDeleteThread={feedback.onDeleteThread}
               onDiscussComposing={feedback.onDiscussComposing}
               onLoadFileContext={activeHeadContentRef ? (file) => fetchJobSourceFileContent(jobId, activeHeadContentRef, file.path) : undefined}
+              onLoadFileDiff={activeDiff.base_sha && activeDiff.head_sha ? (file) => fetchJobSourceFileDiff(jobId, activeDiff.base_sha!, activeDiff.head_sha!, file.path) : undefined}
+              fileDiffDownloadUrl={activeDiff.base_sha && activeDiff.head_sha ? (file) => jobSourceFileDiffDownloadUrl(jobId, activeDiff.base_sha!, activeDiff.head_sha!, file.path) : undefined}
               onSaveComposing={feedback.onSaveComposing}
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}

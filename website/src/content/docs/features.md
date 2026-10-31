@@ -1414,6 +1414,14 @@ metadata such as file/row counts, hunk counts, syntax token span counts, and
 thread counts, so a slow review session can be attributed to parsing,
 rendering, highlighting, comments, or navigation instead of just "the page
 was slow." The
+
+Large text changes remain reviewable without making every initial comparison
+heavy. Syrus eagerly includes up to 256 KiB per file and labels larger text
+patches separately from binary files. Reviewers can load an exact-revision
+patch on demand up to 10,000 rows and 10 MiB, or download an authenticated raw
+`.diff` up to 100 MiB. On-demand patches are not added to stored review
+snapshots.
+
 admin performance endpoint returns recent raw events plus grouped summaries for
 slow routes, phases, browser traces, and SQL fingerprints. Events are stamped with the running
 app revision, and the admin view defaults to the current revision so stale
