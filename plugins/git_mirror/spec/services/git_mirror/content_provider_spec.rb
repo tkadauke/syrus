@@ -86,10 +86,15 @@ RSpec.describe GitMirror::ContentProvider do
 
   it "lists changes with line counts, and patches when asked" do
     stub_mirror("changes", { base: "b" * 40, head: sha }, body: { changes: [ { path: "new.rb", status: "renamed", previous_path: "old.rb", additions: 0, deletions: 0 } ] }.to_json)
-    stub_mirror("changes", { base: "b" * 40, head: sha, patch: "1" }, body: { changes: [ { path: "a.rb", status: "modified", additions: 2, deletions: 1, patch: "@@ -1 +1,2 @@" } ] }.to_json)
+    stub_mirror("changes", { base: "b" * 40, head: sha, patch: "1" }, body: { changes: [ { path: "a.rb", status: "modified", additions: 2, deletions: 1, patch_status: "oversized", patch_bytes: 300_000 } ] }.to_json)
 
     expect(provider.changes("b" * 40, sha).map(&:to_h)).to include(include(path: "new.rb", status: "renamed", previous_path: "old.rb", additions: 0))
-    expect(provider.changes("b" * 40, sha, patch: true).sole).to have_attributes(additions: 2, deletions: 1, patch: "@@ -1 +1,2 @@")
+    expect(provider.changes("b" * 40, sha, patch: true).sole).to have_attributes(additions: 2, deletions: 1, patch: nil, patch_status: "oversized", patch_bytes: 300_000)
+  end
+
+  it "fetches one exact-revision file patch" do
+    stub_mirror("patch", { base: "b" * 40, head: sha, path: "app/a.rb" }, body: "@@ -1 +1 @@\n-old\n+new\n", headers: { "Content-Type" => "text/x-diff" })
+    expect(provider.file_patch("b" * 40, sha, "app/a.rb")).to include("+new")
   end
 
   it "lists matching refs and compares revision ancestry" do

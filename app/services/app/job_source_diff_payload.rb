@@ -105,7 +105,9 @@ module App
         status: UI_STATUS.fetch(change.status, change.status),
         additions: change.additions,
         deletions: change.deletions,
-        patch: change.patch
+        patch: change.patch,
+        patch_status: change.patch_status,
+        patch_bytes: change.patch_bytes
       }.merge(generated_file_metadata(classification))
     end
 
@@ -243,6 +245,8 @@ module App
         additions: file[:additions].to_i,
         deletions: file[:deletions].to_i,
         patch: file[:patch],
+        patch_status: file[:patch_status],
+        patch_bytes: file[:patch_bytes],
         is_image: image_file?(file[:path]) && file[:patch].nil?
       }.merge(generated_hash(file[:generated], file[:generated_reason], file[:generated_source]))
     end
@@ -254,6 +258,8 @@ module App
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,
         patch: file["patch"],
+        patch_status: file["patch_status"],
+        patch_bytes: file["patch_bytes"],
         is_image: image_file?(file["path"]) && file["patch"].nil?
       }.merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
     end

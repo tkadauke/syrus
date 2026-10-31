@@ -57,6 +57,7 @@ module RepositoryContent
 
   # The revision is known and the path is not in it. Final.
   class NotFound < Error; end
+  class TooLarge < Error; end
 
   FALL_THROUGH_ERRORS = [ Unavailable, Unsupported, UnknownRevision ].freeze
 
