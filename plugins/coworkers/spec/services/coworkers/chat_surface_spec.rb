@@ -355,22 +355,31 @@ RSpec.describe "Coworker chat surface" do
     job.instance_variable_set(:@chat, chat)
     job.instance_variable_set(:@user_message, message)
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    job.instance_variable_set(:@turn_completed_successfully, true)
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
     allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn)
 
     job.send(:finalize_plugin_turns!)
 
-    expect(Coworkers::HomeBranchPersistence).to have_received(:after_chat_turn).with(chat_session: chat, user_message: message)
+    expect(Coworkers::HomeBranchPersistence).to have_received(:after_chat_turn).with(
+      chat_session: chat,
+      user_message: message,
+      turn_succeeded: true
+    )
   end
 
   it "keeps failed persistence recoverable and posts an actionable error" do
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
+    following_provider = class_double(Coworkers::MessageReply)
+    allow(following_provider).to receive(:after_chat_turn)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer)
+      .and_return([ Coworkers::HomeBranchPersistence, following_provider ])
     allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn).and_raise("push conflict")
 
     expect { job.send(:finalize_plugin_turns!) }.to change(chat.messages.where(role: "system"), :count).by(1)
     expect(chat.messages.order(:id).last.content.fetch("text")).to include("still recoverable locally", "push conflict")
+    expect(following_provider).to have_received(:after_chat_turn)
   end
 end

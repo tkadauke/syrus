@@ -1611,8 +1611,14 @@ Runs plugin-owned finalization after an agent turn and before the chat releases
 its serialization lock:
 
 ```ruby
-.after_chat_turn(chat_session:, user_message:) # => void
+.after_chat_turn(chat_session:, user_message:, turn_succeeded:) # => void
 ```
+
+`turn_succeeded` is true only after the provider completed successfully and no
+stop request cancelled the turn. Finalizers that preserve workspace state may
+run regardless; finalizers that publish the assistant's answer must require a
+successful turn so they never expose partial output from a failure or
+cancellation.
 
 The host catches each provider failure, records an actionable system message,
 and continues releasing the turn lock. The Coworkers plugin uses this hook to
