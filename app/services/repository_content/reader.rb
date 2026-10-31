@@ -152,11 +152,20 @@ module RepositoryContent
 
     # One path's patch at exact immutable revisions. This deliberately is not
     # cached: large review patches must never enter persisted/cache snapshots.
-    def file_patch(base:, head:, path:)
+    def file_patch(base:, head:, path:, previous_path: nil)
       base_id = revision_id(base)
       head_id = revision_id(head)
       path = normalize_path(path)
-      through_chain(:file_patch) { |provider| provider.file_patch(base_id, head_id, path) }
+      previous_path = normalize_path(previous_path) if previous_path.present?
+      through_chain(:file_patch) { |provider| provider.file_patch(base_id, head_id, path, previous_path: previous_path) }
+    end
+
+    def file_patch_to(io, base:, head:, path:, previous_path: nil)
+      base_id = revision_id(base)
+      head_id = revision_id(head)
+      path = normalize_path(path)
+      previous_path = normalize_path(previous_path) if previous_path.present?
+      through_chain(:file_patch_to) { |provider| provider.file_patch_to(io, base_id, head_id, path, previous_path: previous_path) }
     end
 
     # Movable refs matching `pattern`, in provider-defined newest-first order.

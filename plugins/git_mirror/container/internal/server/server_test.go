@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -65,8 +66,8 @@ func (f *fakeStore) Changes(_ context.Context, _, _, _ string, withPatch bool) (
 	f.withPatch = withPatch
 	return nil, nil
 }
-func (f *fakeStore) FilePatch(context.Context, string, string, string, string) ([]byte, error) {
-	return []byte("@@ -1 +1 @@\n-old\n+new\n"), nil
+func (f *fakeStore) FilePatch(_ context.Context, destination io.Writer, _, _, _, _, _ string) (int64, error) {
+	return io.Copy(destination, strings.NewReader("@@ -1 +1 @@\n-old\n+new\n"))
 }
 func (f *fakeStore) Refs(_ context.Context, _, _ string, maxAge time.Duration) ([]mirror.Ref, error) {
 	f.maxAge = maxAge

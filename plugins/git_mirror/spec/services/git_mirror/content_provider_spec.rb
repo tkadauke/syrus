@@ -97,6 +97,25 @@ RSpec.describe GitMirror::ContentProvider do
     expect(provider.file_patch("b" * 40, sha, "app/a.rb")).to include("+new")
   end
 
+  it "fetches a rename patch with valid UTF-8 text" do
+    body = "@@ -1 +1 @@\n-café\n+Kaffee\n".dup.force_encoding(Encoding::BINARY)
+    stub_mirror("patch", { base: "b" * 40, head: sha, path: "new.rb", previous_path: "old.rb" }, body: body, headers: { "Content-Type" => "text/x-diff" })
+
+    patch = provider.file_patch("b" * 40, sha, "new.rb", previous_path: "old.rb")
+    expect(patch).to include("café", "Kaffee")
+    expect(patch.encoding).to eq(Encoding::UTF_8)
+    expect(patch).to be_valid_encoding
+  end
+
+  it "streams a raw patch into the caller's IO" do
+    stub_mirror("patch", { base: "b" * 40, head: sha, path: "large.rb" }, body: "chunked patch", headers: { "Content-Type" => "text/x-diff" })
+    io = StringIO.new
+
+    provider.file_patch_to(io, "b" * 40, sha, "large.rb")
+
+    expect(io.string).to eq("chunked patch")
+  end
+
   it "lists matching refs and compares revision ancestry" do
     stub_mirror("refs", { pattern: "deploy-*", max_age: "0" }, body: { refs: [ { name: "deploy-2", revision_id: sha, observed_at: "2026-09-22T12:00:00Z" } ] }.to_json)
     stub_mirror("relation", { base: "b" * 40, head: sha }, body: { relation: "ahead" }.to_json)

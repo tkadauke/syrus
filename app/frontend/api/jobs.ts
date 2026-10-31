@@ -1433,7 +1433,7 @@ export type JobSourceDiffPayload = {
   merge_base_sha: string | null
   default_ref: string
   branch_commits: Array<{ sha: string; short_sha: string; message: string; date: string | null }>
-  files: Array<{ path: string; status: string; additions: number; deletions: number; patch: string | null; is_image?: boolean; patch_status?: "binary" | "oversized" | null; patch_bytes?: number | null }>
+  files: Array<{ path: string; previous_path?: string | null; status: string; additions: number; deletions: number; patch: string | null; is_image?: boolean; patch_status?: "binary" | "oversized" | null; patch_bytes?: number | null }>
   truncated: boolean
   diff_error: string | null
   version: DiffReviewVersion | null
@@ -1679,20 +1679,20 @@ export function fetchJobSourceDiff(id: string, search = "") {
   return getJson<JobSourceDiffPayload>(`/api/v1/app/jobs/${id}/source_diff${search}`)
 }
 
-function sourceFileDiffParams(base: string, head: string, path: string) {
-  return new URLSearchParams({ base, head, path }).toString()
+function sourceFileDiffParams(base: string, head: string, path: string, previousPath?: string | null) {
+  return new URLSearchParams({ base, head, path, ...(previousPath ? { previous_path: previousPath } : {}) }).toString()
 }
 
-export async function fetchJobSourceFileDiff(id: string | number, base: string, head: string, path: string) {
-  const response = await fetch(`/api/v1/app/jobs/${id}/source_file_diff?${sourceFileDiffParams(base, head, path)}`, { credentials: "same-origin" })
+export async function fetchJobSourceFileDiff(id: string | number, base: string, head: string, path: string, previousPath?: string | null) {
+  const response = await fetch(`/api/v1/app/jobs/${id}/source_file_diff?${sourceFileDiffParams(base, head, path, previousPath)}`, { credentials: "same-origin" })
   const body = await response.json()
   if (response.ok) return { patch: body.patch as string }
   if (body?.error?.code === "interactive_diff_limit") return { limitMessage: body.error.message as string }
   throw new Error(body?.error?.message || "Unable to load full diff")
 }
 
-export function jobSourceFileDiffDownloadUrl(id: string | number, base: string, head: string, path: string) {
-  return `/api/v1/app/jobs/${id}/source_file_diff_download?${sourceFileDiffParams(base, head, path)}`
+export function jobSourceFileDiffDownloadUrl(id: string | number, base: string, head: string, path: string, previousPath?: string | null) {
+  return `/api/v1/app/jobs/${id}/source_file_diff_download?${sourceFileDiffParams(base, head, path, previousPath)}`
 }
 
 // Direct <img src> URL for a raw file's bytes at a given ref -- the browser's

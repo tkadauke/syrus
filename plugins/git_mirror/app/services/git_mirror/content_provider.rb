@@ -77,8 +77,12 @@ module GitMirror
       end
     end
 
-    def file_patch(base_id, head_id, path)
-      registered { @client.file_patch(mirror_id, base_id, head_id, path) }
+    def file_patch(base_id, head_id, path, previous_path: nil)
+      registered { @client.file_patch(mirror_id, base_id, head_id, path, previous_path: previous_path) }
+    end
+
+    def file_patch_to(io, base_id, head_id, path, previous_path: nil)
+      registered { @client.file_patch_to(io, mirror_id, base_id, head_id, path, previous_path: previous_path) }
     end
 
     def refs(pattern:, max_age:)
