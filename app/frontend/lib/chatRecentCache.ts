@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query"
 import type { ChatRecord, ChatsIndexPayload } from "../api/chats"
-import { chatGroupFor, chatGroupKeyForUpdate } from "./chatCache"
+import { chatGroupFor, chatGroupKeyForUpdate, updateChatUnread } from "./chatCache"
 
 export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: number | string, updates: Partial<ChatRecord>) {
   queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
@@ -40,6 +40,51 @@ export function updateRecentChatTurnCache(
       }))
     }
   })
+}
+
+export function updateRecentChatMessageStateCache(
+  queryClient: QueryClient,
+  chatId: number | string,
+  updates: Pick<ChatRecord, "turn_in_flight"> & {
+    agent_busy?: boolean
+    last_message_at: string
+    unread: boolean
+  }
+) {
+  updateChatUnread(queryClient, Number(chatId), updates.unread)
+  queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["chats", "recent"] })
+    .forEach((query) => {
+      queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
+        if (!current || !Array.isArray(current.groups)) return current
+
+        const sortByLastActivity = query.queryKey.length === 2 || query.queryKey[5] === "last_activity"
+        return {
+          ...current,
+          groups: current.groups.map((group) => {
+            const existing = group.chats.find((chat) => String(chat.id) === String(chatId))
+            if (!existing) return group
+            const chats = group.chats.map((chat) => String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat)
+            return {
+              ...group,
+              chats: sortByLastActivity ? [...chats].sort(compareRecentChatActivity) : chats
+            }
+          })
+        }
+      })
+    })
+}
+
+function compareRecentChatActivity(left: ChatsIndexPayload["groups"][number]["chats"][number], right: ChatsIndexPayload["groups"][number]["chats"][number]) {
+  if (left.pinned !== right.pinned) return left.pinned ? -1 : 1
+
+  return timestamp(right.last_message_at || right.created_at) - timestamp(left.last_message_at || left.created_at) || right.id - left.id
+}
+
+function timestamp(value: string | null | undefined) {
+  const parsed = value ? Date.parse(value) : 0
+  return Number.isNaN(parsed) ? 0 : parsed
 }
 
 export function updateRecentChatScratchpadCache(queryClient: QueryClient, chatId: number | string, scratchpadItemsCount: number) {

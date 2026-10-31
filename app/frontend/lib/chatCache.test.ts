@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 import { mergeChatPayloadUpdate, recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "./chatCache"
+import { updateRecentChatMessageStateCache } from "./chatRecentCache"
 import type { ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../api/chats"
 
 describe("mergeChatPayloadUpdate", () => {
@@ -303,6 +304,32 @@ describe("updateChatUnread", () => {
     const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent", "hidden", "status", "last_activity", false, 10])
     expect(updated?.groups.map((group) => group.key)).toEqual(["status-hidden"])
     expect(updated?.groups[0].chats.map((chat) => [chat.id, chat.unread])).toEqual([[1, true]])
+  })
+
+  it("moves a newly active message into the unread status group and updates its ordering timestamp", () => {
+    const queryClient = new QueryClient()
+    const key = recentChatsQueryKey({ group_by: "status" })
+    queryClient.setQueryData(key, {
+      repositories: [],
+      groups: [
+        statusGroup("status-unread", { chats: [chatRecord({ id: 2, title: "Older unread", lastMessageAt: "2026-06-25T11:00:00Z", unread: true })] }),
+        statusGroup("status-active", { chats: [chatRecord({ id: 1, title: "New activity", lastMessageAt: "2026-06-25T10:00:00Z" })] })
+      ]
+    })
+
+    updateRecentChatMessageStateCache(queryClient, 1, {
+      turn_in_flight: false,
+      agent_busy: false,
+      last_message_at: "2026-06-25T12:00:00Z",
+      unread: true
+    })
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(key)
+    expect(updated?.groups[0].chats.map((chat) => [chat.id, chat.last_message_at, chat.unread])).toEqual([
+      [1, "2026-06-25T12:00:00Z", true],
+      [2, "2026-06-25T11:00:00Z", true]
+    ])
+    expect(updated?.groups[1].chats).toEqual([])
   })
 })
 

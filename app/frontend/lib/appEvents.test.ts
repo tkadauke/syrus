@@ -736,6 +736,39 @@ describe("applyAppEvent", () => {
     expect(detail?.turn_in_flight).toBe(true)
   })
 
+  it("patches message activity and unread state while reordering recent chats without refetching", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const first = { ...chatPayload([]).chat, id: 8, pinned: false, last_message_at: "2026-05-30T12:00:00Z", unread: false }
+    const active = { ...chatPayload([]).chat, id: 9, pinned: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [{ key: "general", label: "General", repository_id: null, chats: [first, active], has_more: false }],
+      repositories: []
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      changed: ["sidebar_message_state"],
+      payload: {
+        action: "update_sidebar_message_state",
+        turn_in_flight: true,
+        agent_busy: true,
+        last_message_at: "2026-05-30T13:00:00Z",
+        unread: true
+      }
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+    const recent = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
+    expect(recent?.groups[0].chats.map((chat) => chat.id)).toEqual([9, 8])
+    expect(recent?.groups[0].chats[0]).toMatchObject({
+      last_message_at: "2026-05-30T13:00:00Z",
+      unread: true,
+      turn_in_flight: true,
+      agent_busy: true
+    })
+  })
+
   it("applies chat controls payloads directly to cached chat data", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

@@ -1,7 +1,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatJobStatusPayload, ChatJobStatusPendingProposal, ChatMessageItem, ChatParticipant, ChatPayload, ChatProposal, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import type { JobDetailPayload, JobRun, JobStep, JobWorkflow, JobWorkflowsPayload } from "../api/jobs"
-import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
+import { updateRecentChatHeaderCache, updateRecentChatMessageStateCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
 import { chatPinsQueryPrefix } from "../routes/chat/pins"
@@ -847,6 +847,12 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return true
   }
 
+  const sidebarMessageState = chatSidebarMessageStatePayload(event.payload)
+  if (sidebarMessageState) {
+    updateRecentChatMessageStateCache(queryClient, event.id, sidebarMessageState)
+    return true
+  }
+
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
     // Route each message through the same revision-gated entity merge as
@@ -1099,6 +1105,30 @@ type ChatUpdateTurnStatePayload = {
   action: "update_turn_state"
   turn_in_flight: boolean
   agent_busy?: boolean
+}
+
+type ChatSidebarMessageStatePayload = {
+  action: "update_sidebar_message_state"
+  turn_in_flight: boolean
+  agent_busy?: boolean
+  last_message_at: string
+  unread: boolean
+}
+
+function chatSidebarMessageStatePayload(payload: unknown): ChatSidebarMessageStatePayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatSidebarMessageStatePayload>
+  if (candidate.action !== "update_sidebar_message_state") return null
+  if (typeof candidate.turn_in_flight !== "boolean" || typeof candidate.last_message_at !== "string" || typeof candidate.unread !== "boolean") return null
+
+  return {
+    action: "update_sidebar_message_state",
+    turn_in_flight: candidate.turn_in_flight,
+    agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
+    last_message_at: candidate.last_message_at,
+    unread: candidate.unread
+  }
 }
 
 function chatUpdateTurnStatePayload(payload: unknown): ChatUpdateTurnStatePayload | null {
