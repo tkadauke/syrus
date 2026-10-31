@@ -16,6 +16,7 @@ import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, Ch
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 import i18n from "../../i18n"
+import { accentRamp } from "../../lib/appearance"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -240,6 +241,100 @@ describe("shared message presentation", () => {
     const compact = screen.getByTestId("compact-tool-message")
     expect(compact).toHaveClass("pt-1")
     expect(compact).not.toHaveClass("pt-6")
+  })
+})
+
+describe("coworker messages", () => {
+  const incomingContent = {
+    source: "coworker_message",
+    coworker_message: { direction: "incoming", sender_id: 8, sender_handle: "dinesh", receiver_handle: "gilfoyle" }
+  }
+
+  it("renders an incoming message with the sender appearance and hides its transport prefix", () => {
+    const item = userMessage("Message from @dinesh\n\nI made it faster.", {
+      content: incomingContent,
+      coworker_sender: {
+        id: 8,
+        name: "Dinesh",
+        handle: "dinesh",
+        accent_hex: "#0090FF",
+        avatar_key: "comet",
+        avatar_url: null
+      }
+    })
+
+    renderChatMessageItem(item)
+
+    const message = screen.getByTestId("coworker-incoming-message")
+    expect(message).toHaveTextContent("Dinesh")
+    expect(message).toHaveTextContent("I made it faster.")
+    expect(message).not.toHaveTextContent("Message from @dinesh")
+    expect(message).toHaveStyle({ backgroundColor: accentRamp("#0090FF").wash, borderLeftColor: "#0090FF" })
+    expect(message.querySelector("img")).toBeInTheDocument()
+    expect(message.closest("article")).not.toHaveClass("justify-end")
+  })
+
+  it("renders an outgoing system note with the receiver appearance", () => {
+    const item = systemMessageItem(
+      { tone: "neutral", label: "System", body: "Message to @gilfoyle\n\nYour deploy is broken." },
+      {
+        content: {
+          source: "coworker_message",
+          coworker_message: { direction: "outgoing", receiver_id: 9, receiver_handle: "gilfoyle" }
+        },
+        coworker_receiver: {
+          id: 9,
+          name: "Gilfoyle",
+          handle: "gilfoyle",
+          accent_hex: "#8B5CF6",
+          avatar_key: "prism",
+          avatar_url: null
+        }
+      }
+    )
+
+    renderChatMessageItem(item)
+
+    const message = screen.getByTestId("coworker-outgoing-message")
+    expect(message).toHaveTextContent("Gilfoyle")
+    expect(message).toHaveTextContent("to @gilfoyle")
+    expect(message).toHaveTextContent("Your deploy is broken.")
+    expect(message).not.toHaveTextContent("Message to @gilfoyle")
+    expect(message.querySelector("img")).toBeInTheDocument()
+  })
+
+  it("falls back to a neutral sender handle when the coworker is missing", () => {
+    renderChatMessageItem(
+      userMessage("Message from @gone\n\nStill here.", {
+        content: {
+          source: "coworker_message",
+          coworker_message: { direction: "incoming", sender_id: 404, sender_handle: "gone" }
+        }
+      })
+    )
+
+    const message = screen.getByTestId("coworker-incoming-message")
+    expect(message).toHaveTextContent("@gone")
+    expect(message).toHaveClass("border-gray-300", "bg-gray-50")
+  })
+
+  it("keeps owner and cross-chat bridge user messages in the user bubble", () => {
+    const owner = renderChatMessageItem(userMessage("Owner message"))
+    expect(screen.getByText("Owner message").closest("article")).toHaveClass("justify-end")
+    owner.unmount()
+
+    renderChatMessageItem(
+      userMessage("Bridged message", {
+        cross_chat_bridge: {
+          thread_id: 12,
+          direction: "inbound",
+          counterpart_chat_session_id: 44,
+          counterpart_chat_title: "Other chat"
+        }
+      })
+    )
+    expect(screen.getByText("Bridged message").closest("article")).toHaveClass("justify-end")
+    expect(screen.queryByTestId("coworker-incoming-message")).not.toBeInTheDocument()
   })
 })
 
