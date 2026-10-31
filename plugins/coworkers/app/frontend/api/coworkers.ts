@@ -150,10 +150,12 @@ export function fetchCoworkerApprovals(id: string) {
 }
 export const decideCoworkerApproval = (coworkerId: string, approvalId: number, decision: "approve" | "reject") =>
   postJson<{ approval: CoworkerApproval }>(`/api/v1/app/coworkers/${coworkerId}/approvals/${approvalId}/${decision}`)
-export const createCoworkerSchedule = (
+export function createCoworkerSchedule(
   id: string,
   schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string; after_run: "wake" | "quiet" }
-) => postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
+) {
+  return postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
+}
 export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, command: "pause" | "resume" | "fire_now") =>
   postJson<{ schedule: CoworkerSchedule; fired?: boolean; reason?: string | null; job_id?: number | null }>(
     `/api/v1/app/coworkers/${coworkerId}/schedules/${scheduleId}/${command}`
