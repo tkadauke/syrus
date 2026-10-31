@@ -7,4 +7,10 @@ module Mcp::Tools::CoworkerObservabilityAuthorization
 
     McpToolRegistry.tool_permitted?(context, tool)
   end
+
+  def observability_unauthorized(server_context)
+    context = McpToolContext.from_server_context(server_context)
+    message = context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) ? "Observability access required" : "Admin access required"
+    Mcp::Tools.unauthorized(message)
+  end
 end

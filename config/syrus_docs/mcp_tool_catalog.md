@@ -180,11 +180,16 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `list_chats` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
 | `read_chat_messages` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
 | `search_chats` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
+| `admin_read_operational_logs` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
 | `ask_user_question` | coworker | essential | write | no | - | - | `chat.message_owner` | - |
 | `list_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
 | `propose_epic_with_jobs` | coworker | essential | write | no | - | - | `syrus.propose_job` | - |
 | `propose_job` | coworker | essential | write | no | - | - | `syrus.propose_job` | - |
+| `read_backend_exception_events` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
+| `read_browser_error_events` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
 | `read_job` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
+| `read_performance_log_events` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
+| `read_worker_health` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
 | `search_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
 | `suggest_next_step` | coworker | essential | write | no | - | - | `chat.message_owner` | - |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |

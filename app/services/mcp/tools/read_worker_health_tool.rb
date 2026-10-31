@@ -20,7 +20,7 @@ module Mcp::Tools
       include Mcp::Tools::CoworkerObservabilityAuthorization
 
       def call(server_context:, **arguments)
-        return Mcp::Tools.unauthorized("Observability access required") unless observability_authorized?(server_context)
+        return observability_unauthorized(server_context) unless observability_authorized?(server_context)
 
         payload = CommandRedactor.redact_value(
           ::Admin::WorkerHealthPayload.new(

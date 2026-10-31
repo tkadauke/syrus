@@ -19,7 +19,7 @@ module Mcp::Tools
       include CoworkerObservabilityAuthorization
 
       def call(server_context:, **arguments)
-        return Mcp::Tools.unauthorized("Observability access required") unless observability_authorized?(server_context)
+        return observability_unauthorized(server_context) unless observability_authorized?(server_context)
 
         revision_scope = arguments.fetch(:revision_scope, "current")
         result_limit = capped_limit(arguments.fetch(:limit, 50))

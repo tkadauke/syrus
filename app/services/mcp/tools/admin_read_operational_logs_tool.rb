@@ -17,7 +17,7 @@ module Mcp::Tools
       include Mcp::Tools::CoworkerObservabilityAuthorization
 
       def call(server_context:, query: nil, since: nil, level: nil, role: nil, hostname: nil, limit: 50)
-        return Mcp::Tools.unauthorized("Observability access required") unless observability_authorized?(server_context)
+        return observability_unauthorized(server_context) unless observability_authorized?(server_context)
         return OperationalLogSearch.disabled_response unless OperationalLogging.enabled_for_instance?
 
         OperationalLogSearch.search_response(query: query, since: since, level: level, role: role, hostname: hostname, limit: limit)

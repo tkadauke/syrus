@@ -7,7 +7,7 @@ module Mcp::Tools
     private
 
     def read_events(server_context:, payload_class:, **filters)
-      return Mcp::Tools.unauthorized("Observability access required") unless observability_authorized?(server_context)
+      return observability_unauthorized(server_context) unless observability_authorized?(server_context)
 
       params = filters.compact_blank.merge(per_page: capped_limit(filters[:limit]))
       payload = payload_class.new(params: params).as_json.deep_dup
