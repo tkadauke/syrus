@@ -6702,6 +6702,35 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(fresh_action.id)
   end
 
+  it "includes coworker tool review details in the pending-action card payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    sql = "SELECT * FROM audit_events WHERE detail = '#{"diagnostic " * 40}'"
+    action = chat.pending_actions.create!(
+      action: "coworker_tool_call",
+      requested_by: "agent",
+      payload: {
+        "tool_name" => "execute_query",
+        "arguments" => { "sql" => sql, "api_token" => "secret-token-value" },
+        "actor" => { "name" => "Gilfoyle", "handle" => "gilfoyle", "avatar_key" => "comet" }
+      }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "action" => "coworker_tool_call",
+        "review" => {
+          "tool_name" => "execute_query",
+          "arguments" => { "sql" => sql, "api_token" => "secret-token-value" },
+          "actor" => { "name" => "Gilfoyle", "handle" => "gilfoyle", "avatar_key" => "comet" }
+        }
+      )
+    )
+  end
+
   it "includes the created repository document result for a confirmed pending action" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
