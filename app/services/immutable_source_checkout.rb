@@ -681,7 +681,7 @@ class ImmutableSourceCheckout
   # publish dedupe could never find a reusable archive to attach. Record it
   # wherever it is resolved instead.
   def record_prepare_fingerprint!(snapshot, prepare_cache)
-    fingerprint = PreparedWorkspaceArchive.prepare_fingerprint_for(prepare_cache.plan)
+    fingerprint = prepare_cache.prepare_fingerprint
     return fingerprint if snapshot.prepare_fingerprint == fingerprint
 
     snapshot.update_columns(prepare_fingerprint: fingerprint, updated_at: Time.current)
@@ -803,7 +803,7 @@ class ImmutableSourceCheckout
   end
 
   def prepared_archive_metadata(snapshot, prepare_cache)
-    PreparedWorkspaceArchive.metadata(workflow: @workflow, snapshot: snapshot, plan: prepare_cache.plan)
+    PreparedWorkspaceArchive.metadata(workflow: @workflow, snapshot: snapshot, plan: prepare_cache.plan, path: path)
   end
 
   # Host-level, not workflow-level: see PreparedLayerCache. The old path lived
@@ -1190,7 +1190,7 @@ class ImmutableSourceCheckout
     end
 
     def fingerprint_for(plan)
-      PreparedWorkspaceArchive.prepare_fingerprint_for(plan)
+      PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: path)
     end
 
     def sanitized_worker_storage_key
