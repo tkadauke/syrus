@@ -16,6 +16,21 @@ module Coworkers
     ].freeze
     TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool ] + WORKSPACE_TOOLS).freeze
 
+    def self.coworker_grants
+      [
+        grant("workspace.files", "Workspace files", "Read and modify files in the coworker's workspace.", "auto", WORKSPACE_TOOLS),
+        grant("workspace.shell", "Workspace shell", "Run shell commands in the coworker's workspace.", "auto", []),
+        grant("coworker.message", "Message coworkers", "Send messages to other coworkers.", "auto", [ MessageCoworkerTool ]),
+        grant("coworker.spawn_chat", "Create side chats", "Create side chats with other coworkers.", "auto", []),
+        grant("schedule.manage_self", "Manage own schedule", "Create and manage the coworker's schedules.", "auto", [ ManageScheduleTool ])
+      ]
+    end
+
+    def self.grant(name, label, description, maximum_policy, tools)
+      { name: name, label: label, description: description, maximum_policy: maximum_policy,
+        tools: tools.map(&:tool_name) }
+    end
+
     def self.available_for?(chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end

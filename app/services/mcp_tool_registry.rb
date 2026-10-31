@@ -87,6 +87,22 @@ class McpToolRegistry
       raw.to_s.demodulize.sub(/Tool\z/, "").underscore.presence || "unknown"
     end
 
+    def coworker_grants
+      grouped = entries(surface: :coworker).group_by(&:capability)
+      metadata = {
+        "chat.message_owner" => [ "Message owner", "Ask questions and suggest next steps to the owner.", "auto" ],
+        "syrus.read_jobs" => [ "Read Jobs", "List, search, and read Syrus Jobs.", "auto" ],
+        "syrus.propose_job" => [ "Propose Jobs", "Propose Jobs and Epics for owner confirmation.", "auto" ],
+        "chats.read_shared" => [ "Read shared chats", "List, search, and read chats shared with the coworker.", "auto" ]
+      }
+      grouped.map do |capability, capability_entries|
+        label, description, maximum_policy = metadata.fetch(capability.to_s)
+        { name: capability.to_s, label: label, description: description,
+          maximum_policy: maximum_policy,
+          tools: capability_entries.map(&:tool_name).sort }
+      end
+    end
+
     def capability_permitted?(context, capability)
       surfaces_for_context(context).any? do |surface|
         entries(surface: surface).any? do |entry|

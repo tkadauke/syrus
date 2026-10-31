@@ -3,24 +3,33 @@ class Coworkers::GrantUpdate
 
   def self.call(...) = new(...).call
 
-  def initialize(owner:, coworker:, capability:, approval_policy:, constraints: {}, confirmed: false)
+  def initialize(owner:, coworker:, capability:, approval_policy:, constraints: {}, scope: nil, confirmed: false)
     @owner = owner
     @coworker = coworker
     @capability = capability.to_s
     @approval_policy = approval_policy.to_s
     @constraints = constraints.to_h
+    @scope = scope
     @confirmed = ActiveModel::Type::Boolean.new.cast(confirmed)
   end
 
   def call
     raise Pundit::NotAuthorizedError unless @owner.is_a?(User) && @coworker.owner_user_id == @owner.id
-    raise ArgumentError, "unknown capability" unless Coworkers::Create::DEFAULT_GRANTS.key?(@capability)
+    descriptor = Coworkers::GrantCatalog.fetch(@capability)
+    unless Coworkers::GrantCatalog.policy_allowed?(descriptor, @approval_policy)
+      raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}"
+    end
+    if descriptor.scopeable? && !descriptor.valid_scope?(@scope, user: @owner)
+      raise ArgumentError, "invalid scope for #{@capability}"
+    end
+    raise ArgumentError, "scope is not supported for #{@capability}" if !descriptor.scopeable? && @scope.present?
 
     target = Coworkers::GrantPolicy.for(@approval_policy)
     grant = @coworker.grants.find_by(capability: @capability)
     current = grant&.approval_policy || "off"
+    scope_escalated = grant && descriptor.scopeable? && grant.scope != @scope
     constraints_escalated = constraints_more_permissive?(grant)
-    if (target.escalation_from?(current) || constraints_escalated) && !@confirmed
+    if (target.escalation_from?(current) || constraints_escalated || scope_escalated) && !@confirmed
       raise ConfirmationRequired, "grant escalation requires confirmation"
     end
 
@@ -29,7 +38,7 @@ class Coworkers::GrantUpdate
         grant&.destroy!
       else
         grant ||= @coworker.grants.build(capability: @capability)
-        grant.update!(approval_policy: @approval_policy, constraints: normalized_constraints)
+        grant.update!(approval_policy: @approval_policy, constraints: normalized_constraints, scope: @scope)
       end
     end
   end

@@ -248,8 +248,8 @@ function NewCoworker() {
         </div>
         <fieldset>
           <legend className="mb-2 text-sm font-medium">{t("fields.grants")}</legend>
-          {["chat.message_owner", "coworker.message", "workspace.files", "workspace.shell", "chats.read_shared", "syrus.read_jobs"].map((grant) => (
-            <Checkbox className="mb-2" defaultChecked key={grant} label={grant} name="grants[]" value={grant} />
+          {(optionsQuery.data?.grant_catalog || []).map((grant) => (
+            <Checkbox className="mb-2" defaultChecked={grant.default_enabled} key={grant.name} label={grant.label} name="grants[]" value={grant.name} />
           ))}
         </fieldset>
         <label className="block text-sm font-medium">
@@ -417,17 +417,6 @@ function CoworkerApprovals({ id }: { id: string }) {
   )
 }
 
-const CAPABILITIES = [
-  "chat.message_owner",
-  "chats.read_shared",
-  "coworker.message",
-  "coworker.spawn_chat",
-  "schedule.manage_self",
-  "workspace.files",
-  "workspace.shell",
-  "syrus.read_jobs",
-  "syrus.propose_job"
-] as const
 const POLICY_RANK = { off: 0, queue: 1, confirm: 2, auto: 3 } as const
 
 function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
@@ -474,12 +463,14 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
   return (
     <section className="space-y-5">
       <div className="divide-y divide-border rounded border border-border bg-surface">
-        {CAPABILITIES.map((capability) => {
+        {(coworker.grant_catalog || []).map((descriptor) => {
+          const capability = descriptor.name
           const grant = coworker.grants.find((entry) => entry.capability === capability)
           return (
             <div className="space-y-3 p-4 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:space-y-0" key={capability}>
               <div>
-                <p className="text-sm">{t(`capabilities.sentences.${capability.replaceAll(".", "_")}`)}</p>
+                <p className="text-sm font-medium">{descriptor.label}</p>
+                <p className="text-xs text-text-secondary">{descriptor.description}</p>
                 {capability === "workspace.files" ? (
                   <div>
                     <label className="mt-2 block text-xs text-text-secondary">
@@ -508,7 +499,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 onChange={(event) => changePolicy(capability, event.target.value as keyof typeof POLICY_RANK)}
                 value={grant?.approval_policy || "off"}
               >
-                {(["auto", "confirm", "queue", "off"] as const).map((policy) => (
+                {(["auto", "confirm", "queue", "off"] as const).filter((policy) => POLICY_RANK[policy] <= POLICY_RANK[descriptor.maximum_policy]).map((policy) => (
                   <option key={policy} value={policy}>
                     {t(`capabilities.policies.${policy}`)}
                   </option>

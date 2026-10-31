@@ -29,6 +29,13 @@ module Syrus
     #   must additionally implement `.available_for_coworker?`; its absence is
     #   the deny-by-default behavior. Each safe definition must include a
     #   `capability:` value held by the coworker or it is still excluded.
+    #
+    # A tool-set that owns coworker capabilities may implement
+    # `.coworker_grants` and return descriptor hashes with `name`, `label`,
+    # `description`, `maximum_policy`, and `tools`. Scopeable descriptors also
+    # provide callable `scope_options`, `scope_label`, and `valid_scope` values.
+    # The coworkers plugin collects these declarations only from enabled
+    # providers; tool sets must not inspect or depend on one another.
     module ChatMcpToolSet
     end
   end

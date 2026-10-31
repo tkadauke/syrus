@@ -14,6 +14,7 @@ module Api
             coworkers: coworkers.map { |coworker| summary_json(coworker, weekly_spend_usd: weekly_spend.fetch(coworker.id)) },
             syrus: syrus_json,
             model_options: model_options_json,
+            grant_catalog: grant_catalog_json,
             provisioning_attempts: Coworkers::ProvisioningAttempt.where(owner_user: Current.user)
               .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status)
           }
@@ -79,6 +80,7 @@ module Api
           Coworkers::GrantUpdate.call(
             owner: Current.user, coworker: coworker, capability: params[:capability],
             approval_policy: params.require(:approval_policy), constraints: grant_constraints,
+            scope: params[:scope],
             confirmed: params[:confirmed]
           )
           render json: { coworker: detail_json(coworker.reload) }
@@ -296,7 +298,8 @@ module Api
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
-            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints } },
+            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints, scope: grant.scope }.compact },
+            grant_catalog: grant_catalog_json,
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
             message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
           )
@@ -309,6 +312,12 @@ module Api
             fire_at: task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,
             last_fired_at: task.last_fired_at&.iso8601
           }
+        end
+
+        def grant_catalog_json
+          Coworkers::GrantCatalog.all.map do |descriptor|
+            descriptor.as_json(user: Current.user).merge(default_enabled: Coworkers::Create::DEFAULT_GRANTS.key?(descriptor.name))
+          end
         end
 
         def schedule_params

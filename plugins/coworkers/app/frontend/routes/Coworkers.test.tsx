@@ -4,6 +4,18 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
 
+const grantCatalog = [
+  ["chat.message_owner", "Message owner", "This coworker can message its owner."],
+  ["chats.read_shared", "Read shared chats", "This coworker can read chats shared with it."],
+  ["coworker.message", "Message coworkers", "This coworker can message other coworkers."],
+  ["coworker.spawn_chat", "Create side chats", "This coworker can create side chats."],
+  ["schedule.manage_self", "Manage own schedule", "This coworker can manage its own schedule."],
+  ["workspace.files", "Workspace files", "This coworker can read and edit workspace files."],
+  ["workspace.shell", "Workspace shell", "This coworker can run commands in its workspace."],
+  ["syrus.read_jobs", "Read Jobs", "This coworker can read Syrus Jobs."],
+  ["syrus.propose_job", "Propose Jobs", "This coworker can propose Syrus Jobs."]
+].map(([name, label, description]) => ({ name, label, description, maximum_policy: "auto" as const, tools: [], scopeable: false, default_enabled: true }))
+
 const summaryPayload = {
   syrus: {
     id: "syrus",
@@ -40,7 +52,8 @@ const summaryPayload = {
         { id: "gpt-6.1-terra", label: "GPT-6.1 Terra" }
       ]
     }
-  ]
+  ],
+  grant_catalog: grantCatalog
 }
 
 const detailPayload = {
@@ -55,6 +68,7 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
+    grant_catalog: grantCatalog,
     schedules: [
       {
         id: 31,
@@ -160,7 +174,7 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   fireEvent.click(screen.getByRole("button", { name: /#0090FF/ }))
   fireEvent.click(screen.getByRole("button", { name: "Poppy" }))
   expect(screen.getByRole("dialog", { name: "Color" })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("checkbox", { name: "workspace.shell" }))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Workspace shell" }))
   fill("About (optional)", "Research lead")
   const upload = new File(["avatar"], "maya.png", { type: "image/png" })
   const fileInput = document.querySelector<HTMLInputElement>('input[name="avatar"]')

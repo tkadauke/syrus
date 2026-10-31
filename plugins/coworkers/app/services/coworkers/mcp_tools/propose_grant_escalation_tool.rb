@@ -10,7 +10,10 @@ module Coworkers::McpTools
     input_schema(
       properties: {
         coworker_id: { type: "integer" }, handle: { type: "string" },
-        grants: { type: "array", minItems: 1, items: { type: "string" } }
+        grants: { type: "array", minItems: 1, items: { anyOf: [
+          { type: "string" },
+          { type: "object", properties: { capability: { type: "string" }, scope: {} }, required: %w[capability scope], additionalProperties: false }
+        ] } }
       },
       required: %w[grants],
       oneOf: [ { required: [ "coworker_id" ] }, { required: [ "handle" ] } ]

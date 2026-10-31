@@ -163,13 +163,10 @@ module Admin
       submit_visual_review
     ].freeze
 
-    COWORKER_MCP_CAPABILITIES = %w[
-      chat.message_owner
-      chats.read_shared
-      coworker.message
-      syrus.propose_job
-      syrus.read_jobs
-    ].freeze
+    # Core decisions include core-owned grants plus the cross-coworker message
+    # surface that this registry historically audits. The complete runtime
+    # catalog remains plugin-owned and is checked by the coworkers guard spec.
+    COWORKER_MCP_CAPABILITIES = (McpToolRegistry.coworker_grants.map { |grant| grant.fetch(:name) } + [ "coworker.message" ]).uniq.freeze
 
     EXPLICIT_SURFACE_DECISIONS = begin
       decisions = {}

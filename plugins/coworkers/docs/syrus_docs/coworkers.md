@@ -56,7 +56,11 @@ rechecks the proposal and passes exactly the displayed fields to the normal
 creation service; rejection or withdrawal creates nothing. Coworker chats do
 not receive this tool. Adding capabilities to an existing coworker uses the
 separate `propose_coworker_grants` pending action; grants are unchanged until
-the owner confirms that escalation.
+the owner confirms that escalation. The available grant catalog is assembled
+at runtime from core and enabled chat-tool providers, so disabling a provider
+removes its declarations. Declaring owners validate optional JSON scope values
+and cap the most permissive approval policy; changing an existing scope is an
+escalation and the proposed scope is included in the confirmation payload.
 
 The complete owner-facing coworker tool inventory is `list_coworkers`,
 `read_coworker`, `propose_coworker`, and `propose_coworker_grants`. The list

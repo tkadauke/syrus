@@ -5,9 +5,19 @@ class Coworkers::Grant < ApplicationRecord
   belongs_to :coworker, inverse_of: :grants
   validates :capability, presence: true, uniqueness: { scope: :coworker_id }
   validates :approval_policy, inclusion: { in: APPROVAL_POLICIES }
+  validate :declared_grant
   after_initialize :default_constraints, if: :new_record?
 
   private
+
+  def declared_grant
+    descriptor = Coworkers::GrantCatalog.fetch(capability)
+    errors.add(:approval_policy, "exceeds maximum #{descriptor.maximum_policy}") unless Coworkers::GrantCatalog.policy_allowed?(descriptor, approval_policy)
+    errors.add(:scope, "is invalid") unless descriptor.valid_scope?(scope, user: coworker&.owner_user)
+    errors.add(:scope, "is not supported") if !descriptor.scopeable? && scope.present?
+  rescue KeyError
+    errors.add(:capability, "is not declared")
+  end
 
   def default_constraints = self.constraints ||= {}
 end

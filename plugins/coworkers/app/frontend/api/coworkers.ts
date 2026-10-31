@@ -22,7 +22,17 @@ export type CoworkerDetail = CoworkerSummary & {
   soul: string | null
   spend_usd: number
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
-  grants: { capability: string; approval_policy: string; constraints: { confirm_paths?: string[] } }[]
+  grants: { capability: string; approval_policy: string; constraints: { confirm_paths?: string[] }; scope?: unknown }[]
+  grant_catalog?: {
+    name: string
+    label: string
+    description: string
+    maximum_policy: "off" | "queue" | "confirm" | "auto"
+    tools: string[]
+    scopeable: boolean
+    scope_options?: unknown[]
+    default_enabled: boolean
+  }[]
   schedules: CoworkerSchedule[]
   available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]
   message_traffic: {
@@ -105,7 +115,7 @@ export type CoworkerWorkspacePayload = {
 }
 
 export const fetchCoworkers = () =>
-  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[]; provisioning_attempts: ProvisioningAttempt[] }>(
+  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[]; provisioning_attempts: ProvisioningAttempt[]; grant_catalog: CoworkerDetail["grant_catalog"] }>(
     "/api/v1/app/coworkers"
   )
 export const retryProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/retry`)

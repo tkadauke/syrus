@@ -1762,9 +1762,12 @@ counts, side-chat costs, and coworker-message traffic. These figures are
 informational and do not impose a budget or add coworker data to the instance
 Spending page.
 
-The Capabilities tab lists every coworker grant as a plain-language sentence.
-Owners can choose `auto`, `confirm`, `queue`, or `off`; enabling a capability
-or making its policy more permissive asks for a separate confirmation. The
+The Capabilities tab lists every grant declared by core and enabled tool
+owners, with its plain-language label and description. Owners can choose
+`auto`, `confirm`, `queue`, or `off` up to the grant owner's maximum policy;
+enabling a capability or making its policy more permissive asks for a separate
+confirmation. Scoped grants are limited to owner-valid choices, and changing
+an existing scope also requires confirmation. The
 workspace-files grant can also mark paths such as `SOUL.md` and `AGENTS.md` as
 always requiring confirmation. Gmail and Calendar are shown as disabled,
 coming-later integrations.

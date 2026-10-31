@@ -48,7 +48,9 @@ module Coworkers
     end
 
     def grant_payload(grant)
-      { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints || {} }
+      descriptor = Coworkers::GrantCatalog.fetch(grant.capability)
+      { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints || {},
+        scope: grant.scope, scope_label: grant.scope.present? ? descriptor.scope_label(grant.scope) : nil }
     end
 
     def safe_workspace_repository

@@ -36,7 +36,7 @@ class Coworkers::CreatePreflight
   end
 
   def validate_grants!
-    unknown = Array(@requested_grants).map(&:to_s) - Coworkers::Create::DEFAULT_GRANTS.keys
+    unknown = Array(@requested_grants).map(&:to_s) - Coworkers::GrantCatalog.names
     raise ArgumentError, "unknown grants: #{unknown.join(', ')}" if unknown.any?
   end
 
@@ -57,7 +57,9 @@ class Coworkers::CreatePreflight
 
   def selected_grants
     return Coworkers::Create::DEFAULT_GRANTS unless @requested_grants
-    Coworkers::Create::DEFAULT_GRANTS.slice(*Array(@requested_grants).map(&:to_s))
+    Array(@requested_grants).map(&:to_s).index_with do |name|
+      Coworkers::Create::DEFAULT_GRANTS.fetch(name) { Coworkers::GrantCatalog.fetch(name).maximum_policy }
+    end
   end
 
   def remote

@@ -66,4 +66,32 @@ RSpec.describe Coworkers::GrantUpdate do
       .to raise_error(Pundit::NotAuthorizedError)
     expect(coworker.grants).to be_empty
   end
+
+  it "enforces a declaring owner's maximum policy" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "limited.read", label: "Limited", description: "Limited", maximum_policy: "confirm", tools: [],
+      scope_options_callback: nil, scope_label_callback: nil, valid_scope_callback: nil
+    )
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("limited.read").and_return(descriptor)
+
+    expect {
+      described_class.call(owner: owner, coworker: coworker, capability: "limited.read", approval_policy: "auto", confirmed: true)
+    }.to raise_error(ArgumentError, /exceeds maximum confirm/)
+  end
+
+  it "persists a valid scope and confirms subsequent scope changes" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "scoped.read", label: "Scoped", description: "Scoped", maximum_policy: "auto", tools: [],
+      scope_options_callback: ->(user:) { [ user.id, user.id + 1 ] }, scope_label_callback: ->(value) { value.to_s },
+      valid_scope_callback: ->(value, user:) { [ user.id, user.id + 1 ].include?(value) }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("scoped.read").and_return(descriptor)
+    described_class.call(owner: owner, coworker: coworker, capability: "scoped.read", approval_policy: "confirm", scope: owner.id, confirmed: true)
+    grant = coworker.grants.find_by!(capability: "scoped.read")
+    expect(grant.scope).to eq(owner.id)
+
+    expect {
+      described_class.call(owner: owner, coworker: coworker, capability: "scoped.read", approval_policy: "confirm", scope: owner.id + 1)
+    }.to raise_error(Coworkers::GrantUpdate::ConfirmationRequired)
+  end
 end

@@ -958,6 +958,26 @@ and implement:
 | `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
 | `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
 
+Chat tool sets that expose tools to coworkers also own the grants for those
+tools. They declare them with a duck-typed `.coworker_grants` class method;
+the coworkers plugin aggregates declarations from the core registry and from
+enabled `chat_mcp_tool_set` providers at runtime. Each descriptor contains:
+
+| Key | Description |
+|---|---|
+| `name` | Stable persisted grant name |
+| `label`, `description` | Operator-facing catalog copy |
+| `maximum_policy` | Most permissive allowed policy (`queue`, `confirm`, or `auto`) |
+| `tools` | MCP tool names unlocked by the grant (an empty list is allowed for provider-native capabilities) |
+
+Scopeable grants additionally provide callable `scope_options(user:)`,
+`scope_label(value)`, and `valid_scope?(value, user:)` behavior through the
+descriptor's `scope_options`, `scope_label`, and `valid_scope` keys. Scope
+values must be JSON-compatible. The owner validates them on every create or
+update; changing an existing scope requires escalation confirmation. A tool
+advertised with `coworker_safe: true` must either name one of the owner's
+declared grants or explicitly set `coworker_grantless: true`.
+
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
 (e.g. only the `implement` step), not just the repository — see
