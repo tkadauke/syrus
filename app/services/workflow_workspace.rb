@@ -679,6 +679,9 @@ class WorkflowWorkspace
     authenticated_git("git_workflow_fetch_checkpoint") do |url|
       @git.run("fetch", url, checkpoint_ref, chdir: path.to_s, env: @env)
     end
+    # The clone may already have the destination branch checked out. Git
+    # refuses to fetch directly into a checked-out branch, so move it to the
+    # fetched checkpoint only after the object is available locally.
     @git.run("switch", "-C", @branch_name, "FETCH_HEAD", chdir: path.to_s)
   end
 
