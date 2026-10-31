@@ -102,14 +102,12 @@ module App
       classification = diff_review_file_classifier.classify(change.path)
       {
         path: change.path,
-        previous_path: change.previous_path,
         status: UI_STATUS.fetch(change.status, change.status),
         additions: change.additions,
         deletions: change.deletions,
-        patch: change.patch,
-        patch_status: change.patch_status,
-        patch_bytes: change.patch_bytes
-      }.merge(generated_file_metadata(classification))
+        patch: change.patch
+      }.merge(patch_metadata(change.previous_path, change.patch_status, change.patch_bytes))
+        .merge(generated_file_metadata(classification))
     end
 
     # The Job's own PR/stack base, not the repository's default branch — an
@@ -242,29 +240,29 @@ module App
     def file_json(file)
       {
         path: file[:path].to_s,
-        previous_path: file[:previous_path],
         status: file[:status].to_s,
         additions: file[:additions].to_i,
         deletions: file[:deletions].to_i,
         patch: file[:patch],
-        patch_status: file[:patch_status],
-        patch_bytes: file[:patch_bytes],
         is_image: image_file?(file[:path]) && file[:patch].nil?
-      }.merge(generated_hash(file[:generated], file[:generated_reason], file[:generated_source]))
+      }.merge(patch_metadata(file[:previous_path], file[:patch_status], file[:patch_bytes]))
+        .merge(generated_hash(file[:generated], file[:generated_reason], file[:generated_source]))
     end
 
     def stored_file_json(file)
       {
         path: file["path"].to_s,
-        previous_path: file["previous_path"],
         status: file["status"].to_s,
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,
         patch: file["patch"],
-        patch_status: file["patch_status"],
-        patch_bytes: file["patch_bytes"],
         is_image: image_file?(file["path"]) && file["patch"].nil?
-      }.merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
+      }.merge(patch_metadata(file["previous_path"], file["patch_status"], file["patch_bytes"]))
+        .merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
+    end
+
+    def patch_metadata(previous_path, patch_status, patch_bytes)
+      { previous_path: previous_path, patch_status: patch_status, patch_bytes: patch_bytes }.compact
     end
 
     # Binary/large-file detection isn't a real flag from GitHub's compare API

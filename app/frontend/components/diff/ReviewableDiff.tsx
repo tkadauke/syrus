@@ -2124,7 +2124,7 @@ export function UnifiedDiffTable({
                       {annotation === "covered" ? (
                         <span className="text-emerald-600 dark:text-emerald-400">✓</span>
                       ) : annotation === "uncovered" ? (
-                        <span className="text-red-600 dark:text-red-400">✗</span>
+                        <span className="text-danger">✗</span>
                       ) : null}
                     </div>
                   </td>
@@ -2151,7 +2151,7 @@ export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: strin
   const lines = hunk.replace(/\r\n/g, "\n").split("\n")
   const parsedLines = parseUnifiedDiff(hunk)
   return (
-    <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-800">
+    <div className="overflow-hidden rounded border border-border">
       {lines.map((line, index) => (
         <div
           className={`whitespace-pre px-2 py-0.5 font-mono text-2xs ${diffLineClass(parsedLines[index]?.kind ?? "context")} ${highlightLine != null && line === highlightLine ? "ring-1 ring-inset ring-brand" : ""}`}
