@@ -162,6 +162,16 @@ Capabilities that affect anything outside the workspace default to `confirm`
 or `queue`; messaging the owner defaults to `confirm`. Removing a protected
 file path is also an escalation and requires confirmation.
 
+Database, Kubernetes, log, and third-party integration grants are privileged.
+They are assignable and advertised only while a live worker reports verified
+`confined_coworker` execution and the Credential Store broker authorization
+path is enabled. The Capabilities tab explains which prerequisite is missing.
+If worker capability or broker health is lost, stored grants remain visible
+for audit and easy recovery but disappear from the coworker's runtime tool
+context until the gate is healthy again. Credentials stay inside broker
+services; grant state, tool metadata, workspaces, mounts, and logs contain only
+credential identifiers and redacted lease provenance, never secret material.
+
 Operator chat exposes the same aggregated catalog through
 `list_coworker_grants`. `propose_coworker_grants` accepts one or more desired
 capability, policy, and optional scope changes; `off` removes a grant and lower

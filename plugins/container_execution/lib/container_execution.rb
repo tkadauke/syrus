@@ -16,6 +16,7 @@ module ContainerExecution
     disableable true
 
     provides execution_backend: "ContainerExecution::Backend",
-             workflow_artifact_contributor: "ContainerExecution::WorkflowArtifactContributor"
+             workflow_artifact_contributor: "ContainerExecution::WorkflowArtifactContributor",
+             worker_capability_probe: "ContainerExecution::CoworkerCapabilityProbe"
   end
 end

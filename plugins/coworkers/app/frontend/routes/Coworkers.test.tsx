@@ -410,6 +410,33 @@ it("preserves a scoped grant when changing its policy and allows disabling it", 
   await waitFor(() => expect(requestBodies).toContainEqual(expect.objectContaining({ capability: "database.read", approval_policy: "off", scope: 22 })))
 })
 
+it("explains and disables a privileged grant when confinement is unavailable", async () => {
+  const descriptor = {
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: false,
+    default_enabled: false,
+    privileged: true,
+    available: false,
+    unavailable_reason: "confinement_unavailable" as const
+  }
+  const payload = { coworker: { ...detailPayload.coworker, grants: [], grant_catalog: [...grantCatalog, descriptor] } }
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => jsonResponse(payload))
+  )
+
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+
+  expect(screen.getByText("Unavailable until a live worker verifies confined coworker execution.")).toBeInTheDocument()
+  expect(screen.getByRole("combobox", { name: "Approval policy for database.read" })).toBeDisabled()
+})
+
 it("sends the displayed default scope when enabling a scoped grant", async () => {
   const descriptor = {
     name: "database.read",

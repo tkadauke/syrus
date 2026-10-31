@@ -507,6 +507,11 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 <p className="mt-1 text-xs text-text-secondary">
                   {t("capabilities.unlocks", { tools: descriptor.tools.join(", ") || t("capabilities.no_tools") })}
                 </p>
+                {descriptor.available === false ? (
+                  <p className="mt-2 rounded border border-warning-border bg-warning-bg px-2 py-1 text-xs text-warning-text">
+                    {t(`capabilities.unavailable.${descriptor.unavailable_reason || "confinement_unavailable"}`)}
+                  </p>
+                ) : null}
                 {capability === "workspace.files" ? (
                   <div>
                     <label className="mt-2 block text-xs text-text-secondary">
@@ -548,7 +553,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
               </div>
               <Select
                 aria-label={t("capabilities.policy_for", { capability })}
-                disabled={mutation.isPending}
+                disabled={mutation.isPending || descriptor.available === false}
                 onChange={(event) => changePolicy(capability, event.target.value as keyof typeof POLICY_RANK)}
                 value={grant?.approval_policy || "off"}
               >

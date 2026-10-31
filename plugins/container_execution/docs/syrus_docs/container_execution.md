@@ -123,3 +123,19 @@ authority. Container Execution therefore remains unavailable in that topology
 until an operator explicitly adds a worker-side Docker launch path and host path
 mappings. This keeps the plugin from claiming grader requests that would only
 fail at `docker run`.
+
+## Verified coworker confinement capability
+
+A worker advertises `runtime:confined_coworker` only after Container Execution
+is enabled with the Docker transport, MCP socket, dedicated network,
+controlled DNS, and every supported provider proxy configured, and a live
+Docker daemon probe succeeds. The signal is deliberately fail-closed: partial
+configuration is diagnostic state, never authorization. Scheduled coworker
+runs require this runtime token and therefore surface `no_capable_worker`
+rather than falling back to local execution.
+
+Pre-pull the configured seed image on candidate workers before rollout. Canary
+one worker and verify capability heartbeats plus container startup/teardown
+latency and orphan-container counts before widening the pool. Rollback by
+disabling privileged coworker grants first, then removing the canary; loss of
+the last verified worker suppresses those grants immediately.

@@ -170,6 +170,10 @@
     "confirm_paths": "Mutationes horum itinerum semper confirma (commatibus separata)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Fines serva",
+    "unavailable": {
+      "confinement_unavailable": "Non praesto donec operarius vivus executionem collegae clausam comprobet.",
+      "broker_authorization_unavailable": "Non praesto donec mediator credentialium probationesque auctoritatis habilitantur."
+    },
     "integrations": { "gmail": "Gmail", "calendar": "Calendarium" },
     "coming_later": "Postea adveniet"
   },

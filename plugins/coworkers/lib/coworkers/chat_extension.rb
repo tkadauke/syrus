@@ -38,8 +38,15 @@ module Coworkers
           agent.respond_to?(:execution_workload_policy) ? agent.execution_workload_policy : nil
         end
 
+        ChatSession.define_method(:agent_turn_admission) do |message|
+          agent = agent_turn_context(message).coworker
+          next {} unless agent.respond_to?(:kind) && agent.kind == "coworker"
+
+          Coworkers::PrivilegedGrantGate.turn_admission(agent)
+        end
+
         -> do
-          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy execution_workload_policy].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy execution_workload_policy agent_turn_admission].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end

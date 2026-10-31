@@ -164,6 +164,10 @@
     "confirm_paths": "Always confirm edits to these paths (comma-separated)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Save constraints",
+    "unavailable": {
+      "confinement_unavailable": "Unavailable until a live worker verifies confined coworker execution.",
+      "broker_authorization_unavailable": "Unavailable until the credential broker and its authorization checks are enabled."
+    },
     "integrations": { "gmail": "Gmail", "calendar": "Calendar" },
     "coming_later": "Coming later"
   },
