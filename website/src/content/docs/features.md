@@ -87,7 +87,9 @@ repositories without downloading every Job. Pinned, attention, and recently
 changed work is promoted above linked Epic and ungrouped aggregates. The board
 supports stage navigation, keyboard scrolling, and bounded stage drill-downs;
 configured deployment lanes are observational evidence, while Landed remains
-separate so undeployed changes stay visible. The projection is read-only;
+separate so undeployed changes stay visible. Partial delivery evidence is
+called out explicitly, and Job cards link through to their Job, latest
+Workflow, and delivery/release evidence. The projection is read-only;
 disabling or deleting the plugin does not alter Job or deployment state.
 
 Job kinds:
