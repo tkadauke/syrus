@@ -10,7 +10,7 @@ module Coworkers
       coworker = Coworkers::Coworker.find(job.origin_id)
       chat = coworker.coworker_chats.find_by!(role: "main").chat_session
       failed_run = workflow.steps.find_by!(kind: "coworker_run").runs.where(state: "failed").order(:created_at).last
-      merge = finalize_workspace!(chat:, workflow:, source_run: failed_run)
+      merge = finalize_once!(chat:, workflow:, source_run: failed_run)
       duration = (failed_run.finished_at - failed_run.started_at).round(1) if failed_run&.started_at && failed_run.finished_at
       summary = summary_for(failed_run, fallback: "Background task failed.")
 
@@ -34,7 +34,7 @@ module Coworkers
       chat = coworker.coworker_chats.find_by!(role: "main").chat_session
       source_run = workflow.steps.find_by!(kind: "coworker_run").runs.where(state: "succeeded").order(:created_at).last!
       summary = self.class.summary_for(source_run, fallback: "Background task completed.")
-      merge = self.class.finalize_workspace!(chat:, workflow:, source_run:, path: workspace.path)
+      merge = self.class.finalize_once!(chat:, workflow:, source_run:, path: workspace.path)
       duration = (source_run.finished_at - source_run.started_at).round(1) if source_run.started_at && source_run.finished_at
 
       self.class.post_once!(workflow:, chat:, merge:, content: {
@@ -63,6 +63,15 @@ module Coworkers
         locked.save!
         message
       end
+    end
+
+    def self.finalize_once!(chat:, workflow:, source_run:, path: nil)
+      recorded = workflow.reload.artifact(MERGE_ARTIFACT).presence
+      return recorded.to_sym if recorded
+
+      merge = finalize_workspace!(chat:, workflow:, source_run:, path:)
+      workflow.set_artifact!(MERGE_ARTIFACT, merge.to_s)
+      merge
     end
 
     def self.finalize_workspace!(chat:, workflow:, source_run:, path: nil)

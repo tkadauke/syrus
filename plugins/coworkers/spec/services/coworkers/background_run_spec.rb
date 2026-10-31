@@ -337,6 +337,28 @@ RSpec.describe "Coworker background runs" do
     expect(lifecycle).to have_received(:finalize_background!).once
   end
 
+  it "reuses the checkpointed merge outcome when delivery fails after finalization" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Calendar reviewed.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+    attempts = 0
+    allow(Coworkers::PostToChat).to receive(:post_once!).and_wrap_original do |method, **arguments|
+      attempts += 1
+      raise "delivery interrupted" if attempts == 1
+
+      method.call(**arguments)
+    end
+
+    expect { Coworkers::PostToChat.new(post_run).call }.to raise_error("delivery interrupted")
+    Coworkers::PostToChat.new(post_run).call
+
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("merged")
+    expect(main_chat.messages.count).to eq(1)
+    expect(lifecycle).to have_received(:finalize_background!).once
+  end
+
 
   it "posts a result without clearing an owner turn that started while the run was finishing" do
     workflow = Coworkers::Workflow.instantiate(job: job)

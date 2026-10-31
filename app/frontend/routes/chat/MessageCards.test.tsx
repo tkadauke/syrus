@@ -176,7 +176,13 @@ it("renders a background run result above its metadata", () => {
   const item = assistantMessage("Calendar reviewed.")
   item.content = {
     text: "Calendar reviewed.",
-    background_run: { state: "succeeded", summary: "Calendar reviewed.", duration_seconds: 12.5, cost_usd: "0.04" }
+    background_run: {
+      state: "succeeded",
+      summary: "Calendar reviewed.",
+      duration_seconds: 12.5,
+      cost_usd: "0.04",
+      merge_state: "merged"
+    }
   }
 
   renderChatMessageItem(item)
@@ -185,6 +191,7 @@ it("renders a background run result above its metadata", () => {
   const card = summary.parentElement
   expect(card).toHaveTextContent("Calendar reviewed.")
   expect(card).toHaveTextContent("12.5s · $0.04")
+  expect(card).toHaveTextContent("Workspace merged")
 })
 
 it("collapses a long background run result", () => {
