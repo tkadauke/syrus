@@ -1411,7 +1411,11 @@ through that plugin. Scheduled prompts that target Syrus performance work can
 ask the agent to call it before editing code. The tool uses the same
 current-revision/all-revisions filtering as the admin payload, returns bounded
 grouped summaries, and only includes sanitized raw recent events when
-explicitly requested.
+explicitly requested. Owners can grant coworkers the plugin-declared
+`syrus_dev.read_diagnostics` capability to expose that tool and
+`read_syrus_logs` with the same redaction and size bounds. The grant defaults
+to confirmation; without it, both tools stay absent, and the plugin never adds
+them to ordinary operator chats.
 
 ## Direct Jobs
 
