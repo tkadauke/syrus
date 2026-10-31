@@ -52,13 +52,15 @@ module MysqlDbBrowser
       end
     end
 
-    def self.connection!(id, context:)
+    def self.connection!(id, context:, tool_name: nil)
       connection = MysqlConnection.find_by(id: id)
       credential = CredentialMaterial.credential_for(connection) if connection
       unless connection && usable_by?(connection, context, credential: credential)
+        audit_coworker_refusal!(context: context, tool_name: tool_name)
         raise ConnectionNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
       end
       unless coworker_connection_in_scope?(connection, context)
+        audit_coworker_refusal!(context: context, tool_name: tool_name)
         raise ConnectionNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
       end
 
@@ -89,5 +91,23 @@ module MysqlDbBrowser
 
       context.capability_scopes["mysql.read"].to_s == connection.id.to_s
     end
+
+    def self.audit_coworker_tool_call!(context:, tool_name:, success:, error_message: nil)
+      return unless context&.role == AgentRole::COWORKER_CHAT
+
+      connection = MysqlConnection.find_by(id: context.capability_scopes["mysql.read"])
+      return unless connection
+
+      QueryAudit.record_tool_call!(connection: connection, user: context.user, actor: context.agent_actor,
+        tool_name: tool_name, success: success, error_message: error_message)
+    end
+
+    def self.audit_coworker_refusal!(context:, tool_name:)
+      return if tool_name.blank?
+
+      audit_coworker_tool_call!(context: context, tool_name: tool_name, success: false,
+        error_message: "Rejected: MySQL connection was not found or is outside the coworker grant scope.")
+    end
+    private_class_method :audit_coworker_refusal!
   end
 end

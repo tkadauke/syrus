@@ -20,6 +20,7 @@ module MysqlDbBrowser
           payload = {
             mysql_connections: AgenticAccess.safe_connection_metadata(context: context)
           }
+          AgenticAccess.audit_coworker_tool_call!(context: context, tool_name: tool_name, success: true)
           MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ])
         end
       rescue StandardError => e
