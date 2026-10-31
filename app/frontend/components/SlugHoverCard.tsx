@@ -41,6 +41,7 @@ interface SlugReferenceCardProps {
   id: number
   slug?: string
   children: ReactNode
+  onOpenChange?: (open: boolean) => void
 }
 
 function PluginPreviewCard({ Component, id }: { Component: ComponentType<PluginSlugPreviewCardProps> | null; id: number }) {
@@ -74,7 +75,7 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
 
-export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugReferenceCardProps) {
+export function SlugReferenceCard({ entry, id, slug: slugProp, children, onOpenChange }: SlugReferenceCardProps) {
   const { t } = useT("common")
   const [isOpen, setIsOpen] = useState(false)
   const [surfaceIsMounted, setSurfaceIsMounted] = useState(false)
@@ -104,12 +105,13 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
       setSurfaceIsVisible(false)
       setSurfaceIsMounted(true)
       setIsOpen(true)
+      onOpenChange?.(true)
       enterFrame.current = window.requestAnimationFrame(() => {
         setSurfaceIsVisible(true)
         enterFrame.current = null
       })
     },
-    [entry.previewAvailable, hasActions]
+    [entry.previewAvailable, hasActions, onOpenChange]
   )
 
   const close = useCallback(() => {
@@ -118,6 +120,7 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
       enterFrame.current = null
     }
     setIsOpen(false)
+    onOpenChange?.(false)
     setSurfaceIsVisible(false)
 
     if (surfaceMode === "actions" && !canHover.current) {
@@ -133,7 +136,7 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
     } else {
       setSurfaceIsMounted(false)
     }
-  }, [surfaceMode])
+  }, [onOpenChange, surfaceMode])
 
   const handleReferenceEnter = useCallback(() => {
     if (!entry.previewAvailable) return
@@ -355,6 +358,7 @@ type LegacySlugHoverCardProps = {
   prefix?: string
   href?: string | null
   children: ReactNode
+  onOpenChange?: (open: boolean) => void
 }
 
 const legacyEntries: Record<LegacySlugHoverCardProps["kind"], SlugReferenceRegistryEntry> = {
@@ -382,12 +386,12 @@ function legacyEntry(prefix: string, type: string, options: { hrefTemplate?: str
   }
 }
 
-export function SlugHoverCard({ kind, prefix, href, id, children }: LegacySlugHoverCardProps) {
+export function SlugHoverCard({ kind, prefix, href, id, children, onOpenChange }: LegacySlugHoverCardProps) {
   const baseEntry = prefix ? { ...legacyEntries.plugin, prefix, pluginPreviewComponent: pluginSlugPreviewCardComponentForPrefix(prefix) } : legacyEntries[kind]
   const entry = href ? { ...baseEntry, hrefTemplate: href, linkable: true } : baseEntry
 
   return (
-    <SlugReferenceCard entry={entry} id={id}>
+    <SlugReferenceCard entry={entry} id={id} onOpenChange={onOpenChange}>
       {children}
     </SlugReferenceCard>
   )
