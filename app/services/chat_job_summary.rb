@@ -60,9 +60,13 @@ class ChatJobSummary
   def epic_progress(epic_ids)
     return {} if epic_ids.empty?
 
-    totals = Job.where(epic_id: epic_ids).group(:epic_id).count
-    completed = Job.where(epic_id: epic_ids, state: %w[implemented approved landing closed no_change_needed]).group(:epic_id).count
-    epic_ids.to_h { |id| [ id, { completed: completed[id].to_i, total: totals[id].to_i } ] }
+    state_counts = Job.where(epic_id: epic_ids).group(:epic_id, :state).count
+    epic_ids.to_h do |id|
+      counts = state_counts.each_with_object({}) do |((epic_id, state), count), result|
+        result[state] = count if epic_id == id
+      end
+      [ id, { total: counts.values.sum, state_counts: counts } ]
+    end
   end
 
   def outcome_transition_times(job_ids)
@@ -91,7 +95,13 @@ class ChatJobSummary
       started_at: workflow&.started_at&.iso8601,
       finished_at: group.in?(%w[failed ready]) ? (transition_time || job.updated_at)&.iso8601 : nil,
       app_path: "/jobs/#{job.id}",
-      epic: job.epic && progress ? { id: job.epic.id, slug: job.epic.slug, completed: progress[:completed], total: progress[:total] } : nil
+      epic: job.epic && progress ? {
+        id: job.epic.id,
+        slug: job.epic.slug,
+        title: job.epic.title,
+        total: progress[:total],
+        state_counts: progress[:state_counts]
+      } : nil
     }.compact
   end
 

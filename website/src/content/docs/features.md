@@ -737,7 +737,11 @@ failed or PR-ready outcomes; collapsed groups roll those states up. Opening a
 chat clears its outcome glyphs for that participant, while unread messages
 remain indicated by the bold title. Hover or keyboard-focus the indicator
 cluster for the per-Job and Epic breakdown plus goal, pending-action, and
-scratch-pad details.
+scratch-pad details. Jobs from the same Epic are grouped under one compact Epic
+summary in each status section, with segmented state progress and current-step
+counts. Healthy and PR-ready Epic groups stay collapsed by default, while
+failed groups open to show the affected Jobs. Large standalone Job lists scroll
+inside the popover instead of growing with the page.
 The sidebar settings also offer an unread-only toggle. The currently open chat
 stays in the filtered list after being marked read, then disappears after you
 navigate away.
