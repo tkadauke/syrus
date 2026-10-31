@@ -52,6 +52,20 @@ RSpec.describe SdlcPipeline::Projection do
     expect(payload[:drill_down][:items].length).to eq(3)
   end
 
+  it "promotes the current user's pinned work before attention and recent activity" do
+    recent = Factories.job_record(repository: repository, user: user, state: "running", issue_number: 301, updated_at: 1.minute.ago)
+    attention = Factories.job_record(repository: repository, user: user, state: "running", issue_number: 302, updated_at: 2.minutes.ago)
+    attention.set_needs_attention!(reason: "grader failed")
+    pinned = Factories.job_record(repository: repository, user: user, state: "running", issue_number: 303, updated_at: 1.day.ago)
+    Factories.job_pin(user: user, job: pinned)
+
+    payload = described_class.new(repository: repository, user: user).call
+    items = payload[:stages].find { |stage| stage[:key] == "implementing" }[:highlighted_items]
+
+    expect(items.map { |item| item[:id] }).to eq([ pinned.id, attention.id, recent.id ])
+    expect(items.first[:pinned]).to be(true)
+  end
+
   it "excludes terminal Jobs without successful completion evidence" do
     Factories.job_record(
       repository: repository,
