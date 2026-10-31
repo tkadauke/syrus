@@ -322,7 +322,10 @@ module Api
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
-            grants: coworker.grants.order(:capability).map { |grant| { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints, scope: grant.scope } },
+            grants: coworker.grants.order(:capability).map { |grant|
+              { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints }
+                .merge(grant.scope.nil? ? {} : { scope: grant.scope })
+            },
             grant_catalog: grant_catalog_json,
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
             message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
