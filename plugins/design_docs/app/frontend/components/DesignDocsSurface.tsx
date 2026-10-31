@@ -652,7 +652,10 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const canonicalRevisionRef = useRef(doc.canonical_revision)
   const autosaveAttemptFingerprintRef = useRef<string | null>(null)
   const autosavePromiseRef = useRef<Promise<DesignDocWritePayload> | null>(null)
+  const autosaveTimeoutRef = useRef<number | null>(null)
   const reviewQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const reviewFlushPromiseRef = useRef<Promise<void> | null>(null)
+  const reviewIntentRef = useRef(false)
   const failedAutosaveFingerprintRef = useRef<string | null>(null)
   const [autosaveError, setAutosaveError] = useState<string | null>(null)
   const [writeError, setWriteError] = useState<string | null>(null)
@@ -753,13 +756,39 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   })
   const reviewMutation = useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => {
+      reviewIntentRef.current = true
+      if (autosaveTimeoutRef.current != null) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+        autosaveTimeoutRef.current = null
+      }
+      reviewFlushPromiseRef.current ??= (async () => {
+        await autosavePromiseRef.current
+        const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
+        if (fingerprint === persistedDraftRef.current) return
+        if (fingerprint === failedAutosaveFingerprintRef.current) throw new Error(autosaveError || t("error_write"))
+
+        const promise = autosaveMutation.mutateAsync()
+        autosavePromiseRef.current = promise
+        try {
+          await promise
+        } finally {
+          if (autosavePromiseRef.current === promise) autosavePromiseRef.current = null
+        }
+      })()
       const operation = reviewQueueRef.current
         .catch(() => undefined)
         .then(async () => {
-          await autosavePromiseRef.current?.catch(() => undefined)
+          await reviewFlushPromiseRef.current
           return decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id)
         })
-      reviewQueueRef.current = operation.then(() => undefined, () => undefined)
+      const queued = operation.then(() => undefined, () => undefined)
+      reviewQueueRef.current = queued
+      queued.finally(() => {
+        if (reviewQueueRef.current === queued) {
+          reviewIntentRef.current = false
+          reviewFlushPromiseRef.current = null
+        }
+      })
       return operation
     },
     onMutate: (): ReviewScrollSnapshot => {
@@ -1121,14 +1150,22 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     if (fingerprint === failedAutosaveFingerprintRef.current) return
     if (autosaveMutation.isPending) return
 
+    if (reviewIntentRef.current) return
+
     const timeout = window.setTimeout(() => {
+      autosaveTimeoutRef.current = null
+      if (reviewIntentRef.current) return
       const promise = autosaveMutation.mutateAsync()
       autosavePromiseRef.current = promise
       promise.catch(() => undefined).finally(() => {
         if (autosavePromiseRef.current === promise) autosavePromiseRef.current = null
       })
     }, 800)
-    return () => window.clearTimeout(timeout)
+    autosaveTimeoutRef.current = timeout
+    return () => {
+      window.clearTimeout(timeout)
+      if (autosaveTimeoutRef.current === timeout) autosaveTimeoutRef.current = null
+    }
   }, [autosaveMutation.isPending, autosaveMutation.mutateAsync, doc.id, draft, effectiveChangeMode, isArchived, title])
 
   function selectVersion(versionId: string) {
@@ -1349,6 +1386,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
                   className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
                   contentEditable={!isArchived}
                   onBlur={() => {
+                    if (reviewIntentRef.current) return
                     setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
                     window.setTimeout(() => {
                       if (document.activeElement === newThreadComposerRef.current) return
@@ -1418,6 +1456,13 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
           }}
           onReplyChange={(threadId, body) => setReplyBodies((current) => ({ ...current, [threadId]: body }))}
           onResolve={(threadId) => resolveMutation.mutate(threadId)}
+          onReviewIntent={() => {
+            reviewIntentRef.current = true
+            if (autosaveTimeoutRef.current != null) {
+              window.clearTimeout(autosaveTimeoutRef.current)
+              autosaveTimeoutRef.current = null
+            }
+          }}
           onReview={(id, decision) => reviewMutation.mutate({ id, decision })}
         />
       </aside>
@@ -2022,7 +2067,7 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact, composerRef, doc, drawerDismissed, drawerOpen, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, narrowView, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onDismissDrawer, onDrawerOpenChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact, composerRef, doc, drawerDismissed, drawerOpen, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, narrowView, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onDismissDrawer, onDrawerOpenChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReviewIntent, onReview }: {
   canComment: boolean
   canReviewSuggestions: boolean
   commentPending: boolean
@@ -2053,6 +2098,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
   onResolve: (threadId: number) => void
+  onReviewIntent: () => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const { t } = useT("design_docs")
@@ -2171,6 +2217,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact
                 onFocus={onFocusSuggestion}
                 onReply={onReply}
                 onReplyChange={onReplyChange}
+                onReviewIntent={onReviewIntent}
                 onReview={onReview}
               />
             ))}
@@ -2231,6 +2278,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact
                 onFocus={onFocusSuggestion}
                 onReply={onReply}
                 onReplyChange={onReplyChange}
+                onReviewIntent={onReviewIntent}
                 onReview={onReview}
               />
             ))}
@@ -2317,7 +2365,7 @@ function CommentThreadCard({ focused, readOnly = false, replyBody, style, thread
   )
 }
 
-function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, style, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
+function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, style, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReviewIntent, onReview }: {
   canReview: boolean
   focused: boolean
   readOnly?: boolean
@@ -2328,6 +2376,7 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
   onFocus: (suggestionId: number) => void
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
+  onReviewIntent: () => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const { t } = useT("design_docs")
@@ -2358,6 +2407,7 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
       {readOnly ? null : canReview ? (
         <div className="mt-3 flex gap-2">
           <Button
+            onPointerDown={onReviewIntent}
             onClick={(event) => {
               event.stopPropagation()
               onReview(suggestion.id, "accept")
@@ -2368,6 +2418,7 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
             {t("accept")}
           </Button>
           <Button
+            onPointerDown={onReviewIntent}
             onClick={(event) => {
               event.stopPropagation()
               onReview(suggestion.id, "reject")
@@ -2786,7 +2837,7 @@ function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [
     .join("")
 }
 
-function wysiwygHtmlToMarkdown(element: HTMLElement | null) {
+export function wysiwygHtmlToMarkdown(element: HTMLElement | null) {
   if (!element) return ""
 
   return Array.from(element.childNodes)
@@ -2848,7 +2899,23 @@ function inlineMarkdownChildren(node: HTMLElement) {
 }
 
 function originalMarkdownForSuggestionPreview(node: HTMLElement) {
-  return node.dataset.originalMarkdown ?? node.querySelector("[data-review-original]")?.textContent ?? node.querySelector("del")?.textContent ?? ""
+  let markdown = node.dataset.originalMarkdown ?? node.querySelector("[data-review-original]")?.textContent ?? node.querySelector("del")?.textContent ?? ""
+  const listItem = node.closest("li")
+  if (listItem) markdown = markdown.replace(/^\s*(?:[-+*]|\d+\.)\s+/, "")
+
+  for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    if (ancestor.tagName === "STRONG" || ancestor.tagName === "B") markdown = stripWrappingMarkdown(markdown, "**")
+    if (ancestor.tagName === "EM" || ancestor.tagName === "I") markdown = stripWrappingMarkdown(markdown, "*")
+    if (ancestor.contentEditable === "true") break
+  }
+
+  return markdown
+}
+
+function stripWrappingMarkdown(markdown: string, delimiter: string) {
+  return markdown.startsWith(delimiter) && markdown.endsWith(delimiter) && markdown.length >= delimiter.length * 2
+    ? markdown.slice(delimiter.length, -delimiter.length)
+    : markdown
 }
 
 function isReviewOnlyElement(node: HTMLElement) {
