@@ -60,6 +60,7 @@ RSpec.describe PersistentMcpDaemon::WorkflowContextResolver do
       allow(Mcp::Sidecar).to receive(:plugin_workflow_tools_for).with(have_attributes(role: AgentRole::COWORKER)).and_return([ plugin_tool ])
 
       resolved = described_class.resolve(raw_context(token))
+      expect(resolved.server_context).to include(chat_session: main_chat)
       expect(resolved.allowed_tool_names).not_to include("unsafe_plugin_workflow_tool")
       expect(Mcp::Sidecar).not_to have_received(:plugin_workflow_tools_for)
 
