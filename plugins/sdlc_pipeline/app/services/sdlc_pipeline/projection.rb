@@ -20,7 +20,12 @@ module SdlcPipeline
       deployment_plan = RepoDeploymentStagesReader.for_repository(repository)
       entries = Stage.entries(deployment_plan.stages)
       jobs = load_jobs.select { |job| Stage.for(job, entries) }
+      job_ids = jobs.map(&:id)
+      @pinned_job_ids = JobPin.where(user_id: user.id, job_id: job_ids).pluck(:job_id).to_set
+      @latest_workflow_ids = Workflow.where(job_id: job_ids).group(:job_id).maximum(:id)
       grouped = jobs.group_by { |job| Stage.for(job, entries).key }
+      final_deployment_key = deployment_plan.stages.last && "deployment:#{deployment_plan.stages.last.name}"
+      incomplete_evidence_count = delivery_evidence_gap_count(jobs, entries, final_deployment_key)
 
       {
         repository_id: repository.id,
@@ -31,7 +36,11 @@ module SdlcPipeline
           recent_completion_limit: RECENT_TAIL_LIMIT,
           page_limit_max: PAGE_MAX
         },
-        stages: entries.map { |entry| stage_payload(entry, grouped.fetch(entry.key, [])) },
+        evidence: {
+          status: incomplete_evidence_count.positive? ? "partial" : "complete",
+          incomplete_count: incomplete_evidence_count
+        },
+        stages: entries.map { |entry| stage_payload(entry, grouped.fetch(entry.key, []), release_tail: entry.key == final_deployment_key) },
         groups: group_payload(jobs, entries),
         drill_down: drill_down_payload(grouped)
       }.compact
@@ -44,7 +53,7 @@ module SdlcPipeline
     def load_jobs
       relation = Job.visible_to(user)
         .where(repository_id: repository.id)
-        .includes(:epic, :deployment_stage_statuses, :job_pins)
+        .includes(:epic, :deployment_stage_statuses)
         .order(updated_at: :desc, id: :desc)
 
       open_jobs = relation.where.not(state: Job::TERMINAL_STATES).to_a
@@ -55,13 +64,14 @@ module SdlcPipeline
       (open_jobs + recent).uniq(&:id)
     end
 
-    def stage_payload(entry, jobs)
+    def stage_payload(entry, jobs, release_tail: false)
       ordered = ordered_jobs(jobs)
       ages = jobs.map { |job| age_seconds(job, entry.key) }
       {
         key: entry.key,
         label: entry.label,
         kind: entry.kind,
+        release_tail: release_tail,
         total: jobs.length,
         attention_count: jobs.count(&:needs_attention?),
         aging_count: ages.count { |age| age >= AGING_AGE },
@@ -101,7 +111,7 @@ module SdlcPipeline
     def ordered_jobs(jobs)
       jobs.sort_by do |job|
         [
-          job.job_pins.any? { |pin| pin.user_id == user.id } ? 0 : 1,
+          pinned?(job) ? 0 : 1,
           job.needs_attention? ? 0 : 1,
           -activity_at(job).to_f,
           -job.id
@@ -118,7 +128,8 @@ module SdlcPipeline
         epic: job.epic && { id: job.epic.id, slug: job.epic.slug, title: job.epic.title },
         needs_attention: job.needs_attention?,
         attention_reason: job.needs_attention_reason,
-        pinned: job.job_pins.any? { |pin| pin.user_id == user.id },
+        pinned: pinned?(job),
+        paths: item_paths(job, stage_key),
         age_seconds: age_seconds(job, stage_key).to_i,
         evidence: evidence(job, stage_key)
       }
@@ -151,5 +162,27 @@ module SdlcPipeline
     end
 
     def activity_at(job) = job.needs_attention_since || job.updated_at || job.created_at
+
+    def pinned?(job) = @pinned_job_ids.include?(job.id)
+
+    def item_paths(job, stage_key)
+      latest_workflow_id = @latest_workflow_ids[job.id]
+      paths = {
+        job: "/jobs/#{job.slug}",
+        workflow: latest_workflow_id && "/jobs/#{job.slug}?tab=workflows#workflow-#{latest_workflow_id}"
+      }.compact
+      paths[:delivery] = paths[:job] if stage_key.start_with?("deployment:") || stage_key == "landed"
+      paths[:release] = paths[:job] if stage_key.start_with?("deployment:")
+      paths
+    end
+
+    def delivery_evidence_gap_count(jobs, entries, final_deployment_key)
+      return 0 unless final_deployment_key
+
+      jobs.count do |job|
+        stage = Stage.for(job, entries)
+        stage&.key == "landed" || (stage&.kind == "deployment" && stage.key != final_deployment_key)
+      end
+    end
   end
 end

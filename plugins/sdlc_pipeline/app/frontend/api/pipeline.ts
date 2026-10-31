@@ -11,6 +11,7 @@ export type PipelineItem = {
   pinned?: boolean
   age_seconds: number
   evidence: { type: string; state?: string; stage_name?: string }
+  paths: { job: string; workflow?: string; delivery?: string; release?: string }
 }
 
 export type PipelineGroup = {
@@ -34,6 +35,7 @@ export type PipelineStage = {
   key: string
   label: string
   kind: "lifecycle" | "deployment"
+  release_tail?: boolean
   total: number
   attention_count: number
   aging_count: number
@@ -47,6 +49,7 @@ export type PipelinePayload = {
   tabs: RepositoryTab[]
   stages: PipelineStage[]
   groups: PipelineGroup[]
+  evidence: { status: "complete" | "partial"; incomplete_count: number }
   drill_down?: PipelineDrillDown
 }
 
