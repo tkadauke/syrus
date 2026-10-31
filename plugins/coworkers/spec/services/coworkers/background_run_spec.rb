@@ -130,7 +130,9 @@ RSpec.describe "Coworker background runs" do
     SQL
     SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
     McpToolRegistry.entries(surface: :coworker).map(&:capability).compact.uniq.each do |capability|
-      coworker.grants.create!(capability: capability, approval_policy: "queue")
+      attributes = { capability: capability, approval_policy: "queue" }
+      attributes[:scope] = [ repository.id ] if capability.to_s == "code.read"
+      coworker.grants.create!(attributes)
     end
     workflow = Coworkers::Workflow.instantiate(job: job)
     run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
