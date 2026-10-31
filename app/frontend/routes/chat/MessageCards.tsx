@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { memo, useRef, useState } from "react"
-import type { ComponentProps, ReactNode } from "react"
+import type { ComponentProps, CSSProperties, ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -60,7 +60,7 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 import { ToolErrorCard } from "./toolErrorCard"
 import { Avatar } from "../../components/Avatar"
-import { accentRamp } from "../../lib/appearance"
+import { accentDark, accentRamp } from "../../lib/appearance"
 
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
@@ -111,6 +111,40 @@ export const ChatMessage = memo(function ChatMessage({
     }
 
     if (workspaceHrefLooksLocal(href)) event.preventDefault()
+  }
+
+  const coworkerMessage = coworkerMessageMetadata(item)
+  if (coworkerMessage?.direction === "incoming") {
+    return (
+      <CoworkerMessage
+        appearance={item.coworker_sender}
+        fallbackHandle={coworkerMessage.sender_handle}
+        item={item}
+        text={withoutCoworkerMessagePrefix(item.text, "from", coworkerMessage.sender_handle)}
+        entranceClass={entranceClass}
+        payload={payload}
+        queryKey={queryKey}
+        readOnly={readOnly}
+        onNotice={onNotice}
+      />
+    )
+  }
+
+  if (coworkerMessage?.direction === "outgoing") {
+    return (
+      <CoworkerMessage
+        appearance={item.coworker_receiver}
+        fallbackHandle={coworkerMessage.receiver_handle}
+        item={item}
+        text={withoutCoworkerMessagePrefix(item.text, "to", coworkerMessage.receiver_handle)}
+        entranceClass={entranceClass}
+        payload={payload}
+        queryKey={queryKey}
+        readOnly={readOnly}
+        onNotice={onNotice}
+        systemNote
+      />
+    )
   }
 
   if (item.role === "user") {
@@ -204,6 +238,82 @@ export const ChatMessage = memo(function ChatMessage({
     </SharedMessageRenderer>
   )
 }, sameChatMessageProps)
+
+type CoworkerMessageMetadata = {
+  direction?: "incoming" | "outgoing"
+  sender_handle?: string
+  receiver_handle?: string
+}
+
+function coworkerMessageMetadata(item: ChatMessageItem): CoworkerMessageMetadata | null {
+  if (!isPlainObject(item.content) || item.content.source !== "coworker_message" || !isPlainObject(item.content.coworker_message)) return null
+  return item.content.coworker_message as CoworkerMessageMetadata
+}
+
+export function withoutCoworkerMessagePrefix(text: string, direction: "from" | "to", handle?: string) {
+  if (!handle) return text
+  const prefix = `Message ${direction} @${handle}`
+  return text === prefix ? "" : text.startsWith(`${prefix}\n\n`) ? text.slice(prefix.length + 2) : text
+}
+
+function CoworkerMessage({
+  appearance,
+  fallbackHandle,
+  item,
+  text,
+  entranceClass,
+  payload,
+  queryKey,
+  readOnly,
+  onNotice,
+  systemNote = false
+}: {
+  appearance: ChatMessageItem["coworker_sender"]
+  fallbackHandle?: string
+  item: ChatMessageItem
+  text: string
+  entranceClass: string
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  readOnly: boolean
+  onNotice: (message: string | null) => void
+  systemNote?: boolean
+}) {
+  const { t } = useT("chat")
+  const colors = appearance ? accentRamp(appearance.accent_hex) : null
+  const darkColors = appearance ? accentDark(appearance.accent_hex) : null
+  const label = appearance?.name || (fallbackHandle ? `@${fallbackHandle}` : "—")
+  const accentStyle =
+    colors && darkColors
+      ? ({
+          "--coworker-message-wash": colors.wash,
+          "--coworker-message-dark-wash": darkColors.wash,
+          borderLeftColor: colors.solid
+        } as CSSProperties)
+      : undefined
+  return (
+    <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly}>
+      <span className="absolute -top-4" id={`message-${item.id}`} />
+      {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
+      <div
+        className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 ${colors ? "coworker-message-accent" : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40"}`}
+        style={accentStyle}
+        data-testid={systemNote ? "coworker-outgoing-message" : "coworker-incoming-message"}
+      >
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium">
+          <Avatar avatarUrl={appearance?.avatar_url} avatarKey={appearance?.avatar_key} accentHex={appearance?.accent_hex} name={label} size="xs" />
+          <span className="truncate">{label}</span>
+          {systemNote && fallbackHandle ? (
+            <span className="truncate font-normal text-text-muted">{t("coworker_message_to", { handle: fallbackHandle })}</span>
+          ) : null}
+        </div>
+        {text.trim() ? <ChatAssistantMarkdownSurface text={text} /> : null}
+        <MessageImageAttachments attachments={item.attachments} />
+        <MessageFileAttachments attachments={item.attachments} />
+      </div>
+    </SharedMessageRenderer>
+  )
+}
 
 type BackgroundRun = {
   state?: string

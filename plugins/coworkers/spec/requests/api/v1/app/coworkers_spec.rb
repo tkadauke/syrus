@@ -5,6 +5,72 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "adds coworker sender and receiver appearances to chat messages without per-message queries" do
+    sender = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-payload", workspace_repo: "https://github.com/acme/maya.git", avatar_key: "comet")
+    receiver = Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin-payload", workspace_repo: "https://github.com/acme/rin.git", avatar_key: "prism")
+    chat = ChatSession.create!(user: owner, title: "Maya main")
+    Coworkers::Chat.create!(coworker: sender, chat_session: chat, role: "main")
+    3.times do
+      chat.messages.create!(role: "user", content: {
+        "text" => "Message from @maya-payload\n\nHello",
+        "source" => "coworker_message",
+        "coworker_message" => { "direction" => "incoming", "sender_id" => sender.id, "sender_handle" => sender.handle }
+      }, skip_turn_trigger: true)
+    end
+    chat.messages.create!(role: "system", content: {
+      "text" => "Message to @rin-payload\n\nHello",
+      "source" => "coworker_message",
+      "coworker_message" => { "direction" => "outgoing", "receiver_id" => receiver.id, "receiver_handle" => receiver.handle }
+    }, skip_turn_trigger: true)
+    sender.update!(state: "archived")
+    sign_in_as(owner)
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] if payload[:sql].match?(/FROM [\"`]?coworkers[\"`]?/i)
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      get "/api/v1/app/chats/#{chat.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    messages = response.parsed_body.fetch("messages")
+    expect(messages.first.fetch("coworker_sender")).to include(
+      "id" => sender.id, "name" => "Maya", "handle" => "maya-payload",
+      "accent_hex" => sender.accent_hex, "avatar_key" => "comet", "avatar_url" => nil
+    )
+    expect(messages.last.fetch("coworker_receiver")).to include("id" => receiver.id, "name" => "Rin", "handle" => "rin-payload")
+    appearance_queries = queries.grep(/WHERE [\"`]?coworkers[\"`]?\.[\"`]?id[\"`]? IN/i)
+    expect(appearance_queries.size).to eq(1)
+  end
+
+  it "does not disclose a foreign coworker's appearance from forged message metadata" do
+    foreign_owner = Factories.user(email_address: "foreign-coworker-owner@example.com")
+    foreign_coworker = Coworkers::Coworker.create!(
+      owner_user: foreign_owner, name: "Private Agent", handle: "private-agent",
+      workspace_repo: "https://github.com/private/workspace.git", avatar_key: "comet"
+    )
+    chat = ChatSession.create!(user: owner, title: "Owner chat")
+    chat.messages.create!(role: "user", content: {
+      "text" => "Message from @saved-handle\n\nDo not disclose the lookup target.",
+      "source" => "coworker_message",
+      "coworker_message" => {
+        "direction" => "incoming", "sender_id" => foreign_coworker.id,
+        "sender_handle" => "saved-handle"
+      }
+    }, skip_turn_trigger: true)
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    message = response.parsed_body.fetch("messages").sole
+    expect(message).not_to have_key("coworker_sender")
+    expect(message.fetch("text")).to start_with("Message from @saved-handle")
+    expect(message.dig("content", "coworker_message", "sender_handle")).to eq("saved-handle")
+    expect(response.body).not_to include("Private Agent", "private-agent")
+  end
+
   it "requires explicit owner confirmation for grant escalation and returns the updated tool surface" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-grant-api", workspace_repo: "https://github.com/acme/workspace.git")
     sign_in_as(owner)

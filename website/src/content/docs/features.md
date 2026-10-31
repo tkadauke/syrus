@@ -1733,6 +1733,13 @@ the same home-branch merge and conflict reporting as chat turns; failed runs
 also count toward schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
+Coworkers can start a direct exchange with `message_coworker`. An incoming
+coworker message automatically sends the receiving coworker's final answer
+back to its author, carrying the original turn through a maximum of three
+hops. A reply containing only `NO_REPLY` ends the exchange without displaying
+or delivering that reply. Pair rate limits and active-coworker checks apply to
+both manual messages and automatic replies.
+
 When an owner opens a cross-chat bridge thread to a coworker's chat, the
 coworker can reply through that existing thread without an additional grant or
 confirmation. The reply tool cannot open threads or address arbitrary chats:
@@ -1744,16 +1751,25 @@ plain text written only in its own chat is not relayed to the owner chat.
 Coworker conversations are kept
 in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
-Syrus option. A chat owner can share a conversation read-only with one of their
+Syrus option. Messages between coworkers show the other coworker's name,
+avatar, and accent color in both the sender's and receiver's chats. A chat owner
+can share a conversation read-only with one of their
 own coworkers; a coworker with the shared-chat grant can list, search, and read
 its own and shared chats, but cannot post to arbitrary chats. Coworker chats
 have no Planning/Coding mode selector: every turn can update identity and
 memory files through tools confined to that coworker's workspace. Attached
 product repositories remain read-only, and Syrus owns workspace commits and
-pushes. The plugin does not yet expose workspace execution screens. Chat owners can add an owned coworker to
-an agent roster from its page or from mention autocomplete, see the roster in
-the chat heading, and remove it later. Disabling the plugin removes its page,
-chat grouping, and other runtime contributions while
+pushes. The system prompt makes memory maintenance a standing duty: before
+replying, coworkers save durable facts, preferences, decisions, commitments,
+opinions, lessons, and project context without asking permission. Updates are
+short, factual, append-oriented, never contain credentials or secrets, and are
+reported as saved only after the workspace tool succeeds. Newly created
+coworkers receive the same expectation in their kickoff and seeded operating
+rules; existing workspaces retain their old seeded rules but receive the current
+system prompt. The plugin does not yet expose workspace execution screens.
+Chat owners can add an owned coworker to an agent roster from its page or from
+mention autocomplete, see the roster in the chat heading, and remove it later.
+Disabling the plugin removes its page, chat grouping, and other runtime contributions while
 preserving stored records for later re-enablement.
 
 Coworker cards show current-week spend. Each coworker's Activity tab combines

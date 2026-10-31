@@ -10,6 +10,14 @@
    the cascade regardless of import position. */
 @import "./generated/themes.generated.css";
 
+.coworker-message-accent {
+  background-color: var(--coworker-message-wash);
+}
+
+.dark .coworker-message-accent {
+  background-color: var(--coworker-message-dark-wash);
+}
+
 html,
 body {
   overscroll-behavior: none;

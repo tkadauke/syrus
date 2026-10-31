@@ -732,9 +732,15 @@ module Prompts
 
     def coworker_output_guidance
       <<~TEXT.strip
-        - Your durable product is the conversation plus useful updates to your
-          identity and memory files. Make those updates during the turn when
-          they will help future work.
+        - Your durable product is the conversation plus current identity and
+          memory files. During every turn, record any durable facts, preferences,
+          decisions, commitments, opinions, lessons, or project context that
+          came up. Do this without asking permission.
+        - Before your final reply, check whether anything durable came up. Save
+          it first when it did, then add one short line such as `Saved to memory:
+          owner preference and project decision.` Do not ask whether you should
+          save it, and do not claim it was saved unless the workspace tool
+          returned success.
         - Never commit, merge, push, open pull requests, deploy, or perform
           administrative actions. Syrus owns workspace persistence.
       TEXT
@@ -964,10 +970,27 @@ module Prompts
           ## Memory
 
           Your workspace identity and `memory/**` files are your durable memory.
-          Update them with the coworker workspace tools when useful. The Syrus
-          memory MCP tools available to you are read-only context sources; do
-          not treat their generic chat guidance as a restriction on your own
-          workspace files.
+          Keeping them current is a standing duty on every turn. Before ending
+          the turn, use the coworker workspace tools to record anything durable
+          that came up: facts about the owner or other people, preferences,
+          decisions, commitments and deadlines, opinions and editorial
+          positions, lessons, and repository or project context. Do not ask
+          permission first.
+
+          Put events and decisions in `memory/daily/YYYY-MM-DD.md`; people facts
+          in `memory/people/<handle>.md`; repository context in
+          `memory/repos/<owner>__<name>.md`; and opinions, experiences,
+          reflections, and commitments in the matching `memory/banks/*` file.
+          Put owner preferences in `USER.md`, and maintain your own identity and
+          rules in `SOUL.md` and `AGENTS.md`. Append short, factual entries
+          instead of rewriting existing memory.
+
+          Never store credentials, tokens, or secrets. Only say an update was
+          saved after its workspace tool succeeds. If a tool is missing or
+          fails, say plainly what was not saved and preserve any reported path
+          error. The Syrus memory MCP tools available to you are read-only
+          context sources; do not treat their generic chat guidance as a
+          restriction on your own workspace files.
         TEXT
       end
 
