@@ -677,9 +677,12 @@ class WorkflowWorkspace
 
   def checkout_checkpoint_ref!
     authenticated_git("git_workflow_fetch_checkpoint") do |url|
-      @git.run("fetch", url, "#{checkpoint_ref}:refs/heads/#{@branch_name}", chdir: path.to_s, env: @env)
+      @git.run("fetch", url, checkpoint_ref, chdir: path.to_s, env: @env)
     end
-    @git.run("switch", "--", @branch_name, chdir: path.to_s)
+    # The clone may already have the destination branch checked out. Git
+    # refuses to fetch directly into a checked-out branch, so move it to the
+    # fetched checkpoint only after the object is available locally.
+    @git.run("checkout", "-B", @branch_name, "FETCH_HEAD", chdir: path.to_s)
   end
 
   # Distinguishes a genuinely empty/uninitialized remote (zero branches —
