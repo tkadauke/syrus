@@ -65,6 +65,7 @@ RSpec.describe ChatProviders::Claude do
         )
 
         expect(result.session_id).to eq("chat-session-1")
+        expect(File.read(received[:mcp_config])).to eq(File.read(mcp_config_path))
         expect(received).to include(
           workspace_path: workspace_path,
           prompt: "What is the plan?",

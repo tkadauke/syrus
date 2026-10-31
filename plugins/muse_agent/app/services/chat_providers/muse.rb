@@ -39,7 +39,7 @@ module ChatProviders
     end
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
-               stop_requested:, process_started:)
+               stop_requested:, process_started:, workload_policy: nil)
       require_full_coworker_workspace_access!
       if resume_session_id.present? && !wait_for_held_session
         return held_session_result(resume_session_id)
@@ -52,7 +52,8 @@ module ChatProviders
         mcp_config: mcp_config,
         resume_session_id: resume_session_id,
         stop_requested: stop_requested,
-        process_started: process_started
+        process_started: process_started,
+        workload_policy: workload_policy
       )
 
       if resume_session_id.present? && stale_resume_failure?(result)
@@ -67,7 +68,8 @@ module ChatProviders
           mcp_config: mcp_config,
           resume_session_id: nil,
           stop_requested: stop_requested,
-          process_started: process_started
+          process_started: process_started,
+          workload_policy: workload_policy
         )
       end
 
@@ -121,7 +123,7 @@ module ChatProviders
     end
 
     def run_invocation(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
-                       stop_requested:, process_started:)
+                       stop_requested:, process_started:, workload_policy:)
       MuseInvocation.new(
         workspace_path,
         prompt: prompt,
@@ -135,7 +137,8 @@ module ChatProviders
         muse_home: ChatWorkspace.agent_home_for(chat, provider),
         mcp_server: self.class.mcp_server_for(mcp_config),
         stop_requested: stop_requested,
-        process_started: process_started
+        process_started: process_started,
+        workload_policy: workload_policy
       ).run
     end
 

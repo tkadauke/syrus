@@ -41,7 +41,7 @@ module ChatProviders
     end
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
-               stop_requested:, process_started:)
+               stop_requested:, process_started:, workload_policy: nil)
       require_full_coworker_workspace_access!
       timing = CodexInvocation::StartupTiming.new(
         source: "codex_chat",
@@ -55,7 +55,8 @@ module ChatProviders
         resume_session_id: resume_session_id,
         stop_requested: stop_requested,
         process_started: process_started,
-        startup_timing: timing
+        startup_timing: timing,
+        workload_policy: workload_policy
       )
     end
 
@@ -74,7 +75,7 @@ module ChatProviders
     end
 
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, mcp_config:,
-                         resume_session_id:, stop_requested:, process_started:, startup_timing:)
+                         resume_session_id:, stop_requested:, process_started:, startup_timing:, workload_policy:)
       codex_home = ChatWorkspace.agent_home_for(chat, provider)
       codex_auth = CodexAuth.new(user: chat.user, codex_home: codex_home)
       lock_started_at = startup_timing.now
@@ -96,7 +97,8 @@ module ChatProviders
           resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
           stop_requested: stop_requested,
           process_started: process_started,
-          startup_timing: startup_timing
+          startup_timing: startup_timing,
+          workload_policy: workload_policy
         ).run
       ensure
         startup_timing.measure("auth_persist", mode: chat.user.codex_auth_mode) do

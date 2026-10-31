@@ -136,7 +136,7 @@ module AgentProviders
     private
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
-              model: nil, effort_level: nil, **_ignored)
+              model: nil, effort_level: nil, workload_policy: nil, **_ignored)
       log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
 
       invoke_with_auth(
@@ -147,12 +147,13 @@ module AgentProviders
         mcp: mcp,
         resume_session_id: resume_session_id,
         model: model,
-        effort_level: effort_level
+        effort_level: effort_level,
+        workload_policy: workload_policy
       )
     end
 
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
-                         model: nil, effort_level: nil)
+                         model: nil, effort_level: nil, workload_policy: nil)
       codex_home = WorkflowWorkspace.agent_home_for(workflow, provider)
       codex_auth = CodexAuth.new(user: job.user, codex_home: codex_home)
       auth = CodexAuth.with_refresh_lock(user: job.user) { codex_auth.prepare! }
@@ -171,7 +172,8 @@ module AgentProviders
           resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
           model: model,
           effort_level: effort_level,
-          env: cli_invocation_env
+          env: cli_invocation_env,
+          workload_policy: workload_policy
         ).run
       ensure
         codex_auth.persist_updated_auth_json

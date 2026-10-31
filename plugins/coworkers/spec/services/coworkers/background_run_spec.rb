@@ -371,6 +371,10 @@ RSpec.describe "Coworker background runs" do
     handler.call
 
     expect(run.reload.agent_summary).to eq("## Verdict\n\nAll clear.")
+    expect(handler).to have_received(:run_agent).with(
+      prompt: run.prompt,
+      workload_policy: an_instance_of(Coworkers::ExecutionWorkloadPolicy)
+    )
   end
 
   it "uses the final top-level assistant transcript when the stored summary is blank" do

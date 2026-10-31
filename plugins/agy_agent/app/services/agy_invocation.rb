@@ -29,7 +29,8 @@ class AgyInvocation
                  required_mcp_tools: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { },
-                 on_session_id: ->(_session_id) { })
+                 on_session_id: ->(_session_id) { },
+                 workload_policy: nil)
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @api_key = api_key
@@ -48,6 +49,7 @@ class AgyInvocation
     @stop_requested = stop_requested
     @process_started = process_started
     @on_session_id = on_session_id
+    @workload_policy = workload_policy
   end
 
   def run
@@ -68,7 +70,8 @@ class AgyInvocation
       required_mcp_tools: @required_mcp_tools,
       stop_requested: @stop_requested,
       process_started: @process_started,
-      on_session_id: @on_session_id
+      on_session_id: @on_session_id,
+      **(@workload_policy ? { workload_policy: @workload_policy } : {})
     )
   end
 
@@ -80,7 +83,7 @@ class AgyInvocation
                      env: nil,
                      required_mcp_tools: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
-                     on_session_id: ->(_session_id) { })
+                     on_session_id: ->(_session_id) { }, workload_policy: nil)
     agy_home = agy_home.presence || File.join(Dir.home, ".agy")
     FileUtils.mkdir_p(agy_home)
     write_mcp_config(agy_home, mcp_servers.presence || mcp_server, log_sink) if mcp_servers.present? || mcp_server
@@ -128,6 +131,7 @@ class AgyInvocation
       agent: current_agent,
       stop_requested: stop_requested,
       on_spawned_process: process_started,
+      workload_policy: workload_policy,
       max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
       on_output_line_too_long: AgentInvocation.oversized_event_handler("Agy"),
       on_output_line: ->(line) do

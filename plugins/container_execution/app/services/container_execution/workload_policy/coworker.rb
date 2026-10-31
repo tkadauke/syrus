@@ -7,7 +7,7 @@ module ContainerExecution
         request.kind.to_s == "agent" &&
           Configuration.mcp_socket_path.present? &&
           request.mounts.read_only.empty? && request.mounts.artifacts.nil? &&
-          request.mounts.read_write.length == 2
+          authorized_read_write_mounts?
       end
 
       # Network allowlisting follows in the network-confinement phase. A
@@ -26,6 +26,16 @@ module ContainerExecution
           "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=#{Configuration.coworker_tmpfs_size}"
         ]
       end
+
+      private
+
+      def authorized_read_write_mounts?
+        expected_paths = [ request.mounts.workdir, request.env["HOME"] ].compact.map { |path| expanded(path) }
+        mounted_paths = request.mounts.read_write.map(&:host_path).map { |path| expanded(path) }
+        expected_paths.length == 2 && expected_paths.uniq.length == 2 && mounted_paths.sort == expected_paths.sort
+      end
+
+      def expanded(path) = Pathname.new(path.to_s).expand_path.to_s
     end
   end
 end

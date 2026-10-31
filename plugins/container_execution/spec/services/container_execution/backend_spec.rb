@@ -150,6 +150,25 @@ RSpec.describe ContainerExecution::Backend do
     end
   end
 
+  it "rejects coworker requests whose writable mounts are not the checkout and declared provider home" do
+    configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+    agent_home = File.join(@container_workspace, "agent-home")
+    other_workspace = File.join(@container_workspace, "other-workspace")
+    FileUtils.mkdir_p([ agent_home, other_workspace ])
+    policy = instance_double(Coworkers::ExecutionWorkloadPolicy, custom_coworker?: true)
+    unsafe_mounts = ProcessRunner.mounts(
+      @container_workspace,
+      read_write: [ @container_workspace, other_workspace ]
+    )
+
+    unsafe_request = request(
+      kind: "agent", workload_policy: policy, mounts: unsafe_mounts,
+      env: { "HOME" => agent_home }
+    )
+
+    expect(described_class.available_for?(unsafe_request)).to be(false)
+  end
+
   def configure_container_execution(host_paths: nil)
     ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"] = "syrus-worker:test"
     configure_docker_command

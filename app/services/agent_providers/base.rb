@@ -93,7 +93,7 @@ module AgentProviders
     end
 
     def run(prompt:, log_sink:, max_turns: nil, required_mcp_tools: nil, disallowed_tools: nil,
-           model: nil, effort_level: nil)
+           model: nil, effort_level: nil, workload_policy: nil)
       invoke(
         workspace_path: workspace.path,
         prompt: prompt,
@@ -105,7 +105,8 @@ module AgentProviders
         required_mcp_tools: required_mcp_tools,
         disallowed_tools: disallowed_tools,
         model: model,
-        effort_level: effort_level
+        effort_level: effort_level,
+        workload_policy: workload_policy
       )
     end
 
