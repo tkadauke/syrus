@@ -78,7 +78,8 @@ module App
       preload_mentionables(records)
       preload_chat_shell_commands(records)
       preload_cross_chat_bridges(records)
-      records.map { |message| message_json(message) }
+      payloads = records.map { |message| message_json(message) }
+      ChatPayloadContributions.message_payload(messages: records, payloads: payloads)
     end
 
     private

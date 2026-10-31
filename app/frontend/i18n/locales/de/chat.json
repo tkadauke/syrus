@@ -3283,5 +3283,6 @@
   "admin_kill_process_confirmation_one": "Prozess {{targets}} beenden?",
   "admin_kill_process_confirmation_other": "Prozesse {{targets}} beenden?",
   "admin_kill_process_catalog_targets": "#41, #42 und #43",
-  "show_complete_message": "Vollständige Nachricht anzeigen"
+  "show_complete_message": "Vollständige Nachricht anzeigen",
+  "coworker_message_to": "an @{{handle}}"
 }

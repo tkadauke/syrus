@@ -449,6 +449,17 @@ export type ChatMessageItem = {
   sidechain?: boolean
   parent_tool_use_id?: string | null
   cross_chat_bridge?: ChatCrossChatBridge | null
+  coworker_sender?: ChatCoworkerAppearance | null
+  coworker_receiver?: ChatCoworkerAppearance | null
+}
+
+export type ChatCoworkerAppearance = {
+  id: number
+  name: string
+  handle: string
+  accent_hex: string
+  avatar_key: string | null
+  avatar_url: string | null
 }
 
 export type ChatMessageMention = {

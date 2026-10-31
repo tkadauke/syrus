@@ -3283,5 +3283,6 @@
   "admin_kill_process_confirmation_one": "Kill process {{targets}}?",
   "admin_kill_process_confirmation_other": "Kill processes {{targets}}?",
   "admin_kill_process_catalog_targets": "#41, #42, and #43",
-  "show_complete_message": "Show complete message"
+  "show_complete_message": "Show complete message",
+  "coworker_message_to": "to @{{handle}}"
 }
