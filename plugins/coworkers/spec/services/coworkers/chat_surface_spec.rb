@@ -433,6 +433,17 @@ RSpec.describe "Coworker chat surface" do
     expect(yielded).to eq("GIT_TERMINAL_PROMPT" => "0")
   end
 
+  it "passes an explicit fail-closed workload policy only for the coworker agent invocation" do
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@agent_chat, chat)
+
+    options = job.send(:execution_workload_options)
+
+    expect(options.fetch(:workload_policy)).to be_a(Coworkers::ExecutionWorkloadPolicy)
+    expect(options.fetch(:workload_policy)).to be_fail_closed
+  end
+
   it "runs home-branch persistence before releasing the turn lock" do
     message = chat.messages.create!(role: "user", content: { "text" => "Remember this" })
     job = ChatTurnJob.new

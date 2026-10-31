@@ -140,7 +140,7 @@ module AgentProviders
     end
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:,
-              required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil)
+              required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil, workload_policy: nil)
       on_session_id = ->(sid) { @run.update_columns(live_session_id: sid) rescue nil }
       if mcp
         decision = mcp_transport_decision
@@ -158,7 +158,7 @@ module AgentProviders
                         disallowed_tools: disallowed_tools,
                         model: model,
                         effort_level: effort_level,
-                        on_session_id: on_session_id)
+                        on_session_id: on_session_id, workload_policy: workload_policy)
         end
       else
         invoke_claude(workspace_path: workspace_path,
@@ -172,7 +172,7 @@ module AgentProviders
                       disallowed_tools: disallowed_tools,
                       model: model,
                       effort_level: effort_level,
-                      on_session_id: on_session_id)
+                      on_session_id: on_session_id, workload_policy: workload_policy)
       end
     end
 
@@ -192,7 +192,7 @@ module AgentProviders
 
     def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:,
                       required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil,
-                      on_session_id: ->(_) { })
+                      on_session_id: ->(_) { }, workload_policy: nil)
       invocation_user = job.user.reload
       ClaudeInvocation.new(
         workspace_path,
@@ -209,7 +209,8 @@ module AgentProviders
         model: model,
         effort_level: effort_level,
         env: cli_invocation_env,
-        on_session_id: on_session_id
+        on_session_id: on_session_id,
+        workload_policy: workload_policy
       ).run
     ensure
       ClaudeUsageProbe.refresh_for(user: invocation_user) if invocation_user&.claude_oauth_token.present?
