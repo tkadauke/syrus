@@ -1226,27 +1226,29 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
   return (
     <details className="group/tool min-w-0 max-w-full overflow-hidden" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
-        className="flex min-w-0 max-w-full cursor-pointer flex-wrap items-baseline gap-x-2 gap-y-1 py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:flex-nowrap dark:text-gray-300 dark:hover:text-gray-100"
+        className="grid min-w-0 max-w-full cursor-pointer grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)] items-baseline gap-x-2 overflow-hidden whitespace-nowrap py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
         }}
       >
         <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="min-w-0 max-w-full break-words font-medium text-gray-900 [overflow-wrap:anywhere] sm:max-w-1/2 sm:shrink-0 dark:text-gray-100">
+        <span className="min-w-0 truncate font-medium text-gray-900 dark:text-gray-100" title={summary}>
           {summary}
         </span>
         <Pill className="shrink-0 text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
-        <span className="min-w-0 basis-full whitespace-normal break-words font-mono text-gray-600 [overflow-wrap:anywhere] sm:basis-auto sm:flex-1 sm:truncate dark:text-gray-400">
-          {details}
-        </span>
         {item.calls.length > 1 ? (
-          <Pill className="ml-auto shrink-0 text-xs" tone="neutral">
+          <Pill className="shrink-0 text-xs" tone="neutral">
             {item.calls.length}
           </Pill>
-        ) : null}
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400" title={details || undefined}>
+          {details}
+        </span>
       </summary>
       <div className="mt-1 min-w-0 max-w-full space-y-2 border-l border-gray-200 pl-3 text-xs sm:ml-5 dark:border-gray-700">
         {item.calls.map((call) => {
