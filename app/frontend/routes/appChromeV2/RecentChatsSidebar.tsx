@@ -1242,8 +1242,8 @@ function JobActivityRows({
     <div className="mt-1 space-y-1.5" data-testid={`job-group-${group}`}>
       {Array.from(epicRows.values()).map(({ epic, jobs }) => {
         const key = `${group}-${epic.id}`
-        const isExpanded = expanded[key] ?? (group === "failed" || (epic.state_counts.failed ?? 0) > 0)
-        const progressed = ["implemented", "approved", "landing", "closed", "no_change_needed"].reduce((sum, state) => sum + (epic.state_counts[state] ?? 0), 0)
+        const isExpanded = expanded[key] ?? epic.needs_attention
+        const progressed = ["merged", "approved", "implemented"].reduce((sum, state) => sum + (epic.state_counts[state] ?? 0), 0)
         const stepCounts = jobs.reduce<Record<string, number>>((counts, job) => {
           const label = job.step || job.state
           counts[label] = (counts[label] ?? 0) + 1
