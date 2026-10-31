@@ -140,7 +140,7 @@ describe("mobile jobs list row", () => {
   it("truncates long titles instead of letting them widen the viewport", () => {
     mockMobileViewport()
     const longTitle = "main_grader:e7e0e7b265416479972bc0775728b307ee4ba88e"
-    renderTable([ mobileJobItem({ title: longTitle }) ])
+    renderTable([mobileJobItem({ title: longTitle })])
 
     const title = screen.getByRole("link", { name: longTitle })
     expect(title).toHaveClass("block", "min-w-0", "max-w-full", "truncate")
@@ -149,28 +149,28 @@ describe("mobile jobs list row", () => {
 
   it("does not render the workflow count", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem() ])
+    renderTable([mobileJobItem()])
 
     expect(screen.queryByText(/workflow/i)).not.toBeInTheDocument()
   })
 
   it("does not render a redundant approval label for an approved job", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ approved_at: "2026-07-31T12:00:00Z" }) ])
+    renderTable([mobileJobItem({ approved_at: "2026-07-31T12:00:00Z" })])
 
     expect(screen.queryByText("Approved")).not.toBeInTheDocument()
   })
 
   it("does not render a not-approved label", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ approved_at: null }) ])
+    renderTable([mobileJobItem({ approved_at: null })])
 
     expect(screen.queryByText("Not approved")).not.toBeInTheDocument()
   })
 
   it("renders the job kind on the same metadata line as the job slug", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ kind: "direct" }) ])
+    renderTable([mobileJobItem({ kind: "direct" })])
 
     const slug = screen.getByText("JOB-3")
     const kindLabel = screen.getByText("Direct")
@@ -182,11 +182,13 @@ describe("mobile jobs list row", () => {
 
   it("uses the latest workflow's start time instead of the job's own started_at", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({
-      started_at: "2026-07-31T11:00:00Z",
-      created_at: "2026-07-31T10:00:00Z",
-      latest_workflow_started_at: "2026-07-31T11:30:00Z"
-    }) ])
+    renderTable([
+      mobileJobItem({
+        started_at: "2026-07-31T11:00:00Z",
+        created_at: "2026-07-31T10:00:00Z",
+        latest_workflow_started_at: "2026-07-31T11:30:00Z"
+      })
+    ])
 
     const time = screen.getByRole("article", { name: "Job 3" }).querySelector("time")
     expect(time?.getAttribute("dateTime")).toBe("2026-07-31T11:30:00Z")
@@ -194,11 +196,13 @@ describe("mobile jobs list row", () => {
 
   it("falls back to the job's started_at when there is no latest workflow start yet", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({
-      started_at: "2026-07-31T11:00:00Z",
-      created_at: "2026-07-31T10:00:00Z",
-      latest_workflow_started_at: null
-    }) ])
+    renderTable([
+      mobileJobItem({
+        started_at: "2026-07-31T11:00:00Z",
+        created_at: "2026-07-31T10:00:00Z",
+        latest_workflow_started_at: null
+      })
+    ])
 
     const time = screen.getByRole("article", { name: "Job 3" }).querySelector("time")
     expect(time?.getAttribute("dateTime")).toBe("2026-07-31T11:00:00Z")
@@ -206,7 +210,7 @@ describe("mobile jobs list row", () => {
 
   it("renders a single structural metadata line when nothing needs attention", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem() ])
+    renderTable([mobileJobItem()])
 
     const article = screen.getByRole("article", { name: "Job 3" })
     expect(article.querySelectorAll('div[class*="gap-x-1.5"]')).toHaveLength(1)
@@ -214,7 +218,7 @@ describe("mobile jobs list row", () => {
 
   it("splits blocked_reason onto a second attention line, below the structural line", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ blocked_reason: { key: "landing_paused" } }) ])
+    renderTable([mobileJobItem({ blocked_reason: { key: "landing_paused" } })])
 
     const article = screen.getByRole("article", { name: "Job 3" })
     const rows = article.querySelectorAll('div[class*="gap-x-1.5"]')
@@ -225,7 +229,7 @@ describe("mobile jobs list row", () => {
 
   it("renders a manual-pause pill on the attention line, not the structural line", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ manual_paused: true }) ])
+    renderTable([mobileJobItem({ manual_paused: true })])
 
     const article = screen.getByRole("article", { name: "Job 3" })
     const rows = article.querySelectorAll('div[class*="gap-x-1.5"]')
@@ -236,30 +240,32 @@ describe("mobile jobs list row", () => {
 
   it("explains why an approved external PR job is actionable before retry metadata", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({
-      kind: "external_pr",
-      state: "approved",
-      summary_state: "succeeded",
-      needs_attention: true,
-      needs_attention_reason: "upstream_pr_changes_requested",
-      pr_number: 1685,
-      pr_url: "https://github.com/owner/repo/pull/1685",
-      pr_is_external: true,
-      retry_state: {
-        classification: "grader_failed",
-        classification_label: "Grader failed",
-        retryable: true,
-        next_auto_retry_at: null,
-        retry_attempt_count: 1,
-        retry_budget_remaining: 2,
-        retry_budget: 3,
-        auto_retry_exhausted: false,
-        provider_circuit_open: false,
-        retry_delayed_until: null,
-        retry_delay_reason: null,
-        state_label: "Retryable Failure"
-      }
-    }) ])
+    renderTable([
+      mobileJobItem({
+        kind: "external_pr",
+        state: "approved",
+        summary_state: "succeeded",
+        needs_attention: true,
+        needs_attention_reason: "upstream_pr_changes_requested",
+        pr_number: 1685,
+        pr_url: "https://github.com/owner/repo/pull/1685",
+        pr_is_external: true,
+        retry_state: {
+          classification: "grader_failed",
+          classification_label: "Grader failed",
+          retryable: true,
+          next_auto_retry_at: null,
+          retry_attempt_count: 1,
+          retry_budget_remaining: 2,
+          retry_budget: 3,
+          auto_retry_exhausted: false,
+          provider_circuit_open: false,
+          retry_delayed_until: null,
+          retry_delay_reason: null,
+          state_label: "Retryable Failure"
+        }
+      })
+    ])
 
     const article = screen.getByRole("article", { name: "Job 3" })
     expect(article).toHaveTextContent("External")
@@ -273,39 +279,41 @@ describe("mobile jobs list row", () => {
 
   it("surfaces unapplied chat feedback as an attention reason", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ needs_attention: true, needs_attention_reason: "unapplied_chat_feedback" }) ])
+    renderTable([mobileJobItem({ needs_attention: true, needs_attention_reason: "unapplied_chat_feedback" })])
 
     expect(screen.getByRole("article", { name: "Job 3" })).toHaveTextContent("Unapplied chat feedback")
   })
 
   it("explains approved external PR jobs that are actionable because of unread feedback", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({
-      kind: "external_pr",
-      state: "approved",
-      summary_state: "succeeded",
-      needs_attention: false,
-      needs_attention_reason: null,
-      last_feedback_addressed_at: "2026-07-31T11:00:00Z",
-      last_seen_comment_at: "2026-07-31T12:00:00Z",
-      pr_number: 3644,
-      pr_url: "https://github.com/owner/repo/pull/3644",
-      pr_is_external: true,
-      retry_state: {
-        classification: "grader_failed",
-        classification_label: "Grader failed",
-        retryable: true,
-        next_auto_retry_at: null,
-        retry_attempt_count: 1,
-        retry_budget_remaining: 2,
-        retry_budget: 3,
-        auto_retry_exhausted: false,
-        provider_circuit_open: false,
-        retry_delayed_until: null,
-        retry_delay_reason: null,
-        state_label: "Retryable Failure"
-      }
-    }) ])
+    renderTable([
+      mobileJobItem({
+        kind: "external_pr",
+        state: "approved",
+        summary_state: "succeeded",
+        needs_attention: false,
+        needs_attention_reason: null,
+        last_feedback_addressed_at: "2026-07-31T11:00:00Z",
+        last_seen_comment_at: "2026-07-31T12:00:00Z",
+        pr_number: 3644,
+        pr_url: "https://github.com/owner/repo/pull/3644",
+        pr_is_external: true,
+        retry_state: {
+          classification: "grader_failed",
+          classification_label: "Grader failed",
+          retryable: true,
+          next_auto_retry_at: null,
+          retry_attempt_count: 1,
+          retry_budget_remaining: 2,
+          retry_budget: 3,
+          auto_retry_exhausted: false,
+          provider_circuit_open: false,
+          retry_delayed_until: null,
+          retry_delay_reason: null,
+          state_label: "Retryable Failure"
+        }
+      })
+    ])
 
     const article = screen.getByRole("article", { name: "Job 3" })
     expect(article).toHaveTextContent("External")
