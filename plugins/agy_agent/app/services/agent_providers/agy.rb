@@ -92,7 +92,7 @@ module AgentProviders
     private
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, required_mcp_tools: nil,
-              model: nil, effort_level: nil, **_ignored)
+              model: nil, effort_level: nil, workload_policy: nil, **_ignored)
       log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
       api_key = job.user.reload.gemini_api_key.presence
       raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
@@ -114,7 +114,8 @@ module AgentProviders
         model: model,
         effort_level: effort_level,
         env: cli_invocation_env,
-        on_session_id: on_session_id
+        on_session_id: on_session_id,
+        workload_policy: workload_policy
       ).run
     end
 

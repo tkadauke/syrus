@@ -30,7 +30,8 @@ class CodexInvocation
                  resume_transcript_jsonl: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { },
-                 startup_timing: nil)
+                 startup_timing: nil,
+                 workload_policy: nil)
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @api_key = api_key
@@ -48,6 +49,7 @@ class CodexInvocation
     @stop_requested = stop_requested
     @process_started = process_started
     @startup_timing = startup_timing || StartupTiming.new(source: "codex")
+    @workload_policy = workload_policy
   end
 
   def run
@@ -67,7 +69,8 @@ class CodexInvocation
       resume_transcript_jsonl: @resume_transcript_jsonl,
       stop_requested: @stop_requested,
       process_started: @process_started,
-      startup_timing: @startup_timing
+      startup_timing: @startup_timing,
+      **(@workload_policy ? { workload_policy: @workload_policy } : {})
     )
   end
 
@@ -142,7 +145,7 @@ class CodexInvocation
                      env: nil,
                      resume_session_id: nil, resume_transcript_jsonl: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
-                     startup_timing: StartupTiming.new(source: "codex"))
+                     startup_timing: StartupTiming.new(source: "codex"), workload_policy: nil)
     codex_home = codex_home.presence || File.join(Dir.home, ".codex")
     startup_timing.measure("codex_home_prepare") { FileUtils.mkdir_p(codex_home) }
     startup_timing.measure("config_write") { write_config(codex_home, mcp_servers || mcp_server, model, effort_level) }
@@ -197,6 +200,7 @@ class CodexInvocation
         startup_timing.record("process_spawn", started_at: process_start_requested_at, pid: process.try(:pid))
         process_started.call(process)
       },
+      workload_policy: workload_policy,
       max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
       on_output_line_too_long: AgentInvocation.oversized_event_handler("Codex"),
       on_output_line: ->(line) do

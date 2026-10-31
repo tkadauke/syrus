@@ -395,7 +395,7 @@ module Steps
     # captures the new session transcript on success, raises StepFailed
     # on any of the non-success outcomes.
     def run_agent(prompt:, max_turns: nil, resume_session_id: DEFAULT_AGENT_RESUME, required_mcp_tools: nil,
-                  disallowed_tools: nil, enforce_required_mcp_tools: false)
+                  disallowed_tools: nil, enforce_required_mcp_tools: false, workload_policy: nil)
       prompt = AgentEnvironmentSnapshot.new(run: run, workspace_path: workspace.path).apply_to(prompt)
       prompt = JobAttachmentContext.new(job: job, workspace_path: workspace.path).apply_to(prompt)
       adapter = resume_session_id.equal?(DEFAULT_AGENT_RESUME) ? agent_adapter : agent_adapter_for(resume_session_id)
@@ -408,7 +408,8 @@ module Steps
           required_mcp_tools: required_mcp_tools,
           disallowed_tools: disallowed_tools,
           model: model,
-          effort_level: effort_level
+          effort_level: effort_level,
+          workload_policy: workload_policy
         )
       ensure
         flush.call

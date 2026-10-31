@@ -60,6 +60,36 @@ RSpec.describe MuseInvocation do
     ]
   end
 
+  it "keeps the confined prompt inside the provider home and passes only authorized mounts" do
+    captured = []
+    policy = Object.new
+    stub_process_runners(lines: completed_lines_with, captured: captured)
+
+    Dir.mktmpdir do |root|
+      workspace = File.join(root, "workspace")
+      muse_home = File.join(root, "muse-home")
+      other_workspace = File.join(root, "other-workspace")
+      FileUtils.mkdir_p([ workspace, muse_home, other_workspace ])
+
+      described_class.new(
+        workspace,
+        prompt: "confined prompt",
+        api_key: "test-key",
+        muse_home: muse_home,
+        transcript_policy: :exec_jsonl,
+        workload_policy: policy
+      ).run
+
+      request = captured.find { |kwargs| kwargs[:command][0, 2] == %w[muse exec] }
+      prompt_path = request[:command][request[:command].index("--prompt-file") + 1]
+      expect(prompt_path).to start_with("#{muse_home}/")
+      expect(request[:prompt_file_content]).to eq("confined prompt")
+      expect(request[:workload_policy]).to be(policy)
+      expect(request[:mounts].read_write.map(&:host_path)).to contain_exactly(workspace, muse_home)
+      expect(request[:mounts].declared_mounts.none? { |mount| mount.include?(other_workspace) }).to be(true)
+    end
+  end
+
   it "delegates to an injected runner with the generated session and options" do
     received = nil
     runner = ->(**kwargs) {

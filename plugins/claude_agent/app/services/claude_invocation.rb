@@ -17,7 +17,8 @@ class ClaudeInvocation
                  env: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { },
-                 on_session_id: ->(_session_id) { })
+                 on_session_id: ->(_session_id) { },
+                 workload_policy: nil)
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @oauth_token = oauth_token
@@ -37,6 +38,7 @@ class ClaudeInvocation
     @stop_requested = stop_requested
     @process_started = process_started
     @on_session_id = on_session_id
+    @workload_policy = workload_policy
   end
 
   def run
@@ -57,7 +59,8 @@ class ClaudeInvocation
       env: @env,
       stop_requested: @stop_requested,
       process_started: @process_started,
-      on_session_id: @on_session_id
+      on_session_id: @on_session_id,
+      **(@workload_policy ? { workload_policy: @workload_policy } : {})
     )
   end
 
@@ -79,7 +82,7 @@ class ClaudeInvocation
                      model: nil,
                      effort_level: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
-                     on_session_id: ->(_session_id) { })
+                     on_session_id: ->(_session_id) { }, workload_policy: nil)
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path).merge(env || {})
     ensure_session_on_disk(resume_session_id, workspace_path, log_sink) if resume_session_id.present?
     cmd = [ "claude", "--print" ]
@@ -135,6 +138,7 @@ class ClaudeInvocation
       agent: current_agent,
       stop_requested: -> { mcp_server_failed || stop_requested.call },
       on_spawned_process: process_started,
+      workload_policy: workload_policy,
       max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
       on_output_line_too_long: AgentInvocation.oversized_event_handler("Claude"),
       on_output_line: ->(line) do

@@ -2,6 +2,27 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe ClaudeInvocation do
+  it "passes coworker confinement and only its checkout and home to ProcessRunner" do
+    captured = nil
+    result = ProcessRunner::Result.new(exit_status: 1, timed_out: false, stopped: false, silent_timed_out: false,
+      operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil)
+    allow(ProcessRunner).to receive(:new) { |**kwargs| captured = kwargs; instance_double(ProcessRunner, run: result) }
+
+    Dir.mktmpdir do |root|
+      workspace = File.join(root, "workspace")
+      home = File.join(root, "claude-home")
+      other_workspace = File.join(root, "other-workspace")
+      FileUtils.mkdir_p([ workspace, home, other_workspace ])
+      policy = Object.new
+
+      described_class.new(workspace, prompt: "x", oauth_token: "token", env: { "HOME" => home }, workload_policy: policy).run
+
+      expect(captured[:workload_policy]).to be(policy)
+      expect(captured[:mounts].read_write.map(&:host_path)).to contain_exactly(workspace, home)
+      expect(captured[:mounts].declared_mounts.none? { |mount| mount.include?(other_workspace) }).to be(true)
+    end
+  end
+
   def result_fixture(**overrides)
     defaults = { turns: 2, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil }
     AgentInvocation::Result.new(**defaults.merge(overrides), session_id: nil)
