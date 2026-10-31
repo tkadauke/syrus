@@ -12,7 +12,8 @@ class McpToolRegistry
     :interactive_only,
     :mutation,
     :ungated,
-    :descriptor
+    :descriptor,
+    :explicit_descriptor
   ) do
     def tool_name
       McpToolRegistry.tool_name_for(tool)
@@ -38,6 +39,7 @@ class McpToolRegistry
         mutation: mutation,
         ungated: ungated,
         descriptor: descriptor,
+        explicit_descriptor: explicit_descriptor,
         read_only: read_only?
       }
     end
@@ -530,6 +532,7 @@ class McpToolRegistry
               required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false, ungated: false,
               descriptor: nil)
       tool_name = tool_name_for(tool)
+      explicit_descriptor = descriptor.present?
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -550,7 +553,8 @@ class McpToolRegistry
           required_roles: required_roles,
           admin_only: admin_only,
           descriptor: descriptor
-        )
+        ),
+        explicit_descriptor: explicit_descriptor
       )
     end
 
