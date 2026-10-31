@@ -790,7 +790,13 @@ describe("RecentChatsSidebar action and marker slot", () => {
               group: "running",
               started_at: new Date(Date.now() - 120_000).toISOString(),
               app_path: "/jobs/41",
-              epic: { id: 9, slug: "EPIC-9", completed: 2, total: 5 }
+              epic: {
+                id: 9,
+                slug: "EPIC-9",
+                title: "Sidebar polish",
+                total: 5,
+                state_counts: { implemented: 1, approved: 1, running: 3 }
+              }
             },
             { id: 42, slug: "JOB-42", state: "failed", step: "implement", group: "failed", app_path: "/jobs/42" }
           ]
@@ -805,8 +811,12 @@ describe("RecentChatsSidebar action and marker slot", () => {
     fireEvent.mouseEnter(screen.getByTitle("Chat").parentElement!)
     const popover = screen.getByTestId("recent-chat-indicator-popover")
     expect(within(popover).getByText("Agent replying")).toBeInTheDocument()
-    expect(within(popover).getByText("JOB-41")).toBeInTheDocument()
-    expect(within(popover).getByText(/EPIC-9 · 2\/5/)).toBeInTheDocument()
+    expect(within(popover).getByRole("link", { name: "EPIC-9" })).toBeInTheDocument()
+    expect(within(popover).getByText("Sidebar polish")).toBeInTheDocument()
+    expect(within(popover).getByText("2/5 progressed")).toBeInTheDocument()
+    expect(within(popover).queryByRole("link", { name: "JOB-41" })).not.toBeInTheDocument()
+    fireEvent.click(within(popover).getByRole("button", { name: "Expand Jobs in EPIC-9" }))
+    expect(within(popover).getByRole("link", { name: "JOB-41" })).toBeInTheDocument()
     expect(within(popover).getByText(/Ship the sidebar/)).toBeInTheDocument()
     expect(within(popover).getByText("2 pending actions")).toBeInTheDocument()
     expect(within(popover).getByText("3 entries")).toBeInTheDocument()
@@ -847,8 +857,8 @@ describe("RecentChatsSidebar action and marker slot", () => {
     }
   })
 
-  it("bounds long Job popovers to one third of the viewport and makes them scrollable", () => {
-    const jobs = Array.from({ length: 30 }, (_, index) => ({
+  it("bounds a 25-Job standalone region and keeps every Job navigable", () => {
+    const jobs = Array.from({ length: 25 }, (_, index) => ({
       id: index + 1,
       slug: `JOB-${index + 1}`,
       state: "running",
@@ -862,7 +872,46 @@ describe("RecentChatsSidebar action and marker slot", () => {
 
     const popover = screen.getByTestId("recent-chat-indicator-popover")
     expect(popover).toHaveClass("max-h-[33dvh]", "overflow-y-auto", "overscroll-contain")
-    expect(within(popover).getByRole("link", { name: "JOB-30" })).toBeInTheDocument()
+    expect(within(popover).getByRole("link", { name: "JOB-25" })).toBeInTheDocument()
+  })
+
+  it("groups Epics within mixed status sections and expands only attention-needed work by default", () => {
+    const epic = (id: number, slug: string, title: string, stateCounts: Record<string, number>) => ({
+      id,
+      slug,
+      title,
+      total: Object.values(stateCounts).reduce((sum, count) => sum + count, 0),
+      state_counts: stateCounts
+    })
+    const healthy = epic(10, "EPIC-10", "Quiet work", { running: 2, implemented: 1 })
+    const attention = epic(11, "EPIC-11", "Needs attention", { failed: 1, approved: 1 })
+    const ready = epic(12, "EPIC-12", "Ready work", { implemented: 2 })
+    renderSidebar([
+      chatNav({
+        job_summary: {
+          active_count: 3,
+          outcome: "failed",
+          jobs: [
+            { id: 1, slug: "JOB-1", state: "running", step: "prepare", group: "running", app_path: "/jobs/1", epic: healthy },
+            { id: 2, slug: "JOB-2", state: "running", step: "grader", group: "running", app_path: "/jobs/2", epic: healthy },
+            { id: 3, slug: "JOB-3", state: "running", step: "implement", group: "running", app_path: "/jobs/3" },
+            { id: 4, slug: "JOB-4", state: "failed", step: "grader", group: "failed", app_path: "/jobs/4", epic: attention },
+            { id: 5, slug: "JOB-5", state: "implemented", group: "ready", app_path: "/jobs/5", epic: ready },
+            { id: 6, slug: "JOB-6", state: "implemented", group: "ready", app_path: "/jobs/6" }
+          ]
+        }
+      })
+    ])
+
+    fireEvent.mouseEnter(screen.getByTestId("job-running-marker").parentElement!)
+    const popover = screen.getByTestId("recent-chat-indicator-popover")
+    expect(within(popover).getAllByText("EPIC-10")).toHaveLength(1)
+    expect(within(popover).getByRole("link", { name: "JOB-3" })).toBeInTheDocument()
+    expect(within(popover).queryByRole("link", { name: "JOB-1" })).not.toBeInTheDocument()
+    expect(within(popover).getByRole("link", { name: "JOB-4" })).toBeInTheDocument()
+    expect(within(popover).queryByRole("link", { name: "JOB-5" })).not.toBeInTheDocument()
+    expect(within(popover).getByRole("link", { name: "JOB-6" })).toBeInTheDocument()
+    expect(within(screen.getByTestId("epic-job-group-10")).getByLabelText("Epic Job progress").querySelectorAll("[style]")).toHaveLength(1)
   })
 
   it("rolls Job activity and worst outcome into a collapsed group", () => {
@@ -1113,9 +1162,12 @@ describe("RecentChatsSidebar group chat ownership", () => {
 describe("RecentChatsSidebar bookmarks menu", () => {
   function renderWithBookmarks(bookmarks: ChatBookmark[], chatId = 1) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
+      })
+    )
     queryClient.setQueryData(["chat-bookmarks", String(chatId), ""], { bookmarks })
 
     const view = render(
@@ -1183,13 +1235,18 @@ describe("RecentChatsSidebar bookmarks menu", () => {
   })
 
   it("loads uncached bookmarks from the dedicated endpoint once", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      bookmarks: [{ id: 9, label: "Loaded bookmark", chat_message_id: 30, anchor_message_id: 31 }]
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        bookmarks: [{ id: 9, label: "Loaded bookmark", chat_message_id: 30, anchor_message_id: 31 }]
+      })
+    )
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 2, title: "Uncached chat" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 2, title: "Uncached chat" })] })]
+      })
+    )
     queryClient.setQueryData(["chats", "2", ""], { bookmarks: [] } as unknown as ChatPayload)
 
     render(

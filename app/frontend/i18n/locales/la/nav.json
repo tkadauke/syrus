@@ -352,7 +352,10 @@
   "popover_scratchpad": "Tabula",
   "popover_scratchpad_count_one": "{{count}} res",
   "popover_scratchpad_count_other": "{{count}} res",
-  "popover_epic_progress": "{{slug}} · {{completed}}/{{total}} perfecta",
+  "popover_epic_progress": "{{progressed}}/{{total}} progressa",
+  "popover_epic_progress_label": "Progressus operum Epic",
+  "popover_epic_expand": "Opera in {{slug}} expande",
+  "popover_epic_collapse": "Opera in {{slug}} contrahe",
   "popover_elapsed_one": "{{count}} momentum",
   "popover_elapsed_other": "{{count}} momenta",
   "plugin_repo_tabs": {

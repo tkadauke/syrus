@@ -72,13 +72,20 @@ RSpec.describe ChatJobSummary do
     expect(summary[:outcome]).to be_nil
   end
 
-  it "includes aggregate Epic progress on each Job row" do
-    epic = Factories.epic(user: user, repository: repository)
+  it "includes the Epic title and exact mixed-state progress on each Job row" do
+    epic = Factories.epic(user: user, repository: repository, title: "Compact activity")
     job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "implemented", issue_number: 43)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 44)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic", issue_number: 45)
     proposal_for(job)
     Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
 
-    expect(summary[:jobs].first[:epic]).to include(slug: epic.slug, completed: 1, total: 2)
+    expect(summary[:jobs].first[:epic]).to include(
+      slug: epic.slug,
+      title: "Compact activity",
+      total: 4,
+      state_counts: { "running" => 1, "implemented" => 1, "approved" => 1, "blocked_by_epic" => 1 }
+    )
   end
 end
