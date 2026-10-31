@@ -1741,7 +1741,8 @@ Renaming a coworker moves its home branch while no turn is running. Deleting
 one archives that branch under `coworkers/archived/` and releases the handle
 for reuse. Scheduled background work posts the agent's final Markdown result,
 duration, and cost into the coworker's main chat, collapsing long results and
-posting only one card when delivery is retried. Its workspace uses
+posting only one card when delivery is retried. The card reports whether its
+workspace merged, conflicted, or was unavailable. Its workspace uses
 the same home-branch merge and conflict reporting as chat turns; failed runs
 also count toward schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
