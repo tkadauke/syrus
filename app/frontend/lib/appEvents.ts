@@ -540,11 +540,7 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
     case "operator_briefing":
       return [["operator_briefing"]]
     case "chat":
-      return event.id == null
-        ? [["chats"]]
-        : chatMediaChanged(event)
-          ? [["chats"], ["chats", String(event.id)], ["chat_media", String(event.id)], ["whiteboard_snapshots", String(event.id)]]
-          : [["chats"], ["chats", String(event.id)]]
+      return chatQueryKeysFor(event)
     case "provider_availability":
       return [["bootstrap"], ["dashboard"], ["chats"]]
     case "admin_overview":
@@ -554,9 +550,63 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
   }
 }
 
+// Chat detail traffic is much hotter than sidebar metadata traffic. Keep the
+// two cache families explicit so a message stream (including continuity-gap
+// recovery) cannot refetch the expensive grouped recent-chats payload.
+// Unknown changes stay conservative and refresh the sidebar: only the
+// detail-only categories below are safe to exclude from sidebar invalidation.
+const chatDetailOnlyChanges = new Set([
+  "agent_questions",
+  "bookmarks",
+  "messages",
+  "pending_action_updated",
+  "pins",
+  "preview_panels",
+  "suggestion",
+  "whiteboard",
+  "whiteboard_snapshots"
+])
+
+const chatDetailOnlyActions = new Set([
+  "invalidate_messages",
+  "pending_action_updated",
+  "replace_tail",
+  "remove_pin",
+  "update_agent_questions",
+  "update_suggestion",
+  "upsert_bookmark",
+  "upsert_pin"
+])
+
+function chatQueryKeysFor(event: AppEvent): QueryKey[] {
+  if (event.id == null) return [["chats"], ["chats", "recent"]]
+
+  const id = String(event.id)
+  const changed = event.changed || []
+  const action = chatPayloadAction(event.payload)
+  const detailOnly = (changed.length > 0 && changed.every((item) => chatDetailOnlyChanges.has(item) || chatMediaChange(item))) ||
+    (changed.length === 0 && action != null && chatDetailOnlyActions.has(action))
+  const keys: QueryKey[] = detailOnly ? [["chats", id]] : [["chats", "recent"], ["chats", id]]
+
+  return chatMediaChanged(event)
+    ? [...keys, ["chat_media", id], ["whiteboard_snapshots", id]]
+    : keys
+}
+
+function chatPayloadAction(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null
+
+  const action = (payload as { action?: unknown }).action
+  return typeof action === "string" ? action : null
+}
+
 function chatMediaChanged(event: AppEvent) {
   const changed = event.changed || []
-  return changed.includes("media") || changed.includes("chat_images") || changed.includes("whiteboard_snapshots")
+  return changed.some(chatMediaChange)
+}
+
+function chatMediaChange(change: string) {
+  return change === "media" || change === "chat_images" || change === "whiteboard_snapshots"
 }
 
 function jobQueryKeysFor(event: AppEvent): QueryKey[] {
@@ -909,6 +959,11 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const participants = chatParticipantsPayload(event.payload)
   if (participants) {
     let patched = false
+    // Participant and conversation-kind changes can alter chat-type filters,
+    // grouping, visibility, and the avatars rendered in the sidebar. The
+    // detail payload is patchable, but the grouped sidebar needs the server's
+    // authoritative membership calculation.
+    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"] })
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {

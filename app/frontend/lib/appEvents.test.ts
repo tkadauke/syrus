@@ -46,8 +46,10 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("repository", 3))).toEqual([["dashboard"], ["repositories"], ["repositories", "3"]])
     expect(queryKeysFor(event("design_doc", 19))).toEqual([["design_docs"], ["design_docs", "detail", "19"]])
     expect(queryKeysFor(event("operator_briefing", 2))).toEqual([["operator_briefing"]])
-    expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])
-    expect(queryKeysFor({ ...event("chat", 5), changed: ["media"] })).toEqual([["chats"], ["chats", "5"], ["chat_media", "5"], ["whiteboard_snapshots", "5"]])
+    expect(queryKeysFor(event("chat", 5))).toEqual([["chats", "recent"], ["chats", "5"]])
+    expect(queryKeysFor({ ...event("chat", 5), changed: ["messages"] })).toEqual([["chats", "5"]])
+    expect(queryKeysFor({ ...event("chat", 5), changed: ["media"] })).toEqual([["chats", "5"], ["chat_media", "5"], ["whiteboard_snapshots", "5"]])
+    expect(queryKeysFor({ ...event("chat", 5), changed: ["header"] })).toEqual([["chats", "recent"], ["chats", "5"]])
     expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["bootstrap"], ["dashboard"], ["chats"]])
     expect(queryKeysFor(event("admin_overview", null))).toEqual([
       ["admin", "overview"],
@@ -265,6 +267,55 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     expect(queryClient.getQueryState(["chats", "recent"])?.isInvalidated).toBe(false)
+  })
+
+  it("does not invalidate recent chats during a streaming sequence, including continuity-gap recovery", () => {
+    vi.useFakeTimers()
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], { groups: [] })
+
+    applyAppEvent(queryClient, { ...event("chat", 9), sequence: 1, changed: ["messages"] })
+    applyAppEvent(queryClient, { ...event("chat", 9), sequence: 3, changed: ["messages"] })
+    applyAppEvent(queryClient, { ...event("chat", 9), sequence: 4, changed: ["messages"] })
+    vi.runOnlyPendingTimers()
+
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["chats", "recent"] }))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
+
+  it("invalidates recent chats for an unpatchable sidebar-metadata event", () => {
+    vi.useFakeTimers()
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], { groups: [] })
+
+    applyAppEvent(queryClient, { ...event("chat", 9), changed: ["header"] })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(queryClient.getQueryState(["chats", "recent"])?.isInvalidated).toBe(true)
+  })
+
+  it("invalidates recent chats while patching participant metadata in the open chat", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      changed: ["participants"],
+      payload: {
+        action: "update_participants",
+        conversation_kind: "group",
+        participants: [{ id: 2, name: "Grace", avatar_url: null, role: "member" }]
+      }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(queryClient.getQueryData<ChatPayload>(["chats", "9", ""])?.chat).toMatchObject({
+      conversation_kind: "group",
+      participants: [{ id: 2, name: "Grace", avatar_url: null, role: "member" }]
+    })
   })
 
   it("does not fan out a job event to source diff or review comment queries under the jobs prefix", () => {
@@ -507,7 +558,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["chats", "recent"] }))
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
@@ -563,7 +614,7 @@ describe("applyAppEvent", () => {
       })
     ).not.toThrow()
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["chats", "recent"] }))
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
@@ -618,7 +669,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["chats", "recent"] }))
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
