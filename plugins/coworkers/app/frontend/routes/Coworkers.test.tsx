@@ -408,6 +408,53 @@ it("preserves a scoped grant when changing its policy and allows disabling it", 
   await waitFor(() => expect(requestBodies).toContainEqual(expect.objectContaining({ capability: "database.read", approval_policy: "off", scope: 22 })))
 })
 
+it("sends the displayed default scope when enabling a scoped grant", async () => {
+  const descriptor = {
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: true,
+    scope_options: [
+      { value: 11, label: "Primary" },
+      { value: 22, label: "Reporting" }
+    ],
+    default_enabled: false
+  }
+  const payload = { coworker: { ...detailPayload.coworker, grants: [], grant_catalog: [...grantCatalog, descriptor] } }
+  const requestBodies: Record<string, unknown>[] = []
+  vi.stubGlobal(
+    "confirm",
+    vi.fn(() => true)
+  )
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PATCH") requestBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
+      return jsonResponse(payload)
+    })
+  )
+
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("11")
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "confirm" } })
+
+  await waitFor(() =>
+    expect(requestBodies).toContainEqual(
+      expect.objectContaining({
+        capability: "database.read",
+        approval_policy: "confirm",
+        confirmed: true,
+        scope: 11
+      })
+    )
+  )
+})
+
 it("confirms before removing a protected workspace path", async () => {
   const payload = {
     coworker: {

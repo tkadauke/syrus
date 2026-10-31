@@ -465,9 +465,11 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
 
   function changePolicy(capability: string, policy: keyof typeof POLICY_RANK) {
     const current = (coworker.grants.find((grant) => grant.capability === capability)?.approval_policy || "off") as keyof typeof POLICY_RANK
+    const descriptor = coworker.grant_catalog.find((entry) => entry.name === capability)
+    const scope = scopes[capability] ?? descriptor?.scope_options?.[0]?.value
     const escalation = POLICY_RANK[policy] > POLICY_RANK[current]
     if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
-    mutation.mutate({ capability, policy, confirmed: escalation, scope: scopes[capability] })
+    mutation.mutate({ capability, policy, confirmed: escalation, scope })
   }
 
   function changeScope(capability: string, encodedScope: string) {
