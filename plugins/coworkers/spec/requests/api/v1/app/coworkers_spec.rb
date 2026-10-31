@@ -44,6 +44,33 @@ RSpec.describe "API: coworkers", type: :request do
     expect(appearance_queries.size).to eq(1)
   end
 
+  it "does not disclose a foreign coworker's appearance from forged message metadata" do
+    foreign_owner = Factories.user(email_address: "foreign-coworker-owner@example.com")
+    foreign_coworker = Coworkers::Coworker.create!(
+      owner_user: foreign_owner, name: "Private Agent", handle: "private-agent",
+      workspace_repo: "https://github.com/private/workspace.git", avatar_key: "comet"
+    )
+    chat = ChatSession.create!(user: owner, title: "Owner chat")
+    chat.messages.create!(role: "user", content: {
+      "text" => "Message from @saved-handle\n\nDo not disclose the lookup target.",
+      "source" => "coworker_message",
+      "coworker_message" => {
+        "direction" => "incoming", "sender_id" => foreign_coworker.id,
+        "sender_handle" => "saved-handle"
+      }
+    }, skip_turn_trigger: true)
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    message = response.parsed_body.fetch("messages").sole
+    expect(message).not_to have_key("coworker_sender")
+    expect(message.fetch("text")).to start_with("Message from @saved-handle")
+    expect(message.dig("content", "coworker_message", "sender_handle")).to eq("saved-handle")
+    expect(response.body).not_to include("Private Agent", "private-agent")
+  end
+
   it "requires explicit owner confirmation for grant escalation and returns the updated tool surface" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-grant-api", workspace_repo: "https://github.com/acme/workspace.git")
     sign_in_as(owner)
