@@ -77,7 +77,6 @@ module DiffReviewVersions
       Array(@files).map do |file|
         {
           "path" => value_for(file, :path).to_s,
-          "previous_path" => value_for(file, :previous_path),
           "status" => value_for(file, :status).to_s,
           "additions" => value_for(file, :additions).to_i,
           "deletions" => value_for(file, :deletions).to_i,
@@ -105,7 +104,11 @@ module DiffReviewVersions
     end
 
     def patch_metadata(file)
-      { "patch_status" => value_for(file, :patch_status), "patch_bytes" => value_for(file, :patch_bytes) }.compact
+      {
+        "previous_path" => value_for(file, :previous_path),
+        "patch_status" => value_for(file, :patch_status),
+        "patch_bytes" => value_for(file, :patch_bytes)
+      }.compact
     end
 
     def generated_hash(file)
