@@ -132,7 +132,12 @@ RSpec.describe ContainerExecution::Backend do
         kind: "agent", network: "agent", chat_session: chat,
         workload_policy: policy,
         mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home),
-        env: { "HOME" => agent_home, "PROVIDER" => provider, "HTTPS_PROXY" => "http://unsafe-host-proxy:8080" }
+        env: {
+          "HOME" => agent_home, "PROVIDER" => provider,
+          "HTTPS_PROXY" => "http://unsafe-host-proxy:8080",
+          "https_proxy" => "http://unsafe-host-proxy:8080",
+          "no_proxy" => "169.254.169.254"
+        }
       )
 
       expect(described_class.available_for?(coworker_request)).to be(true)
@@ -145,14 +150,16 @@ RSpec.describe ContainerExecution::Backend do
       expect(command).to include("--network", "syrus-coworker-egress", "--dns", "192.0.2.53",
         "--label", "io.syrus.egress-profile=#{provider}")
       expect(command).to include("--env", "HTTPS_PROXY=http://egress-proxy:3128",
-        "--env", "NO_PROXY=")
-      expect(command).not_to include("HTTPS_PROXY", "HTTPS_PROXY=http://unsafe-host-proxy:8080")
+        "--env", "https_proxy=http://egress-proxy:3128", "--env", "NO_PROXY=", "--env", "no_proxy=")
+      expect(command).not_to include("HTTPS_PROXY", "HTTPS_PROXY=http://unsafe-host-proxy:8080",
+        "https_proxy", "https_proxy=http://unsafe-host-proxy:8080", "no_proxy", "no_proxy=169.254.169.254")
       expect(command).to include("--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=256m")
       expect(mounts).to contain_exactly(
         "type=bind,src=#{@host_workspace},dst=#{@container_workspace}",
         "type=bind,src=#{File.join(@host_workspace, "agent-home-#{provider}")},dst=#{agent_home}",
         "type=bind,src=#{@host_workspace}/mcp.sock,dst=/run/syrus/mcp.sock,readonly"
       )
+      expect(command).to include("--env", "SYRUS_PERSISTENT_MCP_SOCKET=/run/syrus/mcp.sock")
       expect(mounts.join(" ")).not_to match(%r{/(?:workflows|agent_homes)/(?![^ ]*agent-home-#{provider})})
     end
   end
