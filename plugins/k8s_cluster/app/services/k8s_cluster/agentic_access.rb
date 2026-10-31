@@ -80,6 +80,7 @@ module K8sCluster
 
     def self.coworker_cluster_in_scope?(cluster, context)
       return true unless context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+      return false if cluster.credential_store_credential_id.blank?
 
       context.capability_scopes["k8s.read"].to_s == cluster.id.to_s
     end

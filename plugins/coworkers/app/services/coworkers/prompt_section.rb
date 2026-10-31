@@ -58,7 +58,10 @@ class Coworkers::PromptSection
     lines = Coworkers::GrantCatalog.all.sort_by(&:name).map do |descriptor|
       grant = held[descriptor.name]
       tools = descriptor.tools.presence&.join(", ") || "no tools currently registered"
-      if grant
+      availability = Coworkers::PrivilegedGrantGate.availability(descriptor)
+      if !availability.available?
+        "- `#{descriptor.name}` — unavailable (#{availability.reason}); tools withheld"
+      elsif grant
         scope = grant.scope.nil? ? "" : "; scope: #{descriptor.scope_label(grant.scope)}"
         "- `#{descriptor.name}` — held (#{grant.approval_policy}#{scope}); unlocks: #{tools}"
       else

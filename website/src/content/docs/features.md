@@ -1858,6 +1858,14 @@ tool name plus readable arguments on both the chat card and the coworker's
 Approvals tab. Secret-like values are redacted, and long values can be expanded
 before the operator confirms or declines the action.
 
+Credential-backed database, Kubernetes, log, and third-party capabilities
+have an additional hard gate. Syrus offers them only when a live worker has
+verified hardened coworker confinement and the credential broker's
+authorization path is enabled. If either prerequisite disappears, existing
+grant records remain visible for audit but their tools are withdrawn until the
+gate recovers. Credential material stays in the broker and never enters the
+coworker's environment, workspace, mounts, tool metadata, or logs.
+
 An ordinary Syrus or planner chat can also propose a coworker. The proposal
 preflights the handle, model, requested capabilities, workspace branch, and
 optional push access, then shows every creation field for confirmation. No

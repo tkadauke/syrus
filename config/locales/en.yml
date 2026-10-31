@@ -28,6 +28,8 @@
 #       enabled: "ON"
 
 en:
+  coworkers:
+    confinement_unavailable: "No capable worker is available: verified coworker confinement is unavailable."
   hello: "Hello world"
 
   server:

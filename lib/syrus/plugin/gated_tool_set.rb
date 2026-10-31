@@ -50,7 +50,8 @@ module Syrus
       end
 
       module ClassMethods
-        def coworker_grant(name:, label:, scope: nil, tools:, default_policy: "confirm", max_policy: "auto", description: nil)
+        def coworker_grant(name:, label:, scope: nil, tools:, default_policy: "confirm", max_policy: "auto", description: nil,
+                           privileged: false)
           @coworker_grant = {
             name: name.to_s,
             label: label,
@@ -60,7 +61,8 @@ module Syrus
             tools: Array(tools).map { |tool| tool.respond_to?(:tool_name) ? tool.tool_name : tool.to_s },
             scope_options_callback: scope&.fetch(:options),
             scope_label_callback: scope&.fetch(:label),
-            valid_scope_callback: scope&.fetch(:valid)
+            valid_scope_callback: scope&.fetch(:valid),
+            privileged: privileged
           }
         end
 

@@ -1,4 +1,6 @@
 la:
+  coworkers:
+    confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
     errors:
       invalid_request: "Petitio invalida est."

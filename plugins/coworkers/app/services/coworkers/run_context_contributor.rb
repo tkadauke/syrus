@@ -13,13 +13,14 @@ module Coworkers
         chat_session: main_chat,
         allowed_memory_scopes: %w[ global repository instance ],
         allowed_chat_session_ids: coworker.readable_chat_session_ids,
-        granted_capabilities: coworker.grants.pluck(:capability),
+        granted_capabilities: Coworkers::PrivilegedGrantGate.allowed_capabilities(coworker),
         capability_approval_policies: unattended_approval_policies(coworker)
       }
     end
 
     def self.unattended_approval_policies(coworker)
-      coworker.grants.pluck(:capability, :approval_policy).to_h.transform_values do |policy|
+      allowed = Coworkers::PrivilegedGrantGate.allowed_capabilities(coworker)
+      coworker.grants.where(capability: allowed).pluck(:capability, :approval_policy).to_h.transform_values do |policy|
         policy == "confirm" ? "queue" : policy
       end
     end

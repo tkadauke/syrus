@@ -46,6 +46,11 @@ class ChatTurnJob < ApplicationJob
     return if chat.deleted?
 
     user_message = chat.messages.find(user_message_id)
+    admission = chat.respond_to?(:agent_turn_admission) ? chat.agent_turn_admission(user_message).to_h : {}
+    if admission[:queue].present?
+      self.class.set(queue: admission.fetch(:queue)).perform_later(chat_session_id, user_message_id)
+      return
+    end
     if chat.respond_to?(:with_agent_operation_lock) && !Thread.current[:syrus_coworker_operation_locked]
       return chat.with_agent_operation_lock(user_message) do
         Thread.current[:syrus_coworker_operation_locked] = true
@@ -62,6 +67,14 @@ class ChatTurnJob < ApplicationJob
     @turn_started_at = Time.current
     @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
     @cancelled = false
+    if admission[:outcome].present?
+      create_message!("system", {
+        text: I18n.t("coworkers.confinement_unavailable", locale: @chat.user.locale),
+        agent_outcome: admission.fetch(:outcome)
+      })
+      touch_chat!
+      return
+    end
     # Claim the turn for this specific message before any MCP token is minted,
     # so the sidecar can tell "this turn is still running" from "a later turn
     # superseded it" without guessing from the message log.

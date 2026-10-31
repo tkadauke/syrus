@@ -1,4 +1,6 @@
 de:
+  coworkers:
+    confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
     errors:
       invalid_request: "Die Anfrage ist ungültig."
