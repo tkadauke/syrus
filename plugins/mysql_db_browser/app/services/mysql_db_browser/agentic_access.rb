@@ -33,6 +33,7 @@ module MysqlDbBrowser
 
     def self.safe_connection_metadata(context:)
       connections = MysqlConnection.where(agentic_access_enabled: true).order(:label, :id).to_a
+      connections.select! { |connection| coworker_connection_in_scope?(connection, context) }
       credentials_by_id = CredentialMaterial.credentials_by_id_for(connections)
 
       connections.filter_map do |connection|
@@ -57,6 +58,9 @@ module MysqlDbBrowser
       unless connection && usable_by?(connection, context, credential: credential)
         raise ConnectionNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
       end
+      unless coworker_connection_in_scope?(connection, context)
+        raise ConnectionNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
+      end
 
       find_agentic!(
         MysqlConnection, id,
@@ -78,6 +82,12 @@ module MysqlDbBrowser
 
     def self.usable_by?(connection, context, credential:)
       agentic_credential_usable_by?(connection.credential_store_credential_id, context, credential: credential)
+    end
+
+    def self.coworker_connection_in_scope?(connection, context)
+      return true unless context&.role == AgentRole::COWORKER_CHAT
+
+      context.capability_scopes["mysql.read"].to_s == connection.id.to_s
     end
   end
 end

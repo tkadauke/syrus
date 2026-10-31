@@ -55,6 +55,26 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
     expect(MysqlQueryAudit.last.user).to eq(user)
   end
 
+  it "keeps a coworker read-only on a write-enabled connection and audits its identity" do
+    PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    connection.update!(allow_writes: true)
+    coworker = Coworkers::Coworker.create!(owner_user: user, name: "Maya", handle: "maya-mysql",
+      workspace_repo: repository.remote_url)
+    coworker.grants.create!(capability: "mysql.read", approval_policy: "auto", scope: connection.id)
+    chat_session = ChatSession.create!(user: user, repository: repository)
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat_session, role: "main")
+    chat_session.define_singleton_method(:coworker) { coworker }
+    MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { raise "should not connect" }
+
+    response = call(mysql_connection_id: connection.id, sql: "DELETE FROM users", server_context: { chat_session: chat_session })
+
+    expect(response.error?).to be(true)
+    expect(response.content.first[:text]).to include("Coworker MySQL access is read-only")
+    expect(MysqlQueryAudit.last).to have_attributes(user: user, agent_actor: coworker, read_only: false, success: false)
+  end
+
   it "rejects a write statement on a read-only connection without opening a connection" do
     run = Factories.job(user: user, repository: repository).initial_run
     MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { raise "should not connect" }

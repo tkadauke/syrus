@@ -159,6 +159,14 @@ derives the join spec from whichever side isn't that table.
 
 ## Agentic access
 
+Coworkers are deny-by-default. The plugin declares the `mysql.read` grant
+beside its gated tool set; owners choose one of their agentic-access-enabled
+connections as the grant scope. Without that grant no MySQL tools are
+advertised. With it, all five tools below are visible, but connection listing
+and every direct lookup are restricted to the selected connection. Coworker
+queries remain read-only even when that connection has `allow_writes` enabled,
+and each schema/query audit records both the owner user and coworker identity.
+
 Each `MysqlConnection` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
 independent of the plugin's own enable/disable toggle. When set,
@@ -183,6 +191,12 @@ through five MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
   tabs (see Read-only guardrails and audit log below) - read-only unless the
   connection also has `allow_writes`, and every attempt is recorded to
   `MysqlQueryAudit` with the acting agent's user.
+
+For production debugging, common Syrus event tables are
+`browser_error_events` for client-side failures, `backend_exception_events`
+for server exceptions, and `performance_log_events` for timed backend work.
+Start with narrow time ranges and selective columns; the coworker query path
+enforces the normal row limit and statement timeout.
 
 **Gating is per-connection and credential scope.** New connections default to
 the creator's user scope; administrators may explicitly choose user,

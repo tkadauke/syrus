@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_31_001844) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_31_053301) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2338,6 +2338,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_001844) do
     t.integer "duration_ms"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "agent_actor_type"
+    t.integer "agent_actor_id"
+    t.index ["agent_actor_type", "agent_actor_id"], name: "index_mysql_query_audits_on_agent_actor"
     t.index ["mysql_connection_id", "created_at"], name: "index_mysql_query_audits_on_mysql_connection_id_and_created_at"
     t.index ["mysql_connection_id"], name: "index_mysql_query_audits_on_mysql_connection_id"
     t.index ["user_id"], name: "index_mysql_query_audits_on_user_id"

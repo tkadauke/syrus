@@ -58,6 +58,10 @@ module MysqlDbBrowser
 
       read_only = read_only_statement?(statement)
       unless read_only
+        if context&.role == AgentRole::COWORKER_CHAT
+          audit!(statement: statement, read_only: false, user: user, success: false, error_message: "Rejected: coworker MySQL access is read-only.")
+          raise WriteNotAllowed, "Coworker MySQL access is read-only. Only SELECT, SHOW, DESCRIBE, EXPLAIN, and read-only CTE statements are permitted."
+        end
         begin
           AgenticAccess.connection_with_write_access!(connection)
         rescue AgenticAccess::WriteAccessDisabled
@@ -101,7 +105,7 @@ module MysqlDbBrowser
     end
 
     def run_and_audit(client, statement, read_only:, user:, limit:)
-      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
+      audit = QueryAudit.start!(connection: connection, user: user, actor: context&.agent_actor, statement: statement, read_only: read_only)
       started_at = monotonic_now
       begin
         payload = read_only ? run_read_only(client, statement, clamp_limit(limit)) : run_write(client, statement)
@@ -447,7 +451,7 @@ module MysqlDbBrowser
     end
 
     def audit!(statement:, read_only:, user:, success:, row_count: nil, error_message: nil, duration_ms: nil)
-      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
+      audit = QueryAudit.start!(connection: connection, user: user, actor: context&.agent_actor, statement: statement, read_only: read_only)
       if success
         QueryAudit.succeed!(audit, row_count: row_count, duration_ms: duration_ms)
       else
