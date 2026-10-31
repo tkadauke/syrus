@@ -191,9 +191,10 @@ class ChatMessage < ApplicationRecord
     # Message content (and everything else only the open Chat view needs --
     # queued messages, retry state) is detail-only: it goes exclusively to
     # ChatChannel subscribers actively viewing this chat, not to every tab
-    # the owner/participants have open. The recent-chats sidebar only needs
-    # turn_in_flight/agent_busy, broadcast separately below on the global
-    # per-user channel so it keeps updating for chats nobody has open.
+    # the owner/participants have open. The recent-chats sidebar receives a
+    # separate lightweight global event below with activity, turn, and
+    # recipient-specific unread state, so it stays ordered without fetching
+    # the complete grouped index for every message.
     AppEvents.broadcast_chat_resource(
       chat_session_id: chat_session_id,
       type: "updated",
@@ -203,18 +204,31 @@ class ChatMessage < ApplicationRecord
       payload: detail_payload
     )
 
-    chat.send(
-      :broadcast_to_participants,
-      type: "updated",
-      resource: "chat",
-      id: chat_session_id,
-      changed: [ "messages" ],
-      payload: {
-        action: "update_turn_state",
-        turn_in_flight: chat.turn_in_flight?,
-        agent_busy: chat.agent_busy?
-      }
-    )
+    broadcast_sidebar_message_state(chat)
+  end
+
+  def broadcast_sidebar_message_state(chat)
+    recipients = chat.participants.to_a.presence || [ chat.user ]
+    read_at_by_user_id = chat.chat_participants.where(user_id: recipients.map(&:id)).pluck(:user_id, :last_read_at).to_h
+
+    recipients.each do |recipient|
+      last_read_at = read_at_by_user_id[recipient.id] || chat.last_read_at
+      unread = chat.last_message_at.present? && (last_read_at.blank? || chat.last_message_at > last_read_at)
+      AppEvents.broadcast(
+        user: recipient,
+        type: "updated",
+        resource: "chat",
+        id: chat_session_id,
+        changed: [ "sidebar_message_state" ],
+        payload: {
+          action: "update_sidebar_message_state",
+          turn_in_flight: chat.turn_in_flight?,
+          agent_busy: chat.agent_busy?,
+          last_message_at: chat.last_message_at&.iso8601,
+          unread: unread
+        }
+      )
+    end
   end
 
   def realtime_tail_payload(chat)
