@@ -1791,6 +1791,14 @@ one agentic-access connection for a coworker. The coworker receives only that
 connection's discovery, schema, and query tools; queries stay read-only even
 if operators enabled writes on the connection. MySQL audit records retain the
 coworker's identity as well as the owning user.
+
+When Kubernetes Cluster Viewer is enabled, its `k8s.read` grant similarly lets
+an owner select one agentic-access cluster. The coworker can browse namespaces,
+nodes, workloads, services, ingresses, persistent volume claims, events,
+ConfigMaps, capped and redacted pod logs, and the metrics overview for that
+cluster. Kubernetes Secrets, raw `kubectl`, and all mutation tools remain
+unavailable to coworkers under every grant. Calls are audited with the
+coworker's identity and owning user.
 Owners can choose `auto`, `confirm`, `queue`, or `off`; enabling a capability
 or making its policy more permissive asks for a separate confirmation. The
 workspace-files grant can also mark paths such as `SOUL.md` and `AGENTS.md` as

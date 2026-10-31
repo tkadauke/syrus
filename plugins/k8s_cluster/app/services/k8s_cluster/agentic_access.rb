@@ -31,6 +31,7 @@ module K8sCluster
 
     def self.safe_cluster_metadata(context:)
       clusters = KubernetesCluster.where(agentic_access_enabled: true).order(:label, :id).to_a
+      clusters.select! { |cluster| coworker_cluster_in_scope?(cluster, context) }
       credentials = ClusterCredential.credentials_by_id_for(clusters)
       clusters.filter_map do |cluster|
         next unless usable_by?(cluster, context, credential: credentials[cluster.credential_store_credential_id])
@@ -50,6 +51,9 @@ module K8sCluster
       cluster = KubernetesCluster.find_by(id: id)
       unless cluster && usable_by?(cluster, context, credential: ClusterCredential.credential_for(cluster))
         raise ClusterNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
+      end
+      unless coworker_cluster_in_scope?(cluster, context)
+        raise ClusterNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found or is outside the coworker grant scope."
       end
 
       find_agentic!(
@@ -72,6 +76,12 @@ module K8sCluster
 
     def self.usable_by?(cluster, context, credential:)
       agentic_credential_usable_by?(cluster.credential_store_credential_id, context, credential: credential)
+    end
+
+    def self.coworker_cluster_in_scope?(cluster, context)
+      return true unless context&.role == AgentRole::COWORKER_CHAT
+
+      context.capability_scopes["k8s.read"].to_s == cluster.id.to_s
     end
   end
 end
