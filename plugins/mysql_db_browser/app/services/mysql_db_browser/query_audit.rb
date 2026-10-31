@@ -5,12 +5,14 @@ module MysqlDbBrowser
     MAX_ERROR_MESSAGE_BYTES = MAX_TEXT_BYTES
     PENDING_MESSAGE = "Execution pending".freeze
 
-    def self.start!(connection:, user:, statement:, read_only: true)
+    def self.start!(connection:, user:, actor: nil, statement:, read_only: true)
       raise ArgumentError, "An acting user is required to audit MySQL access" unless user
 
       MysqlQueryAudit.create!(
         mysql_connection: connection,
         user: user,
+        agent_actor_type: actor&.class&.polymorphic_name,
+        agent_actor_id: actor&.id,
         statement: truncate(statement.to_s),
         read_only: read_only,
         success: false,

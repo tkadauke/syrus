@@ -50,6 +50,29 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     )
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_list_databases" }.fetch(:description)).to include("mysql_db_browser_list_connections")
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_execute_query" }.dig(:input_schema, :required)).to eq([ "mysql_connection_id", "sql" ])
+    expect(tools).to all(include(coworker_safe: true, capability: "mysql.read"))
+    expect(described_class.coworker_grants.first).to include(default_policy: "confirm", maximum_policy: "auto")
+  end
+
+  it "advertises no MySQL tools to a coworker until mysql.read is granted" do
+    owner = Factories.user(admin: true)
+    connection = Factories.mysql_connection(agentic_access_enabled: true)
+    MysqlDbBrowser::CredentialMaterial.store!(connection, "secret", user: owner, scope_type: "user", scope_id: owner.id)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-tools",
+      workspace_repo: "https://github.com/example/workspace.git")
+    chat = ChatSession.create!(user: owner)
+    chat.define_singleton_method(:coworker) { coworker }
+    PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+
+    expect(Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)).to be_empty
+
+    coworker.grants.create!(capability: "mysql.read", approval_policy: "confirm", scope: connection.id)
+    expect(Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
+      .map { |tool| McpToolRegistry.tool_name_for(tool) }).to contain_exactly(
+        "mysql_db_browser_list_connections", "mysql_db_browser_list_databases",
+        "mysql_db_browser_list_tables", "mysql_db_browser_describe_table", "mysql_db_browser_execute_query"
+      )
   end
 
   it "dispatches string-keyed params without revealing an unusable legacy connection" do

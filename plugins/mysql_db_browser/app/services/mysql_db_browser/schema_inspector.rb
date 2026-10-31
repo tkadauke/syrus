@@ -119,7 +119,7 @@ module MysqlDbBrowser
     end
 
     def query(client, sql)
-      audit = QueryAudit.start!(connection: connection, user: audit_user, statement: sql, read_only: true)
+      audit = QueryAudit.start!(connection: connection, user: audit_user, actor: context&.agent_actor, statement: sql, read_only: true)
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       begin
         rows = client.query(mysql_timeout_hint(sql)).to_a

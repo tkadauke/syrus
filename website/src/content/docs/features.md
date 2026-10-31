@@ -1779,6 +1779,11 @@ informational and do not impose a budget or add coworker data to the instance
 Spending page.
 
 The Capabilities tab lists every coworker grant as a plain-language sentence.
+When MySQL DB Browser is enabled, its `mysql.read` grant lets an owner select
+one agentic-access connection for a coworker. The coworker receives only that
+connection's discovery, schema, and query tools; queries stay read-only even
+if operators enabled writes on the connection. MySQL audit records retain the
+coworker's identity as well as the owning user.
 Owners can choose `auto`, `confirm`, `queue`, or `off`; enabling a capability
 or making its policy more permissive asks for a separate confirmation. The
 workspace-files grant can also mark paths such as `SOUL.md` and `AGENTS.md` as

@@ -65,7 +65,7 @@ class Coworkers::CreatePreflight
     return Coworkers::Create::DEFAULT_GRANTS.map { |name, policy| { capability: name, approval_policy: policy, scope: nil } } unless @requested_grants
     normalized_requested_grants.map do |grant|
       name = grant.fetch(:capability)
-      grant.merge(approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(name) { Coworkers::GrantCatalog.fetch(name).maximum_policy })
+      grant.merge(approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(name) { Coworkers::GrantCatalog.fetch(name).default_policy })
     end
   end
 

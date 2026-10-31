@@ -97,6 +97,15 @@ remain unavailable. Shared-chat reads are restricted to the
 coworker's own chats and chats explicitly shared with that coworker, even
 when its owner is an administrator.
 
+The MySQL DB Browser plugin declares the scoped `mysql.read` capability. An
+owner can grant one agentic-access-enabled MySQL connection; the coworker then
+receives connection discovery, schema inspection, and query tools for only
+that connection. Queries are always read-only for coworkers, including on a
+connection whose operator UI allows writes. For production investigations,
+`browser_error_events` answers browser-failure questions,
+`backend_exception_events` records backend exceptions, and
+`performance_log_events` contains backend timing diagnostics.
+
 The `syrus.propose_job` grant exposes both `propose_job` and
 `propose_epic_with_jobs`. They create the same pending proposal cards as an
 ordinary Syrus Chat, retain the originating coworker as audit provenance, and

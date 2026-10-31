@@ -27,6 +27,7 @@ export type CoworkerDetail = CoworkerSummary & {
     name: string
     label: string
     description: string
+    default_policy: "queue" | "confirm" | "auto"
     maximum_policy: "off" | "queue" | "confirm" | "auto"
     tools: string[]
     scopeable: boolean
