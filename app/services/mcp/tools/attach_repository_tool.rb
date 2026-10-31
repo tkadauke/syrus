@@ -16,15 +16,27 @@ module Mcp::Tools
     class << self
       def call(slug:, server_context:)
         chat_session = server_context.fetch(:chat_session)
+        workspace_repository_id = if chat_session.respond_to?(:coworker_workspace_repository_id)
+          chat_session.coworker_workspace_repository_id
+        else
+          chat_session.repository_id
+        end
         owner, name = normalize_slug(slug)
         return Mcp::Tools.invalid("slug must be owner/name") unless owner && name
 
         # Attachment is user-gated here: the slug must resolve inside the
         # current user's active, membership-visible repositories before ChatWorkspace can clone it.
-        repository = Repository.accessible_to(chat_session.user).active.find_by("LOWER(owner) = ? AND LOWER(name) = ?", owner.downcase, name.downcase)
+        context = McpToolContext.from_server_context(server_context)
+        repository = if context.role == AgentRole::COWORKER_CHAT
+          CoworkerRepositoryAccess.resolve(server_context:, slug:)
+        else
+          Repository.accessible_to(chat_session.user).active.find_by("LOWER(owner) = ? AND LOWER(name) = ?", owner.downcase, name.downcase)
+        end
+        return repository if repository.is_a?(MCP::Tool::Response)
         return Mcp::Tools.invalid("repository #{owner}/#{name} is not configured for this user") unless repository
 
         path = ChatWorkspace.attach_repository!(chat_session, repository)
+        ChatWorkspace.protect_path_read_only!(path) if context.role == AgentRole::COWORKER_CHAT && repository.id != workspace_repository_id
 
         Mcp::Tools.success(
           repository: {

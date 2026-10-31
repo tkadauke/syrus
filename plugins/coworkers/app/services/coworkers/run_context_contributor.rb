@@ -14,7 +14,8 @@ module Coworkers
         allowed_memory_scopes: %w[ global repository instance ],
         allowed_chat_session_ids: coworker.readable_chat_session_ids,
         granted_capabilities: Coworkers::PrivilegedGrantGate.allowed_capabilities(coworker),
-        capability_approval_policies: unattended_approval_policies(coworker)
+        capability_approval_policies: unattended_approval_policies(coworker),
+        capability_scopes: capability_scopes(coworker)
       }
     end
 
@@ -24,6 +25,11 @@ module Coworkers
         policy == "confirm" ? "queue" : policy
       end
     end
-    private_class_method :unattended_approval_policies
+
+    def self.capability_scopes(coworker)
+      allowed = Coworkers::PrivilegedGrantGate.allowed_capabilities(coworker)
+      coworker.grants.where(capability: allowed).pluck(:capability, :scope).to_h
+    end
+    private_class_method :unattended_approval_policies, :capability_scopes
   end
 end

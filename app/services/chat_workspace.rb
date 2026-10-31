@@ -1,4 +1,5 @@
 require "fileutils"
+require "find"
 require "open3"
 
 # Persistent per-ChatSession workspace used by top-level chat inspection.
@@ -82,6 +83,14 @@ class ChatWorkspace
 
   def self.attach_repository!(chat_session, repository)
     new(chat_session).attach_repository!(repository)
+  end
+
+  def self.protect_repository_read_only!(chat_session, repository)
+    protect_path_read_only!(repo_path_for(chat_session, repository))
+  end
+
+  def self.protect_path_read_only!(path)
+    new(nil).send(:protect_checkout_read_only!, Pathname(path))
   end
 
   # Sets up the writable coding checkout for Coding Mode. Idempotent: if a
@@ -455,6 +464,8 @@ class ChatWorkspace
     ensure_root!
     path = self.class.repo_path_for(@chat_session, repository)
 
+    make_checkout_writable!(path) if coworker_product_repository?(repository)
+
     if path.join(".git").directory?
       fast_forward!(repository, path)
     else
@@ -463,8 +474,47 @@ class ChatWorkspace
 
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     write_relay_credentials!
+    protect_checkout_read_only!(path) if coworker_product_repository?(repository)
     path
+  ensure
+    protect_checkout_read_only!(path) if path && path.exist? && coworker_product_repository?(repository)
   end
+
+  # Coworker product checkouts share an OS user with the native agent process,
+  # so mode bits are the strongest boundary available before the agent sandbox
+  # can supply a true read-only mount. They make ordinary shell writes and all
+  # Git persistence fail; a hostile process that chmods its own files remains
+  # a known sandbox-level gap.
+  def protect_checkout_read_only!(path)
+    each_checkout_entry(path) { |entry, stat| File.chmod(stat.mode & ~0o222, entry) }
+  end
+
+  def make_checkout_writable!(path)
+    each_checkout_entry(path) { |entry, stat| File.chmod(stat.mode | 0o200, entry) } if path.exist?
+  end
+
+  def each_checkout_entry(path)
+    Find.find(path.to_s) do |entry|
+      stat = File.lstat(entry)
+      next if stat.symlink?
+
+      yield entry, stat
+    end
+  end
+
+  def coworker_product_repository?(repository)
+    if @chat_session.respond_to?(:coworker_workspace_repository_id)
+      workspace_repository_id = @chat_session.coworker_workspace_repository_id
+      return repository.id != workspace_repository_id if workspace_repository_id
+    end
+    return false if repository.id == @chat_session.repository_id
+    return false unless @chat_session.respond_to?(:coworker)
+
+    coworker = @chat_session.coworker
+    coworker.respond_to?(:kind) && coworker.kind == "coworker"
+  end
+
+  private :protect_checkout_read_only!, :make_checkout_writable!, :each_checkout_entry, :coworker_product_repository?
 
   def ensure_branch_checkout!(repository, branch_name, preserve_local_commits: false)
     ensure_root!
