@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-route
 import { jsonResponse } from "@app/testSupport"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "@app/lib/slugReferenceRegistry"
 import { applyAppEvent } from "@app/lib/appEvents"
-import { DesignDocsSurface } from "./DesignDocsSurface"
+import { DesignDocsSurface, wysiwygHtmlToMarkdown } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
 
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
@@ -2558,6 +2558,43 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("textbox", { name: "Rich Text editor" })).not.toHaveTextContent("Use the target command.")
   })
 
+  it.each([
+    ["an unordered-list item", '<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- item"><del data-review-original="true">item</del><ins data-review-decoration="true">replacement</ins></mark></li></ul>', "- item"],
+    ["a numbered strong item", '<ol><li value="5"><strong><mark data-inline-suggestion-state="pending" data-original-markdown="5. **Duration**"><del data-review-original="true">Duration</del><ins data-review-decoration="true">Timeline</ins></mark></strong></li></ol>', "5. **Duration**"],
+    ["a nested list item", '<ul><li>parent<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- child"><del data-review-original="true">child</del><ins data-review-decoration="true">nested</ins></mark></li></ul></li></ul>', "- parent\n   - child"],
+    ["an inline suggestion inside strong text", '<p><strong>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> bold</strong></p>', "**Keep this bold**"],
+    ["an inline suggestion inside emphasized text", '<p><em>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> emphasized</em></p>', "*Keep this emphasized*"],
+  ])("serializes decorated %s in its structural context", (_label, html, expected) => {
+    const editor = document.createElement("div")
+    editor.contentEditable = "true"
+    editor.innerHTML = html
+
+    const markdown = wysiwygHtmlToMarkdown(editor)
+
+    expect(markdown).toBe(expected)
+    expect(markdown).not.toMatch(/- -|5\. \*\*5\.|replacement|Timeline|nested|that|data-review/)
+  })
+
+  it.each(["Accept", "Reject"])("suppresses the Rich Text blur autosave when clicking %s", async (decision) => {
+    const fetchSpy = mockFetch()
+    const rendered = renderSurface("/design_docs/1")
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const button = screen.getByRole("button", { name: decision })
+    const preview = editor.querySelector<HTMLElement>("[data-inline-suggestion-state]")!
+    preview.dataset.originalMarkdown = "**gamma**"
+
+    editor.focus()
+    fireEvent.pointerDown(button)
+    fireEvent.blur(editor, { relatedTarget: button })
+    fireEvent.click(button)
+
+    const endpoint = `/api/v1/app/design_docs/1/suggestions/9/${decision.toLowerCase()}`
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(endpoint, expect.objectContaining({ method: "POST" })))
+    await act(async () => new Promise((resolve) => window.setTimeout(resolve, 850)))
+    expect(fetchSpy.mock.calls.some((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")).toBe(false)
+    rendered.unmount()
+  })
+
   it("resets draft editor state when opening a different focused design doc route", async () => {
     mockFetch()
     const first = renderSurface("/design_docs/1")
@@ -3395,6 +3432,11 @@ describe("DesignDocsSurface", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Title can't be blank")
       await act(async () => vi.advanceTimersByTimeAsync(1_000))
       expect(patchCount).toBe(1)
+
+      fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(fetchSpy.mock.calls.some((call) => String(call[0]).endsWith("/suggestions/9/accept"))).toBe(false)
+      expect(screen.getAllByRole("alert").some((alert) => alert.textContent?.includes("Title can't be blank"))).toBe(true)
 
       fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
       await act(async () => vi.advanceTimersByTimeAsync(0))
