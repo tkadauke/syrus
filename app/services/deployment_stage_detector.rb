@@ -64,6 +64,8 @@ class DeploymentStageDetector
     else
       refs_for(stage.tag_pattern).first
     end
+  rescue RepositoryContent::UnknownRevision
+    nil
   end
 
   def refs_for(pattern)
