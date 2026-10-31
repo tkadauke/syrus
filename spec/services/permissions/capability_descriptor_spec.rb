@@ -12,7 +12,7 @@ RSpec.describe Permissions::CapabilityDescriptor do
       maximum_autonomy: :job,
       authority_durations: %i[invocation chat_session job],
       maximum_duration: 1.day,
-      resource_scope: { type: :mysql_database },
+      resource_scope: Permissions::ResourceScopeSchema.new(type: :mysql_database),
       classifier: ->(_arguments) { { operation: "mysql.data/read@v1" } },
       fingerprint_normalizer: ->(arguments) { arguments },
       redactor: ->(_arguments) { {} }
@@ -26,6 +26,7 @@ RSpec.describe Permissions::CapabilityDescriptor do
     expect(descriptor.capability).to eq("mysql.data@v1")
     expect(descriptor.operation).to eq("mysql.data/read@v1")
     expect(descriptor.resource_scope.type).to eq(:mysql_database)
+    expect(descriptor.resource_scope).to be_a(Permissions::ResourceScopeSchema)
     expect(descriptor.defaults).to eq("chat_planner" => :allow, "coworker" => :ask)
     expect(descriptor.authority_durations).to eq(%i[invocation chat_session job])
   end
