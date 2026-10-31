@@ -3910,8 +3910,11 @@ function inlineSuggestionDiff(original: string, proposed: string): InlineSuggest
     .filter((token) => token.trim().length > 0)
   const mostlyWeakMatches = commonTokens.length > 0 && commonTokens.filter(isWeakDiffToken).length / commonTokens.length > 0.65
   const longestCommonToken = commonTokens.reduce((longest, token) => Math.max(longest, token.trim().length), 0)
+  const insufficientCommonCoverage = commonCoverage < 0.34
+  const insufficientCommonText = meaningfulCommonText.length < 4
+  const insufficientCommonToken = longestCommonToken < 4
 
-  if (alternatingRuns > 4 || commonCoverage < 0.34 || meaningfulCommonText.length < 4 || longestCommonToken < 4 || mostlyWeakMatches) {
+  if (alternatingRuns > 4 || insufficientCommonCoverage || insufficientCommonText || insufficientCommonToken || mostlyWeakMatches) {
     return { mode: "whole", proposed }
   }
 
