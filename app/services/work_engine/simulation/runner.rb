@@ -745,7 +745,7 @@ module WorkEngine
             )
           end
         end
-        scenario_work_intent_ids.each do |intent_id|
+        uncovered_scenario_work_intent_ids.each do |intent_id|
           reconcile_result!(
             tick,
             WorkEngine::Reconciler.call(
@@ -755,6 +755,25 @@ module WorkEngine
             )
           )
         end
+      end
+
+      # A job-scoped reconciliation already includes intents whose units
+      # contain that job. Re-running the same reconciler for each of those
+      # intents made multi-job simulations scan the same workflows and runs
+      # twice on every tick. Direct intents without a unit still need their
+      # intent-scoped pass so missing-runtime repairs retain their exact scope.
+      def uncovered_scenario_work_intent_ids
+        intent_ids = scenario_work_intent_ids
+        return intent_ids if global_reconcile? || intent_ids.empty?
+
+        member_ids = WorkIntent
+          .where(id: intent_ids)
+          .joins(work_units: :work_unit_members)
+          .where(work_unit_members: { job_id: job_ids })
+          .distinct
+          .pluck(:id)
+
+        intent_ids - member_ids
       end
 
       def global_reconcile?
