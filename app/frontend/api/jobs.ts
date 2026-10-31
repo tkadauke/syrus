@@ -1433,7 +1433,17 @@ export type JobSourceDiffPayload = {
   merge_base_sha: string | null
   default_ref: string
   branch_commits: Array<{ sha: string; short_sha: string; message: string; date: string | null }>
-  files: Array<{ path: string; previous_path?: string | null; status: string; additions: number; deletions: number; patch: string | null; is_image?: boolean; patch_status?: "binary" | "oversized" | null; patch_bytes?: number | null }>
+  files: Array<{
+    path: string
+    previous_path?: string | null
+    status: string
+    additions: number
+    deletions: number
+    patch: string | null
+    is_image?: boolean
+    patch_status?: "binary" | "oversized" | null
+    patch_bytes?: number | null
+  }>
   truncated: boolean
   diff_error: string | null
   version: DiffReviewVersion | null
@@ -1684,7 +1694,9 @@ function sourceFileDiffParams(base: string, head: string, path: string, previous
 }
 
 export async function fetchJobSourceFileDiff(id: string | number, base: string, head: string, path: string, previousPath?: string | null) {
-  const response = await fetch(`/api/v1/app/jobs/${id}/source_file_diff?${sourceFileDiffParams(base, head, path, previousPath)}`, { credentials: "same-origin" })
+  const response = await fetch(`/api/v1/app/jobs/${id}/source_file_diff?${sourceFileDiffParams(base, head, path, previousPath)}`, {
+    credentials: "same-origin"
+  })
   const body = await response.json()
   if (response.ok) return { patch: body.patch as string }
   if (body?.error?.code === "interactive_diff_limit") return { limitMessage: body.error.message as string }
