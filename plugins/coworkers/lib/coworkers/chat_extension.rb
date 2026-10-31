@@ -38,12 +38,16 @@ module Coworkers
         end
 
         ChatSession.define_method(:coworker_workspace_repository_id) do
+          coworker_workspace_repository&.id
+        end
+
+        ChatSession.define_method(:coworker_workspace_repository) do
           association = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: id)
-          association&.coworker&.workspace_repository&.id
+          association&.coworker&.workspace_repository
         end
 
         -> do
-          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy coworker_workspace? coworker_workspace_repository_id].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end

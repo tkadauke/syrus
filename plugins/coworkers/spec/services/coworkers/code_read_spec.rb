@@ -95,6 +95,9 @@ RSpec.describe "Coworker repository code access" do
     response = Mcp::Tools::AttachRepositoryTool.call(slug: repository.slug, server_context: { chat_session: chat })
 
     expect(response).not_to be_error
+    expect(chat.reload.repository).to eq(workspace_repository)
+    expect(chat.repository_id).to eq(workspace_repository.id)
+    expect(chat.attached_repositories).to include(workspace_repository, repository)
     expect(ChatWorkspace).to have_received(:protect_path_read_only!).with(product_path)
     expect(product_path.join("source.rb").stat.mode & 0o222).to eq(0)
     expect(product_path.join(".git").stat.mode & 0o222).to eq(0)
@@ -109,6 +112,20 @@ RSpec.describe "Coworker repository code access" do
     end
     _, status = Process.wait2(writer)
     expect(status).to be_success
+    expect(product_path.join("source.rb").read).to eq("source")
+
+    workspace_attachment = chat.chat_attachments.find_by!(attachable: workspace_repository)
+    workspace_attachment.destroy!
+    chat.chat_attachments.create!(attachable: workspace_repository, attached_at: 2.hours.from_now)
+    chat.association(:repository_attachments).reset
+    chat.association(:attached_repositories).reset
+    expect(chat.repository).to eq(workspace_repository)
+    expect(chat.attached_repositories).to include(workspace_repository, repository)
+
+    detached = Mcp::Tools::DetachRepositoryTool.call(slug: repository.slug, server_context: { chat_session: chat })
+    expect(detached).not_to be_error
+    expect(chat.reload.repository).to eq(workspace_repository)
+    expect(chat.attached_repositories).to contain_exactly(workspace_repository)
     expect(product_path.join("source.rb").read).to eq("source")
   ensure
     FileUtils.chmod_R(0o700, root) if root&.exist?

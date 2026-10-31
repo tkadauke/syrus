@@ -3,6 +3,7 @@ require "rails_helper"
 RSpec.describe Coworkers::HomeBranchPersistence do
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
+  let(:product_repository) { Factories.repository(user: owner) }
   let(:chat) { ChatSession.create!(user: owner, repository: repository) }
   let(:coworker) { Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url) }
   let(:git) { instance_double(GitRunner, configure_author: nil, run: "") }
@@ -10,6 +11,7 @@ RSpec.describe Coworkers::HomeBranchPersistence do
 
   before do
     Coworkers::Chat.create!(chat_session: chat, coworker: coworker, role: "main")
+    chat.chat_attachments.create!(attachable: product_repository, attached_at: 1.hour.from_now)
     allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(path)
     allow_any_instance_of(Repository).to receive(:authenticated_url).with(user: owner).and_return("https://token@example.test/workspace.git")
   end
@@ -27,6 +29,7 @@ RSpec.describe Coworkers::HomeBranchPersistence do
       "push", "https://token@example.test/workspace.git", "HEAD:refs/heads/coworkers/maya",
       chdir: path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" }
     )
+    expect(ChatWorkspace).not_to have_received(:repo_path_for).with(chat, product_repository)
   end
 
   it "does nothing when the workspace is clean and has no unpublished commits" do
