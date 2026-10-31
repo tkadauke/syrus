@@ -29,6 +29,9 @@ module Syrus
     #   must additionally implement `.available_for_coworker?`; its absence is
     #   the deny-by-default behavior. Each safe definition must include a
     #   `capability:` value held by the coworker or it is still excluded.
+    #   A harmless tool may instead declare `ungated: true`; this is reserved
+    #   for tools with no effects outside the coworker's workspace or chat,
+    #   no data beyond the owner's visibility, and no external cost.
     #
     # A provider may declare `.coworker_grants`, returning hashes accepted by
     # `Coworkers::GrantCatalog::Descriptor`: name, label, description,

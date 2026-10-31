@@ -1818,6 +1818,13 @@ workspace-files confirmation list also requires confirmation. During an
 owner-authored interactive turn, asking the owner a structured question or
 suggesting the owner's next chat message runs immediately: these in-turn
 helpers do not create a separate confirmation action.
+The selected policy applies to every call in the capability, including
+read-only and plugin-provided tools. On unattended work, `confirm` is queued
+in the approval inbox like `queue`; approval runs the stored call once and
+returns its result to the coworker's next turn. A small explicitly ungated set
+— workspace file operations, read-only memory, replies to an owner-opened
+bridge thread, and the two in-turn helpers — stays inside the coworker's
+workspace or current chat and runs immediately.
 Queued and confirmation-gated actions identify the coworker and show the real
 tool name plus readable arguments on both the chat card and the coworker's
 Approvals tab. Secret-like values are redacted, and long values can be expanded

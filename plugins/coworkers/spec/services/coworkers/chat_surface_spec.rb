@@ -164,6 +164,39 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.pending_actions.last.payload.fetch("actor")).to include("name" => coworker.name, "handle" => coworker.handle)
   end
 
+  it "applies confirm and auto policies to read-only core tools" do
+    grant = coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
+
+    confirmed = coworker_tool("list_jobs").call(server_context: { chat_session: chat })
+    expect(response_payload(confirmed)).to include("approval_policy" => "confirm")
+    expect(chat.pending_actions.last.payload).to include("tool_name" => "list_jobs", "arguments" => {})
+
+    grant.update!(approval_policy: "queue")
+    queued = coworker_tool("list_jobs").call(server_context: { chat_session: chat })
+    expect(response_payload(queued)).to include("approval_policy" => "queue")
+    expect(chat.pending_actions.last.payload).to include("approval_inbox" => true)
+
+    grant.update!(approval_policy: "auto")
+    expect(coworker_tool("list_jobs").call(server_context: { chat_session: chat })).not_to be_error
+  end
+
+  it "applies confirm and auto policies to plugin-defined coworker tools" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    message_grant = coworker.grants.create!(capability: "coworker.message", approval_policy: "confirm")
+    schedule_grant = coworker.grants.create!(capability: "schedule.manage_self", approval_policy: "confirm")
+
+    message = coworker_tool("message_coworker").call(handle: "nobody", text: "Hello", server_context: { chat_session: chat })
+    schedule = coworker_tool("manage_coworker_schedule").call(action: "list", server_context: { chat_session: chat })
+    expect(response_payload(message)).to include("approval_policy" => "confirm")
+    expect(response_payload(schedule)).to include("approval_policy" => "confirm")
+
+    message_grant.update!(approval_policy: "auto")
+    schedule_grant.update!(approval_policy: "auto")
+    expect(coworker_tool("message_coworker").call(handle: "nobody", text: "Hello", server_context: { chat_session: chat })).to be_error
+    expect(coworker_tool("manage_coworker_schedule").call(action: "list", server_context: { chat_session: chat })).not_to be_error
+  end
+
   it "offers interactive-only tools only for an interactive turn" do
     coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
     expect(names).not_to include("ask_user_question", "suggest_next_step")

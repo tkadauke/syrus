@@ -119,10 +119,18 @@ RSpec.describe K8sCluster::ChatToolSet do
 
     expect(Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)).to be_empty
 
-    coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
-    names = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
-      .map { |tool| McpToolRegistry.tool_name_for(tool) }
+    grant = coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
+    tools = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
+    names = tools.map { |tool| McpToolRegistry.tool_name_for(tool) }
     expect(names).to match_array(described_class::COWORKER_READ_TOOLS.map(&:tool_name))
+
+    namespaces = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "k8s_cluster_namespaces" }
+    confirmed = namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat })
+    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "confirm")
+    expect(chat.pending_actions.last.payload).to include("tool_name" => "k8s_cluster_namespaces")
+
+    grant.update!(approval_policy: "auto")
+    expect(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat })).not_to be_nil
   end
 
   it "dispatches to the matching tool class, passing string-keyed params through" do

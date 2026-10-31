@@ -71,8 +71,20 @@ The coworker-facing inventory is `message_coworker`, `reply_in_chat_thread`,
 Those essential tools remain governed by the coworker's grants and workspace
 boundary; coworkers do not receive owner control-plane tools.
 
-`reply_in_chat_thread` is the narrow exception to grant approval: it is
-grantless and needs no per-reply confirmation when the coworker's owner opened
+Grant policy is enforced for every gated call, including read-only core tools
+and plugin-defined tools. `auto` runs immediately; `confirm` creates an
+in-chat approval during an interactive turn and joins the approval inbox for
+an unattended run; `queue` always joins the approval inbox. Confirming replays
+the stored tool name and arguments exactly once through the owning provider.
+Tools explicitly classified as `ungated` bypass this policy because they stay
+within the coworker's workspace or current chat, expose no additional owner
+data, and incur no external cost. The workspace file tools, read-only memory
+tools, `reply_in_chat_thread`, and the in-turn question/suggestion helpers use
+that classification. `message_coworker` remains gated by `coworker.message`
+and defaults to confirmation.
+
+`reply_in_chat_thread` is an ungated exception to grant approval: it needs no
+per-reply confirmation when the coworker's owner opened
 the bridge thread and both the coworker's chat and an ordinary, non-coworker
 chat belonging to that owner are its members. It can only reply to that
 existing thread; it cannot open a thread or target an arbitrary chat. The
