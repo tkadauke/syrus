@@ -795,7 +795,8 @@ describe("RecentChatsSidebar action and marker slot", () => {
                 slug: "EPIC-9",
                 title: "Sidebar polish",
                 total: 5,
-                state_counts: { implemented: 1, approved: 1, running: 3 }
+                state_counts: { implemented: 1, approved: 1, running: 3 },
+                needs_attention: false
               }
             },
             { id: 42, slug: "JOB-42", state: "failed", step: "implement", group: "failed", app_path: "/jobs/42" }
@@ -876,25 +877,28 @@ describe("RecentChatsSidebar action and marker slot", () => {
   })
 
   it("groups Epics within mixed status sections and expands only attention-needed work by default", () => {
-    const epic = (id: number, slug: string, title: string, stateCounts: Record<string, number>) => ({
+    const epic = (id: number, slug: string, title: string, stateCounts: Record<string, number>, needsAttention = false) => ({
       id,
       slug,
       title,
       total: Object.values(stateCounts).reduce((sum, count) => sum + count, 0),
-      state_counts: stateCounts
+      state_counts: stateCounts,
+      needs_attention: needsAttention
     })
     const healthy = epic(10, "EPIC-10", "Quiet work", { running: 2, implemented: 1 })
-    const attention = epic(11, "EPIC-11", "Needs attention", { failed: 1, approved: 1 })
-    const ready = epic(12, "EPIC-12", "Ready work", { implemented: 2 })
+    const attention = epic(11, "EPIC-11", "Needs attention", { running: 1, approved: 1 }, true)
+    const ready = epic(12, "EPIC-12", "Ready work", { merged: 1, approved: 1, implemented: 1, running: 1 })
+    const actionableRunning = epic(13, "EPIC-13", "Actionable running work", { running: 1 }, true)
     renderSidebar([
       chatNav({
         job_summary: {
-          active_count: 3,
+          active_count: 4,
           outcome: "failed",
           jobs: [
             { id: 1, slug: "JOB-1", state: "running", step: "prepare", group: "running", app_path: "/jobs/1", epic: healthy },
             { id: 2, slug: "JOB-2", state: "running", step: "grader", group: "running", app_path: "/jobs/2", epic: healthy },
             { id: 3, slug: "JOB-3", state: "running", step: "implement", group: "running", app_path: "/jobs/3" },
+            { id: 7, slug: "JOB-7", state: "running", step: "review", group: "running", app_path: "/jobs/7", epic: actionableRunning },
             { id: 4, slug: "JOB-4", state: "failed", step: "grader", group: "failed", app_path: "/jobs/4", epic: attention },
             { id: 5, slug: "JOB-5", state: "implemented", group: "ready", app_path: "/jobs/5", epic: ready },
             { id: 6, slug: "JOB-6", state: "implemented", group: "ready", app_path: "/jobs/6" }
@@ -908,10 +912,16 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(within(popover).getAllByText("EPIC-10")).toHaveLength(1)
     expect(within(popover).getByRole("link", { name: "JOB-3" })).toBeInTheDocument()
     expect(within(popover).queryByRole("link", { name: "JOB-1" })).not.toBeInTheDocument()
+    expect(within(popover).getByRole("link", { name: "JOB-7" })).toBeInTheDocument()
     expect(within(popover).getByRole("link", { name: "JOB-4" })).toBeInTheDocument()
     expect(within(popover).queryByRole("link", { name: "JOB-5" })).not.toBeInTheDocument()
     expect(within(popover).getByRole("link", { name: "JOB-6" })).toBeInTheDocument()
     expect(within(screen.getByTestId("epic-job-group-10")).getByLabelText("Epic Job progress").querySelectorAll("[style]")).toHaveLength(1)
+    const readyProgress = within(screen.getByTestId("epic-job-group-12")).getByLabelText("Epic Job progress")
+    expect(readyProgress.querySelector(".bg-emerald-700")).toHaveStyle({ width: "25%" })
+    expect(readyProgress.querySelector(".bg-green-500")).toHaveStyle({ width: "25%" })
+    expect(readyProgress.querySelector(".bg-cyan-500")).toHaveStyle({ width: "25%" })
+    expect(within(screen.getByTestId("epic-job-group-12")).getByText("3/4 progressed")).toBeInTheDocument()
   })
 
   it("rolls Job activity and worst outcome into a collapsed group", () => {

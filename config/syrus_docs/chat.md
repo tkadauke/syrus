@@ -448,10 +448,10 @@ pending-action, and scratch-pad activity. Collapsed groups roll up Job activity
 so work remains visible. Within each running, failed, or PR-ready section, Jobs
 from the same Epic share one compact Epic summary with its title, segmented
 state progress, and current-step counts. Healthy and finished Epics start
-collapsed; failed Epics start expanded. Epic and Job slugs retain their entity
-preview, copy, and navigation interactions, and long Job lists scroll inside a
-bounded popover. Unread messages use the existing bold title without a separate
-dot.
+collapsed; Epics with failed or attention-marked Jobs start expanded. Epic and
+Job slugs retain their entity preview, copy, and navigation interactions, and
+long Job lists scroll inside a bounded popover. Unread messages use the existing
+bold title without a separate dot.
 The sidebar settings can filter the paginated list to unread chats. The chat
 currently open remains visible after it is marked read and drops out when the
 operator navigates away.
