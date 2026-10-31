@@ -1444,6 +1444,26 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     }.not_to change { WorkUnit.count }
   end
 
+  it "does not supersede active feedback with a blocked system rebase" do
+    feedback = workflow
+    feedback.update_columns(trigger_kind: "chat_feedback", state: "running", started_at: 20.minutes.ago, created_at: 20.minutes.ago)
+    step.update_columns(state: "running", started_at: 20.minutes.ago)
+    run.update_columns(trigger_kind: "chat_feedback", state: "running", started_at: 20.minutes.ago, last_heartbeat_at: 1.minute.ago)
+    attach_work_unit(feedback, kind: "chat_feedback", state: "running")
+    rebase = RebaseWorkflowSelector.instantiate(job: job)
+    rebase.work_unit.block!(
+      reason: WorkUnits::Gates::PatientRebase::REASON,
+      blocked_until: 1.minute.from_now,
+      details: { "blocking_workflow_id" => feedback.id }
+    )
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :superseded_active_runtime_work)).to be_nil
+    expect(feedback.reload).to be_running
+    expect(rebase.reload).to be_queued
+  end
+
   it "does not treat auxiliary visual diff workflows as superseding primary job work" do
     primary = workflow
     primary_step = step

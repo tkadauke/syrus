@@ -185,6 +185,10 @@ module WorkDefinitions
     self.runtime_role = "first_class"
     self.scope = "job"
 
+    def unit_gates = [ WorkUnits::Gates::PatientRebase ] + super
+
+    def materialize_behind_active_lock? = true
+
     def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
       [ "maintenance:rebase:job:#{job.id}" ]
     end
@@ -200,6 +204,10 @@ module WorkDefinitions
     self.workflow_trigger_kind = "stack_rebase"
     self.runtime_role = "first_class"
     self.scope = "epic"
+
+    def unit_gates = [ WorkUnits::Gates::PatientRebase ] + super
+
+    def materialize_behind_active_lock? = true
 
     def members_for(job:, artifacts: {}, **)
       ids = Array(artifacts[StackRebasePlan::STACK_ARTIFACT]).filter_map { |entry| entry["job_id"] }

@@ -15,6 +15,8 @@ module Mcp::Tools
       rebase in the batch; dry_run is not supported for job_ids), which
       creates one grouped pending action the operator confirms or rejects
       together. Requires operator confirmation unless dry_run is true.
+      Confirmation may cancel an active workflow that is preparing a push to
+      the same branch.
     DESC
 
     input_schema(
@@ -69,7 +71,7 @@ module Mcp::Tools
               "plan" => plan
             },
             reason: reason,
-            message: "Force #{plan.fetch("workflow_trigger_kind")} for #{job.slug}? Target base: #{plan.fetch("target_base") || "unknown"}.",
+            message: "Force #{plan.fetch("workflow_trigger_kind")} for #{job.slug}? Target base: #{plan.fetch("target_base") || "unknown"}. An active workflow on the branch may be cancelled.",
             extra: {
               plan: plan
             }
@@ -89,7 +91,7 @@ module Mcp::Tools
           },
           reason: reason
         )
-        bulk_action_response(group: group, message: "Force rebase for #{jobs.size} Jobs?", extra: { plans: plans, reason: reason })
+        bulk_action_response(group: group, message: "Force rebase for #{jobs.size} Jobs? Active workflows on those branches may be cancelled.", extra: { plans: plans, reason: reason })
       end
     end
   end

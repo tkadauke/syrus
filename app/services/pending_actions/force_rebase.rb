@@ -17,6 +17,7 @@ module PendingActions
       progress!("Creating forced rebase workflow for #{job.slug}...")
       workflow = RebaseWorkflowSelector.instantiate(
         job: job,
+        requested_by: "chat_agent",
         artifacts: {
           "repair_action" => "force_rebase",
           "repair_reason" => reason,

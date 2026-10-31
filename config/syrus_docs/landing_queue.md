@@ -1,5 +1,18 @@
 # Landing Queue
 
+## Patient automatic rebases
+
+System-origin rebases, including behind-base, landing repair, and recovered
+base-health repair, wait when another first-class workflow is active for the
+same publication branch. The rebase WorkUnit is retained with
+`patient_rebase_waiting_for_active_workflow` and normal workflow admission
+rechecks it after the blocking workflow finishes; the reconciler must not
+cancel the older workflow as superseded while this wait is active.
+
+UI and chat-agent rebase requests are recorded with their explicit origin and
+retain preemption behavior. Cancelling a `chat_feedback` workflow before its
+push records unapplied feedback and marks the Job as needing attention.
+
 The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow, `external_pr_merge` for externally filed PRs, or the unconditional `merge_train` path for Epic children.
 
 ## Approval and landing

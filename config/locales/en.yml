@@ -51,7 +51,7 @@ en:
         force_state_transition: "Apply %{event} to %{count} Jobs?"
         override_planned_execution: "Override planned execution for %{count} Jobs?"
         poll_job_feedback: "Poll PR feedback for %{count} Jobs?"
-        rebase_jobs: "Rebase %{count} Jobs normally?"
+        rebase_jobs: "Rebase %{count} Jobs? Active workflows on those branches may be cancelled."
         repair_queue_affinity: "Repair %{count} dead-queue Runs as one batch?"
         rerun_ci_repair: "Rerun CI repair for %{count} Jobs?"
         retire_work_units: "Retire %{count} terminal WorkUnits?"
