@@ -103,7 +103,13 @@ module Permissions
         value.map { |item| canonicalize(item) }.freeze
       when String
         value.dup.freeze
-      when Symbol, Numeric, TrueClass, FalseClass, NilClass
+      when Symbol
+        value.to_s.freeze
+      when Integer, TrueClass, FalseClass, NilClass
+        value
+      when Float
+        raise ArgumentError, "normalized scopes must contain only finite JSON numbers" unless value.finite?
+
         value
       else
         raise ArgumentError, "normalized scopes must contain only JSON-compatible values"

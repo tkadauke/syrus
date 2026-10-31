@@ -50,6 +50,15 @@ RSpec.describe Permissions::ResourceScopeSchema do
     expect(result.value["paths"]).to be_frozen
   end
 
+  it "canonicalizes symbol values to their JSON string representation" do
+    symbol = described_class.new(type: :account).normalize({ access: :read }, context: context)
+    string = described_class.new(type: :account).normalize({ "access" => "read" }, context: context)
+
+    expect(symbol).to be_success
+    expect(symbol.value).to eq(string.value)
+    expect(symbol.value["access"]).to be_frozen
+  end
+
   it "returns explicit fail-closed outcomes for invalid and failed normalization" do
     invalid = schema.normalize({ paths: [ "" ], repository_id: 1 }, context: context)
     hidden = schema.normalize({ paths: [], repository_id: 2 }, context: context)
@@ -67,8 +76,13 @@ RSpec.describe Permissions::ResourceScopeSchema do
     ambiguous = described_class.new(type: :account).normalize({ id: 1, "id" => 2 }, context: context)
     unsupported = described_class.new(type: :account).normalize({ id: Object.new }, context: context)
 
+    non_json_numbers = [ Float::NAN, Float::INFINITY, -Float::INFINITY, Rational(1, 2) ].map do |value|
+      described_class.new(type: :account).normalize({ amount: value }, context: context)
+    end
+
     expect(ambiguous.status).to eq(:failed)
     expect(unsupported.status).to eq(:failed)
+    expect(non_json_numbers).to all(have_attributes(status: :failed))
   end
 
   it "labels and compares only successfully normalized scopes" do
