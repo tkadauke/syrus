@@ -48,22 +48,25 @@ export function updateRecentChatMessageStateCache(
   updates: Pick<ChatRecord, "turn_in_flight"> & { agent_busy?: boolean; last_message_at: string; unread: boolean }
 ) {
   updateChatUnread(queryClient, Number(chatId), updates.unread)
-  queryClient.getQueryCache().findAll({ queryKey: ["chats", "recent"] }).forEach((query) => {
-    queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
-      if (!current || !Array.isArray(current.groups)) return current
+  queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["chats", "recent"] })
+    .forEach((query) => {
+      queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
+        if (!current || !Array.isArray(current.groups)) return current
 
-      const sortByLastActivity = query.queryKey.length === 2 || query.queryKey[5] === "last_activity"
-      return {
-        ...current,
-        groups: current.groups.map((group) => {
-          const existing = group.chats.find((chat) => String(chat.id) === String(chatId))
-          if (!existing) return group
-          const chats = group.chats.map((chat) => String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat)
-          return { ...group, chats: sortByLastActivity ? [...chats].sort(compareRecentChatActivity) : chats }
-        })
-      }
+        const sortByLastActivity = query.queryKey.length === 2 || query.queryKey[5] === "last_activity"
+        return {
+          ...current,
+          groups: current.groups.map((group) => {
+            const existing = group.chats.find((chat) => String(chat.id) === String(chatId))
+            if (!existing) return group
+            const chats = group.chats.map((chat) => (String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat))
+            return { ...group, chats: sortByLastActivity ? [...chats].sort(compareRecentChatActivity) : chats }
+          })
+        }
+      })
     })
-  })
 }
 
 function compareRecentChatActivity(left: ChatsIndexPayload["groups"][number]["chats"][number], right: ChatsIndexPayload["groups"][number]["chats"][number]) {
