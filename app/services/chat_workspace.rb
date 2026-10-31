@@ -322,8 +322,11 @@ class ChatWorkspace
   def self.reclaim_coding_over_budget!(budget_bytes:)
     return 0 if budget_bytes.to_i <= 0
 
-    entries = ChatSession.where.not(coding_checkout_branch: nil)
-                         .where.not(workspace_path: nil)
+    scope = ChatSession.where.not(coding_checkout_branch: nil)
+                       .where.not(workspace_path: nil)
+                       .preload(repository_attachments: :attachable)
+    scope = scope.preload(coworker_chat: :coworker) if ChatSession.reflect_on_association(:coworker_chat)
+    entries = scope
                          .find_each.filter_map do |chat_session|
       repository = chat_session.repository
       next unless repository

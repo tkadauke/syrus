@@ -348,7 +348,10 @@ attaching and detaching checkouts remain interactive-chat actions.
 
 Attached product checkouts are recursively stripped of write bits, including
 Git metadata. The `workspace.files` and `workspace.shell` grants continue to
-apply only to the coworker's own workspace repository. This blocks ordinary
-native-shell writes and Git persistence. Until the agent sandbox supplies a
-true read-only mount, a hostile process running as the checkout owner could
-restore its own mode bits; that remaining gap belongs to sandbox enforcement.
+apply only to the coworker's own workspace repository, which remains the
+chat's primary repository regardless of product attachment order. Product
+repositories remain secondary attachments for code-reading context and never
+become persistence targets. This blocks ordinary native-shell writes and Git
+persistence. Until the agent sandbox supplies a true read-only mount, a hostile
+process running as the checkout owner could restore its own mode bits; that
+remaining gap belongs to sandbox enforcement.
