@@ -242,6 +242,7 @@
     "fork_pr_changes_requested": "Changes requested",
     "grader_loop_no_progress": "Repair loop stopped",
     "investigation_escalated": "Investigation escalated",
+    "unapplied_chat_feedback": "Unapplied chat feedback",
     "unread_pr_feedback": "Unread PR feedback",
     "upstream_pr_closed": "Pull request closed",
     "upstream_pr_changes_requested": "Changes requested"

@@ -271,6 +271,13 @@ describe("mobile jobs list row", () => {
     expect(attentionLine?.textContent?.indexOf("Changes requested")).toBeLessThan(attentionLine?.textContent?.indexOf("Retryable Failure") ?? -1)
   })
 
+  it("surfaces unapplied chat feedback as an attention reason", () => {
+    mockMobileViewport()
+    renderTable([ mobileJobItem({ needs_attention: true, needs_attention_reason: "unapplied_chat_feedback" }) ])
+
+    expect(screen.getByRole("article", { name: "Job 3" })).toHaveTextContent("Unapplied chat feedback")
+  })
+
   it("explains approved external PR jobs that are actionable because of unread feedback", () => {
     mockMobileViewport()
     renderTable([ mobileJobItem({

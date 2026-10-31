@@ -11,7 +11,9 @@ cancel the older workflow as superseded while this wait is active.
 
 UI and chat-agent rebase requests are recorded with their explicit origin and
 retain preemption behavior. Cancelling a `chat_feedback` workflow before its
-push records unapplied feedback and marks the Job as needing attention.
+push records unapplied feedback and places a durable landing hold on the Job;
+ordinary PR review polling does not clear that distinct attention reason, so
+the missing feedback stays visible for operator follow-up.
 
 The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow, `external_pr_merge` for externally filed PRs, or the unconditional `merge_train` path for Epic children.
 

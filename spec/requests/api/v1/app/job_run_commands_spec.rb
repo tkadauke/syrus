@@ -226,7 +226,8 @@ RSpec.describe "App API job run commands", type: :request do
     expect(response).to have_http_status(:ok)
     expect(feedback.reload).to be_cancelled
     expect(feedback.artifact("unapplied_feedback")).to be(true)
-    expect(job.reload.needs_attention_reason).to eq(Job::REQUESTED_CHANGES_ATTENTION_REASON)
+    expect(job.reload.needs_attention_reason).to eq(Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON)
+    expect(job).to be_landing_held
   end
 
   it "preempts active workflows across the related stack before starting a stack rebase" do

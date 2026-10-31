@@ -673,6 +673,16 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "landing_queue")).not_to include(requested)
     end
 
+    it "inbox: claims an approved Job with unapplied chat feedback" do
+      unapplied = Factories.job_record(repository: repo, issue_number: 75, state: "approved")
+      unapplied.update!(needs_attention: true,
+                        needs_attention_reason: Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON,
+                        needs_attention_since: 1.hour.ago)
+
+      expect(run(field: "attention", op: "is", value: "inbox")).to include(unapplied)
+      expect(run(field: "attention", op: "is", value: "landing_queue")).not_to include(unapplied)
+    end
+
     it "in_progress: does not claim a running Job whose WorkUnit is blocked" do
       stalled = Factories.job_record(repository: repo, issue_number: 73, state: "running")
       create_blocked_work_unit_for(stalled, blocked_reason: "main_branch_health")

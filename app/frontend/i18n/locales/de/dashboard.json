@@ -242,6 +242,7 @@
     "fork_pr_changes_requested": "Änderungen angefordert",
     "grader_loop_no_progress": "Reparaturschleife gestoppt",
     "investigation_escalated": "Untersuchung eskaliert",
+    "unapplied_chat_feedback": "Nicht übernommenes Chat-Feedback",
     "unread_pr_feedback": "Ungelesenes PR-Feedback",
     "upstream_pr_closed": "PR geschlossen",
     "upstream_pr_changes_requested": "Änderungen angefordert"

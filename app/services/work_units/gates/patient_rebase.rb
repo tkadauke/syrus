@@ -39,14 +39,26 @@ module WorkUnits
         workflow = work_unit.workflow
         return unless workflow
 
+        jobs = member_jobs(workflow)
+        publication_branches = jobs.filter_map { |job| job.branch_name.presence }.to_set
+        publication_branches.merge(
+          Array(workflow.artifact(StackRebasePlan::STACK_ARTIFACT)).filter_map { |entry| entry["branch_name"].presence }
+        )
+        publication_branches << workflow.artifact("publication_branch") if workflow.artifact("publication_branch").present?
+
         Workflow
-          .where(id: WorkUnits::Ownership.active_workflow_ids([ workflow.job_id ], kinds: WorkDefinitions.first_class_work_unit_kinds))
+          .where(id: WorkUnits::Ownership.active_workflow_ids(jobs.map(&:id), kinds: WorkDefinitions.first_class_work_unit_kinds))
           .where.not(id: workflow.id)
+          .includes(:job)
           .order(:created_at, :id)
           .detect do |candidate|
             !candidate.trigger_kind.in?(RebaseWorkflowSelector::TRIGGER_KINDS) &&
-              publication_branch_name(candidate) == publication_branch_name(workflow)
+              publication_branch_name(candidate).in?(publication_branches)
           end
+      end
+
+      def member_jobs(workflow)
+        work_unit.work_unit_members.includes(:job).order(:id).filter_map(&:job).presence || [ workflow.job ]
       end
 
       def publication_branch_name(workflow)

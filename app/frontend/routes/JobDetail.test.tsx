@@ -5029,6 +5029,20 @@ describe("Job detail navigation", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/2?job_nav=nav-token")
   })
 
+  it("explains when chat feedback was cancelled before it was pushed", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          needs_attention: true,
+          needs_attention_reason: "unapplied_chat_feedback"
+        }
+      })
+    )
+
+    expect(screen.getByText("Chat feedback was cancelled before it was pushed. Review or reapply that feedback before approving this job.")).toBeInTheDocument()
+  })
+
   it('renders to the right of the "..." overflow menu in the header', () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
