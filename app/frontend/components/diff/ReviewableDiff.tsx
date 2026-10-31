@@ -1440,12 +1440,7 @@ function DiffFileSection({
       ) : file.is_image && renderImageDiff ? (
         renderImageDiff(file)
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
-        <OmittedPatchPlaceholder
-          downloadUrl={fileDiffDownloadUrl?.(file)}
-          limitMessage={patchLimitMessage}
-          loadState={patchLoadState}
-          onLoad={loadFullDiff}
-        />
+        <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
       ) : (
         <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
       )}
@@ -1453,13 +1448,31 @@ function DiffFileSection({
   )
 }
 
-function OmittedPatchPlaceholder({ downloadUrl, limitMessage, loadState, onLoad }: { downloadUrl?: string; limitMessage: string | null; loadState: "idle" | "loading" | "error" | "limited"; onLoad: () => void }) {
+function OmittedPatchPlaceholder({
+  downloadUrl,
+  limitMessage,
+  loadState,
+  onLoad
+}: {
+  downloadUrl?: string
+  limitMessage: string | null
+  loadState: "idle" | "loading" | "error" | "limited"
+  onLoad: () => void
+}) {
   const { t } = useT("common")
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 py-6 font-sans text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
       <span className="w-full">{limitMessage || (loadState === "error" ? t("diff_review.full_diff_error") : t("diff_review.full_diff_omitted"))}</span>
-      {loadState !== "limited" ? <Button onClick={onLoad} size="sm" variant="secondary">{loadState === "loading" ? t("diff_review.loading_full_diff") : t("diff_review.load_full_diff")}</Button> : null}
-      {downloadUrl ? <a className="inline-flex min-h-9 items-center rounded border border-gray-300 px-3 text-sm font-medium dark:border-gray-700" href={downloadUrl}>{t("diff_review.download_raw_diff")}</a> : null}
+      {loadState !== "limited" ? (
+        <Button onClick={onLoad} size="sm" variant="secondary">
+          {loadState === "loading" ? t("diff_review.loading_full_diff") : t("diff_review.load_full_diff")}
+        </Button>
+      ) : null}
+      {downloadUrl ? (
+        <a className="inline-flex min-h-9 items-center rounded border border-gray-300 px-3 text-sm font-medium dark:border-gray-700" href={downloadUrl}>
+          {t("diff_review.download_raw_diff")}
+        </a>
+      ) : null}
     </div>
   )
 }
