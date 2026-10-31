@@ -157,7 +157,7 @@ module Steps
         "note" => plan.note,
         "guessed" => plan.guessed?,
         "commands" => plan.commands,
-        "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(plan),
+        "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: workspace.path),
         "prepared_at" => Time.current.iso8601
       }.compact
       PreparedWorkspaceState.new(workspace.path).record!(plan.commands)

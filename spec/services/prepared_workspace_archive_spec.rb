@@ -165,6 +165,16 @@ RSpec.describe PreparedWorkspaceArchive do
 
       expect(described_class.prepare_fingerprint_for(plan)).not_to eq(first)
     end
+
+    it "separates prepared workspaces when a dependency lockfile changes" do
+      lockfile = Pathname.new(workspace_dir).join("Gemfile.lock")
+      File.write(lockfile, "sqlite3 (2.10.1)\n")
+      first = described_class.prepare_fingerprint_for(plan, path: workspace_dir)
+
+      File.write(lockfile, "sqlite3 (2.10.2)\n")
+
+      expect(described_class.prepare_fingerprint_for(plan, path: workspace_dir)).not_to eq(first)
+    end
   end
 
   describe "against the Disk-backed default service" do

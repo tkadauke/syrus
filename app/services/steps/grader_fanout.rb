@@ -831,7 +831,7 @@ module Steps
       return false if fresh_workflow.artifact("prepare_failure").present?
       return false unless PreparedWorkspaceState.new(workspace.path).prepared_for?(plan.commands)
 
-      prepared["prepare_fingerprint"] == PreparedWorkspaceArchive.prepare_fingerprint_for(plan)
+      prepared["prepare_fingerprint"] == PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: workspace.path)
     end
 
     def current_tree_sha
