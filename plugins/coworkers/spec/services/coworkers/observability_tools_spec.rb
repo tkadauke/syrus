@@ -84,4 +84,30 @@ RSpec.describe "Coworker observability tools" do
     expect(payload(responses.fetch(:browser)).to_json).not_to include("browser-secret", '"actions"')
     expect(payload(responses.fetch(:performance)).to_json).not_to include("perf-secret")
   end
+
+  it "filters the retained performance window before applying the result limit" do
+    coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    newer_events = 2.times.map do |index|
+      {
+        "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
+        "occurred_at" => index.seconds.ago.iso8601,
+        "app_revision" => "current-sha",
+        "request_id" => "newer-#{index}"
+      }
+    end
+    matching_event = {
+      "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
+      "occurred_at" => 3.seconds.ago.iso8601,
+      "app_revision" => "current-sha",
+      "request_id" => "target-request"
+    }
+    allow(PerformanceLogging::Store).to receive(:recent).with(no_args).and_return(newer_events + [ matching_event ])
+
+    response = Mcp::Tools::ReadPerformanceLogEventsTool.call(
+      server_context: { chat_session: chat }, request_id: "target-request", limit: 1
+    )
+
+    expect(response).not_to be_error
+    expect(payload(response).fetch("events")).to contain_exactly(include("request_id" => "target-request"))
+  end
 end

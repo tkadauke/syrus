@@ -85,10 +85,6 @@ class McpToolRegistry
       ]
     end
 
-    def default_coworker_grants
-      coworker_grants.to_h { |grant| [ grant.fetch(:name), grant.fetch(:default_policy) ] }
-    end
-
     def entry_for(tool)
       entries.find { |entry| entry.tool == tool }
     end
