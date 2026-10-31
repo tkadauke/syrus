@@ -1,7 +1,9 @@
 class RebaseWorkflowSelector
   TRIGGER_KINDS = %w[ rebase stack_rebase ].freeze
 
-  def self.instantiate(job:, artifacts: nil, agent_provider: nil, pr: nil, base_branch: nil)
+  def self.instantiate(job:, artifacts: nil, agent_provider: nil, pr: nil, base_branch: nil, requested_by: "system")
+    RebaseRequestOrigin.for(requested_by)
+    artifacts = (artifacts || {}).merge("requested_by" => requested_by.to_s)
     if stack_rebase?(job)
       WorkUnits::Launcher.instantiate(
         kind: "stack_rebase",

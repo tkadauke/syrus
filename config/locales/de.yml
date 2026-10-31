@@ -20,7 +20,7 @@ de:
         force_state_transition: "%{event} auf %{count} Jobs anwenden?"
         override_planned_execution: "Geplante Ausführung für %{count} Jobs überschreiben?"
         poll_job_feedback: "PR-Feedback für %{count} Jobs abrufen?"
-        rebase_jobs: "%{count} Jobs normal rebasen?"
+        rebase_jobs: "%{count} Jobs rebasen? Aktive Workflows auf diesen Branches können abgebrochen werden."
         repair_queue_affinity: "%{count} Läufe aus ausgefallenen Warteschlangen als Stapel reparieren?"
         rerun_ci_repair: "CI-Reparatur für %{count} Jobs erneut ausführen?"
         retire_work_units: "%{count} abgeschlossene WorkUnits stilllegen?"

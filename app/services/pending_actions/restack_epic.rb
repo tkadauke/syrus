@@ -48,6 +48,7 @@ module PendingActions
       workflows = rebase_roots(actions).map do |root|
         workflow = RebaseWorkflowSelector.instantiate(
           job: root,
+          requested_by: "chat_agent",
           artifacts: {
             "repair_action" => "restack_epic",
             "repair_reason" => reason,

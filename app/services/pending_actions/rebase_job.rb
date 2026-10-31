@@ -15,7 +15,7 @@ module PendingActions
       end
 
       progress!("Creating rebase workflow for #{job.slug}...")
-      workflow = RebaseWorkflowSelector.instantiate(job: job)
+      workflow = RebaseWorkflowSelector.instantiate(job: job, requested_by: "chat_agent")
       progress!("Starting #{workflow.slug}...")
       WorkUnits::Launcher.start!(workflow)
       nil

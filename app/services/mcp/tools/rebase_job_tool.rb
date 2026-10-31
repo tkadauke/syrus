@@ -12,6 +12,8 @@ module Mcp::Tools
     description <<~DESC
       Request a rebase workflow for a Syrus Job in this repository. The rebase
       workflow is not enqueued until the operator confirms the pending action.
+      Confirmation may cancel an active workflow that is preparing a push to
+      the same branch.
     DESC
 
     input_schema(
@@ -59,7 +61,7 @@ module Mcp::Tools
           pending_action_id: pending_action.id,
           state: pending_action.state,
           reason: pending_action.reason,
-          message: "Job rebase requires operator confirmation."
+          message: "Job rebase requires operator confirmation and may cancel an active workflow on the same branch."
           )
         end
 

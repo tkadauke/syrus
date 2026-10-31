@@ -184,6 +184,7 @@ RSpec.describe "App API job run commands", type: :request do
     expect(response).to have_http_status(:ok)
     expect(workflow.first_step.runs.last).to be_present
     expect(workflow.work_unit).to be_present
+    expect(workflow.artifact("requested_by")).to eq("user")
     expect(parse_body).to include("message" => "Rebase workflow enqueued.")
     expect(parse_body.dig("workflow", "id")).to eq(workflow.id)
   end
@@ -210,6 +211,22 @@ RSpec.describe "App API job run commands", type: :request do
     expect(unit.work_intent.reload).to be_cancelled
     expect(job.reload.state).to eq("running")
     expect(parse_body).to include("message" => "Cancelled the running workflow. Rebase workflow enqueued.")
+  end
+
+  it "surfaces unapplied chat feedback when a manual rebase cancels it before push" do
+    job.update!(pr_number: 7, branch_name: "syrus/issue-42-1")
+    finish_initial_workflow!(job)
+    job.update_columns(state: "running")
+    feedback = Workflows::ChatFeedback.instantiate(job: job)
+    feedback.update_columns(state: "running", started_at: Time.current)
+    attach_work_unit(feedback, job: job, kind: "chat_feedback")
+
+    post app_job_path("/rebase"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(feedback.reload).to be_cancelled
+    expect(feedback.artifact("unapplied_feedback")).to be(true)
+    expect(job.reload.needs_attention_reason).to eq(Job::REQUESTED_CHANGES_ATTENTION_REASON)
   end
 
   it "preempts active workflows across the related stack before starting a stack rebase" do
