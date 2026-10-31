@@ -4,6 +4,12 @@ require "rails_helper"
 require "open3"
 
 RSpec.describe "Syrus grader configuration" do
+  it "dogfoods the container execution backend for grader runs" do
+    config = SyrusYml.load_file(Rails.root.join(".syrus.yml"))
+
+    expect(config.execution.grader_backend).to eq("container_execution")
+  end
+
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 

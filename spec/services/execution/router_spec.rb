@@ -1,9 +1,13 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe Execution::Router do
   around do |example|
     snapshot = Syrus::PluginRegistry.snapshot
-    example.run
+    Dir.mktmpdir("execution-router") do |dir|
+      @workspace = dir
+      example.run
+    end
   ensure
     Syrus::PluginRegistry.restore(snapshot)
     PluginRecord.where(name: %w[accepting_execution_backend declining_execution_backend]).delete_all
@@ -11,8 +15,11 @@ RSpec.describe Execution::Router do
   end
 
   it "instantiates the first enabled provider that accepts the request" do
+    configure_backend("test_backend")
     backend = Class.new do
       include Syrus::Plugin::ExecutionBackend
+
+      def self.backend_name = "test_backend"
 
       def self.available_for?(_request) = true
 
@@ -41,9 +48,12 @@ RSpec.describe Execution::Router do
   end
 
   it "uses the local fallback when no enabled provider accepts the request" do
+    configure_backend("test_backend")
     local = instance_double(Execution::Local, run: :local_result)
     backend = Class.new do
       include Syrus::Plugin::ExecutionBackend
+
+      def self.backend_name = "test_backend"
 
       def self.available_for?(_request) = false
       def run(_request) = raise("should not run")
@@ -57,9 +67,30 @@ RSpec.describe Execution::Router do
     expect(described_class.new(local: local).run(request)).to eq(:local_result)
   end
 
-  it "supports directly registered provider instances" do
+  it "uses the local fallback when the repository does not select a backend" do
+    local = instance_double(Execution::Local, run: :local_result)
     backend = Class.new do
       include Syrus::Plugin::ExecutionBackend
+
+      def self.backend_name = "test_backend"
+      def self.available_for?(_request) = true
+      def run(_request) = raise("should not run")
+    end
+    Syrus::PluginRegistry.register(
+      name: "accepting_execution_backend",
+      version: "1.0.0",
+      provides: { execution_backend: backend }
+    )
+
+    expect(described_class.new(local: local).run(request)).to eq(:local_result)
+  end
+
+  it "supports directly registered provider instances" do
+    configure_backend("test_backend")
+    backend = Class.new do
+      include Syrus::Plugin::ExecutionBackend
+
+      def self.backend_name = "test_backend"
 
       def run(_request)
         :direct_result
@@ -74,8 +105,8 @@ RSpec.describe Execution::Router do
     Execution::Request.new(
       env: {},
       command: [ "true" ],
-      chdir: Dir.pwd,
-      mounts: ProcessRunner.mounts(Dir.pwd),
+      chdir: @workspace,
+      mounts: ProcessRunner.mounts(@workspace),
       network: "grader",
       resource_limits: nil,
       timeout: 5,
@@ -85,6 +116,7 @@ RSpec.describe Execution::Router do
       stop_requested: -> { false },
       on_output_chunk: nil,
       on_output_line: nil,
+      activity_probe: nil,
       kill_grace_seconds: ProcessRunner::TERM_GRACE_SECONDS,
       silent_timeout: nil,
       activity_probe: nil,
@@ -98,5 +130,9 @@ RSpec.describe Execution::Router do
       on_spawned_process: nil,
       local_runner: nil
     )
+  end
+
+  def configure_backend(name)
+    File.write(File.join(@workspace, ".syrus.yml"), "execution:\n  grader_backend: #{name}\n")
   end
 end
