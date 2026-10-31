@@ -250,12 +250,22 @@ function NewCoworker() {
           <legend className="mb-2 text-sm font-medium">{t("fields.grants")}</legend>
           {(optionsQuery.data?.grant_catalog || []).map((grant) => (
             <div className="mb-3" key={grant.name}>
-              <Checkbox defaultChecked={grant.default_enabled} disabled={grant.scopeable && !grant.scope_options?.length} label={grant.label} name="grants[]" value={grant.name} />
+              <Checkbox
+                defaultChecked={grant.default_enabled}
+                disabled={grant.scopeable && !grant.scope_options?.length}
+                label={grant.label}
+                name="grants[]"
+                value={grant.name}
+              />
               {grant.scopeable && grant.scope_options?.length ? (
                 <label className="ml-6 mt-1 block text-xs text-text-secondary">
                   {t("capabilities.scope_for", { capability: grant.label })}
                   <Select className="mt-1" defaultValue={JSON.stringify(grant.scope_options[0].value)} name={`grant_scopes[${grant.name}]`}>
-                    {grant.scope_options.map((option) => <option key={JSON.stringify(option.value)} value={JSON.stringify(option.value)}>{option.label}</option>)}
+                    {grant.scope_options.map((option) => (
+                      <option key={JSON.stringify(option.value)} value={JSON.stringify(option.value)}>
+                        {option.label}
+                      </option>
+                    ))}
                   </Select>
                 </label>
               ) : null}
@@ -490,7 +500,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
           return (
             <div className="space-y-3 p-4 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:space-y-0" key={capability}>
               <div>
-                <p className="text-sm">{descriptor.description}</p>
+                <p className="text-sm">{t(`capabilities.sentences.${capability.replaceAll(".", "_")}`, { defaultValue: descriptor.description })}</p>
                 {capability === "workspace.files" ? (
                   <div>
                     <label className="mt-2 block text-xs text-text-secondary">
@@ -515,8 +525,17 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 {descriptor.scopeable && descriptor.scope_options?.length ? (
                   <label className="mt-2 block text-xs text-text-secondary">
                     {t("capabilities.scope_for", { capability: descriptor.label })}
-                    <Select className="mt-1" disabled={mutation.isPending} onChange={(event) => changeScope(capability, event.target.value)} value={JSON.stringify(scopes[capability] ?? descriptor.scope_options[0].value)}>
-                      {descriptor.scope_options.map((option) => <option key={JSON.stringify(option.value)} value={JSON.stringify(option.value)}>{option.label}</option>)}
+                    <Select
+                      className="mt-1"
+                      disabled={mutation.isPending}
+                      onChange={(event) => changeScope(capability, event.target.value)}
+                      value={JSON.stringify(scopes[capability] ?? descriptor.scope_options[0].value)}
+                    >
+                      {descriptor.scope_options.map((option) => (
+                        <option key={JSON.stringify(option.value)} value={JSON.stringify(option.value)}>
+                          {option.label}
+                        </option>
+                      ))}
                     </Select>
                   </label>
                 ) : null}
@@ -527,11 +546,13 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 onChange={(event) => changePolicy(capability, event.target.value as keyof typeof POLICY_RANK)}
                 value={grant?.approval_policy || "off"}
               >
-                {(["auto", "confirm", "queue", "off"] as const).filter((policy) => POLICY_RANK[policy] <= POLICY_RANK[descriptor.maximum_policy]).map((policy) => (
-                  <option key={policy} value={policy}>
-                    {t(`capabilities.policies.${policy}`)}
-                  </option>
-                ))}
+                {(["auto", "confirm", "queue", "off"] as const)
+                  .filter((policy) => POLICY_RANK[policy] <= POLICY_RANK[descriptor.maximum_policy])
+                  .map((policy) => (
+                    <option key={policy} value={policy}>
+                      {t(`capabilities.policies.${policy}`)}
+                    </option>
+                  ))}
               </Select>
             </div>
           )

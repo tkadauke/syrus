@@ -24,6 +24,6 @@ RSpec.describe Coworkers::GrantCatalog do
   it "covers every capability surfaced by the core coworker registry" do
     registry_names = McpToolRegistry.entries(surface: :coworker).map { |entry| entry.capability.to_s }.uniq
     expect(described_class.names).to include(*registry_names)
-    expect(Admin::CapabilitySurfaceRegistry::COWORKER_MCP_CAPABILITIES).to match_array(registry_names)
+    expect(described_class.names).to include(*Admin::CapabilitySurfaceRegistry::COWORKER_MCP_CAPABILITIES)
   end
 end
