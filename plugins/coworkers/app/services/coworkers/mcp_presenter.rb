@@ -49,6 +49,7 @@ module Coworkers
 
     def grant_payload(grant)
       { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints || {} }
+        .merge(grant.scope.nil? ? {} : { scope: grant.scope })
     end
 
     def safe_workspace_repository

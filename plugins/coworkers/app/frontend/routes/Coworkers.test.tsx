@@ -399,6 +399,7 @@ it("preserves a scoped grant when changing its policy and allows disabling it", 
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
   expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("22")
+  expect(screen.getByText("Unlocks: read_database")).toBeInTheDocument()
 
   fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "queue" } })
   await waitFor(() => expect(requestBodies).toContainEqual(expect.objectContaining({ capability: "database.read", approval_policy: "queue", scope: 22 })))

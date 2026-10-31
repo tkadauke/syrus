@@ -16,7 +16,7 @@ const proposeCoworkerGrantsToolCard: ToolCardRenderer = {
     const live = id && displayValue(context.livePendingAction?.id) === id ? context.livePendingAction : null
     const grants = Array.isArray(payload.grants)
       ? payload.grants
-          .map((grant) => displayValue(grant))
+          .map((grant) => (isPlainObject(grant) ? `${displayValue(grant.capability)}: ${displayValue(grant.policy)}` : displayValue(grant)))
           .filter(Boolean)
           .join(", ")
       : ""
@@ -37,7 +37,13 @@ export const examples: ToolCardExample[] = [
   {
     id: "pending_grant_escalation",
     label: i18n.t("coworkers:tool_card.example_grant_pending"),
-    input: { coworker_id: 7, grants: ["workspace.shell", "syrus.propose_job"] },
+    input: {
+      coworker_id: 7,
+      grants: [
+        { capability: "workspace.shell", policy: "confirm" },
+        { capability: "syrus.propose_job", policy: "off" }
+      ]
+    },
     parsedResult: {
       pending_confirmation_id: 502,
       pending_action_id: 502,
@@ -46,7 +52,10 @@ export const examples: ToolCardExample[] = [
       grant_escalation: {
         coworker_id: 7,
         handle: "maya",
-        grants: ["workspace.shell", "syrus.propose_job"]
+        grants: [
+          { capability: "workspace.shell", policy: "confirm" },
+          { capability: "syrus.propose_job", policy: "off" }
+        ]
       }
     }
   }

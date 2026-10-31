@@ -124,7 +124,8 @@ without that separation fail closed rather than starting with permissions
 they cannot enforce.
 
 Owners edit these grants on the coworker's Capabilities tab. Every registered
-capability appears as a sentence with an `auto`, `confirm`, `queue`, or `off`
+capability appears with its description, unlocked tools, scope (when the grant
+owner declares one), and an `auto`, `confirm`, `queue`, or `off`
 policy. Moving to a more permissive policy, or turning on a new capability,
 requires a separate confirmation; reductions apply directly. File grants can
 record paths such as `SOUL.md` and `AGENTS.md` that always require confirmation.
@@ -132,6 +133,13 @@ Integration tiles are visible but disabled until those integrations ship.
 Capabilities that affect anything outside the workspace default to `confirm`
 or `queue`; messaging the owner defaults to `confirm`. Removing a protected
 file path is also an escalation and requires confirmation.
+
+Operator chat exposes the same aggregated catalog through
+`list_coworker_grants`. `propose_coworker_grants` accepts one or more desired
+capability, policy, and optional scope changes; `off` removes a grant and lower
+policies reduce it. The proposal remains inert until its pending-action card is
+confirmed. Coworker prompts list held and missing catalog grants with their
+unlocked tool names so a coworker can request the specific missing grant.
 
 Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's

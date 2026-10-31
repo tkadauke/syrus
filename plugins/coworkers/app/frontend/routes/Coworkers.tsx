@@ -500,7 +500,11 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
           return (
             <div className="space-y-3 p-4 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:space-y-0" key={capability}>
               <div>
+                <p className="text-sm font-medium">{descriptor.label}</p>
                 <p className="text-sm">{t(`capabilities.sentences.${capability.replaceAll(".", "_")}`, { defaultValue: descriptor.description })}</p>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {t("capabilities.unlocks", { tools: descriptor.tools.join(", ") || t("capabilities.no_tools") })}
+                </p>
                 {capability === "workspace.files" ? (
                   <div>
                     <label className="mt-2 block text-xs text-text-secondary">
