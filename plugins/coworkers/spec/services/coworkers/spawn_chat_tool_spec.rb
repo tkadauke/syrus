@@ -84,4 +84,30 @@ RSpec.describe Coworkers::SpawnChatTool do
     per_day = described_class.call(prompt: "Three", server_context: { chat_session: chat, current_message: third_message })
     expect(error_text(per_day)).to include("at most 2 per day")
   end
+
+  it "serializes the cap check and pending-action reservation on the coworker" do
+    coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm",
+      constraints: { "max_spawns_per_run" => 1, "max_spawns_per_day" => 1 })
+    tool_context = McpToolContext.from_server_context(context)
+    actor = tool_context.agent_actor
+    lock_held = false
+    allow(McpToolContext).to receive(:from_server_context).with(context).and_return(tool_context)
+
+    allow(actor).to receive(:with_lock).and_wrap_original do |original, &block|
+      original.call do
+        lock_held = true
+        block.call
+      ensure
+        lock_held = false
+      end
+    end
+    allow(Mcp::Tools::AuthorizationSupport).to receive(:pending_coworker_plugin_approval).and_wrap_original do |original, *args, **kwargs|
+      expect(lock_held).to eq(true)
+      original.call(*args, **kwargs)
+    end
+
+    expect(described_class.call(prompt: "Reserve the last slot", server_context: context)).not_to be_error
+    expect(actor).to have_received(:with_lock).once
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to contain_exactly(an_object_having_attributes(state: "pending"))
+  end
 end

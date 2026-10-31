@@ -27,16 +27,18 @@ module Coworkers
         return Mcp::Tools.invalid("a coworker can only spawn a side chat of itself") if requested_handle && requested_handle != coworker.handle
         return Mcp::Tools.invalid("prompt is required") if prompt.to_s.strip.blank?
 
-        limiter = Coworkers::SpawnChatLimiter.new(coworker:, server_context:)
-        return Mcp::Tools.invalid(limiter.refusal) unless limiter.allowed?
+        coworker.with_lock do
+          limiter = Coworkers::SpawnChatLimiter.new(coworker:, server_context:)
+          next Mcp::Tools.invalid(limiter.refusal) unless limiter.allowed?
 
-        pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
-          tool_name, "coworker.spawn_chat", server_context, { prompt: prompt, handle: coworker.handle, title: title }, always_pending: true
-        )
-        return pending if pending
+          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
+            tool_name, "coworker.spawn_chat", server_context, { prompt: prompt, handle: coworker.handle, title: title }, always_pending: true
+          )
+          next pending if pending
 
-        result = Coworkers::SpawnChat.call(coworker:, prompt:, title:, server_context:)
-        Mcp::Tools.success(chat_id: result.id, chat_path: "/chats/#{result.id}", handle: coworker.handle)
+          result = Coworkers::SpawnChat.call(coworker:, prompt:, title:, server_context:)
+          Mcp::Tools.success(chat_id: result.id, chat_path: "/chats/#{result.id}", handle: coworker.handle)
+        end
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
