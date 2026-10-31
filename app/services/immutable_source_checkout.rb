@@ -316,6 +316,7 @@ class ImmutableSourceCheckout
       step: @step,
       snapshot: snapshot,
       plan: plan,
+      checkout_path: path,
       worker_storage_key: WorkerStorageIdentity.queue_key
     )
   end
@@ -1014,13 +1015,14 @@ class ImmutableSourceCheckout
   end
 
   class PrepareCache
-    attr_reader :workflow, :step, :snapshot, :plan, :worker_storage_key, :prepare_fingerprint
+    attr_reader :workflow, :step, :snapshot, :plan, :checkout_path, :worker_storage_key, :prepare_fingerprint
 
-    def initialize(workflow:, step:, snapshot:, plan:, worker_storage_key:)
+    def initialize(workflow:, step:, snapshot:, plan:, checkout_path:, worker_storage_key:)
       @workflow = workflow
       @step = step
       @snapshot = snapshot
       @plan = plan
+      @checkout_path = checkout_path
       @worker_storage_key = worker_storage_key
       @prepare_fingerprint = fingerprint_for(plan)
     end
@@ -1190,7 +1192,7 @@ class ImmutableSourceCheckout
     end
 
     def fingerprint_for(plan)
-      PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: path)
+      PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: checkout_path)
     end
 
     def sanitized_worker_storage_key
