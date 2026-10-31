@@ -151,6 +151,8 @@ RSpec.describe "Coworker background runs" do
       name = McpToolRegistry.tool_name_for(tool)
       expect { tool.call(server_context: { run: run }, **arguments.fetch(name, {})) }.not_to raise_error
     end
+  end
+
   it "dispatches chat listing and search through the scheduled-run authorization boundary" do
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
     own_side_chat = ChatSession.create!(user: owner, title: "Coworker side chat")
