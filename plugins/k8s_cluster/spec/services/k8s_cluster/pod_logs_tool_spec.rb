@@ -41,6 +41,12 @@ RSpec.describe K8sCluster::PodLogsTool do
 
   it "redacts coworker pod logs and audits the coworker identity" do
     owner = Factories.user(admin: true)
+    kubeconfig = K8sCluster::ClusterCredential.build_kubeconfig(
+      api_server_url: cluster.api_server_url,
+      credentials: { "token" => "broker-only-token" }
+    )
+    K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: kubeconfig, user: owner)
+    cluster.save!
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Gilfoyle", handle: "gilfoyle-logs",
       workspace_repo: "https://github.com/example/workspace.git")
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
