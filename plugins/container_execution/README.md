@@ -17,9 +17,13 @@ Docker daemon must see. The published Docker Compose worker does not mount the
 Docker socket by default; enabling the plugin without these settings leaves
 graders on local execution.
 
-The plugin is intentionally scoped to graders first: grader commands are short,
-independent, and already describe their workspace, network profile, timeout,
-and resource limits through `ProcessRunner`.
+The same backend confines custom-coworker turns for Codex, Claude, Muse, and
+Agy. Those turns never fall back to local execution. Each per-turn container
+gets only the coworker checkout, the current chat/provider agent home, an
+ephemeral tmpfs, and the authorized MCP socket. It runs non-root with a
+read-only root filesystem, no capabilities, no-new-privileges, seccomp, and
+bounded PID, memory, and CPU resources. The persistent checkout is committed
+and merged by the existing coworker lifecycle after the container exits.
 
 Set `SYRUS_CONTAINER_EXECUTION_DEVCONTAINER=true` to use a repository's
 `.devcontainer/devcontainer.json` (or root `.devcontainer.json`) as the seed

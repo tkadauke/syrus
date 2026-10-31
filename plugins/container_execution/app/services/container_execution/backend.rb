@@ -9,11 +9,12 @@ module ContainerExecution
     end
 
     def available_for?(request)
-      request.kind.to_s == "grader" &&
+      policy = WorkloadPolicy::Base.resolve(request)
+      !!(policy&.available? &&
         seed_image_available_for?(request) &&
         Configuration.docker_command_path.present? &&
         Configuration.docker_transport_available? &&
-        all_mounts_host_visible?(request)
+        all_mounts_host_visible?(request))
     end
 
     def run(request)
@@ -52,12 +53,14 @@ module ContainerExecution
     private
 
     def docker_command(request)
+      policy = WorkloadPolicy::Base.resolve(request)
       [
         Configuration.docker_command_path,
         "run",
         "--rm",
         "--network",
-        docker_network(request),
+        policy.network,
+        *policy.extra_run_args,
         *resource_limit_args(request.resource_limits),
         *mount_args(request),
         *env_args(request),
@@ -68,16 +71,13 @@ module ContainerExecution
       ].compact
     end
 
-    def docker_network(request)
-      request.network.to_s == "grader" ? "none" : request.network.to_s
-    end
-
     def mount_args(request)
+      policy = WorkloadPolicy::Base.resolve(request)
       args = []
       request.mounts.read_write.each { |mount| args.concat(bind_mount_args(mount, readonly: false)) }
       request.mounts.read_only.each { |mount| args.concat(bind_mount_args(mount, readonly: true)) }
       args.concat(bind_mount_args(request.mounts.artifacts, readonly: false)) if request.mounts.artifacts
-      args.concat(mcp_socket_mount_args)
+      args.concat(mcp_socket_mount_args) if policy.mount_mcp_socket?
       args
     end
 
@@ -99,7 +99,8 @@ module ContainerExecution
     end
 
     def env_args(request)
-      request.env.keys.flat_map { |key| [ "--env", key.to_s ] } + mcp_socket_env_args
+      policy = WorkloadPolicy::Base.resolve(request)
+      request.env.keys.flat_map { |key| [ "--env", key.to_s ] } + (policy.mount_mcp_socket? ? mcp_socket_env_args : [])
     end
 
     def mcp_socket_env_args
@@ -145,7 +146,7 @@ module ContainerExecution
 
     def all_mounts_host_visible?(request)
       request.mounts.declared_mounts.all? { |mount| Configuration.host_path_for(mount.host_path).present? } &&
-        mcp_socket_host_visible?
+        (!WorkloadPolicy::Base.resolve(request).mount_mcp_socket? || mcp_socket_host_visible?)
     end
 
     def mcp_socket_host_visible?

@@ -151,6 +151,13 @@ module ChatProviders
 
     def run_invocation(workspace_path:, prompt:, mcp_config:, resume_session_id:,
                        stop_requested:, process_started:, log_sink:)
+      claude_home = ChatWorkspace.agent_home_for(chat, provider).to_s
+      FileUtils.mkdir_p(claude_home)
+      confined_mcp_config = mcp_config
+      if File.file?(mcp_config)
+        confined_mcp_config = File.join(claude_home, "mcp.json")
+        FileUtils.cp(mcp_config, confined_mcp_config)
+      end
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
@@ -158,14 +165,14 @@ module ChatProviders
         log_sink: log_sink,
         runner: runner,
         max_turns: nil,
-        mcp_config: mcp_config,
+        mcp_config: confined_mcp_config,
         image_paths: image_paths,
         file_paths: file_paths,
         resume_session_id: resume_session_id,
         disallowed_tools: disallowed_tools,
         model: chat.chat_model.presence,
         effort_level: chat.chat_effort,
-        env: env,
+        env: env.merge("HOME" => claude_home),
         stop_requested: stop_requested,
         process_started: process_started
       ).run

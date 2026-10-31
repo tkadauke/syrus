@@ -4,11 +4,19 @@ module Coworkers
       workspace.setup
       run.update!(prompt: prompt) if run.prompt.blank?
       log("invoking coworker for background run (#{workflow.slug})")
-      result = run_agent(prompt: run.prompt)
+      result = with_execution_workload { run_agent(prompt: run.prompt) }
       run.update!(agent_summary: result.final_text.to_s.strip.presence)
     end
 
     private
+
+    def with_execution_workload
+      previous = Thread.current[:syrus_execution_workload_policy]
+      Thread.current[:syrus_execution_workload_policy] = Coworkers::ExecutionWorkloadPolicy.new
+      yield
+    ensure
+      Thread.current[:syrus_execution_workload_policy] = previous
+    end
 
     def prompt
       <<~TEXT.strip

@@ -117,7 +117,7 @@ class AgyInvocation
       env: agy_env(workspace_path: workspace_path, agy_home: agy_home, api_key: api_key, model: model, effort_level: effort_level).merge(env || {}),
       command: agy_command(resume_session_id: effective_resume_session_id),
       stdin_data: stdin_event(prompt),
-      mounts: ProcessRunner.mounts(workspace_path),
+      mounts: ProcessRunner.agent_mounts(workspace_path, agy_home),
       network: "agent",
       timeout: timeout,
       silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,

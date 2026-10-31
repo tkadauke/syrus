@@ -57,6 +57,13 @@ RSpec.describe Execution::Router do
     expect(described_class.new(local: local).run(request)).to eq(:local_result)
   end
 
+  it "fails closed when a workload forbids local execution" do
+    policy = double(name: "custom coworker", fail_closed?: true)
+
+    expect { described_class.new.run(request.with(workload_policy: policy)) }
+      .to raise_error(Execution::Router::BackendUnavailable, /custom coworker/)
+  end
+
   it "supports directly registered provider instances" do
     backend = Class.new do
       include Syrus::Plugin::ExecutionBackend
@@ -96,6 +103,7 @@ RSpec.describe Execution::Router do
       agent: nil,
       display_command: nil,
       on_spawned_process: nil,
+      workload_policy: nil,
       local_runner: nil
     )
   end

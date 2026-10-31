@@ -24,6 +24,7 @@ module Execution
     :agent,
     :display_command,
     :on_spawned_process,
+    :workload_policy,
     :local_runner
   )
 end

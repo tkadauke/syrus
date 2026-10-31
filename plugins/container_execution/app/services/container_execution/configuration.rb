@@ -48,6 +48,13 @@ module ContainerExecution
       ENV["SYRUS_PERSISTENT_MCP_SOCKET"].presence
     end
 
+    def coworker_user = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_USER", "1000:1000")
+    def coworker_pids_limit = Integer(ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_PIDS", "256"))
+    def coworker_tmpfs_size = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_TMPFS", "256m")
+    def coworker_memory = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_MEMORY", "4g")
+    def coworker_cpus = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_CPUS", "2")
+    def seccomp_profile = ENV.fetch("SYRUS_CONTAINER_EXECUTION_SECCOMP", "builtin")
+
     def host_path_for(path)
       path = Pathname.new(path.to_s).expand_path
       mapping = host_path_mappings
