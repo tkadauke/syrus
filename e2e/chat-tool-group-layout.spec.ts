@@ -18,7 +18,7 @@ test("keeps the grouped Read summary readable beside its metadata at 1728x931", 
 
   const label = page.getByText("Inspected 9 sources", { exact: true })
   const summary = label.locator("xpath=ancestor::summary")
-  const detail = summary.locator(":scope > span").nth(3)
+  const detail = summary.locator(":scope > span").nth(4)
 
   await expect(label).toBeVisible()
   await expect(summary.getByText("Done", { exact: true })).toBeVisible()
@@ -33,25 +33,33 @@ test("keeps the grouped Read summary readable beside its metadata at 1728x931", 
   await expectNoHorizontalOverflow(page, summary)
 })
 
-test("wraps an unusual summary on mobile without hiding its metadata or overflowing", async ({ page }) => {
+test("keeps collapsed summaries to one prioritized line on mobile without overflowing", async ({ page }) => {
   await openFixture(page, { width: 402, height: 812 })
 
-  const label = page.getByText(`${LONG_TOOL_NAME} (2)`, { exact: true })
-  const summary = label.locator("xpath=ancestor::summary")
-  const detail = summary.locator(":scope > span").nth(3)
+  for (const text of ["Inspected 9 sources", "Admin version", "Bash"]) {
+    const label = page.getByText(text, { exact: true })
+    const summary = label.locator("xpath=ancestor::summary")
 
-  await expect(label).toBeVisible()
-  await expect(summary.getByText("Done", { exact: true })).toBeVisible()
-  await expect(summary.getByText("2", { exact: true })).toBeVisible()
-  await expect(detail).toBeVisible()
-  await expect(detail).toHaveCSS("white-space", "normal")
+    await expect(label).toBeVisible()
+    await expect(summary.getByText("Done", { exact: true })).toBeVisible()
+    const summaryBox = await summary.boundingBox()
+    expect(summaryBox).not.toBeNull()
+    expect(summaryBox!.height).toBeLessThanOrEqual(28)
+    await expectNoHorizontalOverflow(page, summary)
+  }
 
-  const [labelBox, summaryBox] = await Promise.all([label.boundingBox(), summary.boundingBox()])
-  expect(labelBox).not.toBeNull()
+  const longLabel = page.getByText(`${LONG_TOOL_NAME} (2)`, { exact: true })
+  const longSummary = longLabel.locator("xpath=ancestor::summary")
+
+  await expect(longLabel).toBeVisible()
+  await expect(longLabel).toHaveAttribute("title", `${LONG_TOOL_NAME} (2)`)
+  await expect(longLabel).toHaveCSS("text-overflow", "ellipsis")
+  await expect(longSummary.getByText("Done", { exact: true })).toBeVisible()
+  await expect(longSummary.getByText("2", { exact: true })).toBeVisible()
+  const summaryBox = await longSummary.boundingBox()
   expect(summaryBox).not.toBeNull()
-  expect(labelBox!.height).toBeGreaterThan(30)
-  expect(labelBox!.x + labelBox!.width).toBeLessThanOrEqual(summaryBox!.x + summaryBox!.width + 1)
-  await expectNoHorizontalOverflow(page, summary)
+  expect(summaryBox!.height).toBeLessThanOrEqual(28)
+  await expectNoHorizontalOverflow(page, longSummary)
 })
 
 async function openFixture(page: Page, viewport: { width: number; height: number }) {
@@ -108,6 +116,22 @@ function seedToolGroupFixture() {
         tool_name: ${JSON.stringify(LONG_TOOL_NAME)},
         tool_use_id: tool_use_id,
         content: { "type" => "tool_result", "tool_use_id" => tool_use_id, "content" => "inspected source #{index}", "is_error" => false }
+      )
+    end
+
+    { "admin_version" => "Admin version", "Bash" => "Bash" }.each do |tool_name, label|
+      tool_use_id = "layout-#{tool_name}"
+      chat.messages.create!(
+        role: "tool_use",
+        tool_name: tool_name,
+        tool_use_id: tool_use_id,
+        content: { "type" => "tool_use", "id" => tool_use_id, "name" => tool_name, "input" => { "command" => "a deliberately long argument that must not wrap" } }
+      )
+      chat.messages.create!(
+        role: "tool_result",
+        tool_name: tool_name,
+        tool_use_id: tool_use_id,
+        content: { "type" => "tool_result", "tool_use_id" => tool_use_id, "content" => "#{label} completed with a deliberately long result summary", "is_error" => false }
       )
     end
 
