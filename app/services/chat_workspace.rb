@@ -1,4 +1,5 @@
 require "fileutils"
+require "find"
 require "open3"
 
 # Persistent per-ChatSession workspace used by top-level chat inspection.
@@ -82,6 +83,23 @@ class ChatWorkspace
 
   def self.attach_repository!(chat_session, repository)
     new(chat_session).attach_repository!(repository)
+  end
+
+  def self.protect_repository_read_only!(chat_session, repository)
+    protect_path_read_only!(repo_path_for(chat_session, repository))
+  end
+
+  def self.protect_path_read_only!(path)
+    new(nil).send(:protect_checkout_read_only!, Pathname(path))
+  end
+
+  def self.make_path_writable!(path)
+    new(nil).send(:make_checkout_writable!, Pathname(path))
+  end
+
+  def self.rm_rf!(path)
+    make_path_writable!(path)
+    FileUtils.rm_rf(path.to_s)
   end
 
   # Sets up the writable coding checkout for Coding Mode. Idempotent: if a
@@ -391,6 +409,7 @@ class ChatWorkspace
   # correct so the user isn't kept waiting for a deprioritized delete.
   def self.low_priority_rm_rf!(path)
     str = path.to_s
+    make_path_writable!(str)
     capture = ProcessRunner.new(
       env: {}, command: Syrus::LowPriorityIo.wrap([ "rm", "-rf", "--", str ]),
       mounts: ProcessRunner.mounts(Pathname.new(str).dirname), network: "grader",
@@ -399,10 +418,10 @@ class ChatWorkspace
     return if capture.success?
 
     Rails.logger.warn("[ChatWorkspace] low_priority_rm_rf! falling back to FileUtils for #{str}: #{capture.stderr.strip}")
-    FileUtils.rm_rf(str)
+    rm_rf!(str)
   rescue StandardError => e
     Rails.logger.warn("[ChatWorkspace] low_priority_rm_rf! error for #{str}, falling back: #{e.class}: #{e.message}")
-    FileUtils.rm_rf(str)
+    rm_rf!(str)
   end
 
   # Walks chat-workspaces/ and agent_homes/chats/ and removes any
@@ -455,6 +474,8 @@ class ChatWorkspace
     ensure_root!
     path = self.class.repo_path_for(@chat_session, repository)
 
+    make_checkout_writable!(path) if coworker_product_repository?(repository)
+
     if path.join(".git").directory?
       fast_forward!(repository, path)
     else
@@ -463,8 +484,50 @@ class ChatWorkspace
 
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     write_relay_credentials!
+    protect_checkout_read_only!(path) if coworker_product_repository?(repository)
     path
+  ensure
+    protect_checkout_read_only!(path) if path && path.exist? && coworker_product_repository?(repository)
   end
+
+  # Coworker product checkouts share an OS user with the native agent process,
+  # so mode bits are the strongest boundary available before the agent sandbox
+  # can supply a true read-only mount. They make ordinary shell writes and all
+  # Git persistence fail; a hostile process that chmods its own files remains
+  # a known sandbox-level gap.
+  def protect_checkout_read_only!(path)
+    each_checkout_entry(path) { |entry, stat| File.chmod(stat.mode & ~0o222, entry) }
+  end
+
+  def make_checkout_writable!(path)
+    each_checkout_entry(path) { |entry, stat| File.chmod(stat.mode | 0o200, entry) } if path.exist?
+  end
+
+  def each_checkout_entry(path)
+    Find.find(path.to_s) do |entry|
+      stat = File.lstat(entry)
+      next if stat.symlink?
+
+      yield entry, stat
+    end
+  end
+
+  def coworker_product_repository?(repository)
+    if @chat_session.respond_to?(:coworker_workspace_repository_id)
+      unless defined?(@coworker_workspace_repository_id)
+        @coworker_workspace_repository_id = @chat_session.coworker_workspace_repository_id
+      end
+      workspace_repository_id = @coworker_workspace_repository_id
+      return repository.id != workspace_repository_id if workspace_repository_id
+    end
+    return false if repository.id == @chat_session.repository_id
+    return false unless @chat_session.respond_to?(:coworker)
+
+    coworker = @chat_session.coworker
+    coworker.respond_to?(:kind) && coworker.kind == "coworker"
+  end
+
+  private :protect_checkout_read_only!, :make_checkout_writable!, :each_checkout_entry, :coworker_product_repository?
 
   def ensure_branch_checkout!(repository, branch_name, preserve_local_commits: false)
     ensure_root!
@@ -480,7 +543,7 @@ class ChatWorkspace
     if path.join(".git").directory? && current_branch == branch_name
       fast_forward_branch!(repository, path, branch_name, preserve_local_commits: preserve_local_commits)
     else
-      FileUtils.rm_rf(path.to_s)
+      self.class.rm_rf!(path)
       full_clone_at_branch!(repository, path, branch_name)
     end
 
@@ -521,7 +584,7 @@ class ChatWorkspace
     branch = repository.default_branch
 
     # Remove any existing shallow checkout so the full clone gets a clean slate.
-    FileUtils.rm_rf(path.to_s) if path.join(".git").directory?
+    self.class.rm_rf!(path) if path.join(".git").directory?
 
     full_clone!(repository, path)
     configure_coding_checkout_author!(repository, path)
@@ -576,7 +639,7 @@ class ChatWorkspace
     if path.join(".git").directory?
       reset_existing_checkout_to_default!(repository, path, default_branch)
     else
-      FileUtils.rm_rf(path.to_s) if path.exist?
+      self.class.rm_rf!(path) if path.exist?
       full_clone!(repository, path)
     end
     configure_coding_checkout_author!(repository, path)
@@ -696,7 +759,7 @@ class ChatWorkspace
 
     ensure_root!
 
-    FileUtils.rm_rf(path.to_s) if path.join(".git").directory?
+    self.class.rm_rf!(path) if path.join(".git").directory?
     full_clone_at_branch!(repository, path, branch_name)
     configure_coding_checkout_author!(repository, path)
     @chat_session.update_columns(coding_checkout_branch: branch_name)
@@ -956,7 +1019,7 @@ class ChatWorkspace
   # restoring any uncommitted work backed up as a WIP tag. Afterwards the
   # working tree looks exactly as it did before reclaim.
   def restore_coding_checkout!(repository, path, branch)
-    FileUtils.rm_rf(path.to_s) if path.exist?
+    self.class.rm_rf!(path) if path.exist?
     full_clone_at_branch!(repository, path, branch)
 
     if remote_wip_tag_exists?(repository)

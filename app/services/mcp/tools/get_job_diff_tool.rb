@@ -25,6 +25,11 @@ module Mcp::Tools
       def call(job_id:, server_context:, page: 1, per_bytes: DEFAULT_DIFF_BYTES)
         chat_session = server_context.fetch(:chat_session)
         job = find_job!(job_id)
+        context = McpToolContext.from_server_context(server_context)
+        if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          access = CoworkerRepositoryAccess.resolve(server_context:, repository_id: job.repository_id)
+          return access if access.is_a?(MCP::Tool::Response)
+        end
 
         run = job.latest_workflow&.runs&.order(created_at: :desc, id: :desc)&.first
         diff = run&.agent_diff.to_s
@@ -48,7 +53,7 @@ module Mcp::Tools
         total_pages = total_pages(total_bytes, per_bytes)
         offset = (page - 1) * per_bytes
         page_out_of_range = offset >= total_bytes
-        chunk = page_out_of_range ? "" : Mcp::Tools.safe_byteslice(diff, offset, per_bytes)
+        chunk = page_out_of_range ? "" : ToolPayloadRedactor.redact_text(Mcp::Tools.safe_byteslice(diff, offset, per_bytes))
         has_next_page = page < total_pages
 
         Mcp::Tools.success(
