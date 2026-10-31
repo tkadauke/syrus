@@ -47,6 +47,7 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("design_doc", 19))).toEqual([["design_docs"], ["design_docs", "detail", "19"]])
     expect(queryKeysFor(event("operator_briefing", 2))).toEqual([["operator_briefing"]])
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])
+    expect(queryKeysFor({ ...event("chat", 5), changed: ["messages"] })).toEqual([["chats", "5"]])
     expect(queryKeysFor({ ...event("chat", 5), changed: ["media"] })).toEqual([["chats"], ["chats", "5"], ["chat_media", "5"], ["whiteboard_snapshots", "5"]])
     expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["bootstrap"], ["dashboard"], ["chats"]])
     expect(queryKeysFor(event("admin_overview", null))).toEqual([
@@ -683,6 +684,38 @@ describe("applyAppEvent", () => {
     // the open chat-detail query -- that only comes from ChatChannel.
     const detail = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
     expect(detail?.turn_in_flight).toBe(true)
+  })
+
+  it("patches message activity and unread state while reordering recent chats without refetching", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const first = { ...chatPayload([]).chat, id: 8, pinned: false, last_message_at: "2026-05-30T12:00:00Z", unread: false }
+    const active = { ...chatPayload([]).chat, id: 9, pinned: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [{ key: "general", label: "General", repository_id: null, chats: [first, active], has_more: false }], repositories: []
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9), changed: ["sidebar_message_state"],
+      payload: { action: "update_sidebar_message_state", turn_in_flight: true, agent_busy: true, last_message_at: "2026-05-30T13:00:00Z", unread: true }
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+    const recent = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
+    expect(recent?.groups[0].chats.map((chat) => chat.id)).toEqual([9, 8])
+    expect(recent?.groups[0].chats[0]).toMatchObject({ last_message_at: "2026-05-30T13:00:00Z", unread: true, turn_in_flight: true, agent_busy: true })
+  })
+
+  it("scopes unrecognized message-tail events to chat detail without invalidating recent chats", () => {
+    vi.useFakeTimers()
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("chat", 9), changed: ["messages"], payload: { action: "future_message_tail_action" } })
+
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
+    vi.runOnlyPendingTimers()
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
 
   it("applies chat controls payloads directly to cached chat data", () => {
