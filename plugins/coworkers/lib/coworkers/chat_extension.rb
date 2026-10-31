@@ -33,8 +33,17 @@ module Coworkers
           Coworkers::WorkspaceFileReadPolicy.for(relative_path)
         end
 
+        ChatSession.define_method(:coworker_workspace?) do
+          Coworkers::Chat.exists?(chat_session_id: id)
+        end
+
+        ChatSession.define_method(:coworker_workspace_repository_id) do
+          association = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: id)
+          association&.coworker&.workspace_repository&.id
+        end
+
         -> do
-          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy coworker_workspace? coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end
