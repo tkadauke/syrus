@@ -66,7 +66,7 @@ class McpToolUsageRecorder
         content: dispatch_response_content(response),
         error: response_error,
         authority: dispatch_response_authority(response),
-        error_class: response_error ? error_class : nil,
+        error_class: response_error ? (error_class || dispatch_response_error_class(response)) : nil,
         backtrace_excerpt: response_error ? backtrace_excerpt : nil
       )
       response
@@ -107,6 +107,26 @@ class McpToolUsageRecorder
     response.respond_to?(:execution_authority) ? response.execution_authority : nil
   end
   private_class_method :dispatch_response_authority
+
+  # Tool implementations return expected authorization and argument failures
+  # as responses rather than exceptions. Classify those at the persistent
+  # dispatch boundary so operational diagnostics distinguish them from an
+  # unexpected backend exception (which the rescue path records by class).
+  def self.dispatch_response_error_class(response)
+    text = Array(response.respond_to?(:content) ? response.content : nil)
+      .find { |item| item[:type].to_s == "text" || item["type"].to_s == "text" }
+      &.then { |item| item[:text] || item["text"] }.to_s
+    parsed = begin
+      JSON.parse(text)
+    rescue JSON::ParserError
+      nil
+    end
+    return "McpToolError::AuthorizationDenied" if parsed.is_a?(Hash) && parsed["error"] == "not_authorized"
+    return "McpToolError::ArgumentValidation" if text.start_with?("Error:")
+
+    "McpToolError::ToolFailure"
+  end
+  private_class_method :dispatch_response_error_class
 
   def self.normalize(raw_tool_name)
     raw = raw_tool_name.to_s
