@@ -281,6 +281,30 @@ RSpec.describe "Coworker background runs" do
     expect(source_run.reload.coworker_wake_enqueued_at).to be_present
   end
 
+  it "resumes wake delivery when the result card was recorded before the wake was queued" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Resumable review",
+      prompt: "Review it.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Done.", finished_at: Time.current)
+    result = main_chat.messages.create!(role: "assistant", content: { "text" => "Done." }, skip_turn_trigger: true)
+    workflow.set_artifact!(Coworkers::PostToChat::MESSAGE_ARTIFACT, result.id)
+    workflow.set_artifact!(Coworkers::PostToChat::MERGE_ARTIFACT, "merged")
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    expect { Coworkers::PostToChat.new(post_run).call }
+      .to change(main_chat.messages, :count).by(1)
+      .and have_enqueued_job(ChatTurnJob)
+
+    expect(main_chat.messages.where(role: "assistant").count).to eq(1)
+    expect(source_run.reload.coworker_wake_enqueued_at).to be_present
+    expect(lifecycle).not_to have_received(:finalize_background!)
+  end
+
   it "stores the agent's final text as the background run summary" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")

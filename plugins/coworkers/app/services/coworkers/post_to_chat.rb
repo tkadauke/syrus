@@ -4,8 +4,6 @@ module Coworkers
     MERGE_ARTIFACT = "coworker_merge_state"
 
     def self.post_failure!(workflow)
-      return if workflow.reload.artifact(MESSAGE_ARTIFACT).present?
-
       job = workflow.job
       coworker = Coworkers::Coworker.find(job.origin_id)
       chat = coworker.coworker_chats.find_by!(role: "main").chat_session
@@ -28,8 +26,6 @@ module Coworkers
     end
 
     def call
-      return if workflow.reload.artifact(MESSAGE_ARTIFACT).present?
-
       coworker = Coworkers::Coworker.find(job.origin_id)
       chat = coworker.coworker_chats.find_by!(role: "main").chat_session
       source_run = workflow.steps.find_by!(kind: "coworker_run").runs.where(state: "succeeded").order(:created_at).last!
