@@ -246,6 +246,11 @@ class ChatSession < ApplicationRecord
   # order for context/prompt surfaces that intentionally show every
   # attached repository.
   def repository
+    if respond_to?(:coworker_workspace_repository)
+      workspace_repository = coworker_workspace_repository
+      return workspace_repository if workspace_repository
+    end
+
     if association(:repository_attachments).loaded?
       return repository_attachments.last&.attachable || @initial_repository
     end
