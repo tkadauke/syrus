@@ -81,7 +81,7 @@ module DiffReviewVersions
           "additions" => value_for(file, :additions).to_i,
           "deletions" => value_for(file, :deletions).to_i,
           "patch" => value_for(file, :patch)
-        }.merge(generated_hash(file))
+        }.merge(patch_metadata(file)).merge(generated_hash(file))
       end
     end
 
@@ -101,6 +101,10 @@ module DiffReviewVersions
       return true if value == true || value.to_s == "true"
 
       nil
+    end
+
+    def patch_metadata(file)
+      { "patch_status" => value_for(file, :patch_status), "patch_bytes" => value_for(file, :patch_bytes) }.compact
     end
 
     def generated_hash(file)

@@ -252,7 +252,8 @@ module RepositoryContentHelpers
     changes = files.map do |file|
       status = { "removed" => "deleted", "copied" => "added", "changed" => "modified" }.fetch(file[:status].to_s, file[:status].to_s)
       RepositoryContent::Change.new(path: file[:path], status: status, previous_path: file[:previous_path],
-                                    additions: file[:additions], deletions: file[:deletions], patch: file[:patch])
+                                    additions: file[:additions], deletions: file[:deletions], patch: file[:patch],
+                                    patch_status: file[:patch_status], patch_bytes: file[:patch_bytes])
     end
     FakeRepositoryContentProvider.diffs[[ base_id, head_id ]] = { changes: changes, truncated: truncated }
   end

@@ -110,6 +110,8 @@ Rails.application.routes.draw do
         post "jobs", to: "direct_jobs#create"
         get "jobs/:id/source", to: "jobs#source", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/source_file_diff", to: "jobs#source_file_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/source_file_diff_download", to: "jobs#source_file_diff_download", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_image", to: "jobs#source_image", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/target_graph", to: "target_graphs#job", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/provider_routing_rules", to: "provider_routing_rules#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
