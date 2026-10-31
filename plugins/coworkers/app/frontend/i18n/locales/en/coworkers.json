@@ -151,6 +151,7 @@
     },
     "policies": { "auto": "Auto", "confirm": "Confirm", "queue": "Queue", "off": "Off" },
     "policy_for": "Approval policy for {{capability}}",
+    "scope_for": "Scope for {{capability}}",
     "confirm_escalation": "This gives the coworker more access. Confirm this grant change?",
     "confirm_paths": "Always confirm edits to these paths (comma-separated)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",

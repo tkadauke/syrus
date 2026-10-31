@@ -192,6 +192,46 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   expect(form.get("about")).toBe("Research lead")
 })
 
+it("selects and submits a scope when creating a scoped grant", async () => {
+  const scopedGrant = {
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: true,
+    scope_options: [
+      { value: 11, label: "Primary" },
+      { value: 22, label: "Reporting" }
+    ],
+    default_enabled: false
+  }
+  const requests: Array<{ path: string; init?: RequestInit }> = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      requests.push({ path, init })
+      if (path === "/api/v1/app/coworkers" && init?.method === "POST")
+        return jsonResponse({ coworker: detailPayload.coworker, redirect_to: "/coworkers/7" }, 201)
+      if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+      return jsonResponse({ ...summaryPayload, grant_catalog: [...grantCatalog, scopedGrant] })
+    })
+  )
+  renderRoute("/coworkers/new")
+  fill("Name", "Maya")
+  fill("Handle", "maya")
+  fill("Workspace remote", "https://github.com/acme/workspace")
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Database" }))
+  fireEvent.change(screen.getByRole("combobox", { name: "Scope for Database" }), { target: { value: "22" } })
+  fireEvent.click(screen.getByRole("button", { name: "Create coworker" }))
+  await screen.findByRole("heading", { name: "Maya" })
+
+  const form = requests.find(({ path, init }) => path === "/api/v1/app/coworkers" && init?.method === "POST")?.init?.body as FormData
+  expect(form.getAll("grants[]")).toContain("database.read")
+  expect(form.get("grant_scopes[database.read]")).toBe("22")
+})
+
 it("shows remote-test and creation errors without navigating", async () => {
   vi.stubGlobal(
     "fetch",
@@ -234,9 +274,7 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) =>
-      jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload)
-    )
+    vi.fn(async (input: RequestInfo | URL) => jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload))
   )
   renderRoute("/coworkers/7")
 
@@ -317,6 +355,45 @@ it("confirms grant escalation and refreshes the live tool surface", async () => 
     )
   )
   await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7")).toHaveLength(2))
+})
+
+it("confirms and submits changes to a scoped grant", async () => {
+  const scopedGrant = {
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: true,
+    scope_options: [
+      { value: 11, label: "Primary" },
+      { value: 22, label: "Reporting" }
+    ],
+    default_enabled: false
+  }
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      grants: [...detailPayload.coworker.grants, { capability: "database.read", approval_policy: "confirm", constraints: {}, scope: 11 }],
+      grant_catalog: [...grantCatalog, scopedGrant]
+    }
+  }
+  const confirm = vi.fn(() => true)
+  vi.stubGlobal("confirm", confirm)
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => jsonResponse(payload))
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  fireEvent.change(screen.getByRole("combobox", { name: "Scope for Database" }), { target: { value: "22" } })
+
+  expect(confirm).toHaveBeenCalledOnce()
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/grants",
+      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"scope":22') })
+    )
+  )
 })
 
 it("confirms before removing a protected workspace path", async () => {

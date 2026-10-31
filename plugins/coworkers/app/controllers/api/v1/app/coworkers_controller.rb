@@ -29,7 +29,7 @@ module Api
           coworker = Coworkers::Coworker.new(owner_user: Current.user)
           authorize coworker, :create?, policy_class: CoworkerPolicy
           created = Coworkers::Create.call(owner: Current.user, idempotency_key: request.headers["Idempotency-Key"] || params[:idempotency_key],
-            **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: params[:grants])
+            **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: requested_grants)
           render json: { coworker: detail_json(created), redirect_to: "/coworkers/#{created.id}" }, status: :created
         rescue ActiveRecord::RecordInvalid => error
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
@@ -80,7 +80,7 @@ module Api
           Coworkers::GrantUpdate.call(
             owner: Current.user, coworker: coworker, capability: params[:capability],
             approval_policy: params.require(:approval_policy), constraints: grant_constraints,
-            scope: params[:scope],
+            **grant_scope_argument,
             confirmed: params[:confirmed]
           )
           render json: { coworker: detail_json(coworker.reload) }
@@ -279,6 +279,29 @@ module Api
 
         def grant_constraints
           params.permit(constraints: { confirm_paths: [] })[:constraints]&.to_h || {}
+        end
+
+        def grant_scope_argument
+          params.key?(:scope) ? { scope: params[:scope] } : {}
+        end
+
+        def requested_grants
+          return unless params.key?(:grants)
+
+          scopes = params[:grant_scopes].respond_to?(:to_unsafe_h) ? params[:grant_scopes].to_unsafe_h : params[:grant_scopes].to_h
+          Array(params[:grants]).map do |raw|
+            if raw.respond_to?(:to_unsafe_h) || raw.respond_to?(:to_h)
+              attributes = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw.to_h
+              capability = attributes.key?("capability") ? attributes["capability"] : attributes[:capability]
+              scope = attributes.key?("scope") ? attributes["scope"] : attributes[:scope]
+              { capability: capability, scope: scope }
+            else
+              raw_scope = scopes[raw.to_s]
+              { capability: raw, scope: raw_scope.present? ? JSON.parse(raw_scope) : nil }
+            end
+          end
+        rescue JSON::ParserError
+          raise ArgumentError, "invalid grant scope"
         end
 
         def summary_json(coworker, weekly_spend_usd: nil)

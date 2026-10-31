@@ -1,9 +1,10 @@
 class Coworkers::GrantUpdate
   ConfirmationRequired = Class.new(StandardError)
+  SCOPE_UNCHANGED = Object.new.freeze
 
   def self.call(...) = new(...).call
 
-  def initialize(owner:, coworker:, capability:, approval_policy:, constraints: {}, scope: nil, confirmed: false)
+  def initialize(owner:, coworker:, capability:, approval_policy:, constraints: {}, scope: SCOPE_UNCHANGED, confirmed: false)
     @owner = owner
     @coworker = coworker
     @capability = capability.to_s
@@ -19,27 +20,24 @@ class Coworkers::GrantUpdate
     unless Coworkers::GrantCatalog.policy_allowed?(descriptor, @approval_policy)
       raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}"
     end
-    if descriptor.scopeable? && !descriptor.valid_scope?(@scope, user: @owner)
-      raise ArgumentError, "invalid scope for #{@capability}"
-    end
-    raise ArgumentError, "scope is not supported for #{@capability}" if !descriptor.scopeable? && @scope.present?
-
     target = Coworkers::GrantPolicy.for(@approval_policy)
     grant = @coworker.grants.find_by(capability: @capability)
+    return grant&.destroy! if @approval_policy == "off"
+
+    scope = @scope.equal?(SCOPE_UNCHANGED) ? grant&.scope : @scope
+    raise ArgumentError, "invalid scope for #{@capability}" if descriptor.scopeable? && !descriptor.valid_scope?(scope, user: @owner)
+    raise ArgumentError, "scope is not supported for #{@capability}" if !descriptor.scopeable? && scope.present?
+
     current = grant&.approval_policy || "off"
-    scope_escalated = grant && descriptor.scopeable? && grant.scope != @scope
+    scope_escalated = grant && descriptor.scopeable? && grant.scope != scope
     constraints_escalated = constraints_more_permissive?(grant)
     if (target.escalation_from?(current) || constraints_escalated || scope_escalated) && !@confirmed
       raise ConfirmationRequired, "grant escalation requires confirmation"
     end
 
     Coworkers::Grant.transaction do
-      if @approval_policy == "off"
-        grant&.destroy!
-      else
-        grant ||= @coworker.grants.build(capability: @capability)
-        grant.update!(approval_policy: @approval_policy, constraints: normalized_constraints, scope: @scope)
-      end
+      grant ||= @coworker.grants.build(capability: @capability)
+      grant.update!(approval_policy: @approval_policy, constraints: normalized_constraints, scope: scope)
     end
   end
 

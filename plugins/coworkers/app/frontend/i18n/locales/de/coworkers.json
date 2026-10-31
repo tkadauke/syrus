@@ -162,6 +162,7 @@
     },
     "policies": { "auto": "Automatisch", "confirm": "Bestätigen", "queue": "Warteschlange", "off": "Aus" },
     "policy_for": "Genehmigungsregel für {{capability}}",
+    "scope_for": "Geltungsbereich für {{capability}}",
     "confirm_escalation": "Dadurch erhält der Coworker mehr Zugriff. Grant-Änderung bestätigen?",
     "confirm_paths": "Bearbeitungen dieser Pfade immer bestätigen (kommagetrennt)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",

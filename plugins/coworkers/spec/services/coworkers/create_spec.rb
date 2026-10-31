@@ -106,6 +106,33 @@ RSpec.describe Coworkers::Create do
     expect(coworker.coworker_chats.find_by!(role: "main").chat_session.repository).to eq(repository)
   end
 
+  it "validates and persists a selected scope before provisioning starts" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "database.read", label: "Database", description: "Database", maximum_policy: "confirm", tools: [],
+      scope_options_callback: ->(user:) { [ user.id ] }, scope_label_callback: ->(value) { value.to_s },
+      valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:names).and_return(Coworkers::GrantCatalog.names + [ "database.read" ])
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("database.read").and_return(descriptor)
+
+    coworker = create_service(grants: [ { capability: "database.read", scope: owner.id } ]).call
+
+    expect(coworker.grants.find_by!(capability: "database.read")).to have_attributes(approval_policy: "confirm", scope: owner.id)
+  end
+
+  it "rejects a missing required scope before seeding the remote" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "database.read", label: "Database", description: "Database", maximum_policy: "confirm", tools: [],
+      scope_options_callback: ->(user:) { [ user.id ] }, scope_label_callback: ->(value) { value.to_s },
+      valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:names).and_return(Coworkers::GrantCatalog.names + [ "database.read" ])
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("database.read").and_return(descriptor)
+
+    expect { create_service(grants: [ "database.read" ]).call }.to raise_error(ArgumentError, /scope is required/)
+    expect(remote.seeded_files).to be_nil
+  end
+
   it "returns the completed coworker for duplicate delivery without duplicating records or branches" do
     key = "confirmation-42"
     allow(ChatTurnJob).to receive(:perform_later).and_call_original

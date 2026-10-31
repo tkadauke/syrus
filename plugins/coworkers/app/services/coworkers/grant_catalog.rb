@@ -12,7 +12,11 @@ module Coworkers
       def as_json(user: nil, **)
         payload = { name: name, label: label, description: description,
                     maximum_policy: maximum_policy, tools: tools, scopeable: scopeable? }
-        payload[:scope_options] = scope_options(user: user) if scopeable? && user
+        if scopeable? && user
+          payload[:scope_options] = scope_options(user: user).map do |value|
+            { value: value, label: scope_label(value) }
+          end
+        end
         payload
       end
     end

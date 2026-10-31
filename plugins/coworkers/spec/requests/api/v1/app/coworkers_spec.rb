@@ -33,6 +33,26 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "preserves an omitted scope on policy updates and permits scoped revocation" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "database.read", label: "Database", description: "Database", maximum_policy: "auto", tools: [],
+      scope_options_callback: ->(user:) { [ user.id ] }, scope_label_callback: ->(value) { value.to_s },
+      valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("database.read").and_return(descriptor)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-scoped-api", workspace_repo: "https://github.com/acme/workspace.git")
+    coworker.grants.create!(capability: "database.read", approval_policy: "confirm", scope: owner.id)
+    sign_in_as(owner)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: { capability: "database.read", approval_policy: "queue" }
+    expect(response).to have_http_status(:ok)
+    expect(coworker.grants.find_by!(capability: "database.read")).to have_attributes(approval_policy: "queue", scope: owner.id)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: { capability: "database.read", approval_policy: "off" }
+    expect(response).to have_http_status(:ok)
+    expect(coworker.grants.find_by(capability: "database.read")).to be_nil
+  end
+
   it "creates coworker schedules and includes them on the shared Schedules page" do
     repository = Factories.repository(user: owner, owner: "acme", name: "maya-workspace")
     coworker = Coworkers::Coworker.create!(

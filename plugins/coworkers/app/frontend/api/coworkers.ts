@@ -30,7 +30,7 @@ export type CoworkerDetail = CoworkerSummary & {
     maximum_policy: "off" | "queue" | "confirm" | "auto"
     tools: string[]
     scopeable: boolean
-    scope_options?: unknown[]
+    scope_options?: { value: unknown; label: string }[]
     default_enabled: boolean
   }[]
   schedules: CoworkerSchedule[]
@@ -115,9 +115,13 @@ export type CoworkerWorkspacePayload = {
 }
 
 export const fetchCoworkers = () =>
-  getJson<{ coworkers: CoworkerSummary[]; syrus: CoworkerSummary; model_options: CoworkerModelOptions[]; provisioning_attempts: ProvisioningAttempt[]; grant_catalog: CoworkerDetail["grant_catalog"] }>(
-    "/api/v1/app/coworkers"
-  )
+  getJson<{
+    coworkers: CoworkerSummary[]
+    syrus: CoworkerSummary
+    model_options: CoworkerModelOptions[]
+    provisioning_attempts: ProvisioningAttempt[]
+    grant_catalog: CoworkerDetail["grant_catalog"]
+  }>("/api/v1/app/coworkers")
 export const retryProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/retry`)
 export const acknowledgeProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/acknowledge`)
 export function fetchCoworker(id: string) {
@@ -153,10 +157,18 @@ export const testCoworkerRemote = (workspaceRepo: string) =>
   postJson<{ message: string }>("/api/v1/app/coworkers/test_remote", { workspace_repo: workspaceRepo })
 export const addCoworkerToChat = (coworkerId: number, chatId: number) => postJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
 export const removeCoworkerFromChat = (coworkerId: number, chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
-export const updateCoworkerGrant = (id: string, capability: string, approvalPolicy: string, constraints: Record<string, unknown>, confirmed = false) =>
+export const updateCoworkerGrant = (
+  id: string,
+  capability: string,
+  approvalPolicy: string,
+  constraints: Record<string, unknown>,
+  confirmed = false,
+  scope?: unknown
+) =>
   patchJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}/grants`, {
     capability,
     approval_policy: approvalPolicy,
     constraints,
-    confirmed
+    confirmed,
+    ...(scope === undefined ? {} : { scope })
   })
