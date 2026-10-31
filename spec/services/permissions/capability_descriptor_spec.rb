@@ -37,6 +37,22 @@ RSpec.describe Permissions::CapabilityDescriptor do
       .to raise_error(ArgumentError, /versioned identifier/)
   end
 
+  it "accepts only distinct, versioned aliases that do not reuse the canonical key" do
+    descriptor = described_class.new(**attributes.merge(
+      capability_aliases: [ "mysql.records@v1" ],
+      operation_aliases: [ "mysql.records/select@v1" ]
+    ))
+
+    expect(descriptor.capability_aliases).to eq([ "mysql.records@v1" ])
+    expect(descriptor.operation_aliases).to eq([ "mysql.records/select@v1" ])
+    expect { described_class.new(**attributes.merge(capability_aliases: [ "mysql.data" ])) }
+      .to raise_error(ArgumentError, /versioned identifier/)
+    expect { described_class.new(**attributes.merge(capability_aliases: [ "mysql.data@v1" ])) }
+      .to raise_error(ArgumentError, /canonical identifier/)
+    expect { described_class.new(**attributes.merge(operation_aliases: [ "old.read@v1", "old.read@v1" ])) }
+      .to raise_error(ArgumentError, /duplicates/)
+  end
+
   it "requires an explicit default for every requestable role" do
     expect { described_class.new(**attributes.merge(defaults: { chat_planner: :allow })) }
       .to raise_error(ArgumentError, /missing role defaults: coworker/)
