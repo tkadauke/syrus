@@ -29,7 +29,16 @@ write access to the workspace Repository; a missing grant auto-pauses the
 task. Coworkers with the `schedule.manage_self` grant can manage only their own
 schedules through `manage_coworker_schedule`; the grant requires confirmation
 by default. Coworker schedules do not use PR pile-up or PR auto-approval
-policies, and their results are posted to the coworker's main chat.
+policies, and their results are posted to the coworker's main chat. Schedules
+default to `after_run: wake`: after the collapsed result card is posted, an
+idle-boundary system message starts a normal coworker chat turn with the run
+summary, ID, duration, cost, schedule name, and original instructions. The
+coworker follows up in its own voice with its normal chat grants and approval
+policies, without repeating the card. Because this is an unattended system
+turn, interactive owner questions use the queued-message behavior. If another
+turn is active, the follow-up waits in the chat queue, and a run can enqueue at
+most one wake. Choose `after_run: quiet` for card-only delivery. A follow-up
+never fires another scheduled run.
 
 Coworkers is an experimental, instance-local capability for persistent named
 agents. It is disabled by default and requires beta mode before an administrator

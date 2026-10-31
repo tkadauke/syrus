@@ -11,6 +11,7 @@ module ScheduledTasks
     STATES = %w[ scheduled paused auto_paused fired ].freeze
     PAUSE_STATES = { "operator" => "paused", "auto" => "auto_paused" }.freeze
     PR_PILEUP_POLICIES = %w[ skip pile replace ].freeze
+    AFTER_RUN_POLICIES = %w[ quiet wake ].freeze
     MIN_CRON_INTERVAL = 1.hour
 
     belongs_to :user
@@ -35,6 +36,7 @@ module ScheduledTasks
     validates :kind, presence: true, inclusion: { in: KINDS }
     validates :state, presence: true, inclusion: { in: STATES }
     validates :pr_pileup_policy, presence: true, inclusion: { in: PR_PILEUP_POLICIES }
+    validates :after_run, presence: true, inclusion: { in: AFTER_RUN_POLICIES }
     validates :minute_offset, presence: true,
                               numericality: { only_integer: true, in: 0..59 }
     validates :consecutive_failure_count,

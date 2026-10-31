@@ -94,7 +94,7 @@ RSpec.describe "Coworker scheduled tasks" do
     )
 
     expect(added).not_to be_error
-    expect(coworker.schedules).to contain_exactly(have_attributes(name: "Weekly review", repository: repository))
+    expect(coworker.schedules).to contain_exactly(have_attributes(name: "Weekly review", repository: repository, after_run: "wake"))
     expect(Coworkers::ManageScheduleTool.call(action: "list", server_context: { chat_session: chat })).not_to be_error
   end
 
