@@ -10,7 +10,10 @@ chat has a turn in flight. Results are posted back to the main chat as a
 background-run card with the agent's final Markdown result above its duration
 and cost; long results are collapsible. Posting is keyed to the Workflow, so a
 retry after partial completion cannot duplicate either a success or failure
-card. Workspace changes merge into the home branch through
+card. The card also reports whether workspace changes merged, conflicted, or
+were unavailable. Background Git operations use a short timeout so delivery
+cannot spend multiple default Git timeout windows finalizing the workspace.
+Workspace changes merge into the home branch through
 the same retrying merge path as chat turns; conflicts preserve the run branch
 and appear in the main chat for resolution. Failed scheduled runs post the same
 kind of block, count toward consecutive-failure auto-pause, and close their

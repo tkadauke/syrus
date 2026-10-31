@@ -4,6 +4,7 @@ require "tmpdir"
 class Coworkers::ChatWorkspaceLifecycle
   include Syrus::Plugin::ChatWorkspaceLifecycle
   MAX_PUSH_ATTEMPTS = 3
+  BACKGROUND_GIT_TIMEOUT = 1.minute
 
   class << self
     def applies_to?(chat_session:)
@@ -60,15 +61,17 @@ class Coworkers::ChatWorkspaceLifecycle
     path = Pathname(path)
     return :unavailable unless path.join(".git").directory?
 
-    source_branch = "coworkers/run/#{@coworker.id}-#{workflow.id}"
-    @git.configure_author(identity, chdir: path.to_s)
-    if @git.run("status", "--porcelain", chdir: path.to_s).present?
-      @git.run("add", "--all", chdir: path.to_s)
-      @git.run("commit", "-m", "Update @#{@coworker.handle} from background run", chdir: path.to_s)
+    with_git_timeout(BACKGROUND_GIT_TIMEOUT) do
+      source_branch = "coworkers/run/#{@coworker.id}-#{workflow.id}"
+      @git.configure_author(identity, chdir: path.to_s)
+      if git_run("status", "--porcelain", chdir: path.to_s).present?
+        git_run("add", "--all", chdir: path.to_s)
+        git_run("commit", "-m", "Update @#{@coworker.handle} from background run", chdir: path.to_s)
+      end
+      push_guard.allow!(source_branch)
+      git_run("push", @remote_url, "HEAD:refs/heads/#{source_branch}", chdir: path.to_s, env: @env)
+      merge_into_home!(source_branch, conflict_checkout: path)
     end
-    push_guard.allow!(source_branch)
-    @git.run("push", @remote_url, "HEAD:refs/heads/#{source_branch}", chdir: path.to_s, env: @env)
-    merge_into_home!(source_branch, conflict_checkout: path)
   end
 
   private
@@ -125,11 +128,11 @@ class Coworkers::ChatWorkspaceLifecycle
     Dir.mktmpdir("syrus-coworker-merge-") do |dir|
       clone_branch!(home_branch, dir)
       @git.configure_author(identity, chdir: dir)
-      @git.run("fetch", @remote_url, "refs/heads/#{source_branch}:refs/remotes/origin/coworker-source", chdir: dir, env: @env)
-      merge = @git.capture("merge", "--no-edit", "origin/coworker-source", chdir: dir, env: @env)
+      git_run("fetch", @remote_url, "refs/heads/#{source_branch}:refs/remotes/origin/coworker-source", chdir: dir, env: @env)
+      merge = git_capture("merge", "--no-edit", "origin/coworker-source", chdir: dir, env: @env)
       return report_conflict!(dir, merge, source_branch:, conflict_checkout:) unless merge.success?
 
-      @git.run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(home_branch)}", chdir: dir, env: @env)
+      git_run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(home_branch)}", chdir: dir, env: @env)
       :merged
     rescue GitRunner::GitError => error
       raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
@@ -166,7 +169,7 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def unmerged_files(path)
-    @git.run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?)
+    git_run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?)
   end
 
   def markdown_link_label(value)
@@ -174,8 +177,8 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def leave_conflict_in_checkout!(path)
-    @git.run("fetch", @remote_url, "refs/heads/#{home_branch}:refs/remotes/origin/coworker-home", chdir: path.to_s, env: @env)
-    @git.capture("merge", "--no-edit", "origin/coworker-home", chdir: path.to_s, env: @env)
+    git_run("fetch", @remote_url, "refs/heads/#{home_branch}:refs/remotes/origin/coworker-home", chdir: path.to_s, env: @env)
+    git_capture("merge", "--no-edit", "origin/coworker-home", chdir: path.to_s, env: @env)
   end
 
   def background_run_branch?(branch)
@@ -183,16 +186,34 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def snapshot_background_conflict!(path, source_branch)
-    @git.run("add", "--all", chdir: path.to_s)
-    @git.run("commit", "-m", "Preserve @#{@coworker.handle} background run conflict", chdir: path.to_s)
-    @git.run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(source_branch)}", chdir: path.to_s, env: @env)
-    @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
+    git_run("add", "--all", chdir: path.to_s)
+    git_run("commit", "-m", "Preserve @#{@coworker.handle} background run conflict", chdir: path.to_s)
+    git_run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(source_branch)}", chdir: path.to_s, env: @env)
+    git_run("rev-parse", "HEAD", chdir: path.to_s).strip
   end
 
   def clone_branch!(branch, destination)
-    @git.run("clone", "--branch", branch, "--no-tags", @remote_url, destination, env: @env)
+    git_run("clone", "--branch", branch, "--no-tags", @remote_url, destination, env: @env)
     # Never leave the authenticated transport URL in a checkout exposed to the
     # coworker's shell. Lifecycle operations pass it explicitly when needed.
-    @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: destination)
+    git_run("remote", "set-url", "origin", @repository.remote_url, chdir: destination)
+  end
+
+  def git_run(*args, **options)
+    options[:timeout] = @git_timeout if @git_timeout
+    @git.run(*args, **options)
+  end
+
+  def git_capture(*args, **options)
+    options[:timeout] = @git_timeout if @git_timeout
+    @git.capture(*args, **options)
+  end
+
+  def with_git_timeout(timeout)
+    previous_timeout = @git_timeout
+    @git_timeout = timeout
+    yield
+  ensure
+    @git_timeout = previous_timeout
   end
 end
