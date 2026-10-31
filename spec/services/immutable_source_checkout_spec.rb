@@ -1125,6 +1125,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       step: step,
       snapshot: snapshot,
       plan: plan,
+      checkout_path: described_class.path_for(step),
       worker_storage_key: WorkerStorageIdentity.queue_key
     )
   end
