@@ -677,9 +677,9 @@ class WorkflowWorkspace
 
   def checkout_checkpoint_ref!
     authenticated_git("git_workflow_fetch_checkpoint") do |url|
-      @git.run("fetch", url, "#{checkpoint_ref}:refs/heads/#{@branch_name}", chdir: path.to_s, env: @env)
+      @git.run("fetch", url, checkpoint_ref, chdir: path.to_s, env: @env)
     end
-    @git.run("switch", "--", @branch_name, chdir: path.to_s)
+    @git.run("switch", "-C", @branch_name, "FETCH_HEAD", chdir: path.to_s)
   end
 
   # Distinguishes a genuinely empty/uninitialized remote (zero branches —
