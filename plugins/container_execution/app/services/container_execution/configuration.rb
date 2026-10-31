@@ -55,6 +55,13 @@ module ContainerExecution
     def coworker_cpus = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_CPUS", "2")
     def seccomp_profile = ENV.fetch("SYRUS_CONTAINER_EXECUTION_SECCOMP", "builtin")
 
+    def coworker_network = ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_NETWORK"].presence
+    def coworker_dns = ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_DNS"].presence
+
+    def coworker_proxy_url(provider)
+      ENV["SYRUS_CONTAINER_EXECUTION_#{provider.to_s.upcase}_PROXY"].presence
+    end
+
     def host_path_for(path)
       path = Pathname.new(path.to_s).expand_path
       mapping = host_path_mappings

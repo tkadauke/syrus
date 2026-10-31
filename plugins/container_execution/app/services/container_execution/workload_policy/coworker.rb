@@ -6,17 +6,20 @@ module ContainerExecution
       def available?
         request.kind.to_s == "agent" &&
           Configuration.mcp_socket_path.present? &&
+          egress_policy&.configured? &&
           request.mounts.read_only.empty? && request.mounts.artifacts.nil? &&
           authorized_read_write_mounts?
       end
 
-      # Network allowlisting follows in the network-confinement phase. A
-      # private bridge is still preferable to sharing the host namespace.
-      def network = "bridge"
+      def network = Configuration.coworker_network
       def mount_mcp_socket? = true
+
+      def injected_env = egress_policy.proxy_env
 
       def extra_run_args
         [
+          "--dns", Configuration.coworker_dns,
+          "--label", "io.syrus.egress-profile=#{egress_policy.profile}",
           "--read-only", "--user", Configuration.coworker_user,
           "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
           "--security-opt", "seccomp=#{Configuration.seccomp_profile}",
@@ -28,6 +31,10 @@ module ContainerExecution
       end
 
       private
+
+      def egress_policy
+        @egress_policy ||= EgressPolicy::Base.for(request.chat_session&.effective_chat_provider)
+      end
 
       def authorized_read_write_mounts?
         expected_paths = [ request.mounts.workdir, request.env["HOME"] ].compact.map { |path| expanded(path) }

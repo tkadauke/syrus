@@ -1717,6 +1717,14 @@ in a disposable, non-root container with only its coworker checkout, that
 chat/provider's agent home, an ephemeral temporary filesystem, and the
 authorized MCP socket. The checkout remains durable for the normal coworker
 commit-and-merge lifecycle; the rest of the turn container is discarded.
+Its dedicated network is default-deny: DNS goes through an operator-controlled
+resolver, model traffic goes through a hostname-aware proxy selected by a
+provider policy object, and MCP remains on the local Unix socket. Arbitrary
+internet, private/cluster/database networks, link-local and cloud metadata are
+not reachable. Git lifecycle operations stay on the worker outside the turn
+container. Generic web access requires a separate grant-backed proxy profile;
+it is never added to a model-provider profile. Missing network, resolver, or
+provider proxy configuration fails the turn closed.
 Without About text, it begins a short identity interview. With
 About text already written to its identity files, it greets the owner in its
 own voice, summarizes its understanding of the role, and asks a few concrete

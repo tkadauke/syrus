@@ -14,6 +14,7 @@ module ContainerExecution
       def network = "none"
       def extra_run_args = []
       def mount_mcp_socket? = false
+      def injected_env = {}
     end
   end
 end
