@@ -239,13 +239,20 @@ class ChatSession < ApplicationRecord
     @initial_repository = repository
   end
 
-  # The most recently attached repository is the operator's current intent
+  # A plugin may pin a primary repository (for example, a writable personal
+  # workspace). Otherwise, the most recently attached repository is the
+  # operator's current intent
   # (e.g. attaching repo B after repo A is a correction, not an addition) --
   # this is the effective repository for the Files tab, coding checkouts,
   # and relay routing. attached_repositories itself stays in attachment
   # order for context/prompt surfaces that intentionally show every
   # attached repository.
   def repository
+    if respond_to?(:primary_repository_override)
+      override = primary_repository_override
+      return override if override
+    end
+
     if association(:repository_attachments).loaded?
       return repository_attachments.last&.attachable || @initial_repository
     end

@@ -4,10 +4,12 @@ RSpec.describe Coworkers::Workspace do
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:chat) { ChatSession.create!(user: owner, repository: repository) }
+  let(:coworker) { Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url) }
   let(:root) { Pathname(Dir.mktmpdir("coworker-workspace")) }
   let(:workspace) { described_class.new(chat) }
 
   before do
+    Coworkers::Chat.create!(chat_session: chat, coworker: coworker, role: "main")
     allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(root)
     root.join("SOUL.md").write("old soul\n")
   end

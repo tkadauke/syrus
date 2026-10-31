@@ -29,6 +29,21 @@ RSpec.describe Coworkers::HomeBranchPersistence do
     )
   end
 
+  it "persists only the coworker workspace when a product repository was attached later" do
+    product_repository = Factories.repository(user: owner)
+    product_path = Pathname("/tmp/product-checkout")
+    chat.chat_attachments.create!(attachable: product_repository, attached_at: 1.hour.from_now)
+    allow(ChatWorkspace).to receive(:repo_path_for).with(chat, product_repository).and_return(product_path)
+    allow(ChatWorkspace).to receive(:uncommitted_changes?).with(path).and_return(true)
+    allow(git).to receive(:run).with("rev-list", "--count", "origin/coworkers/maya..HEAD", chdir: path.to_s).and_return("1\n")
+
+    described_class.new(chat.reload, coworker, git: git).persist!
+
+    expect(ChatWorkspace).to have_received(:repo_path_for).with(chat, repository)
+    expect(ChatWorkspace).not_to have_received(:uncommitted_changes?).with(product_path)
+    expect(git).not_to have_received(:run).with(anything, chdir: product_path.to_s)
+  end
+
   it "does nothing when the workspace is clean and has no unpublished commits" do
     allow(ChatWorkspace).to receive(:uncommitted_changes?).with(path).and_return(false)
     allow(git).to receive(:run).with("rev-list", "--count", "origin/coworkers/maya..HEAD", chdir: path.to_s).and_return("0\n")

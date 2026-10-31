@@ -17,7 +17,7 @@ class Coworkers::HomeBranchPersistence
   end
 
   def persist!
-    repository = @chat_session.repository
+    repository = @coworker.workspace_repository
     path = ChatWorkspace.repo_path_for(@chat_session, repository)
     branch = "coworkers/#{@coworker.handle}"
 

@@ -3,7 +3,8 @@ class Coworkers::Workspace
 
   def initialize(chat_session)
     @chat_session = chat_session
-    @root = ChatWorkspace.repo_path_for(chat_session, chat_session.repository).expand_path
+    link = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: chat_session.id)
+    @root = ChatWorkspace.repo_path_for(chat_session, link.coworker.workspace_repository).expand_path
   end
 
   def write(path, content)
