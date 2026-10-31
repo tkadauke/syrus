@@ -1710,7 +1710,14 @@ enable beta mode before an administrator can enable it from **Admin →
 Plugins**. When enabled, it exposes a Coworkers page for creating named agents,
 choosing their appearance and capabilities, opening their main and side chats,
 and viewing their read-only identity profile. Every new coworker opens its main
-chat itself. Without About text, it begins a short identity interview. With
+chat itself. Custom-coworker turns require the Container Execution plugin and
+a configured Docker-compatible launch environment. They fail closed instead
+of falling back to the worker host. Each Codex, Claude, Muse, or Agy turn runs
+in a disposable, non-root container with only its coworker checkout, that
+chat/provider's agent home, an ephemeral temporary filesystem, and the
+authorized MCP socket. The checkout remains durable for the normal coworker
+commit-and-merge lifecycle; the rest of the turn container is discarded.
+Without About text, it begins a short identity interview. With
 About text already written to its identity files, it greets the owner in its
 own voice, summarizes its understanding of the role, and asks a few concrete
 questions about anything unclear or missing—or asks what to work on first when

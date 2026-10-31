@@ -103,21 +103,23 @@ class ChatTurnJob < ApplicationJob
 
     @chat.broadcast_controls if provider.provider == "codex"
 
-    result = with_chat_mcp_config(provider) do |mcp_config|
-      with_git_askpass_env do |agent_env|
-        provider_with_turn_context(provider, attachment_context, agent_env.merge(cli_invocation_env(provider))).invoke(
-          workspace_path: workspace_path,
-          prompt: prompt_for(parent_session_id, user_text: attachment_context.fetch(:user_text)),
-          log_sink: method(:record_agent_event),
-          mcp_config: mcp_config,
-          resume_session_id: parent_session_id,
-          stop_requested: method(:stop_requested?),
-          process_started: ->(process) {
-            @last_stop_request_polled_at = nil
-            record_mcp_startup_phase!(phase: "agent_process_spawn", provider: provider.provider, metadata: { pid: process.try(:pid) })
-            @chat.broadcast_controls
-          }
-        )
+    result = with_execution_workload do
+      with_chat_mcp_config(provider) do |mcp_config|
+        with_git_askpass_env do |agent_env|
+          provider_with_turn_context(provider, attachment_context, agent_env.merge(cli_invocation_env(provider))).invoke(
+            workspace_path: workspace_path,
+            prompt: prompt_for(parent_session_id, user_text: attachment_context.fetch(:user_text)),
+            log_sink: method(:record_agent_event),
+            mcp_config: mcp_config,
+            resume_session_id: parent_session_id,
+            stop_requested: method(:stop_requested?),
+            process_started: ->(process) {
+              @last_stop_request_polled_at = nil
+              record_mcp_startup_phase!(phase: "agent_process_spawn", provider: provider.provider, metadata: { pid: process.try(:pid) })
+              @chat.broadcast_controls
+            }
+          )
+        end
       end
     end
 
@@ -153,6 +155,14 @@ class ChatTurnJob < ApplicationJob
   end
 
   private
+
+  def with_execution_workload
+    previous = Thread.current[:syrus_execution_workload_policy]
+    Thread.current[:syrus_execution_workload_policy] = active_chat.execution_workload_policy if active_chat.respond_to?(:execution_workload_policy)
+    yield
+  ensure
+    Thread.current[:syrus_execution_workload_policy] = previous
+  end
 
   def clear_stale_stop_request!
     @chat.reload

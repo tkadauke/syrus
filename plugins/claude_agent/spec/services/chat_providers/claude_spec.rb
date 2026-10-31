@@ -70,12 +70,15 @@ RSpec.describe ChatProviders::Claude do
           prompt: "What is the plan?",
           oauth_token: "oat-test",
           max_turns: nil,
-          mcp_config: mcp_config_path,
+          mcp_config: File.join(ChatWorkspace.agent_home_for(chat, "claude"), "mcp.json"),
           image_paths: [ "/tmp/capture.png" ],
           file_paths: [ "/tmp/brief.pdf" ],
           resume_session_id: "chat-session-0",
           disallowed_tools: %w[Write Edit MultiEdit NotebookEdit AskUserQuestion],
-          env: { "GIT_TERMINAL_PROMPT" => "0" },
+          env: {
+            "GIT_TERMINAL_PROMPT" => "0",
+            "HOME" => ChatWorkspace.agent_home_for(chat, "claude").to_s
+          },
           stop_requested: stop_requested,
           process_started: process_started
         )

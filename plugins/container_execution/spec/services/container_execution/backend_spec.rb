@@ -116,6 +116,40 @@ RSpec.describe ContainerExecution::Backend do
     ])
   end
 
+  %w[codex claude muse agy].each do |provider|
+    it "confines #{provider} coworker turns to the checkout, provider home, tmpfs, and MCP socket" do
+      configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+      agent_home = File.join(@container_workspace, "agent-home-#{provider}")
+      FileUtils.mkdir_p(agent_home)
+      policy = instance_double(Coworkers::ExecutionWorkloadPolicy, custom_coworker?: true, fail_closed?: true, name: "custom coworker")
+      runner = instance_double(ProcessRunner, run: success_result)
+      captured = nil
+      allow(ProcessRunner).to receive(:new) { |kwargs| captured = kwargs; runner }
+
+      coworker_request = request(
+        kind: "agent", network: "agent", chat_session: instance_double(ChatSession),
+        workload_policy: policy,
+        mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home),
+        env: { "HOME" => agent_home, "PROVIDER" => provider }
+      )
+
+      expect(described_class.available_for?(coworker_request)).to be(true)
+      described_class.new.run(coworker_request)
+      command = captured.fetch(:command)
+      mounts = command.each_index.filter_map { |index| command[index + 1] if command[index] == "--mount" }
+
+      expect(command).to include("--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+        "--security-opt", "seccomp=builtin", "--pids-limit", "256", "--memory", "4g", "--cpus", "2")
+      expect(command).to include("--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=256m")
+      expect(mounts).to contain_exactly(
+        "type=bind,src=#{@host_workspace},dst=#{@container_workspace}",
+        "type=bind,src=#{File.join(@host_workspace, "agent-home-#{provider}")},dst=#{agent_home}",
+        "type=bind,src=#{@host_workspace}/mcp.sock,dst=/run/syrus/mcp.sock,readonly"
+      )
+      expect(mounts.join(" ")).not_to match(%r{/(?:workflows|agent_homes)/(?![^ ]*agent-home-#{provider})})
+    end
+  end
+
   def configure_container_execution(host_paths: nil)
     ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"] = "syrus-worker:test"
     configure_docker_command
@@ -174,6 +208,7 @@ RSpec.describe ContainerExecution::Backend do
       agent: nil,
       display_command: nil,
       on_spawned_process: nil,
+      workload_policy: nil,
       local_runner: nil
     }
     Execution::Request.new(**defaults.merge(overrides))

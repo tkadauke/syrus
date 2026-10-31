@@ -124,7 +124,7 @@ class ClaudeInvocation
       env: env,
       command: cmd,
       stdin_data: prompt,
-      mounts: ProcessRunner.mounts(workspace_path),
+      mounts: ProcessRunner.agent_mounts(workspace_path, env.fetch("HOME")),
       network: "agent",
       timeout: timeout,
       silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,

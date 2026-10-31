@@ -313,3 +313,12 @@ Cleanup rechecks the recorded remote, handle, ownership, and seeded commit SHA;
 it never scans the remote for branches to remove. The Coworkers page lists
 non-completed attempts and lets the owner retry pending cleanup or acknowledge
 a terminal safety refusal. Persisted and displayed errors are credential-redacted.
+
+## Process confinement
+
+Custom-coworker provider turns require the enabled and configured Container
+Execution plugin. They fail closed when no container backend is available;
+Syrus never silently runs them on the worker. The per-turn container can write
+only the coworker's chat checkout and that chat/provider's agent home, while
+the existing turn finalizer commits and merges checkout changes into the home
+branch. Temporary files and the container itself are discarded after the turn.

@@ -59,7 +59,7 @@ module Execution
           on_output_chunk: nil, on_output_line: nil, kill_grace_seconds: 1,
           silent_timeout: nil, activity_probe: nil, kind: "grader", run: nil,
           workflow: nil, job: nil, chat_session: nil, agent: nil,
-          display_command: nil, on_spawned_process: nil, local_runner: nil
+          display_command: nil, on_spawned_process: nil, workload_policy: nil, local_runner: nil
         }
         Request.new(**defaults.merge(overrides))
       end

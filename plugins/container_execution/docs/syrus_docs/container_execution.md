@@ -1,13 +1,14 @@
 # Container Execution
 
 Container Execution is a disabled-by-default bundled plugin that contributes an
-`Execution::Backend` for grader subprocesses. When enabled and configured with
-a Docker launch environment, grader commands run through `docker run` instead
-of directly on the worker host.
+`Execution::Backend` for grader subprocesses and custom-coworker agent turns.
+When enabled and configured with a Docker launch environment, accepted commands
+run through `docker run` instead of directly on the worker host.
 
-Core still owns backend selection and fallback. If the plugin is absent,
-disabled, or cannot prove the worker can launch Docker with host-visible bind
-mounts, `ProcessRunner` uses `Execution::Local`.
+Core still owns backend selection and normal grader fallback. Custom-coworker
+turns are fail closed: if the plugin is absent, disabled, or cannot prove the
+worker can launch Docker with host-visible bind mounts, the turn fails before
+the provider process starts and never falls back to `Execution::Local`.
 
 The backend maps the execution request onto the container invocation:
 
@@ -16,6 +17,17 @@ The backend maps the execution request onto the container invocation:
 - memory, CPU, and IO resource limits become Docker cgroup flags;
 - `SYRUS_PERSISTENT_MCP_SOCKET`, when present, is mounted at
   `/run/syrus/mcp.sock` and forwarded into the container.
+
+Custom-coworker containers receive exactly the turn checkout and that chat's
+provider-specific agent home as writable bind mounts, the authorized MCP socket
+read-only, and an ephemeral `/tmp`. They run as a configurable non-root user
+with a read-only root filesystem, all Linux capabilities dropped,
+`no-new-privileges`, seccomp, and bounded processes, memory, and CPU. Worker
+data roots, other chat/workflow checkouts and agent homes, clone caches,
+application credentials, service-account paths, host process namespaces, and
+container-runtime sockets are not mounted. The checkout remains on the worker
+volume so the existing coworker commit-and-merge lifecycle preserves intended
+changes; the container and tmpfs are removed after every turn.
 
 Configuration:
 
@@ -45,6 +57,16 @@ Configuration:
   daemon can resolve the worker path at the same absolute path.
 - `SYRUS_PERSISTENT_MCP_SOCKET`: optional worker-local MCP daemon socket path
   to mount into zero-egress grader containers.
+- `SYRUS_CONTAINER_EXECUTION_COWORKER_USER`: numeric `uid:gid` for coworker
+  turns, default `1000:1000` (the published worker UID/GID).
+- `SYRUS_CONTAINER_EXECUTION_COWORKER_PIDS`: coworker PID limit, default `256`.
+- `SYRUS_CONTAINER_EXECUTION_COWORKER_MEMORY`: coworker memory limit, default
+  `4g`.
+- `SYRUS_CONTAINER_EXECUTION_COWORKER_CPUS`: coworker CPU limit, default `2`.
+- `SYRUS_CONTAINER_EXECUTION_COWORKER_TMPFS`: coworker `/tmp` size, default
+  `256m`.
+- `SYRUS_CONTAINER_EXECUTION_SECCOMP`: Docker seccomp profile, default
+  `builtin`.
 
 The published Docker Compose worker intentionally does not mount the Docker
 socket; the `plugin-runtime` service is the only default container with Docker
