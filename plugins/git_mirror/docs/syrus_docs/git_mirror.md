@@ -130,8 +130,11 @@ to register repositories.
 
 - Serves git only. Mercurial and Subversion mirrors would be separate plugins.
 - Diffs come with per-file line counts and, when asked, hunks. Binary files
-  have neither, and a single file's patch over 256 KiB is omitted, as GitHub
-  does.
+  have neither. The eager comparison marks and omits a single file's patch
+  over 256 KiB. Reviewers can then request that path alone at exact base/head
+  revisions: interactive review accepts at most 10,000 patch rows and 10 MiB,
+  while the authenticated raw `.diff` download has a 100 MiB ceiling. These
+  on-demand patches are not persisted in review-version snapshots.
 - After the service restarts it serves everything on its volume but holds no
   credentials. It does not fetch repositories Syrus has not re-registered
   (so a private repository does not fail every background sync), and a read

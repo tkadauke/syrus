@@ -11,6 +11,7 @@
 //	GET    /v1/repositories/{id}/children?revision=&path=
 //	GET    /v1/repositories/{id}/blob?revision=&path=   raw bytes
 //	GET    /v1/repositories/{id}/changes?base=&head=&patch=1
+//	GET    /v1/repositories/{id}/patch?base=&head=&path=   one raw file patch
 //	GET    /v1/repositories/{id}/refs?pattern=&max_age=
 //	GET    /v1/repositories/{id}/relation?base=&head=
 //	GET    /v1/repositories/{id}/history?base=&head=
@@ -64,6 +65,7 @@ type Store interface {
 	Children(ctx context.Context, id, revision, path string) ([]mirror.Entry, error)
 	Read(ctx context.Context, id, revision, path string) (mirror.Blob, error)
 	Changes(ctx context.Context, id, base, head string, withPatch bool) ([]mirror.Change, error)
+	FilePatch(ctx context.Context, id, base, head, path string) ([]byte, error)
 	Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]mirror.Ref, error)
 	Relation(ctx context.Context, id, base, head string) (string, error)
 	History(ctx context.Context, id, base, head string) (mirror.History, error)
@@ -95,6 +97,7 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	mux.Handle("GET /v1/repositories/{id}/children", s.auth(s.children))
 	mux.Handle("GET /v1/repositories/{id}/blob", s.auth(s.blob))
 	mux.Handle("GET /v1/repositories/{id}/changes", s.auth(s.changes))
+	mux.Handle("GET /v1/repositories/{id}/patch", s.auth(s.filePatch))
 	mux.Handle("GET /v1/repositories/{id}/refs", s.auth(s.refs))
 	mux.Handle("GET /v1/repositories/{id}/relation", s.auth(s.relation))
 	mux.Handle("GET /v1/repositories/{id}/history", s.auth(s.history))
@@ -277,6 +280,23 @@ func (s *server) changes(w http.ResponseWriter, r *http.Request) {
 		changes = []mirror.Change{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"changes": changes})
+}
+
+func (s *server) filePatch(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	patch, err := s.store.FilePatch(r.Context(), r.PathValue("id"), query.Get("base"), query.Get("head"), query.Get("path"))
+	if errors.Is(err, mirror.ErrPatchTooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "patch_too_large", "patch exceeds the 100 MiB download limit")
+		return
+	}
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/x-diff; charset=utf-8")
+	w.Header().Set("Content-Length", strconv.Itoa(len(patch)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(patch)
 }
 
 func (s *server) refs(w http.ResponseWriter, r *http.Request) {

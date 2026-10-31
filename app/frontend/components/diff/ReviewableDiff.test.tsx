@@ -1744,6 +1744,27 @@ describe("ReviewableDiff", () => {
     expect(screen.getByText("Diff not available")).toBeInTheDocument()
   })
 
+  it("loads an omitted oversized text patch without claiming whole-file context was loaded", async () => {
+    const onLoadFileDiff = vi.fn().mockResolvedValue({ patch: "@@ -1 +1 @@\n-old\n+new" })
+    render(
+      <ReviewableDiff
+        fileDiffDownloadUrl={() => "/download.diff"}
+        files={[{ path: "large.txt", patch: null, patch_status: "oversized", additions: 1, deletions: 1 }]}
+        mode="single-file"
+        onLoadFileContext={vi.fn()}
+        onLoadFileDiff={onLoadFileDiff}
+        selectedPath="large.txt"
+        showFileHeaders
+      />
+    )
+
+    expect(screen.queryByRole("button", { name: "Load whole file" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Download raw .diff" })).toHaveAttribute("href", "/download.diff")
+    fireEvent.click(screen.getByRole("button", { name: "Load full diff" }))
+    expect(await screen.findByText("new")).toBeInTheDocument()
+    expect(onLoadFileDiff).toHaveBeenCalledWith(expect.objectContaining({ path: "large.txt" }))
+  })
+
   it("delegates to renderImageDiff for a patch-less image file instead of the plain placeholder", () => {
     const imageFiles = [{ additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }]
 

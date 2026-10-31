@@ -150,6 +150,15 @@ module RepositoryContent
       result
     end
 
+    # One path's patch at exact immutable revisions. This deliberately is not
+    # cached: large review patches must never enter persisted/cache snapshots.
+    def file_patch(base:, head:, path:)
+      base_id = revision_id(base)
+      head_id = revision_id(head)
+      path = normalize_path(path)
+      through_chain(:file_patch) { |provider| provider.file_patch(base_id, head_id, path) }
+    end
+
     # Movable refs matching `pattern`, in provider-defined newest-first order.
     def refs(pattern:, max_age: DEFAULT_MAX_AGE)
       raise ArgumentError, "pattern is required" if pattern.blank?

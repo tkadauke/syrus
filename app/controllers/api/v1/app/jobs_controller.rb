@@ -142,6 +142,34 @@ module Api
           render json: ::App::JobSourceDiffPayload.build(job: find_job, user: Current.user, params: params)
         end
 
+        def source_file_diff
+          patch, path = requested_file_patch
+          rows = patch.count("\n") + (patch.end_with?("\n") ? 0 : 1)
+          if rows > 10_000 || patch.bytesize > 10.megabytes
+            render json: { error: { code: "interactive_diff_limit", message: t("api.jobs.errors.interactive_diff_limit"), rows: rows,
+                                    bytes: patch.bytesize, download_url: source_file_diff_download_url(path) } }, status: :unprocessable_content
+          else
+            render json: { patch: patch, rows: rows, bytes: patch.bytesize }
+          end
+        rescue RepositoryContent::TooLarge
+          render_error("download_diff_limit", t("api.jobs.errors.download_diff_limit"), status: :content_too_large)
+        rescue ArgumentError
+          render_error("bad_request", t("api.jobs.errors.invalid_diff_request"), status: :bad_request)
+        rescue RepositoryContent::Error => e
+          render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
+        end
+
+        def source_file_diff_download
+          patch, path = requested_file_patch
+          send_secure_file patch, filename: "#{File.basename(path)}.diff", type: "text/x-diff"
+        rescue RepositoryContent::TooLarge
+          render_error("download_diff_limit", t("api.jobs.errors.download_diff_limit"), status: :content_too_large)
+        rescue ArgumentError
+          render_error("bad_request", t("api.jobs.errors.invalid_diff_request"), status: :bad_request)
+        rescue RepositoryContent::Error => e
+          render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
+        end
+
         # Streams raw (non-UTF-8-transcoded) file bytes for a binary/image
         # diff thumbnail at an arbitrary path+ref -- #source and #source_diff
         # both return JSON and can't carry corruption-free binary content.
@@ -169,6 +197,26 @@ module Api
         rescue RepositoryContent::Error => e
           render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
         end
+
+        private
+
+        def requested_file_patch
+          job = find_job
+          base = params[:base].to_s
+          head = params[:head].to_s
+          path = params[:path].to_s
+          raise ArgumentError unless base.match?(/\A[0-9a-f]{40,64}\z/i) && head.match?(/\A[0-9a-f]{40,64}\z/i) && path.present?
+
+          content = RepositoryContent.for(job.repository, user: Current.user)
+          [ content.file_patch(base: content.revision(base), head: content.revision(head), path: path), path ]
+        end
+
+        def source_file_diff_download_url(path)
+          query = { base: params[:base], head: params[:head], path: path }.to_query
+          "/api/v1/app/jobs/#{params[:id]}/source_file_diff_download?#{query}"
+        end
+
+        public
 
         def timeline
           unless Current.user&.admin?

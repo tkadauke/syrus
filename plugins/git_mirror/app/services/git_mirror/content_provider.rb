@@ -70,9 +70,15 @@ module GitMirror
           previous_path: change["previous_path"],
           additions: change["additions"],
           deletions: change["deletions"],
-          patch: patch ? change["patch"] : nil
+          patch: patch ? change["patch"] : nil,
+          patch_status: change["patch_status"],
+          patch_bytes: change["patch_bytes"]
         )
       end
+    end
+
+    def file_patch(base_id, head_id, path)
+      registered { @client.file_patch(mirror_id, base_id, head_id, path) }
     end
 
     def refs(pattern:, max_age:)

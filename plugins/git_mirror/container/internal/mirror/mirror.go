@@ -39,6 +39,7 @@ var (
 	ErrNotFound          = errors.New("not found")
 	ErrUnavailable       = errors.New("unavailable")
 	ErrUnsupported       = errors.New("unsupported")
+	ErrPatchTooLarge     = errors.New("patch exceeds download limit")
 	ErrBadRequest        = errors.New("bad request")
 	// ErrUnregistered: the repository is on disk (from before a restart) but
 	// Syrus has not sent its URL and credential since, so it cannot be
@@ -125,6 +126,10 @@ type Change struct {
 	// API: only when asked for, and nil for binary files and for patches over
 	// MaxPatchBytes.
 	Patch *string `json:"patch,omitempty"`
+	// PatchStatus distinguishes an omitted oversized text patch from binary
+	// content. It is empty when Patch is present or was not requested.
+	PatchStatus string `json:"patch_status,omitempty"`
+	PatchBytes  int    `json:"patch_bytes,omitempty"`
 }
 
 type Ref struct {
@@ -150,6 +155,7 @@ type History struct {
 // MaxPatchBytes is the largest per-file patch returned; bigger ones are
 // omitted, as GitHub does.
 const MaxPatchBytes = 256 << 10
+const MaxRawPatchBytes = 100 << 20
 
 // Blob is a file's content at a revision.
 type Blob struct {
@@ -750,6 +756,34 @@ func (s *Store) Changes(ctx context.Context, id, base, head string, withPatch bo
 	return changes, nil
 }
 
+// FilePatch returns one path's three-dot patch without constructing the
+// repository-wide diff. Revisions and the path are passed after -- so none
+// can be interpreted as git options.
+func (s *Store) FilePatch(ctx context.Context, id, base, head, path string) ([]byte, error) {
+	if path == "" || filepath.IsAbs(path) || strings.Contains(path, "\x00") {
+		return nil, ErrNotFound
+	}
+	clean := filepath.ToSlash(filepath.Clean(path))
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || clean != path {
+		return nil, ErrNotFound
+	}
+	r, err := s.revisionRepo(ctx, id, base)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.revisionRepo(ctx, id, head); err != nil {
+		return nil, err
+	}
+	res, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "diff", "-M", "--no-color", "--no-ext-diff", "--end-of-options", base+"..."+head, "--", path)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	if len(res.Stdout) > MaxRawPatchBytes {
+		return nil, ErrPatchTooLarge
+	}
+	return res.Stdout, nil
+}
+
 func parseNameStatus(out string) []Change {
 	fields := strings.Split(strings.TrimRight(out, "\x00"), "\x00")
 	var changes []Change
@@ -818,11 +852,17 @@ func applyPatches(changes []Change, out string) {
 	for n := 0; n < len(changes) && n < len(sections); n++ {
 		section := sections[n]
 		at := strings.Index(section, "\n@@")
-		if at < 0 || strings.Contains(section[:at], "\nBinary files ") {
+		if strings.Contains(section, "\nBinary files ") {
+			changes[n].PatchStatus = "binary"
+			continue
+		}
+		if at < 0 {
 			continue
 		}
 		patch := strings.TrimSuffix(section[at+1:], "\n")
+		changes[n].PatchBytes = len(patch)
 		if len(patch) > MaxPatchBytes {
+			changes[n].PatchStatus = "oversized"
 			continue
 		}
 		changes[n].Patch = &patch

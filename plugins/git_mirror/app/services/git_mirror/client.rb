@@ -80,6 +80,10 @@ module GitMirror
       json(request(Net::HTTP::Get, "/v1/repositories/#{id}/changes", query: query)).fetch("changes")
     end
 
+    def file_patch(id, base, head, path)
+      request(Net::HTTP::Get, "/v1/repositories/#{id}/patch", query: { base: base, head: head, path: path }, read_timeout: RESOLVE_TIMEOUT).body.to_s
+    end
+
     def refs(id, pattern:, max_age:)
       json(request(Net::HTTP::Get, "/v1/repositories/#{id}/refs", query: { pattern: pattern, max_age: max_age }, read_timeout: RESOLVE_TIMEOUT)).fetch("refs")
     end
@@ -131,6 +135,7 @@ module GitMirror
       when "unregistered" then raise Unregistered, message
       # A repository the mirror has not been told about yet (it is registered
       # on the next tick) is not something it can answer; let the host.
+      when "patch_too_large" then raise RepositoryContent::TooLarge, message
       else raise RepositoryContent::Unavailable, message
       end
     end

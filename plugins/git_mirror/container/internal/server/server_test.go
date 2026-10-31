@@ -65,6 +65,9 @@ func (f *fakeStore) Changes(_ context.Context, _, _, _ string, withPatch bool) (
 	f.withPatch = withPatch
 	return nil, nil
 }
+func (f *fakeStore) FilePatch(context.Context, string, string, string, string) ([]byte, error) {
+	return []byte("@@ -1 +1 @@\n-old\n+new\n"), nil
+}
 func (f *fakeStore) Refs(_ context.Context, _, _ string, maxAge time.Duration) ([]mirror.Ref, error) {
 	f.maxAge = maxAge
 	return nil, nil
@@ -121,7 +124,7 @@ func TestEveryRouteButHealthNeedsTheToken(t *testing.T) {
 	if rec := do(h, "GET", "/healthz", "", false); rec.Code != http.StatusOK {
 		t.Fatalf("healthz: %d", rec.Code)
 	}
-	for _, path := range []string{"/v1/repositories", "/v1/repositories/1/resolve?ref=main", "/v1/repositories/1/blob?revision=a&path=b"} {
+	for _, path := range []string{"/v1/repositories", "/v1/repositories/1/resolve?ref=main", "/v1/repositories/1/blob?revision=a&path=b", "/v1/repositories/1/patch?base=a&head=b&path=c"} {
 		if rec := do(h, "GET", path, "", false); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("%s without token: %d", path, rec.Code)
 		}
