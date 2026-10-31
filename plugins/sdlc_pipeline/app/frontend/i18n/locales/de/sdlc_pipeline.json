@@ -1,0 +1,13 @@
+{
+  "tab_pipeline": "Pipeline",
+  "aria_pipeline": "SDLC-Pipeline des Repositorys",
+  "loading": "Pipeline wird geladen...",
+  "load_error": "Die Pipeline konnte nicht geladen werden.",
+  "stage_summary": "{{attention}} brauchen Aufmerksamkeit · {{aging}} überfällig",
+  "attention": "Achtung",
+  "empty_stage": "Keine Arbeit in dieser Phase",
+  "evidence_job_state": "Job-Status",
+  "evidence_landed_commit": "Gelandeter Commit",
+  "evidence_completed": "Abgeschlossene Arbeit",
+  "evidence_deployment_stage": "Deployment-Nachweis"
+}

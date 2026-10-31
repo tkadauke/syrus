@@ -1,0 +1,13 @@
+{
+  "tab_pipeline": "Canalis",
+  "aria_pipeline": "Canalis SDLC repositorii",
+  "loading": "Canalis oneratur...",
+  "load_error": "Canalis onerari non potuit.",
+  "stage_summary": "{{attention}} attentione egent · {{aging}} senescunt",
+  "attention": "Attentio",
+  "empty_stage": "Nullum opus in hoc gradu",
+  "evidence_job_state": "Status operis",
+  "evidence_landed_commit": "Commit depositum",
+  "evidence_completed": "Opus perfectum",
+  "evidence_deployment_stage": "Testimonium deployment"
+}
