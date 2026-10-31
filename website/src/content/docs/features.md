@@ -1358,6 +1358,9 @@ pause, not the page, and would otherwise swamp real jank.
 Beyond those passive observers, `app/frontend/lib/performanceMarkers.ts` is a
 generic frontend performance marker API frontend code can use to place
 explicit timing markers, similar in spirit to the backend's `PerformanceLogging.phase`.
+Coworkers may be granted read-only operational observability through
+`ops.read_logs`; results use the same caps and redaction as the admin surfaces
+and do not expose operational write or process-control actions.
 It offers `measureSync`/`measureAsync` for timing a block of work,
 `startMarker`/`endMarker` for spans that don't fit one function call (e.g. a
 UI menu's open-to-render latency), `recordCount` for count-based context

@@ -35,13 +35,14 @@ module Coworkers
 
       def core_descriptors
         grouped = McpToolRegistry.entries(surface: :coworker).group_by { |entry| entry.capability.to_s }
-        Coworkers::Create::DEFAULT_GRANTS.keys.map do |name|
+        legacy = Coworkers::Create::DEFAULT_GRANTS.keys.map do |name|
           entries = grouped.fetch(name, [])
           next if name.blank?
           Descriptor.new(name: name, label: name.humanize, description: name.humanize,
             default_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(name, "confirm"), maximum_policy: "auto", tools: entries.map(&:tool_name), scope_options_callback: nil,
             scope_label_callback: nil, valid_scope_callback: nil)
         end
+        legacy + McpToolRegistry.coworker_grants.map { |attributes| build_descriptor(attributes) }
       end
 
       def plugin_descriptors

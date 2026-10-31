@@ -69,6 +69,26 @@ class McpToolRegistry
       matching_entries(surface: surface, tier: tier).map(&:to_h)
     end
 
+    def coworker_grants
+      [
+        {
+          name: "ops.read_logs",
+          label: "Read operational observability",
+          description: "Read redacted operational logs, worker health, exception events, browser errors, and performance traces.",
+          default_policy: "confirm",
+          maximum_policy: "auto",
+          tools: entries(surface: :coworker).select { |entry| entry.capability == :"ops.read_logs" }.map(&:tool_name),
+          scope_options_callback: nil,
+          scope_label_callback: nil,
+          valid_scope_callback: nil
+        }
+      ]
+    end
+
+    def default_coworker_grants
+      coworker_grants.to_h { |grant| [ grant.fetch(:name), grant.fetch(:default_policy) ] }
+    end
+
     def entry_for(tool)
       entries.find { |entry| entry.tool == tool }
     end
@@ -357,7 +377,12 @@ class McpToolRegistry
         coworker(Mcp::Tools::ProposeEpicWithJobsTool, capability: "syrus.propose_job", mutation: true),
         coworker(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
         coworker(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
-        coworker(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared")
+        coworker(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared"),
+        coworker(Mcp::Tools::AdminReadOperationalLogsTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::ReadWorkerHealthTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::ReadBackendExceptionEventsTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::ReadBrowserErrorEventsTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs")
       ]
     end
 
