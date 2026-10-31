@@ -15,6 +15,8 @@ module ContainerExecution
       def extra_run_args = []
       def mount_mcp_socket? = false
       def injected_env = {}
+      def process_env = request.env
+      def forwarded_env = request.env
     end
   end
 end

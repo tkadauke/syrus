@@ -553,14 +553,14 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
               </div>
               <Select
                 aria-label={t("capabilities.policy_for", { capability })}
-                disabled={mutation.isPending || descriptor.available === false}
+                disabled={mutation.isPending}
                 onChange={(event) => changePolicy(capability, event.target.value as keyof typeof POLICY_RANK)}
                 value={grant?.approval_policy || "off"}
               >
                 {(["auto", "confirm", "queue", "off"] as const)
                   .filter((policy) => POLICY_RANK[descriptor.maximum_policy] >= POLICY_RANK[policy])
                   .map((policy) => (
-                    <option key={policy} value={policy}>
+                    <option disabled={descriptor.available === false && policy !== "off"} key={policy} value={policy}>
                       {t(`capabilities.policies.${policy}`)}
                     </option>
                   ))}

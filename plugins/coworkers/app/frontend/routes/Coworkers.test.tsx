@@ -410,7 +410,7 @@ it("preserves a scoped grant when changing its policy and allows disabling it", 
   await waitFor(() => expect(requestBodies).toContainEqual(expect.objectContaining({ capability: "database.read", approval_policy: "off", scope: 22 })))
 })
 
-it("explains and disables a privileged grant when confinement is unavailable", async () => {
+it("explains an unavailable privileged grant while preserving revocation", async () => {
   const descriptor = {
     name: "database.read",
     label: "Database",
@@ -423,10 +423,20 @@ it("explains and disables a privileged grant when confinement is unavailable", a
     available: false,
     unavailable_reason: "confinement_unavailable" as const
   }
-  const payload = { coworker: { ...detailPayload.coworker, grants: [], grant_catalog: [...grantCatalog, descriptor] } }
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      grants: [{ capability: "database.read", approval_policy: "confirm" as const, scope: null }],
+      grant_catalog: [...grantCatalog, descriptor]
+    }
+  }
+  const requestBodies: Record<string, unknown>[] = []
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => jsonResponse(payload))
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PATCH") requestBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
+      return jsonResponse(payload)
+    })
   )
 
   renderRoute("/coworkers/7")
@@ -434,7 +444,13 @@ it("explains and disables a privileged grant when confinement is unavailable", a
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
 
   expect(screen.getByText("Unavailable until a live worker verifies confined coworker execution.")).toBeInTheDocument()
-  expect(screen.getByRole("combobox", { name: "Approval policy for database.read" })).toBeDisabled()
+  const policy = screen.getByRole("combobox", { name: "Approval policy for database.read" })
+  expect(policy).toBeEnabled()
+  expect(within(policy).getByRole("option", { name: "Confirm" })).toBeDisabled()
+  expect(within(policy).getByRole("option", { name: "Off" })).toBeEnabled()
+
+  fireEvent.change(policy, { target: { value: "off" } })
+  await waitFor(() => expect(requestBodies).toContainEqual(expect.objectContaining({ capability: "database.read", approval_policy: "off" })))
 })
 
 it("sends the displayed default scope when enabling a scoped grant", async () => {
