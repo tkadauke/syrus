@@ -60,7 +60,8 @@ module Coworkers
       end
 
       def broker_authorization_available?
-        defined?(CredentialStore) && CredentialStore.enabled? && defined?(CredentialStore::Broker)
+        manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "credential_store" }
+        manifest&.enabled? && Syrus::PluginRegistry.health.healthy?(manifest.name)
       end
     end
 
