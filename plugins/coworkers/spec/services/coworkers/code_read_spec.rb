@@ -20,6 +20,8 @@ RSpec.describe "Coworker repository code access" do
     coworker.grants.create!(capability: "code.read", approval_policy: "auto", scope: [ repository.id ])
     stub_repository_content(repository, files: {
       "app/models/widget.rb" => "class Widget\n  API_TOKEN=super-secret-value\nend\n",
+      "src/match.rb" => "prefix #{'x' * 995} token=secret-after-boundary Widget\n",
+      "src2/not_a_match.rb" => "class WrongPrefixWidget\nend\n",
       "README.md" => "Widgets are useful\n"
     })
   end
@@ -56,8 +58,20 @@ RSpec.describe "Coworker repository code access" do
     searched = payload(Mcp::Tools::SearchRepositoryCodeTool.call(repository_id: repository.id, query: "Widget", server_context: { chat_session: chat }))
     expect(searched.fetch("results")).to include(include("path" => "app/models/widget.rb", "line" => 1))
 
+    scoped_search = payload(Mcp::Tools::SearchRepositoryCodeTool.call(repository_id: repository.id, query: "Widget", path: "src", server_context: { chat_session: chat }))
+    expect(scoped_search.fetch("results").pluck("path")).to eq([ "src/match.rb" ])
+    expect(scoped_search.fetch("results").first.fetch("text")).to include("[redacted]")
+    expect(scoped_search.fetch("results").first.fetch("text")).not_to include("secret-after-boundary")
+
     refused = Mcp::Tools::ReadRepositoryFileTool.call(repository_id: outside_repository.id, path: "README.md", server_context: { chat_session: chat })
     expect(refused).to be_error
+  end
+
+  it "refuses PR and Job diff reads outside the grant scope" do
+    job = Factories.job(repository: outside_repository, user: owner)
+
+    expect(Mcp::Tools::GetJobDiffTool.call(job_id: job.id, server_context: { chat_session: chat })).to be_error
+    expect(Mcp::Tools::ReadPrTool.call(pr_number: 1, repository_id: outside_repository.id, server_context: { chat_session: chat })).to be_error
   end
 
   it "makes an attached product checkout non-writable while leaving unrelated workspace files writable" do
