@@ -1752,6 +1752,13 @@ hops. A reply containing only `NO_REPLY` ends the exchange without displaying
 or delivering that reply. Pair rate limits and active-coworker checks apply to
 both manual messages and automatic replies.
 
+With the `coworker.spawn_chat` grant, a coworker can request a new side chat
+for itself with an initial message. It cannot create a Syrus chat or choose a
+different coworker. Requests follow the grant's approval policy; live
+confirmation becomes a queued approval during unattended work. The defaults
+allow three requests per turn or background run and ten per calendar day, and
+owners can lower or raise both positive limits in the grant constraints.
+
 When an owner opens a cross-chat bridge thread to a coworker's chat, the
 coworker can reply through that existing thread without an additional grant or
 confirmation. The reply tool cannot open threads or address arbitrary chats:

@@ -44,6 +44,9 @@
   },
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
   "tool_card": {
+    "spawn_chat_title": "Spawn coworker side chat",
+    "spawn_chat_prompt": "Initial message",
+    "spawn_chat_pending": "Pending side chat",
     "title": "Proposed coworker",
     "summary": "Proposed coworker @{{handle}}",
     "grant_title": "Proposed capability grant",

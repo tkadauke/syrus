@@ -66,10 +66,23 @@ accept either owner-scoped identifier. These deferred tools are available to
 planner and ordinary Syrus chats, never to coworker chats.
 
 The coworker-facing inventory is `message_coworker`, `reply_in_chat_thread`,
-`manage_coworker_schedule`, and the bounded `write_coworker_file`,
+`manage_coworker_schedule`, `spawn_coworker_chat`, and the bounded `write_coworker_file`,
 `edit_coworker_file`, `move_coworker_file`, and `delete_coworker_file` tools.
 Those essential tools remain governed by the coworker's grants and workspace
 boundary; coworkers do not receive owner control-plane tools.
+
+`spawn_coworker_chat(prompt, handle?, title?)` creates only a side chat of the
+calling coworker. It cannot create a Syrus chat or select another coworker.
+The `coworker.spawn_chat` grant defaults to confirmation, and unattended
+background runs convert that policy to the approvals queue. Every request is
+therefore represented by the standard coworker pending action. The capability
+cannot be configured for automatic execution. The default limits are three requests
+per turn or background run and ten per calendar day across all of that
+coworker's chats. Owners can set positive `max_spawns_per_run` and
+`max_spawns_per_day` grant constraints. Pending requests reserve capacity so a
+burst cannot bypass either limit. The spawned chat inherits the coworker's
+identity, grants, tool surface, model configuration, and per-chat workspace
+branch through its normal `Coworkers::Chat` side-chat link.
 
 `reply_in_chat_thread` is the narrow exception to grant approval: it is
 grantless and needs no per-reply confirmation when the coworker's owner opened

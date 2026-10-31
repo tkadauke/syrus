@@ -59,14 +59,32 @@ module Mcp::Tools
         policy = context.capability_approval_policies.fetch(entry.capability.to_s, "queue")
         return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
 
+        create_coworker_pending_action(context:, server_context:, tool_name: entry.tool_name,
+          arguments:, capability: entry.capability)
+      end
+
+      def pending_coworker_plugin_approval(tool_name, capability, server_context, arguments, always_pending: false)
+        context = McpToolContext.from_server_context(server_context)
+        return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        raise AuthorizationError unless context.granted_capabilities.include?(capability.to_s)
+
+        create_coworker_pending_action(context:, server_context:, tool_name:, arguments:, capability:, always_pending:)
+      end
+
+      def create_coworker_pending_action(context:, server_context:, tool_name:, arguments:, capability:, always_pending: false)
+        policy = context.capability_approval_policies.fetch(capability.to_s, "queue")
+        policy = context.run? ? "queue" : "confirm" if always_pending && policy == "auto"
+        return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
+
         action = context.chat_session.pending_actions.create!(
           action: "coworker_tool_call",
           state: "pending",
           requested_by: "agent",
           payload: {
-            "tool_name" => entry.tool_name,
+            "tool_name" => tool_name,
             "arguments" => arguments.stringify_keys,
             "run_id" => context.run&.id,
+            "origin_message_id" => server_context[:current_message]&.id,
             "approval_policy" => policy,
             "approval_inbox" => context.run? && policy == "queue",
             "actor" => approval_actor(context.agent_actor)
