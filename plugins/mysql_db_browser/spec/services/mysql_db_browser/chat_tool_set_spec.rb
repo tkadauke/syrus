@@ -67,12 +67,21 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
 
     expect(Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)).to be_empty
 
-    coworker.grants.create!(capability: "mysql.read", approval_policy: "confirm", scope: connection.id)
-    expect(Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
-      .map { |tool| McpToolRegistry.tool_name_for(tool) }).to contain_exactly(
+    grant = coworker.grants.create!(capability: "mysql.read", approval_policy: "confirm", scope: connection.id)
+    tools = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
+    expect(tools.map { |tool| McpToolRegistry.tool_name_for(tool) }).to contain_exactly(
         "mysql_db_browser_list_connections", "mysql_db_browser_list_databases",
         "mysql_db_browser_list_tables", "mysql_db_browser_describe_table", "mysql_db_browser_execute_query"
       )
+
+    query_tool = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "mysql_db_browser_execute_query" }
+    confirmed = query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1", server_context: { chat_session: chat })
+    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "confirm")
+    expect(chat.pending_actions.last.payload).to include("tool_name" => "mysql_db_browser_execute_query")
+
+    grant.update!(approval_policy: "auto")
+    expect(query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1", server_context: { chat_session: chat }))
+      .not_to be_nil
   end
 
   it "dispatches string-keyed params without revealing an unusable legacy connection" do

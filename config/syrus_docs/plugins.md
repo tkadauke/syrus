@@ -956,6 +956,15 @@ grant. A scopeable grant additionally supplies `scope_options_callback`
 `chat_mcp_tool_set` providers are collected, so disabling a plugin removes its
 declarations from the catalog.
 
+Each definition offered to coworkers must set `coworker_safe: true` and must
+either name a `capability` whose provider grant lists that tool or explicitly
+set `ungated: true`. Gated calls honor the coworker's `auto`, `confirm`, or
+`queue` policy even when the tool is read-only. `ungated` is reserved for
+tools confined to the coworker's workspace or current chat that reveal no data
+beyond the owner's visibility and incur no external cost. Approval replay
+resolves the tool by name through the enabled provider instead of coupling core
+code to plugin handler classes.
+
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
 (`chat_mcp_tool_set`). A plugin registers exactly one tool-set entrypoint per
 surface — include `Syrus::Plugin::McpToolSet` or `Syrus::Plugin::ChatMcpToolSet`

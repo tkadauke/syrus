@@ -63,7 +63,8 @@ RSpec.describe McpToolRegistry do
         step_kinds: [],
         capability: nil,
         interactive_only: false,
-        mutation: false
+        mutation: false,
+        ungated: false
       )
 
       expect(entry.tool_name).to eq("plugin_ping")

@@ -111,6 +111,9 @@ RSpec.describe "Coworker background runs" do
     )
     expect { action.confirm!(user: owner) }.to change(main_chat.proposals, :count).by(1)
     expect(action.reload).to be_confirmed
+    expect(action.payload.fetch("tool_result")).to include("Prepare the report")
+    expect(main_chat.messages.where(role: "system").order(:id).last.content.fetch("text"))
+      .to include("Coworker tool approved and executed", "Prepare the report")
 
     coworker.grants.find_by!(capability: "syrus.propose_job").update!(approval_policy: "queue")
     queued = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(

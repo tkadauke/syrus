@@ -10,7 +10,8 @@ class McpToolRegistry
     :step_kinds,
     :capability,
     :interactive_only,
-    :mutation
+    :mutation,
+    :ungated
   ) do
     def tool_name
       McpToolRegistry.tool_name_for(tool)
@@ -34,6 +35,7 @@ class McpToolRegistry
         capability: capability,
         interactive_only: interactive_only,
         mutation: mutation,
+        ungated: ungated,
         read_only: read_only?
       }
     end
@@ -364,8 +366,8 @@ class McpToolRegistry
     # never widens this surface.
     def coworker_entries
       [
-        coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
-        coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
+        coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
+        coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
         coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
@@ -491,7 +493,7 @@ class McpToolRegistry
     end
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
-              required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false)
+              required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false, ungated: false)
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -503,7 +505,8 @@ class McpToolRegistry
         step_kinds: Array(step_kinds).map(&:to_s).freeze,
         capability: capability&.to_sym,
         interactive_only: interactive_only,
-        mutation: mutation
+        mutation: mutation,
+        ungated: ungated
       )
     end
 
