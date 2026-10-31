@@ -27,7 +27,7 @@ module Coworkers::McpTools
       def call(grants:, server_context:, coworker_id: nil, handle: nil)
         chat = server_context.fetch(:chat_session)
         coworker = Coworkers::OwnerResolver.new(owner: chat.user).find!(id: coworker_id, handle: handle)
-        normalized_grants = normalize_grants(grants, owner: chat.user)
+        normalized_grants = normalize_grants(grants, owner: chat.user, coworker: coworker)
         payload = { "coworker_id" => coworker.id, "handle" => coworker.handle, "grants" => normalized_grants }
         pending_action = create_pending_action_for_current_message!(
           server_context, chat, action: "escalate_coworker_grants", payload: payload, requested_by: "agent"
@@ -45,13 +45,17 @@ module Coworkers::McpTools
 
       private
 
-      def normalize_grants(grants, owner:)
+      def normalize_grants(grants, owner:, coworker:)
+        held_grants = coworker.grants.index_by(&:capability)
         normalized = Array(grants).map do |raw|
           attributes = raw.to_h.stringify_keys
           descriptor = Coworkers::GrantCatalog.fetch(attributes.fetch("capability"))
           policy = attributes.fetch("policy").to_s
           raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}" unless Coworkers::GrantCatalog.policy_allowed?(descriptor, policy)
           scope = attributes.key?("scope") ? attributes["scope"] : Coworkers::GrantUpdate::SCOPE_UNCHANGED
+          if policy != "off" && descriptor.scopeable? && scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) && held_grants[descriptor.name].nil?
+            raise ArgumentError, "scope is required for #{descriptor.name}"
+          end
           unless policy == "off" || scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) || descriptor.valid_scope?(scope, user: owner)
             raise ArgumentError, "invalid scope for #{descriptor.name}"
           end

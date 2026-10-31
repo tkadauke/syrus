@@ -228,4 +228,23 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
     expect(chat.pending_actions.last.confirm!).to be true
     expect(coworker.grants.reload.pluck(:capability, :approval_policy)).to eq([ [ "workspace.shell", "queue" ] ])
   end
+
+  it "requires an explicit scope when adding a scopeable grant" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "database.read", label: "Read database", description: "Read it", default_policy: "confirm", maximum_policy: "auto",
+      tools: [ "list_database_tables" ], scope_options_callback: ->(user:) { [ user.id ] },
+      scope_label_callback: ->(value) { "Connection #{value}" }, valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("database.read").and_return(descriptor)
+
+    missing_scope = propose([ { capability: "database.read", policy: "confirm" } ])
+    expect(missing_scope).to be_error
+    expect(missing_scope.content.first.fetch(:text)).to include("scope is required for database.read")
+    expect(chat.pending_actions).to be_empty
+
+    response = propose([ { capability: "database.read", policy: "confirm", scope: owner.id } ])
+    expect(response).not_to be_error
+    expect(chat.pending_actions.last.confirm!).to be true
+    expect(coworker.grants.find_by!(capability: "database.read")).to have_attributes(approval_policy: "confirm", scope: owner.id)
+  end
 end
