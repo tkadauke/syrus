@@ -16,7 +16,7 @@ import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, Ch
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 import i18n from "../../i18n"
-import { accentRamp } from "../../lib/appearance"
+import { accentDark, accentRamp } from "../../lib/appearance"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -269,7 +269,10 @@ describe("coworker messages", () => {
     expect(message).toHaveTextContent("Dinesh")
     expect(message).toHaveTextContent("I made it faster.")
     expect(message).not.toHaveTextContent("Message from @dinesh")
-    expect(message).toHaveStyle({ backgroundColor: accentRamp("#0090FF").wash, borderLeftColor: "#0090FF" })
+    expect(message).toHaveClass("coworker-message-accent")
+    expect(message).toHaveStyle({ borderLeftColor: "#0090FF" })
+    expect(message.style.getPropertyValue("--coworker-message-wash")).toBe(accentRamp("#0090FF").wash)
+    expect(message.style.getPropertyValue("--coworker-message-dark-wash")).toBe(accentDark("#0090FF").wash)
     expect(message.querySelector("img")).toBeInTheDocument()
     expect(message.closest("article")).not.toHaveClass("justify-end")
   })
@@ -296,6 +299,8 @@ describe("coworker messages", () => {
     renderChatMessageItem(item)
 
     const message = screen.getByTestId("coworker-outgoing-message")
+    expect(message).toHaveClass("coworker-message-accent")
+    expect(message.style.getPropertyValue("--coworker-message-dark-wash")).toBe(accentDark("#8B5CF6").wash)
     expect(message).toHaveTextContent("Gilfoyle")
     expect(message).toHaveTextContent("to @gilfoyle")
     expect(message).toHaveTextContent("Your deploy is broken.")

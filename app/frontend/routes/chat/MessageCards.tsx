@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { memo, useRef, useState } from "react"
-import type { ComponentProps, ReactNode } from "react"
+import type { ComponentProps, CSSProperties, ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -60,7 +60,7 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 import { ToolErrorCard } from "./toolErrorCard"
 import { Avatar } from "../../components/Avatar"
-import { accentRamp } from "../../lib/appearance"
+import { accentDark, accentRamp } from "../../lib/appearance"
 
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
@@ -281,14 +281,23 @@ function CoworkerMessage({
 }) {
   const { t } = useT("chat")
   const colors = appearance ? accentRamp(appearance.accent_hex) : null
+  const darkColors = appearance ? accentDark(appearance.accent_hex) : null
   const label = appearance?.name || (fallbackHandle ? `@${fallbackHandle}` : "—")
+  const accentStyle =
+    colors && darkColors
+      ? ({
+          "--coworker-message-wash": colors.wash,
+          "--coworker-message-dark-wash": darkColors.wash,
+          borderLeftColor: colors.solid
+        } as CSSProperties)
+      : undefined
   return (
     <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly}>
       <span className="absolute -top-4" id={`message-${item.id}`} />
       {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
       <div
-        className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 ${colors ? "" : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40"}`}
-        style={colors ? { backgroundColor: colors.wash, borderLeftColor: colors.solid } : undefined}
+        className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 ${colors ? "coworker-message-accent" : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40"}`}
+        style={accentStyle}
         data-testid={systemNote ? "coworker-outgoing-message" : "coworker-incoming-message"}
       >
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium">
