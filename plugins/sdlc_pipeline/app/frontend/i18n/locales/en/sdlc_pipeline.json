@@ -1,0 +1,13 @@
+{
+  "tab_pipeline": "Pipeline",
+  "aria_pipeline": "Repository SDLC pipeline",
+  "loading": "Loading pipeline...",
+  "load_error": "Unable to load the pipeline.",
+  "stage_summary": "{{attention}} need attention · {{aging}} aging",
+  "attention": "Attention",
+  "empty_stage": "No work in this stage",
+  "evidence_job_state": "Job state",
+  "evidence_landed_commit": "Landed commit",
+  "evidence_completed": "Completed work",
+  "evidence_deployment_stage": "Deployment evidence"
+}

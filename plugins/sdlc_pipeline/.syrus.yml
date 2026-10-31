@@ -1,0 +1,10 @@
+project:
+  id: sdlc_pipeline
+  label: "sdlc_pipeline plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest
