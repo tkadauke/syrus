@@ -55,6 +55,14 @@ gem "my_plugin", path: "plugins/my_plugin"
 | `:grader_augmentor` | `Syrus::Plugin::GraderAugmentor`    | `.augment_grader_failure(name:, command:, workspace_path:)` → `Array<String>\|nil` |
 | `:speech_to_text_provider` | `Syrus::Plugin::SpeechToTextProvider` | `.provider_key`, `.display_name`, `.available?`, `.build(user:)`; instances inherit the `ChatSpeechToText::Providers::Base` batch/streaming contract |
 
+Agent-callable tool definitions should include an explicit
+`capability_descriptor:`. Its capability and operation identifiers, plus any
+`capability_aliases` and `operation_aliases` retained after a rename, are
+versioned API keys. CI rejects conflicting mappings/contracts and aliases
+claimed by multiple canonical identifiers; diagnostics name the provider,
+surface, and tool. Legacy definitions receive a conservative compatibility
+descriptor during migration.
+
 `input_source` and `source_control_provider` are deliberately separate. A
 source plugin can poll for new work without owning PR operations, and a
 source-control provider can own branch/PR/merge operations without being a poll
