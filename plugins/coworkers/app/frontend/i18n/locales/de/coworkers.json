@@ -55,6 +55,9 @@
     "push_ok": "Push-Zugriff bestätigt"
   },
   "tool_card": {
+    "spawn_chat_title": "Coworker-Nebenchat erstellen",
+    "spawn_chat_prompt": "Erste Nachricht",
+    "spawn_chat_pending": "Ausstehender Nebenchat",
     "title": "Vorgeschlagener Mitarbeiter",
     "summary": "Mitarbeiter @{{handle}} vorgeschlagen",
     "grant_title": "Vorgeschlagene Fähigkeitsfreigabe",
