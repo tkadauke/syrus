@@ -1305,7 +1305,8 @@ class Job < ApplicationRecord
 
       workflow.artifacts = (workflow.artifacts || {}).merge(
         "cancelled_reason" => Workflow::SUPERSEDED_BY_REBASE_REASON,
-        "cancelled_at" => Time.current.iso8601
+        "cancelled_at" => Time.current.iso8601,
+        "unapplied_feedback" => unapplied_chat_feedback?(workflow)
       )
       WorkUnits::WorkflowCancellation.cancel!(
         workflow,
@@ -1313,9 +1314,16 @@ class Job < ApplicationRecord
         artifacts: workflow.artifacts
       )
       cancelled = true
+      set_needs_attention!(reason: REQUESTED_CHANGES_ATTENTION_REASON) if unapplied_chat_feedback?(workflow)
     end
     cancelled
   end
+
+  def unapplied_chat_feedback?(workflow)
+    workflow.trigger_kind == "chat_feedback" &&
+      !workflow.steps.where(kind: %w[push push_after_rebase], state: "succeeded").exists?
+  end
+  private :unapplied_chat_feedback?
 
   def active_runtime_workflows
     WorkUnits::TerminalWorkflowSync.for_job(self)

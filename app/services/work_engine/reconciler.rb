@@ -1859,6 +1859,7 @@ module WorkEngine
     def classify_superseded_active_runtime_work
       jobs.reject(&:closed?).flat_map do |job|
         active = active_runtime_workflows_for_job(job)
+        active = active.reject { |workflow| patient_rebase_waiting_for_active_workflow?(workflow) }
         next [] if active.size < 2
 
         keeper = active.last
@@ -1879,6 +1880,11 @@ module WorkEngine
           )
         end
       end
+    end
+
+    def patient_rebase_waiting_for_active_workflow?(workflow)
+      workflow.work_unit&.blocked_reason == WorkUnits::Gates::PatientRebase::REASON &&
+        RebaseRequestOrigin.for(workflow.artifact("requested_by") || "system").patient?
     end
 
     def closed_job_stale_work_unit?(job, unit)

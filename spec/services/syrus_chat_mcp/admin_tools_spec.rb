@@ -1324,7 +1324,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
       expect(response.dig(:result, :isError)).to be_falsey
-      expect(body).to include(state: "pending", member_count: 2, message: "Force rebase for 2 Jobs?")
+      expect(body).to include(state: "pending", member_count: 2, message: "Force rebase for 2 Jobs? Active workflows on those branches may be cancelled.")
       expect(body.fetch(:reason)).to eq("Both branches drifted behind the same base rewrite.")
       expect(body.fetch(:plans).map { |plan| plan.fetch(:job_id) }).to contain_exactly(job_one.id, job_two.id)
       expect(group.reason).to eq("Both branches drifted behind the same base rewrite.")

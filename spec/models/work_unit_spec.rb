@@ -41,6 +41,7 @@ RSpec.describe WorkUnit do
       ci_repair_safety
       ci_repair_disabled
       active_work_lock
+      patient_rebase_waiting_for_active_workflow
       agent_cannot_proceed
       auto_retry_backoff
       no_capable_worker
@@ -91,6 +92,7 @@ RSpec.describe WorkUnit do
       "ci_repair_safety",
       "ci_repair_disabled",
       "active_work_lock",
+      "patient_rebase_waiting_for_active_workflow",
       "agent_cannot_proceed",
       "auto_retry_backoff",
       "no_capable_worker",

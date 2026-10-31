@@ -100,6 +100,15 @@ does not open or rewrite PR copy. The push uses an explicit
 `git push --force-with-lease=<branch>:<observed_sha>` lease so Syrus does
 not overwrite an unexpected remote update.
 
+Automatic rebases are patient when another workflow is still preparing a
+push to the same branch. Syrus records the system request, keeps the rebase
+blocked, and rechecks it through normal workflow admission after the active
+workflow finishes. A rebase explicitly requested from the Job UI or chat may
+instead cancel that active workflow; the confirmation message makes that
+preemption visible. If explicit preemption cancels chat feedback before its
+push, the Job remains marked as needing attention rather than appearing ready
+for approval.
+
 When the unmergeable PR has stack children, Syrus uses `StackRebase` instead
 of opening one rebase workflow per Job. Steps:
 `stack_auto_rebase -> stack_agent_rebase -> stack_force_push`. The workflow

@@ -96,7 +96,8 @@ module Api
           workflow = RebaseWorkflowSelector.instantiate(
             job: job,
             agent_provider: agent_provider,
-            pr: rebase_pull_request_snapshot(job)
+            pr: rebase_pull_request_snapshot(job),
+            requested_by: "user"
           )
           run = WorkUnits::Launcher.start!(workflow).run
 
