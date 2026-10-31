@@ -276,8 +276,8 @@ operator's complete note in the persisted user message.
   10,000 newline-delimited rows and 10 MiB can render interactively through
   the normal large-file gate, preserving line-comment anchors. Larger patches
   offer an authenticated raw `.diff` attachment instead. Downloads have a
-  100 MiB operational ceiling and the fetched patch is never written back to
-  `DiffReviewVersion#files_snapshot`.
+  100 MiB operational ceiling, stream from bounded temporary storage, and are
+  never written back to `DiffReviewVersion#files_snapshot`.
 
 - **Per-file large-diff gating** — a file whose *parsed* diff row count
   (`countDiffRows` in `diffRendering.ts`, not raw source file size) exceeds

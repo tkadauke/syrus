@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -756,32 +757,40 @@ func (s *Store) Changes(ctx context.Context, id, base, head string, withPatch bo
 	return changes, nil
 }
 
-// FilePatch returns one path's three-dot patch without constructing the
-// repository-wide diff. Revisions and the path are passed after -- so none
-// can be interpreted as git options.
-func (s *Store) FilePatch(ctx context.Context, id, base, head, path string) ([]byte, error) {
-	if path == "" || filepath.IsAbs(path) || strings.Contains(path, "\x00") {
-		return nil, ErrNotFound
-	}
-	clean := filepath.ToSlash(filepath.Clean(path))
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || clean != path {
-		return nil, ErrNotFound
+// FilePatch writes one path's patch without constructing the repository-wide
+// diff. Normal paths follow the three-dot review comparison; renames compare
+// the two exact blobs so both filenames remain available to the patch.
+func (s *Store) FilePatch(ctx context.Context, destination io.Writer, id, base, head, path, previousPath string) (int64, error) {
+	if !validPatchPath(path) || (previousPath != "" && !validPatchPath(previousPath)) {
+		return 0, ErrNotFound
 	}
 	r, err := s.revisionRepo(ctx, id, base)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if _, err := s.revisionRepo(ctx, id, head); err != nil {
-		return nil, err
+		return 0, err
 	}
-	res, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "diff", "-M", "--no-color", "--no-ext-diff", "--end-of-options", base+"..."+head, "--", path)
+	args := []string{"diff", "-M", "--no-color", "--no-ext-diff", "--end-of-options", base + "..." + head, "--", path}
+	if previousPath != "" && previousPath != path {
+		// A pathspec removes the old side before git's rename detection runs.
+		// Comparing the two exact blobs keeps this a per-file operation while
+		// preserving old/new filenames and hunk coordinates.
+		args = []string{"diff", "--no-color", "--no-ext-diff", "--end-of-options", base + ":" + previousPath, head + ":" + path}
+	}
+	written, err := s.gitLimitedTo(ctx, r.dir, destination, s.cfg.ReadTimeout, MaxRawPatchBytes, args...)
+	if errors.Is(err, gitexec.ErrOutputLimit) {
+		return 0, ErrPatchTooLarge
+	}
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return 0, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if len(res.Stdout) > MaxRawPatchBytes {
-		return nil, ErrPatchTooLarge
-	}
-	return res.Stdout, nil
+	return written, nil
+}
+
+func validPatchPath(path string) bool {
+	clean := filepath.ToSlash(filepath.Clean(path))
+	return path != "" && clean != "." && clean != ".." && !strings.HasPrefix(clean, "../") && clean == path && !filepath.IsAbs(path) && !strings.Contains(path, "\x00")
 }
 
 func parseNameStatus(out string) []Change {
@@ -1107,6 +1116,25 @@ func (s *Store) git(ctx context.Context, dir string, cred *gitexec.Credential, t
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return s.cfg.Git.Run(ctx, dir, cred, args...)
+}
+
+func (s *Store) gitLimitedTo(ctx context.Context, dir string, destination io.Writer, timeout time.Duration, maxStdout int64, args ...string) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	counter := &countingWriter{destination: destination}
+	_, err := s.cfg.Git.RunLimitedTo(ctx, dir, nil, counter, maxStdout, args...)
+	return counter.written, err
+}
+
+type countingWriter struct {
+	destination io.Writer
+	written     int64
+}
+
+func (w *countingWriter) Write(p []byte) (int, error) {
+	n, err := w.destination.Write(p)
+	w.written += int64(n)
+	return n, err
 }
 
 func (s *Store) validateURL(url string) error {

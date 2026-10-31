@@ -44,6 +44,7 @@ import (
 	"log"
 	"net/http"
 	"net/textproto"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -65,7 +66,7 @@ type Store interface {
 	Children(ctx context.Context, id, revision, path string) ([]mirror.Entry, error)
 	Read(ctx context.Context, id, revision, path string) (mirror.Blob, error)
 	Changes(ctx context.Context, id, base, head string, withPatch bool) ([]mirror.Change, error)
-	FilePatch(ctx context.Context, id, base, head, path string) ([]byte, error)
+	FilePatch(ctx context.Context, destination io.Writer, id, base, head, path, previousPath string) (int64, error)
 	Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]mirror.Ref, error)
 	Relation(ctx context.Context, id, base, head string) (string, error)
 	History(ctx context.Context, id, base, head string) (mirror.History, error)
@@ -284,7 +285,16 @@ func (s *server) changes(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) filePatch(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	patch, err := s.store.FilePatch(r.Context(), r.PathValue("id"), query.Get("base"), query.Get("head"), query.Get("path"))
+	file, err := os.CreateTemp("", "git-mirror-patch-*.diff")
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "could not stage patch")
+		return
+	}
+	defer func() {
+		_ = file.Close()
+		_ = os.Remove(file.Name())
+	}()
+	size, err := s.store.FilePatch(r.Context(), file, r.PathValue("id"), query.Get("base"), query.Get("head"), query.Get("path"), query.Get("previous_path"))
 	if errors.Is(err, mirror.ErrPatchTooLarge) {
 		writeError(w, http.StatusRequestEntityTooLarge, "patch_too_large", "patch exceeds the 100 MiB download limit")
 		return
@@ -293,10 +303,14 @@ func (s *server) filePatch(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "could not read staged patch")
+		return
+	}
 	w.Header().Set("Content-Type", "text/x-diff; charset=utf-8")
-	w.Header().Set("Content-Length", strconv.Itoa(len(patch)))
+	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(patch)
+	_, _ = io.Copy(w, file)
 }
 
 func (s *server) refs(w http.ResponseWriter, r *http.Request) {

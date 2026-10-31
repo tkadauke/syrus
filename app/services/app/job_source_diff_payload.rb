@@ -102,6 +102,7 @@ module App
       classification = diff_review_file_classifier.classify(change.path)
       {
         path: change.path,
+        previous_path: change.previous_path,
         status: UI_STATUS.fetch(change.status, change.status),
         additions: change.additions,
         deletions: change.deletions,
@@ -241,6 +242,7 @@ module App
     def file_json(file)
       {
         path: file[:path].to_s,
+        previous_path: file[:previous_path],
         status: file[:status].to_s,
         additions: file[:additions].to_i,
         deletions: file[:deletions].to_i,
@@ -254,6 +256,7 @@ module App
     def stored_file_json(file)
       {
         path: file["path"].to_s,
+        previous_path: file["previous_path"],
         status: file["status"].to_s,
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,

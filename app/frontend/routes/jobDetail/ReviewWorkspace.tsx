@@ -476,8 +476,8 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
               onDeleteThread={feedback.onDeleteThread}
               onDiscussComposing={feedback.onDiscussComposing}
               onLoadFileContext={activeHeadContentRef ? (file) => fetchJobSourceFileContent(jobId, activeHeadContentRef, file.path) : undefined}
-              onLoadFileDiff={activeDiff.base_sha && activeDiff.head_sha ? (file) => fetchJobSourceFileDiff(jobId, activeDiff.base_sha!, activeDiff.head_sha!, file.path) : undefined}
-              fileDiffDownloadUrl={activeDiff.base_sha && activeDiff.head_sha ? (file) => jobSourceFileDiffDownloadUrl(jobId, activeDiff.base_sha!, activeDiff.head_sha!, file.path) : undefined}
+              onLoadFileDiff={activeDiff.base_sha && activeDiff.head_sha ? (file) => fetchJobSourceFileDiff(jobId, activeDiff.base_sha!, activeDiff.head_sha!, file.path, file.previous_path) : undefined}
+              fileDiffDownloadUrl={activeDiff.base_sha && activeDiff.head_sha ? (file) => jobSourceFileDiffDownloadUrl(jobId, activeDiff.base_sha!, activeDiff.head_sha!, file.path, file.previous_path) : undefined}
               onSaveComposing={feedback.onSaveComposing}
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}

@@ -76,7 +76,11 @@ RSpec.describe "App API job source diff browser", type: :request do
     head = "b" * 40
     patch = "@@ -1 +1 @@\n-old\n+new\n"
     allow_any_instance_of(RepositoryContent::Reader).to receive(:file_patch)
-      .with(base: have_attributes(id: base), head: have_attributes(id: head), path: "app/models/user.rb").and_return(patch)
+      .with(base: have_attributes(id: base), head: have_attributes(id: head), path: "app/models/user.rb", previous_path: nil).and_return(patch)
+    allow_any_instance_of(RepositoryContent::Reader).to receive(:file_patch_to) do |_reader, io, **|
+      io.write(patch)
+      io
+    end
 
     get "/api/v1/app/jobs/#{job.id}/source_file_diff", params: { base: base, head: head, path: "app/models/user.rb" }
     expect(response).to have_http_status(:ok)
@@ -87,6 +91,19 @@ RSpec.describe "App API job source diff browser", type: :request do
     expect(response.media_type).to eq("text/x-diff")
     expect(response.headers["Content-Disposition"]).to include("attachment", "user.rb.diff")
     expect(job.diff_review_versions).to be_empty
+  end
+
+  it "passes the previous path for renamed files and serializes UTF-8 patches" do
+    patch = "@@ -1 +1 @@\n-café\n+Kaffee\n".dup.force_encoding(Encoding::BINARY)
+    expect_any_instance_of(RepositoryContent::Reader).to receive(:file_patch)
+      .with(base: have_attributes(id: "a" * 40), head: have_attributes(id: "b" * 40), path: "new.txt", previous_path: "old.txt")
+      .and_return(patch.force_encoding(Encoding::UTF_8))
+
+    get "/api/v1/app/jobs/#{job.id}/source_file_diff",
+      params: { base: "a" * 40, head: "b" * 40, path: "new.txt", previous_path: "old.txt" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["patch"]).to include("café", "Kaffee")
   end
 
   it "rejects non-exact revisions and unsafe paths" do
@@ -119,7 +136,7 @@ RSpec.describe "App API job source diff browser", type: :request do
   end
 
   it "communicates the raw download ceiling" do
-    allow_any_instance_of(RepositoryContent::Reader).to receive(:file_patch).and_raise(RepositoryContent::TooLarge)
+    allow_any_instance_of(RepositoryContent::Reader).to receive(:file_patch_to).and_raise(RepositoryContent::TooLarge)
     get "/api/v1/app/jobs/#{job.id}/source_file_diff_download", params: { base: "a" * 40, head: "b" * 40, path: "huge.txt" }
     expect(response).to have_http_status(:content_too_large)
     expect(parse_body.dig("error", "message")).to include("100 MiB")
