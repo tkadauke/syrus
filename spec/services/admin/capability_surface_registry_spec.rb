@@ -286,6 +286,7 @@ RSpec.describe "capability surface coverage inventory" do
 
     expect(coverage.fetch(:tools)).to be > 0
     expect(coverage.fetch(:described_tools)).to eq(coverage.fetch(:tools))
+    expect(coverage.fetch(:explicit_descriptors) + coverage.fetch(:legacy_descriptors)).to eq(coverage.fetch(:described_tools))
     expect(coverage.fetch(:roles)).to include(AgentRole::CHAT_PLANNER)
     expect(coverage.fetch(:effects)).to include(:local_read, :internal_write)
   end

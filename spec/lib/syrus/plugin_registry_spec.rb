@@ -1289,6 +1289,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         end
       end
 
+      it "publicly inventories tiered and context-aware tool sets with nil selectors" do
+        tiered = Class.new do
+          def self.tool_definitions(tier:)
+            raise "expected inventory tier" unless tier.nil?
+
+            [ { name: "tiered_tool" } ]
+          end
+        end
+        contextual = Class.new do
+          def self.tool_definitions(context:)
+            raise "expected inventory context" unless context.nil?
+
+            [ { name: "contextual_tool" } ]
+          end
+        end
+
+        expect(described_class.all_tool_definitions(tiered)).to contain_exactly(name: "tiered_tool")
+        expect(described_class.all_tool_definitions(contextual)).to contain_exactly(name: "contextual_tool")
+      end
+
       it "raises RegistrationError when a second tool set registers a name already claimed by a first" do
         set_a = make_tool_set("tool_one", "tool_two")
         set_b = make_tool_set("tool_three", "tool_one")

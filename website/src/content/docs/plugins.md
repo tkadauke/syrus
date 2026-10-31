@@ -177,6 +177,14 @@ toolset as the registration point, but individual tools should stay small and
 separately testable. Good tools have narrow inputs, clear side effects, and
 structured results.
 
+Every new agent-callable tool definition must include an explicit capability
+descriptor. Versioned capability and operation identifiers, aliases retained
+after renames, side effects, eligible-role defaults, autonomy limits, and
+resource scope form its stable authorization contract. CI rejects missing or
+conflicting definitions and identifies the provider, surface, and tool that
+needs correction. Older bundled definitions remain on a frozen compatibility
+baseline while they are migrated; that baseline cannot grow.
+
 Tool usage is logged so operators can see which tools are active, failing, or
 worth consolidating.
 
