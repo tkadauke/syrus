@@ -1,5 +1,19 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatJobStatusPayload, ChatJobStatusPendingProposal, ChatMessageItem, ChatParticipant, ChatPayload, ChatProposal, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
+import type {
+  ChatAgentQuestion,
+  ChatAgentSubQuestion,
+  ChatBookmark,
+  ChatConversationKind,
+  ChatJobStatusPayload,
+  ChatJobStatusPendingProposal,
+  ChatMessageItem,
+  ChatParticipant,
+  ChatPayload,
+  ChatProposal,
+  ChatQueuedMessage,
+  ChatRecord,
+  ChatRepository
+} from "../api/chats"
 import type { JobDetailPayload, JobRun, JobStep, JobWorkflow, JobWorkflowsPayload } from "../api/jobs"
 import { updateRecentChatHeaderCache, updateRecentChatMessageStateCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
@@ -21,9 +35,11 @@ export type ProposalUpdatedDetail = { chatSessionId: string; proposal: ChatPropo
 
 export function dispatchProposalUpdated(chatSessionId: string | number, proposal: ChatProposal) {
   if (typeof window === "undefined") return
-  window.dispatchEvent(new CustomEvent<ProposalUpdatedDetail>(PROPOSAL_UPDATED_EVENT, {
-    detail: { chatSessionId: String(chatSessionId), proposal }
-  }))
+  window.dispatchEvent(
+    new CustomEvent<ProposalUpdatedDetail>(PROPOSAL_UPDATED_EVENT, {
+      detail: { chatSessionId: String(chatSessionId), proposal }
+    })
+  )
 }
 
 export function addAppEventListener(listener: (event: AppEvent) => void) {
@@ -164,7 +180,7 @@ function entityFieldsFromEventPayload(payload: unknown): Record<string, unknown>
   if (!payload || typeof payload !== "object") return null
 
   const fields = (payload as { fields?: unknown }).fields
-  return fields && typeof fields === "object" && !Array.isArray(fields) ? fields as Record<string, unknown> : null
+  return fields && typeof fields === "object" && !Array.isArray(fields) ? (fields as Record<string, unknown>) : null
 }
 
 function patchJobResourceQueries(queryClient: QueryClient, event: AppEvent, fields: Record<string, unknown>) {
@@ -173,17 +189,13 @@ function patchJobResourceQueries(queryClient: QueryClient, event: AppEvent, fiel
 
   const patch = event.revision == null ? fields : { ...fields, entity_revision: event.revision }
   const jobId = String(event.job_id)
-  queryClient.setQueriesData<JobDetailPayload | JobWorkflowsPayload>(
-    { predicate: (query) => jobWorkflowPayloadQuery(query.queryKey, jobId) },
-    (current) => current ? patchJobWorkflowPayload(current, event, patch) : current
+  queryClient.setQueriesData<JobDetailPayload | JobWorkflowsPayload>({ predicate: (query) => jobWorkflowPayloadQuery(query.queryKey, jobId) }, (current) =>
+    current ? patchJobWorkflowPayload(current, event, patch) : current
   )
 }
 
 function jobWorkflowPayloadQuery(queryKey: QueryKey, jobId: string) {
-  return queryKey.length >= 3 &&
-    queryKey[0] === "jobs" &&
-    queryKey[1] === jobId &&
-    (queryKey[2] === "detail" || queryKey[2] === "workflows")
+  return queryKey.length >= 3 && queryKey[0] === "jobs" && queryKey[1] === jobId && (queryKey[2] === "detail" || queryKey[2] === "workflows")
 }
 
 function patchJobWorkflowPayload<T extends JobDetailPayload | JobWorkflowsPayload>(payload: T, event: AppEvent, fields: Record<string, unknown>): T {
@@ -194,7 +206,7 @@ function patchJobWorkflowPayload<T extends JobDetailPayload | JobWorkflowsPayloa
     next.work_units = payload.work_units.map((workUnit) => {
       if (!workUnit.workflow) return workUnit
 
-      const [ workflow ] = patchWorkflows([ workUnit.workflow ], event, fields)
+      const [workflow] = patchWorkflows([workUnit.workflow], event, fields)
       if (workflow !== workUnit.workflow) patched = true
       return workflow === workUnit.workflow ? workUnit : { ...workUnit, workflow }
     })
@@ -268,10 +280,7 @@ type NotificationReadPayload = {
   read_at?: string
 }
 
-function patchCachedChatRecord(
-  chat: ChatPayload["chat"],
-  patch: Partial<Pick<ChatRecord, "stop_requested_at" | "turn_retry_state">>
-) {
+function patchCachedChatRecord(chat: ChatPayload["chat"], patch: Partial<Pick<ChatRecord, "stop_requested_at" | "turn_retry_state">>) {
   if (!chat) return chat
 
   return { ...chat, ...patch }
@@ -295,9 +304,11 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
     // The chat composer owns the walkthrough chip; hand it the payload
     // directly (a chat-scoped query invalidation would not carry state).
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("syrus:video-walkthrough", {
-        detail: { id: event.id, ...(event.payload as object | undefined) }
-      }))
+      window.dispatchEvent(
+        new CustomEvent("syrus:video-walkthrough", {
+          detail: { id: event.id, ...(event.payload as object | undefined) }
+        })
+      )
     }
     return
   }
@@ -305,19 +316,24 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   if (event.type === "notification_created") {
     const current = queryClient.getQueryData<{ unread_count: number }>(["notifications"])
     const unreadCount = typeof event.unread_count === "number" ? event.unread_count : (current?.unread_count ?? 0) + 1
-    queryClient.setQueryData(["notifications"], current ? {
-      ...current,
-      unread_count: unreadCount
-    } : {
-      notifications: [],
-      unread_count: unreadCount,
-      pagination: {
-        page: 1,
-        per_page: 20,
-        total: 0,
-        total_pages: 0
-      }
-    })
+    queryClient.setQueryData(
+      ["notifications"],
+      current
+        ? {
+            ...current,
+            unread_count: unreadCount
+          }
+        : {
+            notifications: [],
+            unread_count: unreadCount,
+            pagination: {
+              page: 1,
+              per_page: 20,
+              total: 0,
+              total_pages: 0
+            }
+          }
+    )
     invalidateAppQuery(queryClient, { queryKey: ["notifications"], exact: true })
 
     const nativePayload = notificationCreatedNativePayload(event.payload)
@@ -329,7 +345,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
     const payload = notificationReadPayload(event.payload)
     const readAt = payload?.read_at ?? event.occurred_at ?? new Date().toISOString()
     queryClient.setQueryData<NotificationsCache>(["notifications"], (current) => {
-      const unreadCount = typeof event.unread_count === "number" ? event.unread_count : current?.unread_count ?? 0
+      const unreadCount = typeof event.unread_count === "number" ? event.unread_count : (current?.unread_count ?? 0)
       if (!current) return emptyNotificationsCache(unreadCount)
 
       const readIds = new Set(payload?.notification_ids ?? [])
@@ -410,14 +426,14 @@ export function recoverAppEventContinuity(queryClient: QueryClient) {
 // fetching in the background (see markHiddenInvalidation/flushHiddenInvalidations).
 export function recoverJobResourceContinuity(queryClient: QueryClient, jobId: string | number) {
   const id = String(jobId)
-  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id ], exact: true })
-  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "detail" ] })
-  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "workflows" ] })
+  invalidateAppQuery(queryClient, { queryKey: ["jobs", id], exact: true })
+  invalidateAppQuery(queryClient, { queryKey: ["jobs", id, "detail"] })
+  invalidateAppQuery(queryClient, { queryKey: ["jobs", id, "workflows"] })
 }
 
 export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: string | number) {
   const id = String(chatId)
-  invalidateAppQuery(queryClient, { queryKey: [ "chats", id ] })
+  invalidateAppQuery(queryClient, { queryKey: ["chats", id] })
   invalidateAppQuery(queryClient, { queryKey: chatBookmarksQueryPrefix(id) })
   invalidateAppQuery(queryClient, { queryKey: chatPinsQueryPrefix(id) })
 }
@@ -544,7 +560,10 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
     case "provider_availability":
       return [["bootstrap"], ["dashboard"], ["chats"]]
     case "admin_overview":
-      return [["admin", "overview"], ["admin", "stuck"]]
+      return [
+        ["admin", "overview"],
+        ["admin", "stuck"]
+      ]
     default:
       return []
   }
@@ -584,13 +603,17 @@ function chatQueryKeysFor(event: AppEvent): QueryKey[] {
   const id = String(event.id)
   const changed = event.changed || []
   const action = chatPayloadAction(event.payload)
-  const detailOnly = (changed.length > 0 && changed.every((item) => chatDetailOnlyChanges.has(item) || chatMediaChange(item))) ||
+  const detailOnly =
+    (changed.length > 0 && changed.every((item) => chatDetailOnlyChanges.has(item) || chatMediaChange(item))) ||
     (changed.length === 0 && action != null && chatDetailOnlyActions.has(action))
-  const keys: QueryKey[] = detailOnly ? [["chats", id]] : [["chats", "recent"], ["chats", id]]
+  const keys: QueryKey[] = detailOnly
+    ? [["chats", id]]
+    : [
+        ["chats", "recent"],
+        ["chats", id]
+      ]
 
-  return chatMediaChanged(event)
-    ? [...keys, ["chat_media", id], ["whiteboard_snapshots", id]]
-    : keys
+  return chatMediaChanged(event) ? [...keys, ["chat_media", id], ["whiteboard_snapshots", id]] : keys
 }
 
 function chatPayloadAction(payload: unknown) {
@@ -628,23 +651,15 @@ function isDashboardQueryKey(queryKey: QueryKey) {
 }
 
 function isJobDetailQueryKey(queryKey: QueryKey) {
-  return queryKey.length === 3 &&
-    queryKey[0] === "jobs" &&
-    typeof queryKey[1] === "string" &&
-    (queryKey[2] === "detail" || queryKey[2] === "workflows")
+  return queryKey.length === 3 && queryKey[0] === "jobs" && typeof queryKey[1] === "string" && (queryKey[2] === "detail" || queryKey[2] === "workflows")
 }
 
 function isJobPreviewQueryKey(queryKey: QueryKey) {
-  return queryKey.length === 2 &&
-    queryKey[0] === "jobs" &&
-    typeof queryKey[1] === "string"
+  return queryKey.length === 2 && queryKey[0] === "jobs" && typeof queryKey[1] === "string"
 }
 
 function isChatDetailQueryKey(queryKey: QueryKey) {
-  return queryKey.length === 2 &&
-    queryKey[0] === "chats" &&
-    typeof queryKey[1] === "string" &&
-    queryKey[1] !== "recent"
+  return queryKey.length === 2 && queryKey[0] === "chats" && typeof queryKey[1] === "string" && queryKey[1] !== "recent"
 }
 
 function scheduleDashboardInvalidation(queryClient: QueryClient) {
@@ -827,8 +842,7 @@ function invalidateEventQuery(queryClient: QueryClient, queryKey: QueryKey) {
 
 function dashboardListQuery(query: { queryKey: QueryKey }) {
   const queryKey = query.queryKey
-  return queryKey[0] === "dashboard" &&
-    (queryKey[1] === "chrome" || queryKey[1] === "rows" || queryKey[1] === "graph")
+  return queryKey[0] === "dashboard" && (queryKey[1] === "chrome" || queryKey[1] === "rows" || queryKey[1] === "graph")
 }
 
 function repositoryListQuery(query: { queryKey: QueryKey }) {
@@ -864,47 +878,46 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     replaceTail.messages.forEach((message) => normalizeChatMessage(message, "app_event"))
 
     let patched = false
-    if (typeof replaceTail.turn_in_flight === "boolean") updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: replaceTail.turn_in_flight, agent_busy: replaceTail.agent_busy })
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => {
-        if (!current) return current
-        if (!Array.isArray(current.messages)) return current
-        patched = true
+    if (typeof replaceTail.turn_in_flight === "boolean")
+      updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: replaceTail.turn_in_flight, agent_busy: replaceTail.agent_busy })
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current) return current
+      if (!Array.isArray(current.messages)) return current
+      patched = true
 
-        return {
-          ...current,
-          turn_in_flight: replaceTail.turn_in_flight ?? current.turn_in_flight,
-          agent_busy: replaceTail.agent_busy ?? current.agent_busy,
-          turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.turn_retry_state,
-          queued_messages: replaceTail.queued_messages ?? current.queued_messages,
-          messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
-          chat: patchCachedChatRecord(current.chat, {
-            turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat?.turn_retry_state,
-            stop_requested_at: replaceTail.stop_requested_at ?? current.chat?.stop_requested_at
-          })
-        }
+      return {
+        ...current,
+        turn_in_flight: replaceTail.turn_in_flight ?? current.turn_in_flight,
+        agent_busy: replaceTail.agent_busy ?? current.agent_busy,
+        turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.turn_retry_state,
+        queued_messages: replaceTail.queued_messages ?? current.queued_messages,
+        messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
+        chat: patchCachedChatRecord(current.chat, {
+          turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat?.turn_retry_state,
+          stop_requested_at: replaceTail.stop_requested_at ?? current.chat?.stop_requested_at
+        })
       }
-    )
+    })
     return patched
   }
 
   const invalidateMessages = chatInvalidateMessagesPayload(event.payload)
   if (invalidateMessages) {
     updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: invalidateMessages.turn_in_flight, agent_busy: invalidateMessages.agent_busy })
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => current ? {
-        ...current,
-        turn_in_flight: invalidateMessages.turn_in_flight ?? current.turn_in_flight,
-        agent_busy: invalidateMessages.agent_busy ?? current.agent_busy,
-        turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.turn_retry_state,
-        queued_messages: invalidateMessages.queued_messages ?? current.queued_messages,
-        chat: patchCachedChatRecord(current.chat, {
-          turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.chat?.turn_retry_state,
-          stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat?.stop_requested_at
-        })
-      } : current
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) =>
+      current
+        ? {
+            ...current,
+            turn_in_flight: invalidateMessages.turn_in_flight ?? current.turn_in_flight,
+            agent_busy: invalidateMessages.agent_busy ?? current.agent_busy,
+            turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.turn_retry_state,
+            queued_messages: invalidateMessages.queued_messages ?? current.queued_messages,
+            chat: patchCachedChatRecord(current.chat, {
+              turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.chat?.turn_retry_state,
+              stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat?.stop_requested_at
+            })
+          }
+        : current
     )
     scheduleChatDetailInvalidation(queryClient, ["chats", String(event.id)])
     return true
@@ -917,26 +930,23 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     if (controls.scratchpad_items_count !== undefined) {
       updateRecentChatScratchpadCache(queryClient, event.id, controls.scratchpad_items_count)
     }
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => {
-        if (!current || !Array.isArray(current.messages)) return current
-        patched = true
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      patched = true
 
-        return {
-          ...current,
-          turn_in_flight: controls.turn_in_flight,
-          agent_busy: controls.agent_busy ?? current.agent_busy,
-          turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.turn_retry_state,
-          switching_provider: controls.switching_provider ?? current.switching_provider,
-          queued_messages: controls.queued_messages ?? current.queued_messages,
-          chat: patchCachedChatRecord(current.chat, {
-            turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.chat?.turn_retry_state,
-            stop_requested_at: controls.stop_requested_at
-          })
-        }
+      return {
+        ...current,
+        turn_in_flight: controls.turn_in_flight,
+        agent_busy: controls.agent_busy ?? current.agent_busy,
+        turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.turn_retry_state,
+        switching_provider: controls.switching_provider ?? current.switching_provider,
+        queued_messages: controls.queued_messages ?? current.queued_messages,
+        chat: patchCachedChatRecord(current.chat, {
+          turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.chat?.turn_retry_state,
+          stop_requested_at: controls.stop_requested_at
+        })
       }
-    )
+    })
     return patched
   }
 
@@ -944,21 +954,16 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (header) {
     let patched = false
     updateRecentChatHeaderCache(queryClient, event.id, header.chat)
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => {
-        if (!current || !Array.isArray(current.messages)) return current
-        const recentChats = Array.isArray(current.recent_chats) ? current.recent_chats : []
-        patched = true
-        return {
-          ...current,
-          chat: { ...current.chat, ...header.chat },
-          recent_chats: recentChats.map((chat) => (
-            chat.id === current.chat.id ? { ...chat, ...header.chat } : chat
-          ))
-        }
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      const recentChats = Array.isArray(current.recent_chats) ? current.recent_chats : []
+      patched = true
+      return {
+        ...current,
+        chat: { ...current.chat, ...header.chat },
+        recent_chats: recentChats.map((chat) => (chat.id === current.chat.id ? { ...chat, ...header.chat } : chat))
       }
-    )
+    })
     return patched
   }
 
@@ -970,30 +975,24 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     // detail payload is patchable, but the grouped sidebar needs the server's
     // authoritative membership calculation.
     invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"] })
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => {
-        if (!current || !Array.isArray(current.messages)) return current
-        patched = true
-        return {
-          ...current,
-          chat: { ...current.chat, conversation_kind: participants.conversation_kind, participants: participants.participants }
-        }
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      patched = true
+      return {
+        ...current,
+        chat: { ...current.chat, conversation_kind: participants.conversation_kind, participants: participants.participants }
       }
-    )
+    })
     return patched
   }
 
   const bookmark = chatBookmarkPayload(event.payload)
   if (bookmark) {
-    queryClient.setQueriesData<{ bookmarks: ChatBookmark[] }>(
-      { queryKey: chatBookmarksQueryPrefix(event.id) },
-      (current) => {
-        if (!current) return current
-        const bookmarks = Array.isArray(current.bookmarks) ? current.bookmarks : []
-        return { ...current, bookmarks: upsertBookmark(bookmarks, bookmark.bookmark) }
-      }
-    )
+    queryClient.setQueriesData<{ bookmarks: ChatBookmark[] }>({ queryKey: chatBookmarksQueryPrefix(event.id) }, (current) => {
+      if (!current) return current
+      const bookmarks = Array.isArray(current.bookmarks) ? current.bookmarks : []
+      return { ...current, bookmarks: upsertBookmark(bookmarks, bookmark.bookmark) }
+    })
     return true
   }
 
@@ -1011,31 +1010,25 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const agentQuestions = chatAgentQuestionsPayload(event.payload)
   if (agentQuestions) {
     let patched = false
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => {
-        if (!current || !Array.isArray(current.messages)) return current
-        patched = true
-        return { ...current, agent_questions: agentQuestions.agent_questions }
-      }
-    )
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      patched = true
+      return { ...current, agent_questions: agentQuestions.agent_questions }
+    })
     return patched
   }
 
   const suggestion = chatSuggestionPayload(event.payload)
   if (suggestion) {
     let patched = false
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => {
-        if (!current || !Array.isArray(current.messages)) return current
-        patched = true
-        return {
-          ...current,
-          chat: { ...current.chat, suggested_next_step: suggestion.suggested_next_step }
-        }
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      patched = true
+      return {
+        ...current,
+        chat: { ...current.chat, suggested_next_step: suggestion.suggested_next_step }
       }
-    )
+    })
     return patched
   }
 
@@ -1062,17 +1055,14 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     }
 
     const proposal = updateProposal.proposal
-    queryClient.setQueriesData<ChatPayload>(
-      { queryKey: ["chats", String(event.id)] },
-      (current) => {
-        if (!current || !Array.isArray(current.messages)) return current
-        return {
-          ...current,
-          messages: replaceProposalInMessages(current.messages, proposal),
-          pending_proposal_count: updateProposal.pending_proposal_count ?? current.pending_proposal_count
-        }
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      return {
+        ...current,
+        messages: replaceProposalInMessages(current.messages, proposal),
+        pending_proposal_count: updateProposal.pending_proposal_count ?? current.pending_proposal_count
       }
-    )
+    })
     dispatchProposalUpdated(event.id, proposal)
     return true
   }
@@ -1081,9 +1071,11 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (jobStatusChanged) {
     invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"] })
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("syrus:job-status-changed", {
-        detail: { job_id: jobStatusChanged.job_id, chat_session_id: event.id }
-      }))
+      window.dispatchEvent(
+        new CustomEvent("syrus:job-status-changed", {
+          detail: { job_id: jobStatusChanged.job_id, chat_session_id: event.id }
+        })
+      )
     }
     return true
   }
@@ -1091,9 +1083,11 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const themePreview = chatThemePreviewPayload(event.payload)
   if (themePreview) {
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("syrus:theme-preview", {
-        detail: { chat_session_id: event.id, theme_id: themePreview.theme_id, path: themePreview.path }
-      }))
+      window.dispatchEvent(
+        new CustomEvent("syrus:theme-preview", {
+          detail: { chat_session_id: event.id, theme_id: themePreview.theme_id, path: themePreview.path }
+        })
+      )
     }
     return true
   }
@@ -1178,7 +1172,30 @@ type ChatInvalidateMessagesPayload = {
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "system_kind" | "pinned_context" | "chat_provider" | "effective_chat_provider" | "effective_chat_provider_label" | "provider_availability" | "chat_model" | "mode" | "local_daemon_state" | "local_daemon_repo" | "local_daemon_branch" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
+  chat: Partial<
+    Pick<
+      ChatRecord,
+      | "title"
+      | "title_pending"
+      | "system_kind"
+      | "pinned_context"
+      | "chat_provider"
+      | "effective_chat_provider"
+      | "effective_chat_provider_label"
+      | "provider_availability"
+      | "chat_model"
+      | "mode"
+      | "local_daemon_state"
+      | "local_daemon_repo"
+      | "local_daemon_branch"
+      | "repository"
+      | "stop_requested_at"
+      | "cumulative_input_tokens"
+      | "cumulative_output_tokens"
+      | "cumulative_cost_usd"
+      | "coding_checkout_uncommitted"
+    >
+  >
 }
 
 type ChatBookmarkPayload = {
@@ -1237,7 +1254,11 @@ function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null
   const candidate = payload as Partial<ChatReplaceTailPayload>
   if (candidate.action !== "replace_tail") return null
   if (typeof candidate.replace_from_id !== "number") return null
-  const messages = Array.isArray(candidate.messages) ? candidate.messages : Array.isArray((payload as { items?: unknown }).items) ? (payload as { items: unknown[] }).items : null
+  const messages = Array.isArray(candidate.messages)
+    ? candidate.messages
+    : Array.isArray((payload as { items?: unknown }).items)
+      ? (payload as { items: unknown[] }).items
+      : null
   if (!isChatMessages(messages)) return null
 
   return {
@@ -1269,7 +1290,7 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
     switching_provider: typeof candidate.switching_provider === "boolean" ? candidate.switching_provider : undefined,
     queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined,
     scratchpad_items_count: Array.isArray((candidate as { scratchpad_items?: unknown }).scratchpad_items)
-      ? ((candidate as { scratchpad_items: unknown[] }).scratchpad_items).length
+      ? (candidate as { scratchpad_items: unknown[] }).scratchpad_items.length
       : undefined
   }
 }
@@ -1278,7 +1299,8 @@ function isChatTurnRetryState(value: unknown): value is NonNullable<ChatPayload[
   if (!value || typeof value !== "object") return false
 
   const candidate = value as NonNullable<ChatPayload["turn_retry_state"]>
-  return (typeof candidate.classification === "string" || candidate.classification === null) &&
+  return (
+    (typeof candidate.classification === "string" || candidate.classification === null) &&
     typeof candidate.classification_label === "string" &&
     typeof candidate.retryable === "boolean" &&
     (typeof candidate.next_auto_retry_at === "string" || candidate.next_auto_retry_at === null) &&
@@ -1290,6 +1312,7 @@ function isChatTurnRetryState(value: unknown): value is NonNullable<ChatPayload[
     (typeof candidate.retry_delayed_until === "string" || candidate.retry_delayed_until === null) &&
     (typeof candidate.retry_delay_reason === "string" || candidate.retry_delay_reason === null) &&
     typeof candidate.state_label === "string"
+  )
 }
 
 function chatInvalidateMessagesPayload(payload: unknown): ChatInvalidateMessagesPayload | null {
@@ -1327,7 +1350,8 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   if (typeof chat.provider_availability === "object" || chat.provider_availability === null) updates.provider_availability = chat.provider_availability
   if (typeof chat.chat_model === "string" || chat.chat_model === null) updates.chat_model = chat.chat_model
   if (typeof chat.mode === "string" || chat.mode === null) updates.mode = chat.mode as ChatRecord["mode"]
-  if (typeof chat.local_daemon_state === "string" || chat.local_daemon_state === null) updates.local_daemon_state = chat.local_daemon_state as ChatRecord["local_daemon_state"]
+  if (typeof chat.local_daemon_state === "string" || chat.local_daemon_state === null)
+    updates.local_daemon_state = chat.local_daemon_state as ChatRecord["local_daemon_state"]
   if (typeof chat.local_daemon_repo === "string" || chat.local_daemon_repo === null) updates.local_daemon_repo = chat.local_daemon_repo
   if (typeof chat.local_daemon_branch === "string" || chat.local_daemon_branch === null) updates.local_daemon_branch = chat.local_daemon_branch
   if (isChatRepository(chat.repository) || chat.repository === null) updates.repository = chat.repository
@@ -1439,11 +1463,7 @@ function isChatJobStatusPendingProposal(value: unknown): value is ChatJobStatusP
   if (!value || typeof value !== "object") return false
 
   const candidate = value as Partial<ChatJobStatusPendingProposal>
-  return (
-    typeof candidate.id === "number" &&
-    typeof candidate.kind === "string" &&
-    typeof candidate.state === "string"
-  )
+  return typeof candidate.id === "number" && typeof candidate.kind === "string" && typeof candidate.state === "string"
 }
 
 // Direct-cache-patch counterpart to the chat Jobs tab's own job_status query:
@@ -1456,17 +1476,14 @@ function isChatJobStatusPendingProposal(value: unknown): value is ChatJobStatusP
 // job_status_changed broadcast.
 function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSessionId: string | number, proposal: ChatJobStatusPendingProposal) {
   const queryKey = ["chats", String(chatSessionId), "job_status"]
-  queryClient.setQueriesData<ChatJobStatusPayload>(
-    { queryKey },
-    (current) => {
-      if (!current) return current
+  queryClient.setQueriesData<ChatJobStatusPayload>({ queryKey }, (current) => {
+    if (!current) return current
 
-      const withoutExisting = current.pending_proposals.filter((entry) => entry.id !== proposal.id)
-      const pendingProposals = proposal.state === "proposed" ? [ proposal, ...withoutExisting ] : withoutExisting
+    const withoutExisting = current.pending_proposals.filter((entry) => entry.id !== proposal.id)
+    const pendingProposals = proposal.state === "proposed" ? [proposal, ...withoutExisting] : withoutExisting
 
-      return { ...current, pending_proposals: pendingProposals }
-    }
-  )
+    return { ...current, pending_proposals: pendingProposals }
+  })
   if (proposal.state !== "proposed") {
     invalidateAppQuery(queryClient, { queryKey, exact: true })
   }
@@ -1483,27 +1500,33 @@ function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayl
 }
 
 function isChatMessages(value: unknown): value is ChatMessageItem[] {
-  return Array.isArray(value) && value.every((item) => {
-    if (!item || typeof item !== "object") return false
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (!item || typeof item !== "object") return false
 
-    const candidate = item as Partial<ChatMessageItem>
-    return candidate.type === "message" && typeof candidate.id === "number"
-  })
+      const candidate = item as Partial<ChatMessageItem>
+      return candidate.type === "message" && typeof candidate.id === "number"
+    })
+  )
 }
 
 function isChatQueuedMessages(value: unknown): value is ChatQueuedMessage[] {
-  return Array.isArray(value) && value.every((item) => {
-    if (!item || typeof item !== "object") return false
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (!item || typeof item !== "object") return false
 
-    const candidate = item as Partial<ChatQueuedMessage>
-    return (
-      typeof candidate.id === "number" &&
-      typeof candidate.text === "string" &&
-      (typeof candidate.created_at === "string" || candidate.created_at == null) &&
-      typeof candidate.app_update_path === "string" &&
-      typeof candidate.app_delete_path === "string"
-    )
-  })
+      const candidate = item as Partial<ChatQueuedMessage>
+      return (
+        typeof candidate.id === "number" &&
+        typeof candidate.text === "string" &&
+        (typeof candidate.created_at === "string" || candidate.created_at == null) &&
+        typeof candidate.app_update_path === "string" &&
+        typeof candidate.app_delete_path === "string"
+      )
+    })
+  )
 }
 
 function isChatRepository(value: unknown): value is ChatRepository {
@@ -1526,12 +1549,15 @@ function isChatBookmark(value: unknown): value is ChatBookmark {
 }
 
 function isChatParticipants(value: unknown): value is ChatParticipant[] {
-  return Array.isArray(value) && value.every((item) => {
-    if (!item || typeof item !== "object") return false
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (!item || typeof item !== "object") return false
 
-    const candidate = item as Partial<ChatParticipant>
-    return typeof candidate.id === "number" && typeof candidate.name === "string" && typeof candidate.role === "string"
-  })
+      const candidate = item as Partial<ChatParticipant>
+      return typeof candidate.id === "number" && typeof candidate.name === "string" && typeof candidate.role === "string"
+    })
+  )
 }
 
 function chatThemePreviewPayload(payload: unknown): ChatThemePreviewPayload | null {
@@ -1572,24 +1598,25 @@ function isChatAgentSubQuestion(value: unknown): value is ChatAgentSubQuestion {
 }
 
 function isChatAgentQuestions(value: unknown): value is ChatAgentQuestion[] {
-  return Array.isArray(value) && value.every((item) => {
-    if (!item || typeof item !== "object") return false
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (!item || typeof item !== "object") return false
 
-    const candidate = item as Partial<ChatAgentQuestion>
-    return (
-      typeof candidate.id === "number" &&
-      Array.isArray(candidate.questions) && candidate.questions.every(isChatAgentSubQuestion) &&
-      (typeof candidate.asked_at === "string" || candidate.asked_at == null) &&
-      typeof candidate.app_answer_path === "string"
-    )
-  })
+      const candidate = item as Partial<ChatAgentQuestion>
+      return (
+        typeof candidate.id === "number" &&
+        Array.isArray(candidate.questions) &&
+        candidate.questions.every(isChatAgentSubQuestion) &&
+        (typeof candidate.asked_at === "string" || candidate.asked_at == null) &&
+        typeof candidate.app_answer_path === "string"
+      )
+    })
+  )
 }
 
 function replaceMessageTail(current: ChatMessageItem[], replaceFromId: number, nextMessages: ChatMessageItem[]) {
-  return dedupeMessages([
-    ...current.filter((message) => message.id < replaceFromId),
-    ...nextMessages
-  ])
+  return dedupeMessages([...current.filter((message) => message.id < replaceFromId), ...nextMessages])
 }
 
 function dedupeMessages(messages: ChatMessageItem[]) {

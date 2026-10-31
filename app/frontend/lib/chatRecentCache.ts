@@ -65,7 +65,7 @@ export function updateRecentChatMessageStateCache(
           groups: current.groups.map((group) => {
             const existing = group.chats.find((chat) => String(chat.id) === String(chatId))
             if (!existing) return group
-            const chats = group.chats.map((chat) => String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat)
+            const chats = group.chats.map((chat) => (String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat))
             return {
               ...group,
               chats: sortByLastActivity ? [...chats].sort(compareRecentChatActivity) : chats
