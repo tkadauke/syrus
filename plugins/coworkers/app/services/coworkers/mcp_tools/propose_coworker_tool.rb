@@ -37,7 +37,9 @@ module Coworkers::McpTools
           state: pending_action.state, message: "Create coworker @#{fields['handle']}?",
           coworker: fields.merge(
             "branch" => "coworkers/#{fields['handle']}",
-            "grant_policies" => fields.fetch("grants").index_with { |capability| Coworkers::Create::DEFAULT_GRANTS.fetch(capability) }
+            "grant_policies" => fields.fetch("grants").index_with do |capability|
+              Coworkers::Create::DEFAULT_GRANTS.fetch(capability) { Coworkers::GrantCatalog.fetch(capability).maximum_policy }
+            end
           )
         )
       rescue ActiveRecord::RecordInvalid => e

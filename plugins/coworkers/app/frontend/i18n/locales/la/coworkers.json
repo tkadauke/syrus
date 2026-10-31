@@ -157,6 +157,7 @@
     },
     "policies": { "auto": "Sponte", "confirm": "Confirma", "queue": "Ordo", "off": "Clausum" },
     "policy_for": "Ratio approbationis pro {{capability}}",
+    "scope_for": "Ambitus pro {{capability}}",
     "confirm_escalation": "Hoc collegae maiorem aditum dat. Mutationem concessionis confirmas?",
     "confirm_paths": "Mutationes horum itinerum semper confirma (commatibus separata)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",

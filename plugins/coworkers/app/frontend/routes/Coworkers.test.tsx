@@ -4,6 +4,13 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
 
+const grantCatalog = [
+  "chat.message_owner", "chats.read_shared", "coworker.message", "coworker.spawn_chat", "schedule.manage_self",
+  "workspace.files", "workspace.shell", "syrus.read_jobs", "syrus.propose_job"
+].map((name) => ({
+  name, label: name, description: name, maximum_policy: "auto" as const, tools: [], scopeable: false, default_enabled: true
+}))
+
 const summaryPayload = {
   syrus: {
     id: "syrus",
@@ -40,7 +47,9 @@ const summaryPayload = {
         { id: "gpt-6.1-terra", label: "GPT-6.1 Terra" }
       ]
     }
-  ]
+  ],
+  grant_catalog: grantCatalog,
+  provisioning_attempts: []
 }
 
 const detailPayload = {
@@ -55,6 +64,7 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
+    grant_catalog: grantCatalog,
     schedules: [
       {
         id: 31,
@@ -176,6 +186,34 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
   expect(form.get("avatar")).toBeInstanceOf(File)
   expect(form.getAll("grants[]")).not.toContain("workspace.shell")
   expect(form.get("about")).toBe("Research lead")
+})
+
+it("selects and submits a scope when creating a scoped grant", async () => {
+  const scopedGrant = {
+    name: "database.read", label: "Database", description: "Read a database", maximum_policy: "confirm" as const,
+    tools: ["read_database"], scopeable: true,
+    scope_options: [{ value: 11, label: "Primary" }, { value: 22, label: "Reporting" }], default_enabled: false
+  }
+  const requests: Array<{ path: string; init?: RequestInit }> = []
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input)
+    requests.push({ path, init })
+    if (path === "/api/v1/app/coworkers" && init?.method === "POST")
+      return jsonResponse({ coworker: detailPayload.coworker, redirect_to: "/coworkers/7" }, 201)
+    if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+    return jsonResponse({ ...summaryPayload, grant_catalog: [...grantCatalog, scopedGrant] })
+  }))
+  renderRoute("/coworkers/new")
+  fill("Name", "Maya")
+  fill("Handle", "maya")
+  fill("Workspace remote", "https://github.com/acme/workspace")
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Database" }))
+  fireEvent.change(screen.getByRole("combobox", { name: "Scope for Database" }), { target: { value: "22" } })
+  fireEvent.click(screen.getByRole("button", { name: "Create coworker" }))
+  await screen.findByRole("heading", { name: "Maya" })
+
+  const form = requests.find(({ path, init }) => path === "/api/v1/app/coworkers" && init?.method === "POST")?.init?.body as FormData
+  expect(form.get("grant_scopes[database.read]")).toBe("22")
 })
 
 it("shows remote-test and creation errors without navigating", async () => {
