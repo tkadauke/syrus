@@ -63,7 +63,9 @@ module Permissions
       end
 
       def identifier_component(value)
-        value.to_s.sub(/@v\d+\z/, "").tr("/", ".").gsub(/[^a-zA-Z0-9_.-]/, "_").downcase
+        component = value.to_s.sub(/@v\d+\z/, "").tr("/", ".").gsub(/[^a-zA-Z0-9_.-]/, "_").downcase
+        component = "legacy.#{component}" unless component.match?(/\A[a-z]/)
+        component
       end
 
       def deep_normalize(value)
