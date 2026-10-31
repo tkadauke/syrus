@@ -15,7 +15,7 @@ module Coworkers
       WorkspaceFileTools::Move,
       WorkspaceFileTools::Delete
     ].freeze
-    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool ] + WORKSPACE_TOOLS).freeze
+    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool, SpawnChatTool ] + WORKSPACE_TOOLS).freeze
 
     def self.coworker_grants
       [
@@ -30,6 +30,17 @@ module Coworkers
           description: "Create and manage the coworker's own recurring work.",
           default_policy: "confirm", maximum_policy: "auto", tools: [ ManageScheduleTool.tool_name ],
           scope_options_callback: nil, scope_label_callback: nil, valid_scope_callback: nil
+        },
+        {
+          name: "coworker.spawn_chat",
+          label: "Spawn side chats",
+          description: "Create another side chat for this coworker, subject to per-run and daily caps.",
+          default_policy: "confirm",
+          maximum_policy: "confirm",
+          tools: [ SpawnChatTool.tool_name ],
+          scope_options_callback: nil,
+          scope_label_callback: nil,
+          valid_scope_callback: nil
         }
       ]
     end
@@ -57,6 +68,8 @@ module Coworkers
               "chat.reply_owner_thread"
                         elsif klass == ManageScheduleTool
               "schedule.manage_self"
+                        elsif klass == SpawnChatTool
+              "coworker.spawn_chat"
                         else
               "coworker.message"
                         end,

@@ -16,12 +16,17 @@ module PendingActions
         raise ArgumentError, "required grant is no longer present"
       end
 
-      tool = Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier)
-        .find { |candidate| McpToolRegistry.tool_name_for(candidate) == descriptor.tool_name }
-      raise ArgumentError, "tool is no longer available to coworkers" unless tool
+      callable = if descriptor.provider
+        ->(server_context:, **arguments) { descriptor.provider.new.handle(descriptor.tool_name, arguments, server_context) }
+      else
+        Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier)
+          .find { |candidate| McpToolRegistry.tool_name_for(candidate) == descriptor.tool_name }
+      end
+      raise ArgumentError, "tool is no longer available to coworkers" unless callable
 
       response = Mcp::Tools::AuthorizationSupport.with_coworker_approval_bypass do
-        tool.call(**payload.fetch("arguments").symbolize_keys, server_context: server_context)
+        callable.call(**payload.fetch("arguments").symbolize_keys,
+          server_context: server_context.merge(pending_action_id: action.id))
       end
       raise ArgumentError, response.content.first[:text].to_s if response.error?
 
