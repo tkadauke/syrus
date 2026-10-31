@@ -66,4 +66,20 @@ RSpec.describe Coworkers::GrantUpdate do
       .to raise_error(Pundit::NotAuthorizedError)
     expect(coworker.grants).to be_empty
   end
+
+  it "preserves an existing scope when only the policy changes and permits revocation" do
+    descriptor = Coworkers::GrantCatalog::Descriptor.new(
+      name: "scoped.read", label: "Scoped", description: "Scoped", maximum_policy: "auto", tools: [],
+      scope_options_callback: ->(user:) { [ user.id ] }, scope_label_callback: ->(value) { value.to_s },
+      valid_scope_callback: ->(value, user:) { value == user.id }
+    )
+    allow(Coworkers::GrantCatalog).to receive(:fetch).with("scoped.read").and_return(descriptor)
+    grant = coworker.grants.create!(capability: "scoped.read", approval_policy: "confirm", scope: owner.id)
+
+    described_class.call(owner: owner, coworker: coworker, capability: "scoped.read", approval_policy: "queue")
+    expect(grant.reload).to have_attributes(approval_policy: "queue", scope: owner.id)
+
+    described_class.call(owner: owner, coworker: coworker, capability: "scoped.read", approval_policy: "off")
+    expect(coworker.grants.find_by(capability: "scoped.read")).to be_nil
+  end
 end

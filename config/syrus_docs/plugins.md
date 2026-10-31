@@ -947,6 +947,15 @@ the start but were never written until this wiring landed.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
+Chat tool-set providers may declare coworker grants with a duck-typed
+`coworker_grants` class method. It returns descriptor hashes with `name`,
+`label`, `description`, `maximum_policy`, and the `tools` unlocked by the
+grant. A scopeable grant additionally supplies `scope_options_callback`
+(`user:` keyword), `scope_label_callback` (the stored value), and
+`valid_scope_callback` (the value plus `user:` keyword). Only enabled
+`chat_mcp_tool_set` providers are collected, so disabling a plugin removes its
+declarations from the catalog.
+
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
 (`chat_mcp_tool_set`). A plugin registers exactly one tool-set entrypoint per
 surface — include `Syrus::Plugin::McpToolSet` or `Syrus::Plugin::ChatMcpToolSet`

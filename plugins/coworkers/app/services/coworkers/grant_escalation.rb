@@ -4,7 +4,7 @@ class Coworkers::GrantEscalation
     requested = Array(grants).map(&:to_s).uniq
     raise ArgumentError, "grants must not be empty" if requested.empty?
 
-    unknown = requested - Coworkers::Create::DEFAULT_GRANTS.keys
+    unknown = requested - Coworkers::GrantCatalog.names
     raise ArgumentError, "unknown grants: #{unknown.join(', ')}" if unknown.any?
     existing = coworker.grants.where(capability: requested).pluck(:capability)
     raise ArgumentError, "already granted: #{existing.join(', ')}" if existing.any?
@@ -18,7 +18,7 @@ class Coworkers::GrantEscalation
       requested.each do |capability|
         coworker.grants.create!(
           capability: capability,
-          approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(capability)
+          approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(capability) { Coworkers::GrantCatalog.fetch(capability).maximum_policy }
         )
       end
     end

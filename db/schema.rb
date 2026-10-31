@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_30_171655) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_31_001844) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -998,6 +998,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_171655) do
     t.string "capability", null: false
     t.json "constraints", null: false
     t.string "approval_policy", null: false
+    t.json "scope"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["coworker_id", "capability"], name: "index_coworker_grants_on_coworker_id_and_capability", unique: true

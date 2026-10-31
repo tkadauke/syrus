@@ -36,8 +36,14 @@ class Coworkers::CreatePreflight
   end
 
   def validate_grants!
-    unknown = Array(@requested_grants).map(&:to_s) - Coworkers::Create::DEFAULT_GRANTS.keys
+    unknown = normalized_requested_grants.map { |grant| grant.fetch(:capability) } - Coworkers::GrantCatalog.names
     raise ArgumentError, "unknown grants: #{unknown.join(', ')}" if unknown.any?
+    normalized_requested_grants.each do |grant|
+      descriptor = Coworkers::GrantCatalog.fetch(grant.fetch(:capability))
+      raise ArgumentError, "scope is required for #{descriptor.name}" if descriptor.scopeable? && grant[:scope].nil?
+      raise ArgumentError, "invalid scope for #{descriptor.name}" unless descriptor.valid_scope?(grant[:scope], user: @owner)
+      raise ArgumentError, "scope is not supported for #{descriptor.name}" if !descriptor.scopeable? && grant[:scope].present?
+    end
   end
 
   def validate_model!
@@ -56,8 +62,22 @@ class Coworkers::CreatePreflight
   end
 
   def selected_grants
-    return Coworkers::Create::DEFAULT_GRANTS unless @requested_grants
-    Coworkers::Create::DEFAULT_GRANTS.slice(*Array(@requested_grants).map(&:to_s))
+    return Coworkers::Create::DEFAULT_GRANTS.map { |name, policy| { capability: name, approval_policy: policy, scope: nil } } unless @requested_grants
+    normalized_requested_grants.map do |grant|
+      name = grant.fetch(:capability)
+      grant.merge(approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(name) { Coworkers::GrantCatalog.fetch(name).maximum_policy })
+    end
+  end
+
+  def normalized_requested_grants
+    @normalized_requested_grants ||= Array(@requested_grants).map do |raw|
+      if raw.respond_to?(:to_h)
+        attributes = raw.to_h.symbolize_keys
+        { capability: (attributes[:capability] || attributes[:name]).to_s, scope: attributes[:scope] }
+      else
+        { capability: raw.to_s, scope: nil }
+      end
+    end.uniq
   end
 
   def remote
