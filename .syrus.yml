@@ -200,6 +200,61 @@ adversarial_review:
       enforceable by inspection. Flag any key present in en/ but absent from
       de/ or la/.
 
+security_review:
+  rounds: 1
+  required: false
+  criteria:
+    - |-
+      If the diff adds or changes an action under app/controllers/api/v1/app/,
+      verify record access is authorized through policy_scope or the existing
+      authorize_job_mutation!, authorize_repository_write!, and
+      authorize_repository_admin! helpers in base_controller.rb. Flag unscoped
+      Model.find calls that can bypass repository or user access.
+    - |-
+      If the diff creates user-owned records associated with a Job or chat,
+      including Workflow, Run, ChatMessage, or ChatPendingAction records,
+      verify user identity comes from the parent Job or chat owner rather than
+      request parameters or a hardcoded value. Flag queries over user-owned
+      data that are not scoped to the current user or repository access.
+    - |-
+      If the diff adds or changes an MCP tool, verify it gates execution with
+      McpToolPolicy.capability_permitted? or the equivalent policy check and
+      does not expose chat-only or admin-only capabilities to workflow-role
+      agents.
+    - |-
+      If the diff adds an HTTP fetch for a URL originating in an issue or pull
+      request body, comment, chat message, or repository content, verify the
+      destination is validated through SsrfGuard before any request is made.
+    - |-
+      If the diff adds logging, run transcripts, workflow artifacts, or tool
+      payloads that may contain tokens, authenticated URLs, or credential-store
+      values, verify they pass through CommandRedactor, ToolPayloadRedactor, or
+      WorkflowArtifactSanitizer as appropriate. Flag credentials interpolated
+      into prompts, command lines, or error messages instead of being obtained
+      from the credential store at the execution boundary.
+    - |-
+      If the diff adds a shell-out, verify it passes arguments as an array
+      through GitRunner or an existing process runner and does not interpolate
+      branch names, titles, paths, or other user-controlled text into a command
+      string. If file paths derive from untrusted input, verify reads and writes
+      remain inside the workspace, reject parent traversal, and cannot follow a
+      symlink outside it.
+    - |-
+      If the diff newly places issue or pull request bodies, review comments,
+      repository files, or chat messages from other participants into an agent
+      prompt, verify the untrusted text is clearly delimited as data and the
+      change does not widen the tools or permissions available to that agent.
+    - |-
+      If the diff adds an inbound message or event path for an external
+      integration, verify it authenticates the sender and maps that identity to
+      a user and chat the sender may access before creating records or
+      triggering an agent turn.
+    - |-
+      If the diff adds a gem or npm package from an unfamiliar source, adds a
+      postinstall-style script, changes CI or deployment configuration to
+      expose more secrets, or disables a security check, flag the change for
+      explicit security review.
+
 # Each grader's `description:` is surfaced in the UI (tooltip on the
 # grader name + above the output panel on failure) and prepended to
 # the per-grader block in the agent's grade-failure prompt. Authoring
