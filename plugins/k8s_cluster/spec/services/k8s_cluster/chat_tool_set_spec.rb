@@ -98,8 +98,12 @@ RSpec.describe K8sCluster::ChatToolSet do
     ]
 
     definitions = described_class.tool_definitions(tier: :essential).index_by { |tool| tool.fetch(:name) }
+    registered_grant_tools = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |provider|
+      provider.respond_to?(:coworker_grants) ? provider.coworker_grants.flat_map { |grant| grant.fetch(:tools) } : []
+    end
     permanently_excluded.each do |tool_name|
       expect(definitions.fetch(tool_name)).not_to include(:coworker_safe, :capability)
+      expect(registered_grant_tools).not_to include(tool_name)
     end
   end
 
