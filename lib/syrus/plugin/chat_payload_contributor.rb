@@ -11,6 +11,7 @@ module Syrus
     # Providers expose:
     #
     #   .chat_payload(chat_session:, context:) => { key => value }
+    #   .chat_message_payload(messages:, payloads:) => payloads        (optional)
     #   .chat_payload_paths(chat_session:)    => { key => "/api/..." }   (optional)
     #   .chat_payload_counts(chat_session:)   => { key => Integer }      (optional)
     #
@@ -32,6 +33,7 @@ module Syrus
 
       def chat_payload_paths(chat_session:) = {}
       def chat_payload_counts(chat_session:) = {}
+      def chat_message_payload(messages:, payloads:) = payloads
     end
   end
 end

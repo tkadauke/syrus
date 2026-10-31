@@ -23,6 +23,14 @@ module ChatPayloadContributions
     merge_each(existing_keys) { |provider| provider.chat_payload_counts(chat_session: chat_session) }
   end
 
+  def self.message_payload(messages:, payloads:)
+    providers.reduce(payloads) do |decorated, provider|
+      PerformanceLogging.plugin_call(extension_point: :chat_payload_contributor, provider: provider, operation: :chat_message_payload) do
+        provider.chat_message_payload(messages: messages, payloads: decorated)
+      end
+    end
+  end
+
   # A contributor silently overwriting a core key would be a bug nobody sees
   # until the page renders wrong, so it is an error instead.
   def self.merge_each(existing_keys)

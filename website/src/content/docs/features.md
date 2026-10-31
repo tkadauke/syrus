@@ -1744,7 +1744,9 @@ plain text written only in its own chat is not relayed to the owner chat.
 Coworker conversations are kept
 in a separate chat-list group and carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
-Syrus option. A chat owner can share a conversation read-only with one of their
+Syrus option. Messages between coworkers show the other coworker's name,
+avatar, and accent color in both the sender's and receiver's chats. A chat owner
+can share a conversation read-only with one of their
 own coworkers; a coworker with the shared-chat grant can list, search, and read
 its own and shared chats, but cannot post to arbitrary chats. Coworker chats
 have no Planning/Coding mode selector: every turn can update identity and

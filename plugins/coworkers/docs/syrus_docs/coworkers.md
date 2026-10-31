@@ -209,6 +209,9 @@ Coworkers with the `coworker.message` grant can use
 the same user. Delivery is queued on the chat queue. The sender's main chat
 records an outgoing block, while the receiver's main chat gets a
 "message from @handle" block that waits behind any turn already in flight.
+The chat UI presents these blocks with the other coworker's name, avatar, and
+accent color; incoming message bodies omit the stored transport prefix. If the
+other coworker was deleted, the saved handle remains visible in a neutral style.
 Paused and archived coworkers, Syrus, the sender itself, and handles outside
 the owner's coworker list are refused. Deliveries carry their origin turn and
 hop count; a chain cannot continue beyond three hops. Each pair of coworkers
