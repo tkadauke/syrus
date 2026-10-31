@@ -416,6 +416,7 @@
     "auto_merge_not_enabled": "Coniunctio automatica repositorio non permissa",
     "approval_not_satisfied": "Approbatio traditionis iam non sufficit",
     "review_requested_changes": "Recensio mutationes postulavit",
+    "unapplied_chat_feedback": "Responsum colloquii ante publicationem cancellatum est",
     "missing_pull_request": "Petitio extrahendi deest",
     "active_workflow": "Cursus activus",
     "queued_in_bundle": "In fasciculo exspectat",

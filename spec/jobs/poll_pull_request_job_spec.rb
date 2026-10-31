@@ -2421,6 +2421,26 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.needs_attention?).to be false
     end
 
+    it "preserves unapplied chat feedback attention when no review requests changes" do
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON,
+        needs_attention_since: 1.hour.ago
+      )
+      stub_pr
+      stub_reviews([])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload).to have_attributes(
+        needs_attention: true,
+        needs_attention_reason: Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON
+      )
+    end
+
     it "excludes auto-merge jobs from the landing queue when CHANGES_REQUESTED is outstanding" do
       repository.update!(auto_merge_enabled: true)
       job.update!(needs_attention: true, needs_attention_reason: "upstream_pr_changes_requested")

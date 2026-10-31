@@ -2,6 +2,10 @@ class LandingQueueProcessor
   MERGEABILITY_RECHECK_DELAY = 1.minute
   MERGEABILITY_WAIT_REASON = { key: "waiting_github_mergeability" }.freeze
   REBASE_REQUIRED_MERGEABLE_STATES = %w[ behind dirty ].freeze
+  ATTENTION_BLOCKER_KEYS = {
+    Job::REQUESTED_CHANGES_ATTENTION_REASON => "review_requested_changes",
+    Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON => "unapplied_chat_feedback"
+  }.freeze
   TRY_LAND_LOCK_RETRIES = 2
   TRY_LAND_LOCK_ERRORS = [
     ActiveRecord::Deadlocked,
@@ -817,7 +821,8 @@ class LandingQueueProcessor
     # with a clear blocked_reason; once the repo flips
     # auto_merge_enabled=true the queue picks it up immediately.
     check_blocker.call({ key: "auto_merge_not_enabled" }) unless job.auto_merge_enabled?
-    check_blocker.call({ key: "review_requested_changes" }) if job.needs_attention_reason == Job::REQUESTED_CHANGES_ATTENTION_REASON
+    attention_blocker_key = ATTENTION_BLOCKER_KEYS[job.needs_attention_reason]
+    check_blocker.call({ key: attention_blocker_key }) if attention_blocker_key
     return blocked({ key: "missing_pull_request" }) if job.pr_number.blank? && job.external_pr_number.blank?
     if job.epic
       unapproved_siblings = unapproved_epic_siblings(job)

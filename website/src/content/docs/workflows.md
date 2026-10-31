@@ -107,7 +107,8 @@ workflow finishes. A rebase explicitly requested from the Job UI or chat may
 instead cancel that active workflow; the confirmation message makes that
 preemption visible. If explicit preemption cancels chat feedback before its
 push, the Job remains marked as needing attention rather than appearing ready
-for approval.
+for approval. Ordinary pull-request review polling does not clear that distinct
+unapplied-feedback hold, so the missing feedback stays visible for follow-up.
 
 When the unmergeable PR has stack children, Syrus uses `StackRebase` instead
 of opening one rebase workflow per Job. Steps:

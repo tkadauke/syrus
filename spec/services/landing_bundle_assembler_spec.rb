@@ -556,7 +556,19 @@ RSpec.describe LandingBundleAssembler do
       result = described_class.for_epic(epic)
 
       expect(result).not_to be_ready
-      expect(result.reason).to eq("child Jobs with requested changes: #{held.slug}")
+      expect(result.reason).to eq("child Jobs requiring attention before landing: #{held.slug}")
+      expect(result.members).to be_empty
+    end
+
+    it "is not ready when an approved child has unapplied chat feedback" do
+      child(issue_number: 1)
+      held = child(issue_number: 2)
+      held.update!(needs_attention_reason: Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON)
+
+      result = described_class.for_epic(epic)
+
+      expect(result).not_to be_ready
+      expect(result.reason).to eq("child Jobs requiring attention before landing: #{held.slug}")
       expect(result.members).to be_empty
     end
 
