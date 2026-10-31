@@ -1745,6 +1745,12 @@ the same home-branch merge and conflict reporting as chat turns; failed runs
 also count toward schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
+Coworkers have no product-code access by default. An owner can grant
+`code.read` for selected accessible repositories or all repositories they can
+read. The grant unlocks read-only checkout attachment in chats, capped and
+secret-redacted file browsing and code search, plus pull-request and Job diffs;
+background runs receive the same non-attachment reads. Product checkouts have
+write bits removed independently of the coworker's writable identity workspace.
 Coworkers can start a direct exchange with `message_coworker`. An incoming
 coworker message automatically sends the receiving coworker's final answer
 back to its author, carrying the original turn through a maximum of three

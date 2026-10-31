@@ -72,6 +72,17 @@ class McpToolRegistry
     def coworker_grants
       [
         {
+          name: "code.read",
+          label: "Read repository code",
+          description: "Attach read-only repository checkouts and browse source, pull requests, and Job diffs within the selected repositories.",
+          default_policy: "auto",
+          maximum_policy: "auto",
+          tools: entries(surface: :coworker).select { |entry| entry.capability == :"code.read" }.map(&:tool_name),
+          scope_options_callback: ->(user:) { Mcp::Tools::CoworkerRepositoryAccess.scope_options(user:) },
+          scope_label_callback: ->(value) { Mcp::Tools::CoworkerRepositoryAccess.scope_label(value) },
+          valid_scope_callback: ->(value, user:) { Mcp::Tools::CoworkerRepositoryAccess.valid_scope?(value, user:) }
+        },
+        {
           name: "ops.read_logs",
           label: "Read operational observability",
           description: "Read redacted operational logs, worker health, exception events, browser errors, and performance traces.",
@@ -364,6 +375,13 @@ class McpToolRegistry
     # never widens this surface.
     def coworker_entries
       [
+        coworker(Mcp::Tools::AttachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
+        coworker(Mcp::Tools::DetachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
+        coworker(Mcp::Tools::ListRepositoryFilesTool, capability: "code.read"),
+        coworker(Mcp::Tools::ReadRepositoryFileTool, capability: "code.read"),
+        coworker(Mcp::Tools::SearchRepositoryCodeTool, capability: "code.read"),
+        coworker(Mcp::Tools::GetJobDiffTool, capability: "code.read"),
+        coworker(Mcp::Tools::ReadPrTool, capability: "code.read"),
         coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
         coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true),
         coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),

@@ -28,7 +28,10 @@ module Admin
       "read_browser_error_events" => "generic",
       "read_performance_log_events" => "generic",
       "read_performance_diagnostics" => "generic",
-      "read_syrus_logs" => "generic"
+      "read_syrus_logs" => "generic",
+      "list_repository_files" => "generic",
+      "read_repository_file" => "generic",
+      "search_repository_code" => "generic"
     }.freeze
 
     class << self

@@ -287,3 +287,20 @@ Cleanup rechecks the recorded remote, handle, ownership, and seeded commit SHA;
 it never scans the remote for branches to remove. The Coworkers page lists
 non-completed attempts and lets the owner retry pending cleanup or acknowledge
 a terminal safety refusal. Persisted and displayed errors are credential-redacted.
+
+## Read-only repository access
+
+Coworkers start without product-code access. Owners can grant `code.read` for
+an explicit set of accessible repositories or for all repositories the owner
+can read. Its only policy is `auto`: once the owner confirms the grant and its
+scope, the coworker can attach or detach product repositories in chats, list
+files, read capped and secret-redacted files, search code, and inspect pull
+request or Job diffs. Background runs receive the navigation and diff tools;
+attaching and detaching checkouts remain interactive-chat actions.
+
+Attached product checkouts are recursively stripped of write bits, including
+Git metadata. The `workspace.files` and `workspace.shell` grants continue to
+apply only to the coworker's own workspace repository. This blocks ordinary
+native-shell writes and Git persistence. Until the agent sandbox supplies a
+true read-only mount, a hostile process running as the checkout owner could
+restore its own mode bits; that remaining gap belongs to sandbox enforcement.

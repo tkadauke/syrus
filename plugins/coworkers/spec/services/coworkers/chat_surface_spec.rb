@@ -54,7 +54,9 @@ RSpec.describe "Coworker chat surface" do
       coworker.grants.delete_all
       expect(names(tier: entry.tier)).not_to include(entry.tool_name)
 
-      coworker.grants.create!(capability: entry.capability.to_s, approval_policy: "auto")
+      attributes = { capability: entry.capability.to_s, approval_policy: "auto" }
+      attributes[:scope] = [ repository.id ] if entry.capability.to_s == "code.read"
+      coworker.grants.create!(attributes)
       expect(names(tier: entry.tier)).to include(entry.tool_name)
     end
   end

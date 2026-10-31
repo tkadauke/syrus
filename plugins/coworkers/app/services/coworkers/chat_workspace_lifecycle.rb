@@ -80,10 +80,7 @@ class Coworkers::ChatWorkspaceLifecycle
   def checkout_path = ChatWorkspace.repo_path_for(@chat, @repository)
 
   def workspace_repository
-    match = @coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
-    raise ActiveRecord::RecordNotFound, "coworker workspace repository is not registered" unless match
-
-    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first!
+    @coworker.workspace_repository
   end
 
   def ensure_chat_branch!

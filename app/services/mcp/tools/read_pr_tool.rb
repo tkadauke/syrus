@@ -8,15 +8,17 @@ module Mcp::Tools
 
     input_schema(
       properties: {
-        pr_number: { type: "integer", description: "GitHub pull request number." }
+        pr_number: { type: "integer", description: "GitHub pull request number." },
+        repository_id: { type: "integer", description: "Repository id. Required for a coworker reading outside its current repository." },
+        slug: { type: "string", description: "Repository owner/name. An alternative to repository_id." }
       },
       required: %w[pr_number]
     )
 
     class << self
-      def call(pr_number:, server_context:)
+      def call(pr_number:, server_context:, repository_id: nil, slug: nil)
         context = McpToolContext.from_server_context(server_context)
-        repository = repository_for(context)
+        repository = repository_for(context, server_context:, repository_id:, slug:)
         return repository if repository.is_a?(MCP::Tool::Response)
 
         pr_number = pr_number.to_i
@@ -31,11 +33,11 @@ module Mcp::Tools
         Mcp::Tools.success(
           pr: {
             number: pr.number,
-            title: pr.title,
-            body: pr.body.to_s,
+            title: ToolPayloadRedactor.redact_text(pr.title.to_s),
+            body: ToolPayloadRedactor.redact_text(pr.body.to_s),
             state: pr.state,
             html_url: pr.html_url,
-            diff: Mcp::Tools.truncate_text(diff, Prompts::PullRequestSummary::MAX_DIFF_BYTES)
+            diff: Mcp::Tools.truncate_text(ToolPayloadRedactor.redact_text(diff.to_s), Prompts::PullRequestSummary::MAX_DIFF_BYTES)
           }
         )
       rescue Octokit::NotFound
@@ -46,7 +48,10 @@ module Mcp::Tools
 
       private
 
-      def repository_for(context)
+      def repository_for(context, server_context:, repository_id:, slug:)
+        if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          return CoworkerRepositoryAccess.resolve(server_context:, repository_id:, slug:)
+        end
         repository = context.repository
         return Mcp::Tools.invalid("repository context is required") unless repository
         return repository unless context.run?
