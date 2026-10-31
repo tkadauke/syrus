@@ -22,14 +22,16 @@ module Mcp::Tools
         return Mcp::Tools.unauthorized("Observability access required") unless observability_authorized?(server_context)
 
         revision_scope = arguments.fetch(:revision_scope, "current")
-        events = PerformanceLogging::Store.recent(limit: capped_limit(arguments.fetch(:limit, 50)))
+        result_limit = capped_limit(arguments.fetch(:limit, 50))
+        events = PerformanceLogging::Store.recent
         events = filter(events, arguments)
         events.select! { |event| event["app_revision"] == SyrusVersion.current } unless revision_scope == "all"
+        visible_events = events.first(result_limit)
         Mcp::Tools.success(CommandRedactor.redact_value(
           current_revision: SyrusVersion.current,
           revision_scope: revision_scope == "all" ? "all" : "current",
           summaries: PerformanceLogging::Summaries.call(events),
-          events: events.first(MAX_EVENTS)
+          events: visible_events
         ))
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::ReadPerformanceLogEventsTool] #{e.class}: #{e.message}")
