@@ -40,6 +40,7 @@ class Coworkers::CreatePreflight
     raise ArgumentError, "unknown grants: #{unknown.join(', ')}" if unknown.any?
     normalized_requested_grants.each do |grant|
       descriptor = Coworkers::GrantCatalog.fetch(grant.fetch(:capability))
+      Coworkers::PrivilegedGrantGate.ensure_available!(descriptor)
       raise ArgumentError, "scope is required for #{descriptor.name}" if descriptor.scopeable? && grant[:scope].nil?
       raise ArgumentError, "invalid scope for #{descriptor.name}" unless descriptor.valid_scope?(grant[:scope], user: @owner)
       raise ArgumentError, "scope is not supported for #{descriptor.name}" if !descriptor.scopeable? && grant[:scope].present?

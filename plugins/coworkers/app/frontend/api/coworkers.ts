@@ -33,6 +33,9 @@ export type CoworkerDetail = CoworkerSummary & {
     scopeable: boolean
     scope_options?: { value: unknown; label: string }[]
     default_enabled: boolean
+    privileged?: boolean
+    available?: boolean
+    unavailable_reason?: "confinement_unavailable" | "broker_authorization_unavailable" | null
   }[]
   schedules: CoworkerSchedule[]
   available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]

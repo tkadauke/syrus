@@ -17,7 +17,9 @@ module Coworkers
         origin_id: coworker.id.to_s,
         issue_title: "Scheduled coworker task: #{task.name}",
         issue_body: task.prompt,
-        issue_number: nil
+        issue_number: nil,
+        planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ Coworkers::PrivilegedGrantGate::CONFINEMENT_RUNTIME ] },
+        planned_execution_source: "explicit"
       )
       job.advance_after_triage! if job.may_advance_after_triage?
       workflow = WorkUnits::Launcher.instantiate(kind: "coworker_run", job: job)

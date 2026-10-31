@@ -39,6 +39,15 @@ RSpec.describe MysqlDbBrowser::AgenticAccess do
       end
     end
 
+    it "never exposes legacy in-record credentials to a coworker" do
+      connection = Factories.mysql_connection(agentic_access_enabled: true, password: "legacy-secret")
+      coworker_context = McpToolContext.new(surface: :chat, role: AgentRole::COWORKER_CHAT, user: owner,
+        granted_capabilities: [ "mysql.read" ], capability_scopes: { "mysql.read" => connection.id })
+
+      expect(described_class.safe_connection_metadata(context: coworker_context)).to be_empty
+      expect { described_class.connection!(connection.id, context: coworker_context) }.to raise_error(described_class::ConnectionNotFound)
+    end
+
     it "returns the connection when agentic access is enabled" do
       connection = scoped_connection(scope_type: "user", scope_id: owner.id)
 

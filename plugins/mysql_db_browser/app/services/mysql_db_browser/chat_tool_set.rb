@@ -25,6 +25,7 @@ module MysqlDbBrowser
       label: "Read MySQL connections",
       description: "Browse and query selected agentic-access MySQL connections with enforced read-only access.",
       tools: TOOL_CLASSES,
+      privileged: true,
       default_policy: "confirm",
       max_policy: "auto",
       scope: {
