@@ -276,4 +276,18 @@ RSpec.describe "capability surface coverage inventory" do
 
     expect(gaps).to eq([]), "Add an exposed source or an explicit not_exposed reason in Admin::CapabilitySurfaceRegistry: #{gaps.inspect}"
   end
+
+  it "validates every core and plugin agent-tool descriptor", :ci_only do
+    expect { Admin::CapabilitySurfaceRegistry.validate_descriptors! }.not_to raise_error
+  end
+
+  it "reports role/default/effect coverage for the registered agent tools" do
+    coverage = Admin::CapabilitySurfaceRegistry.descriptor_coverage
+
+    expect(coverage.fetch(:tools)).to be > 0
+    expect(coverage.fetch(:described_tools)).to eq(coverage.fetch(:tools))
+    expect(coverage.fetch(:explicit_descriptors) + coverage.fetch(:legacy_descriptors)).to eq(coverage.fetch(:described_tools))
+    expect(coverage.fetch(:roles)).to include(AgentRole::CHAT_PLANNER)
+    expect(coverage.fetch(:effects)).to include(:local_read, :internal_write)
+  end
 end
