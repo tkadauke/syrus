@@ -582,6 +582,7 @@ export type ChatPendingAction = {
   execution_step?: string | null
   execution_error?: string | null
   reason?: string | null
+  review?: Record<string, unknown>
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
   chat_message_id?: number | null

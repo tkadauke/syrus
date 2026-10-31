@@ -498,7 +498,8 @@ it("shows pending approvals with the originating run and tool input and allows r
             run_id: 44,
             chat_id: 12,
             created_at: "2026-10-29T10:00:00Z",
-            state: "pending"
+            state: "pending",
+            actor: { name: "Maya", handle: "maya", avatar_key: "comet", avatar_url: null, accent_hex: "#E5484D" }
           }
         ]
       })
@@ -511,9 +512,10 @@ it("shows pending approvals with the originating run and tool input and allows r
   await screen.findByRole("heading", { name: "Maya" })
 
   fireEvent.click(screen.getByRole("button", { name: "Approvals" }))
-  expect(await screen.findByRole("heading", { name: "propose_job" })).toBeInTheDocument()
+  expect(await screen.findByText("Propose job")).toBeInTheDocument()
+  expect(screen.getAllByText("Maya")).toHaveLength(2)
   expect(screen.getByText("Originating run 44")).toBeInTheDocument()
-  expect(screen.getByText(/Investigate/)).toBeInTheDocument()
+  expect(screen.getAllByText(/Investigate/)).toHaveLength(2)
   fireEvent.click(screen.getByRole("button", { name: "Reject" }))
 
   await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/approvals/91/reject", expect.objectContaining({ method: "POST" })))

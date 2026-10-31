@@ -1466,6 +1466,11 @@
   "raw_details": "Raw details",
   "redacted": "redacted",
   "redaction_notice": "Secret-like values are redacted before display and copy.",
+  "tool_approval_coworker": "Coworker",
+  "tool_approval_no_arguments": "No arguments provided.",
+  "tool_approval_not_provided": "Not provided",
+  "tool_approval_show_less": "Show less",
+  "tool_approval_show_more": "Show more",
   "shared": {
     "file_count_one": "{{count}} file",
     "file_count_other": "{{count}} files",

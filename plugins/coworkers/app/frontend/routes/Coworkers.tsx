@@ -10,6 +10,7 @@ import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
 import { PageHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { ToolApprovalDetails } from "@app/components/ToolApprovalDetails"
 import { FilterBar, type FilterLinkBuilder, type FilterTree } from "@app/components/FilterBar"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
@@ -410,11 +411,10 @@ function CoworkerApprovals({ id }: { id: string }) {
     <section className="space-y-3">
       {query.data.approvals.map((approval) => (
         <article className="rounded border border-border bg-surface p-4" key={approval.id}>
-          <h2 className="font-semibold">{approval.tool_name}</h2>
+          <ToolApprovalDetails actor={approval.actor} args={approval.tool_input} toolName={approval.tool_name} />
           <div className="mt-1 text-sm text-text-secondary">
             {approval.run_id ? t("approvals.run", { id: approval.run_id }) : t("approvals.chat", { id: approval.chat_id })}
           </div>
-          <pre className="mt-3 overflow-x-auto rounded bg-surface-subtle p-3 text-xs">{JSON.stringify(approval.tool_input, null, 2)}</pre>
           <div className="mt-3 flex gap-2">
             <button
               className="rounded bg-brand px-3 py-2 text-sm text-white"

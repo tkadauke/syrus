@@ -118,10 +118,12 @@ an invalid target is returned as an authorization or validation error.
 
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner
-approval. Revoking either workspace grant also changes the provider-native
-tool boundary. Claude can deny file and shell tools independently; providers
-without that separation fail closed rather than starting with permissions
-they cannot enforce.
+approval. The card and the coworker's Approvals inbox identify the coworker,
+show the actual tool and readable redacted arguments, and collapse long values
+behind an expansion control. Revoking either workspace grant also changes the
+provider-native tool boundary. Claude can deny file and shell tools
+independently; providers without that separation fail closed rather than
+starting with permissions they cannot enforce.
 
 Owners edit these grants on the coworker's Capabilities tab. Every registered
 capability appears with its description, unlocked tools, scope (when the grant

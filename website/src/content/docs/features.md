@@ -1813,6 +1813,10 @@ workspace-files confirmation list also requires confirmation. During an
 owner-authored interactive turn, asking the owner a structured question or
 suggesting the owner's next chat message runs immediately: these in-turn
 helpers do not create a separate confirmation action.
+Queued and confirmation-gated actions identify the coworker and show the real
+tool name plus readable arguments on both the chat card and the coworker's
+Approvals tab. Secret-like values are redacted, and long values can be expanded
+before the operator confirms or declines the action.
 
 An ordinary Syrus or planner chat can also propose a coworker. The proposal
 preflights the handle, model, requested capabilities, workspace branch, and
