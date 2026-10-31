@@ -3,6 +3,7 @@ package gitexec
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,6 +42,22 @@ func TestCancellationDoesNotWaitForAChildHoldingOutputPipes(t *testing.T) {
 	}
 	if elapsed := time.Since(started); elapsed > time.Second {
 		t.Fatalf("Run waited %v for a child that inherited its output pipes", elapsed)
+	}
+}
+
+func TestRunLimitedStopsAtTheStdoutCeiling(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "git")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nwhile true; do printf 1234567890; done\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := (Runner{Binary: script}).RunLimited(context.Background(), dir, nil, 1024, "diff")
+	if !errors.Is(err, ErrOutputLimit) {
+		t.Fatalf("error = %v, want ErrOutputLimit", err)
+	}
+	if len(result.Stdout) != 1024 {
+		t.Fatalf("stdout bytes = %d, want 1024", len(result.Stdout))
 	}
 }
 

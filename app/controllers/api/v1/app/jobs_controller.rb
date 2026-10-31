@@ -1,4 +1,5 @@
 require "net/http"
+require "tempfile"
 
 module Api
   module V1
@@ -143,31 +144,39 @@ module Api
         end
 
         def source_file_diff
-          patch, path = requested_file_patch
-          rows = patch.count("\n") + (patch.end_with?("\n") ? 0 : 1)
-          if rows > 10_000 || patch.bytesize > 10.megabytes
-            render json: { error: { code: "interactive_diff_limit", message: t("api.jobs.errors.interactive_diff_limit"), rows: rows,
-                                    bytes: patch.bytesize, download_url: source_file_diff_download_url(path) } }, status: :unprocessable_content
-          else
-            render json: { patch: patch, rows: rows, bytes: patch.bytesize }
+          with_file_patch_errors do
+            patch, path = requested_file_patch
+            rows = patch.count("\n") + (patch.end_with?("\n") ? 0 : 1)
+            if rows > 10_000 || patch.bytesize > 10.megabytes
+              render json: { error: { code: "interactive_diff_limit", message: t("api.jobs.errors.interactive_diff_limit"), rows: rows,
+                                      bytes: patch.bytesize, download_url: source_file_diff_download_url(path) } }, status: :unprocessable_content
+            else
+              render json: { patch: patch, rows: rows, bytes: patch.bytesize }
+            end
           end
-        rescue RepositoryContent::TooLarge
-          render_error("download_diff_limit", t("api.jobs.errors.download_diff_limit"), status: :content_too_large)
-        rescue ArgumentError
-          render_error("bad_request", t("api.jobs.errors.invalid_diff_request"), status: :bad_request)
-        rescue RepositoryContent::Error => e
-          render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
         end
 
         def source_file_diff_download
-          patch, path = requested_file_patch
-          send_secure_file patch, filename: "#{File.basename(path)}.diff", type: "text/x-diff"
-        rescue RepositoryContent::TooLarge
-          render_error("download_diff_limit", t("api.jobs.errors.download_diff_limit"), status: :content_too_large)
-        rescue ArgumentError
-          render_error("bad_request", t("api.jobs.errors.invalid_diff_request"), status: :bad_request)
-        rescue RepositoryContent::Error => e
-          render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
+          with_file_patch_errors do
+            content, base, head, path, previous_path = requested_file_patch_arguments
+            file = Tempfile.new([ "syrus-diff-", ".diff" ], binmode: true)
+            begin
+              content.file_patch_to(file, base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+            rescue StandardError
+              file.close!
+              raise
+            end
+            file.rewind
+            response.set_header("Content-Type", "text/x-diff")
+            response.set_header("Content-Disposition", ActionDispatch::Http::ContentDisposition.format(disposition: "attachment", filename: "#{File.basename(path)}.diff"))
+            response.set_header("Content-Length", file.size.to_s)
+            response.set_header("X-Content-Type-Options", "nosniff")
+            self.response_body = Enumerator.new do |stream|
+              stream << file.read(64.kilobytes) until file.eof?
+            ensure
+              file.close!
+            end
+          end
         end
 
         # Streams raw (non-UTF-8-transcoded) file bytes for a binary/image
@@ -197,26 +206,6 @@ module Api
         rescue RepositoryContent::Error => e
           render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
         end
-
-        private
-
-        def requested_file_patch
-          job = find_job
-          base = params[:base].to_s
-          head = params[:head].to_s
-          path = params[:path].to_s
-          raise ArgumentError unless base.match?(/\A[0-9a-f]{40,64}\z/i) && head.match?(/\A[0-9a-f]{40,64}\z/i) && path.present?
-
-          content = RepositoryContent.for(job.repository, user: Current.user)
-          [ content.file_patch(base: content.revision(base), head: content.revision(head), path: path), path ]
-        end
-
-        def source_file_diff_download_url(path)
-          query = { base: params[:base], head: params[:head], path: path }.to_query
-          "/api/v1/app/jobs/#{params[:id]}/source_file_diff_download?#{query}"
-        end
-
-        public
 
         def timeline
           unless Current.user&.admin?
@@ -535,6 +524,38 @@ module Api
                       dependent_links: [ job: :repository ]
                     )
           find_job_by_ref(scope, params[key])
+        end
+
+        def requested_file_patch
+          content, base, head, path, previous_path = requested_file_patch_arguments
+          patch = content.file_patch(base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+          [ patch, path ]
+        end
+
+        def requested_file_patch_arguments
+          job = find_job
+          base = params[:base].to_s
+          head = params[:head].to_s
+          path = params[:path].to_s
+          previous_path = params[:previous_path].to_s.presence
+          raise ArgumentError unless base.match?(/\A[0-9a-f]{40,64}\z/i) && head.match?(/\A[0-9a-f]{40,64}\z/i) && path.present?
+
+          [ RepositoryContent.for(job.repository, user: Current.user), base, head, path, previous_path ]
+        end
+
+        def source_file_diff_download_url(path)
+          query = { base: params[:base], head: params[:head], path: path, previous_path: params[:previous_path].presence }.compact.to_query
+          "/api/v1/app/jobs/#{params[:id]}/source_file_diff_download?#{query}"
+        end
+
+        def with_file_patch_errors
+          yield
+        rescue RepositoryContent::TooLarge
+          render_error("download_diff_limit", t("api.jobs.errors.download_diff_limit"), status: :content_too_large)
+        rescue ArgumentError
+          render_error("bad_request", t("api.jobs.errors.invalid_diff_request"), status: :bad_request)
+        rescue RepositoryContent::Error => e
+          render_error("source_unavailable", t("api.jobs.errors.source_unavailable", error: e.message), status: :service_unavailable)
         end
       end
     end
