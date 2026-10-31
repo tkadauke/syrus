@@ -28,8 +28,13 @@ RSpec.describe MysqlDbBrowser::AgenticAccess do
       expect(described_class.safe_connection_metadata(context: coworker_context).pluck(:id)).to eq([ granted.id ])
       expect(described_class.connection!(granted.id, context: coworker_context)).to eq(granted)
       expect {
-        described_class.connection!(outside_scope.id, context: coworker_context)
+        described_class.connection!(outside_scope.id, context: coworker_context, tool_name: "mysql_db_browser_list_tables")
       }.to raise_error(described_class::ConnectionNotFound)
+      expect(MysqlQueryAudit.last).to have_attributes(
+        mysql_connection: granted, user: owner, agent_actor: coworker, read_only: true, success: false,
+        statement: "/* MCP tool call: mysql_db_browser_list_tables */",
+        error_message: "Rejected: MySQL connection was not found or is outside the coworker grant scope."
+      )
     end
 
     it "returns the connection when agentic access is enabled" do

@@ -75,4 +75,26 @@ RSpec.describe MysqlDbBrowser::ListConnectionsTool do
     credential_queries = queries.grep(/FROM ["`]?credential_store_credentials["`]?/i)
     expect(credential_queries.size).to eq(1)
   end
+
+  it "audits coworker connection discovery with the coworker identity" do
+    PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    owner = chat_session.user
+    connection = Factories.mysql_connection(agentic_access_enabled: true)
+    MysqlDbBrowser::CredentialMaterial.store!(connection, "secret", user: owner, scope_type: "user", scope_id: owner.id)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-list-mysql",
+      workspace_repo: "https://github.com/example/workspace.git")
+    coworker.grants.create!(capability: "mysql.read", approval_policy: "auto", scope: connection.id)
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat_session, role: "main")
+    chat_session.define_singleton_method(:coworker) { coworker }
+
+    response = described_class.call(server_context: { chat_session: chat_session })
+
+    expect(response.error?).to be(false)
+    expect(MysqlQueryAudit.last).to have_attributes(
+      mysql_connection: connection, user: owner, agent_actor: coworker, read_only: true, success: true,
+      statement: "/* MCP tool call: mysql_db_browser_list_connections */"
+    )
+  end
 end

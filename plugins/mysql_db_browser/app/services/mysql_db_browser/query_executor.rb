@@ -45,7 +45,11 @@ module MysqlDbBrowser
     # before ever opening a connection, unless the connection allows writes.
     def execute(sql, user:, limit: DEFAULT_LIMIT)
       statement = sql.to_s.strip
-      raise BlankStatement, "SQL statement is blank" if statement.blank?
+      if statement.blank?
+        audit!(statement: "/* #{QueryAudit::TOOL_CALL_PREFIX}: #{tool_name} (blank statement) */", read_only: true,
+          user: user, success: false, error_message: "Rejected: SQL statement is blank")
+        raise BlankStatement, "SQL statement is blank"
+      end
 
       if filesystem_write_statement?(statement)
         message = "SELECT ... INTO OUTFILE/DUMPFILE writes a file to the MySQL server's filesystem rather than " \

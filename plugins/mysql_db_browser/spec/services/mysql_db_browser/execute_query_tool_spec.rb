@@ -75,6 +75,27 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
     expect(MysqlQueryAudit.last).to have_attributes(user: user, agent_actor: coworker, read_only: false, success: false)
   end
 
+  it "audits a blank coworker query before refusing it" do
+    PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    coworker = Coworkers::Coworker.create!(owner_user: user, name: "Maya", handle: "maya-blank-mysql",
+      workspace_repo: repository.remote_url)
+    coworker.grants.create!(capability: "mysql.read", approval_policy: "auto", scope: connection.id)
+    chat_session = ChatSession.create!(user: user, repository: repository)
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat_session, role: "main")
+    chat_session.define_singleton_method(:coworker) { coworker }
+
+    response = call(mysql_connection_id: connection.id, sql: "  ", server_context: { chat_session: chat_session })
+
+    expect(response.error?).to be(true)
+    expect(MysqlQueryAudit.last).to have_attributes(
+      mysql_connection: connection, user: user, agent_actor: coworker, read_only: true, success: false,
+      statement: "/* MCP tool call: mysql_db_browser_execute_query (blank statement) */",
+      error_message: "Rejected: SQL statement is blank"
+    )
+  end
+
   it "rejects a write statement on a read-only connection without opening a connection" do
     run = Factories.job(user: user, repository: repository).initial_run
     MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { raise "should not connect" }

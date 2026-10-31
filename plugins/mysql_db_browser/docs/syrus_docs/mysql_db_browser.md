@@ -304,3 +304,6 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   persisted before MySQL executes and then updated with the outcome. Audit
   creation failures stop execution, and stored statements and error messages
   are safely bounded to their audit columns' 65,535-byte capacity.
+  Coworker connection discovery and requests refused before SQL execution are
+  recorded as synthetic `MCP tool call` statements so every coworker tool call
+  retains the coworker identity even when there is no database statement.
