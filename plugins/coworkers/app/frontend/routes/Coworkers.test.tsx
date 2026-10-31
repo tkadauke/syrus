@@ -5,10 +5,23 @@ import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
 
 const grantCatalog = [
-  "chat.message_owner", "chats.read_shared", "coworker.message", "coworker.spawn_chat", "schedule.manage_self",
-  "workspace.files", "workspace.shell", "syrus.read_jobs", "syrus.propose_job"
+  "chat.message_owner",
+  "chats.read_shared",
+  "coworker.message",
+  "coworker.spawn_chat",
+  "schedule.manage_self",
+  "workspace.files",
+  "workspace.shell",
+  "syrus.read_jobs",
+  "syrus.propose_job"
 ].map((name) => ({
-  name, label: name, description: name, maximum_policy: "auto" as const, tools: [], scopeable: false, default_enabled: true
+  name,
+  label: name,
+  description: name,
+  maximum_policy: "auto" as const,
+  tools: [],
+  scopeable: false,
+  default_enabled: true
 }))
 
 const summaryPayload = {
@@ -190,19 +203,30 @@ it("tests the remote and submits appearance, upload, grants, and About", async (
 
 it("selects and submits a scope when creating a scoped grant", async () => {
   const scopedGrant = {
-    name: "database.read", label: "Database", description: "Read a database", maximum_policy: "confirm" as const,
-    tools: ["read_database"], scopeable: true,
-    scope_options: [{ value: 11, label: "Primary" }, { value: 22, label: "Reporting" }], default_enabled: false
+    name: "database.read",
+    label: "Database",
+    description: "Read a database",
+    maximum_policy: "confirm" as const,
+    tools: ["read_database"],
+    scopeable: true,
+    scope_options: [
+      { value: 11, label: "Primary" },
+      { value: 22, label: "Reporting" }
+    ],
+    default_enabled: false
   }
   const requests: Array<{ path: string; init?: RequestInit }> = []
-  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const path = String(input)
-    requests.push({ path, init })
-    if (path === "/api/v1/app/coworkers" && init?.method === "POST")
-      return jsonResponse({ coworker: detailPayload.coworker, redirect_to: "/coworkers/7" }, 201)
-    if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
-    return jsonResponse({ ...summaryPayload, grant_catalog: [...grantCatalog, scopedGrant] })
-  }))
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      requests.push({ path, init })
+      if (path === "/api/v1/app/coworkers" && init?.method === "POST")
+        return jsonResponse({ coworker: detailPayload.coworker, redirect_to: "/coworkers/7" }, 201)
+      if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+      return jsonResponse({ ...summaryPayload, grant_catalog: [...grantCatalog, scopedGrant] })
+    })
+  )
   renderRoute("/coworkers/new")
   fill("Name", "Maya")
   fill("Handle", "maya")
@@ -258,9 +282,7 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) =>
-      jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload)
-    )
+    vi.fn(async (input: RequestInfo | URL) => jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload))
   )
   renderRoute("/coworkers/7")
 
