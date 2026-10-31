@@ -7,8 +7,13 @@ tasks. Each task uses the coworker's registered workspace repository and
 checks out its `coworkers/<handle>` home branch before running. Tasks for one
 coworker are serialized, and an agent step waits while that coworker's main
 chat has a turn in flight. Results are posted back to the main chat as a
-collapsed background-run block with the summary, duration, and cost before the
-infrastructure Job closes. Workspace changes merge into the home branch through
+background-run card with the agent's final Markdown result above its duration
+and cost; long results are collapsible. Posting is keyed to the Workflow, so a
+retry after partial completion cannot duplicate either a success or failure
+card. The card also reports whether workspace changes merged, conflicted, or
+were unavailable. Background Git operations use a short timeout so delivery
+cannot spend multiple default Git timeout windows finalizing the workspace.
+Workspace changes merge into the home branch through
 the same retrying merge path as chat turns; conflicts preserve the run branch
 and appear in the main chat for resolution. Failed scheduled runs post the same
 kind of block, count toward consecutive-failure auto-pause, and close their
@@ -29,7 +34,16 @@ write access to the workspace Repository; a missing grant auto-pauses the
 task. Coworkers with the `schedule.manage_self` grant can manage only their own
 schedules through `manage_coworker_schedule`; the grant requires confirmation
 by default. Coworker schedules do not use PR pile-up or PR auto-approval
-policies, and their results are posted to the coworker's main chat.
+policies, and their results are posted to the coworker's main chat. Schedules
+default to `after_run: wake`: after the collapsed result card is posted, an
+idle-boundary system message starts a normal coworker chat turn with the run
+summary, ID, duration, cost, schedule name, and original instructions. The
+coworker follows up in its own voice with its normal chat grants and approval
+policies, without repeating the card. Because this is an unattended system
+turn, interactive owner questions use the queued-message behavior. If another
+turn is active, the follow-up waits in the chat queue, and a run can enqueue at
+most one wake. Choose `after_run: quiet` for card-only delivery. A follow-up
+never fires another scheduled run.
 
 Coworkers is an experimental, instance-local capability for persistent named
 agents. It is disabled by default and requires beta mode before an administrator
@@ -71,8 +85,20 @@ The coworker-facing inventory is `message_coworker`, `reply_in_chat_thread`,
 Those essential tools remain governed by the coworker's grants and workspace
 boundary; coworkers do not receive owner control-plane tools.
 
-`reply_in_chat_thread` is the narrow exception to grant approval: it is
-grantless and needs no per-reply confirmation when the coworker's owner opened
+Grant policy is enforced for every gated call, including read-only core tools
+and plugin-defined tools. `auto` runs immediately; `confirm` creates an
+in-chat approval during an interactive turn and joins the approval inbox for
+an unattended run; `queue` always joins the approval inbox. Confirming replays
+the stored tool name and arguments exactly once through the owning provider.
+Tools explicitly classified as `ungated` bypass this policy because they stay
+within the coworker's workspace or current chat, expose no additional owner
+data, and incur no external cost. The workspace file tools, read-only memory
+tools, `reply_in_chat_thread`, and the in-turn question/suggestion helpers use
+that classification. `message_coworker` remains gated by `coworker.message`
+and defaults to confirmation.
+
+`reply_in_chat_thread` is an ungated exception to grant approval: it needs no
+per-reply confirmation when the coworker's owner opened
 the bridge thread and both the coworker's chat and an ordinary, non-coworker
 chat belonging to that owner are its members. It can only reply to that
 existing thread; it cannot open a thread or target an arbitrary chat. The

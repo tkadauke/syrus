@@ -48,7 +48,7 @@ module Mcp
           server_context: server_context,
           exception: e
         )
-        raise
+        Mcp::Tools.exception_response(e)
       end
     end
 
@@ -200,13 +200,18 @@ module Mcp
         grants = McpToolContext.from_chat_session(chat_session).granted_capabilities
         definitions = definitions.select do |definition|
           capability = definition[:capability] || definition["capability"]
-          grantless = definition[:coworker_grantless] || definition["coworker_grantless"]
-          grantless == true || capability.present? && grants.include?(capability.to_s)
+          ungated = definition[:ungated] || definition["ungated"]
+          if ungated == true
+            true
+          else
+            descriptor = Mcp::CoworkerToolCatalog.resolve(definition[:name] || definition["name"], chat_session: chat_session)
+            descriptor && capability.present? && grants.include?(capability.to_s)
+          end
         end
       end
 
       definitions.map do |defn|
-        MCP::Tool.define(
+        authorize_tool(MCP::Tool.define(
           name: defn[:name],
           description: defn[:description],
           input_schema: defn[:input_schema]
@@ -214,7 +219,7 @@ module Mcp
           PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set_class, operation: "handle.#{defn[:name]}") do
             tool_set_class.new.handle(defn[:name], params, server_context)
           end
-        end
+        end)
       end
     end
 

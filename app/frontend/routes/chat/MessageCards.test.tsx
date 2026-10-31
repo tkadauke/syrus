@@ -172,18 +172,38 @@ function renderChatMessageItem(
   )
 }
 
-it("renders background run metadata in a collapsed result block", () => {
+it("renders a background run result above its metadata", () => {
   const item = assistantMessage("Calendar reviewed.")
   item.content = {
     text: "Calendar reviewed.",
-    background_run: { state: "succeeded", summary: "Calendar reviewed.", duration_seconds: 12.5, cost_usd: "0.04" }
+    background_run: {
+      state: "succeeded",
+      summary: "Calendar reviewed.",
+      duration_seconds: 12.5,
+      cost_usd: "0.04",
+      merge_state: "merged"
+    }
   }
 
   renderChatMessageItem(item)
 
   const summary = screen.getByText("Background run completed")
-  expect(summary.closest("details")).not.toHaveAttribute("open")
-  expect(summary.parentElement).toHaveTextContent("12.5s · $0.04")
+  const card = summary.parentElement
+  expect(card).toHaveTextContent("Calendar reviewed.")
+  expect(card).toHaveTextContent("12.5s · $0.04")
+  expect(card).toHaveTextContent("Workspace merged")
+})
+
+it("collapses a long background run result", () => {
+  const longSummary = `## Verdict\n\n${"Detailed finding. ".repeat(50)}`
+  const item = assistantMessage(longSummary)
+  item.content = { text: longSummary, background_run: { state: "succeeded", summary: longSummary, duration_seconds: 8.2 } }
+
+  renderChatMessageItem(item)
+
+  const toggle = screen.getByText("Show full result")
+  expect(toggle.closest("details")).not.toHaveAttribute("open")
+  expect(screen.getByText("8.2s")).toBeInTheDocument()
 })
 
 function systemMessageItem(

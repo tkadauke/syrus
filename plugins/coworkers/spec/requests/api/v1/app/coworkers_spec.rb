@@ -112,6 +112,7 @@ RSpec.describe "API: coworkers", type: :request do
     }
 
     expect(response).to have_http_status(:created)
+    expect(response.parsed_body.dig("schedule", "after_run")).to eq("wake")
     task_id = response.parsed_body.dig("schedule", "id")
     get "/api/v1/app/scheduled_tasks"
     expect(response.parsed_body.fetch("active_tasks")).to include(

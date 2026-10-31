@@ -207,6 +207,35 @@ RSpec.describe PersistentMcpDaemon do
         )
       end
 
+      it "dispatches coworker chat reads over the persistent workflow route" do
+        PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
+        coworker = Coworkers::Coworker.create!(
+          owner_user: user, name: "Maya", handle: "maya-daemon-chat-reader",
+          workspace_repo: job.repository.remote_url
+        )
+        chat = ChatSession.create!(user: user, repository: job.repository, title: "Maya")
+        Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+        coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+        coworker_job = Job.create!(
+          user: user, repository: job.repository, kind: "coworker_task", priority: "low",
+          origin: "coworkers", origin_id: coworker.id.to_s, issue_title: "Read chats"
+        )
+        workflow = Coworkers::Workflow.instantiate(job: coworker_job)
+        coworker_run = Run.create!(job: coworker_job, user: user, step: workflow.steps.find_by!(kind: "coworker_run"),
+          trigger_kind: "coworker_run", agent_provider: "codex")
+        token = McpInvocationContext.issue_for_run(coworker_run, worker_id: worker_id, provider: "codex")
+
+        response = call_workflow_tool(
+          described_class.workflow_role_path(AgentRole::COWORKER),
+          "list_chats",
+          token: token
+        )
+
+        result = json_body(response).fetch("result")
+        expect(result["isError"]).to be_falsey
+        expect(JSON.parse(result.dig("content", 0, "text")).fetch("chats").pluck("id")).to eq([ chat.id ])
+      end
+
       it "records a failed workflow usage row when the invocation token is invalid" do
         expect {
           response = call_workflow_tool(

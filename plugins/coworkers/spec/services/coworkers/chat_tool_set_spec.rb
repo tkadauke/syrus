@@ -20,9 +20,9 @@ RSpec.describe Coworkers::ChatToolSet do
     definitions = described_class.tool_definitions(tier: :essential)
     expect(definitions).to include(
       include(name: "message_coworker", coworker_safe: true, capability: "coworker.message", mutation: true),
-      include(name: "reply_in_chat_thread", coworker_safe: true, capability: "chat.reply_owner_thread", coworker_grantless: true, mutation: true),
+      include(name: "reply_in_chat_thread", coworker_safe: true, capability: "chat.reply_owner_thread", ungated: true, mutation: true),
       include(name: "manage_coworker_schedule", coworker_safe: true, capability: "schedule.manage_self", mutation: true),
-      include(name: "write_coworker_file", coworker_safe: true, capability: "workspace.files", coworker_grantless: true, mutation: true),
+      include(name: "write_coworker_file", coworker_safe: true, capability: "workspace.files", ungated: true, mutation: true),
       include(name: "edit_coworker_file", coworker_safe: true, capability: "workspace.files", mutation: true),
       include(name: "move_coworker_file", coworker_safe: true, capability: "workspace.files", mutation: true),
       include(name: "delete_coworker_file", coworker_safe: true, capability: "workspace.files", mutation: true)

@@ -14,18 +14,20 @@ module Coworkers
         prompt: { type: "string" },
         kind: { type: "string", enum: %w[cron one_shot] },
         schedule_input: { type: "string", description: "Natural cadence or five-field cron expression." },
-        fire_at: { type: "string", description: "ISO 8601 time for a one-shot schedule." }
+        fire_at: { type: "string", description: "ISO 8601 time for a one-shot schedule." },
+        after_run: { type: "string", enum: %w[wake quiet], description: "Wake for a full follow-up turn, or only post the result card. Defaults to wake." }
       },
       required: %w[action]
     )
 
     class << self
-      def call(action:, server_context:, scheduled_task_id: nil, name: nil, prompt: nil, kind: "cron", schedule_input: nil, fire_at: nil)
+      def call(action:, server_context:, scheduled_task_id: nil, name: nil, prompt: nil, kind: "cron", schedule_input: nil, fire_at: nil, after_run: "wake")
         coworker = current_coworker(server_context)
         return Mcp::Tools.invalid("manage_coworker_schedule is only available from a coworker's main chat") unless coworker
 
         ScheduleActions.for(action).new(
-          coworker, scheduled_task_id:, name:, prompt:, kind:, schedule_input:, fire_at:
+          coworker, scheduled_task_id:, name:, prompt:, kind:, schedule_input:, fire_at:, after_run:,
+          scheduled_run_followup: AfterRunPolicy::Wake.followup_message?(server_context[:current_message])
         ).call
       rescue ActiveRecord::RecordInvalid => error
         Mcp::Tools.invalid(error.record.errors.full_messages.to_sentence)
@@ -45,7 +47,8 @@ module Coworkers
           coworker_id: coworker.id,
           schedules: coworker.schedules.alive.order(:created_at).map do |task|
             { id: task.id, name: task.name, kind: task.kind, state: task.state,
-              schedule: task.schedule_explanation || task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601 }
+              schedule: task.schedule_explanation || task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,
+              after_run: task.after_run }
           end,
           **extra
         )
@@ -89,6 +92,7 @@ module Coworkers
             user: coworker.owner_user, repository: repository, name: attributes[:name].to_s.strip,
             prompt: attributes[:prompt].to_s.strip, kind: attributes[:kind], schedule_input: attributes[:schedule_input],
             fire_at: attributes[:fire_at].presence && Time.zone.parse(attributes[:fire_at]),
+            after_run: attributes[:after_run].presence || "wake",
             pr_pileup_policy: "skip", auto_approve_mode: "never"
           )
           success(changed: created.id)
@@ -115,6 +119,8 @@ module Coworkers
 
       class FireNow < Base
         def call
+          raise ArgumentError, "a scheduled-run follow-up cannot fire another scheduled run" if attributes[:scheduled_run_followup]
+
           result = ScheduledTasks::Fire.new(task).call
           success(changed: task.id, fired: result.fired?, reason: result.reason, job_id: result.job&.id)
         end

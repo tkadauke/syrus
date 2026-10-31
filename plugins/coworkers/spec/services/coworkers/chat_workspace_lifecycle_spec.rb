@@ -156,6 +156,25 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(home_file("SOUL.md")).to eq("role: foreground\n")
   end
 
+  it "bounds each background Git operation below the shared Git timeout" do
+    session = chat
+    background_path = @root.join("bounded-background")
+    run_git("clone", "--branch", "coworkers/maya", @remote.to_s, background_path.to_s)
+    git = GitRunner.new
+    allow(git).to receive(:run).and_call_original
+
+    outcome = described_class.new(session, git:, remote_url: @remote.to_s, repository:).finalize_background!(
+      path: background_path, workflow: instance_double(Workflow, id: 48)
+    )
+
+    expect(outcome).to eq(:merged)
+    expect(git).to have_received(:run).with(
+      "push", @remote.to_s, "HEAD:refs/heads/coworkers/run/#{coworker.id}-48",
+      chdir: background_path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" },
+      timeout: described_class::BACKGROUND_GIT_TIMEOUT
+    )
+  end
+
   it "re-clones a missing local checkout from the durable chat branch" do
     session = chat
     service = lifecycle(session)

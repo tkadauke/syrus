@@ -60,7 +60,8 @@ RSpec.describe "Coworker background runs" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     unit = instance_double(WorkUnit, workflow: workflow, member_jobs: [ job ])
     step = workflow.steps.find_by!(kind: "coworker_run")
-    main_chat.update!(turn_in_flight: true)
+    owner_message = main_chat.messages.create!(role: "user", content: { "text" => "Meanwhile" }, skip_turn_trigger: true)
+    main_chat.update!(turn_in_flight: true, current_turn_message_id: owner_message.id)
 
     blocked = Coworkers::TurnAvailabilityGate.call(unit, step: step)
     expect(blocked).to be_blocked
@@ -88,6 +89,70 @@ RSpec.describe "Coworker background runs" do
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
   end
 
+  it "reads only the coworker's own and explicitly shared chats from a run context" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED, tokenize = 'porter unicode61')
+    SQL
+    SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    shared_chat = ChatSession.create!(user: owner, title: "Shared feedback")
+    private_chat = ChatSession.create!(user: owner, title: "Owner private")
+    ChatShare.create!(chat_session: shared_chat, target: coworker, shared_by_user: owner)
+    own_message = main_chat.messages.create!(role: "user", content: { "text" => "background-own-needle" })
+    shared_message = shared_chat.messages.create!(role: "user", content: { "text" => "background-shared-needle" })
+    private_message = private_chat.messages.create!(role: "user", content: { "text" => "background-private-needle" })
+    [ own_message, shared_message, private_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
+      trigger_kind: "coworker_run", agent_provider: "codex")
+    context = { run: run }
+
+    listed = JSON.parse(Mcp::Tools::ListChatsTool.call(server_context: context).content.first[:text]).fetch("chats")
+    expect(listed.pluck("id")).to contain_exactly(main_chat.id, shared_chat.id)
+
+    searched = JSON.parse(
+      Mcp::Tools::SearchChatsTool.call(server_context: context, query: "background").content.first[:text]
+    ).fetch("results")
+    expect(searched.pluck("chat_session_id")).to contain_exactly(main_chat.id, shared_chat.id)
+
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: main_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: private_chat.id)).to be_error
+  end
+
+  it "calls every tool exposed to an unattended coworker once without raising from run-only context" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED, tokenize = 'porter unicode61')
+    SQL
+    SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    McpToolRegistry.entries(surface: :coworker).map(&:capability).compact.uniq.each do |capability|
+      coworker.grants.create!(capability: capability, approval_policy: "queue")
+    end
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
+      trigger_kind: "coworker_run", agent_provider: "codex")
+    arguments = {
+      "search_jobs" => { query: "nothing" },
+      "read_job" => { job_id: job.id },
+      "propose_job" => { repo: repository.slug, title: "Audit proposal", description: "Audit only." },
+      "propose_epic_with_jobs" => { epic: { slug: "audit-epic", title: "Audit", description: "Audit only." }, jobs: [] },
+      "search_chats" => { query: "nothing" },
+      "read_chat_messages" => { chat_session_id: main_chat.id }
+    }
+
+    context = McpToolContext.from_run(run)
+    exposed = McpToolPolicy.for(context)
+    expect(exposed).not_to be_empty
+    exposed.each do |tool|
+      name = McpToolRegistry.tool_name_for(tool)
+      expect { tool.call(server_context: { run: run }, **arguments.fetch(name, {})) }.not_to raise_error
+    end
+  end
+
   it "queues confirm and queue mutations from unattended runs and replays an approval in its run context" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
     workflow = Coworkers::Workflow.instantiate(job: job)
@@ -111,6 +176,9 @@ RSpec.describe "Coworker background runs" do
     )
     expect { action.confirm!(user: owner) }.to change(main_chat.proposals, :count).by(1)
     expect(action.reload).to be_confirmed
+    expect(action.payload.fetch("tool_result")).to include("Prepare the report")
+    expect(main_chat.messages.where(role: "system").order(:id).last.content.fetch("text"))
+      .to include("Coworker tool approved and executed", "Prepare the report")
 
     coworker.grants.find_by!(capability: "syrus.propose_job").update!(approval_policy: "queue")
     queued = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(
@@ -146,6 +214,175 @@ RSpec.describe "Coworker background runs" do
     expect(main_chat.reload).not_to be_turn_in_flight
   end
 
+  it "posts the card and wakes the coworker for one full unattended chat turn" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Daily review",
+      prompt: "Review today's calendar.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Calendar reviewed.", started_at: 5.seconds.ago, finished_at: Time.current, cost_usd: 0.25)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    expect { Coworkers::PostToChat.new(post_run).call }
+      .to change(main_chat.messages, :count).by(2)
+      .and have_enqueued_job(ChatTurnJob)
+
+    wake = main_chat.messages.order(:id).last
+    expect(wake).to have_attributes(role: "system")
+    expect(wake.content.fetch("internal_prompt")).to include(
+      "follow-up to your scheduled run", "Daily review", "Review today's calendar.",
+      "Calendar reviewed.", "Run ID: #{source_run.id}", "Duration: 5.0 seconds", "Cost: $0.25",
+      "Do not repeat the whole background-run card", "Do not start or fire another scheduled run"
+    )
+    expect(main_chat.reload).to be_turn_in_flight
+    expect(McpToolContext.from_chat_session(main_chat)).to have_attributes(role: AgentRole::COWORKER_CHAT, interactive: false)
+    expect(McpToolPolicy.for(McpToolContext.from_chat_session(main_chat)).map { |tool| McpToolRegistry.tool_name_for(tool) }).to include("propose_job")
+  end
+
+  it "posts only the card when the schedule is quiet" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Quiet review",
+      prompt: "Review quietly.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "quiet"
+    )
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Done.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    expect { Coworkers::PostToChat.new(post_run).call }.to change(main_chat.messages, :count).by(1)
+    expect(main_chat.chat_queued_messages).to be_empty
+    expect(main_chat.reload).not_to be_turn_in_flight
+  end
+
+  it "queues one wake per run while another turn is in flight" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Busy review",
+      prompt: "Review it.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Done.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+    owner_message = main_chat.messages.create!(role: "user", content: { "text" => "Meanwhile" }, skip_turn_trigger: true)
+    main_chat.update!(turn_in_flight: true, current_turn_message_id: owner_message.id)
+
+    2.times { Coworkers::PostToChat.new(post_run).call }
+
+    expect(main_chat.chat_queued_messages.pending.count).to eq(1)
+    expect(main_chat.messages.where(role: "system")).to be_empty
+    expect(source_run.reload.coworker_wake_enqueued_at).to be_present
+  end
+
+  it "resumes wake delivery when the result card was recorded before the wake was queued" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Resumable review",
+      prompt: "Review it.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Done.", finished_at: Time.current)
+    result = main_chat.messages.create!(role: "assistant", content: { "text" => "Done." }, skip_turn_trigger: true)
+    workflow.set_artifact!(Coworkers::PostToChat::MESSAGE_ARTIFACT, result.id)
+    workflow.set_artifact!(Coworkers::PostToChat::MERGE_ARTIFACT, "merged")
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    expect { Coworkers::PostToChat.new(post_run).call }
+      .to change(main_chat.messages, :count).by(1)
+      .and have_enqueued_job(ChatTurnJob)
+
+    expect(main_chat.messages.where(role: "assistant").count).to eq(1)
+    expect(source_run.reload.coworker_wake_enqueued_at).to be_present
+    expect(lifecycle).not_to have_received(:finalize_background!)
+  end
+
+  it "stores the agent's final text as the background run summary" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    handler = Coworkers::RunStep.new(run)
+    allow(handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir)))
+    allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: "## Verdict\n\nAll clear."))
+
+    handler.call
+
+    expect(run.reload.agent_summary).to eq("## Verdict\n\nAll clear.")
+  end
+
+  it "uses the final top-level assistant transcript when the stored summary is blank" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", finished_at: Time.current)
+    source_run.create_provider_session!(provider: "codex", session_id: "background-session", normalized_messages: [
+      { "role" => "assistant", "content" => "intermediate" },
+      { "role" => "assistant", "content" => "nested", "sidechain" => true },
+      { "role" => "assistant", "content" => "## Final verdict\n\nShip it." }
+    ])
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+
+    Coworkers::PostToChat.new(post_run).call
+
+    expect(main_chat.messages.last.content.fetch("background_run").fetch("summary")).to eq("## Final verdict\n\nShip it.")
+  end
+
+  it "uses fallback text only when the run produced no assistant text" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+
+    Coworkers::PostToChat.new(post_run).call
+
+    expect(main_chat.messages.last.content.fetch("background_run").fetch("summary")).to eq("Background task completed.")
+  end
+
+  it "posts exactly one result when the post step is retried after delivery" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Calendar reviewed.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+
+    2.times { Coworkers::PostToChat.new(post_run).call }
+
+    expect(main_chat.messages.count).to eq(1)
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MESSAGE_ARTIFACT)).to eq(main_chat.messages.first.id)
+    expect(lifecycle).to have_received(:finalize_background!).once
+  end
+
+  it "reuses the checkpointed merge outcome when delivery fails after finalization" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Calendar reviewed.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+    attempts = 0
+    allow(Coworkers::PostToChat).to receive(:post_once!).and_wrap_original do |method, **arguments|
+      attempts += 1
+      raise "delivery interrupted" if attempts == 1
+
+      method.call(**arguments)
+    end
+
+    expect { Coworkers::PostToChat.new(post_run).call }.to raise_error("delivery interrupted")
+    Coworkers::PostToChat.new(post_run).call
+
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("merged")
+    expect(main_chat.messages.count).to eq(1)
+    expect(lifecycle).to have_received(:finalize_background!).once
+  end
+
 
   it "posts a result without clearing an owner turn that started while the run was finishing" do
     workflow = Coworkers::Workflow.instantiate(job: job)
@@ -165,22 +402,46 @@ RSpec.describe "Coworker background runs" do
   end
 
   it "posts a failure and closes the infrastructure Job when the agent step fails" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Failing review",
+      prompt: "Review it.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
     workflow = Coworkers::Workflow.instantiate(job: job)
     source_step = workflow.steps.find_by!(kind: "coworker_run")
     source_step.update_columns(state: "failed")
     source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
     source_run.update_columns(state: "failed", finished_at: Time.current)
 
-    expect { Coworkers::Workflow.after_fail(workflow) }.to change(main_chat.messages, :count).by(1)
+    expect { Coworkers::Workflow.after_fail(workflow) }
+      .to change(main_chat.messages, :count).by(2)
+      .and have_enqueued_job(ChatTurnJob)
 
-    expect(main_chat.messages.order(:id).last.content.fetch("background_run")).to include(
+    expect(main_chat.messages.order(:id).second_to_last.content.fetch("background_run")).to include(
       "run_id" => source_run.id, "state" => "failed", "merge_state" => "merged"
     )
+    expect(main_chat.messages.order(:id).last.content.fetch("internal_prompt")).to include("Result: failed", "Background task failed.")
     expect(lifecycle).to have_received(:finalize_background!).with(
       path: StepWorkspace.for(source_step, run: source_run).path,
       workflow: workflow
     )
     expect(job.reload).to have_attributes(state: "closed", closure_reason: "coworker_task")
+  end
+
+  it "posts exactly one failure card when failure handling is retried" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "failed", agent_summary: "The calendar API failed.", finished_at: Time.current)
+
+    2.times { Coworkers::PostToChat.post_failure!(workflow) }
+
+    expect(main_chat.messages.count).to eq(1)
+    expect(main_chat.messages.first.content.fetch("background_run")).to include(
+      "state" => "failed", "summary" => "The calendar API failed."
+    )
+    expect(lifecycle).to have_received(:finalize_background!).once
   end
 
   it "auto-pauses the originating schedule after consecutive failures" do

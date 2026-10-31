@@ -1739,10 +1739,16 @@ without choosing either side when a normal Git merge conflicts. Worker-local
 checkouts are disposable and are re-cloned from the durable remote when lost.
 Renaming a coworker moves its home branch while no turn is running. Deleting
 one archives that branch under `coworkers/archived/` and releases the handle
-for reuse. Scheduled background work posts a collapsed result block with its
-summary, duration, and cost into the coworker's main chat. Its workspace uses
-the same home-branch merge and conflict reporting as chat turns; failed runs
-also count toward schedule auto-pause and close their internal Jobs. Coworker
+for reuse. Scheduled background work posts the agent's final Markdown result,
+duration, and cost into the coworker's main chat, collapsing long results and
+posting only one card when delivery is retried. The card reports whether its
+workspace merged, conflicted, or was unavailable. By default, the
+coworker then wakes for a normal, unattended chat turn to comment on the
+result with its full chat grants; this follow-up waits when another turn is
+active and never fires another schedule. A schedule can instead use quiet
+delivery for the result card only. Its workspace uses the same home-branch
+merge and conflict reporting as chat turns; failed runs also count toward
+schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
 Coworkers can start a direct exchange with `message_coworker`. An incoming
@@ -1818,6 +1824,13 @@ workspace-files confirmation list also requires confirmation. During an
 owner-authored interactive turn, asking the owner a structured question or
 suggesting the owner's next chat message runs immediately: these in-turn
 helpers do not create a separate confirmation action.
+The selected policy applies to every call in the capability, including
+read-only and plugin-provided tools. On unattended work, `confirm` is queued
+in the approval inbox like `queue`; approval runs the stored call once and
+returns its result to the coworker's next turn. A small explicitly ungated set
+— workspace file operations, read-only memory, replies to an owner-opened
+bridge thread, and the two in-turn helpers — stays inside the coworker's
+workspace or current chat and runs immediately.
 Queued and confirmation-gated actions identify the coworker and show the real
 tool name plus readable arguments on both the chat card and the coworker's
 Approvals tab. Secret-like values are redacted, and long values can be expanded

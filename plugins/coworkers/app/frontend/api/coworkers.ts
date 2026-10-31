@@ -54,6 +54,7 @@ export type CoworkerSchedule = {
   fire_at: string | null
   next_fire_at: string | null
   last_fired_at: string | null
+  after_run: "wake" | "quiet"
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }
@@ -149,8 +150,12 @@ export function fetchCoworkerApprovals(id: string) {
 }
 export const decideCoworkerApproval = (coworkerId: string, approvalId: number, decision: "approve" | "reject") =>
   postJson<{ approval: CoworkerApproval }>(`/api/v1/app/coworkers/${coworkerId}/approvals/${approvalId}/${decision}`)
-export const createCoworkerSchedule = (id: string, schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
-  postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
+export function createCoworkerSchedule(
+  id: string,
+  schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string; after_run: "wake" | "quiet" }
+) {
+  return postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
+}
 export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, command: "pause" | "resume" | "fire_now") =>
   postJson<{ schedule: CoworkerSchedule; fired?: boolean; reason?: string | null; job_id?: number | null }>(
     `/api/v1/app/coworkers/${coworkerId}/schedules/${scheduleId}/${command}`

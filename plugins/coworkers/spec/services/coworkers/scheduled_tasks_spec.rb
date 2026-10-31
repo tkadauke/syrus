@@ -94,7 +94,7 @@ RSpec.describe "Coworker scheduled tasks" do
     )
 
     expect(added).not_to be_error
-    expect(coworker.schedules).to contain_exactly(have_attributes(name: "Weekly review", repository: repository))
+    expect(coworker.schedules).to contain_exactly(have_attributes(name: "Weekly review", repository: repository, after_run: "wake"))
     expect(Coworkers::ManageScheduleTool.call(action: "list", server_context: { chat_session: chat })).not_to be_error
   end
 
@@ -117,5 +117,58 @@ RSpec.describe "Coworker scheduled tasks" do
     expect(pause).to be_error
     expect(resume).to be_error
     expect(one_shot.reload).to be_fired
+  end
+
+  it "does not fire a schedule from a scheduled-run follow-up turn" do
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    scheduled_task = task
+    followup_message = chat.messages.create!(
+      role: "system",
+      content: {
+        "source" => Coworkers::AfterRunPolicy::Wake::SOURCE,
+        "background_run_id" => 123,
+        "text" => "Follow up on the scheduled run."
+      },
+      skip_turn_trigger: true
+    )
+    allow(ScheduledTasks::Fire).to receive(:new)
+
+    result = Mcp::Tools::AuthorizationSupport.with_coworker_approval_bypass do
+      Coworkers::ManageScheduleTool.call(
+        action: "fire_now", scheduled_task_id: scheduled_task.id,
+        server_context: { chat_session: chat, current_message: followup_message }
+      )
+    end
+
+    expect(result).to be_error
+    expect(result.content.to_s).to include("cannot fire another scheduled run")
+    expect(ScheduledTasks::Fire).not_to have_received(:new)
+  end
+
+  it "does not fire a schedule when the follow-up is batched with other system notices" do
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    scheduled_task = task
+    followup_message = chat.messages.create!(
+      role: "system",
+      content: {
+        "source" => ChatQueuedMessagePromoter::BATCH_SOURCE,
+        "notices" => [ { "source" => Coworkers::AfterRunPolicy::Wake::SOURCE } ],
+        "text" => "Several notices are ready."
+      },
+      skip_turn_trigger: true
+    )
+    allow(ScheduledTasks::Fire).to receive(:new)
+
+    result = Mcp::Tools::AuthorizationSupport.with_coworker_approval_bypass do
+      Coworkers::ManageScheduleTool.call(
+        action: "fire_now", scheduled_task_id: scheduled_task.id,
+        server_context: { chat_session: chat, current_message: followup_message }
+      )
+    end
+
+    expect(result).to be_error
+    expect(ScheduledTasks::Fire).not_to have_received(:new)
   end
 end

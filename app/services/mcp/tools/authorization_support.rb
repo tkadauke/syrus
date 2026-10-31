@@ -52,11 +52,12 @@ module Mcp::Tools
         context = McpToolContext.from_server_context(server_context)
         return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
-        entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == tool }
-        return unless entry&.mutation
-        return if entry.interactive_only && context.interactive
+        descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
+        raise AuthorizationError, "tool is not available to coworkers" unless descriptor
+        return if descriptor.ungated
 
-        policy = context.capability_approval_policies.fetch(entry.capability.to_s, "queue")
+        policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
+        policy = "queue" if context.run? && policy == "confirm"
         return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
 
         action = context.chat_session.pending_actions.create!(
@@ -64,11 +65,11 @@ module Mcp::Tools
           state: "pending",
           requested_by: "agent",
           payload: {
-            "tool_name" => entry.tool_name,
+            "tool_name" => descriptor.tool_name,
             "arguments" => arguments.stringify_keys,
             "run_id" => context.run&.id,
             "approval_policy" => policy,
-            "approval_inbox" => context.run? && policy == "queue",
+            "approval_inbox" => policy == "queue",
             "actor" => approval_actor(context.agent_actor)
           }.compact
         )

@@ -1,6 +1,10 @@
 {
   "background_run_completed": "Background run completed",
   "background_run_failed": "Background run failed",
+  "background_run_show_result": "Show full result",
+  "background_run_merge_merged": "Workspace merged",
+  "background_run_merge_conflict": "Workspace has conflicts",
+  "background_run_merge_unavailable": "Workspace unavailable",
   "share_people": "Share",
   "mention_add_to_chat": "Add to chat",
   "mention_add_error": "Could not add this coworker to the chat.",

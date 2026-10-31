@@ -164,6 +164,87 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.pending_actions.last.payload.fetch("actor")).to include("name" => coworker.name, "handle" => coworker.handle)
   end
 
+  it "applies every policy to read-only core tools" do
+    grant = coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
+
+    confirmed = coworker_tool("list_jobs").call(server_context: { chat_session: chat })
+    expect(response_payload(confirmed)).to include("approval_policy" => "confirm")
+    expect(chat.pending_actions.last.payload).to include("tool_name" => "list_jobs", "arguments" => {})
+
+    grant.update!(approval_policy: "queue")
+    queued = coworker_tool("list_jobs").call(server_context: { chat_session: chat })
+    expect(response_payload(queued)).to include("approval_policy" => "queue")
+    expect(chat.pending_actions.last.payload).to include("approval_inbox" => true)
+
+    grant.update!(approval_policy: "auto")
+    expect(coworker_tool("list_jobs").call(server_context: { chat_session: chat })).not_to be_error
+
+    grant.destroy!
+    expect(names).not_to include("list_jobs")
+  end
+
+  it "applies every policy and replays confirmed plugin calls exactly once" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    message_grant = coworker.grants.create!(capability: "coworker.message", approval_policy: "confirm")
+    schedule_grant = coworker.grants.create!(capability: "schedule.manage_self", approval_policy: "confirm")
+    allow(Coworkers::MessageCoworkerTool).to receive(:call)
+      .and_return(Mcp::Tools.success(delivered: true, receipt: "stored result"))
+
+    arguments = { handle: "gilfoyle", text: "Hello from the stored call" }
+    message = coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })
+    schedule = coworker_tool("manage_coworker_schedule").call(action: "list", server_context: { chat_session: chat })
+    expect(response_payload(message)).to include("approval_policy" => "confirm")
+    expect(response_payload(schedule)).to include("approval_policy" => "confirm")
+    expect(Coworkers::MessageCoworkerTool).not_to have_received(:call)
+
+    action = chat.pending_actions.find(response_payload(message).fetch("pending_action_id"))
+    expect { action.confirm!(user: owner) }
+      .to change { chat.messages.where(role: "system").count }.by(1)
+    expect(Coworkers::MessageCoworkerTool).to have_received(:call)
+      .with(**arguments, server_context: include(chat_session: chat)).once
+    expect(action.reload.payload.fetch("tool_result")).to include("stored result")
+    expect(chat.messages.where(role: "system").order(:id).last.content.fetch("text"))
+      .to include("Coworker tool approved and executed", "stored result")
+    expect(action.confirm!(user: owner)).to be(false)
+    expect(Coworkers::MessageCoworkerTool).to have_received(:call).once
+
+    message_grant.update!(approval_policy: "queue")
+    queued = coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })
+    expect(response_payload(queued)).to include("approval_policy" => "queue")
+    expect(chat.pending_actions.last.payload).to include("approval_inbox" => true, "arguments" => arguments.stringify_keys)
+    expect(Coworkers::MessageCoworkerTool).to have_received(:call).once
+
+    message_grant.update!(approval_policy: "auto")
+    schedule_grant.update!(approval_policy: "auto")
+    expect(coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })).not_to be_error
+    expect(Coworkers::MessageCoworkerTool).to have_received(:call).twice
+    expect(coworker_tool("manage_coworker_schedule").call(action: "list", server_context: { chat_session: chat })).not_to be_error
+
+    message_grant.destroy!
+    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).not_to include("message_coworker")
+  end
+
+  it "runs ungated plugin tools under every grant policy and with the grant off" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    allow(Coworkers::WorkspaceFileTools::Write).to receive(:call)
+      .and_return(Mcp::Tools.success(path: "notes.txt"))
+    arguments = { path: "notes.txt", content: "Remember this" }
+
+    expect(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })).not_to be_error
+    grant = coworker.grants.create!(capability: "workspace.files", approval_policy: "confirm")
+    expect(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })).not_to be_error
+    grant.update!(approval_policy: "queue")
+    expect(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })).not_to be_error
+    grant.update!(approval_policy: "auto")
+    expect(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })).not_to be_error
+
+    expect(Coworkers::WorkspaceFileTools::Write).to have_received(:call)
+      .with(**arguments, server_context: include(chat_session: chat)).exactly(4).times
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+  end
+
   it "offers interactive-only tools only for an interactive turn" do
     coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
     expect(names).not_to include("ask_user_question", "suggest_next_step")

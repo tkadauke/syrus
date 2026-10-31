@@ -187,7 +187,8 @@ module Api
           task = coworker.schedules.new(
             schedule_params.merge(
               user: Current.user, repository: repository,
-              pr_pileup_policy: "skip", auto_approve_mode: "never"
+              pr_pileup_policy: "skip", auto_approve_mode: "never",
+              after_run: schedule_params[:after_run].presence || "wake"
             )
           )
           if task.save
@@ -339,6 +340,7 @@ module Api
         def schedule_json(task)
           {
             id: task.id, name: task.name, prompt: task.prompt, kind: task.kind, state: task.state,
+            after_run: task.after_run,
             schedule_input: task.schedule_input, schedule_explanation: task.schedule_explanation,
             fire_at: task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,
             last_fired_at: task.last_fired_at&.iso8601
@@ -346,7 +348,7 @@ module Api
         end
 
         def schedule_params
-          params.expect(schedule: %i[name prompt kind schedule_input cron_expression fire_at])
+          params.expect(schedule: %i[name prompt kind schedule_input cron_expression fire_at after_run])
         end
 
         def find_schedule

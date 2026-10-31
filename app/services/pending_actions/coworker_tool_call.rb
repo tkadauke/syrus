@@ -10,14 +10,23 @@ module PendingActions
         raise ArgumentError, "coworker context is no longer available"
       end
 
-      entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool_name == payload.fetch("tool_name") }
-      raise ArgumentError, "tool is not available to coworkers" unless entry&.mutation
-      raise ArgumentError, "required grant is no longer present" unless context.granted_capabilities.include?(entry.capability.to_s)
+      descriptor = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
+      raise ArgumentError, "tool is not available to coworkers" unless descriptor
+      unless descriptor.ungated || context.granted_capabilities.include?(descriptor.capability.to_s)
+        raise ArgumentError, "required grant is no longer present"
+      end
+
+      tool = Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier)
+        .find { |candidate| McpToolRegistry.tool_name_for(candidate) == descriptor.tool_name }
+      raise ArgumentError, "tool is no longer available to coworkers" unless tool
 
       response = Mcp::Tools::AuthorizationSupport.with_coworker_approval_bypass do
-        entry.tool.call(**payload.fetch("arguments").symbolize_keys, server_context: server_context)
+        tool.call(**payload.fetch("arguments").symbolize_keys, server_context: server_context)
       end
       raise ArgumentError, response.content.first[:text].to_s if response.error?
+
+      result_text = response.content.filter_map { |item| item[:text] || item["text"] }.join("\n")
+      @action.update!(payload: payload.merge("tool_result" => result_text.byteslice(0, 64.kilobytes)))
 
       nil
     end
