@@ -970,8 +970,14 @@ Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
 surface — include `Syrus::Plugin::McpToolSet` or `Syrus::Plugin::ChatMcpToolSet`
 and implement:
 
+| Method | Signature | Description |
+|---|---|---|
+| `.tool_definitions` | `() → [{name:, description:, input_schema:}, ...]` (chat: `(tier:)`) | Every tool this set can offer |
+| `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
+| `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
+
 Every agent-callable definition is normalized to a
-`Permissions::CapabilityDescriptor` and audited in CI. New definitions should
+`Permissions::CapabilityDescriptor` and audited in CI. New definitions must
 provide `capability_descriptor:` explicitly, with stable versioned capability
 and operation identifiers, effects, eligible-role defaults, autonomy/duration
 ceilings, resource scope, classification, fingerprint normalization, and
@@ -979,14 +985,9 @@ redaction hooks. A renamed identifier remains listed in `capability_aliases`
 or `operation_aliases`; aliases are versioned, cannot repeat the canonical
 identifier, and may resolve to only one canonical identifier registry-wide.
 Diagnostics identify the plugin provider, surface, and tool when mappings or
-descriptor contracts conflict. Legacy definitions receive a conservative
-compatibility descriptor while plugins migrate.
-
-| Method | Signature | Description |
-|---|---|---|
-| `.tool_definitions` | `() → [{name:, description:, input_schema:}, ...]` (chat: `(tier:)`) | Every tool this set can offer |
-| `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
-| `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
+descriptor contracts conflict. Pre-contract definitions retain conservative
+compatibility descriptors behind a frozen per-provider CI baseline; changing
+that inventory requires migrating the affected definitions explicitly.
 
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
