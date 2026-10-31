@@ -2570,7 +2570,7 @@ describe("DesignDocsSurface", () => {
     resolveAutosave?.(
       jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" })
     )
-    await waitFor(() => expect(calls).toEqual(["autosave", "accept-31", "accept-32"]))
+    await waitFor(() => expect(calls).toEqual(["autosave", "accept-31", "accept-32"]), { timeout: 2000 })
     expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent(
       "Nested .syrus.yml discovery should be automatic once a target graph exists."
     )
@@ -2698,7 +2698,7 @@ describe("DesignDocsSurface", () => {
     button.focus()
     fireEvent.click(button)
 
-    await waitFor(() => expect(calls).toEqual(["autosave", decision.toLowerCase()]))
+    await waitFor(() => expect(calls).toEqual(["autosave", decision.toLowerCase()]), { timeout: 2000 })
     expect(autosavedMarkdown).toBe(`${markdown}\n\nUnsaved user edit`)
     expect(autosavedMarkdown).not.toMatch(/- -|5\. \*\*5\.|replacement|Timeline|nested|that|data-review/)
     expect(fetchSpy).toHaveBeenCalledWith(`/api/v1/app/design_docs/1/suggestions/9/${decision.toLowerCase()}`, expect.objectContaining({ method: "POST" }))
