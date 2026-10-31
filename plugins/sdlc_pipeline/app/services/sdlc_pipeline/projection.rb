@@ -44,7 +44,7 @@ module SdlcPipeline
     def load_jobs
       relation = Job.visible_to(user)
         .where(repository_id: repository.id)
-        .includes(:epic, :deployment_stage_statuses)
+        .includes(:epic, :deployment_stage_statuses, :job_pins)
         .order(updated_at: :desc, id: :desc)
 
       open_jobs = relation.where.not(state: Job::TERMINAL_STATES).to_a
@@ -99,7 +99,14 @@ module SdlcPipeline
     end
 
     def ordered_jobs(jobs)
-      jobs.sort_by { |job| [ job.needs_attention? ? 0 : 1, activity_at(job), job.id ] }
+      jobs.sort_by do |job|
+        [
+          job.job_pins.any? { |pin| pin.user_id == user.id } ? 0 : 1,
+          job.needs_attention? ? 0 : 1,
+          -activity_at(job).to_f,
+          -job.id
+        ]
+      end
     end
 
     def item_payload(job, stage_key)
@@ -111,6 +118,7 @@ module SdlcPipeline
         epic: job.epic && { id: job.epic.id, slug: job.epic.slug, title: job.epic.title },
         needs_attention: job.needs_attention?,
         attention_reason: job.needs_attention_reason,
+        pinned: job.job_pins.any? { |pin| pin.user_id == user.id },
         age_seconds: age_seconds(job, stage_key).to_i,
         evidence: evidence(job, stage_key)
       }

@@ -7,8 +7,27 @@ export type PipelineItem = {
   title: string
   state: string
   needs_attention: boolean
+  attention_reason?: string
+  pinned?: boolean
   age_seconds: number
   evidence: { type: string; state?: string; stage_name?: string }
+}
+
+export type PipelineGroup = {
+  key: string
+  label: string
+  epic?: { id: number; slug: string; title: string }
+  total: number
+  stage_totals: Record<string, number>
+}
+
+export type PipelineDrillDown = {
+  stage: string
+  page: number
+  limit: number
+  total: number
+  next_page: number | null
+  items: PipelineItem[]
 }
 
 export type PipelineStage = {
@@ -24,8 +43,16 @@ export type PipelineStage = {
 
 export type PipelinePayload = {
   repository: { id: number; slug: string }
+  generated_at: string
   tabs: RepositoryTab[]
   stages: PipelineStage[]
+  groups: PipelineGroup[]
+  drill_down?: PipelineDrillDown
+}
+
+export function fetchPipelineStage(repositoryId: string, stage: string, page = 1) {
+  const params = new URLSearchParams({ stage, page: String(page) })
+  return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline?${params}`)
 }
 
 export function fetchPipeline(repositoryId: string) {
