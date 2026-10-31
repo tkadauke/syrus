@@ -39,6 +39,12 @@ class Coworkers::Coworker < ApplicationRecord
   def agentic? = true
   def avatar_url = avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(avatar, only_path: true) : nil
   def avatar_key = self[:avatar_key]
+  def workspace_repository
+    match = workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
+    raise ActiveRecord::RecordNotFound, "coworker workspace repository is not registered" unless match
+
+    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first!
+  end
   def addressable_in?(chat)
     Coworkers::Chat.exists?(coworker_id: id, chat_session_id: chat.id) ||
       Coworkers::ChatAgent.exists?(coworker_id: id, chat_session_id: chat.id)
