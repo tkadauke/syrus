@@ -692,11 +692,13 @@ describe("applyAppEvent", () => {
     const first = { ...chatPayload([]).chat, id: 8, pinned: false, last_message_at: "2026-05-30T12:00:00Z", unread: false }
     const active = { ...chatPayload([]).chat, id: 9, pinned: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }
     queryClient.setQueryData(["chats", "recent"], {
-      groups: [{ key: "general", label: "General", repository_id: null, chats: [first, active], has_more: false }], repositories: []
+      groups: [{ key: "general", label: "General", repository_id: null, chats: [first, active], has_more: false }],
+      repositories: []
     })
 
     applyAppEvent(queryClient, {
-      ...event("chat", 9), changed: ["sidebar_message_state"],
+      ...event("chat", 9),
+      changed: ["sidebar_message_state"],
       payload: { action: "update_sidebar_message_state", turn_in_flight: true, agent_busy: true, last_message_at: "2026-05-30T13:00:00Z", unread: true }
     })
 
