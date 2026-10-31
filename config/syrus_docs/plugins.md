@@ -989,6 +989,14 @@ descriptor contracts conflict. Pre-contract definitions retain conservative
 compatibility descriptors behind a frozen per-provider CI baseline; changing
 that inventory requires migrating the affected definitions explicitly.
 
+Resource scopes use `Permissions::ResourceScopeSchema`. Providers own the
+resource-specific lookup and scope hooks, while core canonicalizes normalized
+JSON, runs validation, and exposes uniform label and comparison results. Every
+hook returns an explicit result: normalization or provider failures fail closed,
+and lookup deliberately reports the same `not_found` result for an unknown id
+and an id the current principal cannot see. Provider lookups must therefore
+apply ordinary application visibility before returning a resource.
+
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
 (e.g. only the `implement` step), not just the repository — see

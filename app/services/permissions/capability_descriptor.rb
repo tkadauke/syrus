@@ -1,4 +1,5 @@
 require "digest"
+require_dependency "permissions/resource_scope_schema"
 
 module Permissions
   class CapabilityDescriptor
@@ -14,15 +15,7 @@ module Permissions
     AUTONOMY_CEILINGS = %i[none invocation chat_session job permanent].freeze
     AUTHORITY_DURATIONS = %i[invocation chat_session job permanent].freeze
 
-    ResourceScope = Data.define(:type, :options, :label, :validate, :normalize) do
-      def initialize(type: :none, options: nil, label: nil, validate: nil, normalize: nil)
-        super(type: type.to_sym, options: options, label: label, validate: validate, normalize: normalize)
-      end
-
-      def to_h
-        { type: type, options: options, label: label, validate: validate, normalize: normalize }
-      end
-    end
+    ResourceScope = ResourceScopeSchema
 
     attr_reader :capability, :operation, :effects, :risk, :requestable_roles,
       :defaults, :maximum_autonomy, :authority_durations, :maximum_duration,
@@ -42,7 +35,7 @@ module Permissions
       @maximum_autonomy = maximum_autonomy.to_sym
       @authority_durations = Array(authority_durations).map(&:to_sym).uniq.freeze
       @maximum_duration = maximum_duration
-      @resource_scope = resource_scope.is_a?(ResourceScope) ? resource_scope : ResourceScope.new(**resource_scope)
+      @resource_scope = resource_scope.is_a?(ResourceScopeSchema) ? resource_scope : ResourceScopeSchema.new(**resource_scope)
       @classifier = classifier
       @fingerprint_normalizer = fingerprint_normalizer
       @redactor = redactor
