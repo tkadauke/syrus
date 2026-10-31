@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe ContainerExecution::SeedImage do
-  Status = Data.define(:success?, :exitstatus)
+  SeedImageCommandStatus = Data.define(:success?, :exitstatus)
 
   before do
     ensure_solid_queue_test_tables!
@@ -198,8 +198,8 @@ RSpec.describe ContainerExecution::SeedImage do
     end
   end
 
-  def success = Status.new(true, 0)
-  def failure = Status.new(false, 1)
+  def success = SeedImageCommandStatus.new(true, 0)
+  def failure = SeedImageCommandStatus.new(false, 1)
 
   class ConcurrentSemaphore
     attr_reader :keys
@@ -255,8 +255,8 @@ RSpec.describe ContainerExecution::SeedImage do
 
     private
 
-    def success = Status.new(true, 0)
-    def failure = Status.new(false, 1)
+    def success = SeedImageCommandStatus.new(true, 0)
+    def failure = SeedImageCommandStatus.new(false, 1)
   end
 
   class ConcurrentImageStore
@@ -301,7 +301,7 @@ RSpec.describe ContainerExecution::SeedImage do
 
     private
 
-    def success = Status.new(true, 0)
-    def failure = Status.new(false, 1)
+    def success = SeedImageCommandStatus.new(true, 0)
+    def failure = SeedImageCommandStatus.new(false, 1)
   end
 end
