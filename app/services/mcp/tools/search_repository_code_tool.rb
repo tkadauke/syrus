@@ -22,7 +22,9 @@ module Mcp::Tools
         content = RepositoryContent.for(repository, user: context.user)
         revision = content.resolve(ref.presence || repository.default_branch)
         prefix = path.to_s.sub(%r{\A/+}, "").sub(%r{/+\z}, "")
-        candidates = content.tree(revision).select { |entry| entry.file? && (prefix.blank? || entry.path.start_with?(prefix)) }.first(MAX_FILES)
+        candidates = content.tree(revision).select do |entry|
+          entry.file? && (prefix.blank? || entry.path == prefix || entry.path.start_with?("#{prefix}/"))
+        end.first(MAX_FILES)
         results = candidates.filter_map { |entry| matches(content, revision, entry.path, query.to_s) }.flatten.first(MAX_RESULTS)
         Mcp::Tools.success(repository: { id: repository.id, slug: repository.slug }, revision: revision.id,
           query: query, results: ToolPayloadRedactor.redact(results), truncated: candidates.length == MAX_FILES || results.length == MAX_RESULTS)
@@ -37,7 +39,10 @@ module Mcp::Tools
         return if blob.text.to_s.bytesize > MAX_FILE_BYTES
 
         blob.text.to_s.lines.each_with_index.filter_map do |line, index|
-          { path: path, line: index + 1, text: line.strip.safe_byteslice(0, 1.kilobyte) } if line.include?(query)
+          if line.include?(query)
+            redacted = ToolPayloadRedactor.redact_text(line.strip)
+            { path: path, line: index + 1, text: Mcp::Tools.safe_byteslice(redacted, 0, 1.kilobyte) }
+          end
         end
       rescue RepositoryContent::NotFound, Encoding::CompatibilityError
         nil
