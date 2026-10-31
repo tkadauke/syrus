@@ -18,7 +18,8 @@ module SyrusDev
     end
 
     provides admin_page: "SyrusDev::AdminPages",
-             mcp_tool_set: "SyrusDev::WorkflowToolSet"
+             mcp_tool_set: "SyrusDev::WorkflowToolSet",
+             chat_mcp_tool_set: "SyrusDev::ChatToolSet"
     route :get, "/api/v1/app/admin/performance", to: "api/v1/app/admin/performance#show"
     route :post, "/api/v1/app/admin/performance/explain", to: "api/v1/app/admin/performance#explain"
     route :get, "/api/v1/app/admin/operational_logs", to: "api/v1/app/admin/operational_logs#index"

@@ -2,12 +2,15 @@ require "mcp"
 
 module SyrusDev
   class ReadPerformanceDiagnosticsTool < MCP::Tool
+    extend DiagnosticsAuthorization
+
     tool_name "read_performance_diagnostics"
 
     DESCRIPTION = <<~DESC
       Read bounded, sanitized Syrus performance diagnostics for the current app
-      revision or all retained revisions. Only available to workflow agents
-      working on tkadauke/syrus or a registered fork of that repository.
+      revision or all retained revisions. Available to workflow agents working
+      on tkadauke/syrus or a registered fork, and to coworkers with the Syrus
+      diagnostics grant.
     DESC
 
     description DESCRIPTION
@@ -33,8 +36,10 @@ module SyrusDev
     class << self
       def call(server_context:, limit: PerformancePayload::DEFAULT_LIMIT, revision_scope: "current", include_events: false)
         context = McpToolContext.from_server_context(server_context)
-        return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
-        return Mcp::Tools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+        unless coworker_diagnostics_authorized?(context)
+          return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
+          return Mcp::Tools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+        end
 
         payload = PerformanceLogging.suppress do
           PerformancePayload.new(params: { limit: limit, revision_scope: revision_scope }).as_json

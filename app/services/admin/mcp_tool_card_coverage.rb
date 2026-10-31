@@ -26,7 +26,9 @@ module Admin
       "override_job_planned_execution" => "generic",
       "read_backend_exception_events" => "generic",
       "read_browser_error_events" => "generic",
-      "read_performance_log_events" => "generic"
+      "read_performance_log_events" => "generic",
+      "read_performance_diagnostics" => "generic",
+      "read_syrus_logs" => "generic"
     }.freeze
 
     class << self

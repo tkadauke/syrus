@@ -39,6 +39,8 @@ RSpec.describe SyrusDev::ReadPerformanceDiagnosticsTool do
   end
 
   before do
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
     allow(Rails).to receive(:cache).and_return(cache_store)
     allow(SyrusVersion).to receive(:current).and_return("new-sha")
     Feature.where(slug: "performance_logging").delete_all
@@ -189,5 +191,21 @@ RSpec.describe SyrusDev::ReadPerformanceDiagnosticsTool do
 
     expect(response).to be_error
     expect(response.content.first[:text]).to include("not_authorized")
+  end
+
+  it "allows a repository-less coworker only with the diagnostics grant" do
+    owner = Factories.user(admin: true)
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-performance",
+      workspace_repo: "https://github.com/example/workspace.git"
+    )
+    chat = ChatSession.create!(user: owner)
+    chat_coworker = coworker
+    chat.define_singleton_method(:coworker) { chat_coworker }
+
+    expect(described_class.call(server_context: { chat_session: chat })).to be_error
+
+    coworker.grants.create!(capability: "syrus_dev.read_diagnostics", approval_policy: "confirm")
+    expect(described_class.call(server_context: { chat_session: chat })).not_to be_error
   end
 end

@@ -166,7 +166,7 @@ Performance admin page and shared by no other surface:
   database) are returned as invalid explain requests with a message telling
   the operator to retry with the full query.
 
-## MCP tools (`SyrusDev::WorkflowToolSet`)
+## MCP tools (`SyrusDev::WorkflowToolSet` and `SyrusDev::ChatToolSet`)
 
 Two tools, gated to Syrus-repository workflows
 (`McpToolPolicy.syrus_repository?` — the Job's repository is
@@ -198,6 +198,12 @@ returning empty data — a workflow on an unrelated customer repository never
 sees these tools offered at all (`available_for_context?`/
 `available_for?` filter them out of the manifest before a call could
 happen).
+
+Coworker chats are the repository-less exception. When an owner grants
+`syrus_dev.read_diagnostics`, the coworker receives exactly these two
+read-only tools with the same redaction and size bounds. The grant defaults to
+`confirm` and permits up to `auto`. Without the grant, the tools are absent;
+ordinary operator chats never receive them from this plugin.
 
 ## Operational notes
 
