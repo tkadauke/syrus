@@ -44,6 +44,11 @@ describe("pendingActionCardData", () => {
       state: "pending",
       action: "submit_coding_changes",
       action_type: null,
+      review: {
+        tool_name: "execute_query",
+        arguments: { sql: "SELECT 1", api_token: "secret-token-value" },
+        actor: { name: "Gilfoyle", handle: "gilfoyle", avatar_key: "comet" }
+      },
       resource_title: "acme/widgets",
       resource_url: "/repositories/9",
       document: {
@@ -65,6 +70,7 @@ describe("pendingActionCardData", () => {
       detail: "**Branch:** syrus/chat-42-handoff-7",
       resource_title: "acme/widgets",
       resource_url: "/repositories/9",
+      review: action.review,
       document: action.document,
       app_cancel_path: "/api/v1/app/chats/122/pending_actions/501"
     })
