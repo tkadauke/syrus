@@ -425,6 +425,7 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
     fork_pr_changes_requested: "attention_fork_pr_changes_requested",
     grader_loop_no_progress: "attention_grader_loop_no_progress",
     investigation_escalated: "attention_investigation_escalated",
+    unapplied_chat_feedback: "attention_unapplied_chat_feedback",
     upstream_pr_closed: "attention_upstream_pr_closed",
     upstream_pr_changes_requested: "attention_upstream_pr_changes_requested"
   }

@@ -42,6 +42,11 @@ class Job < ApplicationRecord
   ].freeze
   TERMINAL_STATES = %w[ closed no_change_needed ].freeze
   REQUESTED_CHANGES_ATTENTION_REASON = "upstream_pr_changes_requested".freeze
+  UNAPPLIED_FEEDBACK_ATTENTION_REASON = "unapplied_chat_feedback".freeze
+  LANDING_HOLD_ATTENTION_REASONS = [
+    REQUESTED_CHANGES_ATTENTION_REASON,
+    UNAPPLIED_FEEDBACK_ATTENTION_REASON
+  ].freeze
   INVESTIGATION_ESCALATED_ATTENTION_REASON = "investigation_escalated".freeze
   INVESTIGATION_EPIC_ERROR = "Investigation Jobs cannot belong to Epics".freeze
   WITHDRAWN_APPROVAL_DEPENDENCY_BLOCK_REASON = "dependency_approval_withdrawn".freeze
@@ -205,7 +210,7 @@ class Job < ApplicationRecord
   scope :accessible_to, ->(user) { visible_to(user) }
   scope :landing_queue, -> { where(state: %w[ approved landing ]) }
   scope :without_requested_changes_attention, -> {
-    where(needs_attention_reason: nil).or(where.not(needs_attention_reason: REQUESTED_CHANGES_ATTENTION_REASON))
+    where(needs_attention_reason: nil).or(where.not(needs_attention_reason: LANDING_HOLD_ATTENTION_REASONS))
   }
   scope :without_landing_holds, -> { not_manually_paused.without_requested_changes_attention }
   scope :issue_kind, -> { where(kind: "issue") }
@@ -215,9 +220,9 @@ class Job < ApplicationRecord
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
 
-  def landing_held?
-    manual_paused? || needs_attention_reason == REQUESTED_CHANGES_ATTENTION_REASON
-  end
+  def landing_attention? = needs_attention_reason.in?(LANDING_HOLD_ATTENTION_REASONS)
+
+  def landing_held? = manual_paused? || landing_attention?
 
   def eligible_for_landing_dispatch?
     approved? && may_start_landing? && !landing_held?
@@ -1314,7 +1319,7 @@ class Job < ApplicationRecord
         artifacts: workflow.artifacts
       )
       cancelled = true
-      set_needs_attention!(reason: REQUESTED_CHANGES_ATTENTION_REASON) if unapplied_chat_feedback?(workflow)
+      set_needs_attention!(reason: UNAPPLIED_FEEDBACK_ATTENTION_REASON) if unapplied_chat_feedback?(workflow)
     end
     cancelled
   end

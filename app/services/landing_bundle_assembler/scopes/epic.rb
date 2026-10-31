@@ -28,10 +28,8 @@ class LandingBundleAssembler::Scopes::Epic
     manually_paused = @open_children.select(&:manual_paused?)
     return "child Jobs manually paused: #{label(manually_paused)}" if manually_paused.any?
 
-    requested_changes = @open_children.select do |job|
-      job.needs_attention_reason == Job::REQUESTED_CHANGES_ATTENTION_REASON
-    end
-    return "child Jobs with requested changes: #{label(requested_changes)}" if requested_changes.any?
+    attention_holds = @open_children.select(&:landing_attention?)
+    return "child Jobs requiring attention before landing: #{label(attention_holds)}" if attention_holds.any?
 
     nil
   end

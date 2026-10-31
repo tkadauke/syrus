@@ -416,6 +416,7 @@
     "auto_merge_not_enabled": "Auto-Merge für Repository nicht aktiviert",
     "approval_not_satisfied": "Lieferfreigabe nicht mehr erfüllt",
     "review_requested_changes": "Review hat Änderungen angefordert",
+    "unapplied_chat_feedback": "Chat-Feedback wurde vor dem Push abgebrochen",
     "missing_pull_request": "Pull Request fehlt",
     "active_workflow": "Aktiver Workflow",
     "queued_in_bundle": "In Bündel eingereiht",

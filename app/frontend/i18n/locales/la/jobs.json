@@ -898,6 +898,7 @@
   "attention_fork_pr_changes_requested": "Recognitor mutationes in PR furcae poposcit. PR superior non creabitur donec omnes petitiones recognitionis solvantur (probatae aut dimissae).",
   "attention_grader_loop_no_progress": "Circuitus reparationis constitit quia nihil quod deficiebat nunc valet, aut eaedem defectiones rediere. Contextum circuitus ante iterationem inspice.",
   "attention_investigation_escalated": "Investigatio escalata est et attentionem operatoris requirit.",
+  "attention_unapplied_chat_feedback": "Responsum colloquii ante publicationem cancellatum est. Id recense vel rursus applica antequam hunc Job probes.",
   "attention_upstream_pr_closed": "PR superior clausus est neque confusus.",
   "attention_upstream_pr_changes_requested": "Recognitor mutationes in PR superiore poposcit. Automerge intermissa est donec recognitio solvatur (probata aut dimissa).",
   "grace_expired": "Tempus gratiae exiit.",
