@@ -40,7 +40,7 @@ module ChatProviders
     end
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
-               stop_requested:, process_started:)
+               stop_requested:, process_started:, workload_policy: nil)
       require_full_coworker_workspace_access!
       api_key = chat.user.reload.gemini_api_key.presence
       raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
@@ -58,7 +58,8 @@ module ChatProviders
         model: chat.chat_model.presence,
         effort_level: chat.chat_effort,
         stop_requested: stop_requested,
-        process_started: process_started
+        process_started: process_started,
+        workload_policy: workload_policy
       ).run
     end
 

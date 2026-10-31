@@ -45,7 +45,8 @@ class MuseInvocation
                  required_mcp_tools: nil,
                  env: nil,
                  stop_requested: -> { false },
-                 process_started: ->(_process) { })
+                 process_started: ->(_process) { },
+                 workload_policy: nil)
     @workspace_path = workspace_path.to_s
     @prompt = prompt.to_s
     @api_key = api_key.to_s
@@ -64,6 +65,7 @@ class MuseInvocation
     @env = env || {}
     @stop_requested = stop_requested
     @process_started = process_started
+    @workload_policy = workload_policy
   end
 
   attr_reader :session_id
@@ -83,7 +85,8 @@ class MuseInvocation
       transcript_dir: @transcript_dir,
       env: @env,
       stop_requested: @stop_requested,
-      process_started: @process_started
+      process_started: @process_started,
+      **(@workload_policy ? { workload_policy: @workload_policy } : {})
     )
   end
 
@@ -93,14 +96,14 @@ class MuseInvocation
                      session_id:, model: nil, reasoning_effort: nil, max_model_steps: nil,
                      transcript_policy: DEFAULT_TRANSCRIPT_POLICY, transcript_dir: nil,
                      env: nil,
-                     stop_requested: -> { false }, process_started: ->(_process) { })
+                     stop_requested: -> { false }, process_started: ->(_process) { }, workload_policy: nil)
     exec_jsonl = +""
     metadata = default_metadata(session_id)
     @metadata = metadata
     @required_mcp_failed = false
     @required_mcp_failure_logged = false
 
-    Dir.mktmpdir("syrus-muse-invocation-") do |tmpdir|
+    Dir.mktmpdir(".syrus-muse-invocation-", @muse_home.presence || Dir.tmpdir) do |tmpdir|
       prompt_path = File.join(tmpdir, "prompt.txt")
       File.write(prompt_path, prompt)
       write_muse_settings!(muse_home: @muse_home, mcp_server: @mcp_server, log_sink: log_sink)
@@ -128,6 +131,7 @@ class MuseInvocation
           agent: current_agent,
           stop_requested: -> { stop_requested.call || @required_mcp_failed },
           on_spawned_process: process_started,
+          workload_policy: workload_policy,
           max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
           on_output_line_too_long: AgentInvocation.oversized_event_handler("Muse"),
           on_output_line: ->(line) do

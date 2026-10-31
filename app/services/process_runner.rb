@@ -667,7 +667,7 @@ class ProcessRunner
                  display_command: nil,
                  on_spawned_process: nil,
                  activity_probe: nil,
-                 workload_policy: Thread.current[:syrus_execution_workload_policy],
+                 workload_policy: nil,
                  resource_attribution: {},
                  backend: self.class.backend)
     @env = env

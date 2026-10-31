@@ -76,7 +76,7 @@ module ChatProviders
     # from the fallback transcript instead of the whole turn dying. Without this,
     # EVERY chat breaks after a worker restart, not just walkthroughs.
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
-               stop_requested:, process_started:)
+               stop_requested:, process_started:, workload_policy: nil)
       ensure_provider_session_on_disk!(workspace_path: workspace_path, session_id: resume_session_id)
 
       result = run_invocation(
@@ -87,7 +87,8 @@ module ChatProviders
         # clean fresh-retry doesn't strand a "No conversation found" error in the
         # thread. Healthy turns never emit these strings, so live streaming is
         # untouched; a genuine mid-turn error (turns > 0) is NOT filtered.
-        log_sink: resume_session_id.present? ? filtered_log_sink(log_sink) : log_sink
+        log_sink: resume_session_id.present? ? filtered_log_sink(log_sink) : log_sink,
+        workload_policy: workload_policy
       )
 
       if resume_session_id.present? && stale_resume_failure?(result)
@@ -103,7 +104,7 @@ module ChatProviders
           # DB-backed transcript for the fresh retry.
           workspace_path: workspace_path, prompt: prompt_with_system(recovery_prompt(prompt)), mcp_config: mcp_config,
           resume_session_id: nil, stop_requested: stop_requested,
-          process_started: process_started, log_sink: log_sink
+          process_started: process_started, log_sink: log_sink, workload_policy: workload_policy
         )
       end
 
@@ -150,7 +151,7 @@ module ChatProviders
     private
 
     def run_invocation(workspace_path:, prompt:, mcp_config:, resume_session_id:,
-                       stop_requested:, process_started:, log_sink:)
+                       stop_requested:, process_started:, log_sink:, workload_policy:)
       claude_home = ChatWorkspace.agent_home_for(chat, provider).to_s
       FileUtils.mkdir_p(claude_home)
       confined_mcp_config = mcp_config
@@ -174,7 +175,8 @@ module ChatProviders
         effort_level: chat.chat_effort,
         env: env.merge("HOME" => claude_home),
         stop_requested: stop_requested,
-        process_started: process_started
+        process_started: process_started,
+        workload_policy: workload_policy
       ).run
     end
 

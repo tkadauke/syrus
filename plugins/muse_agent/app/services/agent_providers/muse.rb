@@ -33,7 +33,8 @@ module AgentProviders
 
     private
 
-    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil, **_ignored)
+    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil,
+               workload_policy: nil, **_ignored)
       log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
 
       result = run_invocation(
@@ -44,7 +45,8 @@ module AgentProviders
         max_turns: max_turns,
         mcp: mcp,
         resume_session_id: resume_session_id,
-        required_mcp_tools: required_mcp_tools
+        required_mcp_tools: required_mcp_tools,
+        workload_policy: workload_policy
       )
 
       if resume_session_id.present? && context_exhausted_failure?(result)
@@ -60,7 +62,8 @@ module AgentProviders
           max_turns: max_turns,
           mcp: mcp,
           resume_session_id: nil,
-          required_mcp_tools: required_mcp_tools
+          required_mcp_tools: required_mcp_tools,
+          workload_policy: workload_policy
         )
       end
 
@@ -68,7 +71,7 @@ module AgentProviders
     end
 
     def run_invocation(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:,
-                       required_mcp_tools:)
+                       required_mcp_tools:, workload_policy:)
       MuseInvocation.new(
         workspace_path,
         prompt: prompt,
@@ -81,7 +84,8 @@ module AgentProviders
         muse_home: WorkflowWorkspace.agent_home_for(workflow, provider),
         mcp_server: (mcp ? mcp_server : nil),
         required_mcp_tools: required_mcp_tools,
-        env: cli_invocation_env
+        env: cli_invocation_env,
+        workload_policy: workload_policy
       ).run
     end
 
