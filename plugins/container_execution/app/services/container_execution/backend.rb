@@ -19,8 +19,9 @@ module ContainerExecution
 
     def run(request)
       validate_request!(request)
+      policy = WorkloadPolicy::Base.resolve(request)
       ProcessRunner.new(
-        env: request.env,
+        env: policy.process_env,
         command: docker_command(request),
         mounts: request.mounts,
         network: "grader",
@@ -102,7 +103,7 @@ module ContainerExecution
       policy = WorkloadPolicy::Base.resolve(request)
       injected = policy.injected_env.flat_map { |key, value| [ "--env", "#{key}=#{value}" ] }
       injected_keys = policy.injected_env.keys.map(&:to_s)
-      inherited = request.env.keys.reject { |key| key.to_s.in?(injected_keys) }
+      inherited = policy.forwarded_env.keys.reject { |key| key.to_s.in?(injected_keys) }
         .flat_map { |key| [ "--env", key.to_s ] }
       inherited + injected + (policy.mount_mcp_socket? ? mcp_socket_env_args : [])
     end
