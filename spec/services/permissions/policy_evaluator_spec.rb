@@ -106,6 +106,22 @@ RSpec.describe Permissions::PolicyEvaluator do
 
       expect(evaluate(rules:).decisive_rule.id).to eq("resource")
     end
+
+    it "preserves a broader non-delegable ceiling hidden by a same-layer winner" do
+      rules = [
+        rule("repository-ceiling", :repository, :ask, capability: descriptor.capability, delegable: false),
+        rule("repository-allow", :repository, :allow, capability: descriptor.capability,
+          operation: descriptor.operation, resource_scope: { repository_id: 1, path: "app" })
+      ]
+
+      decision = evaluate(rules:)
+      expect(decision).to be_ask
+      expect(decision.decisive_rule.id).to eq("repository-ceiling")
+      expect(decision.chain.find { |item| item.rule&.id == "repository-ceiling" }.to_h).to include(
+        status: :decisive_ceiling, policy: :ask, detail: :non_delegable
+      )
+      expect(decision.chain.find { |item| item.rule&.id == "repository-allow" }.status).to eq(:matched)
+    end
   end
 
   describe "matching and fallbacks" do
