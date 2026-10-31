@@ -341,20 +341,27 @@ function BackgroundRunCard({
   const failed = run.state === "failed"
   const duration = run.duration_seconds == null ? null : `${run.duration_seconds.toFixed(1)}s`
   const cost = run.cost_usd == null ? null : `$${run.cost_usd}`
+  const summary = run.summary || text
+  const long = summary.length > 600
   return (
-    <details
+    <div
       className={`rounded border px-3 py-2 ${failed ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30" : "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30"}`}
     >
-      <summary className="cursor-pointer text-sm font-medium">
-        {failed ? t("background_run_failed") : t("background_run_completed")}
-        {[duration, cost].filter(Boolean).length ? (
-          <span className="ml-2 font-normal text-text-muted">{[duration, cost].filter(Boolean).join(" · ")}</span>
-        ) : null}
-      </summary>
+      <div className="text-sm font-medium">{failed ? t("background_run_failed") : t("background_run_completed")}</div>
       <div className="mt-2">
-        <ChatAssistantMarkdownSurface compact text={run.summary || text} onLinkClick={onLinkClick} />
+        {long ? (
+          <details>
+            <summary className="cursor-pointer text-sm text-text-muted">{t("background_run_show_result")}</summary>
+            <div className="mt-2">
+              <ChatAssistantMarkdownSurface compact text={summary} onLinkClick={onLinkClick} />
+            </div>
+          </details>
+        ) : (
+          <ChatAssistantMarkdownSurface compact text={summary} onLinkClick={onLinkClick} />
+        )}
       </div>
-    </details>
+      {[duration, cost].filter(Boolean).length ? <div className="mt-2 text-xs text-text-muted">{[duration, cost].filter(Boolean).join(" · ")}</div> : null}
+    </div>
   )
 }
 

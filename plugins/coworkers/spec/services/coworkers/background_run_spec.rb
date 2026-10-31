@@ -146,6 +146,62 @@ RSpec.describe "Coworker background runs" do
     expect(main_chat.reload).not_to be_turn_in_flight
   end
 
+  it "stores the agent's final text as the background run summary" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    handler = Coworkers::RunStep.new(run)
+    allow(handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir)))
+    allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: "## Verdict\n\nAll clear."))
+
+    handler.call
+
+    expect(run.reload.agent_summary).to eq("## Verdict\n\nAll clear.")
+  end
+
+  it "uses the final top-level assistant transcript when the stored summary is blank" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", finished_at: Time.current)
+    source_run.create_provider_session!(provider: "codex", session_id: "background-session", normalized_messages: [
+      { "role" => "assistant", "content" => "intermediate" },
+      { "role" => "assistant", "content" => "nested", "sidechain" => true },
+      { "role" => "assistant", "content" => "## Final verdict\n\nShip it." }
+    ])
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+
+    Coworkers::PostToChat.new(post_run).call
+
+    expect(main_chat.messages.last.content.fetch("background_run").fetch("summary")).to eq("## Final verdict\n\nShip it.")
+  end
+
+  it "uses fallback text only when the run produced no assistant text" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+
+    Coworkers::PostToChat.new(post_run).call
+
+    expect(main_chat.messages.last.content.fetch("background_run").fetch("summary")).to eq("Background task completed.")
+  end
+
+  it "posts exactly one result when the post step is retried after delivery" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Calendar reviewed.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run")
+
+    2.times { Coworkers::PostToChat.new(post_run).call }
+
+    expect(main_chat.messages.count).to eq(1)
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MESSAGE_ARTIFACT)).to eq(main_chat.messages.first.id)
+    expect(lifecycle).to have_received(:finalize_background!).once
+  end
+
 
   it "posts a result without clearing an owner turn that started while the run was finishing" do
     workflow = Coworkers::Workflow.instantiate(job: job)
@@ -181,6 +237,21 @@ RSpec.describe "Coworker background runs" do
       workflow: workflow
     )
     expect(job.reload).to have_attributes(state: "closed", closure_reason: "coworker_task")
+  end
+
+  it "posts exactly one failure card when failure handling is retried" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "failed", agent_summary: "The calendar API failed.", finished_at: Time.current)
+
+    2.times { Coworkers::PostToChat.post_failure!(workflow) }
+
+    expect(main_chat.messages.count).to eq(1)
+    expect(main_chat.messages.first.content.fetch("background_run")).to include(
+      "state" => "failed", "summary" => "The calendar API failed."
+    )
+    expect(lifecycle).to have_received(:finalize_background!).once
   end
 
   it "auto-pauses the originating schedule after consecutive failures" do
