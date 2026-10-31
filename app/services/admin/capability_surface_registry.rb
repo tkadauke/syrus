@@ -166,6 +166,7 @@ module Admin
     COWORKER_MCP_CAPABILITIES = %w[
       chat.message_owner
       chats.read_shared
+      code.read
       coworker.message
       ops.read_logs
       syrus.propose_job
