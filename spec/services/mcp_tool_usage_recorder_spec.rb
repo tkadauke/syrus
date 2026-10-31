@@ -215,7 +215,19 @@ RSpec.describe McpToolUsageRecorder do
       usage = McpToolUsage.sole
       expect(usage.status).to eq("failed")
       expect(usage.error).to eq(true)
+      expect(usage.error_class).to eq("McpToolError::AuthorizationDenied")
       expect(usage.error_message_summary).to be_present
+    end
+
+    it "classifies returned argument validation failures separately from backend exceptions" do
+      described_class.record_dispatch(
+        surface: "chat", tool_name: "search_chats", tool_input: { query: "" },
+        sidecar_mode: "persistent", chat_session: chat
+      ) { Mcp::Tools.invalid("query is required") }
+
+      expect(McpToolUsage.sole).to have_attributes(
+        status: "failed", error_class: "McpToolError::ArgumentValidation"
+      )
     end
 
     it "records a failed result with error_class and re-raises when the block raises" do

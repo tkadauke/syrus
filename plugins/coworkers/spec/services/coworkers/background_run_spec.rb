@@ -88,6 +88,61 @@ RSpec.describe "Coworker background runs" do
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
   end
 
+  it "dispatches chat listing and search through the scheduled-run authorization boundary" do
+    coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    own_side_chat = ChatSession.create!(user: owner, title: "Coworker side chat")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: own_side_chat, role: "side")
+    shared_chat = ChatSession.create!(user: owner, title: "Shared owner chat")
+    ChatShare.create!(chat_session: shared_chat, target: coworker, shared_by_user: owner)
+    ChatSession.create!(user: owner, title: "Unshared owner chat")
+    other_coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Other", handle: "other-background",
+      workspace_repo: repository.remote_url
+    )
+    other_chat = ChatSession.create!(user: owner, title: "Other coworker chat")
+    Coworkers::Chat.create!(coworker: other_coworker, chat_session: other_chat, role: "main")
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_search_metadata")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED)
+    SQL
+    SearchRecord.connection.execute("CREATE TABLE chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    [ main_chat, own_side_chat, shared_chat, other_chat ].each do |session|
+      message = session.messages.create!(role: "user", content: { "text" => "scheduled needle" })
+      ChatMessageSearchIndex.insert(message)
+    end
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    run = Run.create!(
+      job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
+      trigger_kind: "coworker_run", agent_provider: "codex"
+    )
+    worker_id = "coworker-worker"
+    token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "codex")
+    raw_context = {
+      identity: { worker_id: worker_id }, workflow_role: AgentRole::COWORKER,
+      _meta: { PersistentMcpDaemon::INVOCATION_CONTEXT_META_KEY => token }
+    }
+
+    list_tool = PersistentMcpDaemon::WorkflowToolDispatch.wrap(Mcp::Tools::ListChatsTool)
+    list_response = list_tool.call(server_context: raw_context, page: 1, per_page: 10)
+    listed_ids = JSON.parse(list_response.content.first[:text]).fetch("chats").pluck("id")
+    expect(list_response).not_to be_error
+    expect(listed_ids).to contain_exactly(main_chat.id, own_side_chat.id, shared_chat.id)
+
+    search_tool = PersistentMcpDaemon::WorkflowToolDispatch.wrap(Mcp::Tools::SearchChatsTool)
+    search_response = search_tool.call(server_context: raw_context, query: "needle", limit: 7)
+
+    expect(search_response).not_to be_error
+    expect(JSON.parse(search_response.content.first[:text]).fetch("results").pluck("chat_session_id"))
+      .to match_array(listed_ids)
+
+    empty_response = search_tool.call(server_context: raw_context, query: "missing", limit: 7)
+    expect(JSON.parse(empty_response.content.first[:text])).to eq(
+      "results" => [], "message" => "No matching messages found."
+    )
+  end
+
   it "queues confirm and queue mutations from unattended runs and replays an approval in its run context" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
     workflow = Coworkers::Workflow.instantiate(job: job)
