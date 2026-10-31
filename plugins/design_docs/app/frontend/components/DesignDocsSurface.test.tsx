@@ -2486,14 +2486,7 @@ describe("DesignDocsSurface", () => {
   it("orders multiple Rich Text accepts after a pending autosave without serializing review decorations", async () => {
     let resolveAutosave: ((response: Response) => void) | undefined
     const calls: string[] = []
-    const firstAcceptedMarkdown = openQuestionsMarkdown.replace(
-      "Should nested .syrus.yml discovery be automatic or opt-in?",
-      "Nested .syrus.yml discovery should be automatic once a target graph exists."
-    )
-    const secondAcceptedMarkdown = firstAcceptedMarkdown.replace(
-      "Should graders be first-class targets?",
-      "Graders should be first-class targets with explicit ownership."
-    )
+    let autosavedMarkdown = ""
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
       const url = new URL(String(input), "http://test.host")
       if (url.pathname === "/api/v1/app/repositories") {
@@ -2504,10 +2497,15 @@ describe("DesignDocsSurface", () => {
       }
       if (url.pathname === "/api/v1/app/design_docs/4" && init?.method === "PATCH") {
         calls.push("autosave")
+        autosavedMarkdown = JSON.parse(String(init.body)).design_doc.markdown
         return new Promise<Response>((resolve) => { resolveAutosave = resolve })
       }
       if (url.pathname.endsWith("/suggestions/31/accept")) {
         calls.push("accept-31")
+        const firstAcceptedMarkdown = autosavedMarkdown.replace(
+          "Should nested .syrus.yml discovery be automatic or opt-in?",
+          "Nested .syrus.yml discovery should be automatic once a target graph exists."
+        )
         return jsonResponse({
           design_doc: { ...openQuestionsDocDetail, markdown: firstAcceptedMarkdown, rendered_markdown: firstAcceptedMarkdown, canonical_revision: "open-questions-revision-2", suggestions: openQuestionsDocDetail.suggestions.slice(1) },
           suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" },
@@ -2516,6 +2514,9 @@ describe("DesignDocsSurface", () => {
       }
       if (url.pathname.endsWith("/suggestions/32/accept")) {
         calls.push("accept-32")
+        const secondAcceptedMarkdown = autosavedMarkdown
+          .replace("Should nested .syrus.yml discovery be automatic or opt-in?", "Nested .syrus.yml discovery should be automatic once a target graph exists.")
+          .replace("Should graders be first-class targets?", "Graders should be first-class targets with explicit ownership.")
         return jsonResponse({
           design_doc: { ...openQuestionsDocDetail, markdown: secondAcceptedMarkdown, rendered_markdown: secondAcceptedMarkdown, canonical_revision: "open-questions-revision-3", suggestions: openQuestionsDocDetail.suggestions.slice(2) },
           suggestion: { ...openQuestionsDocDetail.suggestions[1], state: "accepted" },
@@ -2555,13 +2556,13 @@ describe("DesignDocsSurface", () => {
     resolveAutosave?.(jsonResponse({ design_doc: { ...openQuestionsDocDetail, markdown: patchBody.markdown, rendered_markdown: patchBody.markdown }, mode: "canonical" }))
     await waitFor(() => expect(calls).toEqual(["autosave", "accept-31", "accept-32"]))
     expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Nested .syrus.yml discovery should be automatic once a target graph exists.")
-    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).not.toHaveTextContent("Use the target command.")
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Use the target command.")
   })
 
   it.each([
-    ["an unordered-list item", '<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- item"><del data-review-original="true">item</del><ins data-review-decoration="true">replacement</ins></mark></li></ul>', "- item"],
-    ["a numbered strong item", '<ol><li value="5"><strong><mark data-inline-suggestion-state="pending" data-original-markdown="5. **Duration**"><del data-review-original="true">Duration</del><ins data-review-decoration="true">Timeline</ins></mark></strong></li></ol>', "5. **Duration**"],
-    ["a nested list item", '<ul><li>parent<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- child"><del data-review-original="true">child</del><ins data-review-decoration="true">nested</ins></mark></li></ul></li></ul>', "- parent\n   - child"],
+    ["an unordered-list item", '<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- item" data-serialized-original-markdown="item"><del data-review-original="true">item</del><ins data-review-decoration="true">replacement</ins></mark></li></ul>', "- item"],
+    ["a numbered strong item", '<ol><li value="5"><strong><mark data-inline-suggestion-state="pending" data-original-markdown="5. **Duration**" data-serialized-original-markdown="Duration"><del data-review-original="true">Duration</del><ins data-review-decoration="true">Timeline</ins></mark></strong></li></ol>', "5. **Duration**"],
+    ["a nested list item", '<ul><li>parent<ul><li><mark data-inline-suggestion-state="pending" data-original-markdown="- child" data-serialized-original-markdown="child"><del data-review-original="true">child</del><ins data-review-decoration="true">nested</ins></mark></li></ul></li></ul>', "- parent\n   - child"],
     ["an inline suggestion inside strong text", '<p><strong>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> bold</strong></p>', "**Keep this bold**"],
     ["an inline suggestion inside emphasized text", '<p><em>Keep <mark data-inline-suggestion-state="pending" data-original-markdown="this"><del data-review-original="true">this</del><ins data-review-decoration="true">that</ins></mark> emphasized</em></p>', "*Keep this emphasized*"],
   ])("serializes decorated %s in its structural context", (_label, html, expected) => {
@@ -2573,6 +2574,93 @@ describe("DesignDocsSurface", () => {
 
     expect(markdown).toBe(expected)
     expect(markdown).not.toMatch(/- -|5\. \*\*5\.|replacement|Timeline|nested|that|data-review/)
+  })
+
+  it("preserves an inline suggestion whose literal text begins with a list marker", () => {
+    const editor = document.createElement("div")
+    editor.innerHTML = '<ul><li>Choose <mark data-inline-suggestion-state="pending" data-original-markdown="- literal" data-serialized-original-markdown="- literal"><del data-review-original="true">- literal</del><ins data-review-decoration="true">another value</ins></mark></li></ul>'
+
+    expect(wysiwygHtmlToMarkdown(editor)).toBe("- Choose - literal")
+  })
+
+  it.each([
+    ["Accept", "an unordered-list item", "- item", "- item", "- replacement"],
+    ["Reject", "an unordered-list item", "- item", "- item", "- replacement"],
+    ["Accept", "a numbered strong item", "5. **Duration**", "5. **Duration**", "5. **Timeline**"],
+    ["Reject", "a numbered strong item", "5. **Duration**", "5. **Duration**", "5. **Timeline**"],
+    ["Accept", "a nested list item", "- parent\n   - child", "- child", "- nested"],
+    ["Reject", "a nested list item", "- parent\n   - child", "- child", "- nested"],
+    ["Accept", "an inline suggestion inside strong text", "**Keep this bold**", "this", "that"],
+    ["Reject", "an inline suggestion inside strong text", "**Keep this bold**", "this", "that"],
+    ["Accept", "an inline suggestion inside emphasized text", "*Keep this emphasized*", "this", "that"],
+    ["Reject", "an inline suggestion inside emphasized text", "*Keep this emphasized*", "this", "that"],
+  ])("flushes a focused Rich Text edit before %s for %s", async (decision, _label, markdown, original, proposed) => {
+    const startOffset = markdown.indexOf(original)
+    const suggestion = {
+      ...docDetail.suggestions[0],
+      original_markdown: original,
+      suggested_markdown: proposed,
+      proposed_markdown: proposed,
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        start_offset: startOffset,
+        end_offset: startOffset + original.length,
+        last_known_start_offset: startOffset,
+        last_known_end_offset: startOffset + original.length,
+        selected_markdown: original,
+        selected_text: original
+      },
+      thread: null
+    }
+    const detail = {
+      ...docDetail,
+      markdown,
+      rendered_markdown: markdown,
+      canonical_revision: "review-revision-1",
+      threads: [],
+      suggestions: [suggestion]
+    }
+    const calls: string[] = []
+    let autosavedMarkdown = ""
+    let reviewedMarkdown = ""
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) return jsonResponse({ design_doc: detail })
+      if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
+        calls.push("autosave")
+        const body = JSON.parse(String(init.body)).design_doc
+        autosavedMarkdown = body.markdown
+        expect(body.base_revision).toBe("review-revision-1")
+        return jsonResponse({ design_doc: { ...detail, markdown: body.markdown, rendered_markdown: body.markdown, canonical_revision: "review-revision-2" }, mode: "canonical" })
+      }
+      if (url.pathname === `/api/v1/app/design_docs/1/suggestions/9/${decision.toLowerCase()}`) {
+        calls.push(decision.toLowerCase())
+        reviewedMarkdown = decision === "Accept" ? autosavedMarkdown.replace(original, proposed) : autosavedMarkdown
+        return jsonResponse({
+          design_doc: { ...detail, markdown: reviewedMarkdown, rendered_markdown: reviewedMarkdown, canonical_revision: "review-revision-3", suggestions: [] },
+          suggestion: { ...suggestion, state: decision === "Accept" ? "accepted" : "rejected" },
+          message: `Suggestion ${decision.toLowerCase()}ed.`
+        })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    renderSurface("/design_docs/1")
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const button = screen.getByRole("button", { name: decision })
+    editor.insertAdjacentHTML("beforeend", "<p>Unsaved user edit</p>")
+    editor.focus()
+    button.focus()
+    fireEvent.click(button)
+
+    await waitFor(() => expect(calls).toEqual(["autosave", decision.toLowerCase()]))
+    expect(autosavedMarkdown).toBe(`${markdown}\n\nUnsaved user edit`)
+    expect(autosavedMarkdown).not.toMatch(/- -|5\. \*\*5\.|replacement|Timeline|nested|that|data-review/)
+    expect(fetchSpy).toHaveBeenCalledWith(`/api/v1/app/design_docs/1/suggestions/9/${decision.toLowerCase()}`, expect.objectContaining({ method: "POST" }))
+    await waitFor(() => expect(wysiwygHtmlToMarkdown(editor)).toBe(reviewedMarkdown))
   })
 
   it.each(["Accept", "Reject"])("suppresses the Rich Text blur autosave when clicking %s", async (decision) => {
