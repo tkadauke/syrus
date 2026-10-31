@@ -52,6 +52,22 @@ RSpec.describe SdlcPipeline::Projection do
     expect(payload[:drill_down][:items].length).to eq(3)
   end
 
+  it "excludes terminal Jobs without successful completion evidence" do
+    Factories.job_record(
+      repository: repository,
+      user: user,
+      state: "closed",
+      closure_reason: "cancelled",
+      finished_at: 1.hour.ago,
+      updated_at: 1.hour.ago
+    )
+
+    payload = described_class.new(repository: repository, user: user).call
+
+    expect(payload[:stages].sum { |stage| stage[:total] }).to eq(0)
+    expect(payload[:groups]).to be_empty
+  end
+
   it "keeps projection query count constant as repository size grows" do
     100.times { |index| Factories.job_record(repository: repository, user: user, state: "running", issue_number: 500 + index) }
     queries = []

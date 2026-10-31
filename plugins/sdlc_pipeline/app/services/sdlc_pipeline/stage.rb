@@ -28,7 +28,7 @@ module SdlcPipeline
     end
 
     def self.for(job, entries)
-      entries.reverse_each.find { |entry| entry.matcher.call(job) } || LIFECYCLE.first
+      entries.reverse_each.find { |entry| entry.matcher.call(job) }
     end
   end
 end

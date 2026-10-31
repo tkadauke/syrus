@@ -19,7 +19,7 @@ module SdlcPipeline
     def call
       deployment_plan = RepoDeploymentStagesReader.for_repository(repository)
       entries = Stage.entries(deployment_plan.stages)
-      jobs = load_jobs
+      jobs = load_jobs.select { |job| Stage.for(job, entries) }
       grouped = jobs.group_by { |job| Stage.for(job, entries).key }
 
       {
