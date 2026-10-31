@@ -88,6 +88,70 @@ RSpec.describe "Coworker background runs" do
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
   end
 
+  it "reads only the coworker's own and explicitly shared chats from a run context" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED, tokenize = 'porter unicode61')
+    SQL
+    SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    shared_chat = ChatSession.create!(user: owner, title: "Shared feedback")
+    private_chat = ChatSession.create!(user: owner, title: "Owner private")
+    ChatShare.create!(chat_session: shared_chat, target: coworker, shared_by_user: owner)
+    own_message = main_chat.messages.create!(role: "user", content: { "text" => "background-own-needle" })
+    shared_message = shared_chat.messages.create!(role: "user", content: { "text" => "background-shared-needle" })
+    private_message = private_chat.messages.create!(role: "user", content: { "text" => "background-private-needle" })
+    [ own_message, shared_message, private_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
+      trigger_kind: "coworker_run", agent_provider: "codex")
+    context = { run: run }
+
+    listed = JSON.parse(Mcp::Tools::ListChatsTool.call(server_context: context).content.first[:text]).fetch("chats")
+    expect(listed.pluck("id")).to contain_exactly(main_chat.id, shared_chat.id)
+
+    searched = JSON.parse(
+      Mcp::Tools::SearchChatsTool.call(server_context: context, query: "background").content.first[:text]
+    ).fetch("results")
+    expect(searched.pluck("chat_session_id")).to contain_exactly(main_chat.id, shared_chat.id)
+
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: main_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: private_chat.id)).to be_error
+  end
+
+  it "calls every tool exposed to an unattended coworker once without raising from run-only context" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED, tokenize = 'porter unicode61')
+    SQL
+    SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    McpToolRegistry.entries(surface: :coworker).map(&:capability).compact.uniq.each do |capability|
+      coworker.grants.create!(capability: capability, approval_policy: "queue")
+    end
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
+      trigger_kind: "coworker_run", agent_provider: "codex")
+    arguments = {
+      "search_jobs" => { query: "nothing" },
+      "read_job" => { job_id: job.id },
+      "propose_job" => { repo: repository.slug, title: "Audit proposal", description: "Audit only." },
+      "propose_epic_with_jobs" => { epic: { slug: "audit-epic", title: "Audit", description: "Audit only." }, jobs: [] },
+      "search_chats" => { query: "nothing" },
+      "read_chat_messages" => { chat_session_id: main_chat.id }
+    }
+
+    context = McpToolContext.from_run(run)
+    exposed = McpToolPolicy.for(context)
+    expect(exposed).not_to be_empty
+    exposed.each do |tool|
+      name = McpToolRegistry.tool_name_for(tool)
+      expect { tool.call(server_context: { run: run }, **arguments.fetch(name, {})) }.not_to raise_error
+    end
+  end
+
   it "queues confirm and queue mutations from unattended runs and replays an approval in its run context" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
     workflow = Coworkers::Workflow.instantiate(job: job)

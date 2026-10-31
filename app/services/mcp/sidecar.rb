@@ -48,7 +48,7 @@ module Mcp
           server_context: server_context,
           exception: e
         )
-        raise
+        Mcp::Tools.exception_response(e)
       end
     end
 

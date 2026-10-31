@@ -70,4 +70,30 @@ RSpec.describe PersistentMcpDaemon::WorkflowContextResolver do
       expect(JSON.parse(response.content.first[:text])).to include("error" => "not_authorized")
     end
   end
+
+  it "returns a useful tool error when persistent workflow dispatch raises" do
+    token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "claude")
+    tool = Class.new(MCP::Tool) do
+      tool_name "broken_persistent_tool"
+
+      def self.call(server_context:)
+        raise KeyError, "missing context"
+      end
+    end
+    resolved = instance_double(
+      PersistentMcpDaemon::WorkflowContextResolver::Resolved,
+      tool_context: instance_double(McpToolContext, run: run),
+      allowed_tool_names: [ "broken_persistent_tool" ],
+      server_context: { run: run },
+      provider: "claude"
+    )
+    allow(described_class).to receive(:resolve).and_return(resolved)
+    PersistentMcpDaemon::WorkflowToolDispatch.wrap(tool)
+
+    response = tool.call(server_context: raw_context(token).merge(workflow_role: AgentRole::WORKFLOW_IMPLEMENT))
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("Tool failed with KeyError", "report it to the operator")
+    expect(McpToolUsage.last).to have_attributes(status: "failed", error_class: "KeyError")
+  end
 end

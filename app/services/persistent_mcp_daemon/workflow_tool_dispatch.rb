@@ -34,6 +34,8 @@ module PersistentMcpDaemon::WorkflowToolDispatch
 
         super(*args, server_context: resolved.server_context, **kwargs, &block)
       end
+    rescue StandardError => e
+      Mcp::Tools.exception_response(e)
     end
   end
 end
