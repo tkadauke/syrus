@@ -25,11 +25,12 @@ module Coworkers
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
+             chat_turn_orientation: "Coworkers::MessageReply",
              chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
-             chat_turn_finalizer: "Coworkers::HomeBranchPersistence",
+             chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
              chat_mcp_tool_set: "Coworkers::ChatToolSet"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"

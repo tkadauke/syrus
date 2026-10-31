@@ -1733,6 +1733,13 @@ the same home-branch merge and conflict reporting as chat turns; failed runs
 also count toward schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
+Coworkers can start a direct exchange with `message_coworker`. An incoming
+coworker message automatically sends the receiving coworker's final answer
+back to its author, carrying the original turn through a maximum of three
+hops. A reply containing only `NO_REPLY` ends the exchange without displaying
+or delivering that reply. Pair rate limits and active-coworker checks apply to
+both manual messages and automatic replies.
+
 When an owner opens a cross-chat bridge thread to a coworker's chat, the
 coworker can reply through that existing thread without an additional grant or
 confirmation. The reply tool cannot open threads or address arbitrary chats:
