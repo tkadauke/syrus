@@ -4,7 +4,9 @@ class Coworkers::MessageReply
 
   NO_REPLY = "NO_REPLY"
 
-  def self.after_chat_turn(chat_session:, user_message:)
+  def self.after_chat_turn(chat_session:, user_message:, turn_succeeded: false)
+    return unless turn_succeeded
+
     new(chat_session:, user_message:).deliver
   end
 
@@ -52,6 +54,7 @@ class Coworkers::MessageReply
     sender = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)&.coworker
     receiver = Coworkers::Coworker.find_by(id: metadata["sender_id"], owner_user_id: sender&.owner_user_id)
     return unless sender && receiver
+    return unless claim_delivery!
 
     Coworkers::MessageDispatcher.call(
       sender: sender,
@@ -67,4 +70,16 @@ class Coworkers::MessageReply
   private
 
   attr_reader :chat_session, :user_message
+
+  def claim_delivery!
+    user_message.with_lock do
+      content = user_message.content.deep_dup
+      metadata = content.fetch("coworker_message")
+      return false if metadata["auto_reply_claimed"]
+
+      metadata["auto_reply_claimed"] = true
+      user_message.update!(content: content)
+      true
+    end
+  end
 end

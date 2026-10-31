@@ -5,7 +5,7 @@ module Syrus
     #
     # Providers expose:
     #
-    #   .after_chat_turn(chat_session:, user_message:) => void
+    #   .after_chat_turn(chat_session:, user_message:, turn_succeeded:) => void
     #
     # Failures are surfaced in the chat while the local workspace is retained.
     module ChatTurnFinalizer

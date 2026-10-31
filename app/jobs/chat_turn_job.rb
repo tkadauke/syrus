@@ -139,6 +139,7 @@ class ChatTurnJob < ApplicationJob
     stop_requested?(force: true)
     if result&.success?
       close_dangling_tool_calls! unless @cancelled
+      @turn_completed_successfully = !@cancelled
     else
       create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
     end
@@ -186,16 +187,22 @@ class ChatTurnJob < ApplicationJob
 
   def finalize_plugin_turns!
     Syrus::PluginRegistry.providers_for(:chat_turn_finalizer).each do |provider|
-      PerformanceLogging.plugin_call(extension_point: :chat_turn_finalizer, provider: provider, operation: :after_chat_turn) do
-        provider.after_chat_turn(chat_session: @chat, user_message: @user_message)
+      begin
+        PerformanceLogging.plugin_call(extension_point: :chat_turn_finalizer, provider: provider, operation: :after_chat_turn) do
+          provider.after_chat_turn(
+            chat_session: @chat,
+            user_message: @user_message,
+            turn_succeeded: @turn_completed_successfully == true
+          )
+        end
+      rescue StandardError => e
+        @chat.messages.create!(
+          role: "system",
+          content: { "text" => "Workspace changes are still recoverable locally, but Syrus could not save them to the coworker's home branch: #{e.message}" },
+          skip_turn_trigger: true
+        )
+        Rails.logger.error("[ChatTurnJob] chat_turn_finalizer #{provider}: #{e.class}: #{e.message}")
       end
-    rescue StandardError => e
-      @chat.messages.create!(
-        role: "system",
-        content: { "text" => "Workspace changes are still recoverable locally, but Syrus could not save them to the coworker's home branch: #{e.message}" },
-        skip_turn_trigger: true
-      )
-      Rails.logger.error("[ChatTurnJob] chat_turn_finalizer #{provider}: #{e.class}: #{e.message}")
     end
   end
 
