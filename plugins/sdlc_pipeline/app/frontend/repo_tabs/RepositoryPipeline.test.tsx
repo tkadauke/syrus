@@ -9,22 +9,40 @@ describe("RepositoryPipelineRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders bounded stage summaries, evidence, and attention highlights", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({
-      repository: { id: 1, slug: "acme/widgets" },
-      tabs: [ { key: "sdlc_pipeline.repository", label: "Pipeline", path: "/repositories/1/plugin/sdlc-pipeline" } ],
-      stages: [ {
-        key: "review", label: "Review", kind: "lifecycle", total: 12,
-        attention_count: 2, aging_count: 4, oldest_age_seconds: 100,
-        highlighted_items: [ {
-          id: 9, slug: "JOB-9", title: "Explain placement", state: "implemented",
-          needs_attention: true, age_seconds: 50, evidence: { type: "job_state", state: "implemented" }
-        } ]
-      } ]
-    }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository: { id: 1, slug: "acme/widgets" },
+        tabs: [{ key: "sdlc_pipeline.repository", label: "Pipeline", path: "/repositories/1/plugin/sdlc-pipeline" }],
+        stages: [
+          {
+            key: "review",
+            label: "Review",
+            kind: "lifecycle",
+            total: 12,
+            attention_count: 2,
+            aging_count: 4,
+            oldest_age_seconds: 100,
+            highlighted_items: [
+              {
+                id: 9,
+                slug: "JOB-9",
+                title: "Explain placement",
+                state: "implemented",
+                needs_attention: true,
+                age_seconds: 50,
+                evidence: { type: "job_state", state: "implemented" }
+              }
+            ]
+          }
+        ]
+      })
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter><RepositoryPipelineRoute repositoryId="1" prefix="" /></MemoryRouter>
+        <MemoryRouter>
+          <RepositoryPipelineRoute repositoryId="1" prefix="" />
+        </MemoryRouter>
       </QueryClientProvider>
     )
 

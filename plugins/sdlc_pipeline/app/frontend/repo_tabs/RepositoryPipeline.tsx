@@ -31,7 +31,11 @@ function PipelineColumn({ stage }: { stage: PipelineStage }) {
             </Text>
           </a>
         ))}
-        {stage.total === 0 ? <Text variant="caption" tone="muted">{t("empty_stage")}</Text> : null}
+        {stage.total === 0 ? (
+          <Text variant="caption" tone="muted">
+            {t("empty_stage")}
+          </Text>
+        ) : null}
       </div>
     </Section.Root>
   )
@@ -58,7 +62,9 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
       {pipeline.data ? (
         <div className="overflow-x-auto pb-3">
           <div className="grid min-w-max auto-cols-[16rem] grid-flow-col gap-3">
-            {pipeline.data.stages.map((stage) => <PipelineColumn key={stage.key} stage={stage} />)}
+            {pipeline.data.stages.map((stage) => (
+              <PipelineColumn key={stage.key} stage={stage} />
+            ))}
           </div>
         </div>
       ) : null}
