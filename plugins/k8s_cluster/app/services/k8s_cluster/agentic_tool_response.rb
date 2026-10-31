@@ -28,6 +28,7 @@ module K8sCluster
     end
 
     def respond_with(cluster_id:, params:, server_context: nil)
+      context = nil
       Mcp::Tools.with_database_connection do
         previous_context = Thread.current[:k8s_cluster_mcp_context]
         previous_tool_name = Thread.current[:k8s_cluster_mcp_tool_name]
