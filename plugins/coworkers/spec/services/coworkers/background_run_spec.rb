@@ -60,7 +60,8 @@ RSpec.describe "Coworker background runs" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     unit = instance_double(WorkUnit, workflow: workflow, member_jobs: [ job ])
     step = workflow.steps.find_by!(kind: "coworker_run")
-    main_chat.update!(turn_in_flight: true)
+    owner_message = main_chat.messages.create!(role: "user", content: { "text" => "Meanwhile" }, skip_turn_trigger: true)
+    main_chat.update!(turn_in_flight: true, current_turn_message_id: owner_message.id)
 
     blocked = Coworkers::TurnAvailabilityGate.call(unit, step: step)
     expect(blocked).to be_blocked
@@ -146,6 +147,73 @@ RSpec.describe "Coworker background runs" do
     expect(main_chat.reload).not_to be_turn_in_flight
   end
 
+  it "posts the card and wakes the coworker for one full unattended chat turn" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Daily review",
+      prompt: "Review today's calendar.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
+    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Calendar reviewed.", started_at: 5.seconds.ago, finished_at: Time.current, cost_usd: 0.25)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    expect { Coworkers::PostToChat.new(post_run).call }
+      .to change(main_chat.messages, :count).by(2)
+      .and have_enqueued_job(ChatTurnJob)
+
+    wake = main_chat.messages.order(:id).last
+    expect(wake).to have_attributes(role: "system")
+    expect(wake.content.fetch("internal_prompt")).to include(
+      "follow-up to your scheduled run", "Daily review", "Review today's calendar.",
+      "Calendar reviewed.", "Run ID: #{source_run.id}", "Duration: 5.0 seconds", "Cost: $0.25",
+      "Do not repeat the whole background-run card", "Do not start or fire another scheduled run"
+    )
+    expect(main_chat.reload).to be_turn_in_flight
+    expect(McpToolContext.from_chat_session(main_chat)).to have_attributes(role: AgentRole::COWORKER_CHAT, interactive: false)
+    expect(McpToolPolicy.for(McpToolContext.from_chat_session(main_chat)).map { |tool| McpToolRegistry.tool_name_for(tool) }).to include("propose_job")
+  end
+
+  it "posts only the card when the schedule is quiet" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Quiet review",
+      prompt: "Review quietly.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "quiet"
+    )
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Done.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    expect { Coworkers::PostToChat.new(post_run).call }.to change(main_chat.messages, :count).by(1)
+    expect(main_chat.chat_queued_messages).to be_empty
+    expect(main_chat.reload).not_to be_turn_in_flight
+  end
+
+  it "queues one wake per run while another turn is in flight" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Busy review",
+      prompt: "Review it.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Done.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+    owner_message = main_chat.messages.create!(role: "user", content: { "text" => "Meanwhile" }, skip_turn_trigger: true)
+    main_chat.update!(turn_in_flight: true, current_turn_message_id: owner_message.id)
+
+    2.times { Coworkers::PostToChat.new(post_run).call }
+
+    expect(main_chat.chat_queued_messages.pending.count).to eq(1)
+    expect(main_chat.messages.where(role: "system")).to be_empty
+    expect(source_run.reload.coworker_wake_enqueued_at).to be_present
+  end
+
 
   it "posts a result without clearing an owner turn that started while the run was finishing" do
     workflow = Coworkers::Workflow.instantiate(job: job)
@@ -165,17 +233,26 @@ RSpec.describe "Coworker background runs" do
   end
 
   it "posts a failure and closes the infrastructure Job when the agent step fails" do
+    task = ScheduledTasks::Task.create!(
+      user: owner, repository: repository, coworker_id: coworker.id, name: "Failing review",
+      prompt: "Review it.", kind: "cron", schedule_input: "Every day at 9:00 AM",
+      pr_pileup_policy: "skip", after_run: "wake"
+    )
+    job.update!(scheduled_task_id: task.id)
     workflow = Coworkers::Workflow.instantiate(job: job)
     source_step = workflow.steps.find_by!(kind: "coworker_run")
     source_step.update_columns(state: "failed")
     source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
     source_run.update_columns(state: "failed", finished_at: Time.current)
 
-    expect { Coworkers::Workflow.after_fail(workflow) }.to change(main_chat.messages, :count).by(1)
+    expect { Coworkers::Workflow.after_fail(workflow) }
+      .to change(main_chat.messages, :count).by(2)
+      .and have_enqueued_job(ChatTurnJob)
 
-    expect(main_chat.messages.order(:id).last.content.fetch("background_run")).to include(
+    expect(main_chat.messages.order(:id).second_to_last.content.fetch("background_run")).to include(
       "run_id" => source_run.id, "state" => "failed", "merge_state" => "merged"
     )
+    expect(main_chat.messages.order(:id).last.content.fetch("internal_prompt")).to include("Result: failed", "Background task failed.")
     expect(lifecycle).to have_received(:finalize_background!).with(
       path: StepWorkspace.for(source_step, run: source_run).path,
       workflow: workflow

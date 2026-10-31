@@ -89,7 +89,8 @@ const detailPayload = {
         schedule_explanation: "Every day at 9:00 AM UTC",
         fire_at: null,
         next_fire_at: "2026-10-30T09:00:00Z",
-        last_fired_at: null
+        last_fired_at: null,
+        after_run: "wake"
       },
       {
         id: 32,
@@ -101,7 +102,8 @@ const detailPayload = {
         schedule_explanation: null,
         fire_at: "2026-10-29T09:00:00Z",
         next_fire_at: null,
-        last_fired_at: "2026-10-29T09:00:00Z"
+        last_fired_at: "2026-10-29T09:00:00Z",
+        after_run: "quiet"
       }
     ],
     message_traffic: {
@@ -667,6 +669,7 @@ it("lists and manages schedules on the coworker page", async () => {
 
   expect(screen.getByText("Morning briefing")).toBeInTheDocument()
   expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
+  expect(screen.getByRole("combobox", { name: "After each run" })).toHaveValue("wake")
   const firedRow = screen.getByText("Completed one-shot").closest("li")
   expect(firedRow).not.toBeNull()
   expect(within(firedRow!).queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()

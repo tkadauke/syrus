@@ -1740,9 +1740,13 @@ checkouts are disposable and are re-cloned from the durable remote when lost.
 Renaming a coworker moves its home branch while no turn is running. Deleting
 one archives that branch under `coworkers/archived/` and releases the handle
 for reuse. Scheduled background work posts a collapsed result block with its
-summary, duration, and cost into the coworker's main chat. Its workspace uses
-the same home-branch merge and conflict reporting as chat turns; failed runs
-also count toward schedule auto-pause and close their internal Jobs. Coworker
+summary, duration, and cost into the coworker's main chat. By default, the
+coworker then wakes for a normal, unattended chat turn to comment on the
+result with its full chat grants; this follow-up waits when another turn is
+active and never fires another schedule. A schedule can instead use quiet
+delivery for the result card only. Its workspace uses the same home-branch
+merge and conflict reporting as chat turns; failed runs also count toward
+schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
 Coworkers can start a direct exchange with `message_coworker`. An incoming

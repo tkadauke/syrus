@@ -581,7 +581,7 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
   const { t } = useT("coworkers")
   const [kind, setKind] = useState("cron")
   const create = useMutation({
-    mutationFn: (schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string }) =>
+    mutationFn: (schedule: { name: string; prompt: string; kind: string; schedule_input?: string; fire_at?: string; after_run: "wake" | "quiet" }) =>
       createCoworkerSchedule(String(coworker.id), schedule),
     onSuccess: onChanged
   })
@@ -597,7 +597,8 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
       prompt: String(data.get("prompt") || ""),
       kind,
       schedule_input: kind === "cron" ? String(data.get("schedule_input") || "") : undefined,
-      fire_at: kind === "one_shot" ? new Date(String(data.get("fire_at") || "")).toISOString() : undefined
+      fire_at: kind === "one_shot" ? new Date(String(data.get("fire_at") || "")).toISOString() : undefined,
+      after_run: data.get("after_run") === "quiet" ? "quiet" : "wake"
     })
   }
   return (
@@ -621,6 +622,13 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
           {t("schedule.prompt")}
           <Textarea className="mt-1 min-h-24" name="prompt" required />
         </label>
+        <label className="block text-sm font-medium">
+          {t("schedule.after_run")}
+          <Select className="mt-1" defaultValue="wake" name="after_run">
+            <option value="wake">{t("schedule.after_run_wake")}</option>
+            <option value="quiet">{t("schedule.after_run_quiet")}</option>
+          </Select>
+        </label>
         {create.isError ? <PanelMessage>{create.error.message}</PanelMessage> : null}
         <button className="rounded bg-brand px-3 py-2 text-sm font-medium text-white" disabled={create.isPending}>
           {t("schedule.add")}
@@ -635,7 +643,7 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
               <div>
                 <div className="font-medium">{schedule.name}</div>
                 <div className="text-sm text-text-secondary">
-                  {schedule.schedule_explanation || schedule.fire_at} · {schedule.state}
+                  {schedule.schedule_explanation || schedule.fire_at} · {schedule.state} · {t(`schedule.after_run_${schedule.after_run}`)}
                 </div>
               </div>
               <div className="flex gap-2">

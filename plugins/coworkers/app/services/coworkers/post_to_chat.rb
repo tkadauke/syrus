@@ -24,6 +24,7 @@ module Coworkers
         },
         skip_turn_trigger: true
       )
+      enqueue_wake!(chat:, job:, source_run: failed_run, summary: failed_run&.agent_summary.presence || "Background task failed.", duration: duration)
     end
 
     def call
@@ -54,6 +55,7 @@ module Coworkers
         },
         skip_turn_trigger: true
       )
+      self.class.enqueue_wake!(chat:, job:, source_run:, summary:, duration:)
     end
 
     def self.finalize_workspace!(chat:, workflow:, source_run:, path: nil)
@@ -61,6 +63,13 @@ module Coworkers
 
       path ||= StepWorkspace.for(source_run.step, run: source_run).path
       Coworkers::ChatWorkspaceLifecycle.new(chat).finalize_background!(path:, workflow:)
+    end
+
+    def self.enqueue_wake!(chat:, job:, source_run:, summary:, duration:)
+      task = ScheduledTasks::Task.find_by(id: job.scheduled_task_id)
+      return unless task && source_run
+
+      Coworkers::AfterRunPolicy.for(task.after_run).enqueue!(chat:, task:, source_run:, summary:, duration:)
     end
   end
 end
