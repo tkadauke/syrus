@@ -63,7 +63,13 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
   self.use_transactional_tests = false
 
   around do |example|
-    WorkEngine::Simulation::ScenarioExecution.wrap { example.run }
+    # These scenarios intentionally exercise thousands of real persistence
+    # operations. SQL performance logging is orthogonal to the state-machine
+    # behavior under test, and fingerprinting every statement substantially
+    # slows the suite when an operator has enabled the feature globally.
+    PerformanceLogging.suppress do
+      WorkEngine::Simulation::ScenarioExecution.wrap { example.run }
+    end
   end
 
   before do
@@ -89,10 +95,17 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
   end
 
   it "drives a queued initial workflow to an implemented job" do
+    reconciler_scopes = []
+    allow(WorkEngine::Reconciler).to receive(:call).and_wrap_original do |original, **args|
+      reconciler_scopes << args.slice(:job_id, :work_intent_id)
+      original.call(**args)
+    end
+
     result = run_scenario("single_initial_success")
 
     expect(result).to be_success
     expect(Job.find(result.job_ids.first)).to be_implemented
+    expect(reconciler_scopes).to all(include(job_id: result.job_ids.first))
   end
 
   it "reconciles a queued Job with a published PR without launching replacement work" do
