@@ -63,12 +63,9 @@ module Permissions
       end
 
       effective = explicit.last
-      ceiling = explicit.reject(&:delegable).min_by { |rule| POLICY_RANK.fetch(rule.policy) }
+      ceiling = select_ceiling(matching.reject(&:delegable))
       if ceiling && POLICY_RANK.fetch(effective.policy) > POLICY_RANK.fetch(ceiling.policy)
-        chain = chain.map do |item|
-          item.rule == ceiling ? Explanation.new(layer: item.layer, status: :decisive_ceiling,
-            rule: item.rule, policy: item.policy, detail: :non_delegable) : item
-        end
+        chain = mark_ceiling(chain, ceiling)
         effective = ceiling
       end
       chain = mark_decisive(chain, effective)
@@ -82,6 +79,21 @@ module Permissions
         [ rule.policy == :deny ? 0 : 1, rule.specificity.map { |part| -part },
           POLICY_RANK.fetch(rule.policy), rule.id ]
       end
+    end
+
+    def select_ceiling(rules)
+      rules.min_by do |rule|
+        [ POLICY_RANK.fetch(rule.policy), LAYERS.index(rule.layer),
+          rule.specificity.map { |part| -part }, rule.id ]
+      end
+    end
+
+    def mark_ceiling(chain, ceiling)
+      explanation = Explanation.new(layer: ceiling.layer, status: :decisive_ceiling,
+        rule: ceiling, policy: ceiling.policy, detail: :non_delegable)
+      return chain.map { |item| item.rule == ceiling ? explanation : item } if chain.any? { |item| item.rule == ceiling }
+
+      chain.flat_map { |item| item.layer == ceiling.layer ? [ item, explanation ] : item }
     end
 
     def normalization_failure(classification, normalized)
