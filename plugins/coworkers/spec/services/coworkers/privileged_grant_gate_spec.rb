@@ -21,6 +21,18 @@ RSpec.describe Coworkers::PrivilegedGrantGate do
     expect(described_class.availability(descriptor)).to be_available
   end
 
+  it "discovers broker authorization through the plugin registry" do
+    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "credential_store" }
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ manifest.with(enabled: false) ])
+
+    expect(described_class.send(:broker_authorization_available?)).to be(false)
+
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ manifest.with(enabled: true) ])
+    allow(Syrus::PluginRegistry).to receive(:health).and_return(instance_double(Syrus::PluginHealth, healthy?: true))
+
+    expect(described_class.send(:broker_authorization_available?)).to be(true)
+  end
+
   it "suppresses a previously assigned privileged grant after capability loss" do
     owner = Factories.user
     repository = Factories.repository(user: owner)
