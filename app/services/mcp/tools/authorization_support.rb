@@ -68,7 +68,8 @@ module Mcp::Tools
             "arguments" => arguments.stringify_keys,
             "run_id" => context.run&.id,
             "approval_policy" => policy,
-            "approval_inbox" => context.run? && policy == "queue"
+            "approval_inbox" => context.run? && policy == "queue",
+            "actor" => approval_actor(context.agent_actor)
           }.compact
         )
         server_context[:current_message]&.update_columns(pending_action_id: action.id)
@@ -78,6 +79,18 @@ module Mcp::Tools
           approval_policy: policy,
           message: policy == "confirm" ? "Waiting for the owner to confirm this action." : "Queued for owner approval."
         )
+      end
+
+      def approval_actor(actor)
+        return unless actor
+
+        {
+          "name" => actor.respond_to?(:name) ? actor.name : nil,
+          "handle" => actor.respond_to?(:handle) ? actor.handle : nil,
+          "avatar_url" => actor.respond_to?(:avatar_url) ? actor.avatar_url : nil,
+          "avatar_key" => actor.respond_to?(:avatar_key) ? actor.avatar_key : nil,
+          "accent_hex" => actor.respond_to?(:accent_hex) ? actor.accent_hex : nil
+        }.compact
       end
 
       def with_coworker_approval_bypass

@@ -1202,6 +1202,11 @@
   "raw_details": "Singula cruda",
   "redacted": "celata",
   "redaction_notice": "Valores arcanis similes ante ostensionem et transcriptionem celantur.",
+  "tool_approval_coworker": "Collega",
+  "tool_approval_no_arguments": "Argumenta nulla praebita sunt.",
+  "tool_approval_not_provided": "Non praebitum",
+  "tool_approval_show_less": "Pauciores ostende",
+  "tool_approval_show_more": "Plura ostende",
   "shared": {
     "file_count_one": "{{count}} fasciculus",
     "file_count_other": "{{count}} fasciculi",

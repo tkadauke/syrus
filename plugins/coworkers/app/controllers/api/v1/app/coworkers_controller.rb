@@ -155,13 +155,13 @@ module Api
         def approvals
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
-          render json: { approvals: Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.map { |action| approval_json(action) } }
+          render json: { approvals: Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.map { |action| approval_json(action, coworker:) } }
         end
 
         def approve
           action = find_approval
           if action.enqueue_confirmation!(user: Current.user)
-            render json: { approval: approval_json(action.reload) }, status: :accepted
+            render json: { approval: approval_json(action.reload, coworker: find_coworker) }, status: :accepted
           else
             render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
           end
@@ -172,7 +172,7 @@ module Api
         def reject
           action = find_approval
           if action.reject!(user: Current.user)
-            render json: { approval: approval_json(action.reload) }
+            render json: { approval: approval_json(action.reload, coworker: find_coworker) }
           else
             render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
           end
@@ -258,11 +258,15 @@ module Api
           Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.find(params[:approval_id])
         end
 
-        def approval_json(action)
+        def approval_json(action, coworker:)
           {
             id: action.id, tool_name: action.payload["tool_name"], tool_input: action.payload["arguments"],
             run_id: action.payload["run_id"], chat_id: action.chat_session_id,
-            created_at: action.created_at.iso8601, state: action.state
+            created_at: action.created_at.iso8601, state: action.state,
+            actor: {
+              name: coworker.name, handle: coworker.handle, avatar_key: coworker.avatar_key,
+              avatar_url: coworker.avatar_url, accent_hex: coworker.accent_hex
+            }
           }
         end
 

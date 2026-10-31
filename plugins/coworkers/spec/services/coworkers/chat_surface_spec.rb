@@ -159,6 +159,7 @@ RSpec.describe "Coworker chat surface" do
     expect(response_payload(response)).to include("approval_policy" => "confirm")
     expect(chat.proposals).to be_empty
     expect(chat.pending_actions.last).to have_attributes(action: "coworker_tool_call", state: "pending")
+    expect(chat.pending_actions.last.payload.fetch("actor")).to include("name" => coworker.name, "handle" => coworker.handle)
   end
 
   it "offers interactive-only tools only for an interactive turn" do

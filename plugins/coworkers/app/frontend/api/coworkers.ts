@@ -76,6 +76,13 @@ export type CoworkerApproval = {
   chat_id: number
   created_at: string
   state: string
+  actor: {
+    name: string
+    handle: string
+    avatar_key: string | null
+    avatar_url: string | null
+    accent_hex: string | null
+  }
 }
 export type CoworkerModelOptions = {
   provider: string
