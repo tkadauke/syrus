@@ -490,6 +490,7 @@ module App
       end
 
       def step_display_name(step, workflow: step.workflow)
+        return step.details.to_h["provider"].to_s.titleize if step.details.to_h["panel_member"] && step.details.to_h["provider"].present?
         return grader_display_name(step) if step.kind == "grader" || step.kind == "preflight_grader"
         return merge_train_land_label(workflow, after_rebase: false) if step.kind == "merge_train_land"
         return merge_train_land_label(workflow, after_rebase: true) if step.kind == "merge_train_land_after_rebase"
