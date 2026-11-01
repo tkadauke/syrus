@@ -35,6 +35,23 @@ RSpec.describe Execution::ChatWorkloadPolicy do
     expect(AppSetting::CONTAINED_CHAT_EXECUTION_MODES).to eq(%w[ off preferred required ])
   end
 
+  # Regression: a rolling deploy puts new code in front of a pre-migration
+  # schema snapshot, because attribute methods come from the column list cached
+  # at boot. Reading this unguarded raised
+  # `NoMethodError: undefined method 'contained_chat_execution'` on the chat
+  # turn path during a production rollout -- a hard failure where the honest
+  # answer is simply "not configured".
+  it "reads as off against a schema that predates its own column" do
+    setting = AppSetting.current
+    allow(AppSetting).to receive(:current).and_return(setting)
+    allow(setting).to receive(:has_attribute?).with(:contained_chat_execution).and_return(false)
+
+    expect { AppSetting.contained_chat_execution }.not_to raise_error
+    expect(AppSetting.contained_chat_execution).to eq("off")
+    expect(AppSetting.contained_chat_execution_requested?).to be(false)
+    expect(described_class.for_current_setting).to be_nil
+  end
+
   it "rejects a mode outside the tri-state" do
     setting = AppSetting.current
     setting.contained_chat_execution = "sometimes"
