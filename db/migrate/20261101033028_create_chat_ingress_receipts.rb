@@ -11,13 +11,13 @@ class CreateChatIngressReceipts < ActiveRecord::Migration[8.1]
 
     unless table_exists?(:chat_ingress_receipts)
       create_table :chat_ingress_receipts do |t|
-        t.references :sender_user, null: false
+        t.references :sender_user, null: false, foreign_key: false
         t.string :idempotency_key, null: false
         t.string :operation, null: false
         t.string :payload_digest, null: false
-        t.references :chat_session
-        t.references :chat_message
-        t.references :chat_queued_message
+        t.references :chat_session, foreign_key: false
+        t.references :chat_message, foreign_key: false
+        t.references :chat_queued_message, foreign_key: false
         t.integer :response_status
         t.json :response_body
         t.timestamps
