@@ -143,6 +143,21 @@ RSpec.describe "surface-neutral pending action authorization", :ci_only do
     expect(operation.decide!("denied", principal: user)).to be(false)
   end
 
+  it "cannot enter legacy confirmation while an authorization item is unresolved" do
+    request = create_request(action: "coworker_tool_call", payload: {
+      "tool_name" => "execute_query", "arguments" => { "sql" => "SELECT 1" }
+    })
+    operation = create_item(request)
+
+    expect { request.start_confirmation!(user:, status: "queued", step: "Waiting") }
+      .to raise_error(ActiveRecord::RecordInvalid, /prerequisites must be approved/)
+    expect(request.reload).to be_pending
+
+    operation.decide!("approved", principal: user, duration: "invocation")
+    expect(request.start_confirmation!(user:, status: "queued", step: "Waiting")).to be(true)
+    expect(request.reload).to be_confirming
+  end
+
   it "rejects prerequisite relationships across requests" do
     item = create_item(create_request)
     other = create_item(create_request(deduplication_key: "other"))

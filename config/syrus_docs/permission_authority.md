@@ -49,3 +49,7 @@ generalized pending action. The operation item depends on possession, stores a
 redacted argument snapshot and stable invocation fingerprint, and defaults to
 invocation-only authority. Equivalent active requests deduplicate, preserving
 one interruption for one attempted operation.
+Approving possession records a confirm-level grant for that named coworker;
+approving the exact operation then replays only the fingerprinted arguments.
+Execution remains blocked until every prerequisite is approved, and denying
+either item closes the request without running the tool.
