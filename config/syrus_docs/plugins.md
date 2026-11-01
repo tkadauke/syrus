@@ -1032,6 +1032,28 @@ creates the rules. Registration, plugin installation or enablement, resource
 configuration, and migrations only expose this metadata and never apply a
 recommendation or preset automatically.
 
+Permission providers should run the public RSpec conformance kit from their
+own specs:
+
+```ruby
+require "permissions/provider_test_kit"
+Permissions::ProviderTestKit.define_examples(
+  RSpec,
+  adapter: ->(example) { MyPermissionProviderContractAdapter.new(example) }
+)
+```
+
+The adapter exposes its `provider` and supplies real probes for fingerprint
+arguments, redaction secrets, hidden and unknown resource identifiers,
+uncertain classification, non-delegable ceilings, the previous descriptor
+release, installation/enablement, and an authority snapshot. The shared tests
+check deterministic idempotent normalization, redaction, visibility safety,
+maximum-risk fallback, ceiling enforcement, identifier migration, descriptor
+completeness, and the rule that installation and enablement grant no authority.
+Failures name the operation or resource scope that violated the contract.
+Visibility and installation probes must cross the plugin's real lookup and
+lifecycle boundaries; returning fabricated results does not prove conformance.
+
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
 (e.g. only the `implement` step), not just the repository — see
