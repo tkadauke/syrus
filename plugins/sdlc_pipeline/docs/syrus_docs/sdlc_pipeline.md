@@ -10,6 +10,8 @@ Landed remains a separate lane before any configured deployment stages, making t
 
 `GET /api/v1/app/repositories/:repository_id/sdlc_pipeline` returns the bounded overview. Pass `stage=<stage-key>`, `page=<number>`, and `limit=<1..50>` for bounded drill-down. Terminal work is limited to the 50 most recently completed Jobs from the last 30 days. The endpoint requires an authenticated user with access through `Repository.accessible_to(Current.user)` and additionally applies `Job.visible_to(Current.user)`.
 
+The FilterBar selects the Job cohort before stage totals, Epic aggregates, highlighted cards, and drill-down rows are calculated. It supports nested AND/OR/NOT expressions for search, associated chat, Epic, Job, and owner. Repository scope comes from the route and is never persisted in a saved view. Pipeline stage and lifecycle state are deliberately not filter fields, so configured stages remain visible even when empty. The built-in **All** and **Mine** views use the same editable AST as user-defined SmartFolders; historical range, scroll, and other presentation state are not saved.
+
 The response includes placement evidence for every returned item: its lifecycle state, landed SHA, or deployment-stage status and timestamp. Repository deployment configuration is read at request time, so edits are reflected without a refresh job or cache-owned state.
 
 Disabling or deleting the plugin removes the tab, endpoint, frontend module, translations, and this documentation. Jobs, Epics, landing records, and deployment-stage statuses remain untouched.

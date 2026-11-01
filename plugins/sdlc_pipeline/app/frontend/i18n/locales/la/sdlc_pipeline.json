@@ -3,6 +3,8 @@
   "aria_pipeline": "Canalis SDLC repositorii",
   "title": "Canalis SDLC",
   "subtitle": "Opera praesentia ab initio ad traditionem · renovata {{time}}",
+  "folders_heading": "Prospectus",
+  "folders_aria": "Prospectus canalis servati",
   "loading": "Canalis oneratur...",
   "loading_items": "Opera gradus onerantur...",
   "load_error": "Canalis onerari non potuit.",
