@@ -456,6 +456,9 @@ class RunJob < ApplicationJob
     @handler = Steps.handler_for(@step.kind).new(@run)
     begin
       @handler.call
+    rescue Steps::Base::AuthorizationCheckpointReached
+      log("step #{@step.kind} released its provider while waiting for permission", kind: "system")
+      return
     rescue Steps::Base::CannotProceed => e
       if PostImplementationReviewFailure.optional_step?(@step)
         log("WARNING: optional post-implementation review could not proceed: #{e.reason}", kind: "system")

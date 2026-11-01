@@ -3367,6 +3367,28 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload.state).to eq("running")
   end
 
+  it "does not reap a running Run suspended at an authorization checkpoint" do
+    started_at = (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    run.update_columns(state: "running", started_at: started_at, last_heartbeat_at: started_at)
+    step.update_columns(kind: "implement", state: "running", started_at: started_at)
+    workflow.update_columns(state: "running", started_at: started_at)
+    job.update_columns(state: "running", started_at: started_at)
+    request = ChatPendingAction.create!(
+      request_kind: "authorization_request", user: job.user, repository: job.repository,
+      origin: run, subject: job.user, runtime_role: "implementer",
+      deduplication_key: "reconciler-authorization-checkpoint",
+      purpose: "Request a protected operation"
+    )
+    request.checkpoint_authorization!(payload: { run_id: run.id })
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :running_run_without_live_worker_evidence)).to be_nil
+    expect(result.repair_plans.map(&:action)).not_to include("mark_worker_died_and_retry_failed_step")
+    expect(run.reload).to be_running
+    expect(job.reload).to be_running
+  end
+
   it "does not fail a stale-heartbeat grader while its SolidQueue worker still owns the execution" do
     ensure_solid_queue_test_tables!
     started_at = (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago

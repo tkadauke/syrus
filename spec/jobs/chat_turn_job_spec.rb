@@ -1336,6 +1336,28 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(chat.reload).not_to be_turn_in_flight
   end
 
+  it "ends an interactive turn cleanly when authorization is checkpointed" do
+    ChatTurnJob.agent_runner = ->(**_) {
+      request = ChatPendingAction.create!(
+        request_kind: "authorization_request", user: user, origin: chat, subject: user,
+        runtime_role: "interactive_chat", deduplication_key: "chat-turn-authorization",
+        purpose: "Request a protected operation"
+      )
+      request.checkpoint_authorization!(payload: { message_id: user_message.id })
+      result_fixture(
+        session_id: "authorization-session", exit_status: nil, is_error: false,
+        outcome: "stopped", stopped: true
+      )
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(chat.reload).not_to be_turn_in_flight
+    expect(chat).to be_waiting_for_permission
+    expect(chat.messages.where(role: "system").filter_map { |message| message.content["provider_error"] }).to be_empty
+    expect(chat.provider_session_metadata.session_id).to eq("authorization-session")
+  end
+
   it "does not promote a queued follow-up while the agent process is still live" do
     queued_message = chat.chat_queued_messages.create!(content: { "text" => "Wait for process exit" })
     ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, stop_requested:, **_) {

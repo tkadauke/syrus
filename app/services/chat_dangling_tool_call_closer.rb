@@ -21,6 +21,7 @@ class ChatDanglingToolCallCloser
 
   REASONS = [
     Reason.new(key: "turn_ended", message: "Agent turn ended before this tool returned.", benign: true),
+    Reason.new(key: "authorization_required", message: "Agent turn paused for authorization before this tool returned.", benign: true),
     Reason.new(key: "operator_cancelled", message: "Cancelled by operator before this tool returned.", benign: true),
     Reason.new(key: "turn_failed", message: "Agent turn failed before this tool returned.", benign: false)
   ].index_by(&:key).freeze
