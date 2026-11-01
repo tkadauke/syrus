@@ -547,6 +547,8 @@ export function pendingActionCardData(action: ChatPendingAction): ChatPendingAct
     after_snapshot: action.after_snapshot,
     outcome: action.outcome,
     review: action.review,
+    request_kind: action.request_kind,
+    authorization_items: action.authorization_items,
     resource_title: action.resource_title,
     resource_url: action.resource_url,
     document: action.document,
