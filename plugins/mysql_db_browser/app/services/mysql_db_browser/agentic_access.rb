@@ -88,6 +88,7 @@ module MysqlDbBrowser
 
     def self.coworker_connection_in_scope?(connection, context)
       return true unless context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+      return false if connection.credential_store_credential_id.blank?
 
       context.capability_scopes["mysql.read"].to_s == connection.id.to_s
     end

@@ -18,6 +18,7 @@ module Coworkers
     default_enabled false
     disableable true
     depends_on [ "scheduled_tasks" ]
+    optionally_depends_on [ "credential_store" ]
     provides mentionable: "Coworkers::MentionableProvider",
              callbacks: "Coworkers::Callbacks",
              mcp_run_context_contributor: "Coworkers::RunContextContributor",

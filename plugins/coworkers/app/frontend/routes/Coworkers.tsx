@@ -507,6 +507,11 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 <p className="mt-1 text-xs text-text-secondary">
                   {t("capabilities.unlocks", { tools: descriptor.tools.join(", ") || t("capabilities.no_tools") })}
                 </p>
+                {descriptor.available === false ? (
+                  <p className="mt-2 rounded border border-warning-border bg-warning-bg px-2 py-1 text-xs text-warning-text">
+                    {t(`capabilities.unavailable.${descriptor.unavailable_reason || "confinement_unavailable"}`)}
+                  </p>
+                ) : null}
                 {capability === "workspace.files" ? (
                   <div>
                     <label className="mt-2 block text-xs text-text-secondary">
@@ -555,7 +560,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 {(["auto", "confirm", "queue", "off"] as const)
                   .filter((policy) => POLICY_RANK[descriptor.maximum_policy] >= POLICY_RANK[policy])
                   .map((policy) => (
-                    <option key={policy} value={policy}>
+                    <option disabled={descriptor.available === false && policy !== "off"} key={policy} value={policy}>
                       {t(`capabilities.policies.${policy}`)}
                     </option>
                   ))}

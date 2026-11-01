@@ -175,6 +175,16 @@ Capabilities that affect anything outside the workspace default to `confirm`
 or `queue`; messaging the owner defaults to `confirm`. Removing a protected
 file path is also an escalation and requires confirmation.
 
+Database, Kubernetes, log, and third-party integration grants are privileged.
+They are assignable and advertised only while a live worker reports verified
+`confined_coworker` execution and the Credential Store broker authorization
+path is enabled. The Capabilities tab explains which prerequisite is missing.
+If worker capability or broker health is lost, stored grants remain visible
+for audit and easy recovery but disappear from the coworker's runtime tool
+context until the gate is healthy again. Credentials stay inside broker
+services; grant state, tool metadata, workspaces, mounts, and logs contain only
+credential identifiers and redacted lease provenance, never secret material.
+
 Operator chat exposes the same aggregated catalog through
 `list_coworker_grants`. `propose_coworker_grants` accepts one or more desired
 capability, policy, and optional scope changes; `off` removes a grant and lower
@@ -335,3 +345,23 @@ Syrus never silently runs them on the worker. The per-turn container can write
 only the coworker's chat checkout and that chat/provider's agent home, while
 the existing turn finalizer commits and merges checkout changes into the home
 branch. Temporary files and the container itself are discarded after the turn.
+
+## Read-only repository access
+
+Coworkers start without product-code access. Owners can grant `code.read` for
+an explicit set of accessible repositories or for all repositories the owner
+can read. Its only policy is `auto`: once the owner confirms the grant and its
+scope, the coworker can attach or detach product repositories in chats, list
+files, read capped and secret-redacted files, search code, and inspect pull
+request or Job diffs. Background runs receive the navigation and diff tools;
+attaching and detaching checkouts remain interactive-chat actions.
+
+Attached product checkouts are recursively stripped of write bits, including
+Git metadata. The `workspace.files` and `workspace.shell` grants continue to
+apply only to the coworker's own workspace repository, which remains the
+chat's primary repository regardless of product attachment order. Product
+repositories remain secondary attachments for code-reading context and never
+become persistence targets. This blocks ordinary native-shell writes and Git
+persistence. Until the agent sandbox supplies a true read-only mount, a hostile
+process running as the checkout owner could restore its own mode bits; that
+remaining gap belongs to sandbox enforcement.

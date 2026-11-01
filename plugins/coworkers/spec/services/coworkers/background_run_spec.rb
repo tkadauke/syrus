@@ -32,6 +32,32 @@ RSpec.describe "Coworker background runs" do
     expect(workflow.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT)).to eq("coworkers/maya-background")
   end
 
+  it "routes scheduled runs only to workers with verified coworker confinement" do
+    task = instance_double(ScheduledTasks::Task, coworker_id: coworker.id, user_id: owner.id, repository: repository,
+      user: owner, id: 42, name: "Confined task", prompt: "Inspect production safely.")
+    handler = Coworkers::ScheduledTaskFireHandler.new(task)
+    allow(WorkUnits::Launcher).to receive(:start!)
+    allow(Coworkers::PrivilegedGrantGate).to receive(:confinement_required?).with(coworker).and_return(true)
+
+    created = handler.fire!(now: Time.current)
+
+    expect(created.planned_execution_capabilities).to eq(
+      "os" => [ "linux" ], "runtime" => [ "confined_coworker" ]
+    )
+    expect(created.planned_execution_source).to eq("explicit")
+  end
+
+  it "keeps unprivileged scheduled runs on the ordinary Linux worker pool" do
+    task = instance_double(ScheduledTasks::Task, coworker_id: coworker.id, user_id: owner.id, repository: repository,
+      user: owner, id: 43, name: "Ordinary task", prompt: "Summarize the workspace.")
+    allow(WorkUnits::Launcher).to receive(:start!)
+
+    created = Coworkers::ScheduledTaskFireHandler.new(task).fire!(now: Time.current)
+
+    expect(created.planned_execution_capabilities).to eq("os" => [ "linux" ])
+    expect(created.planned_execution_source).to eq("defaulted")
+  end
+
   it "runs prepare through a workspace pinned to the coworker's home branch" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "prepare")
@@ -130,7 +156,9 @@ RSpec.describe "Coworker background runs" do
     SQL
     SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
     McpToolRegistry.entries(surface: :coworker).map(&:capability).compact.uniq.each do |capability|
-      coworker.grants.create!(capability: capability, approval_policy: "queue")
+      attributes = { capability: capability, approval_policy: "queue" }
+      attributes[:scope] = [ repository.id ] if capability.to_s == "code.read"
+      coworker.grants.create!(attributes)
     end
     workflow = Coworkers::Workflow.instantiate(job: job)
     run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),

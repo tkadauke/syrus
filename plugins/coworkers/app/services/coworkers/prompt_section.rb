@@ -58,14 +58,24 @@ class Coworkers::PromptSection
     lines = Coworkers::GrantCatalog.all.sort_by(&:name).map do |descriptor|
       grant = held[descriptor.name]
       tools = descriptor.tools.presence&.join(", ") || "no tools currently registered"
-      if grant
+      availability = Coworkers::PrivilegedGrantGate.availability(descriptor)
+      if !availability.available?
+        "- `#{descriptor.name}` — unavailable (#{availability.reason}); tools withheld"
+      elsif grant
         scope = grant.scope.nil? ? "" : "; scope: #{descriptor.scope_label(grant.scope)}"
         "- `#{descriptor.name}` — held (#{grant.approval_policy}#{scope}); unlocks: #{tools}"
       else
         "- `#{descriptor.name}` — not held; unlocks: #{tools}"
       end
     end
-    "### Tool grants\n\nYour available tools are still determined by these grants. If a needed tool is missing, ask your owner for the named grant.\n\n#{lines.join("\n")}"
+    code_access = held["code.read"]
+    repository_line = if code_access
+      descriptor = Coworkers::GrantCatalog.fetch("code.read")
+      "You may read #{descriptor.scope_label(code_access.scope)}. You may propose Jobs to change those repositories, but never edit their code."
+    else
+      "You cannot read product repositories unless your owner grants `code.read`. You may propose Jobs, but never edit product code."
+    end
+    "### Tool grants\n\n#{repository_line}\n\nYour available tools are still determined by these grants. If a needed tool is missing, ask your owner for the named grant.\n\n#{lines.join("\n")}"
   end
 
   private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section

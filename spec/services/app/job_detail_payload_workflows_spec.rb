@@ -84,6 +84,49 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       AppSetting.current.update!(show_work_unit_debug: true)
     end
 
+    it "labels review panel member steps with their providers" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      coordinator = Step.create!(
+        workflow: workflow,
+        kind: "adversarial_review",
+        position: 0,
+        iteration: 1,
+        loop_id: "adversarial-review",
+        details: { "panel_fanout" => true, "panel_id" => "panel-1" }
+      )
+      codex = Step.create!(
+        workflow: workflow,
+        kind: "adversarial_review",
+        position: 1,
+        iteration: 1,
+        loop_id: "adversarial-review",
+        details: { "panel_member" => true, "panel_id" => "panel-1", "provider" => "codex" }
+      )
+      claude = Step.create!(
+        workflow: workflow,
+        kind: "adversarial_review",
+        position: 2,
+        iteration: 1,
+        loop_id: "adversarial-review",
+        details: { "panel_member" => true, "panel_id" => "panel-1", "provider" => "claude" }
+      )
+      aggregate = Step.create!(
+        workflow: workflow,
+        kind: "review_panel_collect",
+        position: 3,
+        iteration: 1,
+        loop_id: "adversarial-review",
+        details: { "panel_review_kind" => "adversarial_review", "panel_id" => "panel-1" }
+      )
+
+      steps = workflows_payload_for(job).dig(:workflows, 0, :steps).index_by { |step| step[:id] }
+
+      expect(steps.values_at(coordinator.id, codex.id, claude.id, aggregate.id).map { |step| step[:display_name] }).to eq(
+        [ "Adversarial review", "Codex", "Claude", "Aggregate review panel" ]
+      )
+    end
+
     it "preloads external artifact values for the paginated workflow list" do
       job = Factories.job_record(user: user, repository: repo)
       3.times do |index|

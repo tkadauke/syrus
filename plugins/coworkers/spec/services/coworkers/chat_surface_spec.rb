@@ -46,6 +46,30 @@ RSpec.describe "Coworker chat surface" do
     expect(names).not_to include("admin_overview", "force_fail_job", "run_command", "runtime_start")
   end
 
+  it "finishes a turn with a clear confinement outcome when no capable worker is available" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Inspect production" })
+    allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).with(coworker)
+      .and_return(outcome: "confinement_unavailable")
+
+    ChatTurnJob.perform_now(chat.id, message.id)
+
+    expect(chat.reload).not_to be_turn_in_flight
+    expect(chat.messages.last.content).to include(
+      "agent_outcome" => "confinement_unavailable",
+      "text" => I18n.t("coworkers.confinement_unavailable", locale: owner.locale)
+    )
+  end
+
+  it "requeues a privileged turn onto a capable worker's affinity queue" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Inspect production" })
+    allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).with(coworker)
+      .and_return(queue: "resume-confined-worker")
+
+    expect { ChatTurnJob.perform_now(chat.id, message.id) }
+      .to have_enqueued_job(ChatTurnJob).with(chat.id, message.id).on_queue("resume-confined-worker")
+    expect(chat.reload).to be_turn_in_flight
+  end
+
   it "advertises every tool only when its named grant exists" do
     entries = McpToolRegistry.entries(surface: :coworker)
     expect(entries).to all(have_attributes(capability: be_present))
@@ -54,7 +78,9 @@ RSpec.describe "Coworker chat surface" do
       coworker.grants.delete_all
       expect(names(tier: entry.tier)).not_to include(entry.tool_name)
 
-      coworker.grants.create!(capability: entry.capability.to_s, approval_policy: "auto")
+      attributes = { capability: entry.capability.to_s, approval_policy: "auto" }
+      attributes[:scope] = [ repository.id ] if entry.capability.to_s == "code.read"
+      coworker.grants.create!(attributes)
       expect(names(tier: entry.tier)).to include(entry.tool_name)
     end
   end

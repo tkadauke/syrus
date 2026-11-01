@@ -66,6 +66,7 @@ module K8sCluster
       label: "Read Kubernetes clusters",
       description: "Browse selected agentic-access Kubernetes clusters with read-only, redacted tools.",
       tools: COWORKER_READ_TOOLS,
+      privileged: true,
       default_policy: "confirm",
       max_policy: "auto",
       scope: {

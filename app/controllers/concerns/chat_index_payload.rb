@@ -292,7 +292,7 @@ module ChatIndexPayload
   def paginated_chat_index_group(scope, before_chat: nil)
     PerformanceLogging.phase("chat_index.paginated_group", before_chat_id: before_chat&.id) do
       scope = chat_index_before(scope, before_chat) if before_chat
-      fetched = scope.preload(:chat_participants, repository_attachments: :attachable).limit(chat_index_group_size + 1).to_a
+      fetched = scope.preload(*chat_repository_preloads).limit(chat_index_group_size + 1).to_a
       [ fetched.first(chat_index_group_size), fetched.size > chat_index_group_size ]
     end
   end
@@ -311,7 +311,7 @@ module ChatIndexPayload
     chat_ids = rows.map { |row| row.fetch("chat_session_id").to_i }.uniq
     repository_ids = rows.filter_map { |row| row.fetch("repository_id")&.to_i }.uniq
     chats_by_id = ChatSession.where(id: chat_ids)
-      .preload(:chat_participants, repository_attachments: :attachable)
+      .preload(*chat_repository_preloads)
       .index_by(&:id)
     repositories_by_id = invocation_scoped_repository_scope(Repository.accessible_to(Current.user)).where(id: repository_ids).index_by(&:id)
     missing_repository_ids = repository_ids - repositories_by_id.keys
@@ -333,6 +333,12 @@ module ChatIndexPayload
     return specs unless chat_index_settings.fetch(:show_empty_groups) && chat_index_group_offset.zero?
 
     merge_empty_chat_index_group_specs(specs, repositories_by_id: repositories_by_id)
+  end
+
+  def chat_repository_preloads
+    preloads = [ :chat_participants, { repository_attachments: :attachable } ]
+    preloads << { coworker_chat: :coworker } if ChatSession.reflect_on_association(:coworker_chat)
+    preloads
   end
 
   def chat_index_initial_group_rows

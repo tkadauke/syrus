@@ -1,6 +1,8 @@
 module ContainerExecution
   module WorkloadPolicy
     class Coworker < Base
+      SENSITIVE_ENV_KEY = /(?:\A|_)(?:authorization|credential|invocation_context|key|lease_id|password|passwd|secret|token)(?:_|\z)/i
+
       def self.applies_to?(request) = request.workload_policy&.custom_coworker? == true
 
       def available?
@@ -15,6 +17,8 @@ module ContainerExecution
       def mount_mcp_socket? = true
 
       def injected_env = egress_policy.proxy_env
+      def process_env = safe_env
+      def forwarded_env = safe_env
 
       def extra_run_args
         [
@@ -31,6 +35,10 @@ module ContainerExecution
       end
 
       private
+
+      def safe_env
+        @safe_env ||= request.env.reject { |key, _value| key.to_s.match?(SENSITIVE_ENV_KEY) }
+      end
 
       def egress_policy
         @egress_policy ||= EgressPolicy::Base.for(request.chat_session&.effective_chat_provider)

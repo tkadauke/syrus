@@ -22,6 +22,14 @@ module PendingActions
     end
 
     def presentation_label = "Change grants for @#{payload['handle']}"
-    def presentation_detail = Array(payload["grants"]).map { |grant| "#{grant['capability']}: #{grant['policy']}" }.join(", ")
+    def presentation_detail
+      Array(payload["grants"]).map do |grant|
+        detail = "#{grant['capability']}: #{grant['policy']}"
+        next detail unless grant.key?("scope")
+
+        descriptor = Coworkers::GrantCatalog.fetch(grant["capability"])
+        "#{detail} (#{descriptor.scope_label(grant['scope'])})"
+      end.join(", ")
+    end
   end
 end

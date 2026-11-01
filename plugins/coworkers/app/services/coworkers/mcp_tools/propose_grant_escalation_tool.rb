@@ -51,6 +51,7 @@ module Coworkers::McpTools
           attributes = raw.to_h.stringify_keys
           descriptor = Coworkers::GrantCatalog.fetch(attributes.fetch("capability"))
           policy = attributes.fetch("policy").to_s
+          Coworkers::PrivilegedGrantGate.ensure_available!(descriptor) unless policy == "off"
           raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}" unless Coworkers::GrantCatalog.policy_allowed?(descriptor, policy)
           scope = attributes.key?("scope") ? attributes["scope"] : Coworkers::GrantUpdate::SCOPE_UNCHANGED
           if policy != "off" && descriptor.scopeable? && scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) && held_grants[descriptor.name].nil?

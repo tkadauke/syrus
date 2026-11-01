@@ -1766,6 +1766,12 @@ merge and conflict reporting as chat turns; failed runs also count toward
 schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
+Coworkers have no product-code access by default. An owner can grant
+`code.read` for selected accessible repositories or all repositories they can
+read. The grant unlocks read-only checkout attachment in chats, capped and
+secret-redacted file browsing and code search, plus pull-request and Job diffs;
+background runs receive the same non-attachment reads. Product checkouts have
+write bits removed independently of the coworker's writable identity workspace.
 Coworkers can start a direct exchange with `message_coworker`. An incoming
 coworker message automatically sends the receiving coworker's final answer
 back to its author, carrying the original turn through a maximum of three
@@ -1857,6 +1863,14 @@ Queued and confirmation-gated actions identify the coworker and show the real
 tool name plus readable arguments on both the chat card and the coworker's
 Approvals tab. Secret-like values are redacted, and long values can be expanded
 before the operator confirms or declines the action.
+
+Credential-backed database, Kubernetes, log, and third-party capabilities
+have an additional hard gate. Syrus offers them only when a live worker has
+verified hardened coworker confinement and the credential broker's
+authorization path is enabled. If either prerequisite disappears, existing
+grant records remain visible for audit but their tools are withdrawn until the
+gate recovers. Credential material stays in the broker and never enters the
+coworker's environment, workspace, mounts, tool metadata, or logs.
 
 An ordinary Syrus or planner chat can also propose a coworker. The proposal
 preflights the handle, model, requested capabilities, workspace branch, and

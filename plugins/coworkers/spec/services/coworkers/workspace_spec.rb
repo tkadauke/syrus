@@ -3,11 +3,18 @@ require "rails_helper"
 RSpec.describe Coworkers::Workspace do
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
+  let(:product_repository) { Factories.repository(user: owner) }
   let(:chat) { ChatSession.create!(user: owner, repository: repository) }
+  let!(:coworker) do
+    Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-workspace",
+      workspace_repo: repository.remote_url)
+  end
   let(:root) { Pathname(Dir.mktmpdir("coworker-workspace")) }
   let(:workspace) { described_class.new(chat) }
 
   before do
+    Coworkers::Chat.create!(chat_session: chat, coworker: coworker, role: "main")
+    chat.chat_attachments.create!(attachable: product_repository, attached_at: 1.hour.from_now)
     allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(root)
     root.join("SOUL.md").write("old soul\n")
   end
@@ -26,6 +33,8 @@ RSpec.describe Coworkers::Workspace do
   it "allows identity files to be updated during an ordinary turn" do
     workspace.edit("SOUL.md", "old soul", "new soul")
     expect(root.join("SOUL.md").read).to eq("new soul\n")
+    expect(ChatWorkspace).to have_received(:repo_path_for).with(chat, repository)
+    expect(ChatWorkspace).not_to have_received(:repo_path_for).with(chat, product_repository)
   end
 
   it "rejects traversal, absolute paths, Git metadata, and symlink escapes" do

@@ -134,6 +134,8 @@ RSpec.describe ContainerExecution::Backend do
         mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home),
         env: {
           "HOME" => agent_home, "PROVIDER" => provider,
+          "SERVICE_TOKEN" => "broker-only-secret",
+          "SYRUS_CLI_INVOCATION_CONTEXT" => "broker-lease-secret",
           "HTTPS_PROXY" => "http://unsafe-host-proxy:8080",
           "https_proxy" => "http://unsafe-host-proxy:8080",
           "no_proxy" => "169.254.169.254"
@@ -144,6 +146,11 @@ RSpec.describe ContainerExecution::Backend do
       described_class.new.run(coworker_request)
       command = captured.fetch(:command)
       mounts = command.each_index.filter_map { |index| command[index + 1] if command[index] == "--mount" }
+
+      expect(captured.fetch(:env)).to eq("HOME" => agent_home, "PROVIDER" => provider,
+        "HTTPS_PROXY" => "http://unsafe-host-proxy:8080", "https_proxy" => "http://unsafe-host-proxy:8080",
+        "no_proxy" => "169.254.169.254")
+      expect(captured.to_json).not_to include("broker-only-secret", "broker-lease-secret", "SERVICE_TOKEN", "SYRUS_CLI_INVOCATION_CONTEXT")
 
       expect(command).to include("--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--security-opt", "seccomp=builtin", "--pids-limit", "256", "--memory", "4g", "--cpus", "2")

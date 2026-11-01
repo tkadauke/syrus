@@ -182,15 +182,22 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `search_chats` | coworker | deferred | read | no | - | - | `chats.read_shared` | - |
 | `admin_read_operational_logs` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
 | `ask_user_question` | coworker | essential | write | no | - | - | `chat.message_owner` | - |
+| `attach_repository` | coworker | essential | write | no | - | - | `code.read` | - |
+| `detach_repository` | coworker | essential | write | no | - | - | `code.read` | - |
+| `get_job_diff` | coworker | essential | read | no | - | - | `code.read` | - |
 | `list_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
+| `list_repository_files` | coworker | essential | read | no | - | - | `code.read` | - |
 | `propose_epic_with_jobs` | coworker | essential | write | no | - | - | `syrus.propose_job` | - |
 | `propose_job` | coworker | essential | write | no | - | - | `syrus.propose_job` | - |
 | `read_backend_exception_events` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
 | `read_browser_error_events` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
 | `read_job` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
 | `read_performance_log_events` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
+| `read_pr` | coworker | essential | read | no | - | - | `code.read` | - |
+| `read_repository_file` | coworker | essential | read | no | - | - | `code.read` | - |
 | `read_worker_health` | coworker | essential | read | no | - | - | `ops.read_logs` | - |
 | `search_jobs` | coworker | essential | read | no | - | - | `syrus.read_jobs` | - |
+| `search_repository_code` | coworker | essential | read | no | - | - | `code.read` | - |
 | `suggest_next_step` | coworker | essential | write | no | - | - | `chat.message_owner` | - |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |

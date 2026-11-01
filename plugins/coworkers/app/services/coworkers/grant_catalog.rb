@@ -3,15 +3,17 @@ module Coworkers
     POLICY_RANK = { "off" => 0, "queue" => 1, "confirm" => 2, "auto" => 3 }.freeze
 
     Descriptor = Data.define(:name, :label, :description, :default_policy, :maximum_policy, :tools,
-      :scope_options_callback, :scope_label_callback, :valid_scope_callback) do
-      def initialize(default_policy: "confirm", **attributes) = super(default_policy: default_policy, **attributes)
+      :scope_options_callback, :scope_label_callback, :valid_scope_callback, :privileged) do
+      def initialize(default_policy: "confirm", privileged: false, **attributes) = super(default_policy: default_policy, privileged: privileged, **attributes)
       def scopeable? = scope_options_callback.present?
       def scope_options(user:) = scopeable? ? Array(scope_options_callback.call(user: user)) : []
       def scope_label(value) = scope_label_callback.call(value)
       def valid_scope?(value, user:) = scopeable? ? valid_scope_callback.call(value, user: user) : value.nil?
       def as_json(user: nil, **)
+        availability = Coworkers::PrivilegedGrantGate.availability(self)
         payload = { name: name, label: label, description: description, default_policy: default_policy, maximum_policy: maximum_policy,
-                    tools: tools, scopeable: scopeable? }
+                    tools: tools, scopeable: scopeable?, privileged: privileged, available: availability.available?,
+                    unavailable_reason: availability.reason }
         payload[:scope_options] = scope_options(user: user).map { |value| { value: value, label: scope_label(value) } } if scopeable? && user
         payload
       end
@@ -40,7 +42,7 @@ module Coworkers
           next if name.blank?
           Descriptor.new(name: name, label: name.humanize, description: name.humanize,
             default_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(name, "confirm"), maximum_policy: "auto", tools: entries.map(&:tool_name), scope_options_callback: nil,
-            scope_label_callback: nil, valid_scope_callback: nil)
+            scope_label_callback: nil, valid_scope_callback: nil, privileged: false)
         end
         legacy + McpToolRegistry.coworker_grants.map { |attributes| build_descriptor(attributes) }
       end

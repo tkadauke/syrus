@@ -1107,6 +1107,20 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       expect(File).not_to exist(dir)
     end
+
+    it "removes a recursively protected read-only checkout" do
+      dir = Dir.mktmpdir("syrus-chatws-rm-readonly")
+      FileUtils.mkdir_p(File.join(dir, ".git", "objects"))
+      File.write(File.join(dir, ".git", "objects", "entry"), "x")
+      described_class.protect_path_read_only!(dir)
+
+      described_class.low_priority_rm_rf!(dir)
+
+      expect(File).not_to exist(dir)
+    ensure
+      FileUtils.chmod_R(0o700, dir) if dir && File.exist?(dir)
+      FileUtils.rm_rf(dir) if dir
+    end
   end
 
   describe "ChatSession destroy" do

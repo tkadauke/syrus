@@ -6,6 +6,7 @@ class Coworkers::GrantEscalation
 
     unknown = requested - Coworkers::GrantCatalog.names
     raise ArgumentError, "unknown grants: #{unknown.join(', ')}" if unknown.any?
+    requested.each { |capability| Coworkers::PrivilegedGrantGate.ensure_available!(Coworkers::GrantCatalog.fetch(capability)) }
     existing = coworker.grants.where(capability: requested).pluck(:capability)
     raise ArgumentError, "already granted: #{existing.join(', ')}" if existing.any?
 
