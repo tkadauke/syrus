@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { ImageDiffThumbnails, renderedFileKind } from "./ImageDiffThumbnails"
 
 describe("ImageDiffThumbnails", () => {
@@ -98,5 +98,24 @@ describe("ImageDiffThumbnails", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Before" })).toBeInTheDocument())
     expect(screen.getByRole("heading", { name: "After" })).toBeInTheDocument()
     expect(document.querySelector("script")).toBeNull()
+  })
+
+  it("reloads both Markdown sides when the compared refs change", async () => {
+    const initialLoader = vi.fn().mockResolvedValue({ before: "# Old base", after: "# Old head" })
+    const nextLoader = vi.fn().mockResolvedValue({ before: "# New base", after: "# New head" })
+    const file = { patch: "diff", path: "README.md", status: "modified" }
+    const { rerender } = render(
+      <ImageDiffThumbnails baseRef="base-one" file={file} headRef="head-one" jobId={42} kind="markdown" loadContents={initialLoader} />
+    )
+
+    await screen.findByRole("heading", { name: "Old head" })
+    rerender(<ImageDiffThumbnails baseRef="base-two" file={file} headRef="head-two" jobId={42} kind="markdown" loadContents={nextLoader} />)
+
+    expect(screen.getAllByText("Loading...")).toHaveLength(2)
+    await screen.findByRole("heading", { name: "New base" })
+    expect(screen.getByRole("heading", { name: "New head" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Old base" })).not.toBeInTheDocument()
+    expect(initialLoader).toHaveBeenCalledTimes(1)
+    expect(nextLoader).toHaveBeenCalledTimes(1)
   })
 })
