@@ -69,13 +69,25 @@ module Mcp::Tools
         return false unless descriptor.capability == "workspace.files"
 
         grant = context.agent_actor&.grants&.find_by(capability: "workspace.files")
-        protected_paths = Array(grant&.constraints&.fetch("confirm_paths", nil))
-        requested_paths = [ arguments[:path], arguments[:source], arguments[:destination] ].compact.map do |path|
-          Pathname.new(path.to_s).cleanpath.to_s
-        rescue ArgumentError
-          path.to_s
+        protected_paths = Array(grant&.constraints&.fetch("confirm_paths", nil)).filter_map do |path|
+          normalized_coworker_workspace_path(path)
+        end
+        requested_paths = [ arguments[:path], arguments[:source], arguments[:destination] ].compact.filter_map do |path|
+          normalized_coworker_workspace_path(path)
         end
         (protected_paths & requested_paths).any?
+      end
+
+      def normalized_coworker_workspace_path(path)
+        candidate = Pathname.new(path.to_s)
+        return if candidate.absolute?
+
+        clean = candidate.cleanpath
+        return if clean.to_s == ".." || clean.each_filename.first.in?([ "..", ".git" ])
+
+        clean.to_s
+      rescue ArgumentError
+        nil
       end
 
       def pending_coworker_plugin_approval(tool_name, capability, server_context, arguments, always_pending: false)

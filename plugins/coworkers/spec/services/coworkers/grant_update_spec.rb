@@ -19,8 +19,15 @@ RSpec.describe Coworkers::GrantUpdate do
 
   it "stores supported file constraints" do
     described_class.call(owner: owner, coworker: coworker, capability: "workspace.files", approval_policy: "confirm",
-      constraints: { confirm_paths: [ "SOUL.md", "AGENTS.md", "SOUL.md" ] }, confirmed: true)
+      constraints: { confirm_paths: [ "./SOUL.md", "memory/../AGENTS.md", "SOUL.md" ] }, confirmed: true)
     expect(coworker.grants.last.constraints).to eq("confirm_paths" => %w[SOUL.md AGENTS.md])
+  end
+
+  it "rejects protected paths outside the workspace jail" do
+    expect {
+      described_class.call(owner: owner, coworker: coworker, capability: "workspace.files", approval_policy: "confirm",
+        constraints: { confirm_paths: [ "../SOUL.md" ] }, confirmed: true)
+    }.to raise_error(ArgumentError, /inside the coworker workspace/)
   end
 
   it "requires confirmation before removing a protected file path" do
