@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_043159) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_044928) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -236,6 +236,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_043159) do
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
     t.check_constraint "singleton_key = 1", name: "chk_app_settings_singleton_key"
+  end
+
+  create_table "authorized_invocations", force: :cascade do |t|
+    t.integer "pending_action_item_id", null: false
+    t.string "authority_type"
+    t.integer "authority_id"
+    t.string "invocation_fingerprint", null: false
+    t.string "tool_name", null: false
+    t.json "execution_authority", null: false
+    t.json "audit_payload", null: false
+    t.string "state", default: "issued", null: false
+    t.string "claim_key"
+    t.string "claimed_by_type"
+    t.integer "claimed_by_id"
+    t.datetime "claimed_at"
+    t.datetime "executed_at"
+    t.string "result_status"
+    t.string "result_type"
+    t.integer "result_id"
+    t.datetime "invalidated_at"
+    t.text "invalidation_reason"
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["authority_type", "authority_id", "state"], name: "idx_authorized_invocations_authority_state"
+    t.index ["claim_key"], name: "idx_authorized_invocations_claim_key_unique", unique: true, where: "claim_key IS NOT NULL"
+    t.index ["claimed_by_type", "claimed_by_id"], name: "index_authorized_invocations_on_claimed_by"
+    t.index ["invocation_fingerprint", "state"], name: "idx_authorized_invocations_fingerprint_state"
+    t.index ["pending_action_item_id"], name: "idx_authorized_invocations_item_unique", unique: true
+    t.index ["result_type", "result_id"], name: "index_authorized_invocations_on_result"
   end
 
   create_table "auto_retry_attempts", force: :cascade do |t|
