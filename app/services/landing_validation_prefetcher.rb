@@ -31,6 +31,15 @@ class LandingValidationPrefetcher
       target.jobs.each(&:lock!)
       if workflow.artifact(ARTIFACT_WORKFLOW_ID).blank? && target.still_eligible?
         workflow_to_start = target.instantiate(artifacts)
+        snapshot = LandingValidationPrefetchSource.publish!(
+          source_workflow: workflow,
+          child_workflow: workflow_to_start,
+          path: WorkflowWorkspace.path_for(workflow),
+          source_sha: source.fetch("prefetch_source_head_sha"),
+          tree_sha: source.fetch("prefetch_source_tree_sha"),
+          git: git
+        )
+        workflow_to_start.set_artifact!("prefetch_source_snapshot_id", snapshot.id)
         workflow.set_artifact!(ARTIFACT_WORKFLOW_ID, workflow_to_start.id)
         workflow.set_artifact!(ARTIFACT_DISPATCHED_AT, Time.current.iso8601)
       end
@@ -281,7 +290,6 @@ class LandingValidationPrefetcher
     {
       "prefetch_source_workflow_id" => workflow.id,
       "prefetch_source_job_id" => job.id,
-      "prefetch_source_workspace_path" => path.to_s,
       "prefetch_source_head_sha" => head_sha,
       "prefetch_source_tree_sha" => tree_sha,
       "predicted_base_sha" => head_sha,

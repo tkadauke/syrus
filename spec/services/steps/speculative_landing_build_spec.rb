@@ -29,12 +29,13 @@ RSpec.describe "speculative landing build steps" do
   def source_artifacts
     {
       "prefetch_source_workflow_id" => source_workflow.id,
-      "prefetch_source_workspace_path" => source_path.to_s,
-      "prefetch_source_head_sha" => "source-head"
+      "prefetch_source_snapshot_id" => 123,
+      "prefetch_source_head_sha" => "source-head",
+      "prefetch_source_tree_sha" => "source-tree"
     }
   end
 
-  it "attributes source workspace git reads to the source workflow" do
+  it "builds an ordinary validation from the child-owned source bundle" do
     handler = build_handler(
       Steps::SpeculativeLandingBuild,
       "speculative_landing_build",
@@ -44,17 +45,19 @@ RSpec.describe "speculative landing build steps" do
 
     allow(GitRunner).to receive(:new).and_return(git)
     allow(git).to receive(:run).and_return("")
-    expect(git).to receive(:run)
-      .with("rev-parse", "HEAD", chdir: source_path.to_s, workflow: source_workflow)
-      .and_return("source-head\n")
+    snapshot = double(source_sha: "source-head", tree_sha: "source-tree")
+    allow(LandingValidationPrefetchSource).to receive(:with_bundle).and_yield(snapshot, "/tmp/source.bundle")
+    expect(git).to receive(:run).with("fetch", "--no-tags", "/tmp/source.bundle", "HEAD", chdir: workspace_path.to_s)
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: workspace_path.to_s).and_return("candidate-head\n")
     allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: workspace_path.to_s).and_return("source-head\n")
+    allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD^{tree}", chdir: workspace_path.to_s).and_return("source-tree\n")
     allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: workspace_path.to_s).and_return("tree-sha\n")
 
+    FileUtils.rm_rf(source_path)
     handler.call
   end
 
-  it "attributes merge-train source workspace git reads to the source workflow" do
+  it "builds a merge-train validation from the child-owned source bundle" do
     member = Factories.job_record(user: user, repository: repository, state: "approved", pr_number: 3, branch_name: "syrus/member")
     handler = build_handler(
       Steps::SpeculativeMergeTrainBuild,
@@ -67,14 +70,26 @@ RSpec.describe "speculative landing build steps" do
     allow(handler).to receive(:streaming_git).and_return(git)
     allow(GithubAuthenticatedGit).to receive(:run).and_yield("https://example.test/repo.git")
     allow(git).to receive(:run).and_return("")
-    expect(git).to receive(:run)
-      .with("rev-parse", "HEAD", chdir: source_path.to_s, workflow: source_workflow)
-      .and_return("source-head\n")
+    snapshot = double(source_sha: "source-head", tree_sha: "source-tree")
+    allow(LandingValidationPrefetchSource).to receive(:with_bundle).and_yield(snapshot, "/tmp/source.bundle")
+    expect(git).to receive(:run).with("fetch", "--no-tags", "/tmp/source.bundle", "HEAD", chdir: workspace_path.to_s)
     allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: workspace_path.to_s).and_return("source-head\n")
+    allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD^{tree}", chdir: workspace_path.to_s).and_return("source-tree\n")
     allow(git).to receive(:run).with("status", "--porcelain", chdir: workspace_path.to_s).and_return("")
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: workspace_path.to_s).and_return("train-head\n")
     allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: workspace_path.to_s).and_return("tree-sha\n")
 
+    FileUtils.rm_rf(source_path)
     handler.call
+  end
+
+  it "rejects a source SHA mismatch instead of rebuilding from another base" do
+    handler = build_handler(Steps::SpeculativeLandingBuild, "speculative_landing_build", candidate, source_artifacts)
+    snapshot = double(source_sha: "newer-head", tree_sha: "source-tree")
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run).and_return("candidate-head\n")
+    allow(LandingValidationPrefetchSource).to receive(:with_bundle).and_yield(snapshot, "/tmp/source.bundle")
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /does not match/)
   end
 end
