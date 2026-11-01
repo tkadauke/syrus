@@ -57,6 +57,26 @@ export type PipelinePayload = {
   filter_schema: FilterSchemaField[]
   smart_folders: AdminSmartFolder[]
   active_smart_folder_id: number | null
+  history?: PipelineHistory
+}
+
+export type HistoricalPlacement = {
+  job_id: number
+  stage: string
+  item: Pick<PipelineItem, "id" | "slug" | "title" | "state" | "paths"> & {
+    epic?: { id: number; slug: string; title: string }
+    metadata_as_of: string
+  }
+}
+
+export type PipelineHistory = {
+  from: string
+  to: string
+  checkpoint: { at: string; placements: HistoricalPlacement[] }
+  deltas: { at: string; job_id: number; from_stage: string | null; to_stage: string | null; item?: HistoricalPlacement }[]
+  ticks: string[]
+  traces: { job_id: number; segments: { stage: string; entered_at: string; left_at: string; dwell_seconds: number }[] }[]
+  accuracy: { status: "reconstructed" | "partial" | "bounded"; message: string; truncated: boolean; legacy_job_count?: number }
 }
 
 export function fetchPipelineStage(repositoryId: string, stage: string, page = 1, search = "") {

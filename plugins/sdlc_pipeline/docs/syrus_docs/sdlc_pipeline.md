@@ -14,4 +14,8 @@ The FilterBar selects the Job cohort before stage totals, Epic aggregates, highl
 
 The response includes placement evidence for every returned item: its lifecycle state, landed SHA, or deployment-stage status and timestamp. Repository deployment configuration is read at request time, so edits are reflected without a refresh job or cache-owned state.
 
+The same response includes a bounded historical envelope for the filtered cohort: a checkpoint followed by ordered stage-change deltas and meaningful event ticks. The default range is seven days and requests are capped at 90 days, 500 Jobs, and 2,000 deltas. `range_start` and `range_end` select that envelope; the URL-backed `at` value is presentation state only and is deliberately excluded from SmartFolders and API cache keys. Scrubbing reconstructs stage totals and Epic aggregates in the browser without a request for each movement. Historical cards explicitly label their stage as reconstructed while retaining current Job titles and metadata, because mutable metadata that was not recorded historically cannot be reconstructed. A bounded result says so in its accuracy metadata.
+
+Historical mode is read-only, has a persistent banner and Return to now action, and continues polling current data without moving the stage scroller. The dedicated time rail supports keyboard operation through the native range control and respects the existing reduced-motion behavior; horizontal controls remain exclusively stage navigation.
+
 Disabling or deleting the plugin removes the tab, endpoint, frontend module, translations, and this documentation. Jobs, Epics, landing records, and deployment-stage statuses remain untouched.
