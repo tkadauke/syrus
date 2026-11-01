@@ -18,6 +18,7 @@ class PendingActionItem < ApplicationRecord
     inverse_of: :prerequisite
   has_many :dependents, through: :dependent_links, source: :pending_action_item
   has_many :transitions, class_name: "PendingActionTransition", dependent: :delete_all
+  has_one :authorized_invocation, dependent: :destroy
 
   enum :state, STATES.index_with(&:itself), validate: true
 
