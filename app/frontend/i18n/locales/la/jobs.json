@@ -484,7 +484,7 @@
   "run_queued_suffix": "in ordine {{elapsed}}",
   "run_queue_wait": {
     "ready_waiting_for_slot": "{{count}} operator vivus ordinem {{queue}} consumit, sed omnia fila occupata sunt. Exsecutio incipiet ubi locus liber erit; non haeret.",
-    "ready_no_consumer": "RunJob in ordine non praesto {{queue}} exspectat. {{count}} operatores vivi congruentes per ordinationem praesentem praesto sunt.",
+    "ready_no_consumer": "Operator non praesto est; haec exsecutio automatice alio dirigetur.",
     "concurrency_blocked": "RunJob post clavem concurrentiae huius Job exspectat. Job denuo tenta si opus prius iam non agit.",
     "scheduled": "RunJob ad {{time}} paratus fiet; non haeret.",
     "claimed_not_started": "Operator RunJob sibi vindicavit, sed exsecutio nondum coepit.",

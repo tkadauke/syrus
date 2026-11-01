@@ -146,6 +146,12 @@ minutes: a real agent Run legitimately takes many minutes and sometimes longer,
 so this is the "nothing could still be starting" bound rather than a latency
 target.
 
+Ready executions on dead `resume-` or hostname-specific worker queues use the
+normal automatic reconciliation path after the queued-Run grace period. The
+executor rechecks the exact ready row and live queue consumer immediately
+before clearing affinity and re-enqueueing the same Run, so a recovered worker
+or concurrent repair turns the operation into an audited no-op.
+
 A third shape needs no sick worker at all. `queued_run_with_orphaned_queue_job`
 covers an unfinished SolidQueue job carrying **no execution row** — not ready,
 not claimed, not scheduled, not failed. Nothing will claim it and nothing will

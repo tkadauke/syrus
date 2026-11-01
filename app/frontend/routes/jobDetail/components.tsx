@@ -77,7 +77,7 @@ export function useNow(active: boolean) {
 
 const queueWaitPresentation: Record<NonNullable<JobRun["queue_wait"]>["kind"], { tone: NoticeTone; link?: "pending" | "workers" | "repair" }> = {
   ready_waiting_for_slot: { tone: "info", link: "pending" },
-  ready_no_consumer: { tone: "warning", link: "repair" },
+  ready_no_consumer: { tone: "warning", link: "pending" },
   concurrency_blocked: { tone: "warning", link: "pending" },
   scheduled: { tone: "info", link: "pending" },
   claimed_not_started: { tone: "info", link: "workers" },
