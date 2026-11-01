@@ -187,6 +187,26 @@ RSpec.describe OperationalLogging do
     Thread.current[:syrus_current_run] = nil
   end
 
+  it "includes job-specific diagnostic context without indexing arbitrary arguments" do
+    task = MaintenanceTask.create!(
+      definition_key: "spec",
+      task_key: "spec:operational-log-context",
+      state: "running",
+      recurrence: "one_off",
+      category: "cleanup",
+      title: "Spec task",
+      summary: "Exercises operational log context.",
+      trigger_kind: "spec",
+      trigger_key: "operational-log-context",
+      required_role: "admin"
+    )
+
+    event = described_class.ingest_job({ job: MaintenanceTaskRunJob.new(task.id, "unindexed argument") }, 1_234.56)
+
+    expect(event["context"]).to include("maintenance_task_id" => task.id.to_s)
+    expect(event["context"].to_json).not_to include("unindexed argument")
+  end
+
   it "downgrades expected action controller failures from error to info" do
     request = double("request", request_id: "req-relay", env: {
       "syrus.expected_action_controller_failure" => "coding_relay_unavailable"
