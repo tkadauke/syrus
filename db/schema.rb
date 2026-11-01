@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_31_162746) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_033222) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2647,6 +2647,55 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_162746) do
     t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
     t.index ["event_name", "occurred_at"], name: "idx_perf_events_name_occurred"
     t.index ["occurred_at", "id"], name: "idx_perf_events_occurred_at_id"
+  end
+
+  create_table "permission_rule_audit_events", force: :cascade do |t|
+    t.integer "permission_rule_id", null: false
+    t.integer "sequence", null: false
+    t.string "event_type", null: false
+    t.integer "actor_user_id", null: false
+    t.json "snapshot", null: false
+    t.json "changed_fields", null: false
+    t.datetime "created_at", null: false
+    t.index ["actor_user_id", "created_at"], name: "idx_permission_rule_audits_actor"
+    t.index ["actor_user_id"], name: "index_permission_rule_audit_events_on_actor_user_id"
+    t.index ["permission_rule_id", "sequence"], name: "idx_permission_rule_audits_sequence", unique: true
+    t.index ["permission_rule_id"], name: "index_permission_rule_audit_events_on_permission_rule_id"
+  end
+
+  create_table "permission_rules", force: :cascade do |t|
+    t.integer "owner_user_id", null: false
+    t.string "subject_selector_type", null: false
+    t.string "subject_selector_id"
+    t.json "subject_role_keys", null: false
+    t.integer "subject_repository_id"
+    t.string "capability", null: false
+    t.string "operation"
+    t.string "resource_type", null: false
+    t.json "resource_scope", null: false
+    t.string "policy", null: false
+    t.json "constraints", null: false
+    t.string "policy_layer", null: false
+    t.string "source", null: false
+    t.json "provenance", null: false
+    t.boolean "dynamic_future_roles", default: false, null: false
+    t.boolean "delegable", default: true, null: false
+    t.text "rationale"
+    t.integer "created_by_user_id", null: false
+    t.integer "updated_by_user_id", null: false
+    t.datetime "revoked_at"
+    t.integer "revoked_by_user_id"
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["capability", "operation", "revoked_at"], name: "idx_permission_rules_current_capability"
+    t.index ["created_by_user_id"], name: "index_permission_rules_on_created_by_user_id"
+    t.index ["owner_user_id", "subject_selector_type", "subject_selector_id", "revoked_at"], name: "idx_permission_rules_current_subject"
+    t.index ["owner_user_id"], name: "index_permission_rules_on_owner_user_id"
+    t.index ["revoked_by_user_id"], name: "index_permission_rules_on_revoked_by_user_id"
+    t.index ["subject_repository_id", "revoked_at"], name: "idx_permission_rules_current_repository"
+    t.index ["subject_repository_id"], name: "index_permission_rules_on_subject_repository_id"
+    t.index ["updated_by_user_id"], name: "index_permission_rules_on_updated_by_user_id"
   end
 
   create_table "planned_execution_overrides", force: :cascade do |t|
