@@ -2048,6 +2048,15 @@ batched lookup; the badges appear in global search, chat search, and the
 chips: ...)` separately when the plugin also owns a chat-only search filter;
 the returned teardown removes those chips when the plugin is disabled.
 
+Plugins can narrow which chats contribute the automatic repository default for
+a new ordinary chat through the core `:chat_repository_default_filter` point.
+A provider includes `Syrus::Plugin::ChatRepositoryDefaultFilter` and implements
+`.apply(scope:)`, returning an `ActiveRecord::Relation` narrowed from the
+supplied accessible-chat scope. Multiple providers compose in registration
+order, with each receiving the preceding provider's relation. This hook affects
+only automatic default inference: it must not change repository authorization,
+explicit repository selection, or repository active state.
+
 A qualified point resolves only while its host is **registered, enabled, and
 actually declares it** — otherwise `"<plugin>:<anything>"` would silently
 resolve and the declared surface would stop meaning anything. A disabled host
