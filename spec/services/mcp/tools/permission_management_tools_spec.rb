@@ -97,6 +97,74 @@ RSpec.describe "permission management MCP tools" do
     expect(pending.reload).to be_failed
   end
 
+  it "rejects an ineligible role during confirmation" do
+    response = Mcp::Tools::GrantPermissionTool.call(
+      server_context: context, role: AgentRole::WORKFLOW_IMPLEMENT, subject_selector_type: "workflow_role",
+      subject_selector_id: AgentRole::WORKFLOW_IMPLEMENT,
+      capability: descriptor.capability, operation: descriptor.operation, resource_scope: {}
+    )
+    pending = ChatPendingAction.find(body(response).fetch(:pending_action_id))
+
+    expect { pending.confirm!(user: user) }.to raise_error(ArgumentError, /role is not eligible/)
+    expect(PermissionRule.count).to eq(0)
+    expect(pending.reload).to be_failed
+  end
+
+  it "rejects a subject selector that does not match the eligible role" do
+    response = Mcp::Tools::GrantPermissionTool.call(
+      server_context: context, role: AgentRole::CHAT_PLANNER, subject_selector_type: "workflow_role",
+      subject_selector_id: AgentRole::WORKFLOW_IMPLEMENT,
+      capability: descriptor.capability, operation: descriptor.operation, resource_scope: {}
+    )
+    pending = ChatPendingAction.find(body(response).fetch(:pending_action_id))
+
+    expect { pending.confirm!(user: user) }.to raise_error(ArgumentError, /subject selector does not match/)
+    expect(PermissionRule.count).to eq(0)
+    expect(pending.reload).to be_failed
+  end
+
+  it "explains only leases available to the requested lifecycle context" do
+    lease = Permissions::Management.new(user).lease!({
+      "role" => AgentRole::CHAT_PLANNER, "subject_selector_type" => "interactive_chat",
+      "capability" => descriptor.capability, "operation" => descriptor.operation,
+      "resource_scope" => {}, "duration" => "chat_session", "chat_session_id" => chat_session.id
+    }, actor: user)
+
+    matching = body(Mcp::Tools::ExplainPermissionTool.call(
+      server_context: context, role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation, chat_session_id: chat_session.id
+    ))
+    unrelated = body(Mcp::Tools::ExplainPermissionTool.call(
+      server_context: context, role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation, chat_session_id: chat_session.id + 1
+    ))
+
+    expect(matching).to include(policy: "allow")
+    expect(matching.dig(:decisive_rule, :id)).to eq("permission-lease-#{lease.id}")
+    expect(unrelated).to include(policy: "ask", decisive_rule: nil)
+  end
+
+  it "explains invocation fingerprints without consuming the lease" do
+    lease = Permissions::Management.new(user).lease!({
+      "role" => AgentRole::CHAT_PLANNER, "subject_selector_type" => "interactive_chat",
+      "capability" => descriptor.capability, "operation" => descriptor.operation,
+      "resource_scope" => {}, "duration" => "invocation", "arguments" => { "record_id" => 7 }
+    }, actor: user)
+
+    matching = body(Mcp::Tools::ExplainPermissionTool.call(
+      server_context: context, role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation, arguments: { record_id: 7 }
+    ))
+    changed = body(Mcp::Tools::ExplainPermissionTool.call(
+      server_context: context, role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation, arguments: { record_id: 8 }
+    ))
+
+    expect(matching).to include(policy: "allow")
+    expect(changed).to include(policy: "ask", decisive_rule: nil)
+    expect(lease.reload.used_count).to eq(0)
+  end
+
   it "cancels only the confirming user's authorization request after confirmation" do
     request = ChatPendingAction.create!(
       user: user, chat_session: chat_session, origin: chat_session, subject: user,

@@ -57,6 +57,12 @@ module Permissions
       def layer = :lease
 
       def validate_descriptor!
+        unless @descriptor.requestable_roles.include?(@role)
+          raise ArgumentError, "role is not eligible for this capability"
+        end
+        unless selector_matches_role?
+          raise ArgumentError, "subject selector does not match the requested role"
+        end
         raise ArgumentError, "unsupported authority duration: #{duration}" unless @descriptor.authority_durations.include?(duration)
         if AUTONOMY_RANK.fetch(duration) > AUTONOMY_RANK.fetch(@descriptor.maximum_autonomy)
           raise ArgumentError, "authority duration exceeds descriptor maximum autonomy"
@@ -64,6 +70,14 @@ module Permissions
         if @descriptor.maximum_duration && @expires_at && @expires_at > @issued_at + @descriptor.maximum_duration
           raise ArgumentError, "authority expiry exceeds descriptor maximum duration"
         end
+      end
+
+      def selector_matches_role?
+        definition = PermissionRule::SUBJECT_SELECTORS.fetch(@subject_selector_type, {})
+        expected_role = definition[:role]
+        expected_role ||= @subject_selector_id if definition[:role_from_id]
+
+        expected_role.nil? || expected_role == @role
       end
 
       def subject_selectors
