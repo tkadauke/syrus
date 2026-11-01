@@ -421,6 +421,18 @@ the describe GET - no editing, no apply.
 
 ## Agentic access
 
+The plugin publishes canonical permission descriptors for every agentic tool.
+`k8s.observe@v1` covers ordinary cluster observation and may be authorized for
+an invocation, chat session, or Job. Secret metadata is separated into
+`k8s.secret_access@v1` and is capped at a chat session. Workload mutations,
+node administration, and raw kubectl calls use distinct capabilities and are
+always authorized for one exact invocation only. Their resource scopes form a
+cluster / namespace / kind / object hierarchy; raw kubectl scope uses its
+credential or declared cluster as the cluster identifier. Defaults ask the
+operator rather than granting access. The connection's
+`agentic_access_enabled` and `allow_writes` settings remain independent,
+non-delegable ceilings, so enabling a connection never creates permission.
+
 Coworkers are deny-by-default. The plugin declares a scoped `k8s.read` grant
 with a default `confirm` approval policy. An owner may select one
 agentic-access-enabled cluster for the grant. The coworker then receives only

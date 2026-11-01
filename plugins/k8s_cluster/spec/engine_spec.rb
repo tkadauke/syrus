@@ -31,6 +31,7 @@ RSpec.describe K8sCluster::Engine do
 
     expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(K8sCluster::WorkflowToolSet)
     expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(K8sCluster::ChatToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(K8sCluster::PermissionProvider)
   end
 
   describe ".enabled?" do
