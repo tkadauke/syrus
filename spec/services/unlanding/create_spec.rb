@@ -13,6 +13,8 @@ RSpec.describe Unlanding::Create do
     allow(GitRunner).to receive(:new).and_return(git)
     allow(git).to receive(:run).with("rev-parse", "refs/heads/#{original.repository.default_branch}", anything).and_return("base\n")
     allow(git).to receive(:run).with("merge-base", "--is-ancestor", "commit-a", "base", anything).and_return("")
+    allow(git).to receive(:run).with("rev-list", "--parents", "-n", "1", "commit-a", anything)
+      .and_return("commit-a parent-a\n")
     allow(WorkUnits::Launcher).to receive(:start!)
   end
 
@@ -48,6 +50,14 @@ RSpec.describe Unlanding::Create do
 
     expect { described_class.call!(original: original) }
       .to raise_error(described_class::Ineligible, /not safely reachable/)
+  end
+
+  it "rejects merge commits whose rollback mainline is ambiguous" do
+    allow(git).to receive(:run).with("rev-list", "--parents", "-n", "1", "commit-a", anything)
+      .and_return("commit-a parent-a parent-b\n")
+
+    expect { described_class.call!(original: original) }
+      .to raise_error(described_class::Ineligible, /ambiguous rollback mainline/)
   end
 
   it "rejects a landing with no recorded commits" do

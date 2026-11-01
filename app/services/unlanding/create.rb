@@ -61,6 +61,8 @@ module Unlanding
       shas = rows.pluck(:sha)
       shas.each do |sha|
         git.run("merge-base", "--is-ancestor", sha, base, chdir: clone.path.to_s)
+        parents = git.run("rev-list", "--parents", "-n", "1", sha, chdir: clone.path.to_s).split
+        raise Ineligible, "landed commit #{sha} is a merge commit with an ambiguous rollback mainline" if parents.length > 2
       rescue GitRunner::GitError
         raise Ineligible, "landed commit #{sha} is not safely reachable from current default branch"
       end

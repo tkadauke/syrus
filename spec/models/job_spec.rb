@@ -4143,3 +4143,17 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 end
+
+RSpec.describe Job, "rollback provenance" do
+  it "links a rollback in both directions and recognizes successful unlanding" do
+    original = Factories.job_record(state: "closed", closure_reason: "pr_merged", landed_sha: "original")
+    rollback = Factories.job_record(
+      repository: original.repository, user: original.user, rollback_of: original,
+      state: "closed", closure_reason: "pr_merged", landed_sha: "rollback"
+    )
+
+    expect(rollback).to be_rollback
+    expect(original.unlanded_by).to eq(rollback)
+    expect(original.rollback_jobs).to contain_exactly(rollback)
+  end
+end
