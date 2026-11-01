@@ -10,6 +10,19 @@ Every `Workflow` has a `trigger_kind` that identifies what the attempt is for an
 
 The primary workflow: explores the repo, writes code, runs graders, and opens a PR.
 
+## unland
+
+**When it fires:** Unland orchestration has constructed a proposed revert tree
+and requests its dedicated validation gate.
+
+**Step chain:** `prepare → grader_fanout → grader_collect`
+
+This is a non-agentic, urgent validation workflow. It selects only graders
+explicitly configured with `phases: [unland]`; after changed-file filtering it
+fails as configuration-unavailable unless at least one required grader was
+selected. Revert construction and publication are owned by the surrounding
+unland operation, not this grader workflow.
+
 ## skill
 
 **When it fires:** A `direct` Job is created with `skill_name` + `skill_args` set (`SkillJobs::Creator`), rather than a free-form prompt.

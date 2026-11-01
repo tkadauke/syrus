@@ -99,6 +99,32 @@ RSpec.describe RepoGradePlan do
       ])
     end
 
+    it "preserves unland phase metadata and grader policy" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: rollback-smoke
+            run: bin/rollback-smoke
+            phases: [unland]
+            required: false
+            timeout_minutes: 2
+            when_files_changed: ["app/**/*.rb"]
+            capabilities:
+              os: [linux]
+      YAML
+
+      grader = described_class.for(@dir).graders.sole
+
+      expect(grader).to have_attributes(
+        name: "rollback-smoke",
+        command: "bin/rollback-smoke",
+        phases: %w[unland],
+        required: false,
+        timeout_minutes: 2,
+        when_files_changed: [ "app/**/*.rb" ]
+      )
+      expect(grader.capabilities.to_h).to eq("os" => [ "linux" ])
+    end
+
     it "preserves typed grader metadata for runtime fanout and target graph consumers" do
       write(".syrus.yml", <<~YAML)
         grade:

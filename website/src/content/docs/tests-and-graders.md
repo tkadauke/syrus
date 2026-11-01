@@ -1,6 +1,6 @@
 ---
 title: Tests and Graders
-description: Configure fast review checks, landing checks, CI repair checks, coverage, and test insights.
+description: Configure fast review, unland, landing, and CI repair checks, coverage, and test insights.
 ---
 
 # Tests and Graders
@@ -20,8 +20,17 @@ before running checks so a typo cannot silently disable validation.
 Each grader can declare the phases where it should run:
 
 - `review`: cheap checks before a human reviews the PR.
+- `unland`: a dedicated fast smoke gate for validating a proposed revert tree.
 - `landing`: checks that must pass immediately before merge.
 - `ci`: checks used when Syrus is repairing CI failures.
+
+The `unland` phase is explicit opt-in and should finish in a few minutes. Use
+structural checks, boot smokes, and focused typed graders; keep full suites,
+coverage, browser tests, fresh-database preparation, and image builds in their
+normal phases. Typed RSpec, Minitest, and Vitest entries use focused mode for
+`unland`. At least one required grader must remain selected after changed-file
+filtering, so configure an unconditional required smoke check rather than
+allowing an unrelated revert to run zero validation.
 
 During a CI-failure repair, Syrus maps each originally failing GitHub check to
 its covering `ci` grader by `ci_checks` metadata, target label, or matching

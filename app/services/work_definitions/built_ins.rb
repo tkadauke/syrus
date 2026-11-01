@@ -250,6 +250,18 @@ module WorkDefinitions
     self.scope = "repository"
   end
 
+  class Unland < Base
+    include ManagesOwnJobLifecycle
+    include RecordsGraderTargetSelectionInputs
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+
+    self.kind = "unland"
+    self.workflow_trigger_kind = "unland"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
+
   class UpstreamExport < Base
     include ResumesFailedSteps
 

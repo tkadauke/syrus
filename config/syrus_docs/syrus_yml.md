@@ -776,10 +776,39 @@ anything.
 - `review` — implementation/feedback validation before operator approval.
 - `landing` — final landing validation after approval.
 - `ci` — CI-failure repair and main-branch health grading.
+- `unland` — fast validation of a proposed revert tree before an unland can
+  proceed. It is an explicit opt-in and is not part of the default phases.
 
 Use cheap structural checks in `review`. Put expensive full-suite checks in
 `landing` so Syrus does not spend minutes grading work before a human review.
 Put CI-only checks in a separate `ci` phase grader.
+
+Keep `unland` incident-response-oriented: target a few minutes of wall-clock
+latency and use structural checks, boot smokes, and focused typed graders rather
+than full test suites, coverage, browser tests, fresh-database preparation, or
+image builds. Typed RSpec, Minitest, and Vitest graders map `unland` to their
+focused commands, with the same file filters, required/optional policy,
+capabilities, timeouts, and cache behavior as their other generated modes.
+
+An unland pass is never allowed to mean “nothing ran.” After
+`when_files_changed` filtering, at least one required grader must be selected or
+the validation reports a configuration-unavailable failure. Repositories should
+therefore configure a required unconditional smoke grader in `unland`, then add
+file-filtered checks for relevant surfaces:
+
+```yaml
+grade:
+  - name: boot-smoke
+    run: bin/check-eager-load
+    phases: [unland]
+    required: true
+
+  - name: frontend-typecheck
+    run: npm run typecheck
+    phases: [unland]
+    required: true
+    when_files_changed: ["app/frontend/**/*"]
+```
 
 ```yaml
 grade:
