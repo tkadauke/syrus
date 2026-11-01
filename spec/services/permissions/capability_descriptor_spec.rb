@@ -112,7 +112,6 @@ RSpec.describe Permissions::CapabilityDescriptorAdapter do
     expect(allowed.defaults.fetch(AgentRole::COWORKER_CHAT)).to eq(:allow)
     expect(requestable.defaults.fetch(AgentRole::COWORKER_CHAT)).to eq(:ask)
   end
-
   it "accepts an explicit canonical descriptor from a plugin definition" do
     explicit = Permissions::CapabilityDescriptor.new(**{
       capability: "plugin.observe@v2", operation: "plugin.observe/read@v3", effects: [ :network_read ], risk: :low,
