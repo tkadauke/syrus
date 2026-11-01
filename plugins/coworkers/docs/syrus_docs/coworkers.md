@@ -256,7 +256,10 @@ in the chat sidebar, and assistant messages use the coworker's avatar and color.
 Coworker chats carry a named badge in global search, chat search, and the
 agent-facing chat search tool. The shared chat filter offers each of the
 current user's coworkers plus Syrus, where Syrus means a chat without a
-coworker link.
+coworker link. Main and side coworker chats keep their workspace repository
+attachment, but they do not make that workspace the automatic repository
+default for a new ordinary chat. The workspace remains available for explicit
+selection wherever the owner is otherwise authorized to use it.
 
 Chat owners can share a chat read-only with one of their own coworkers from
 the normal share dialog. A coworker with the `chats.read_shared` grant can
