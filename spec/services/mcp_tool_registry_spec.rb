@@ -110,6 +110,15 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".tools_for_context" do
+    it "returns the legacy tool set when shadow comparison raises" do
+      run = Factories.job.initial_run
+      context = McpToolContext.from_run(run)
+      expected = described_class.tools_for_context(context)
+      allow(Permissions::ShadowEvaluator).to receive(:compare).and_raise("policy infrastructure unavailable")
+
+      expect(described_class.tools_for_context(context)).to eq(expected)
+    end
+
     it "keeps the planner chat tool set unchanged" do
       session = chat_session
       context = McpToolContext.from_chat_session(session)
