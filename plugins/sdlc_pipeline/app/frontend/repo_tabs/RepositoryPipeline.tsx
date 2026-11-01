@@ -21,7 +21,7 @@ const STAGE_HEADER_CLASSES =
 const SHOW_ALL_CLASSES =
   "mt-auto rounded p-1.5 text-left text-[length:var(--text-caption)] font-medium text-brand hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
 const TIME_RAIL_CLASSES =
-  "relative z-20 flex h-[33.75rem] w-[4.5rem] shrink-0 flex-col items-center border-r border-border bg-surface px-1.5 py-2 sm:w-[7.5rem] sm:px-2"
+  "relative z-20 flex h-[33.75rem] w-[6.5rem] shrink-0 flex-col items-center border-r border-border bg-surface px-1.5 py-2 sm:w-[7.5rem] sm:px-2"
 const RAIL_BUTTON_CLASSES =
   "rounded px-1 text-sm font-semibold text-brand hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
 const VERTICAL_SCRUBBER_CLASSES =
@@ -30,12 +30,14 @@ const EVENT_MARK_CLASSES =
   "absolute left-1/2 z-20 flex h-3 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm text-[8px] font-bold focus-visible:h-5 focus-visible:w-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
 const RAIL_OPTIONS_CLASSES =
   "cursor-pointer list-none rounded border border-border px-1.5 py-1 text-center text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+const RAIL_POPOVER_CLASSES =
+  "fixed inset-x-2 bottom-2 z-40 rounded border border-border bg-surface p-3 text-left shadow-lg sm:absolute sm:inset-x-auto sm:bottom-8 sm:left-0 sm:w-72"
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
 type HistoryEventKind = "attention" | "deployment" | "movement"
 
 function historyEventKind(stages: Array<string | null>): HistoryEventKind {
-  if (stages.some((stage) => stage?.includes("fail") || stage?.includes("block"))) return "attention"
+  if (stages.some((stage) => stage === "failed" || stage === "blocked")) return "attention"
   if (stages.some((stage) => stage?.startsWith("deployment:") || stage === "released")) return "deployment"
   return "movement"
 }
@@ -482,9 +484,9 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           </Text>
         </div>
       </div>
-      <div className="relative flex overflow-hidden border-y border-border bg-surface-subtle" data-testid="pipeline-with-time-rail">
+      <div className="relative flex border-y border-border bg-surface-subtle" data-testid="pipeline-with-time-rail">
         <aside aria-label={t("history_aria")} className={TIME_RAIL_CLASSES} data-testid="pipeline-time-rail">
-          <div className="flex w-full items-center justify-between gap-1">
+          <div className="flex w-full flex-col items-center gap-1 sm:flex-row sm:justify-between">
             <TonePill tone={historical ? "amber" : "gray"}>{historical ? t("historical_mode_short") : t("live_mode")}</TonePill>
             {historical ? (
               <button aria-label={t("return_now")} className={RAIL_BUTTON_CLASSES} onClick={() => setAt(null)} title={t("return_now")} type="button">
@@ -492,8 +494,14 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
               </button>
             ) : null}
           </div>
-          <Text className="mt-1 hidden text-center sm:block" variant="caption" tone="muted">
-            {historical ? new Date(historicalAt!).toLocaleString() : t("now")}
+          <Text className="mt-1 text-center text-2xs leading-tight" variant="caption" tone="muted">
+            {historical ? (
+              <time data-testid="selected-history-time" dateTime={historicalAt!}>
+                {new Date(historicalAt!).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </time>
+            ) : (
+              t("now")
+            )}
           </Text>
           <div className="relative my-2 min-h-0 w-full flex-1" data-testid="history-event-track">
             <div aria-hidden className="absolute bottom-2 left-1/2 top-2 w-px -translate-x-1/2 bg-border" />
@@ -530,7 +538,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
                   }`}
                   key={mark.tick}
                   onClick={() => setAt(mark.tick)}
-                  style={{ top: `${history.ticks.length <= 1 ? 50 : 96 - (mark.index / (history.ticks.length - 1)) * 92}%` }}
+                  style={{ top: `${96 - (mark.index / Math.max(1, history.ticks.length)) * 92}%` }}
                   title={label}
                   type="button"
                 >
@@ -553,6 +561,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
                 if (!historical) setAt(history.ticks[0])
                 setPlaying((value) => !value)
               }}
+              className="h-7 w-7"
               size="icon"
               title={playing ? t("pause_history") : t("play_history")}
               variant="secondary"
@@ -562,6 +571,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
             <Button
               aria-label={t("previous_tick")}
               disabled={currentTick <= 0}
+              className="h-7 w-7"
               onClick={() => setAt(history.ticks[currentTick - 1])}
               size="icon"
               title={t("previous_tick")}
@@ -572,6 +582,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
             <Button
               aria-label={t("next_tick")}
               disabled={!historical || currentTick >= history.ticks.length - 1}
+              className="h-7 w-7"
               onClick={() => setAt(history.ticks[currentTick + 1])}
               size="icon"
               title={t("next_tick")}
@@ -582,7 +593,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           </div>
           <details className="group relative mt-2 w-full text-2xs">
             <summary className={RAIL_OPTIONS_CLASSES}>{t("history_options")}</summary>
-            <div className="absolute bottom-8 left-0 z-40 w-72 rounded border border-border bg-surface p-3 text-left shadow-lg">
+            <div className={RAIL_POPOVER_CLASSES}>
               <label className="text-2xs text-text-muted">
                 {t("history_window")}
                 <Select
@@ -634,7 +645,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
             </div>
           </details>
         </aside>
-        <div className="relative min-w-0 flex-1 py-3">
+        <div className="relative min-w-0 flex-1 overflow-hidden py-3">
           {edges.left ? (
             <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-surface-subtle to-transparent" />
           ) : null}
