@@ -57,6 +57,70 @@ RSpec.describe InboundMessageRouter do
         expect(message.mentions).to eq([])
       end
 
+      it "resolves a replay with a stable provider ID to the original message and turn" do
+        delivery = {
+          platform: "telegram", external_id: "42", external_handle: "@alice",
+          message_text: "Hi Syrus", native_message_id: "update-7", conversation_id: "dm-42"
+        }
+
+        expect {
+          2.times { described_class.new(**delivery).call }
+        }.to change(ChatMessage, :count).by(1).and have_enqueued_job(ChatTurnJob).exactly(:once)
+
+        expect(ChatIngressReceipt.last.chat_message).to eq(ChatMessage.last)
+      end
+
+      it "namespaces native IDs across providers, conversations, and senders" do
+        telegram_message = described_class.new(
+          platform: "telegram", external_id: "42", external_handle: "@alice",
+          message_text: "First", native_message_id: "7", conversation_id: "one"
+        ).call.session.messages.last
+
+        slack_identity = Factories.platform_identity(user: user, platform: "slack", external_id: "84")
+        slack_message = described_class.new(
+          platform: "slack", external_id: slack_identity.external_id, external_handle: "alice",
+          message_text: "Second", native_message_id: "7", conversation_id: "one"
+        ).call.session.messages.last
+
+        other_conversation = described_class.new(
+          platform: "telegram", external_id: "42", external_handle: "@alice",
+          message_text: "Third", native_message_id: "7", conversation_id: "two"
+        ).call.session.messages.last
+
+        other_identity = Factories.platform_identity(platform: "telegram", external_id: "43")
+        other_sender = described_class.new(
+          platform: "telegram", external_id: other_identity.external_id, external_handle: "bob",
+          message_text: "Fourth", native_message_id: "7", conversation_id: "one"
+        ).call.session.messages.last
+
+        keys = [ telegram_message, slack_message, other_conversation, other_sender ].map(&:client_idempotency_key)
+        expect(keys.uniq.length).to eq(4)
+      end
+
+      it "rejects reuse of a stable provider ID with different canonical content" do
+        delivery = {
+          platform: "telegram", external_id: "42", external_handle: "@alice",
+          native_message_id: "update-8", conversation_id: "dm-42"
+        }
+        described_class.new(**delivery, message_text: "Original").call
+
+        original_count = ChatMessage.count
+        expect {
+          described_class.new(**delivery, message_text: "Changed").call
+        }.to raise_error(InboundMessageRouter::IdempotencyConflict)
+        expect(ChatMessage.count).to eq(original_count)
+      end
+
+      it "creates separate messages when the connector has no stable provider ID" do
+        delivery = {
+          platform: "telegram", external_id: "42", external_handle: "@alice",
+          message_text: "Same text", conversation_id: "dm-42"
+        }
+
+        expect { 2.times { described_class.new(**delivery).call } }.to change(ChatMessage, :count).by(2)
+        expect(ChatMessage.last(2).map(&:client_idempotency_key)).to eq([ nil, nil ])
+      end
+
       it "enqueues ChatTurnJob for speak_when_spoken_to sessions" do
         expect {
           described_class.new(
