@@ -102,5 +102,6 @@
   "tool_open": "Open pipeline",
   "tool_copy_link": "Copy link",
   "tool_summary": "Pipeline for {{repository}}",
-  "tool_malformed": "This pipeline result cannot be displayed."
+  "tool_malformed": "This pipeline result cannot be displayed.",
+  "chat_view_pipeline": "View pipeline"
 }

@@ -5,15 +5,12 @@ import { Modal } from "../../components/Modal"
 import { useT } from "../../hooks/useT"
 import { withRoutePrefix } from "../../lib/routing"
 
-type Presentation = { chat_session_id?: unknown; title?: unknown; path?: unknown }
+type Presentation = { chat_session_id?: unknown; title?: unknown; title_i18n_key?: unknown; path?: unknown }
 const BACKDROP_CLASSES = [
   "fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch",
   "bg-text-primary/40 p-0 sm:items-center sm:justify-center sm:p-4"
 ].join(" ")
-const MODAL_CLASSES = [
-  "flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-surface-raised shadow-2xl",
-  "sm:h-[94dvh] sm:w-[96dvw] sm:rounded-lg"
-].join(" ")
+const MODAL_CLASSES = ["flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-surface-raised shadow-2xl", "sm:h-[94dvh] sm:w-[96dvw] sm:rounded-lg"].join(" ")
 
 export function ToolPresentationModal({ chatId, prefix }: { chatId: string; prefix: string }) {
   const { t } = useT("chat")
@@ -22,12 +19,14 @@ export function ToolPresentationModal({ chatId, prefix }: { chatId: string; pref
   useEffect(() => {
     const listener = (event: Event) => {
       const detail = (event as CustomEvent<Presentation>).detail
-      if (String(detail?.chat_session_id) !== String(chatId) || typeof detail?.title !== "string" || typeof detail?.path !== "string") return
-      setPresentation({ title: detail.title, path: detail.path })
+      if (String(detail?.chat_session_id) !== String(chatId) || typeof detail?.path !== "string") return
+      const title = typeof detail.title_i18n_key === "string" ? t(detail.title_i18n_key) : detail.title
+      if (typeof title !== "string") return
+      setPresentation({ title, path: detail.path })
     }
     window.addEventListener("syrus:tool-presentation", listener)
     return () => window.removeEventListener("syrus:tool-presentation", listener)
-  }, [chatId])
+  }, [chatId, t])
 
   const path = presentation ? withRoutePrefix(presentation.path, prefix) : null
   return (
@@ -40,6 +39,15 @@ export function ToolPresentationModal({ chatId, prefix }: { chatId: string; pref
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface-raised px-4 py-3">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-primary">{presentation?.title}</h2>
+        {path ? (
+          <button
+            className={buttonClasses("secondary", "sm")}
+            onClick={() => void navigator.clipboard.writeText(new URL(path, window.location.origin).toString())}
+            type="button"
+          >
+            {t("tool_presentation_copy_link")}
+          </button>
+        ) : null}
         {path ? (
           <a className={buttonClasses("secondary", "sm")} href={path}>
             {t("tool_presentation_open_full_page")}

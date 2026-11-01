@@ -3298,5 +3298,6 @@
   "coworker_message_to": "an @{{handle}}",
   "tool_presentation_title": "Tool-Präsentation",
   "tool_presentation_open_full_page": "Als ganze Seite öffnen",
+  "tool_presentation_copy_link": "Link kopieren",
   "tool_presentation_close": "Schließen"
 }
