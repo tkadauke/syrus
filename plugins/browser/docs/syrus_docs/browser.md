@@ -128,6 +128,18 @@ the tree, not just logically disabled.
 
 ## Safety model
 
+Browser tools declare separate permission capabilities for observation,
+loopback navigation, interaction, JavaScript evaluation, file/data upload,
+and closing an owned session. Evaluation and upload default to an
+exact-invocation request. Ordinary interaction retains a conservative
+high-risk classification because the semantic consequence of a page target
+cannot be inferred safely.
+
+These descriptors do not replace the hard boundaries: navigation remains
+loopback-only, upload authority fingerprints exact paths without exposing
+them in approval copy, and page-affecting Coding Mode calls still require the
+active Runtime input lease.
+
 Browser navigation is scoped to loopback preview URLs regardless of
 transport (`LoopbackGuard`, enforced by `NavigateTool` before any tool call
 reaches `Session`). The service-backed path does not change that: the guard
