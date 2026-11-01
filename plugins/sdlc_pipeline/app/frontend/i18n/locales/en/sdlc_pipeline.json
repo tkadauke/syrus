@@ -96,5 +96,11 @@
   "change_line": "{{job}}: {{from}} → {{to}}",
   "outside_pipeline": "outside pipeline",
   "trace_heading": "Trace for {{job}}",
-  "trace_segment": "{{stage}} — entered {{entered}}, left {{left}} ({{dwell}})"
+  "trace_segment": "{{stage}} — entered {{entered}}, left {{left}} ({{dwell}})",
+  "tool_repository": "Repository",
+  "tool_historical_cursor": "Historical cursor",
+  "tool_open": "Open pipeline",
+  "tool_copy_link": "Copy link",
+  "tool_summary": "Pipeline for {{repository}}",
+  "tool_malformed": "This pipeline result cannot be displayed."
 }

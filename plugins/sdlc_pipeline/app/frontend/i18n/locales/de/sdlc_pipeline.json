@@ -96,5 +96,11 @@
   "change_line": "{{job}}: {{from}} → {{to}}",
   "outside_pipeline": "außerhalb der Pipeline",
   "trace_heading": "Verlauf für {{job}}",
-  "trace_segment": "{{stage}} — Eintritt {{entered}}, Austritt {{left}} ({{dwell}})"
+  "trace_segment": "{{stage}} — Eintritt {{entered}}, Austritt {{left}} ({{dwell}})",
+  "tool_repository": "Repository",
+  "tool_historical_cursor": "Historischer Zeitpunkt",
+  "tool_open": "Pipeline öffnen",
+  "tool_copy_link": "Link kopieren",
+  "tool_summary": "Pipeline für {{repository}}",
+  "tool_malformed": "Dieses Pipeline-Ergebnis kann nicht angezeigt werden."
 }
