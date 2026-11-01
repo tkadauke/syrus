@@ -119,6 +119,30 @@ RSpec.describe Steps::VisualReview do
     expect(workflow.reload.artifact("manual_visual_review_instructions")).to eq(instructions)
   end
 
+  it "adds durable manual instructions to the Run prompt after a failed-step retry" do
+    instructions = "Keep the sticky title directly below the app header."
+    workflow.update_columns(trigger_kind: "manual_visual_review", state: "failed", finished_at: 1.minute.ago)
+    workflow.set_artifact!("manual_visual_review_instructions", instructions)
+    review_step.update_columns(state: "failed", finished_at: 1.minute.ago)
+    run.update_columns(state: "failed", finished_at: 1.minute.ago)
+
+    retry_result = RetryFailedStepEnqueuer.call(workflow: workflow, failed_step: review_step)
+
+    expect(retry_result).to be_success
+    retry_handler = described_class.new(retry_result.run)
+    allow(retry_handler).to receive(:workspace).and_return(handler.send(:workspace))
+    expect(retry_handler).to receive(:run_agent) do |prompt:, **|
+      expect(prompt).to include(instructions)
+      workflow.set_artifact!("visual_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Captured.", "verdict" => "approved" }
+      ])
+    end
+
+    retry_handler.call
+
+    expect(retry_result.run.reload.prompt).to include(instructions)
+  end
+
   it "prepares affected previews before invoking the reviewer" do
     preparation = instance_double(PreviewPreparation)
     allow(PreviewPreparation).to receive(:new).and_return(preparation)
