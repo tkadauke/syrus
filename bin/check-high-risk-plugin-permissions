@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Required rollout gate for providers that can reach credentials,
+# infrastructure, databases, or a browser session.
+root = File.expand_path("..", __dir__)
+specs = %w[
+  plugins/mysql_db_browser/spec/services/mysql_db_browser/permission_provider_spec.rb
+  plugins/k8s_cluster/spec/services/k8s_cluster/permission_provider_spec.rb
+  plugins/credential_store/spec/services/credential_store/permission_provider_spec.rb
+  plugins/admin_mysql/spec/services/admin_mysql/permission_provider_spec.rb
+  plugins/browser/spec/services/syrus_browser/permission_provider_spec.rb
+  spec/services/permissions/shadow_evaluator_spec.rb
+  spec/services/permissions/lease_authorizer_spec.rb
+  spec/models/permission_rule_spec.rb
+  spec/models/authorized_invocation_spec.rb
+  spec/models/authorized_invocation_concurrency_spec.rb
+].freeze
+
+missing = specs.reject { |path| File.file?(File.join(root, path)) }
+abort "Missing permission cutover specs: #{missing.join(', ')}" if missing.any?
+
+exec({ "RAILS_ENV" => "test" }, File.join(root, "bin/rspec"), *specs)
