@@ -43,5 +43,19 @@ module MysqlDbBrowser
     def self.available_for?(_chat_session, tier:)
       %i[essential deferred].include?(tier.to_sym) && gated?
     end
+
+    DESCRIPTORS = {
+      "mysql_db_browser_list_connections" => "mysql.connection/list@v1",
+      "mysql_db_browser_list_databases" => "mysql.database/list@v1",
+      "mysql_db_browser_list_tables" => "mysql.table/list@v1",
+      "mysql_db_browser_describe_table" => "mysql.schema/read@v1",
+      "mysql_db_browser_execute_query" => "mysql.query/execute@v1"
+    }.freeze
+
+    def self.tool_definitions(tier: nil, context: nil)
+      super.map do |definition|
+        definition.merge(capability_descriptor: PermissionProvider.capability_descriptor(DESCRIPTORS.fetch(definition.fetch(:name))))
+      end
+    end
   end
 end

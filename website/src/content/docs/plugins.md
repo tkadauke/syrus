@@ -216,6 +216,14 @@ confirmation and creates the rules only after that confirmation. Role defaults
 and presets are recommendations only: installing, enabling, configuring, or
 migrating a plugin never applies them automatically.
 
+MySQL DB Browser uses this contract to scope connection, database, table,
+query, schema, and administrative access independently. Its SQL classifier
+distinguishes reads, data writes, schema changes, and administrative effects;
+uncertain statements receive the maximum critical-risk classification. Query
+authority is limited to one invocation, fingerprints normalize harmless SQL
+whitespace, and authorization displays redact the SQL text. Its read-only and
+query-operator presets remain inert until an operator confirms them.
+
 Permission-provider authors can run `Permissions::ProviderTestKit` in their
 RSpec suite. A small adapter supplies real provider probes for normalization,
 redaction, hidden and unknown resources, uncertain classification, provider or

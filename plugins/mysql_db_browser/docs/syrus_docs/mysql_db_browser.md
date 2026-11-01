@@ -231,6 +231,18 @@ delegate their gating logic to the shared `Syrus::Plugin::AgenticConnection`
 concern, which `K8sCluster::AgenticAccess` also extends - see the K8s Cluster
 docs' Agentic write-access gating section for the parallel shape.
 
+The plugin also publishes canonical permission metadata for operator-managed
+rules. It distinguishes connection, database, table, query, schema, and
+administrative resource scopes. Metadata reads are medium-risk and may be
+delegated only through a Job; query execution has an invocation-only ceiling.
+SQL classification separates reads, data writes, schema changes, and
+administrative effects. Unknown, compound, executable-comment, and CTE forms
+fall back to the query descriptor's critical maximum risk. Permission
+fingerprints normalize SQL whitespace, while displayed authorization arguments
+replace the SQL text entirely. The `mysql_read_only` and
+`mysql_query_operator` presets are recommendations only and create no authority
+until an operator reviews and confirms them.
+
 ## Read-only guardrails and audit log
 
 `MysqlDbBrowser::QueryExecutor` is the single execution path for both the
