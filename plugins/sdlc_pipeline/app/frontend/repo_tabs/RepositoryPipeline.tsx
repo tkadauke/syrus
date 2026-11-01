@@ -28,10 +28,10 @@ const STAGE_HEADER_CLASSES =
   "w-full border-b border-border bg-surface/95 p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
 const SHOW_ALL_CLASSES =
   "mt-auto rounded p-1.5 text-left text-[length:var(--text-caption)] font-medium text-brand hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-const TIME_SCRUBBER_CLASSES =
-  "absolute left-1/2 top-1/2 h-8 w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 -rotate-90 accent-[var(--color-brand)] sm:w-[calc(100%-2rem)]"
+const TIME_SCRUBBER_CLASSES = "absolute inset-y-8 left-1/2 h-[calc(100%-4rem)] w-8 -translate-x-1/2 accent-[var(--color-brand)]"
 const EVENT_MARKER_CLASSES =
   "absolute left-1/2 z-10 flex h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full border-2 bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+const METRIC_GROUP_CLASSES = "grid-flow-col auto-cols-[8rem] grid-cols-none overflow-x-auto pb-1 xl:ml-auto xl:w-[38rem] xl:grid-flow-row xl:grid-cols-4"
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
 function duration(seconds: number | null, t: Translate) {
@@ -229,7 +229,6 @@ function DrillDown({ onClose, repositoryId, search, stage }: { onClose: () => vo
 }
 
 function HistoryRail({
-  changes,
   currentTick,
   historical,
   historicalAt,
@@ -239,7 +238,6 @@ function HistoryRail({
   playing,
   setPlaying
 }: {
-  changes: PipelineHistory["deltas"]
   currentTick: number
   historical: boolean
   historicalAt: string | null
@@ -253,17 +251,14 @@ function HistoryRail({
   const selectedIndex = historical ? Math.max(0, currentTick) : history.ticks.length
   const markerSteps = Math.max(1, history.ticks.length - 1)
   return (
-    <Section.Root
-      aria-label={t("history_aria")}
-      className="flex w-[4.75rem] shrink-0 flex-col items-center gap-2 overflow-hidden p-2 sm:w-44 sm:items-stretch sm:p-3"
-    >
-      <div className="hidden sm:block">
+    <Section.Root aria-label={t("history_aria")} className="flex w-24 shrink-0 flex-col items-stretch gap-2 overflow-hidden p-2 sm:w-44 sm:p-3">
+      <div>
         <Section.Title>{t("history_short")}</Section.Title>
-        <Text className="mt-1" variant="caption" tone="muted">
+        <Text className="mt-1 truncate" variant="caption" tone="muted">
           {historical && historicalAt ? new Date(historicalAt).toLocaleString() : t("live_mode")}
         </Text>
       </div>
-      <div className="flex w-full items-center justify-center gap-1 sm:justify-start">
+      <div className="grid w-full grid-cols-2 gap-1">
         <Button
           aria-label={playing ? t("pause_history") : t("play_history")}
           disabled={!history.ticks.length}
@@ -280,6 +275,26 @@ function HistoryRail({
         <Button aria-label={t("return_now")} disabled={!historical} onClick={() => onSelect(null)} size="icon" title={t("return_now")} variant="secondary">
           ●
         </Button>
+        <Button
+          aria-label={t("previous_tick")}
+          disabled={!historical || currentTick <= 0}
+          onClick={() => onSelect(history.ticks[currentTick - 1])}
+          size="icon"
+          title={t("previous_tick")}
+          variant="secondary"
+        >
+          ‹
+        </Button>
+        <Button
+          aria-label={t("next_tick")}
+          disabled={!historical || currentTick >= history.ticks.length - 1}
+          onClick={() => onSelect(history.ticks[currentTick + 1])}
+          size="icon"
+          title={t("next_tick")}
+          variant="secondary"
+        >
+          ›
+        </Button>
       </div>
       <div className="relative min-h-52 w-full flex-1" data-testid="pipeline-time-rail">
         <Input
@@ -288,6 +303,7 @@ function HistoryRail({
           max={history.ticks.length}
           min={0}
           onChange={(event) => onSelect(event.target.value === String(history.ticks.length) ? null : history.ticks[Number(event.target.value)] || history.from)}
+          style={{ direction: "rtl", writingMode: "vertical-lr" }}
           type="range"
           value={selectedIndex}
         />
@@ -297,23 +313,26 @@ function HistoryRail({
             <button
               aria-label={t("event_marker", { time: new Date(tick).toLocaleString() })}
               aria-pressed={active}
-              className={`${EVENT_MARKER_CLASSES} ${active ? "border-brand text-brand" : "border-border text-text-muted"}`}
+              className={`${EVENT_MARKER_CLASSES} ${active ? "border-brand text-brand ring-2 ring-brand ring-offset-2 ring-offset-surface" : "border-border text-text-muted"}`}
               key={tick}
               onClick={() => onSelect(tick)}
               style={{ top: `calc(${history.ticks.length === 1 ? 50 : 8 + ((history.ticks.length - index - 1) / markerSteps) * 84}% - 1.375rem)` }}
               title={new Date(tick).toLocaleString()}
               type="button"
             >
-              <span aria-hidden className={`h-2.5 w-2.5 rotate-45 border ${active ? "border-brand bg-brand" : "border-current bg-surface"}`} />
+              <span
+                aria-hidden
+                className={`h-2.5 w-2.5 border transition-transform ${active ? "scale-125 rounded-full border-brand bg-brand" : "rotate-45 border-current bg-surface"}`}
+              />
             </button>
           )
         })}
       </div>
-      <div className="hidden sm:block">
+      <div>
         <label className="text-2xs text-text-muted">
           {t("history_window")}
           <Select
-            className="mt-1 px-2 py-1"
+            className="mt-1 px-1 py-1 text-2xs sm:px-2"
             fullWidth
             onChange={(event) => onRangeChange(Number(event.target.value))}
             value={Math.max(1, Math.round((new Date(history.to).getTime() - new Date(history.from).getTime()) / 86_400_000))}
@@ -324,11 +343,6 @@ function HistoryRail({
             <option value="90">{t("ninety_days")}</option>
           </Select>
         </label>
-        {historical ? (
-          <Text className="mt-2" variant="caption" tone="muted">
-            {changes.length ? t("changes_count", { count: changes.length }) : t("no_changes")}
-          </Text>
-        ) : null}
       </div>
     </Section.Root>
   )
@@ -495,11 +509,16 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
               {t("subtitle", { time: new Date(historicalAt || payload.generated_at).toLocaleString() })}
             </Text>
           </div>
-          <Metric.Group className="hidden lg:grid xl:ml-auto xl:w-[38rem]" columns={4}>
-            <Metric.Card label={t("in_pipeline")} value={total} />
-            <Metric.Card label={t("need_attention")} tone={attention ? "danger" : "neutral"} value={historical ? t("not_available") : attention} />
-            <Metric.Card label={t("landed_gap")} tone={landed ? "warning" : "neutral"} value={landed} />
-            <Metric.Card label={t("oldest_active")} value={duration(oldest, t)} />
+          <Metric.Group className={METRIC_GROUP_CLASSES} columns={4}>
+            <Metric.Card className="min-w-32" label={t("in_pipeline")} value={total} />
+            <Metric.Card
+              className="min-w-32"
+              label={t("need_attention")}
+              tone={attention ? "danger" : "neutral"}
+              value={historical ? t("not_available") : attention}
+            />
+            <Metric.Card className="min-w-32" label={t("landed_gap")} tone={landed ? "warning" : "neutral"} value={landed} />
+            <Metric.Card className="min-w-32" label={t("oldest_active")} value={duration(oldest, t)} />
           </Metric.Group>
         </div>
         {historical ? (
@@ -507,6 +526,29 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
             {t("historical_banner", { time: new Date(historicalAt!).toLocaleString() })}
             <span className="ml-1">{t("current_freshness", { time: new Date(payload.generated_at).toLocaleString() })}</span>
           </Notice>
+        ) : null}
+        {historical && history.accuracy.message ? (
+          <Text className="mt-2" variant="caption" tone="muted">
+            {history.accuracy.message}
+          </Text>
+        ) : null}
+        {historical ? (
+          <details className="mt-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-[length:var(--text-caption)]">
+            <summary className="cursor-pointer font-medium text-text-secondary">
+              {changes.length ? t("changes_count", { count: changes.length }) : t("no_changes")}
+            </summary>
+            <div className="mt-2 space-y-1 text-text-muted">
+              {changes.slice(0, 8).map((change) => (
+                <div key={`${change.job_id}-${change.at}`}>
+                  {t("change_line", {
+                    job: change.item?.item.slug || change.job_id,
+                    from: change.from_stage || t("outside_pipeline"),
+                    to: change.to_stage || t("outside_pipeline")
+                  })}
+                </div>
+              ))}
+            </div>
+          </details>
         ) : null}
         {trace && tracedItem ? (
           <Section.Root className="mt-3 p-3">
@@ -646,7 +688,6 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           </div>
         </div>
         <HistoryRail
-          changes={changes}
           currentTick={currentTick}
           historical={historical}
           historicalAt={historicalAt}
