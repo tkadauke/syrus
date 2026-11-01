@@ -1,4 +1,5 @@
 require "rails_helper"
+require "open3"
 
 RSpec.describe LandingValidationPrefetcher do
   let(:user) { Factories.user(github_token: "ghp_test") }
@@ -52,6 +53,20 @@ RSpec.describe LandingValidationPrefetcher do
     unit
   end
 
+  def run_git(path, *args)
+    output, status = Open3.capture2e("git", *args, chdir: path.to_s)
+    raise "git #{args.join(' ')} failed: #{output}" unless status.success?
+
+    output
+  end
+
+  def initialize_source_repository
+    run_git(source_path, "init", "-q", "-b", "main")
+    File.write(source_path.join("predicted-base.txt"), "recorded base\n")
+    run_git(source_path, "add", "predicted-base.txt")
+    run_git(source_path, "-c", "user.name=Spec", "-c", "user.email=spec@example.test", "commit", "-q", "-m", "predicted base")
+  end
+
   before do
     Feature.find_or_create_by!(slug: "landing_validation_prefetch") do |feature|
       feature.category = "Operations"
@@ -103,6 +118,37 @@ RSpec.describe LandingValidationPrefetcher do
     expect(prefetch.work_unit).to be_present
     expect(prefetch.work_unit.parent_work_unit).to eq(source_unit)
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
+  end
+
+  it "keeps the dispatched child's exact source available after the source workflow is cleaned" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    active_work_unit_for(source_job, kind: "auto_merge", workflow: workflow)
+    initialize_source_repository
+    source_sha = run_git(source_path, "rev-parse", "HEAD").strip
+    tree_sha = run_git(source_path, "rev-parse", "HEAD^{tree}").strip
+    allow(LandingValidationPrefetchSource).to receive(:publish!).and_call_original
+    real_git = GitRunner.allocate.tap { |runner| runner.send(:initialize) }
+
+    child = described_class.new(workflow, git: real_git).call
+    snapshot_id = child.artifact("prefetch_source_snapshot_id")
+    allow(WorkflowWorkspace).to receive(:cleanup_for).with(workflow) do |source|
+      FileUtils.rm_rf(source_path)
+      source.update_columns(cleaned_up_at: Time.current)
+      true
+    end
+    workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    workflow.cleanup_workspace!
+
+    checkout = Pathname.new(Dir.mktmpdir("landing-validation-child"))
+    run_git(checkout, "init", "-q", "-b", "main")
+    LandingValidationPrefetchSource.with_bundle(child, snapshot_id) do |_snapshot, bundle_path|
+      run_git(checkout, "fetch", "--no-tags", bundle_path, "HEAD")
+    end
+    expect(source_path).not_to exist
+    expect(run_git(checkout, "rev-parse", "FETCH_HEAD").strip).to eq(source_sha)
+    expect(run_git(checkout, "rev-parse", "FETCH_HEAD^{tree}").strip).to eq(tree_sha)
+  ensure
+    FileUtils.rm_rf(checkout) if checkout
   end
 
   it "does not dispatch ordinary validation when the candidate has active validation WorkUnit ownership" do

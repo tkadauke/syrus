@@ -35,6 +35,7 @@ class LandingValidationPrefetchSource
     end
 
     Tempfile.create([ "landing-validation-prefetch", ".bundle" ]) do |file|
+      file.close
       git.run("bundle", "create", file.path, "HEAD", chdir: path.to_s, workflow: source_workflow)
       snapshot = WorkflowSourceSnapshots.record!(
         workflow: child_workflow,
@@ -43,8 +44,14 @@ class LandingValidationPrefetchSource
         tree_sha: tree_sha,
         source_ref: "#{SOURCE_REF_PREFIX}#{child_workflow.id}"
       )
-      file.rewind
-      snapshot.source_bundle.attach(io: file, filename: "landing-validation-prefetch-#{child_workflow.id}.bundle", content_type: "application/x-git-bundle")
+      blob = File.open(file.path, "rb") do |bundle|
+        ActiveStorage::Blob.create_and_upload!(
+          io: bundle,
+          filename: "landing-validation-prefetch-#{child_workflow.id}.bundle",
+          content_type: "application/x-git-bundle"
+        )
+      end
+      snapshot.source_bundle.attach(blob)
       snapshot
     end
   end
