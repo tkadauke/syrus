@@ -11,8 +11,10 @@ class AddAuthorizationCheckpointsToChatPendingActions < ActiveRecord::Migration[
     execute "UPDATE chat_pending_actions SET checkpoint_payload = '{}' WHERE checkpoint_payload IS NULL"
     change_column_null :chat_pending_actions, :checkpoint_payload, false
 
-    add_index :chat_pending_actions, [ :origin_type, :origin_id, :checkpoint_state ],
-      name: "idx_pending_actions_origin_checkpoint" unless index_exists?(:chat_pending_actions, [ :origin_type, :origin_id, :checkpoint_state ], name: "idx_pending_actions_origin_checkpoint")
+    unless index_exists?(:chat_pending_actions, [ :origin_type, :origin_id, :checkpoint_state ], name: "idx_pending_actions_origin_checkpoint")
+      add_index :chat_pending_actions, [ :origin_type, :origin_id, :checkpoint_state ],
+        name: "idx_pending_actions_origin_checkpoint"
+    end
   end
 
   def down
