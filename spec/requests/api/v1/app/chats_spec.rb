@@ -4318,6 +4318,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_queued_messages.last.content).to eq(
+      "_sender_user_id" => user.id,
       "text" => "Inspect the brief",
       "attachments" => [
         {
