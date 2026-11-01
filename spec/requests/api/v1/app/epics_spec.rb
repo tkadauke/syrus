@@ -27,6 +27,27 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "preflights an Epic unland before explicitly creating its rollback" do
+    epic = Factories.epic(user: user, repository: repository, state: "done")
+    rollback = Factories.job_record(user: user, repository: repository)
+    plan = instance_double(Unlanding::Create::Plan, to_h: {
+      subject: epic.slug, affected: [ epic.slug ], base_sha: "base", commits: [ "abc" ],
+      files: [ "app/example.rb" ], dependents: [], deployment_stages: {}, warnings: []
+    })
+    allow(Unlanding::Create).to receive(:plan!).with(original: epic, user: user).and_return(plan)
+    allow(Unlanding::Create).to receive(:call!).with(original: epic, user: user).and_return(rollback)
+    sign_in_as(user)
+
+    get "/api/v1/app/epics/#{epic.id}/unland"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("subject" => epic.slug, "commits" => [ "abc" ])
+    expect(Unlanding::Create).not_to have_received(:call!)
+
+    post "/api/v1/app/epics/#{epic.id}/unland"
+    expect(response).to have_http_status(:created)
+    expect(parse_body).to include("rollback_job_id" => rollback.id, "rollback_job_slug" => rollback.slug)
+  end
+
   it "returns the new epic form payload with the user's repositories" do
     user.update!(global_role: "user")
     sign_in_as(user)

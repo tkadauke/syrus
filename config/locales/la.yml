@@ -457,6 +457,7 @@ la:
       dependency_not_found: "Dependentia inventa non est."
       parsed_dependency_retained: "Dependentiae lectae ad inspectionem servantur."
       dependency_removed: "Dependentia remota est."
+      unland_started: "Reversio %{rollback} incepta est."
       epic_not_found: "Epic inventum non est."
       epic_dependency_added: "Dependentia Epic addita est."
       epic_dependency_not_found: "Dependentia Epic inventa non est."

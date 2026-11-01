@@ -157,6 +157,8 @@ Rails.application.routes.draw do
         patch "jobs/:job_id/stack_base", to: "job_metadata#stack_base", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/mark_valid", to: "job_metadata#mark_valid", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/start", to: "job_lifecycle#start", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/unland", to: "epics#unland_plan", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        post "epics/:id/unland", to: "epics#unland", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/release_from_backlog", to: "job_lifecycle#release_from_backlog", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/move_to_backlog", to: "job_lifecycle#move_to_backlog", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/accept_triage", to: "job_lifecycle#accept_triage", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
