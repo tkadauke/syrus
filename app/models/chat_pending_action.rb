@@ -279,6 +279,11 @@ class ChatPendingAction < ApplicationRecord
     with_lock do
       return false unless pending?
 
+      if authorization_request? && !ready_for_authorized_invocation?
+        errors.add(:base, "authorization request prerequisites must be approved before execution")
+        raise ActiveRecord::RecordInvalid, self
+      end
+
       raise ActiveRecord::RecordInvalid, self unless valid?
       update!(
         state: "confirming",

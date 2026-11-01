@@ -333,6 +333,7 @@ module ChatSerialization
         state: action.state,
         action: action.action,
         action_type: action.action_type,
+        request_kind: action.request_kind,
         execution_status: action.execution_status,
         execution_step: action.execution_step,
         execution_error: action.execution_error,
@@ -348,6 +349,20 @@ module ChatSerialization
         presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
         review = presenter.tool_card_review
         payload[:review] = review if review.present?
+        if action.authorization_request?
+          payload[:authorization_items] = action.authorization_items.sort_by(&:id).map do |item|
+            {
+              id: item.id,
+              kind: item.kind,
+              state: item.state,
+              capability: item.capability,
+              operation: item.operation,
+              effects: item.effects,
+              prerequisite_ids: item.prerequisites.map(&:id),
+              app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision"
+            }
+          end
+        end
         resource = pending_action_resource(action)
         payload.merge!(resource) if resource
       end
@@ -357,7 +372,8 @@ module ChatSerialization
   def pending_actions_for_payload(chat_session)
     # Grouped members render only inside their PendingActionGroup card
     # (pending_action_groups_json below), never as their own standalone card.
-    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil).includes(:tool_call_message, :message)
+    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil)
+      .includes(:tool_call_message, :message, authorization_items: :prerequisites)
     active_scope = base_scope.where(state: %w[queued pending confirming failed])
     recent_confirmed_scope = base_scope.where(state: "confirmed").where("confirmed_at >= ?", ChatPendingAction::CONFIRMED_VISIBLE_FOR.ago)
 

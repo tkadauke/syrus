@@ -484,6 +484,8 @@ export type ChatPendingActionInline = {
   after_snapshot?: Record<string, unknown>
   outcome?: Record<string, unknown>
   review?: Record<string, unknown>
+  request_kind?: "legacy_action" | "authorization_request"
+  authorization_items?: ChatAuthorizationItem[]
   resource_title?: string
   resource_url?: string
   document?: ChatPendingActionDocument
@@ -584,6 +586,8 @@ export type ChatPendingAction = {
   reason?: string | null
   outcome?: Record<string, unknown>
   review?: Record<string, unknown>
+  request_kind?: "legacy_action" | "authorization_request"
+  authorization_items?: ChatAuthorizationItem[]
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
   chat_message_id?: number | null
@@ -594,6 +598,17 @@ export type ChatPendingAction = {
   app_update_path?: string | null
   app_reject_path: string
   app_cancel_path: string
+}
+
+export type ChatAuthorizationItem = {
+  id: number
+  kind: "capability_possession" | "operation"
+  state: "pending" | "approved" | "denied" | "cancelled" | "non_actionable"
+  capability: string
+  operation?: string | null
+  effects: string[]
+  prerequisite_ids: number[]
+  app_decision_path: string
 }
 
 export type ChatPendingActionDocument = {
@@ -1647,6 +1662,10 @@ export function searchChatEpics(query: string, options: { signal?: AbortSignal }
 
 export function confirmPendingAction(path: string) {
   return postJson<ChatPayload>(path)
+}
+
+export function decideAuthorizationItem(path: string, decision: "approved" | "denied") {
+  return postJson<ChatPayload>(path, { decision })
 }
 
 export function rejectPendingAction(path: string) {

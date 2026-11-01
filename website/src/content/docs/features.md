@@ -1527,6 +1527,10 @@ coworker's possession and the fingerprinted invocation; the operation depends
 on possession, so approving access cannot immediately trigger a second prompt.
 Equivalent active requests are reused instead of interrupting the operator
 again.
+The operator can decide possession and the exact operation separately. Syrus
+executes only after every prerequisite is approved, rechecks that the stored
+arguments still match the approved fingerprint, and closes the request without
+execution when either decision is denied.
 
 ## Permission parity diagnostics
 

@@ -3,6 +3,23 @@ module PendingActions
     action_key "coworker_tool_call"
     requires_chat_session!
 
+    def authorize_execution!
+      return super unless @action.authorization_request?
+
+      unless @action.ready_for_authorized_invocation?
+        raise ArgumentError, "authorization request prerequisites are not approved"
+      end
+
+      operation = @action.authorization_items.find_by!(kind: "operation")
+      descriptor = permission_descriptor
+      fingerprint = Permissions::InvocationFingerprint.call(
+        descriptor:, arguments: payload.fetch("arguments")
+      )
+      unless ActiveSupport::SecurityUtils.secure_compare(operation.invocation_fingerprint, fingerprint)
+        raise ArgumentError, "approved invocation no longer matches the requested arguments"
+      end
+    end
+
     def execute
       server_context = replay_server_context
       context = McpToolContext.from_server_context(server_context)
@@ -47,6 +64,18 @@ module PendingActions
     end
 
     private
+
+    def permission_descriptor
+      catalog_entry = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
+      raise ArgumentError, "tool is not available to coworkers" unless catalog_entry
+
+      descriptor = if catalog_entry.tool
+        McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == catalog_entry.tool }&.descriptor
+      else
+        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(catalog_entry.definition)
+      end
+      descriptor || raise(ArgumentError, "tool has no permission descriptor")
+    end
 
     def replay_server_context
       return { chat_session: chat_session } if payload["run_id"].blank?
