@@ -997,6 +997,21 @@ and lookup deliberately reports the same `not_found` result for an unknown id
 and an id the current principal cannot see. Provider lookups must therefore
 apply ordinary application visibility before returning a resource.
 
+Plugins register reusable authorization contracts through the
+`permission_provider` extension point. Its class includes
+`Syrus::Plugin::PermissionProvider`, calls `register_resource_scope(type, ...)`
+for each plugin-owned resource schema, and calls `register_capability(...)` for
+each operation. The capability declaration accepts the full descriptor
+contract: versioned family and operation identifiers, effects, risk,
+requestable-role recommendations and defaults, autonomy and authority-duration
+ceilings, classifier, fingerprint normalizer, redactor, aliases, and presets.
+It may reference a local resource schema by type. `capability_descriptor(key)`
+returns the immutable descriptor for reuse in MCP tool definitions, avoiding a
+second copy of authorization policy. Duplicate operation keys within a provider
+and duplicate resource-type ownership across enabled providers fail closed.
+Disabled providers contribute neither capabilities nor scopes to
+`Permissions::Catalog`; enabling a plugin registers metadata, never authority.
+
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
 (e.g. only the `implement` step), not just the repository — see
