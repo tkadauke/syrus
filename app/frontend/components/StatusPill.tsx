@@ -30,38 +30,49 @@ export const BANNER_TONE_CLASSES: Record<BannerTone, string> = {
 
 const STATE_LATIN: Record<string, string> = {
   // Job states
-  backlog:     "In tabulario — In the register",
-  triaging:    "Auspicia consuluntur — The omens are being consulted",
-  queued:      "In acie stat — It stands in the battle line",
-  open:        "Agitur — It is being done",
+  backlog: "In tabulario — In the register",
+  triaging: "Auspicia consuluntur — The omens are being consulted",
+  queued: "In acie stat — It stands in the battle line",
+  open: "Agitur — It is being done",
   implemented: "Factum est — It is done",
-  approved:    "Probatum est — It is proven",
-  landing:     "Propinquat — It draws near",
-  merged:      "In annales scriptum — Written in the annals",
-  closed:           "Cecidit — It fell",
+  approved: "Probatum est — It is proven",
+  landing: "Propinquat — It draws near",
+  merged: "In annales scriptum — Written in the annals",
+  closed: "Cecidit — It fell",
   no_change_needed: "Iam factum est — It was already done",
   // Run / step states
-  running:     "Currit — It runs",
-  succeeded:   "Successit — It has succeeded",
-  success:     "Successit — It has succeeded",
-  failed:      "Defecit — It has failed",
-  warning:     "Monitum — A warning",
-  cancelled:   "Intermissum est — It has been interrupted",
-  skipped:     "Praetermissum est — It has been skipped",
-  blocked:     "Impedimentum — An obstacle",
-  invalid:     "Invalidum — Invalid",
+  running: "Currit — It runs",
+  succeeded: "Successit — It has succeeded",
+  success: "Successit — It has succeeded",
+  failed: "Defecit — It has failed",
+  warning: "Monitum — A warning",
+  cancelled: "Intermissum est — It has been interrupted",
+  skipped: "Praetermissum est — It has been skipped",
+  blocked: "Impedimentum — An obstacle",
+  invalid: "Invalidum — Invalid",
   // Merge state
   unmergeable: "Bellum Civile — Civil war between branches",
-  mergeable:   "Concordia — Harmony",
+  mergeable: "Concordia — Harmony"
 }
 
 export function StatusPill({ state, wrap = false }: { state: string; wrap?: boolean }) {
   const { t } = useT()
   const normalized = state.toLowerCase()
-  const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
-    normalized.includes("success") || normalized.includes("succeed") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
-      normalized.includes("running") || normalized.includes("queued") ? "blue" :
-        normalized.includes("backlog") || normalized.includes("paused") || normalized.includes("warning") || normalized.includes("blocked") ? "amber" : "gray"
+  const tone =
+    normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel")
+      ? "red"
+      : normalized.includes("success") ||
+          normalized.includes("succeed") ||
+          normalized.includes("approved") ||
+          normalized.includes("merged") ||
+          normalized.includes("closed") ||
+          normalized.includes("reverted")
+        ? "green"
+        : normalized.includes("running") || normalized.includes("queued") || normalized.includes("progress")
+          ? "blue"
+          : normalized.includes("backlog") || normalized.includes("paused") || normalized.includes("warning") || normalized.includes("blocked")
+            ? "amber"
+            : "gray"
 
   // Translated label with a humanized fallback for states not in the locale.
   const label = t(`status.${normalized}`, { defaultValue: state.replaceAll("_", " ") })
@@ -73,13 +84,38 @@ export function StatusPill({ state, wrap = false }: { state: string; wrap?: bool
   )
 }
 
-export function TonePill({ children, tone, active = false, title, ariaLabel, wrap = false, truncate = false }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string; wrap?: boolean; truncate?: boolean }) {
+export function TonePill({
+  children,
+  tone,
+  active = false,
+  title,
+  ariaLabel,
+  wrap = false,
+  truncate = false
+}: {
+  children: ReactNode
+  tone: PillTone
+  active?: boolean
+  title?: string
+  ariaLabel?: string
+  wrap?: boolean
+  truncate?: boolean
+}) {
   const semanticTone = tone === "red" ? "danger" : tone === "green" ? "success" : tone === "blue" ? "info" : tone === "amber" ? "warning" : "neutral"
   const wrappingClasses = wrap ? "max-w-full flex-wrap whitespace-normal break-words text-left" : ""
   const childClasses = wrap ? "min-w-0 whitespace-normal break-words" : undefined
 
   return (
-    <Pill active={active} aria-label={ariaLabel} className={`capitalize ${wrappingClasses}`} data-status-pill="true" title={title} tone={semanticTone} truncate={truncate} wrap={wrap}>
+    <Pill
+      active={active}
+      aria-label={ariaLabel}
+      className={`capitalize ${wrappingClasses}`}
+      data-status-pill="true"
+      title={title}
+      tone={semanticTone}
+      truncate={truncate}
+      wrap={wrap}
+    >
       <span className={childClasses}>{children}</span>
     </Pill>
   )

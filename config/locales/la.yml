@@ -220,6 +220,7 @@ la:
         branch_output_discarded: "Exitus obsoletus rami huius workflow abiectus est."
         diagnostic_queued: "Diagnosis in ordinem posita est - imago instantanea mox apparebit."
     jobs:
+      unland_started: "Reversio %{rollback} incepta est."
       errors:
         invalid_priority: "Valor prioritatis invalidus est."
         invalid_provider_setting: "Optio provisoris invalida est."

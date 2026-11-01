@@ -175,6 +175,8 @@ Rails.application.routes.draw do
         post "jobs/:job_id/unapprove", to: "job_lifecycle#unapprove", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/close_investigation", to: "job_lifecycle#close_investigation", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/reopen", to: "job_lifecycle#reopen", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        get  "jobs/:job_id/unland", to: "jobs#unland_plan", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/unland", to: "jobs#unland", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/open_in_coding_mode", to: "job_coding_mode#open", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/open_in_local_mode", to: "job_lifecycle#open_in_local_mode", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel_local_mode", to: "job_lifecycle#cancel_local_mode", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

@@ -39,6 +39,33 @@ RSpec.describe App::JobDetailPayload do
     expect(payload_for(rollback).dig(:job, :rollback_of)).to include(id: original.id, slug: original.slug)
   end
 
+  it "distinguishes active, failed, and completed unlands without reopening the original" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+    rollback = Factories.job_record(user: user, repository: repo, rollback_of: original, state: "running")
+
+    expect(payload_for(original).dig(:job, :summary_state)).to eq("unland_in_progress")
+    expect(payload_for(original).dig(:actions, :can_unland)).to be(false)
+
+    rollback.update!(state: "failed")
+    expect(payload_for(original).dig(:job, :summary_state)).to eq("unland_failed")
+
+    rollback.update!(state: "closed", closure_reason: "pr_merged")
+    expect(payload_for(original).dig(:job, :summary_state)).to eq("landed_then_reverted")
+    expect(original.reload.state).to eq("closed")
+  end
+
+  it "offers unland only to writers of successfully landed jobs" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+
+    payload = payload_for(original)
+    expect(payload.dig(:actions, :can_unland)).to be(true)
+    expect(payload.dig(:paths, :app_unland_path)).to eq("/api/v1/app/jobs/#{original.id}/unland")
+  end
+
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil, blocked_details: nil)
     primary = member_jobs.first
     intent = WorkIntent.create!(

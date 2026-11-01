@@ -1,5 +1,7 @@
 import type { FormEvent, KeyboardEvent } from "react"
 import { useRef, useState } from "react"
+import { useMutation } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 import { createPortal } from "react-dom"
 import { useT } from "../../hooks/useT"
 import { Button } from "../../components/Button"
@@ -9,7 +11,7 @@ import { Modal } from "../../components/Modal"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { useShortcut } from "../../contexts/ShortcutsContext"
-import { type JobDetailPayload } from "../../api/jobs"
+import { fetchJobUnlandPlan, startJobUnland, type JobDetailPayload } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand, type CommandInput } from "./command"
 import { menuButtonClass } from "./formatting"
@@ -112,6 +114,34 @@ export function HeaderActions({
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
   const [placementConfirmationOpen, setPlacementConfirmationOpen] = useState(false)
   const [placementOverrideOpen, setPlacementOverrideOpen] = useState(false)
+  const navigate = useNavigate()
+  const unlandMutation = useMutation({
+    mutationFn: async () => {
+      const path = payload.paths.app_unland_path
+      if (!path) return null
+      const plan = await fetchJobUnlandPlan(path)
+      const stages =
+        Object.entries(plan.deployment_stages)
+          .map(([job, names]) => `${job}: ${names.join(", ")}`)
+          .join("; ") || t("none")
+      const graders = (plan.graders ?? []).map((grader) => `${grader.name}${grader.required ? ` (${t("required")})` : ""}`).join(", ") || t("none")
+      const message = [
+        t("unland_confirm_subject", { subject: plan.subject }),
+        t("unland_confirm_commits", { commits: plan.commits.join(", ") }),
+        t("unland_confirm_files", { files: plan.files.join(", ") }),
+        t("unland_confirm_dependents", { dependents: plan.dependents.join(", ") || t("none") }),
+        t("unland_confirm_deployment", { stages }),
+        t("unland_confirm_graders", { graders }),
+        t("unland_confirm_behavior"),
+        ...(plan.warnings.length ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : [])
+      ].join("\n\n")
+      if (!(await command.confirm({ message, destructive: true }))) return null
+      return startJobUnland(path)
+    },
+    onSuccess: (result) => {
+      if (result) navigate(result.rollback_job_path)
+    }
+  })
   const actions = headerActions(payload, t)
   const [primaryKey] = primaryHeaderActionKeys(payload, actions)
   const primaryAction = actions.find((action) => action.key === primaryKey)
@@ -129,6 +159,13 @@ export function HeaderActions({
   if (canGiveFeedback) overflowExtraItems.push({ key: "give_feedback", label: t("give_feedback"), onSelect: onToggleFeedbackPanel, tone: "secondary" })
   if (payload.actions.can_write && payload.job.planned_execution_override)
     overflowExtraItems.push({ key: "override_placement", label: t("override_placement"), onSelect: () => setPlacementOverrideOpen(true), tone: "secondary" })
+  if (payload.actions.can_unland)
+    overflowExtraItems.push({
+      key: "unland",
+      label: unlandMutation.isPending ? t("unlanding") : t("unland"),
+      onSelect: () => unlandMutation.mutate(),
+      tone: "danger"
+    })
 
   // Keyboard shortcuts mirror the availability check of the button each one
   // stands in for -- found via the same `actions` list, so a shortcut can
@@ -215,6 +252,7 @@ export function HeaderActions({
           ) : null}
         </div>
       </div>
+      {unlandMutation.isError ? <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(unlandMutation.error, t("unland_error"))}</p> : null}
       {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="alt+a" onTrigger={triggerApproveShortcut} /> : null}
       {unapproveAction ? (
         <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} />

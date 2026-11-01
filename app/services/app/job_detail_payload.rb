@@ -1086,6 +1086,8 @@ module App
       visual_diff_actionable = (@job.implemented? || @job.approved? || @job.landing?) && !active_runtime_work
       visual_review_enabled = (visual_review_actionable || visual_diff_actionable) && visual_review_configured?
       writable = JobPolicy.new(@user, @job).write?
+      unland_eligible = @job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(@job.closure_reason) && @job.landed_sha.present? &&
+        @job.unlanded_by.nil? && !@job.rollback_jobs.where(state: Job::STATES - (Job::TERMINAL_STATES + %w[failed])).exists?
       creator = @job.user_id == @user.id
       mutable_runtime_job = @job.open? && !@job.backlog?
       # Investigation Jobs share :implemented with the normal approve-and-land
@@ -1097,6 +1099,7 @@ module App
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
         can_write: writable,
+        can_unland: writable && unland_eligible,
         can_override_planned_execution: writable && planned_execution_override_json[:eligible],
         planned_execution_override_blocked_reason: planned_execution_override_json[:refusal_reason],
         can_submit_feedback: writable && @job.state.in?(%w[implemented failed no_change_needed]),
@@ -1297,6 +1300,7 @@ module App
         app_unapprove_path: "/api/v1/app/jobs/#{@job.id}/unapprove",
         app_close_investigation_path: "/api/v1/app/jobs/#{@job.id}/close_investigation",
         app_reopen_path: "/api/v1/app/jobs/#{@job.id}/reopen",
+        app_unland_path: "/api/v1/app/jobs/#{@job.id}/unland",
         app_poll_feedback_path: "/api/v1/app/jobs/#{@job.id}/poll_feedback",
         app_rebase_path: "/api/v1/app/jobs/#{@job.id}/rebase",
         app_retry_pr_ingestion_path: "/api/v1/app/jobs/#{@job.id}/retry_pr_ingestion",
@@ -1467,6 +1471,10 @@ module App
     def summary_state(job)
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
+      rollback = job.rollback_jobs.order(created_at: :desc, id: :desc).first
+      return "landed_then_reverted" if job.unlanded_by
+      return "unland_failed" if rollback&.state.in?(%w[failed cancelled])
+      return "unland_in_progress" if rollback && !rollback.state.in?(Job::TERMINAL_STATES + %w[failed cancelled])
       return job.state if job.closed?
       return "repairing" if job.failed? && active_repair_work_for_job
       return job.state if job.landing?

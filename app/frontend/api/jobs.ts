@@ -1009,6 +1009,7 @@ export type RunFailureClassification = {
 
 export type JobActions = {
   can_write: boolean
+  can_unland?: boolean
   can_override_planned_execution?: boolean
   planned_execution_override_blocked_reason?: string | null
   can_submit_feedback?: boolean
@@ -1069,6 +1070,25 @@ export type JobRetryAction = {
   step_label?: string
 }
 
+export type JobUnlandPlan = {
+  subject: string
+  affected: string[]
+  base_sha: string
+  commits: string[]
+  files: string[]
+  dependents: string[]
+  deployment_stages: Record<string, string[]>
+  graders: Array<{ name: string; required: boolean; description: string | null }>
+  warnings: string[]
+}
+
+export type JobUnlandResult = {
+  message: string
+  rollback_job_id: number
+  rollback_job_slug: string
+  rollback_job_path: string
+}
+
 export type JobPrLinkRole = "local" | "upstream_export" | "promotion" | "hotfix_sync" | "external_ingest"
 
 export type JobPrLink = {
@@ -1105,6 +1125,7 @@ export type JobPaths = {
   app_unapprove_path: string
   app_close_investigation_path: string
   app_reopen_path: string
+  app_unland_path?: string
   app_poll_feedback_path: string
   app_rebase_path: string
   app_recheck_pr_checks_path?: string
@@ -1877,6 +1898,14 @@ export function fetchPickerJobs(params: { state?: string; repo?: string; q?: str
   searchParams.set("include_active_work", "true")
   searchParams.set("limit", String(params.limit ?? 50))
   return getJson<PickerJobsPayload>(`/api/v1/app/jobs?${searchParams}`)
+}
+
+export function fetchJobUnlandPlan(path: string) {
+  return getJson<JobUnlandPlan>(path)
+}
+
+export function startJobUnland(path: string) {
+  return postJson<JobUnlandResult>(path, {})
 }
 
 // Path-based — used for both job-scoped previews (JobDetail) and

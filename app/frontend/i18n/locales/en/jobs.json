@@ -1022,5 +1022,18 @@
   "placement_current_provenance": "Current placement provenance: {{source}}",
   "placement_latest_audit": "Last changed by {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Audit reason",
-  "confirm_placement_override": "Confirm placement change"
+  "confirm_placement_override": "Confirm placement change",
+  "unland": "Unland Job",
+  "unlanding": "Starting rollback...",
+  "unland_error": "Unable to preflight or start the rollback.",
+  "unland_confirm_subject": "Unland {{subject}} through a rollback Job?",
+  "unland_confirm_commits": "Exact commits (landing order): {{commits}}",
+  "unland_confirm_files": "Files: {{files}}",
+  "unland_confirm_dependents": "Downstream dependents: {{dependents}}",
+  "unland_confirm_deployment": "Deployment stages reached: {{stages}}",
+  "unland_confirm_graders": "Selected unland graders: {{graders}}",
+  "unland_confirm_behavior": "The original stays closed. Syrus creates a linked rollback Job and revert PR; deployment rollback is separate.",
+  "unland_confirm_warnings": "Warnings: {{warnings}}",
+  "none": "None",
+  "required": "required"
 }

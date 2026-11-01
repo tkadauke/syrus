@@ -62,6 +62,30 @@ module Api
           render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
         end
 
+        def unland_plan
+          job = find_job_by_param(:job_id)
+          return unless authorize_job_mutation!(job)
+
+          render json: Unlanding::Create.plan!(original: job, user: Current.user).to_h
+        rescue Unlanding::Create::Ineligible => e
+          render_error("unland_ineligible", e.message, status: :unprocessable_content)
+        end
+
+        def unland
+          job = find_job_by_param(:job_id)
+          return unless authorize_job_mutation!(job)
+
+          rollback = Unlanding::Create.call!(original: job, user: Current.user)
+          render json: {
+            message: I18n.t("api.jobs.unland_started", rollback: rollback.slug),
+            rollback_job_id: rollback.id,
+            rollback_job_slug: rollback.slug,
+            rollback_job_path: job_path(rollback)
+          }, status: :created
+        rescue Unlanding::Create::Ineligible => e
+          render_error("unland_ineligible", e.message, status: :unprocessable_content)
+        end
+
         def workflows
           job = find_job
           etag = ::App::JobDetailPayload.workflows_etag(job: job, user: Current.user, params: params)

@@ -4,6 +4,14 @@ import { StatusPill, TonePill } from "./StatusPill"
 import i18n from "../i18n"
 
 describe("StatusPill", () => {
+  it("distinguishes unland progress, failure, and completed revert tones", () => {
+    const { rerender } = render(<StatusPill state="unland_in_progress" />)
+    expect(screen.getByText("unland in progress").closest("span[data-status-pill='true']")).toHaveClass("bg-info-surface")
+    rerender(<StatusPill state="unland_failed" />)
+    expect(screen.getByText("unland failed").closest("span[data-status-pill='true']")).toHaveClass("bg-danger-surface")
+    rerender(<StatusPill state="landed_then_reverted" />)
+    expect(screen.getByText("landed then reverted").closest("span[data-status-pill='true']")).toHaveClass("bg-success-surface")
+  })
   it("renders the state as human-readable text", () => {
     render(<StatusPill state="approved" />)
     expect(screen.getByText("approved")).toBeInTheDocument()
@@ -56,7 +64,11 @@ describe("StatusPill", () => {
   })
 
   it("can opt into wrapped content for sentence-like pills", () => {
-    render(<TonePill tone="gray" wrap>Waiting for JOB-1234 to merge</TonePill>)
+    render(
+      <TonePill tone="gray" wrap>
+        Waiting for JOB-1234 to merge
+      </TonePill>
+    )
 
     const pill = screen.getByText("Waiting for JOB-1234 to merge").closest("[data-status-pill]")
     expect(pill).toHaveClass("whitespace-normal", "flex-wrap", "max-w-full")
@@ -64,7 +76,11 @@ describe("StatusPill", () => {
   })
 
   it("can opt into a truncated single-line pill for space-constrained columns", () => {
-    render(<TonePill title="Full untruncated reason text" tone="red" truncate>Full untruncated reason text</TonePill>)
+    render(
+      <TonePill title="Full untruncated reason text" tone="red" truncate>
+        Full untruncated reason text
+      </TonePill>
+    )
 
     const pill = screen.getByText("Full untruncated reason text").closest("[data-status-pill]")
     expect(pill).toHaveClass("max-w-[14rem]", "whitespace-nowrap")

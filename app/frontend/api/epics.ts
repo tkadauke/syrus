@@ -236,6 +236,7 @@ export type EpicUnlandPlan = {
   files: string[]
   dependents: string[]
   deployment_stages: Record<string, string[]>
+  graders: Array<{ name: string; required: boolean; description: string | null }>
   warnings: string[]
 }
 

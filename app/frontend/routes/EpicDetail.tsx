@@ -137,6 +137,10 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               .map(([job, stages]) => `${job}: ${stages.join(", ")}`)
               .join("; ") || t("none")
         }),
+        t("unland_confirm_graders", {
+          graders: (plan.graders ?? []).map((grader) => `${grader.name}${grader.required ? ` (${t("required")})` : ""}`).join(", ") || t("none")
+        }),
+        t("unland_confirm_behavior"),
         ...(plan.warnings.length > 0 ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : [])
       ]
       if (!(await confirm({ message: sections.join("\n\n"), destructive: true }))) return null

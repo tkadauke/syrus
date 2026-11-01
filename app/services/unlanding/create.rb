@@ -3,7 +3,7 @@ module Unlanding
     class Ineligible < StandardError; end
 
     Plan = Data.define(:original, :affected, :base_sha, :commit_shas, :files, :dependents,
-                       :deployment_stages, :warnings) do
+                       :deployment_stages, :graders, :warnings) do
       def to_h
         {
           subject: original.slug,
@@ -13,6 +13,7 @@ module Unlanding
           files:,
           dependents:,
           deployment_stages:,
+          graders:,
           warnings:
         }
       end
@@ -74,6 +75,7 @@ module Unlanding
         files: changed_files(git, clone, shas),
         dependents:,
         deployment_stages:,
+        graders: selected_graders(clone),
         warnings: plan_warnings(dependents, deployment_stages)
       )
     end
@@ -210,6 +212,16 @@ module Unlanding
       end.reject(&:blank?).uniq.sort
     rescue GitRunner::GitError => e
       raise Ineligible, "landed commit files could not be inspected: #{e.message}"
+    end
+
+    def selected_graders(clone)
+      LandingGraderPlan.effective(
+        RepoGradePlan.for(clone.path), trigger_kind: "unland", iteration: 1
+      ).graders.map do |grader|
+        { name: grader.name, required: grader.required, description: grader.description }
+      end
+    rescue SyrusYml::ParseError => e
+      raise Ineligible, "unland graders could not be resolved: #{e.message}"
     end
 
     def dependent_slugs

@@ -254,6 +254,7 @@ en:
         branch_output_discarded: "Discarded this workflow's stale branch output."
         diagnostic_queued: "Diagnostic queued - snapshot will appear shortly."
     jobs:
+      unland_started: "Rollback %{rollback} started."
       errors:
         invalid_priority: "Invalid priority value."
         invalid_provider_setting: "Invalid provider setting."

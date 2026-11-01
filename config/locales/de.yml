@@ -220,6 +220,7 @@ de:
         branch_output_discarded: "Veraltete Branch-Ausgabe dieses Workflows verworfen."
         diagnostic_queued: "Diagnose eingereiht - der Snapshot erscheint in Kürze."
     jobs:
+      unland_started: "Rollback %{rollback} gestartet."
       errors:
         invalid_priority: "Ungültige Priorität."
         invalid_provider_setting: "Ungültige Anbietereinstellung."

@@ -1022,5 +1022,18 @@
   "placement_current_provenance": "Origo loci praesentis: {{source}}",
   "placement_latest_audit": "Novissime mutatum ab {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Causa actorum",
-  "confirm_placement_override": "Mutationem loci confirma"
+  "confirm_placement_override": "Mutationem loci confirma",
+  "unland": "Job retrahere",
+  "unlanding": "Reversio incipitur...",
+  "unland_error": "Reversio explorari vel incipi non potuit.",
+  "unland_confirm_subject": "{{subject}} per Job reversorium retrahere?",
+  "unland_confirm_commits": "Commissiones exactae ordine adlationis: {{commits}}",
+  "unland_confirm_files": "Fasciculi: {{files}}",
+  "unland_confirm_dependents": "Opera dependentia posteriora: {{dependents}}",
+  "unland_confirm_deployment": "Gradus dispositionis attacti: {{stages}}",
+  "unland_confirm_graders": "Probatores unland electi: {{graders}}",
+  "unland_confirm_behavior": "Originale clausum manet. Syrus Job reversorium conexum et PR reversionis creat; dispositio separatim revocanda est.",
+  "unland_confirm_warnings": "Monita: {{warnings}}",
+  "none": "Nulla",
+  "required": "necessarius"
 }

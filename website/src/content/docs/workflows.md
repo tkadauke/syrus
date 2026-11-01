@@ -264,6 +264,16 @@ explicit `unland` phase and refuse to pass when changed-file filtering leaves
 no required grader selected. The resulting PR follows ordinary review and
 landing.
 
+The Unland control is available only to operators who can write the landed
+record. Its confirmation shows the exact commits and files, downstream
+dependents, deployment-stage warnings, and the selected fast `unland` graders.
+After confirmation, follow the linked rollback Job and PR for progress; the
+original is labeled as rollback in progress, rollback failed, or landed then
+reverted while retaining its landing audit facts. Unlanding Git history does
+not roll back a deployed environment. Recover that environment through its
+normal deployment procedure, and reapply the original change later with a new
+Job/PR rather than reopening or rewriting the original.
+
 Landed Epics roll back as one coordinated unit, not one PR per child. Before
 starting mutable work, Syrus derives the ordered commit set from child landing
 provenance and merge-train membership and presents affected records, commits,

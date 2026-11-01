@@ -60,6 +60,26 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     path.write(contents)
   end
 
+  it "preflights and explicitly starts a Job unland" do
+    landed = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "landed")
+    rollback = Factories.job_record(user: user, repository: repo, rollback_of: landed, state: "running")
+    plan = instance_double(Unlanding::Create::Plan, to_h: {
+      subject: landed.slug, affected: [ landed.slug ], base_sha: "base", commits: [ "exact" ], files: [ "app.rb" ],
+      dependents: [], deployment_stages: {}, graders: [ { name: "smoke", required: true, description: nil } ], warnings: []
+    })
+    allow(Unlanding::Create).to receive(:plan!).with(original: landed, user: user).and_return(plan)
+    allow(Unlanding::Create).to receive(:call!).with(original: landed, user: user).and_return(rollback)
+
+    get "/api/v1/app/jobs/#{landed.id}/unland"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("commits" => [ "exact" ], "graders" => [ include("name" => "smoke") ])
+    expect(Unlanding::Create).not_to have_received(:call!)
+
+    post "/api/v1/app/jobs/#{landed.id}/unland"
+    expect(response).to have_http_status(:created)
+    expect(parse_body).to include("rollback_job_id" => rollback.id, "rollback_job_path" => "/jobs/#{rollback.id}")
+  end
+
   def finish_existing_work!(job_record)
     job_record.workflows.update_all(state: "succeeded", finished_at: Time.current)
     units = WorkUnit.joins(:work_unit_members)

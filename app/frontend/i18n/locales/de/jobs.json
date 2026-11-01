@@ -1022,5 +1022,18 @@
   "placement_current_provenance": "Aktuelle Platzierungsherkunft: {{source}}",
   "placement_latest_audit": "Zuletzt geändert von {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Audit-Begründung",
-  "confirm_placement_override": "Platzierungsänderung bestätigen"
+  "confirm_placement_override": "Platzierungsänderung bestätigen",
+  "unland": "Job zurücknehmen",
+  "unlanding": "Rollback wird gestartet...",
+  "unland_error": "Der Rollback konnte nicht geprüft oder gestartet werden.",
+  "unland_confirm_subject": "{{subject}} über einen Rollback-Job zurücknehmen?",
+  "unland_confirm_commits": "Exakte Commits (Landereihenfolge): {{commits}}",
+  "unland_confirm_files": "Dateien: {{files}}",
+  "unland_confirm_dependents": "Nachgelagerte Abhängige: {{dependents}}",
+  "unland_confirm_deployment": "Erreichte Deployment-Stufen: {{stages}}",
+  "unland_confirm_graders": "Ausgewählte Unland-Grader: {{graders}}",
+  "unland_confirm_behavior": "Das Original bleibt geschlossen. Syrus erstellt einen verknüpften Rollback-Job und Revert-PR; ein Deployment-Rollback erfolgt separat.",
+  "unland_confirm_warnings": "Warnungen: {{warnings}}",
+  "none": "Keine",
+  "required": "erforderlich"
 }
