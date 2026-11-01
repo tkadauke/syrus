@@ -57,5 +57,13 @@
   "evidence_job_state": "Job-Status",
   "evidence_landed_commit": "Gelandeter Commit",
   "evidence_completed": "Abgeschlossene Arbeit",
-  "evidence_deployment_stage": "Deployment-Nachweis"
+  "evidence_deployment_stage": "Deployment-Nachweis",
+  "evidence_historical_reconstruction": "Rekonstruierte Position; aktuelle Metadaten",
+  "history_aria": "Pipeline-Verlauf",
+  "history_range": "Verlauf von {{from}} bis {{to}}",
+  "historical_mode": "Historische Ansicht",
+  "live_mode": "Live",
+  "return_now": "Zurück zu jetzt",
+  "time_scrubber": "Historischer Zeitpunkt",
+  "historical_banner": "Du siehst die Pipeline am {{time}}. Diese Ansicht ist schreibgeschützt; aktuelle Änderungen werden im Hintergrund weiter empfangen."
 }
