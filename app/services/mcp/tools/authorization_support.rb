@@ -55,12 +55,9 @@ module Mcp::Tools
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
         return if descriptor.ungated
+        return if claimed_invocation_authorizes?(descriptor, context, server_context, arguments)
 
-        policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
-        policy = "queue" if context.run? && policy == "confirm"
         protected_path = protected_coworker_workspace_path?(context, descriptor, arguments)
-        return if policy == "auto" && !protected_path || Thread.current[:coworker_tool_approval_bypass]
-
         create_coworker_pending_action(context:, server_context:, descriptor:,
           arguments:, always_pending: protected_path)
       end
@@ -97,15 +94,12 @@ module Mcp::Tools
 
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool_name, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor&.capability.to_s == capability.to_s
+        return if claimed_invocation_authorizes?(descriptor, context, server_context, arguments)
 
         create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending:)
       end
 
       def create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending: false)
-        policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
-        policy = context.run? ? "queue" : "confirm" if always_pending && policy == "auto"
-        return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
-
         capability_descriptor = if descriptor.tool
           McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == descriptor.tool }&.descriptor
         else
@@ -115,15 +109,15 @@ module Mcp::Tools
 
         result = Permissions::CoworkerAuthorizationRequest.new(
           context:, descriptor: capability_descriptor, arguments:,
-          purpose: "Invoke #{descriptor.tool_name}", invocation_policy: policy,
+          purpose: "Invoke #{descriptor.tool_name}", invocation_policy: ("queue" if always_pending),
           action: "coworker_tool_call",
           payload: {
             "tool_name" => descriptor.tool_name,
             "arguments" => arguments.stringify_keys,
             "run_id" => context.run&.id,
             "origin_message_id" => server_context[:current_message]&.id,
-            "approval_policy" => policy,
-            "approval_inbox" => policy == "queue",
+            "approval_policy" => "queue",
+            "approval_inbox" => true,
             "actor" => approval_actor(context.agent_actor)
           }.compact
         ).call
@@ -134,7 +128,7 @@ module Mcp::Tools
         Mcp::Tools.success(
           pending_confirmation_id: action.id,
           pending_action_id: action.id,
-          approval_policy: policy,
+          approval_policy: "queue",
           message: "Waiting for the owner to decide the required permissions."
         )
       end
@@ -149,6 +143,26 @@ module Mcp::Tools
           "avatar_key" => actor.respond_to?(:avatar_key) ? actor.avatar_key : nil,
           "accent_hex" => actor.respond_to?(:accent_hex) ? actor.accent_hex : nil
         }.compact
+      end
+
+      def claimed_invocation_authorizes?(descriptor, context, server_context, arguments)
+        invocation_id = server_context[:authorized_invocation_id]
+        return false if invocation_id.blank?
+
+        invocation = AuthorizedInvocation.find_by(id: invocation_id)
+        raise AuthorizationError, "authorized invocation is unavailable" unless invocation&.claimed?
+        raise AuthorizationError, "authorized invocation claim does not match" unless
+          invocation.claim_key == server_context[:authorized_invocation_claim_key] &&
+          invocation.claimed_by == context.agent_actor && invocation.tool_name == descriptor.tool_name
+
+        capability_descriptor = if descriptor.tool
+          McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == descriptor.tool }&.descriptor
+        else
+          Permissions::CapabilityDescriptorAdapter.for_plugin_definition(descriptor.definition)
+        end
+        fingerprint = Permissions::InvocationFingerprint.call(descriptor: capability_descriptor, arguments:)
+        ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
+          raise(AuthorizationError, "authorized invocation fingerprint does not match")
       end
 
       def with_coworker_approval_bypass

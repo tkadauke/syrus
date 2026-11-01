@@ -29,9 +29,6 @@ module PendingActions
 
       descriptor = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
       raise ArgumentError, "tool is not available to coworkers" unless descriptor
-      unless descriptor.ungated || context.granted_capabilities.include?(descriptor.capability.to_s)
-        raise ArgumentError, "required grant is no longer present"
-      end
 
       callable = if descriptor.provider
         ->(server_context:, **arguments) { descriptor.provider.new.handle(descriptor.tool_name, arguments, server_context) }
@@ -41,16 +38,38 @@ module PendingActions
       end
       raise ArgumentError, "tool is no longer available to coworkers" unless callable
 
-      response = Mcp::Tools::AuthorizationSupport.with_coworker_approval_bypass do
-        callable.call(**payload.fetch("arguments").symbolize_keys,
-          server_context: server_context.merge(pending_action_id: action.id))
+      invocation = @action.authorization_items.find_by!(kind: "operation").authorized_invocation
+      raise ArgumentError, "authorized invocation is missing" unless invocation
+      fingerprint = Permissions::InvocationFingerprint.call(
+        descriptor: permission_descriptor, arguments: payload.fetch("arguments")
+      )
+      claim_key = "coworker-pending-action-#{@action.id}"
+      claim = invocation.claim!(
+        fingerprint:, claimant: action.subject, claim_key:,
+        origin_resumable: ->(_) { origin_resumable? },
+        revalidate: ->(_) { revalidate_authority(context) }
+      )
+      raise ArgumentError, "authorized invocation is no longer available (#{claim.status})" unless claim.claimed?
+
+      authorized_context = server_context.merge(
+        pending_action_id: action.id,
+        authorized_invocation_id: invocation.id,
+        authorized_invocation_claim_key: claim_key
+      )
+      response = callable.call(**payload.fetch("arguments").symbolize_keys, server_context: authorized_context)
+      if response.error?
+        invocation.complete!(claim_key:, status: :failed)
+        raise ArgumentError, response.content.first[:text].to_s
       end
-      raise ArgumentError, response.content.first[:text].to_s if response.error?
+      invocation.complete!(claim_key:, status: :succeeded)
 
       result_text = response.content.filter_map { |item| item[:text] || item["text"] }.join("\n")
       @action.update!(payload: payload.merge("tool_result" => result_text.byteslice(0, 64.kilobytes)))
 
       nil
+    rescue StandardError
+      invocation&.complete!(claim_key:, status: :failed) if invocation&.claimed?
+      raise
     end
 
     def validate_payload(errors)

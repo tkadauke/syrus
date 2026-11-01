@@ -12,58 +12,62 @@ RSpec.describe Permissions::CoworkerAuthorizationDecision do
   let(:request) do
     chat.pending_actions.create!(
       request_kind: "authorization_request", action: "coworker_tool_call",
-      requested_by: "agent", origin: chat, subject: coworker,
+      requested_by: "agent", origin: chat, subject: coworker, runtime_role: AgentRole::COWORKER_CHAT,
       payload: { "tool_name" => "read_custom_data", "arguments" => { "query" => "customers" } }
     )
   end
-  let(:possession) do
-    request.authorization_items.create!(
-      kind: "capability_possession", capability: "custom.read", capability_version: 1,
-      resource_type: "none", resource_scope: {}, normalized_arguments: {}, effects: [],
-      policy_chain: [], decisive_rule: {}, requested_durations: []
+  let(:descriptor) do
+    generated = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+      tool_name: "read_custom_data", capability: "custom.read", mutation: true,
+      required_roles: [ AgentRole::COWORKER_CHAT ]
     )
+    Permissions::CapabilityDescriptor.new(**generated.to_h.merge(
+      defaults: { AgentRole::COWORKER_CHAT => :ask }
+    ))
   end
   let(:operation) do
     request.authorization_items.create!(
       kind: "operation", capability: "custom.read", capability_version: 1,
       operation: "custom.read/read_custom_data", operation_version: 1,
       resource_type: "none", resource_scope: {}, normalized_arguments: { "query" => "customers" },
-      invocation_fingerprint: "sha256:customers", effects: [], policy_chain: [], decisive_rule: {},
+      invocation_fingerprint: Permissions::InvocationFingerprint.call(
+        descriptor:, arguments: request.payload.fetch("arguments")
+      ), effects: [ "internal_write" ], policy_chain: [], decisive_rule: {},
       requested_durations: [ "invocation" ]
-    ).tap { |item| item.prerequisites << possession }
+    )
   end
 
   before do
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
-    descriptor = instance_double(Coworkers::GrantCatalog::Descriptor, scopeable?: false, valid_scope?: true)
-    allow(Coworkers::GrantCatalog).to receive(:fetch).with("custom.read").and_return(descriptor)
+    tool = Class.new
+    catalog = Mcp::CoworkerToolCatalog::Descriptor.new(
+      tool_name: "read_custom_data", capability: "custom.read", ungated: false,
+      tier: :essential, tool:, provider: nil
+    )
+    allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(catalog)
+    allow(McpToolRegistry).to receive(:entries).with(surface: :coworker)
+      .and_return([ Struct.new(:tool, :descriptor).new(tool, descriptor) ])
     operation
   end
 
-  it "records possession and waits for the exact invocation decision" do
-    result = described_class.new(request:, item: possession, user: owner).call(decision: "approved")
-
-    expect(result.execution_enqueued).to be(false)
-    expect(possession.reload).to be_approved
-    expect(possession.resulting_authority).to eq(coworker.grants.find_by!(capability: "custom.read"))
-    expect(request.reload).to be_pending
-  end
-
-  it "enqueues execution only after every prerequisite is approved" do
-    described_class.new(request:, item: possession, user: owner).call(decision: "approved")
-
+  it "issues one atomic invocation claim and enqueues execution after approval" do
     expect {
       result = described_class.new(request:, item: operation, user: owner).call(decision: "approved")
       expect(result.execution_enqueued).to be(true)
     }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(request.id)
     expect(request.reload).to be_confirming
+    expect(operation.reload.authorized_invocation).to have_attributes(
+      state: "issued", authority_type: "PermissionLease", tool_name: "read_custom_data"
+    )
+    expect(coworker.grants).to be_empty
   end
 
-  it "denies one item and makes the remaining prerequisite non-actionable" do
-    described_class.new(request:, item: possession, user: owner).call(decision: "denied")
+  it "denies the operation without issuing or enqueueing it" do
+    result = described_class.new(request:, item: operation, user: owner).call(decision: "denied")
 
-    expect(possession.reload).to be_denied
-    expect(operation.reload).to be_non_actionable
+    expect(result.execution_enqueued).to be(false)
+    expect(operation.reload).to be_denied
+    expect(operation.authorized_invocation).to be_nil
     expect(request.reload).to be_rejected
   end
 end
