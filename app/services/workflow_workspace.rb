@@ -413,7 +413,7 @@ class WorkflowWorkspace
   # that state like an ordinary dirty retry prevents the resolving agent from
   # ever starting.
   def git_operation_in_progress?
-    %w[rebase-merge rebase-apply MERGE_HEAD].any? do |name|
+    %w[rebase-merge rebase-apply MERGE_HEAD REVERT_HEAD CHERRY_PICK_HEAD].any? do |name|
       git_path = @git.run("rev-parse", "--git-path", name, chdir: path.to_s).strip
       next false if git_path.blank?
 
