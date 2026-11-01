@@ -586,7 +586,9 @@ function PermissionCutoverReport({ report }: { report: CoworkerDetail["permissio
         <h2 className="font-semibold" id="permission-cutover-heading">
           {t("cutover.title")}
         </h2>
-        <span className={`rounded px-2 py-1 text-xs font-medium ${report.ready ? "bg-success-surface text-success-text" : "bg-danger-surface text-danger-text"}`}>
+        <span
+          className={`rounded px-2 py-1 text-xs font-medium ${report.ready ? "bg-success-surface text-success-text" : "bg-danger-surface text-danger-text"}`}
+        >
           {t(report.ready ? "cutover.ready" : "cutover.blocked")}
         </span>
       </div>
