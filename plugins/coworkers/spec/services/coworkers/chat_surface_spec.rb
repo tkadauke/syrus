@@ -70,11 +70,11 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.reload).to be_turn_in_flight
   end
 
-  it "advertises every tool only when its named grant exists" do
+  it "advertises gated tools only when their named grant exists and keeps discovery ungated" do
     entries = McpToolRegistry.entries(surface: :coworker)
     expect(entries).to all(have_attributes(capability: be_present))
 
-    entries.reject(&:interactive_only).each do |entry|
+    entries.reject { |entry| entry.interactive_only || entry.ungated }.each do |entry|
       coworker.grants.delete_all
       expect(names(tier: entry.tier)).not_to include(entry.tool_name)
 
@@ -83,6 +83,9 @@ RSpec.describe "Coworker chat surface" do
       coworker.grants.create!(attributes)
       expect(names(tier: entry.tier)).to include(entry.tool_name)
     end
+
+    coworker.grants.delete_all
+    expect(names(tier: :deferred)).to include("discover_coworker_capabilities")
   end
 
   it "exposes both proposal tools with the proposal grant and keeps them absent without it" do
