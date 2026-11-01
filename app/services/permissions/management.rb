@@ -71,8 +71,8 @@ module Permissions
       leases(active: false).find(id).revoke!(actor:)
     end
 
-    def apply_preset!(payload, actor:)
-      drafts = preset_drafts(payload)
+    def apply_preset!(drafts, actor:)
+      drafts = validate_preset_drafts(drafts)
       PermissionRule.transaction do
         drafts.map { |draft| public_send(PRESET_APPLIERS.fetch(draft.fetch("policy")), draft, actor:) }
       end
@@ -82,14 +82,25 @@ module Permissions
       preset = Catalog.presets[payload.fetch("preset").to_s]
       raise ArgumentError, "unknown permission preset" unless preset
 
-      preset.render(payload).each do |draft|
+      validate_preset_drafts(preset.render(payload))
+    end
+
+    def validate_preset_drafts(drafts)
+      drafts = Array(drafts)
+      raise ArgumentError, "permission preset must render at least one rule" if drafts.empty?
+
+      drafts.map do |draft|
+        draft = draft.to_h.stringify_keys
         descriptor = descriptor!(draft)
         raise ArgumentError, "preset capability does not match its operation" unless descriptor.capability == draft.fetch("capability")
         raise ArgumentError, "preset role is not eligible" unless descriptor.requestable_roles.include?(draft.fetch("role"))
+        raise ArgumentError, "unknown permission preset policy" unless PRESET_APPLIERS.key?(draft.fetch("policy"))
+
+        draft
       end
     end
 
-    private :create_rule!
+    private :create_rule!, :validate_preset_drafts
 
     private
 

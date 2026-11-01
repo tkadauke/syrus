@@ -57,6 +57,10 @@ RSpec.describe "permission management MCP tools" do
     )
     pending = ChatPendingAction.find(body(response).fetch(:pending_action_id))
 
+    expect(pending.payload.fetch("drafts")).to contain_exactly(a_hash_including(
+      "capability" => descriptor.capability, "operation" => descriptor.operation,
+      "policy" => "allow"
+    ))
     expect(PendingActions::ApplyPermissionPreset.new(pending).presentation_detail)
       .to eq("ALLOW example.records/read@v1 for #{AgentRole::CHAT_PLANNER} (interactive_chat)")
     expect(PermissionRule.count).to eq(0)
@@ -65,6 +69,46 @@ RSpec.describe "permission management MCP tools" do
     expect(PermissionRule.active.sole).to have_attributes(
       capability: descriptor.capability, operation: descriptor.operation, policy: "allow"
     )
+  end
+
+  it "applies the exact callable preset drafts that the operator confirms" do
+    render_count = 0
+    preset = Permissions::PermissionPreset.new(
+      name: "changing_observer", label: "Changing observer",
+      description: "A context-dependent recommendation.",
+      rules: lambda do |_context|
+        render_count += 1
+        [ {
+          capability: descriptor.capability, operation: descriptor.operation,
+          role: AgentRole::CHAT_PLANNER, policy: render_count == 1 ? :allow : :deny,
+          resource_scope: {}, constraints: {}
+        } ]
+      end
+    )
+    allow(Permissions::Catalog).to receive(:presets).and_return("changing_observer" => preset)
+
+    response = Mcp::Tools::ApplyPermissionPresetTool.call(
+      server_context: context, subject_selector_type: "interactive_chat", preset: "changing_observer"
+    )
+    pending = ChatPendingAction.find(body(response).fetch(:pending_action_id))
+
+    expect(PendingActions::ApplyPermissionPreset.new(pending).presentation_detail)
+      .to start_with("ALLOW ")
+    pending.confirm!(user: user)
+
+    expect(render_count).to eq(1)
+    expect(PermissionRule.active.sole).to have_attributes(policy: "allow")
+  end
+
+  it "rejects unknown presets before creating a pending action" do
+    allow(Permissions::Catalog).to receive(:presets).and_return({})
+
+    response = Mcp::Tools::ApplyPermissionPresetTool.call(
+      server_context: context, subject_selector_type: "interactive_chat", preset: "missing"
+    )
+
+    expect(response.content.first[:text]).to include("unknown permission preset")
+    expect(ChatPendingAction.count).to eq(0)
   end
 
   it "creates confirmed deny rules and exposes them through the read API" do
