@@ -40,7 +40,7 @@ RSpec.describe SyrusRails::McpToolSet do
       run_dbl = instance_double(Run, workflow: instance_double(Workflow))
       allow(WorkflowWorkspace).to receive(:path_for).and_return(ws)
       allow(SyrusMcp).to receive(:run_from_context).and_return(run_dbl)
-      yield({ run_id: 1 }, ws)
+      yield({ run_id: 1 }, ws, run_dbl)
     end
   end
 
@@ -199,6 +199,7 @@ RSpec.describe SyrusRails::McpToolSet do
   # explain_migration
   # ------------------------------------------------------------------
   describe "#handle explain_migration" do
+    let(:generator) { instance_double(SyrusRails::MigrationArtifactGenerator, generate: generated_payload) }
     let(:generated_payload) do
       {
         migration_name: "AddNameToUsers", status: "success",
@@ -208,7 +209,6 @@ RSpec.describe SyrusRails::McpToolSet do
     end
 
     before do
-      generator = instance_double(SyrusRails::MigrationArtifactGenerator, generate: generated_payload)
       allow(SyrusRails::MigrationArtifactGenerator).to receive(:new).and_return(generator)
     end
     let(:schema_rb) { <<~RUBY }
@@ -229,11 +229,18 @@ RSpec.describe SyrusRails::McpToolSet do
     RUBY
 
     it "returns the database-generated catalog" do
-      with_workspace do |ctx, ws|
+      with_workspace do |ctx, ws, run|
         ws.join("db").mkpath
         ws.join("db/schema.rb").write(schema_rb)
         ws.join("db/migrate").mkpath
         ws.join("db/migrate/20240101000000_add_name_to_users.rb").write(add_column_migration)
+
+        expect(SyrusRails::MigrationArtifactGenerator).to receive(:new)
+          .with(workspace: ws, workflow: run.workflow)
+          .and_return(generator)
+        expect(generator).to receive(:generate)
+          .with("db/migrate/20240101000000_add_name_to_users.rb")
+          .and_return(generated_payload)
 
         response = tool_set.handle(
           "explain_migration",
