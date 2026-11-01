@@ -3296,5 +3296,6 @@
   "coworker_message_to": "ad @{{handle}}",
   "tool_presentation_title": "Praesentatio instrumenti",
   "tool_presentation_open_full_page": "Paginam plenam aperire",
+  "tool_presentation_copy_link": "Vinculum exscribere",
   "tool_presentation_close": "Claude"
 }

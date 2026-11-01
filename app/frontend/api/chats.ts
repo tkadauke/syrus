@@ -1749,7 +1749,7 @@ export type ChatJobStatusPayload = {
   extensions?: { actions?: ChatJobStatusAction[] }
 }
 
-export type ChatJobStatusAction = { id: string; label: string; repository_id: number; repository_label: string; path: string }
+export type ChatJobStatusAction = { id: string; label_i18n_key: string; repository_id: number; repository_label: string; path: string }
 
 export async function fetchChatJobStatus(chatId: string | number): Promise<ChatJobStatusPayload> {
   const payload = await getJson<Partial<ChatJobStatusPayload> | ChatJobStatusItem[]>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
