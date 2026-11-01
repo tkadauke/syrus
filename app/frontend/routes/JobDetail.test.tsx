@@ -112,6 +112,27 @@ describe("JobDetailView", () => {
     expect(container.querySelectorAll("section.bg-surface").length).toBeGreaterThanOrEqual(2)
   })
 
+  it("shows authorization requests associated with the Job", () => {
+    renderJobDetail(
+      jobPayload({
+        authorization_requests: [
+          {
+            id: 12,
+            state: "pending",
+            checkpoint_state: "waiting",
+            purpose: "Publish scheduled update",
+            created_at: "2026-11-01T12:00:00Z",
+            items: [{ capability: "records.write@v1", operation: "records.write/publish@v1", state: "pending" }]
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByRole("heading", { name: "Authorization requests" })).toBeInTheDocument()
+    expect(screen.getByText("Publish scheduled update")).toBeInTheDocument()
+    expect(screen.getByText(/records\.write\/publish@v1.*waiting/)).toBeInTheDocument()
+  })
+
   it("shows job routing rules with inherited context and the resolved provider explanation", () => {
     renderJobDetail(
       jobPayload({

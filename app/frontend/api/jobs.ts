@@ -270,6 +270,15 @@ export type JobClassificationAttempt = {
   spawned_process_outcome: string | null
 }
 
+export type JobAuthorizationRequest = {
+  id: number
+  state: string
+  checkpoint_state: string | null
+  purpose: string | null
+  created_at: string
+  items: Array<{ capability: string; operation: string | null; state: string }>
+}
+
 export type JobPrChecks = {
   state: "passing" | "pending" | "failing" | "unknown" | string
   sha: string | null
@@ -1242,6 +1251,7 @@ export type JobDetailPayload = {
   feedback_history: JobFeedbackHistoryEntry[]
   classification_attempts?: JobClassificationAttempt[]
   pending_feedback?: PendingFeedbackComment[]
+  authorization_requests?: JobAuthorizationRequest[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
   preview_projects?: PreviewProjectRecord[]
