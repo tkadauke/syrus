@@ -35,7 +35,7 @@ RSpec.describe ContainerExecution::EgressPolicy::Base do
   end
 
   it "sets both proxy environment spellings and clears both bypass lists" do
-    allow(ContainerExecution::Configuration).to receive(:coworker_proxy_url)
+    allow(ContainerExecution::Configuration).to receive(:chat_agent_proxy_url)
       .with("codex").and_return("http://proxy.test:3128")
 
     expect(described_class.for("codex").proxy_env).to include(

@@ -1,9 +1,13 @@
 module ContainerExecution
   module WorkloadPolicy
-    class Coworker < Base
+    # Governs every chat agent turn, not coworkers specifically: containment is
+    # an operator switch (AppSetting#contained_chat_execution), and the risk it
+    # addresses comes from what an agent is granted and whether anyone is
+    # watching, not from which kind of chat it belongs to.
+    class ChatAgent < Base
       SENSITIVE_ENV_KEY = /(?:\A|_)(?:authorization|credential|invocation_context|key|lease_id|password|passwd|secret|token)(?:_|\z)/i
 
-      def self.applies_to?(request) = request.workload_policy&.custom_coworker? == true
+      def self.applies_to?(request) = request.workload_policy&.chat_agent? == true
 
       def available?
         request.kind.to_s == "agent" &&
@@ -13,7 +17,7 @@ module ContainerExecution
           authorized_read_write_mounts?
       end
 
-      def network = Configuration.coworker_network
+      def network = Configuration.chat_agent_network
       def mount_mcp_socket? = true
 
       def injected_env = egress_policy.proxy_env
@@ -22,15 +26,15 @@ module ContainerExecution
 
       def extra_run_args
         [
-          "--dns", Configuration.coworker_dns,
+          "--dns", Configuration.chat_agent_dns,
           "--label", "io.syrus.egress-profile=#{egress_policy.profile}",
-          "--read-only", "--user", Configuration.coworker_user,
+          "--read-only", "--user", Configuration.chat_agent_user,
           "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
           "--security-opt", "seccomp=#{Configuration.seccomp_profile}",
-          "--pids-limit", Configuration.coworker_pids_limit.to_s,
-          "--memory", Configuration.coworker_memory,
-          "--cpus", Configuration.coworker_cpus,
-          "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=#{Configuration.coworker_tmpfs_size}"
+          "--pids-limit", Configuration.chat_agent_pids_limit.to_s,
+          "--memory", Configuration.chat_agent_memory,
+          "--cpus", Configuration.chat_agent_cpus,
+          "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=#{Configuration.chat_agent_tmpfs_size}"
         ]
       end
 

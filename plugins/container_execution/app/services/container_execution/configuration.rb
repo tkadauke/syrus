@@ -48,17 +48,17 @@ module ContainerExecution
       ENV["SYRUS_PERSISTENT_MCP_SOCKET"].presence
     end
 
-    def coworker_user = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_USER", "1000:1000")
-    def coworker_pids_limit = Integer(ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_PIDS", "256"))
-    def coworker_tmpfs_size = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_TMPFS", "256m")
-    def coworker_memory = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_MEMORY", "4g")
-    def coworker_cpus = ENV.fetch("SYRUS_CONTAINER_EXECUTION_COWORKER_CPUS", "2")
+    def chat_agent_user = chat_agent_env("USER", "1000:1000")
+    def chat_agent_pids_limit = Integer(chat_agent_env("PIDS", "256"))
+    def chat_agent_tmpfs_size = chat_agent_env("TMPFS", "256m")
+    def chat_agent_memory = chat_agent_env("MEMORY", "4g")
+    def chat_agent_cpus = chat_agent_env("CPUS", "2")
     def seccomp_profile = ENV.fetch("SYRUS_CONTAINER_EXECUTION_SECCOMP", "builtin")
 
-    def coworker_network = ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_NETWORK"].presence
-    def coworker_dns = ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_DNS"].presence
+    def chat_agent_network = chat_agent_env("NETWORK", nil)
+    def chat_agent_dns = chat_agent_env("DNS", nil)
 
-    def coworker_proxy_url(provider)
+    def chat_agent_proxy_url(provider)
       ENV["SYRUS_CONTAINER_EXECUTION_#{provider.to_s.upcase}_PROXY"].presence
     end
 
@@ -89,5 +89,16 @@ module ContainerExecution
     rescue ArgumentError
       false
     end
+
+    # Reads SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_<key>, falling back to the
+    # SYRUS_CONTAINER_EXECUTION_COWORKER_<key> name these settings shipped
+    # under. Renaming the Ruby surface should not invalidate configuration an
+    # operator has already deployed, so both are read and the new one wins.
+    def chat_agent_env(key, fallback)
+      ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_#{key}"].presence ||
+        ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_#{key}"].presence ||
+        fallback
+    end
+
   end
 end

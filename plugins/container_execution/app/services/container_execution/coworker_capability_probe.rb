@@ -22,8 +22,8 @@ module ContainerExecution
         Configuration.mcp_socket_path.present? &&
         Configuration.host_path_for(Configuration.mcp_socket_path).present? &&
         Configuration.host_path_mappings.any? &&
-        Configuration.coworker_network.present? &&
-        Configuration.coworker_dns.present? &&
+        Configuration.chat_agent_network.present? &&
+        Configuration.chat_agent_dns.present? &&
         %w[CODEX CLAUDE MUSE AGY].all? { |provider| env["SYRUS_CONTAINER_EXECUTION_#{provider}_PROXY"].present? }
     end
   end

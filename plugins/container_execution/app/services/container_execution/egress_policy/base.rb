@@ -20,12 +20,12 @@ module ContainerExecution
       def endpoint_hosts = self.class::ENDPOINT_HOSTS
 
       def proxy_url
-        Configuration.coworker_proxy_url(provider_key)
+        Configuration.chat_agent_proxy_url(provider_key)
       end
 
       def configured?
         dedicated_network? &&
-          Configuration.coworker_dns.present? &&
+          Configuration.chat_agent_dns.present? &&
           valid_proxy_url?
       end
 
@@ -51,7 +51,7 @@ module ContainerExecution
       private
 
       def dedicated_network?
-        network = Configuration.coworker_network.to_s.strip
+        network = Configuration.chat_agent_network.to_s.strip
         network.present? && !network.in?(%w[bridge default host none])
       end
 

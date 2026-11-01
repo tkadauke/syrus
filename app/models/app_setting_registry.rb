@@ -135,6 +135,19 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
+      key: :contained_chat_execution,
+      type: :string,
+      default: "off",
+      min: nil,
+      max: nil,
+      category: "Agents",
+      operational_meaning: "Whether chat agent turns run inside the container_execution backend: 'off' runs them on the worker, 'preferred' contains them when a backend is available and runs them on the worker when it is not, 'required' fails the turn when no backend is available. Applies to every chat agent alike -- a coworker is not treated differently from any other chat.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :merge_train_failure_policy,
       type: :string,
       default: "restart",

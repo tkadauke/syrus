@@ -400,10 +400,9 @@ RSpec.describe "Coworker background runs" do
     handler.call
 
     expect(run.reload.agent_summary).to eq("## Verdict\n\nAll clear.")
-    expect(handler).to have_received(:run_agent).with(
-      prompt: run.prompt,
-      workload_policy: an_instance_of(Coworkers::ExecutionWorkloadPolicy)
-    )
+    # nil with containment off: a background run is confined on the same
+    # operator switch as any other chat turn, not by virtue of being a coworker.
+    expect(handler).to have_received(:run_agent).with(prompt: run.prompt, workload_policy: nil)
     expect(lifecycle).to have_received(:finalize_background!).with(path: workspace.path, workflow: workflow)
     expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("merged")
   end

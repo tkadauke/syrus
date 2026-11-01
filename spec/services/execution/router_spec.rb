@@ -58,10 +58,23 @@ RSpec.describe Execution::Router do
   end
 
   it "fails closed when a workload forbids local execution" do
-    policy = double(name: "custom coworker", fail_closed?: true)
+    policy = double(name: "chat agent", fail_closed?: true)
 
     expect { described_class.new.run(request.with(workload_policy: policy)) }
-      .to raise_error(Execution::Router::BackendUnavailable, /custom coworker/)
+      .to raise_error(Execution::Router::BackendUnavailable, /chat agent/)
+  end
+
+  # The distinction the contained_chat_execution setting rests on. Core's own
+  # contract promises a local fallback when no provider applies; a policy that
+  # merely *prefers* containment must not revoke that promise, because the
+  # container backend is plugin-provided and ships disabled. Wiring a hard
+  # requirement to it took every coworker chat turn down on an instance where
+  # the plugin was off.
+  it "falls back to local when a workload prefers containment but does not require it" do
+    local = instance_double(Execution::Local, run: :local_result)
+    policy = double(name: "chat agent", fail_closed?: false)
+
+    expect(described_class.new(local: local).run(request.with(workload_policy: policy))).to eq(:local_result)
   end
 
   it "supports directly registered provider instances" do

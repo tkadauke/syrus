@@ -5,7 +5,7 @@ module ContainerExecution
         policies.find { |policy| policy.applies_to?(request) }&.new(request)
       end
 
-      def self.policies = [ Coworker, Grader ]
+      def self.policies = [ ChatAgent, Grader ]
 
       attr_reader :request
 

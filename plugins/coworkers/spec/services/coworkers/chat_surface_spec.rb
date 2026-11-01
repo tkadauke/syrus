@@ -459,15 +459,41 @@ RSpec.describe "Coworker chat surface" do
     expect(yielded).to eq("GIT_TERMINAL_PROMPT" => "0")
   end
 
-  it "passes an explicit fail-closed workload policy only for the coworker agent invocation" do
+  # Containment is an operator switch that applies to every chat agent alike,
+  # so a coworker chat requests it exactly when the instance has asked for it
+  # and not otherwise. Requesting it unconditionally is what took every
+  # coworker chat turn down on an instance where the backend plugin was off.
+  it "requests no containment when the instance has not opted in" do
+    AppSetting.current.update!(contained_chat_execution: "off")
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)
     job.instance_variable_set(:@agent_chat, chat)
 
-    options = job.send(:execution_workload_options)
+    expect(job.send(:execution_workload_options)).to eq({})
+  end
 
-    expect(options.fetch(:workload_policy)).to be_a(Coworkers::ExecutionWorkloadPolicy)
-    expect(options.fetch(:workload_policy)).to be_fail_closed
+  it "requests containment that tolerates an unavailable backend when preferred" do
+    AppSetting.current.update!(contained_chat_execution: "preferred")
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@agent_chat, chat)
+
+    policy = job.send(:execution_workload_options).fetch(:workload_policy)
+
+    expect(policy).to be_a(Execution::ChatWorkloadPolicy)
+    expect(policy).not_to be_fail_closed
+  end
+
+  it "requests fail-closed containment when required" do
+    AppSetting.current.update!(contained_chat_execution: "required")
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@agent_chat, chat)
+
+    policy = job.send(:execution_workload_options).fetch(:workload_policy)
+
+    expect(policy).to be_a(Execution::ChatWorkloadPolicy)
+    expect(policy).to be_fail_closed
   end
 
   it "runs home-branch persistence before releasing the turn lock" do

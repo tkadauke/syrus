@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_205046) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -232,6 +233,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
     t.integer "prepared_layer_cache_gb", default: 10, null: false
     t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
     t.integer "security_review_rounds", default: 0, null: false
+    t.string "contained_chat_execution", default: "off", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1021,9 +1023,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
     t.string "capability", null: false
     t.json "constraints", null: false
     t.string "approval_policy", null: false
-    t.json "scope"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "scope"
     t.index ["coworker_id", "capability"], name: "index_coworker_grants_on_coworker_id_and_capability", unique: true
     t.index ["coworker_id"], name: "index_coworker_grants_on_coworker_id"
   end
@@ -1174,13 +1176,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
     t.integer "design_doc_version_id"
     t.integer "start_offset", null: false
     t.integer "end_offset", null: false
-    t.text "selected_markdown", limit: 16777215
+    t.text "selected_markdown"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "marker_id", null: false
     t.string "anchor_kind", default: "range", null: false
     t.string "status", default: "active", null: false
-    t.text "selected_text", limit: 16777215
+    t.text "selected_text"
     t.text "prefix_context"
     t.text "suffix_context"
     t.integer "last_known_start_offset"
@@ -1237,14 +1239,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
     t.integer "suggested_by_user_id"
     t.string "suggested_by_kind", null: false
     t.string "state", default: "pending", null: false
-    t.text "original_markdown", limit: 16777215, null: false
-    t.text "suggested_markdown", limit: 16777215, null: false
+    t.text "original_markdown", null: false
+    t.text "suggested_markdown", null: false
     t.text "change_summary"
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.text "proposed_markdown", limit: 16777215, null: false
+    t.text "proposed_markdown", null: false
     t.string "change_type", default: "replace", null: false
     t.integer "base_version_id"
     t.json "provenance"
@@ -1280,7 +1282,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
 
   create_table "design_doc_versions", force: :cascade do |t|
     t.integer "design_doc_id", null: false
-    t.text "markdown", limit: 16777215, null: false
+    t.text "markdown", null: false
     t.integer "version_number", null: false
     t.integer "actor_user_id"
     t.string "actor_kind", null: false
@@ -1298,7 +1300,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
 
   create_table "design_docs", force: :cascade do |t|
     t.string "title", null: false
-    t.text "markdown", limit: 16777215, null: false
+    t.text "markdown", null: false
     t.integer "owner_user_id", null: false
     t.string "visibility", default: "private", null: false
     t.string "state", default: "draft", null: false
@@ -1797,7 +1799,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.json "approval_evidence", null: false
+    t.json "approval_evidence", default: {}, null: false
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
@@ -3440,7 +3442,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
 
   create_table "smart_folders", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "filter", null: false
+    t.json "filter", default: {}, null: false
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -3942,7 +3944,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_171504) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true

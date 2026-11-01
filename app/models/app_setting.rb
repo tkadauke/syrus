@@ -41,7 +41,24 @@ class AppSetting < ApplicationRecord
   }
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
+  # Whether chat agent turns run inside the container_execution backend.
+  #
+  #   off       no containment is requested; turns run on the worker, which is
+  #             the only correct default because containment depends on a
+  #             disabled-by-default plugin plus a configured Docker launch
+  #             environment on every worker that might take the turn.
+  #   preferred contain the turn when a backend is actually available, run on
+  #             the worker when it is not. The migration path: operators can
+  #             turn it on and watch it take effect without risking an outage
+  #             if one worker is misconfigured.
+  #   required  fail the turn when no backend is available. The only mode that
+  #             makes containment a security boundary rather than a preference,
+  #             and therefore the only one worth enabling once `preferred` has
+  #             proven the fleet can actually launch containers.
+  CONTAINED_CHAT_EXECUTION_MODES = %w[ off preferred required ].freeze
+
   validates :merge_train_failure_policy, inclusion: { in: MERGE_TRAIN_FAILURE_POLICIES }
+  validates :contained_chat_execution, inclusion: { in: CONTAINED_CHAT_EXECUTION_MODES }
   validates :report_issue_repo_slug, presence: true
   validates :singleton_key, inclusion: { in: [ SINGLETON_KEY ] }
 
@@ -173,6 +190,12 @@ class AppSetting < ApplicationRecord
   def self.main_concern_report_threshold
     current.main_concern_report_threshold
   end
+  def self.contained_chat_execution
+    current.contained_chat_execution.presence_in(CONTAINED_CHAT_EXECUTION_MODES) || "off"
+  end
+
+  def self.contained_chat_execution_requested? = contained_chat_execution != "off"
+  def self.contained_chat_execution_required? = contained_chat_execution == "required"
 
   def self.merge_train_failure_policy
     current.merge_train_failure_policy.presence_in(MERGE_TRAIN_FAILURE_POLICIES) || "restart"

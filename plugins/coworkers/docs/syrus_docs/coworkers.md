@@ -349,12 +349,21 @@ a terminal safety refusal. Persisted and displayed errors are credential-redacte
 
 ## Process confinement
 
-Custom-coworker provider turns require the enabled and configured Container
-Execution plugin. They fail closed when no container backend is available;
-Syrus never silently runs them on the worker. The per-turn container can write
-only the coworker's chat checkout and that chat/provider's agent home, while
-the existing turn finalizer commits and merges checkout changes into the home
-branch. Temporary files and the container itself are discarded after the turn.
+Coworker turns are contained exactly when the instance opts in through
+`AppSetting#contained_chat_execution`, on the same switch and with the same
+behavior as every other chat agent — being a coworker is not itself a reason to
+containerize. See `container_execution.md` for the three modes.
+
+The reason containment matters here at all is the read-only grant below: strip-
+ping write bits cannot stop a process running as the checkout owner from
+restoring them, so only a read-only mount actually enforces `code.read`. That
+argument applies to any chat agent holding such a grant, and it does not apply
+to an interactive coworker chat with no product repositories attached.
+
+When a turn is contained, the per-turn container can write only the coworker's
+chat checkout and that chat/provider's agent home, while the existing turn
+finalizer commits and merges checkout changes into the home branch. Temporary
+files and the container itself are discarded after the turn.
 
 ## Read-only repository access
 

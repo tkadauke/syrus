@@ -37,6 +37,7 @@ RSpec.describe AppSettingRegistry do
       :security_review_rounds,
       :max_job_failures,
       :rebase_failure_cooldown_minutes,
+      :contained_chat_execution,
       :merge_train_failure_policy,
       :merge_train_max_size,
       :merge_train_multisect_section_width,

@@ -1,14 +1,30 @@
 # Container Execution
 
 Container Execution is a disabled-by-default bundled plugin that contributes an
-`Execution::Backend` for grader subprocesses and custom-coworker agent turns.
-When enabled and configured with a Docker launch environment, accepted commands
-run through `docker run` instead of directly on the worker host.
+`Execution::Backend` for grader subprocesses and chat agent turns. When enabled
+and configured with a Docker launch environment, accepted commands run through
+`docker run` instead of directly on the worker host.
 
-Core still owns backend selection and normal grader fallback. Custom-coworker
-turns are fail closed: if the plugin is absent, disabled, or cannot prove the
-worker can launch Docker with host-visible bind mounts, the turn fails before
-the provider process starts and never falls back to `Execution::Local`.
+Core still owns backend selection and normal grader fallback. Chat agent
+containment is opt-in through `AppSetting#contained_chat_execution`, and the
+same setting applies to every chat agent — a coworker is not treated
+differently from any other chat:
+
+- `off` (default) requests no containment; turns run on the worker.
+- `preferred` containerizes a turn when this plugin is enabled, configured, and
+  able to prove the worker can launch Docker with host-visible bind mounts, and
+  otherwise falls back to `Execution::Local`.
+- `required` fails the turn before the provider process starts when no backend
+  is available, and never falls back.
+
+`required` is the only mode in which containment is a security boundary rather
+than a preference, which is also why it is not the default: this backend is
+plugin-provided, and core's contract promises a local fallback when no provider
+applies. An earlier version made containment unconditionally fail-closed for
+custom-coworker turns, which turned a disabled-by-default plugin into a hard
+dependency and failed every coworker chat turn on instances that had never
+enabled it. Reach `required` by running `preferred` first and confirming the
+fleet actually launches containers.
 
 The backend maps the execution request onto the container invocation:
 
@@ -18,7 +34,7 @@ The backend maps the execution request onto the container invocation:
 - `SYRUS_PERSISTENT_MCP_SOCKET`, when present, is mounted at
   `/run/syrus/mcp.sock` and forwarded into the container.
 
-Custom-coworker containers receive exactly the turn checkout and that chat's
+Chat agent containers receive exactly the turn checkout and that chat's
 provider-specific agent home as writable bind mounts, the authorized MCP socket
 read-only, and an ephemeral `/tmp`. They run as a configurable non-root user
 with a read-only root filesystem, all Linux capabilities dropped,
@@ -68,7 +84,7 @@ Configuration:
 - `SYRUS_CONTAINER_EXECUTION_COWORKER_NETWORK`: the operator-created,
   per-turn-capable Docker network whose firewall permits traffic only to the
   controlled resolver and egress proxy. `bridge`, `host`, and the cluster
-  application network are not suitable. Custom-coworker turns fail closed
+  application network are not suitable. Under `required`, chat agent turns fail closed
   when this is unset.
 - `SYRUS_CONTAINER_EXECUTION_COWORKER_DNS`: the controlled resolver address
   reachable on that network. It must refuse or safely resolve private,
@@ -85,7 +101,7 @@ Configuration:
 
 ## Coworker egress profiles
 
-Custom-coworker turns use a provider policy object selected from the pinned
+Chat agent turns use a provider policy object selected from the pinned
 chat provider. The profile allows only that provider's maintained model and
 authentication hostnames. MCP stays on the mounted Unix socket and therefore
 needs no network destination. Git fetch, push, commit integration, and merge
@@ -111,7 +127,7 @@ Endpoint lists live under
 When a provider changes endpoints, update its object and conformance example
 together, deploy the proxy allowlist first, and then deploy Syrus. A missing or
 malformed network, resolver, provider policy, or proxy URL makes the backend
-unavailable and the custom-coworker turn fails before its provider process
+unavailable and, under `required`, the chat agent turn fails before its provider process
 starts. For diagnostics, inspect the worker's backend-unavailable error, then
 verify the named Docker network, resolver reachability, provider proxy setting,
 and sanitized proxy denial log. Do not temporarily attach the container to the

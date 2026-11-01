@@ -121,7 +121,7 @@ RSpec.describe ContainerExecution::Backend do
       configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
       agent_home = File.join(@container_workspace, "agent-home-#{provider}")
       FileUtils.mkdir_p(agent_home)
-      policy = instance_double(Coworkers::ExecutionWorkloadPolicy, custom_coworker?: true, fail_closed?: true, name: "custom coworker")
+      policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true, fail_closed?: true, name: "chat agent")
       runner = instance_double(ProcessRunner, run: success_result)
       captured = nil
       allow(ProcessRunner).to receive(:new) { |kwargs| captured = kwargs; runner }
@@ -175,7 +175,7 @@ RSpec.describe ContainerExecution::Backend do
     configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
     agent_home = File.join(@container_workspace, "agent-home")
     FileUtils.mkdir_p(agent_home)
-    policy = instance_double(Coworkers::ExecutionWorkloadPolicy, custom_coworker?: true)
+    policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true)
     chat = instance_double(ChatSession, effective_chat_provider: "codex")
     coworker_request = request(kind: "agent", chat_session: chat, workload_policy: policy,
       mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home), env: { "HOME" => agent_home })
@@ -188,7 +188,7 @@ RSpec.describe ContainerExecution::Backend do
     agent_home = File.join(@container_workspace, "agent-home")
     other_workspace = File.join(@container_workspace, "other-workspace")
     FileUtils.mkdir_p([ agent_home, other_workspace ])
-    policy = instance_double(Coworkers::ExecutionWorkloadPolicy, custom_coworker?: true)
+    policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true)
     unsafe_mounts = ProcessRunner.mounts(
       @container_workspace,
       read_write: [ @container_workspace, other_workspace ]

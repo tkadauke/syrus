@@ -39,7 +39,12 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
       "merge_train_max_size",
       "report_issue_repo_slug",
       "chat_coding_workspace_budget_mb",
-      "telegram_bot_handle"
+      "telegram_bot_handle",
+      # Admin settings are registry-driven, so appearing in this metadata is
+      # what makes a setting reachable in the UI at all. A containment mode
+      # nobody can see or change would leave operators stuck on whichever
+      # default shipped.
+      "contained_chat_execution"
     )
     secrets = body.dig("settings", "clearable_secrets")
     telegram = secrets.find { |s| s["key"] == "telegram_bot_token" }
@@ -132,7 +137,8 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
         main_concern_report_threshold: 3,
         report_issue_repo_slug: "acme/syrus",
         chat_coding_workspace_budget_mb: 4096,
-        telegram_bot_handle: "acme_syrus_bot"
+        telegram_bot_handle: "acme_syrus_bot",
+        contained_chat_execution: "preferred"
       }
     }
 
@@ -147,6 +153,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(setting.main_concern_report_threshold).to eq(3)
     expect(setting.report_issue_repo_slug).to eq("acme/syrus")
     expect(setting.chat_coding_workspace_budget_mb).to eq(4096)
+    expect(setting.contained_chat_execution).to eq("preferred")
     expect(setting.telegram_bot_handle).to eq("acme_syrus_bot")
   end
 

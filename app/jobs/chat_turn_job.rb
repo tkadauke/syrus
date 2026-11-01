@@ -168,8 +168,12 @@ class ChatTurnJob < ApplicationJob
 
   private
 
+  # Containment is an instance-wide operator choice, not a property of which
+  # kind of agent is on the other end of the chat. Asking the chat for its own
+  # policy is what made "coworker" mean "mandatory container" while every other
+  # chat agent ran unconfined.
   def execution_workload_options
-    policy = active_chat.try(:execution_workload_policy)
+    policy = Execution::ChatWorkloadPolicy.for_current_setting
     policy ? { workload_policy: policy } : {}
   end
 
