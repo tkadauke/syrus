@@ -79,6 +79,19 @@ page's own "Throughput" tab and API at
 output, landing, and review funnel windows with explicit confidence labels for
 sparse samples.
 
+The bundled SDLC Pipeline plugin adds a repository **Pipeline** tab that
+projects existing lifecycle, landing, and configured deployment-stage facts
+into one ordered view. Stage totals, attention and aging counts, Epic rollups,
+and a bounded recent-completion tail keep the initial view useful for busy
+repositories without downloading every Job. Pinned, attention, and recently
+changed work is promoted above linked Epic and ungrouped aggregates. The board
+supports stage navigation, keyboard scrolling, and bounded stage drill-downs;
+configured deployment lanes are observational evidence, while Landed remains
+separate so undeployed changes stay visible. Partial delivery evidence is
+called out explicitly, and Job cards link through to their Job, latest
+Workflow, and delivery/release evidence. The projection is read-only;
+disabling or deleting the plugin does not alter Job or deployment state.
+
 Job kinds:
 
 | Kind     | Source                                                                          |
