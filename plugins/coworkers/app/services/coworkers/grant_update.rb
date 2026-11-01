@@ -54,7 +54,12 @@ class Coworkers::GrantUpdate
     end
     return {} unless @capability == "workspace.files"
 
-    paths = Array(@constraints["confirm_paths"] || @constraints[:confirm_paths]).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+    paths = Array(@constraints["confirm_paths"] || @constraints[:confirm_paths]).filter_map do |path|
+      path = path.to_s.strip
+      next if path.blank?
+
+      normalized_workspace_path(path)
+    end.uniq
     paths.empty? ? {} : { "confirm_paths" => paths }
   end
 
@@ -73,8 +78,19 @@ class Coworkers::GrantUpdate
     end
     return false unless @capability == "workspace.files"
 
-    current_paths = Array(grant.constraints["confirm_paths"]).map(&:to_s).to_set
+    current_paths = Array(grant.constraints["confirm_paths"]).map { |path| normalized_workspace_path(path) }.to_set
     target_paths = Array(normalized_constraints["confirm_paths"]).map(&:to_s).to_set
     (current_paths - target_paths).any?
+  end
+
+  def normalized_workspace_path(path)
+    relative_path = Pathname.new(path.to_s)
+    raise ArgumentError, "confirm_paths must be relative workspace paths" if relative_path.absolute?
+
+    clean = relative_path.cleanpath
+    if clean.to_s == ".." || clean.each_filename.first.in?([ "..", ".git" ])
+      raise ArgumentError, "confirm_paths must stay inside the coworker workspace"
+    end
+    clean.to_s
   end
 end
