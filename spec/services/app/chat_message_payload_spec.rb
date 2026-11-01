@@ -5,6 +5,15 @@ RSpec.describe App::ChatMessagePayload do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat) { ChatSession.create!(user: user, repository: repository) }
 
+  it "exposes the client idempotency key without receipt internals" do
+    message = chat.messages.create!(role: "user", sender_user: user, content: { "text" => "Hello" }, client_idempotency_key: SecureRandom.uuid, skip_turn_trigger: true)
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:client_idempotency_key)).to eq(message.client_idempotency_key)
+    expect(payload.keys).not_to include(:chat_ingress_receipt, :payload_digest)
+  end
+
   it "extracts text from legacy flat assistant messages for the text field" do
     message = chat.messages.create!(role: "assistant", content: { "text" => "Hello legacy." })
 

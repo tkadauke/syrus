@@ -44,7 +44,8 @@ module ChatSessionLifecycle
         repository: repository,
         provider: chat_provider,
         content: content,
-        title_message_text: ChatGoalCommand.parse(text)&.then { |parsed| parsed.fetch(:args).presence if parsed.fetch(:action) == "start" }
+        title_message_text: ChatGoalCommand.parse(text)&.then { |parsed| parsed.fetch(:args).presence if parsed.fetch(:action) == "start" },
+        client_idempotency_key: params[:client_idempotency_key]
       ).call
       return result.chat_session
     end
@@ -68,7 +69,7 @@ module ChatSessionLifecycle
       if text.present?
         mentions = chat_session.resolve_mentions(text)
         turn_triggered = chat_session.should_trigger_agent?(mentions)
-        user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
+        user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, client_idempotency_key: params[:client_idempotency_key], skip_turn_trigger: !turn_triggered)
         chat_session.pin_chat_provider!
       end
     end

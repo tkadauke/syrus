@@ -19,6 +19,7 @@ module Api
         include ChatSessionLifecycle
         include ChatLockErrors
         include ChatProposalOutcomeNotice
+        include ChatIngressIdempotency
 
         HIDDEN_CHATS_PAGE_SIZE = 20
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
@@ -354,7 +355,7 @@ module Api
               last_message_at: Time.current,
               chat_provider: chat_provider || chat_session.chat_provider
             )
-            user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
+            user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, client_idempotency_key: params[:client_idempotency_key], skip_turn_trigger: !turn_triggered)
             chat_session.pin_chat_provider!
           end
           chat_session.reload
@@ -565,7 +566,10 @@ module Api
           content = message_content(text)
           return if performed?
 
-          queued_message = chat_session.chat_queued_messages.create!(content: content)
+          queued_message = chat_session.chat_queued_messages.create!(
+            content: content.merge(ChatQueuedMessage::INTERNAL_SENDER_USER_ID_KEY => Current.user.id),
+            client_idempotency_key: params[:client_idempotency_key]
+          )
           chat_session.touch
           notice = "Message queued."
 
@@ -1779,6 +1783,7 @@ module Api
               content: locked_queued_message.promoted_content,
               mentions: promoted_role == "user" ? locked_chat.resolve_mentions(locked_queued_message.text) : [],
               sender_user_id: promoted_role == "user" ? Current.user.id : nil,
+              client_idempotency_key: locked_queued_message.client_idempotency_key,
               skip_turn_trigger: promoted_role == "user" && !trigger_turn
             )
             locked_queued_message.update!(delivered_at: Time.current)

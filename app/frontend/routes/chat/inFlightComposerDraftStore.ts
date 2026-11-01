@@ -3,6 +3,7 @@ import type { ChatComposeAttachment } from "./composeTypes"
 export type InFlightComposerDraft = {
   composerText: string
   attachments: ChatComposeAttachment[]
+  clientIdempotencyKey?: string
 }
 
 // Submission recovery must survive a Compose remount without remaining visible
@@ -18,6 +19,10 @@ export function clearInFlightComposerDraft(chatId: string, draft: InFlightCompos
   if (draftsByChatId.get(chatId) !== draft) return false
   draftsByChatId.delete(chatId)
   return true
+}
+
+export function getInFlightComposerDraft(chatId: string): InFlightComposerDraft | undefined {
+  return draftsByChatId.get(chatId)
 }
 
 export function __resetInFlightComposerDraftsForTests(): void {
