@@ -1,5 +1,10 @@
 class Workflow < ApplicationRecord
+  include AuthorizationCheckpointOrigin
   attr_accessor :syncing_from_terminal_work_unit
+
+  def waiting_for_permission?
+    super || ChatPendingAction.waiting_for_permission.where(origin: runs).exists?
+  end
   include AASM
   include RecordsStateTransitions
   include Revisionable
