@@ -22,6 +22,11 @@ RSpec.describe "Inbound message router concurrency" do
   it "creates and triggers exactly one message for concurrent duplicate delivery" do
     ready = Queue.new
     start = Queue.new
+    session_lookups = Queue.new
+    allow(ChatSession).to receive(:for_platform).and_wrap_original do |original, **arguments|
+      session_lookups << true
+      original.call(**arguments)
+    end
     threads = Array.new(2) do
       Thread.new do
         ActiveRecord::Base.connection_pool.with_connection do
@@ -42,6 +47,7 @@ RSpec.describe "Inbound message router concurrency" do
     threads.size.times { start << true }
     results = threads.map(&:value)
 
+    expect(session_lookups.size).to eq(1)
     expect(results.map(&:session).map(&:id).uniq.one?).to be(true)
     expect(ChatMessage.where(sender_user: @user, content: { "text" => "Only once" }).count).to eq(1)
     expect(enqueued_jobs.count { |job| job.fetch(:job) == ChatTurnJob }).to eq(1)
