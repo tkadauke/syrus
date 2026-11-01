@@ -18,6 +18,7 @@ RSpec.describe "bin/deploy database migrations" do
     %w[
       run_database_migrations apply_and_wait_db_prepare_job
       wait_for_db_prepare_job duration_to_seconds delete_db_prepare_job
+      db_prepare_satisfied
     ].map { |name| deploy[/^#{name}\(\) \{.*?\n\}/m] or raise "#{name} not found in bin/deploy" }
       .join("\n")
   end
@@ -25,8 +26,8 @@ RSpec.describe "bin/deploy database migrations" do
   # A kubectl that answers `get job` from an attempt counter, so an example can
   # say "fail the first Job, complete the second". `logs` returns whatever the
   # example put in logs.txt.
-  def fake_kubectl(dir, failed_attempts:)
-    File.write(File.join(dir, "attempts"), "0\n")
+  def fake_kubectl(dir, failed_attempts:, migrations_pending: true, never_completes: false)
+    File.write(File.join(dir, "migration_attempts"), "0\n")
     File.write(File.join(dir, "applied.ndjson"), "")
     File.write(File.join(dir, "deployment.json"), {
       "spec" => { "template" => { "spec" => {
@@ -45,13 +46,35 @@ RSpec.describe "bin/deploy database migrations" do
         exit 0
       fi
       if [ "$1" = "apply" ]; then
-        cat >> "#{File.join(dir, "applied.ndjson")}"
-        count=$(cat "#{File.join(dir, "attempts")}")
-        echo $((count + 1)) > "#{File.join(dir, "attempts")}"
+        body=$(cat)
+        printf '%s\\n' "$body" >> "#{File.join(dir, "applied.ndjson")}"
+        case "$body" in
+          *db-check*) ;;
+          *)
+            count=$(cat "#{File.join(dir, "migration_attempts")}")
+            echo $((count + 1)) > "#{File.join(dir, "migration_attempts")}"
+            ;;
+        esac
         exit 0
       fi
       if [ "$1" = "get" ] && [ "${2:-}" = "job" ]; then
-        count=$(cat "#{File.join(dir, "attempts")}")
+        # The probe Job asks "are migrations still pending?" and answers by
+        # exit status, so Failed means pending and Complete means satisfied.
+        case "${3:-}" in
+          *db-check*)
+            if [ "#{migrations_pending}" = "true" ]; then
+              printf '%s\\n' '{"status":{"conditions":[{"type":"Failed","status":"True"}]}}'
+            else
+              printf '%s\\n' '{"status":{"conditions":[{"type":"Complete","status":"True"}]}}'
+            fi
+            exit 0
+            ;;
+        esac
+        if [ "#{never_completes}" = "true" ]; then
+          printf '%s\\n' '{"status":{}}'
+          exit 0
+        fi
+        count=$(cat "#{File.join(dir, "migration_attempts")}")
         if [ "$count" -le #{failed_attempts} ]; then
           printf '%s\\n' '{"status":{"conditions":[{"type":"Failed","status":"True"}]}}'
         else
@@ -86,7 +109,11 @@ RSpec.describe "bin/deploy database migrations" do
   end
 
   def applied_jobs(dir)
-    File.read(File.join(dir, "applied.ndjson")).scan(/"kind":"Job"/).length
+    File.read(File.join(dir, "applied.ndjson")).lines.count { |line| line.include?('"kind":"Job"') && !line.include?("db-check") }
+  end
+
+  def probe_jobs(dir)
+    File.read(File.join(dir, "applied.ndjson")).lines.count { |line| line.include?("db-check") }
   end
 
   # Regression: the web deployment runs `db:prepare` in a db-prepare
@@ -116,6 +143,38 @@ RSpec.describe "bin/deploy database migrations" do
       end
     end
 
+    # Regression: a production deploy lost the lock race on every attempt,
+    # exhausted DB_PREPARE_ATTEMPTS, and aborted -- rolling the image overrides
+    # back -- while the migration it wanted had in fact already been applied by
+    # the web pod initContainer that won the race. Losing the race says nothing
+    # about whether the work still needs doing, so ask before giving up.
+    it "proceeds when the process holding the lock already applied the migrations" do
+      Dir.mktmpdir do |dir|
+        fake_kubectl(dir, failed_attempts: 99, migrations_pending: false)
+        File.write(File.join(dir, "logs.txt"), "ActiveRecord::ConcurrentMigrationError\n")
+
+        out, err, status = run_migrations(dir)
+
+        expect(status).to be_success, err
+        expect(out).to include("already applied by the process holding the lock")
+        # One migration attempt, then one probe that answered "nothing pending".
+        expect(applied_jobs(dir)).to eq(1)
+        expect(probe_jobs(dir)).to eq(1)
+      end
+    end
+
+    # The probe runs the new image on purpose: a live web pod would answer from
+    # the old image's db/migrate, which cannot contain this release's
+    # migrations, and would report "nothing pending" for a schema that is in
+    # fact behind.
+    it "asks the question with the image being deployed" do
+      helper = deploy[/^db_prepare_satisfied\(\) \{.*?\n\}/m]
+
+      expect(helper).to include("apply_and_wait_db_prepare_job")
+      expect(helper).to include("needs_migration?")
+      expect(helper).not_to include("kubectl exec")
+    end
+
     it "gives up after DB_PREPARE_ATTEMPTS rather than retrying forever" do
       Dir.mktmpdir do |dir|
         fake_kubectl(dir, failed_attempts: 99)
@@ -124,7 +183,7 @@ RSpec.describe "bin/deploy database migrations" do
         _out, err, status = run_migrations(dir, attempts: 3)
 
         expect(status).not_to be_success
-        expect(err).to include("database migration job failed")
+        expect(err).to include("migrations still pending after 3 attempts")
         expect(applied_jobs(dir)).to eq(3)
       end
     end
@@ -151,11 +210,8 @@ RSpec.describe "bin/deploy database migrations" do
     # the operator hunting a hang that never happened.
     it "calls a timeout a timeout and a failure a failure" do
       Dir.mktmpdir do |dir|
-        fake_kubectl(dir, failed_attempts: 0)
+        fake_kubectl(dir, failed_attempts: 0, never_completes: true)
         File.write(File.join(dir, "logs.txt"), "")
-        # Never-completing job: `get job` reports neither condition.
-        File.write(File.join(dir, "kubectl"), File.read(File.join(dir, "kubectl"))
-          .sub('{"status":{"conditions":[{"type":"Complete","status":"True"}]}}', '{"status":{}}'))
 
         _out, err, status = run_migrations(dir, timeout: "1s")
 
@@ -251,7 +307,8 @@ RSpec.describe "bin/deploy database migrations" do
 
     expect(helper).to include('DB_PREPARE_IMAGE="${REGISTRY}:${SHA}"')
     expect(helper).to include('"command"] = [ "./bin/rails" ]')
-    expect(helper).to include('"args"] = [ "db:prepare" ]')
+    expect(helper).to include('JSON.parse(ENV.fetch("DB_PREPARE_ARGS_JSON"')
+    expect(deploy).to include('DB_PREPARE_ARGS_JSON:-[\\"db:prepare\\"]')
     expect(helper).to include('"activeDeadlineSeconds" => Integer(ENV.fetch("DB_PREPARE_DEADLINE_SECONDS"))')
     expect(helper).to include('wait_for_db_prepare_job "$kubeconfig" "$namespace" "$job_name"')
   end

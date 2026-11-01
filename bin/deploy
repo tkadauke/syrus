@@ -604,13 +604,31 @@ run_database_migrations() {
     logs="$(KUBECONFIG="$kubeconfig" kubectl logs "job/${job_name}" -n "$namespace" \
       --all-containers --tail=200 2>/dev/null || true)"
 
-    if [ "$wait_state" -eq 1 ] &&
-      [ "$attempt" -lt "$DB_PREPARE_ATTEMPTS" ] &&
-      [[ "$logs" == *ConcurrentMigrationError* ]]; then
-      echo "→ ${label}: a web pod's db-prepare initContainer holds the migration lock; retrying in ${DB_PREPARE_RETRY_DELAY}s"
+    if [ "$wait_state" -eq 1 ] && [[ "$logs" == *ConcurrentMigrationError* ]]; then
       delete_db_prepare_job "$kubeconfig" "$namespace" "$job_name"
-      sleep "$DB_PREPARE_RETRY_DELAY"
-      continue
+
+      # Losing the lock race says nothing about whether the work still needs
+      # doing. The process that won it runs the same migrations from the same
+      # image, so by the time we are told "someone else is migrating" the
+      # schema may already be exactly where this deploy wants it. Ask before
+      # retrying -- and before failing. A deploy that aborts over migrations
+      # another process already applied is a false negative, and this one
+      # rolled production back after every attempt lost the race while the
+      # schema was in fact correct.
+      if db_prepare_satisfied "$kubeconfig" "$namespace"; then
+        echo "✓ ${label}: database migrations already applied by the process holding the lock"
+        return 0
+      fi
+
+      if [ "$attempt" -lt "$DB_PREPARE_ATTEMPTS" ]; then
+        echo "→ ${label}: a web pod's db-prepare initContainer holds the migration lock; retrying in ${DB_PREPARE_RETRY_DELAY}s"
+        sleep "$DB_PREPARE_RETRY_DELAY"
+        continue
+      fi
+
+      echo "✗ ${label}: migrations still pending after ${DB_PREPARE_ATTEMPTS} attempts, each blocked by another migration process" >&2
+      printf '%s\n' "$logs" >&2
+      exit 1
     fi
 
     # Distinguish the two ways the wait ends: a Job that failed fast (bad
@@ -628,6 +646,24 @@ run_database_migrations() {
   done
 }
 
+# True when the database is already at the schema this deploy's image expects.
+#
+# Runs with ${REGISTRY}:${SHA}, deliberately: a currently-running web pod would
+# answer from the *old* image's db/migrate directory, which does not contain
+# this release's migrations, and would report "nothing pending" no matter what
+# the database looks like. Only the new image can judge the new schema.
+db_prepare_satisfied() {
+  local kubeconfig="$1" namespace="$2"
+  local probe_job="syrus-db-check-${SHA}-$(date +%s)-$$"
+  local state=0
+
+  DB_PREPARE_ARGS_JSON='["runner","exit(ActiveRecord::Base.connection_pool.migration_context.needs_migration? ? 1 : 0)"]' \
+    apply_and_wait_db_prepare_job "$kubeconfig" "$namespace" "$probe_job" || state=$?
+  delete_db_prepare_job "$kubeconfig" "$namespace" "$probe_job"
+
+  [ "$state" -eq 0 ]
+}
+
 # One attempt: build the Job manifest from the live web deployment, apply it,
 # and wait. 0 complete, 1 failed, 2 ran out of DB_PREPARE_TIMEOUT.
 apply_and_wait_db_prepare_job() {
@@ -642,6 +678,7 @@ apply_and_wait_db_prepare_job() {
     DB_PREPARE_JOB="$job_name" \
     DB_PREPARE_IMAGE="${REGISTRY}:${SHA}" \
     DB_PREPARE_DEADLINE_SECONDS="$(duration_to_seconds "$DB_PREPARE_TIMEOUT")" \
+    DB_PREPARE_ARGS_JSON="${DB_PREPARE_ARGS_JSON:-[\"db:prepare\"]}" \
     ruby -rjson -e '
       deployment = JSON.parse(STDIN.read)
       pod_spec = deployment.fetch("spec").fetch("template").fetch("spec")
@@ -656,7 +693,7 @@ apply_and_wait_db_prepare_job() {
       db_prepare["name"] = "db-prepare"
       db_prepare["image"] = ENV.fetch("DB_PREPARE_IMAGE")
       db_prepare["command"] = [ "./bin/rails" ]
-      db_prepare["args"] = [ "db:prepare" ]
+      db_prepare["args"] = JSON.parse(ENV.fetch("DB_PREPARE_ARGS_JSON", %q(["db:prepare"])))
 
       copied_pod_keys = %w[
         affinity
