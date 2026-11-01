@@ -9,6 +9,7 @@ import {
   cancelPendingAction,
   confirmChatProposal,
   confirmPendingAction,
+  decideAuthorizationItem,
   fetchChatMedia,
   rejectChatProposal,
   rejectPendingAction,
@@ -982,6 +983,13 @@ export function PendingActionCard({
       onNotice(updated.message || null)
     }
   })
+  const authorizationDecision = useMutation({
+    mutationFn: (input: { path: string; decision: "approved" | "denied" }) => decideAuthorizationItem(appendSearch(input.path, search), input.decision),
+    onSuccess: (updated) => {
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      onNotice(updated.message || null)
+    }
+  })
   const terminalLabel = pendingActionTerminalLabel(pendingAction.state)
   const actionKey = pendingActionKey(pendingAction)
   const rejectLabel = actionKey === "schedule_recurring" ? "Cancel" : "Decline"
@@ -997,6 +1005,7 @@ export function PendingActionCard({
   const canDismiss = pendingAction.state === "failed" && Boolean(dismissPath)
   const isEmergencyLand = actionKey === "emergency_land"
   const coworkerReview = actionKey === "coworker_tool_call" ? pendingAction.review : null
+  const authorizationItems = pendingAction.request_kind === "authorization_request" ? pendingAction.authorization_items || [] : []
   const statusClass =
     isEmergencyLand && (isPending || isConfirming)
       ? "bg-warning text-surface"
@@ -1098,6 +1107,45 @@ export function PendingActionCard({
                 {pendingAction.reason}
               </p>
             ) : null}
+            {authorizationItems.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {authorizationItems.map((item) => (
+                  <div className="rounded border border-gray-200 p-2 text-xs dark:border-gray-700" key={item.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium text-gray-800 dark:text-gray-200">
+                        {item.kind === "capability_possession"
+                          ? t("authorization_possession", { capability: item.capability })
+                          : t("authorization_operation", { operation: item.operation })}
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400">{t(`authorization_state_${item.state}`)}</span>
+                    </div>
+                    {item.state === "pending" ? (
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          className={primaryButton()}
+                          disabled={authorizationDecision.isPending}
+                          onClick={() => authorizationDecision.mutate({ path: item.app_decision_path, decision: "approved" })}
+                          type="button"
+                        >
+                          {t("authorization_approve")}
+                        </button>
+                        <button
+                          className={secondaryButton()}
+                          disabled={authorizationDecision.isPending}
+                          onClick={() => authorizationDecision.mutate({ path: item.app_decision_path, decision: "denied" })}
+                          type="button"
+                        >
+                          {t("authorization_deny")}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                {authorizationDecision.isError ? (
+                  <p className="text-xs text-red-700 dark:text-red-300">{errorMessage(authorizationDecision.error, t("authorization_decision_failed"))}</p>
+                ) : null}
+              </div>
+            ) : null}
             {pendingAction.execution_step && !isConfirming ? (
               <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{pendingAction.execution_step}</p>
             ) : null}
@@ -1119,7 +1167,7 @@ export function PendingActionCard({
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
             <span>{pendingAction.execution_step || "Working..."}</span>
           </div>
-        ) : isPending ? (
+        ) : isPending && pendingAction.request_kind !== "authorization_request" ? (
           <div className="flex flex-wrap gap-2">
             <button
               className={primaryButton()}
@@ -1684,12 +1732,12 @@ function ProposalChildren({
               />
             ) : null}
           </summary>
-          <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <div className="border-t border-border px-8 py-3 text-sm text-text-primary">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
               <span className="font-mono">{child.slug}</span>
               <span>{child.repository_slug || t("no_repository_attached")}</span>
               {child.provider_setting && child.provider_setting !== "default" ? (
-                <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <span className="shrink-0 rounded bg-surface-raised px-2 py-0.5 text-xs font-medium text-text-secondary">
                   {t("proposal_provider")}: {child.provider_setting}
                 </span>
               ) : null}

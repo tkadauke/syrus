@@ -54,11 +54,11 @@ class McpToolContext
     )
   end
 
-  def self.from_chat_session(chat_session, evaluator: false)
-    coworker = coworker_for_chat(chat_session)
+  def self.from_chat_session(chat_session, evaluator: false, agent_actor: nil)
+    coworker = coworker_actor(agent_actor) || coworker_for_chat(chat_session)
     new(
       surface:                :chat,
-      role:                   evaluator ? AgentRole::CHAT_EVALUATOR : role_for_chat(chat_session),
+      role:                   evaluator ? AgentRole::CHAT_EVALUATOR : role_for_chat(chat_session, coworker:),
       user:                   chat_session.user,
       repository:             chat_session.repository,
       chat_session:           chat_session,
@@ -89,7 +89,11 @@ class McpToolContext
     if server_context.key?(:run)
       from_run(server_context[:run])
     elsif server_context.key?(:chat_session)
-      from_chat_session(server_context[:chat_session], evaluator: server_context[:evaluator] == true)
+      from_chat_session(
+        server_context[:chat_session],
+        evaluator: server_context[:evaluator] == true,
+        agent_actor: server_context[:agent_actor]
+      )
     else
       Mcp::Tools.with_database_connection do
         from_run(Run.find(server_context.fetch(:run_id)))
@@ -113,8 +117,8 @@ class McpToolContext
     AgentRole.for_step_kind(run.step&.kind)
   end
 
-  private_class_method def self.role_for_chat(chat_session)
-    if coworker_for_chat(chat_session)
+  private_class_method def self.role_for_chat(chat_session, coworker: coworker_for_chat(chat_session))
+    if coworker
       AgentRole::COWORKER_CHAT
     elsif chat_session.coding?
       AgentRole::CHAT_CODING
@@ -128,8 +132,11 @@ class McpToolContext
   private_class_method def self.coworker_for_chat(chat_session)
     return unless chat_session.respond_to?(:coworker)
 
-    coworker = chat_session.coworker
-    coworker if coworker.respond_to?(:kind) && coworker.kind == "coworker"
+    coworker_actor(chat_session.coworker)
+  end
+
+  private_class_method def self.coworker_actor(actor)
+    actor if actor.respond_to?(:kind) && actor.kind == "coworker"
   end
 
   private_class_method def self.run_context_attributes(run, role)

@@ -6731,6 +6731,65 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
   end
 
+  it "does not confirm a coworker authorization request with unresolved items" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    request = chat.pending_actions.create!(
+      request_kind: "authorization_request",
+      action: "coworker_tool_call",
+      requested_by: "agent",
+      origin: chat,
+      subject: user,
+      payload: { "tool_name" => "execute_query", "arguments" => { "sql" => "SELECT 1" } }
+    )
+    request.authorization_items.create!(
+      kind: "operation", capability: "database.read", capability_version: 1,
+      operation: "database.read/query", operation_version: 1, resource_type: "none",
+      invocation_fingerprint: "sha256:pending", normalized_arguments: { "sql" => "SELECT 1" },
+      effects: [], policy_chain: [], decisive_rule: {}, requested_durations: [ "invocation" ]
+    )
+
+    post "/api/v1/app/chats/#{chat.id}/pending_actions/#{request.id}/confirm"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message").to_s).to match(/prerequisites must be approved/)
+    expect(request.reload).to be_pending
+  end
+
+  it "records an independent coworker possession decision" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    coworker = Coworkers::Coworker.create!(
+      owner_user: user, name: "Maya", handle: "maya-auth", workspace_repo: repository.remote_url
+    )
+    Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    request = chat.pending_actions.create!(
+      request_kind: "authorization_request", action: "coworker_tool_call",
+      requested_by: "agent", origin: chat, subject: coworker,
+      payload: { "tool_name" => "read_syrus_logs", "arguments" => { "query" => "errors" } }
+    )
+    possession = request.authorization_items.create!(
+      kind: "capability_possession", capability: "ops.read_logs", capability_version: 1,
+      resource_type: "none", normalized_arguments: {}, effects: [], policy_chain: [],
+      decisive_rule: {}, requested_durations: []
+    )
+    operation = request.authorization_items.create!(
+      kind: "operation", capability: "ops.read_logs", capability_version: 1,
+      operation: "ops.read_logs/read_syrus_logs", operation_version: 1, resource_type: "none",
+      invocation_fingerprint: "sha256:pending", normalized_arguments: { "query" => "errors" },
+      effects: [], policy_chain: [], decisive_rule: {}, requested_durations: [ "invocation" ]
+    )
+    operation.prerequisites << possession
+
+    post "/api/v1/app/chats/#{chat.id}/pending_actions/#{request.id}/authorization_items/#{possession.id}/decision",
+      params: { decision: "approved" }
+
+    expect(response).to have_http_status(:ok)
+    expect(possession.reload).to be_approved
+    expect(coworker.grants.find_by!(capability: "ops.read_logs")).to have_attributes(approval_policy: "confirm")
+    expect(request.reload).to be_pending
+  end
+
   it "includes the created repository document result for a confirmed pending action" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

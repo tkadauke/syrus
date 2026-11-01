@@ -887,6 +887,20 @@ module Api
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
+        def decide_authorization_item
+          chat_session = find_chat_session
+          pending_action = find_pending_action(chat_session)
+          item = pending_action.authorization_items.find(params[:item_id])
+          Permissions::CoworkerAuthorizationDecision.new(
+            request: pending_action, item:, user: Current.user
+          ).call(decision: params.require(:decision))
+
+          render json: chat_payload(chat_session.reload, message: t("api.chats.messages.authorization_item_decided"))
+        rescue ActiveRecord::RecordInvalid, ArgumentError => e
+          message = e.respond_to?(:record) ? e.record.errors.full_messages.to_sentence : e.message
+          render_error("validation_failed", message, status: :unprocessable_content)
+        end
+
         def update_pending_action
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)

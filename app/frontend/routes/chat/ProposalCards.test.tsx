@@ -460,6 +460,47 @@ describe("PendingActionCard", () => {
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument()
   })
 
+  it("decides compound coworker authorization items independently", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Permission decision recorded." }))
+    const { onNotice } = renderCard(
+      pendingAction({
+        action: "coworker_tool_call",
+        request_kind: "authorization_request",
+        authorization_items: [
+          {
+            id: 41,
+            kind: "capability_possession",
+            state: "pending",
+            capability: "database.read",
+            operation: null,
+            effects: [],
+            prerequisite_ids: [],
+            app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/41/decision"
+          },
+          {
+            id: 42,
+            kind: "operation",
+            state: "pending",
+            capability: "database.read",
+            operation: "database.read/query",
+            effects: ["confidential_read"],
+            prerequisite_ids: [41],
+            app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/decision"
+          }
+        ]
+      })
+    )
+
+    expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[0])
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/chats/122/pending_actions/501/authorization_items/41/decision",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ decision: "approved" }) })
+    )
+  })
+
   it("does not render a reason line when the action has none", () => {
     renderCard(pendingAction({ state: "pending", execution_error: undefined, reason: undefined }))
 

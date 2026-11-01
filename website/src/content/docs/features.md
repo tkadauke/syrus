@@ -1520,6 +1520,18 @@ families; results include the required scope, effective policy, and lock reason.
 Available, requestable, prohibited, plugin-disabled, resource-unconfigured, and
 unavailable states remain distinct, and discovery itself never grants access.
 
+When a coworker attempts a requestable operation, Syrus evaluates possession of
+the capability family and the exact attempted operation together. If both need
+approval, one pending action contains separate decisions for the named
+coworker's possession and the fingerprinted invocation; the operation depends
+on possession, so approving access cannot immediately trigger a second prompt.
+Equivalent active requests are reused instead of interrupting the operator
+again.
+The operator can decide possession and the exact operation separately. Syrus
+executes only after every prerequisite is approved, rechecks that the stored
+arguments still match the approved fingerprint, and closes the request without
+execution when either decision is denied.
+
 ## Permission parity diagnostics
 
 Syrus runs its capability policy evaluator in shadow mode alongside existing
