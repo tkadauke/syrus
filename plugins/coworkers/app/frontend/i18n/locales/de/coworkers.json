@@ -157,7 +157,7 @@
   "capabilities": {
     "sentences": {
       "chat_message_owner": "Dieser Coworker kann seinem Besitzer Nachrichten senden.",
-      "chats_read_shared": "Dieser Coworker kann mit ihm geteilte Chats lesen.",
+      "chats_read_shared": "Dieser Coworker kann jeden Chat lesen, auf den du zugreifen kannst.",
       "coworker_message": "Dieser Coworker kann anderen Coworkern Nachrichten senden.",
       "coworker_spawn_chat": "Dieser Coworker kann Neben-Chats erstellen.",
       "schedule_manage_self": "Dieser Coworker kann seinen eigenen Zeitplan verwalten.",

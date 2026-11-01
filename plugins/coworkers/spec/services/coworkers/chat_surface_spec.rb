@@ -266,28 +266,38 @@ RSpec.describe "Coworker chat surface" do
     expect(names).to include("ask_user_question", "suggest_next_step")
   end
 
-  it "limits list, search, and read tools to the coworker's own and explicitly shared chats" do
+  it "delegates the owner's accessible chats to list, search, and read without widening to other users" do
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
-    private_chat = ChatSession.create!(user: owner, title: "Owner private")
-    shared_chat = ChatSession.create!(user: owner, title: "Shared")
-    ChatShare.create!(chat_session: shared_chat, target: coworker, shared_by_user: owner)
+    owner_chat = ChatSession.create!(user: owner, title: "Owner chat")
+    other_coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Robin", handle: "robin-chat-reader",
+      workspace_repo: repository.remote_url
+    )
+    other_coworker_chat = ChatSession.create!(user: owner, title: "Robin")
+    Coworkers::Chat.create!(coworker: other_coworker, chat_session: other_coworker_chat, role: "main")
+    other_user = Factories.user
+    owner_accessible_chat = ChatSession.create!(user: other_user, title: "Shared with owner")
+    ChatShare.create!(chat_session: owner_accessible_chat, target: owner, shared_by_user: other_user)
+    inaccessible_chat = ChatSession.create!(user: other_user, title: "Other user private")
 
     context = { chat_session: chat }
     list_response = Mcp::Tools::ListChatsTool.call(server_context: context)
     listed_ids = JSON.parse(list_response.content.first[:text]).fetch("chats").pluck("id")
-    expect(listed_ids).to contain_exactly(chat.id, shared_chat.id)
+    expect(listed_ids).to contain_exactly(chat.id, owner_chat.id, other_coworker_chat.id, owner_accessible_chat.id)
 
     Mcp::Tools::AuthorizationSupport.with_server_context(context) do
       expect(Mcp::Tools::SearchChatsTool.send(:searchable_chat_session_ids))
-        .to match_array([ chat.id, shared_chat.id ])
+        .to match_array([ chat.id, owner_chat.id, other_coworker_chat.id, owner_accessible_chat.id ])
     end
 
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).not_to be_error
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: private_chat.id)).to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: other_coworker_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: inaccessible_chat.id)).to be_error
     expect(names(tier: :deferred)).not_to include("send_chat_message")
 
-    shared_chat.chat_shares.destroy_all
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).to be_error
+    owner_accessible_chat.chat_shares.destroy_all
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).to be_error
   end
 
   it "filters agent chat search by coworker and returns the coworker name" do
