@@ -139,7 +139,7 @@ class Job < ApplicationRecord
            dependent: :restrict_with_error, inverse_of: :rollback_of
 
   def unlanded_by
-    rollback_jobs.closed.find_by(closure_reason: SUCCESSFUL_CLOSURE_REASONS)
+    rollback_jobs.closed.find_by(closure_reason: SUCCESSFUL_CLOSURE_REASONS) || epic&.unlanded_by
   end
 
   def rollback? = rollback_of_id.present? || rollback_epic_id.present?

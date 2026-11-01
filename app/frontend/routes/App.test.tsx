@@ -19106,7 +19106,8 @@ function epicDetailPayload(
       app_claim_path: "/api/v1/app/epics/7/claim",
       app_unclaim_path: "/api/v1/app/epics/7/unclaim",
       app_reassign_path: "/api/v1/app/epics/7/reassign",
-      app_dependencies_path: "/api/v1/app/epics/7/dependencies"
+      app_dependencies_path: "/api/v1/app/epics/7/dependencies",
+      app_unland_path: "/api/v1/app/epics/7/unland"
     }
   }
 }
