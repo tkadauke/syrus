@@ -71,6 +71,7 @@ class LandingGraderPlan
     return :ci if CI_TRIGGER_KINDS.include?(trigger_kind)
     return :promotion if PROMOTION_TRIGGER_KINDS.include?(trigger_kind)
     return :unland if UNLAND_TRIGGER_KINDS.include?(trigger_kind)
+    return :unland if job.is_a?(Job) && job.rollback? && LANDING_TRIGGER_KINDS.include?(trigger_kind)
     return :landing if repository.nil? && LANDING_TRIGGER_KINDS.include?(trigger_kind)
     return :review if repository.nil?
 

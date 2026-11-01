@@ -260,6 +260,8 @@ module App
         last_feedback_addressed_at: iso8601(@job.last_feedback_addressed_at),
         last_ci_handled_sha: @job.last_ci_handled_sha,
         closure_reason: @job.closure_reason,
+        rollback_of: rollback_reference_json(@job.rollback_of),
+        unlanded_by: rollback_reference_json(@job.unlanded_by),
         emergency_landed_at: iso8601(@job.emergency_landed_at),
         emergency_landed_by_user: user_reference_json(@job.emergency_landed_by_user),
         emergency_landed_by_membership_tier: @job.emergency_landed_by_membership_tier,
@@ -318,6 +320,12 @@ module App
         start_blocked_details: start_blocked.fetch(:details),
         start_blocked_breakdown: start_blocked.fetch(:breakdown)
       }.merge(deployment_stages_json)
+    end
+
+    def rollback_reference_json(job)
+      return nil unless job
+
+      { id: job.id, slug: job.slug, state: job.state, closure_reason: job.closure_reason }
     end
 
     def active_provider_routing_holds_json

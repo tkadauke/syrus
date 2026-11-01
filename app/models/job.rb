@@ -84,6 +84,7 @@ class Job < ApplicationRecord
   belongs_to :manual_paused_by_user, class_name: "User", optional: true
   belongs_to :landing_blocker_override_requested_by_user, class_name: "User", optional: true
   belongs_to :emergency_landed_by_user, class_name: "User", optional: true
+  belongs_to :rollback_of, class_name: "Job", optional: true, inverse_of: :rollback_jobs
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
   belongs_to :linked_chat, class_name: "ChatSession", optional: true
@@ -133,6 +134,14 @@ class Job < ApplicationRecord
   has_many :dependents, through: :dependent_links, source: :job
   has_many :stack_children, class_name: "Job", foreign_key: :parent_job_id, dependent: :nullify, inverse_of: :parent_job
   has_many :preview_environments, dependent: :destroy
+  has_many :rollback_jobs, class_name: "Job", foreign_key: :rollback_of_id,
+           dependent: :restrict_with_error, inverse_of: :rollback_of
+
+  def unlanded_by
+    rollback_jobs.closed.find_by(closure_reason: SUCCESSFUL_CLOSURE_REASONS)
+  end
+
+  def rollback? = rollback_of_id.present?
 
   validates :kind, presence: true, inclusion: { in: ->(_) { Job::Kind.values } }
   validates :state, presence: true, inclusion: { in: STATES }
