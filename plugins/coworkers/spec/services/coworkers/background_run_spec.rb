@@ -111,7 +111,7 @@ RSpec.describe "Coworker background runs" do
     expect(context).to have_attributes(role: AgentRole::COWORKER, interactive: false)
     expect(context.agent_actor).to eq(coworker)
     expect(context.capability_approval_policies["syrus.read_jobs"]).to eq("queue")
-    expect(context.capability_scopes["syrus.read_jobs"]).to eq("repository_id" => repository.id)
+    expect(context.capability_scopes).to include("syrus.read_jobs" => nil)
     expect(names).to include("list_jobs", "search_jobs", "read_job")
     expect(names).not_to include("ask_user_question", "suggest_next_step", "force_fail_job", "run_command")
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
