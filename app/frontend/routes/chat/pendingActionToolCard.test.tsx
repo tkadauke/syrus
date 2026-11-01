@@ -276,13 +276,7 @@ describe("run_visual_review pending action card", () => {
   })
 
   it("shows focused manual review instructions before confirmation", () => {
-    render(
-      <>{
-        runVisualReviewCard.renderExpanded(
-          visualReviewContext({ input: { job_id: 4222, prompt: "Capture the **sticky header** boundary." } })
-        )
-      }</>
-    )
+    render(<>{runVisualReviewCard.renderExpanded(visualReviewContext({ input: { job_id: 4222, prompt: "Capture the **sticky header** boundary." } }))}</>)
 
     expect(screen.getByText("Manual review instructions")).toBeInTheDocument()
     expect(screen.getByText(/Capture the/)).toBeInTheDocument()
