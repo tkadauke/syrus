@@ -448,6 +448,44 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "ignores main and side coworker chats when inferring a new chat repository default" do
+    ordinary_repository = Factories.repository(user: owner, owner: "acme", name: "ordinary")
+    workspace_repository = Factories.repository(user: owner, owner: "acme", name: "workspace-default")
+    ordinary_chat = ChatSession.create!(user: owner, repository: ordinary_repository)
+    ordinary_chat.update_columns(created_at: 2.hours.ago)
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-default", workspace_repo: workspace_repository.remote_url
+    )
+    main_chat = ChatSession.create!(user: owner, repository: workspace_repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+    side_chat = Coworkers::SpawnChat.call(coworker: coworker, prompt: "Investigate", server_context: nil)
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("default_repository_id" => ordinary_repository.id)
+    expect(response.parsed_body.fetch("repositories")).to include(include("id" => workspace_repository.id))
+    expect(main_chat.reload.repository).to eq(workspace_repository)
+    expect(side_chat.reload.repository).to eq(workspace_repository)
+  end
+
+  it "falls back to the first active repository when only coworker chats have repositories" do
+    fallback_repository = Factories.repository(user: owner, owner: "acme", name: "aardvark")
+    workspace_repository = Factories.repository(user: owner, owner: "acme", name: "zebra-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-fallback", workspace_repo: workspace_repository.remote_url
+    )
+    chat = ChatSession.create!(user: owner, repository: workspace_repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("default_repository_id" => fallback_repository.id)
+  end
+
   it "lists and decides owner-scoped queued approvals and counts them in the nav badge" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-approvals", workspace_repo: "https://github.com/acme/workspace.git")
     main_chat = ChatSession.create!(user: owner, title: "Maya")
