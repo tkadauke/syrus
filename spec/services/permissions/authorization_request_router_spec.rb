@@ -64,4 +64,26 @@ RSpec.describe Permissions::AuthorizationRequestRouter, :ci_only do
     expect(result).to be_continue_ungated
     expect(ChatPendingAction.where(request_kind: "authorization_request").count).to eq(2)
   end
+
+  it "does not apply another repository's active-request cap" do
+    stub_const("Permissions::AuthorizationRequestRouter::MAX_ACTIVE_PER_SUBJECT_CAPABILITY", 1)
+    route
+    other_repository = Factories.repository(user:)
+    other_origin = Factories.job_record(user:, repository: other_repository)
+
+    result = described_class.route!(
+      user:, repository: other_repository, origin: other_origin, subject: user, runtime_role: "background_coworker",
+      deduplication_key: "other-repository", purpose: "Apply a scheduled correction",
+      capability: "mysql.data", operation: "write",
+      item_attributes: {
+        kind: "operation", operation_version: 1, resource_type: "mysql_connection",
+        resource_scope: { connection_id: 4 }, normalized_arguments: { sql_digest: "sha256:abc" },
+        invocation_fingerprint: "sha256:other", effects: %w[credential_use external_write],
+        policy_chain: [], decisive_rule: {}, requested_durations: %w[invocation job]
+      }
+    )
+
+    expect(result).to be_created
+    expect(result.request.repository).to eq(other_repository)
+  end
 end
