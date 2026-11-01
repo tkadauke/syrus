@@ -1,7 +1,7 @@
 class CreatePendingActionAuthorizationRecords < ActiveRecord::Migration[8.1]
   def up
-    create_table :pending_action_items do |t|
-      t.references :chat_pending_action, null: false, foreign_key: true
+    create_table :pending_action_items, if_not_exists: true do |t|
+      t.references :chat_pending_action, null: false, foreign_key: false
       t.string :kind, null: false
       t.string :state, null: false, default: "pending"
       t.string :capability, null: false
@@ -28,20 +28,20 @@ class CreatePendingActionAuthorizationRecords < ActiveRecord::Migration[8.1]
       t.text :non_actionable_reason
       t.timestamps
     end
-    add_index :pending_action_items, [ :chat_pending_action_id, :state ], name: "idx_pending_action_items_request_state"
-    add_index :pending_action_items, :invocation_fingerprint
+    add_index :pending_action_items, [ :chat_pending_action_id, :state ], name: "idx_pending_action_items_request_state" unless index_exists?(:pending_action_items, name: "idx_pending_action_items_request_state")
+    add_index :pending_action_items, :invocation_fingerprint unless index_exists?(:pending_action_items, :invocation_fingerprint)
 
-    create_table :pending_action_item_prerequisites do |t|
-      t.references :pending_action_item, null: false, foreign_key: true, index: false
-      t.references :prerequisite, null: false, foreign_key: { to_table: :pending_action_items }, index: false
+    create_table :pending_action_item_prerequisites, if_not_exists: true do |t|
+      t.references :pending_action_item, null: false, foreign_key: false, index: false
+      t.references :prerequisite, null: false, foreign_key: false, index: false
       t.datetime :created_at, null: false
     end
-    add_index :pending_action_item_prerequisites, [ :pending_action_item_id, :prerequisite_id ], unique: true, name: "idx_pending_action_item_prerequisites_unique"
-    add_index :pending_action_item_prerequisites, :prerequisite_id
+    add_index :pending_action_item_prerequisites, [ :pending_action_item_id, :prerequisite_id ], unique: true, name: "idx_pending_action_item_prerequisites_unique" unless index_exists?(:pending_action_item_prerequisites, name: "idx_pending_action_item_prerequisites_unique")
+    add_index :pending_action_item_prerequisites, :prerequisite_id unless index_exists?(:pending_action_item_prerequisites, :prerequisite_id)
 
-    create_table :pending_action_transitions do |t|
-      t.references :chat_pending_action, null: false, foreign_key: true
-      t.references :pending_action_item, null: true, foreign_key: true
+    create_table :pending_action_transitions, if_not_exists: true do |t|
+      t.references :chat_pending_action, null: false, foreign_key: false
+      t.references :pending_action_item, null: true, foreign_key: false
       t.integer :sequence, null: false
       t.string :event_type, null: false
       t.string :from_state
@@ -50,13 +50,13 @@ class CreatePendingActionAuthorizationRecords < ActiveRecord::Migration[8.1]
       t.json :metadata, null: false
       t.datetime :created_at, null: false
     end
-    add_index :pending_action_transitions, [ :chat_pending_action_id, :sequence ], unique: true, name: "idx_pending_action_transitions_sequence"
-    add_index :pending_action_transitions, [ :pending_action_item_id, :created_at ], name: "idx_pending_action_item_transitions"
+    add_index :pending_action_transitions, [ :chat_pending_action_id, :sequence ], unique: true, name: "idx_pending_action_transitions_sequence" unless index_exists?(:pending_action_transitions, name: "idx_pending_action_transitions_sequence")
+    add_index :pending_action_transitions, [ :pending_action_item_id, :created_at ], name: "idx_pending_action_item_transitions" unless index_exists?(:pending_action_transitions, name: "idx_pending_action_item_transitions")
   end
 
   def down
-    drop_table :pending_action_transitions
-    drop_table :pending_action_item_prerequisites
-    drop_table :pending_action_items
+    drop_table :pending_action_transitions if table_exists?(:pending_action_transitions)
+    drop_table :pending_action_item_prerequisites if table_exists?(:pending_action_item_prerequisites)
+    drop_table :pending_action_items if table_exists?(:pending_action_items)
   end
 end

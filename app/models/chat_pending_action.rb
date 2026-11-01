@@ -150,7 +150,7 @@ class ChatPendingAction < ApplicationRecord
   belongs_to :pending_action_group, optional: true, inverse_of: :chat_pending_actions
   has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
   has_many :authorization_items, class_name: "PendingActionItem", dependent: :destroy, inverse_of: :chat_pending_action
-  has_many :transitions, class_name: "PendingActionTransition", dependent: :restrict_with_exception, inverse_of: :chat_pending_action
+  has_many :transitions, class_name: "PendingActionTransition", dependent: :delete_all, inverse_of: :chat_pending_action
 
   enum :state, STATES.index_with(&:itself), validate: true
 
