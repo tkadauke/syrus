@@ -1,4 +1,5 @@
 class Run < ApplicationRecord
+  include AuthorizationCheckpointOrigin
   # How long an unplaceable Run waits before the capability is re-checked.
   # Matches StepDispatcher::START_BLOCKED_BACKOFF so the two paths that can
   # notice the same gap also recover on the same cadence.

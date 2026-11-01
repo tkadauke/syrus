@@ -183,6 +183,97 @@ RSpec.describe "surface-neutral pending action authorization", :ci_only do
     expect(request.delivery_metadata).to eq("channel" => "inbox", "notification_id" => 12)
   end
 
+  it "persists and resumes an authorization checkpoint with append-only lifecycle transitions" do
+    request = create_request
+    payload = {
+      provider: "codex",
+      session_id: "session-123",
+      continuation: { tool_name: "mysql_execute", tool_call_id: "call-456" }
+    }
+
+    expect(request.checkpoint_authorization!(payload: payload)).to be(true)
+    expect(request.reload).to have_attributes(
+      checkpoint_state: "waiting",
+      checkpoint_payload: payload.deep_stringify_keys,
+      resume_attempts: 0
+    )
+    expect(request.checkpointed_at).to be_present
+    expect(job.reload).to be_waiting_for_permission
+
+    expect(request.begin_authorization_resume!).to be(true)
+    expect(request.fail_authorization_resume!(RuntimeError.new("worker unavailable"))).to be(true)
+    expect(request.reload).to have_attributes(
+      checkpoint_state: "resume_failed",
+      resume_attempts: 1,
+      last_resume_error: "RuntimeError: worker unavailable"
+    )
+
+    expect(request.begin_authorization_resume!).to be(true)
+    expect(request.complete_authorization_resume!).to be(true)
+    expect(request.reload).to have_attributes(checkpoint_state: "resumed", resume_attempts: 2)
+    expect(request.resumed_at).to be_present
+    expect(job.reload).not_to be_waiting_for_permission
+    expect(request.transitions.where(event_type: "checkpoint_state_changed").pluck(:from_state, :to_state)).to eq([
+      [ nil, "waiting" ],
+      [ "waiting", "resuming" ],
+      [ "resuming", "resume_failed" ],
+      [ "resume_failed", "resuming" ],
+      [ "resuming", "resumed" ]
+    ])
+  end
+
+  it "derives waiting blockers for chat, Job, Workflow, and Run origins without changing their states" do
+    chat = ChatSession.create!(user: user, repository: repository)
+    execution_job = Factories.job(user: user, repository: repository)
+    workflow = execution_job.workflows.first
+    run = workflow.runs.first
+    original_states = [ execution_job.state, workflow.state, run.state ]
+
+    [ chat, execution_job, workflow, run ].each_with_index do |origin, index|
+      request = create_request(origin: origin, deduplication_key: "checkpoint-origin-#{index}")
+      expect(request.checkpoint_authorization!(payload: { "cursor" => index })).to be(true)
+      expect(origin.reload).to be_waiting_for_permission
+    end
+
+    expect([ execution_job.state, workflow.state, run.state ]).to eq(original_states)
+  end
+
+  it "cancels a waiting checkpoint when its request becomes obsolete" do
+    request = create_request
+    request.checkpoint_authorization!(payload: { cursor: 1 })
+
+    expect(request.mark_non_actionable!("Resource removed")).to be(true)
+    expect(request.reload.checkpoint_state).to eq("cancelled")
+    expect(request.transitions.where(event_type: "checkpoint_state_changed").last).to have_attributes(
+      from_state: "waiting",
+      to_state: "cancelled"
+    )
+  end
+
+  it "derives parent blockers from a Run-origin request" do
+    execution_job = Factories.job(user: user, repository: repository)
+    workflow = execution_job.workflows.first
+    run = workflow.runs.first
+    request = create_request(origin: run, deduplication_key: "run-parent-blockers")
+
+    request.checkpoint_authorization!(payload: { cursor: 1 })
+
+    expect(workflow.reload).to be_waiting_for_permission
+    expect(execution_job.reload).to be_waiting_for_permission
+  end
+
+  it "rejects checkpoints on legacy actions and unsupported origins" do
+    legacy = ChatSession.create!(user: user, repository: repository)
+      .pending_actions.create!(action: "pause_landing_queue", payload: {})
+    legacy.checkpoint_state = "waiting"
+    legacy.checkpointed_at = Time.current
+    expect(legacy).not_to be_valid
+
+    request = create_request(origin: user, deduplication_key: "unsupported-checkpoint-origin")
+    expect { request.checkpoint_authorization!(payload: {}) }
+      .to raise_error(ActiveRecord::RecordInvalid, /does not support authorization checkpoints/)
+  end
+
   it "records append-only request and item transitions" do
     request = create_request
     item = create_item(request)
