@@ -211,7 +211,11 @@ function PipelineOverview({ payload, repositoryId }: { payload: PipelinePayload;
   const oldest = Math.max(0, ...payload.stages.map((stage) => stage.oldest_age_seconds || 0))
   function updateEdges() {
     const node = scroller.current
-    if (node) setEdges({ left: node.scrollLeft > 2, right: node.scrollLeft + node.clientWidth < node.scrollWidth - 2 })
+    if (node) {
+      const left = node.scrollLeft > 2
+      const right = node.scrollLeft + node.clientWidth < node.scrollWidth - 2
+      setEdges({ left, right })
+    }
   }
   useEffect(updateEdges, [stages.length])
   const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
