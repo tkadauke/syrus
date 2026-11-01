@@ -45,6 +45,7 @@ module Steps
       log("[grader_fanout] source: #{plan.source}")
       log("[grader_fanout] note: #{plan.note}") if plan.note
 
+      ensure_required_unland_grader_selected!(plan.graders)
       if plan.graders.empty?
         record_fanout_outcome!("no_graders_configured")
         log("[grader_fanout] no graders configured — collect Step will pass through")
