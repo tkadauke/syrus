@@ -144,24 +144,31 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       )
     end
 
-    it "applies plugin eligibility filters before selecting the most recent repository" do
+    it "composes plugin eligibility filters before selecting the most recent repository" do
       sign_in_as(user)
       older_repo = Factories.repository(user: user, owner: "acme", name: "ordinary")
-      excluded_repo = Factories.repository(user: user, owner: "acme", name: "excluded")
+      first_excluded_repo = Factories.repository(user: user, owner: "acme", name: "first-excluded")
+      second_excluded_repo = Factories.repository(user: user, owner: "acme", name: "second-excluded")
       ChatSession.create!(user: user, repository: older_repo)
-      excluded_chat = ChatSession.create!(user: user, repository: excluded_repo)
-      filter = Class.new do
-        def self.apply(scope:) = scope.where.not(id: ChatSession.maximum(:id))
-      end
+      first_excluded_chat = ChatSession.create!(user: user, repository: first_excluded_repo)
+      second_excluded_chat = ChatSession.create!(user: user, repository: second_excluded_repo)
+      first_filter = Class.new
+      first_filter.define_singleton_method(:apply) { |scope:| scope.where.not(id: first_excluded_chat.id) }
+      second_filter = Class.new
+      second_filter.define_singleton_method(:apply) { |scope:| scope.where.not(id: second_excluded_chat.id) }
       allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_repository_default_filter).and_return([ filter ])
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_repository_default_filter).and_return([ first_filter, second_filter ])
 
       get "/api/v1/app/chats/new"
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to include("default_repository_id" => older_repo.id)
-      expect(parse_body["repositories"]).to include(include("id" => excluded_repo.id))
-      expect(excluded_chat.reload.repository).to eq(excluded_repo)
+      expect(parse_body["repositories"]).to include(
+        include("id" => first_excluded_repo.id),
+        include("id" => second_excluded_repo.id)
+      )
+      expect(first_excluded_chat.reload.repository).to eq(first_excluded_repo)
+      expect(second_excluded_chat.reload.repository).to eq(second_excluded_repo)
     end
 
     it "includes repositories available through membership" do
