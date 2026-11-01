@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { Button, Input, Metric, Modal, Notice, PageHeading, Section, Text } from "@app/components/ui"
+import { CloseIcon } from "@app/components/CloseIcon"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
@@ -152,7 +153,7 @@ function DrillDown({ onClose, repositoryId, stage }: { onClose: () => void; repo
           <PageHeading className="mt-1">{stage.label}</PageHeading>
         </div>
         <Button aria-label={t("close")} className="ml-auto" onClick={onClose} size="sm" variant="secondary">
-          ×
+          <CloseIcon />
         </Button>
       </div>
       <Text className="mt-2" tone="muted">
