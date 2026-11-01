@@ -901,6 +901,8 @@ function SummaryTab({
 
           <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
 
+          <AuthorizationRequestsPanel requests={payload.authorization_requests ?? []} />
+
           <FeedbackHistoryPanel entries={payload.feedback_history} prefix={prefix} />
 
           <ClassificationAttemptsPanel attempts={payload.classification_attempts ?? []} prefix={prefix} />
@@ -1486,6 +1488,28 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
         ))}
       </ol>
       {testPlan.notes ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={testPlan.notes} /> : null}
+    </section>
+  )
+}
+
+function AuthorizationRequestsPanel({ requests }: { requests: NonNullable<JobDetailPayload["authorization_requests"]> }) {
+  const { t } = useT("jobs")
+  if (requests.length === 0) return null
+
+  return (
+    <section className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
+      <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("authorization_requests_title")}</h2>
+      <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("authorization_requests_description")}</p>
+      <ul className="mt-3 space-y-2">
+        {requests.map((request) => (
+          <li className="rounded border border-amber-200 bg-white/70 p-3 text-sm dark:border-amber-800 dark:bg-gray-900/40" key={request.id}>
+            <div className="font-medium text-gray-900 dark:text-gray-100">{request.purpose || t("authorization_request_fallback")}</div>
+            <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+              {request.items.map((item) => item.operation || item.capability).join(", ")} · {request.checkpoint_state || request.state}
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

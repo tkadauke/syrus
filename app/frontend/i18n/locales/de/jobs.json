@@ -1021,5 +1021,8 @@
   "placement_current_provenance": "Aktuelle Platzierungsherkunft: {{source}}",
   "placement_latest_audit": "Zuletzt geändert von {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Audit-Begründung",
-  "confirm_placement_override": "Platzierungsänderung bestätigen"
+  "confirm_placement_override": "Platzierungsänderung bestätigen",
+  "authorization_requests_title": "Autorisierungsanfragen",
+  "authorization_requests_description": "Berechtigungsentscheidungen für diesen Job erscheinen auch im zentralen Genehmigungseingang.",
+  "authorization_request_fallback": "Geplanter Vorgang benötigt eine Berechtigung"
 }

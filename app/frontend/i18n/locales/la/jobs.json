@@ -1021,5 +1021,8 @@
   "placement_current_provenance": "Origo loci praesentis: {{source}}",
   "placement_latest_audit": "Novissime mutatum ab {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Causa actorum",
-  "confirm_placement_override": "Mutationem loci confirma"
+  "confirm_placement_override": "Mutationem loci confirma",
+  "authorization_requests_title": "Petitiones auctoritatis",
+  "authorization_requests_description": "Iudicia permissionis ad hoc Opus pertinentia etiam in receptaculo centrali approbationum apparent.",
+  "authorization_request_fallback": "Operatio constituta permissionem requirit"
 }
