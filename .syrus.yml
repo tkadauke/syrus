@@ -263,6 +263,30 @@ security_review:
 # check exists to prevent. Keep it 2-4 sentences; the surfaces this
 # renders into don't have room for paragraphs.
 grade:
+  - name: high-risk-plugin-permissions
+    description: |
+      Rejects high-risk provider changes unless permission parity, redaction,
+      revocation, atomic claim, and execution revalidation remain green. This
+      is the mandatory cutover gate for migrated external-effect plugins.
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-high-risk-plugin-permissions
+    phases: [review, landing, ci]
+    required: true
+    timeout_minutes: 10
+    when_files_changed:
+      - "app/models/authorized_invocation.rb"
+      - "app/models/permission_*.rb"
+      - "app/services/permissions/**"
+      - "lib/permissions/**"
+      - "plugins/admin_mysql/**"
+      - "plugins/browser/**"
+      - "plugins/credential_store/**"
+      - "plugins/k8s_cluster/**"
+      - "plugins/mysql_db_browser/**"
+      - "spec/models/authorized_invocation*_spec.rb"
+      - "spec/models/permission_*_spec.rb"
+      - "spec/services/permissions/**"
+      - "bin/check-high-risk-plugin-permissions"
+
   - name: migration-collisions
     description: |
       Rejects duplicate YYYYMMDDHHMMSS migration timestamps within each
