@@ -17,6 +17,18 @@ module TestInsights
     SQL
 
     def self.search_tables = { "test_identity_fts" => TABLE_SQL }
+    def self.search_database_rebuild_key = "test_cases"
+    def self.search_database_content_version = "1"
+    def self.current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
+    def self.search_database_rebuild_units = TestIdentity.count
+    def self.finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
+    def self.search_database_rebuild_batch(task:)
+      SearchIndex.rebuild!
+      finish_content_version!
+      task.checkpoint_will_change!
+      task.checkpoint["test_cases_done"] = true
+      MaintenanceTasks::Definitions::Base::Result.new(done: false, processed: search_database_rebuild_units, failed: 0, message: "Indexed test cases.", level: "progress")
+    end
     def self.backfill_search_table(_name) = SearchIndex.rebuild!
     def self.rebuild_search_table(name) = backfill_search_table(name)
 

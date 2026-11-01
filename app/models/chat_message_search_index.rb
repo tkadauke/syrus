@@ -248,8 +248,12 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     def content_version_current?
-      metadata_value(CONTENT_VERSION_KEY) == CONTENT_VERSION
+      current_content_version == CONTENT_VERSION
     end
+
+    def search_database_rebuild_key = "chats"
+    def search_database_content_version = CONTENT_VERSION
+    def current_content_version = metadata_value(CONTENT_VERSION_KEY)
 
     # Invalidates only assistant messages written by an older content
     # serializer. The in-progress value makes interruption safe: a retry
@@ -281,6 +285,7 @@ class ChatMessageSearchIndex < SearchRecord
 
     def finish_content_version!
       write_metadata(CONTENT_VERSION_KEY, CONTENT_VERSION)
+      SearchIndexVersion.write!(search_database_rebuild_key, CONTENT_VERSION)
     end
 
     private

@@ -535,12 +535,9 @@ RSpec.describe "maintenance task definitions" do
   describe MaintenanceTasks::Definitions::SearchDatabaseRebuild do
     let(:definition) { described_class.new }
 
-    before do
-      allow(definition).to receive(:chat_content_version_current?).and_return(true)
-    end
-
     it "prepares the search schema first" do
       task = maintenance_task_for(definition)
+      task.checkpoint["rebuild_plan"] = [ { "entity" => "schema", "reason" => "missing_schema" } ]
 
       expect(SyrusSearchDatabaseTasks).to receive(:prepare!).and_return(true)
 
@@ -556,6 +553,8 @@ RSpec.describe "maintenance task definitions" do
           attr_reader :received_task
 
           def search_database_rebuild_key = "jobs"
+          def search_database_content_version = "2"
+          def current_content_version = "1"
           def search_database_rebuild_units = 2
           def search_database_rebuild_pending? = true
 
@@ -567,7 +566,7 @@ RSpec.describe "maintenance task definitions" do
       end
       allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
       task = maintenance_task_for(definition)
-      task.checkpoint["schema_prepared"] = true
+      task.checkpoint.merge!("schema_prepared" => true, "rebuild_plan" => [ { "entity" => "jobs", "current_version" => "1", "target_version" => "2", "reason" => "version_mismatch" } ])
 
       result = definition.perform_batch(task)
 
@@ -576,23 +575,56 @@ RSpec.describe "maintenance task definitions" do
     end
 
     it "prepares stale chat content for a targeted reindex" do
+      SyrusSearchDatabaseTasks.prepare!
       task = maintenance_task_for(definition)
-      task.checkpoint.merge!("schema_prepared" => true, "last_chat_message_id" => 99, "chats_done" => true)
-      allow(definition).to receive(:chat_content_version_current?).and_return(false)
-      allow(definition).to receive(:prepare_chat_content_version!).and_return(true)
+      task.checkpoint.merge!("schema_prepared" => true, "last_chat_message_id" => 99, "rebuild_plan" => [ { "entity" => "chats", "current_version" => "1", "target_version" => "2", "reason" => "version_mismatch" } ])
+      chat_source = Class.new do
+        def self.search_database_rebuild_key = "chats"
+        def self.search_database_content_version = "2"
+        def self.current_content_version = "1"
+      end
+      allow(definition).to receive(:source_for).with("chats").and_return(chat_source)
       allow(definition).to receive(:missing_chat_messages_count).and_return(0)
-      allow(definition).to receive(:jobs_need_rebuild?).and_return(false)
-      allow(definition).to receive(:epics_need_rebuild?).and_return(false)
-      allow(definition).to receive(:operational_logs_need_rebuild?).and_return(false)
-      allow(definition).to receive(:finish_chat_content_version!)
 
       result = definition.perform_batch(task)
 
-      expect(definition).to have_received(:prepare_chat_content_version!)
-      expect(definition).to have_received(:finish_chat_content_version!)
-      expect(task.checkpoint).to include("chat_content_version_prepared" => true, "last_chat_message_id" => 0)
-      expect(task.checkpoint).not_to have_key("chats_done")
-      expect(result.done).to be(true)
+      expect(task.checkpoint).to include("chats_prepared" => true, "last_chat_message_id" => 0, "chats_done" => true)
+      expect(ChatMessageSearchIndex.content_version_current?).to be(true)
+      expect(result.done).to be(false)
+    end
+
+    it "persists a concrete version plan and estimates only selected entities" do
+      allow(SyrusSearchDatabaseTasks).to receive(:required_table_sql).and_return({})
+      chat_source = Class.new do
+        def self.search_database_rebuild_key = "chats"
+        def self.search_database_content_version = "2"
+        def self.current_content_version = "1"
+      end
+      allow(definition).to receive(:versioned_sources).and_return([ chat_source ])
+      allow(definition).to receive(:missing_chat_messages_count).and_return(0)
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([])
+      allow(definition).to receive(:chat_scope).and_return(ChatMessage.none)
+
+      attributes = definition.build_task_attributes(trigger_kind: "detector", trigger_key: definition.key, task_key: "detector:search")
+
+      expect(attributes.dig(:metadata, "rebuild_plan")).to contain_exactly(include("entity" => "chats", "current_version" => "1", "target_version" => "2", "reason" => "version_mismatch"))
+      expect(attributes.dig(:metadata, "pending_reason")).to include("chats 1 → 2")
+      expect(attributes[:total_units]).to eq(1)
+    end
+
+    it "does not execute current entities from a chat-only persisted plan" do
+      SyrusSearchDatabaseTasks.prepare!
+      task = maintenance_task_for(definition)
+      task.checkpoint.merge!("schema_prepared" => true, "rebuild_plan" => [ { "entity" => "chats", "current_version" => "1", "target_version" => "2", "reason" => "version_mismatch" } ])
+      chat_source = Class.new do
+        def self.current_content_version = "1"
+      end
+      allow(definition).to receive(:source_for).with("chats").and_return(chat_source)
+      allow(definition).to receive(:missing_chat_messages_count).and_return(0)
+      expect(definition).not_to receive(:index_plugin_source)
+      expect(definition).not_to receive(:index_logs)
+
+      definition.perform_batch(task)
     end
   end
 

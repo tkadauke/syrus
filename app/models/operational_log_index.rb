@@ -1,4 +1,12 @@
 class OperationalLogIndex < SearchRecord
+  CONTENT_VERSION = "1".freeze
+
+  class << self
+    def search_database_rebuild_key = "logs"
+    def search_database_content_version = CONTENT_VERSION
+    def current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
+    def finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, CONTENT_VERSION)
+  end
   include FtsQueryParser
 
   MAX_LIMIT = 100
