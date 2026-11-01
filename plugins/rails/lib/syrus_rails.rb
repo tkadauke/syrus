@@ -1,5 +1,4 @@
 require "syrus_rails/schema_parser"
-require "syrus_rails/migration_parser"
 require "syrus_rails/migration_artifact_generator"
 require "syrus_rails/route_parser"
 require "syrus_rails/read_schema_tool"
