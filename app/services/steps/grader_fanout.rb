@@ -45,6 +45,7 @@ module Steps
       log("[grader_fanout] source: #{plan.source}")
       log("[grader_fanout] note: #{plan.note}") if plan.note
 
+      ensure_required_unland_grader_selected!(plan.graders)
       if plan.graders.empty?
         record_fanout_outcome!("no_graders_configured")
         log("[grader_fanout] no graders configured — collect Step will pass through")
@@ -68,6 +69,7 @@ module Steps
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
       record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
+      ensure_required_unland_grader_selected!(active_graders)
       active_graders = enforce_required_target_health_for_unaffected_graders(active_graders, selections) if enforce_required_target_health_for_unaffected_graders?
 
       if (plan.rerun_only_failed? || retrying_transient_only_failure? || retrying_no_change_repair?) && step.iteration > 1
@@ -175,6 +177,16 @@ module Steps
       return graders.map { |grader| [ grader, baseline_selection_for(grader, baseline_reason) ] } if baseline_reason
 
       graders.map { |grader| [ grader, target_graph.affected(target_label_for(grader), changed_files: matching_files) ] }
+    end
+
+    def ensure_required_unland_grader_selected!(graders)
+      return unless grader_phase == :unland
+      return if graders.any?(&:required)
+
+      message = "unland validation selected no required grader; configure at least one required unland grader whose when_files_changed scope matches, preferably an unconditional smoke grader"
+      record_fanout_outcome!("unland_required_grader_unavailable")
+      log("[grader_fanout] configuration unavailable: #{message}")
+      raise StepFailed, message
     end
 
     def baseline_selection_for(grader, reason)

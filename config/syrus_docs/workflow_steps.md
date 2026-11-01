@@ -916,6 +916,12 @@ phase from workflow context and runs only graders whose `phases` include it:
 `review`, full suites in `landing`, and CI-only checks in explicit `ci` phase
 graders.
 
+`unland` workflows select the explicit `unland` phase. Typed RSpec, Minitest,
+and Vitest graders use their focused command for that phase. Fanout treats an
+empty required selection after `when_files_changed` filtering as a
+configuration-unavailable failure instead of allowing the collector to pass a
+zero-validation revert tree.
+
 Speculative `landing_validation` workflows use the `landing` phase. Their
 `when_files_changed` selection is computed against the predicted post-merge
 base, not the current `origin/main`.

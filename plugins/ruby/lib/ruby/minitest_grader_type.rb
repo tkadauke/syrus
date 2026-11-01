@@ -58,7 +58,7 @@ module Ruby
     end
 
     def review_phases
-      configured_phases.include?("review") ? %w[review] : []
+      configured_phases & %w[review unland]
     end
 
     def ci_phases
