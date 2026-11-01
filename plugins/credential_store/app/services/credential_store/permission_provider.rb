@@ -98,6 +98,15 @@ module CredentialStore
     )
 
     register_capability(
+      capability: "ssh.execute@v1", operation: "ssh.execute/read@v1",
+      effects: %i[network_read confidential_read credential_use operational],
+      risk: :high, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
+      maximum_autonomy: :invocation, authority_durations: %i[invocation],
+      resource_scope: :ssh_destination, classifier: SshCommandClassification,
+      fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
+    )
+
+    register_capability(
       capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1",
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
@@ -109,10 +118,10 @@ module CredentialStore
     register_permission_preset(
       name: "ssh_exact_execution", label: "SSH exact execution",
       description: "Ask for each exact SSH command against a selected credential and destination.",
-      rules: [ {
-        capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1",
-        role: AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {}
-      } ]
+      rules: %w[ssh.execute/read@v1 ssh.execute/risky@v1].map do |operation|
+        { capability: "ssh.execute@v1", operation:,
+          role: AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {} }
+      end
     )
   end
 end
