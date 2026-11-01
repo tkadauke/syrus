@@ -21,7 +21,7 @@ import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import type { LineAnnotation } from "../../components/diff/diffRendering"
-import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
+import { InlineRenderedFileComparison, renderedFileKind } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, sortReviewFiles, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
 import { PanelMessage } from "./components"
@@ -564,11 +564,29 @@ export function SourceDiffBrowser({
               onSelectFile={setSelectedPath}
               onStartEditThread={feedback.onStartEditThread}
               renderImageDiff={(file) => (
-                <ImageDiffThumbnails
+                <InlineRenderedFileComparison
                   baseRef={payload.base_sha ?? payload.base_ref}
                   file={file}
                   headRef={payload.head_sha ?? payload.head_ref}
                   jobId={payload.job_id}
+                  kind={renderedFileKind(file)}
+                  loadContents={
+                    renderedFileKind(file) === "markdown"
+                      ? async () => {
+                          const beforeRef = payload.base_sha ?? payload.base_ref
+                          const afterRef = payload.head_sha ?? payload.head_ref
+                          const [before, after] = await Promise.all([
+                            file.status === "added" || !beforeRef
+                              ? Promise.resolve(null)
+                              : fetchJobSourceFileContent(payload.job_id, beforeRef, file.path).catch(() => null),
+                            file.status === "removed" || !afterRef
+                              ? Promise.resolve(null)
+                              : fetchJobSourceFileContent(payload.job_id, afterRef, file.path).catch(() => null)
+                          ])
+                          return { before, after }
+                        }
+                      : undefined
+                  }
                 />
               )}
               reviewSettings={reviewSettings}
