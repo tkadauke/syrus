@@ -246,7 +246,19 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     def indexable?(message)
-      message.role.in?(%w[user assistant]) && message.content.present? && content_for(message).present?
+      message.deleted_at.nil? && message.role.in?(%w[user assistant]) && message.content.present? && content_for(message).present?
+    end
+
+    # This is the canonical database-side definition of a message that may
+    # receive a search row. Use a SQL join rather than the chat_session
+    # association so callers never make eligibility decisions from a stale
+    # loaded association.
+    def search_eligible_scope
+      ChatMessage.active
+        .joins(:chat_session)
+        .merge(ChatSession.active)
+        .where(role: %w[user assistant])
+        .where.not(content: [ nil, "" ])
     end
 
     def content_version_current?
@@ -261,13 +273,13 @@ class ChatMessageSearchIndex < SearchRecord
       metadata_value(CONTENT_VERSION_KEY)
     end
     def search_database_tables = %w[chat_message_fts chat_search_metadata]
-    def search_database_rebuild_units = search_database_scope.count
+    def search_database_rebuild_units = search_eligible_scope.count
 
     def search_database_integrity_repair_needed?
       return search_database_rebuild_units.positive? unless SyrusSearchDatabaseTasks.table_exists?("chat_search_metadata")
 
       indexed = connection.select_values("SELECT key FROM chat_search_metadata WHERE key LIKE 'indexed_chat_message:%'").map { |key| key.delete_prefix(INDEXED_MESSAGE_KEY_PREFIX).to_i }.to_set
-      search_database_scope.find_each.any? { |message| indexable?(message) && !indexed.include?(message.id) }
+      search_eligible_scope.find_each.any? { |message| indexable?(message) && !indexed.include?(message.id) }
     end
 
     def search_database_rebuild_batch(task:, reason:)
@@ -281,13 +293,14 @@ class ChatMessageSearchIndex < SearchRecord
       end
 
       processed = 0
-      search_database_scope.order(:id).where("id > ?", task.checkpoint["last_chat_message_id"].to_i).limit(SearchIndexWriteLimits.clamp_rows(task.batch_size)).find_each do |message|
+      scope = search_eligible_scope.where("chat_messages.id > ?", task.checkpoint["last_chat_message_id"].to_i)
+      scope.order("chat_messages.id").limit(SearchIndexWriteLimits.clamp_rows(task.batch_size)).find_each do |message|
         task.checkpoint_will_change!
         task.checkpoint["last_chat_message_id"] = message.id
         processed += 1
         insert(message) if indexable?(message) && !indexed?(message.id)
       end
-      done = processed.zero? || task.checkpoint["last_chat_message_id"].to_i >= ChatMessage.maximum(:id).to_i
+      done = !search_eligible_scope.where("chat_messages.id > ?", task.checkpoint["last_chat_message_id"].to_i).exists?
       if done
         finish_content_version!
         task.checkpoint_will_change!
@@ -335,8 +348,6 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     private
-
-    def search_database_scope = ChatMessage.where(role: %w[user assistant]).where.not(content: [ nil, "" ])
 
     def mark_indexed!(message_id)
       connection.exec_insert(

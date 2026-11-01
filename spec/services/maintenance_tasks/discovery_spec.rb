@@ -188,4 +188,37 @@ RSpec.describe MaintenanceTasks::Discovery do
     )
     expect(task.finished_at).to be_present
   end
+
+  it "marks a chat search repair not needed after eligible messages are rebuilt" do
+    prepare_search_tables
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    active_session = ChatSession.create!(repository: repository, user: user)
+    active_message = ChatMessage.create!(chat_session: active_session, role: "user", content: { "text" => "eligible repair" })
+    deleted_session = ChatSession.create!(repository: repository, user: user)
+    ChatMessage.create!(chat_session: deleted_session, role: "user", content: { "text" => "excluded repair" })
+    deleted_session.soft_delete_by!(user)
+    ChatMessageSearchIndex.insert(active_message)
+    ChatMessageSearchIndex.send(:write_metadata, ChatMessageSearchIndex::CONTENT_VERSION_KEY, ChatMessageSearchIndex::CONTENT_VERSION)
+    search_definition = MaintenanceTasks::Definitions::SearchDatabaseRebuild.new
+    allow(MaintenanceTasks::Registry).to receive(:all).and_return([ search_definition ])
+    task = MaintenanceTask.create!(
+      search_definition.build_task_attributes(
+        trigger_kind: "detector",
+        trigger_key: search_definition.key,
+        task_key: "detector:#{search_definition.key}"
+      ).merge(state: "pending")
+    )
+
+    described_class.call
+
+    expect(task.reload.state).to eq("not_needed")
+    expect(ChatMessageSearchIndex.search_database_integrity_repair_needed?).to be(false)
+  end
+
+  def prepare_search_tables
+    SyrusSearchDatabaseTasks.prepare!
+    SearchRecord.connection.execute("DELETE FROM chat_message_fts")
+    SearchRecord.connection.execute("DELETE FROM chat_search_metadata")
+  end
 end
