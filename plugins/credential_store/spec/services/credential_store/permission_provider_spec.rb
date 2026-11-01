@@ -24,6 +24,30 @@ RSpec.describe CredentialStore::PermissionProvider do
     expect(descriptor.defaults.values.uniq).to eq([ :ask ])
   end
 
+  it "issues and consumes exact invocation authority for a classified read-only command" do
+    owner = Factories.user
+    read_descriptor = described_class.capability_descriptor("ssh.execute/read@v1")
+    advertised_descriptor = described_class.capability_descriptor("ssh.execute/risky@v1")
+    role = AgentRole::CHAT_PLANNER
+    context = { subject_selector_type: "interactive_chat" }
+    resource_scope = {
+      credential: "production", host: "api.example.com", user: "deploy", port: 22
+    }
+    arguments = resource_scope.merge(command: "uname -a")
+
+    lease = Permissions::AuthorityGrant.issue!(
+      duration: :invocation, descriptor: read_descriptor, owner:, actor: owner,
+      subject_selector_type: "interactive_chat", role:, resource_scope:, context:, arguments:
+    )
+    result = Permissions::LeaseAuthorizer.call(
+      descriptor: advertised_descriptor, owner:, role:, resource_scope:, context:, arguments:
+    )
+
+    expect(result).to be_authorized
+    expect(result.lease).to eq(lease)
+    expect(lease.reload.used_count).to eq(1)
+  end
+
   it "scopes authority to the credential and exact SSH destination" do
     schema = described_class.permission_resource_scopes.fetch(:ssh_destination)
     context = {}
