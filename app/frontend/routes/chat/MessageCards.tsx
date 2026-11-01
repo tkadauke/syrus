@@ -282,13 +282,12 @@ function CoworkerMessage({
   const { t } = useT("chat")
   const colors = appearance ? accentRamp(appearance.accent_hex) : null
   const label = appearance?.name || (fallbackHandle ? `@${fallbackHandle}` : "—")
-  const accentStyle =
-    colors
-      ? ({
-          backgroundColor: `color-mix(in srgb, var(--color-surface) 88%, ${colors.solid})`,
-          borderLeftColor: colors.solid
-        } as CSSProperties)
-      : undefined
+  const accentStyle = colors
+    ? ({
+        backgroundColor: `color-mix(in srgb, var(--color-surface) 88%, ${colors.solid})`,
+        borderLeftColor: colors.solid
+      } as CSSProperties)
+    : undefined
   return (
     <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly}>
       <span className="absolute -top-4" id={`message-${item.id}`} />
@@ -569,12 +568,7 @@ export function ChatAssistantMarkdownSurface({
 
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${compactClass}`}>
-      <BoundedChatMarkdown
-        className="chat-prose break-words text-text-primary [overflow-wrap:anywhere]"
-        text={text}
-        linkifyUrls
-        onLinkClick={onLinkClick}
-      />
+      <BoundedChatMarkdown className="chat-prose break-words text-text-primary [overflow-wrap:anywhere]" text={text} linkifyUrls onLinkClick={onLinkClick} />
     </div>
   )
 }
