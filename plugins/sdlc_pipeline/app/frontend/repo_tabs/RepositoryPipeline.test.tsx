@@ -225,13 +225,16 @@ describe("RepositoryPipelineRoute", () => {
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?at=2026-10-31T10%3A00%3A00Z"]}>
+        <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=associated-chat&at=2026-10-31T10%3A00%3A00Z"]}>
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
       </QueryClientProvider>
     )
 
     expect(await screen.findByText("Historical card")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Pipeline stages" })).toBeInTheDocument()
+    expect(screen.getByTestId("pipeline-time-rail")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /View pipeline at/ })).toHaveClass("h-11", "w-11")
     expect(screen.getByText("Reconstructed placement; current metadata")).toBeInTheDocument()
     expect(screen.getByText(/This view is read-only/)).toBeInTheDocument()
     expect(screen.getByText(/1 placement changed/)).toBeInTheDocument()
@@ -239,7 +242,13 @@ describe("RepositoryPipelineRoute", () => {
     expect(screen.getByText("Trace for JOB-9")).toBeInTheDocument()
     expect(screen.getByText(/entered/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("History window"), { target: { value: "30" } })
-    await waitFor(() => expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("range_start=") && String(url).includes("range_end="))).toBe(true))
+    await waitFor(() =>
+      expect(
+        fetchSpy.mock.calls.some(
+          ([url]) => String(url).includes("q=associated-chat") && String(url).includes("range_start=") && String(url).includes("range_end=")
+        )
+      ).toBe(true)
+    )
     expect(String(fetchSpy.mock.calls[0][0])).not.toContain("at=")
     fireEvent.click(await screen.findByRole("button", { name: "Return to now" }))
     await waitFor(() => expect(screen.queryByText(/This view is read-only/)).not.toBeInTheDocument())
