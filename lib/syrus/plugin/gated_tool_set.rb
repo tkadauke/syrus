@@ -72,6 +72,15 @@ module Syrus
           @coworker_grant.present? && available_for?(chat_session, tier: tier)
         end
 
+        def coworker_discovery_state(_chat_session)
+          return :plugin_disabled unless gate_plugin.enabled?
+          return :resource_unconfigured unless gate_model.exists?
+
+          :available
+        rescue ActiveRecord::ActiveRecordError
+          :unavailable
+        end
+
         # Configures the gate every method below relies on: `plugin` answers
         # `.enabled?`, `model` answers `.exists?`. `label` names this tool
         # set in "Unknown ... tool" error text (required for a ChatToolSet;

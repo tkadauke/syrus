@@ -7,6 +7,7 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
       surface: :chat,
       role: AgentRole::COWORKER_CHAT,
       user: user,
+      allowed_repository_ids: [ 123 ],
       granted_capabilities: granted_capabilities
     )
   end
@@ -30,12 +31,16 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
     )
   end
 
+  def registry_entry(descriptor)
+    double(descriptor: descriptor, feature_flag: nil, feature_flags_by_role: nil)
+  end
+
   before do
     allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return([ catalog_descriptor ])
   end
 
   it "reports an eligible ungranted family as requestable with scope, policy, and lock reason" do
-    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(double(descriptor: permission_descriptor))
+    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
 
     expect(described_class.new(context).call.map(&:to_h)).to contain_exactly(
       capability: "example.records",
@@ -48,7 +53,7 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
   end
 
   it "does not collapse available and prohibited families into requestable results" do
-    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(double(descriptor: permission_descriptor(roles: [ AgentRole::CHAT_PLANNER ])))
+    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor(roles: [ AgentRole::CHAT_PLANNER ])))
 
     expect(described_class.new(context).call).to be_empty
     expect(described_class.new(context).call(include_non_requestable: true).sole.to_h).to include(
@@ -56,11 +61,59 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
     )
   end
 
+  it "reports an effective deny separately from role ineligibility" do
+    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor(policy: :deny)))
+
+    expect(described_class.new(context).call(include_non_requestable: true).sole.to_h).to include(
+      state: "prohibited", lock_reason: "effective_policy_denies"
+    )
+  end
+
+  {
+    plugin_disabled: "provider_plugin_disabled",
+    resource_unconfigured: "required_resource_unconfigured",
+    unavailable: "provider_unavailable"
+  }.each do |availability, reason|
+    it "preserves the #{availability} state" do
+      unavailable_descriptor = catalog_descriptor.with(availability_state: availability)
+      allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return([ unavailable_descriptor ])
+      allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
+
+      expect(described_class.new(context).call(include_non_requestable: true).sole.to_h).to include(
+        state: availability.to_s, lock_reason: reason
+      )
+    end
+  end
+
+  it "matches queries against tool names and descriptions" do
+    searchable = catalog_descriptor.with(description: "Reads customer ledgers")
+    allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return([ searchable ])
+    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
+
+    expect(described_class.new(context).call(query: "read_example")).not_to be_empty
+    expect(described_class.new(context).call(query: "customer ledgers")).not_to be_empty
+  end
+
+  it "constructs permission management only once for a multi-operation family" do
+    other_tool = Class.new(MCP::Tool) { tool_name "list_examples" }
+    other_catalog_descriptor = catalog_descriptor.with(tool_name: "list_examples", tool: other_tool)
+    allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return([ catalog_descriptor, other_catalog_descriptor ])
+    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
+    allow(McpToolRegistry).to receive(:entry_for).with(other_tool).and_return(registry_entry(permission_descriptor))
+    management = instance_double(Permissions::Management)
+    allow(Permissions::Management).to receive(:new).with(user).and_return(management)
+    allow(management).to receive(:explain).and_return(double(policy: :ask))
+
+    described_class.new(context).call
+
+    expect(Permissions::Management).to have_received(:new).once
+  end
+
   context "when the family is already granted" do
     let(:granted_capabilities) { [ "example.records" ] }
 
     it "keeps it out of requestable discovery and labels it available in explicit discovery" do
-      allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(double(descriptor: permission_descriptor))
+      allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
 
       expect(described_class.new(context).call).to be_empty
       expect(described_class.new(context).call(include_non_requestable: true).sole.state).to eq("available")

@@ -116,6 +116,20 @@ RSpec.describe Syrus::Plugin::GatedToolSet do
     it "is available when the plugin is enabled and the model exists" do
       expect(chat_tool_set.available_for?(nil, tier: :essential)).to be(true)
     end
+
+    it "distinguishes plugin, resource, and backend discovery states" do
+      expect(chat_tool_set.coworker_discovery_state(nil)).to eq(:available)
+
+      allow(fake_model).to receive(:exists?).and_return(false)
+      expect(chat_tool_set.coworker_discovery_state(nil)).to eq(:resource_unconfigured)
+
+      allow(fake_plugin_module).to receive(:enabled?).and_return(false)
+      expect(chat_tool_set.coworker_discovery_state(nil)).to eq(:plugin_disabled)
+
+      allow(fake_plugin_module).to receive(:enabled?).and_return(true)
+      allow(fake_model).to receive(:exists?).and_raise(ActiveRecord::ConnectionNotEstablished)
+      expect(chat_tool_set.coworker_discovery_state(nil)).to eq(:unavailable)
+    end
   end
 
   describe "WorkflowToolSet shape (delegate_to:)" do
