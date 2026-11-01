@@ -4,7 +4,10 @@ RSpec.describe AuthorizedInvocation, :ci_only do
   self.use_transactional_tests = false
 
   after do
-    User.where(email_address: "authorized-invocation-race@example.com").destroy_all
+    User.where(email_address: %w[
+      authorization-decision-race@example.com
+      authorized-invocation-race@example.com
+    ]).destroy_all
     ActiveRecord::Base.connection_handler.clear_all_connections!
   end
 
@@ -38,6 +41,39 @@ RSpec.describe AuthorizedInvocation, :ci_only do
 
     expect(2.times.map { results.pop }).to contain_exactly(:claimed, :unavailable)
     expect(invocation.reload).to be_claimed
+  end
+
+  it "allows only one concurrent decision on an authorization item" do
+    suffix = SecureRandom.hex(6)
+    user = User.create!(email_address: "authorization-decision-race@example.com", password: "supersecret")
+    request = ChatPendingAction.create!(request_kind: "authorization_request", user:, origin: user,
+      subject: user, deduplication_key: "authorization-decision-race-#{suffix}")
+    item = request.authorization_items.create!(kind: "operation", capability: "mysql.data", operation: "write",
+      operation_version: 1, resource_type: "mysql_connection", invocation_fingerprint: "sha256:decision-race")
+
+    ready = Queue.new
+    start = Queue.new
+    results = Queue.new
+    threads = %w[approved denied].map do |decision|
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          ready << true
+          start.pop
+          candidate = PendingActionItem.find(item.id)
+          results << [ decision, candidate.decide!(decision, principal: user, duration: decision == "approved" ? "invocation" : nil) ]
+        end
+      end
+    end
+
+    threads.size.times { ready.pop }
+    threads.size.times { start << true }
+    threads.each(&:join)
+
+    outcomes = 2.times.map { results.pop }
+    expect(outcomes.map(&:last)).to contain_exactly(true, false)
+    winner = outcomes.find(&:last).first
+    expect(item.reload.state).to eq(winner)
+    expect(item.transitions.where(event_type: "state_changed").count).to eq(1)
   end
 
   it "serializes issuance with authority revocation" do
