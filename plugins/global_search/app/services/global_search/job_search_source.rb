@@ -17,7 +17,10 @@ module GlobalSearch
     def self.search_database_content_version = "1"
     def self.current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
     def self.finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
+    def self.search_database_tables = [ TABLE_NAME ]
     def self.search_database_rebuild_units = Job.count
+    def self.search_database_initialize_content_version! = finish_content_version! unless current_content_version
+    def self.search_database_integrity_repair_needed? = search_database_rebuild_pending?
 
     def self.search_database_rebuild_pending?
       search_backfill_needed?
@@ -38,9 +41,15 @@ module GlobalSearch
       { processed: processed, last_id: last_id, done: processed.zero? || last_id >= Job.maximum(:id).to_i }
     end
 
-    def self.search_database_rebuild_batch(task:)
+    def self.search_database_rebuild_batch(task:, reason:)
       task.current_step_key = "jobs"
       task.current_step_title = "Index jobs"
+      if reason == "version_mismatch" && !task.checkpoint["jobs_prepared"]
+        SearchRecord.connection.execute("DELETE FROM #{TABLE_NAME}")
+        task.checkpoint_will_change!
+        task.checkpoint["jobs_prepared"] = true
+        task.checkpoint["last_job_id"] = 0
+      end
       batch = search_backfill_batch(after_id: task.checkpoint["last_job_id"].to_i, limit: task.batch_size)
       task.checkpoint_will_change!
       task.checkpoint["last_job_id"] = batch[:last_id] if batch[:last_id].present?

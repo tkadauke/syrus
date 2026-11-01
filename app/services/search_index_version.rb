@@ -23,12 +23,7 @@ module SearchIndexVersion
   end
 
   def ensure_table!
-    SearchRecord.connection.execute(<<~SQL)
-      CREATE TABLE IF NOT EXISTS #{TABLE_NAME} (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      )
-    SQL
+    SearchRecord.connection.execute(SyrusSearchDatabaseTasks::BUILT_IN_TABLE_SQL.fetch(TABLE_NAME))
   end
 
   def table_exists?

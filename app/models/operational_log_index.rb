@@ -6,6 +6,36 @@ class OperationalLogIndex < SearchRecord
     def search_database_content_version = CONTENT_VERSION
     def current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
     def finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, CONTENT_VERSION)
+    def search_database_available? = OperationalLogging.configured_for_instance?
+    def search_database_tables = %w[operational_log_fts]
+    def search_database_rebuild_units = OperationalLogEvent.count
+
+    def search_database_initialize_content_version!
+      finish_content_version! unless current_content_version
+    end
+
+    def search_database_integrity_repair_needed?
+      return OperationalLogEvent.exists? unless SyrusSearchDatabaseTasks.table_exists?("operational_log_fts")
+
+      connection.select_value("SELECT COUNT(DISTINCT operational_log_event_id) FROM operational_log_fts").to_i != OperationalLogEvent.count
+    end
+
+    def search_database_rebuild_batch(task:, reason:)
+      task.current_step_key = search_database_rebuild_key
+      task.current_step_title = "Index operational logs"
+      connection.execute("DELETE FROM operational_log_fts") if reason == "version_mismatch" && !task.checkpoint["logs_prepared"]
+      task.checkpoint_will_change!
+      task.checkpoint["logs_prepared"] = true if reason == "version_mismatch"
+
+      ids = OperationalLogEvent.order(:id).where("id > ?", task.checkpoint["last_operational_log_id"].to_i).limit(SearchIndexWriteLimits.clamp_rows(task.batch_size)).pluck(:id)
+      IndexOperationalLogEventsJob.perform_now(ids)
+      done = ids.empty? || ids.last.to_i >= OperationalLogEvent.maximum(:id).to_i
+      task.checkpoint_will_change!
+      task.checkpoint["last_operational_log_id"] = ids.last if ids.any?
+      task.checkpoint["logs_done"] = true if done
+      finish_content_version! if done
+      MaintenanceTasks::Definitions::Base::Result.new(done: false, processed: ids.size.nonzero? || (done ? 1 : 0), failed: 0, message: "Indexed #{ids.size} operational log event(s).", level: "progress")
+    end
   end
   include FtsQueryParser
 
