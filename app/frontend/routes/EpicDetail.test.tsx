@@ -265,7 +265,12 @@ describe("EpicDetail", () => {
 
 function EpicLocationProbe() {
   const location = useLocation()
-  return <div data-testid="epic-location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="epic-location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 describe("EpicDetail origin_chat link", () => {
@@ -352,13 +357,13 @@ describe("EpicDetail unland preflight", () => {
     const payload = detailPayload({ state: "done", startable: false })
     const plan = {
       subject: "EPIC-3",
-      affected: [ "EPIC-3", "JOB-4" ],
+      affected: ["EPIC-3", "JOB-4"],
       base_sha: "base",
-      commits: [ "abc123" ],
-      files: [ "app/example.rb" ],
-      dependents: [ "JOB-9" ],
-      deployment_stages: { "JOB-4": [ "production" ] },
-      warnings: [ "Downstream dependent work exists" ]
+      commits: ["abc123"],
+      files: ["app/example.rb"],
+      dependents: ["JOB-9"],
+      deployment_stages: { "JOB-4": ["production"] },
+      warnings: ["Downstream dependent work exists"]
     }
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(plan))
     renderDetail(payload)
