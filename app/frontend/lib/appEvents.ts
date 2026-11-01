@@ -1043,6 +1043,14 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return true
   }
 
+  const toolPresentation = chatToolPresentationPayload(event.payload)
+  if (toolPresentation) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("syrus:tool-presentation", { detail: { chat_session_id: event.id, ...toolPresentation } }))
+    }
+    return true
+  }
+
   return false
 }
 
@@ -1190,6 +1198,13 @@ type ChatJobStatusChangedPayload = {
 type ChatThemePreviewPayload = {
   action: "open_theme_preview"
   theme_id: number
+  path: string
+}
+
+type ChatToolPresentationPayload = {
+  action: "open_tool_presentation"
+  presentation: string
+  title: string
   path: string
 }
 
@@ -1520,6 +1535,14 @@ function chatThemePreviewPayload(payload: unknown): ChatThemePreviewPayload | nu
   if (typeof candidate.path !== "string") return null
 
   return { action: "open_theme_preview", theme_id: candidate.theme_id, path: candidate.path }
+}
+
+function chatToolPresentationPayload(payload: unknown): ChatToolPresentationPayload | null {
+  if (!payload || typeof payload !== "object") return null
+  const candidate = payload as Partial<ChatToolPresentationPayload>
+  if (candidate.action !== "open_tool_presentation") return null
+  if (typeof candidate.presentation !== "string" || typeof candidate.title !== "string" || typeof candidate.path !== "string") return null
+  return { action: candidate.action, presentation: candidate.presentation, title: candidate.title, path: candidate.path }
 }
 
 function chatParticipantsPayload(payload: unknown): ChatParticipantsPayload | null {
