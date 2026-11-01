@@ -20,9 +20,11 @@ import {
   archiveEpic,
   claimEpic,
   fetchEpicDetail,
+  fetchEpicUnlandPlan,
   removeEpicDependency,
   searchEpicOptions,
   startEpicImplementing,
+  startEpicUnland,
   unclaimEpic,
   updateEpicState,
   type EpicDependencyRecord,
@@ -77,7 +79,7 @@ export function EpicDetailRoute() {
     const canonicalId = String(epic.data.epic.id)
     queryClient.setQueryData(["epics", canonicalId], epic.data)
     navigate(`${location.pathname.replace(/\/epics\/[^/]+/, `/epics/${canonicalId}`)}${location.search}${location.hash}`, { replace: true })
-  }, [ epic.data, id, location.hash, location.pathname, location.search, navigate, queryClient ])
+  }, [epic.data, id, location.hash, location.pathname, location.search, navigate, queryClient])
 
   return (
     <Page.Root aria-label={t("detail_label")} gutter="responsive" size="wide">
@@ -118,6 +120,31 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       queryClient.setQueryData(queryKey, updated)
       queryClient.invalidateQueries({ queryKey })
       setNotice(updated.message || null)
+    }
+  })
+  const unlandCommand = useMutation({
+    mutationFn: async () => {
+      const plan = await fetchEpicUnlandPlan(payload.paths.app_unland_path)
+      const sections = [
+        t("unland_confirm_subject", { subject: plan.subject }),
+        t("unland_confirm_affected", { affected: plan.affected.join(", ") }),
+        t("unland_confirm_commits", { commits: plan.commits.join(", ") }),
+        t("unland_confirm_files", { files: plan.files.join(", ") }),
+        t("unland_confirm_dependents", { dependents: plan.dependents.join(", ") || t("none") }),
+        t("unland_confirm_deployment", {
+          stages:
+            Object.entries(plan.deployment_stages)
+              .map(([job, stages]) => `${job}: ${stages.join(", ")}`)
+              .join("; ") || t("none")
+        }),
+        ...(plan.warnings.length > 0 ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : [])
+      ]
+      if (!(await confirm({ message: sections.join("\n\n"), destructive: true }))) return null
+
+      return startEpicUnland(payload.paths.app_unland_path)
+    },
+    onSuccess: (result) => {
+      if (result) setNotice(result.message)
     }
   })
   async function runTransition(transition: EpicStateTransition) {
@@ -189,6 +216,11 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
                 {t("edit")}
               </Link>
             ) : null}
+            {payload.epic.state === "done" ? (
+              <Button disabled={unlandCommand.isPending} onClick={() => unlandCommand.mutate()} variant="danger">
+                {unlandCommand.isPending ? t("unlanding") : t("unland")}
+              </Button>
+            ) : null}
             {payload.state_transitions.length > 0 ? (
               <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />
             ) : null}
@@ -219,6 +251,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
+      {unlandCommand.isError ? <PanelMessage tone="error">{errorMessage(unlandCommand.error, t("unland_error"))}</PanelMessage> : null}
       {dialog}
 
       <EpicTabNav active={activeTab} jobsCount={payload.jobs.length} onSelect={setActiveTab} />

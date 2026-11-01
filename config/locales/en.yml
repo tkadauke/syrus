@@ -520,6 +520,7 @@ en:
       dependency_not_found: "Dependency not found."
       parsed_dependency_retained: "Parsed dependencies are kept for audit."
       dependency_removed: "Dependency removed."
+      unland_started: "Rollback %{rollback} started."
       epic_not_found: "Epic not found."
       epic_dependency_added: "Epic dependency added."
       epic_dependency_not_found: "Epic dependency not found."

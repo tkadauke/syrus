@@ -85,6 +85,7 @@ class Job < ApplicationRecord
   belongs_to :landing_blocker_override_requested_by_user, class_name: "User", optional: true
   belongs_to :emergency_landed_by_user, class_name: "User", optional: true
   belongs_to :rollback_of, class_name: "Job", optional: true, inverse_of: :rollback_jobs
+  belongs_to :rollback_epic, class_name: "Epic", optional: true, inverse_of: :rollback_jobs
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
   belongs_to :linked_chat, class_name: "ChatSession", optional: true
@@ -138,10 +139,18 @@ class Job < ApplicationRecord
            dependent: :restrict_with_error, inverse_of: :rollback_of
 
   def unlanded_by
-    rollback_jobs.closed.find_by(closure_reason: SUCCESSFUL_CLOSURE_REASONS)
+    rollback_jobs.closed.find_by(closure_reason: SUCCESSFUL_CLOSURE_REASONS) || epic&.unlanded_by
   end
 
-  def rollback? = rollback_of_id.present?
+  def rollback? = rollback_of_id.present? || rollback_epic_id.present?
+
+  def rollback_subject
+    rollback_of || rollback_epic
+  end
+
+  def unland_lock_record
+    epic || self
+  end
 
   validates :kind, presence: true, inclusion: { in: ->(_) { Job::Kind.values } }
   validates :state, presence: true, inclusion: { in: STATES }

@@ -3,7 +3,7 @@ module Api
     module App
       class EpicsController < BaseController
         before_action :authorize_epic_mutation!, only: %i[
-          update archive claim unclaim reassign start update_state add_dependency remove_dependency
+          update archive claim unclaim reassign start update_state add_dependency remove_dependency unland
         ]
 
         def index
@@ -211,6 +211,24 @@ module Api
           render_error("transition_not_allowed", I18n.t("api.epics.transition_not_allowed"), status: :unprocessable_content)
         end
 
+        def unland_plan
+          render json: Unlanding::Create.plan!(original: find_epic, user: Current.user).to_h
+        rescue Unlanding::Create::Ineligible => e
+          render_error("unland_ineligible", e.message, status: :unprocessable_content)
+        end
+
+        def unland
+          rollback = Unlanding::Create.call!(original: find_epic, user: Current.user)
+          render json: {
+            message: I18n.t("api.epics.unland_started", rollback: rollback.slug),
+            rollback_job_id: rollback.id,
+            rollback_job_slug: rollback.slug,
+            rollback_job_path: job_path(rollback)
+          }, status: :created
+        rescue Unlanding::Create::Ineligible => e
+          render_error("unland_ineligible", e.message, status: :unprocessable_content)
+        end
+
         def add_dependency
           epic = find_epic
           depends_on_epic = policy_scope(Epic).find(params.require(:depends_on_epic_id))
@@ -353,7 +371,8 @@ module Api
               app_claim_path: "/api/v1/app/epics/#{epic.id}/claim",
               app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim",
               app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign",
-              app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies"
+              app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies",
+              app_unland_path: "/api/v1/app/epics/#{epic.id}/unland"
             }
           }
 

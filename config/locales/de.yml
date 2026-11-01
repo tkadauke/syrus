@@ -460,6 +460,7 @@ de:
       dependency_not_found: "Abhängigkeit nicht gefunden."
       parsed_dependency_retained: "Erkannte Abhängigkeiten werden für die Prüfung beibehalten."
       dependency_removed: "Abhängigkeit entfernt."
+      unland_started: "Rollback %{rollback} gestartet."
       epic_not_found: "Epic nicht gefunden."
       epic_dependency_added: "Epic-Abhängigkeit hinzugefügt."
       epic_dependency_not_found: "Epic-Abhängigkeit nicht gefunden."
