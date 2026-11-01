@@ -1022,5 +1022,8 @@
   "placement_current_provenance": "Current placement provenance: {{source}}",
   "placement_latest_audit": "Last changed by {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Audit reason",
-  "confirm_placement_override": "Confirm placement change"
+  "confirm_placement_override": "Confirm placement change",
+  "unland": "Unland Job", "unlanding": "Starting rollback…", "unland_error": "Unable to preflight or start the rollback.",
+  "unland_confirm_subject": "Unland {{subject}} through a linked rollback Job?", "unland_confirm_commits": "Exact commits (landing order): {{commits}}", "unland_confirm_files": "Files: {{files}}", "unland_confirm_dependents": "Downstream dependents: {{dependents}}", "unland_confirm_deployment": "Deployment stages reached: {{stages}}", "unland_confirm_graders": "Fast unland graders: {{graders}}", "unland_confirm_deploy_warning": "This reverts Git history through a new PR. It does not automatically roll back any deployed environment.", "unland_confirm_warnings": "Warnings: {{warnings}}",
+  "unland_status_in_progress": "Unland in progress. The original Job remains closed.", "unland_status_failed": "Unland failed. Review or retry the linked rollback Job.", "unland_status_reverted": "Landed, then reverted through the linked rollback Job.", "none": "none"
 }

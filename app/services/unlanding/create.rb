@@ -3,7 +3,7 @@ module Unlanding
     class Ineligible < StandardError; end
 
     Plan = Data.define(:original, :affected, :base_sha, :commit_shas, :files, :dependents,
-                       :deployment_stages, :warnings) do
+                       :deployment_stages, :warnings, :graders) do
       def to_h
         {
           subject: original.slug,
@@ -13,7 +13,8 @@ module Unlanding
           files:,
           dependents:,
           deployment_stages:,
-          warnings:
+          warnings:,
+          graders:
         }
       end
     end
@@ -74,7 +75,8 @@ module Unlanding
         files: changed_files(git, clone, shas),
         dependents:,
         deployment_stages:,
-        warnings: plan_warnings(dependents, deployment_stages)
+        warnings: plan_warnings(dependents, deployment_stages),
+        graders: unland_graders(clone)
       )
     end
 
@@ -247,6 +249,17 @@ module Unlanding
       warnings << "Downstream dependent work exists" if dependents.any?
       warnings << "Landed work reached deployment stages" if stages.any?
       warnings
+    end
+
+    def unland_graders(clone)
+      plan = RepoGradePlan.for(clone.path)
+      selected = LandingGraderPlan.effective(
+        plan, trigger_kind: "unland", iteration: 1, repository: original.repository,
+        job: original.is_a?(Job) ? original : original.work_jobs.first
+      ).graders.select(&:required).map(&:name)
+      selected
+    rescue SyrusYml::ParseError => e
+      raise Ineligible, "unland graders could not be selected: #{e.message}"
     end
 
     def workflow_agent_provider

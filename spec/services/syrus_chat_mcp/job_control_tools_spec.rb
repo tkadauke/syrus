@@ -23,7 +23,9 @@ RSpec.describe "Mcp::Tools job control tools" do
         Mcp::Tools::RetryJobTool,
         Mcp::Tools::BaseRefreshRetryJobTool,
         Mcp::Tools::ForceFailJobTool,
-        Mcp::Tools::RebaseJobTool
+        Mcp::Tools::RebaseJobTool,
+        Mcp::Tools::UnlandJobTool,
+        Mcp::Tools::UnlandEpicTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -67,6 +69,19 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(pending_action).to have_attributes(action: "cancel_job", requested_by: "agent")
     expect(pending_action.payload).to eq("job_id" => job.id)
     expect(job.reload).to be_open
+  end
+
+  it "returns the unland preflight and waits for confirmation before creating rollback work" do
+    job = Factories.job_record(repository: repository, state: "closed", closure_reason: "pr_merged", landed_sha: "abc")
+    plan = instance_double(Unlanding::Create::Plan, to_h: { subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ], warnings: [] })
+    allow(Unlanding::Create).to receive(:plan!).with(original: job, user: user).and_return(plan)
+
+    body = payload(call_tool("unland_job", job_id: job.id))
+    pending = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+
+    expect(body).to include(subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ])
+    expect(pending).to have_attributes(action: "unland_job", state: "pending")
+    expect(Unlanding::Create).not_to have_received(:call!)
   end
 
   it "creates a bounded, deduplicated normal rebase group without force-rebase payloads" do

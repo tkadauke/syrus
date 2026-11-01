@@ -19,7 +19,7 @@ successfully landed Job or Epic.
 
 Syrus first produces an operator-readable preflight plan listing the affected
 Job/Epic records, exact ordered commits, changed files, downstream dependents,
-deployment-stage reach, and warnings. For an Epic, merge-train membership or
+deployment-stage reach, selected fast graders, and warnings. For an Epic, merge-train membership or
 the child dependency order bounds the commit set; shared ownership, partial
 landing, and previously reverted children block creation. Once confirmed,
 Syrus creates one linked rollback Job and one revert PR while leaving every
@@ -32,6 +32,14 @@ fails unless at least one required grader was selected. A successful attempt
 opens an ordinary PR. Approval and landing remain normal, except final landing
 validation also uses `unland` and therefore cannot silently expand to the full
 landing suite.
+
+The original detail and timeline remain the audit record: they distinguish a
+landed record, an active or failed unland, and a successfully reverted landing,
+and link to the rollback Job and PR. A Git revert does not roll back a deployed
+environment; use the deployment system's recovery procedure separately. If an
+attempt fails, inspect or retry the linked rollback Job. To reapply later,
+create normal reviewed work from the desired reverted changes instead of
+reopening or rewriting the original record.
 
 ## skill
 

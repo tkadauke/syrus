@@ -267,10 +267,18 @@ landing.
 Landed Epics roll back as one coordinated unit, not one PR per child. Before
 starting mutable work, Syrus derives the ordered commit set from child landing
 provenance and merge-train membership and presents affected records, commits,
-files, dependents, deployment reach, and warnings. Partial or mixed landing,
+files, dependents, deployment reach, selected fast graders, and warnings. Partial or mixed landing,
 shared commit ownership, and previously reverted children fail preflight. The
 single rollback relationship preserves each child's original successful
 closure facts while making the Epic's reversal visible.
+
+Job and Epic details keep the original completion audit intact while showing
+whether an unland is in progress, failed, or landed and then reverted, with a
+link to the rollback Job and PR. Unlanding changes Git through an ordinary
+revert PR; it does not automatically roll back a deployed environment. Recover
+the deployment separately, retry failures from the linked rollback Job, and
+reapply reverted work later through a new reviewed change rather than by
+rewriting the original record.
 
 ## Step Kinds
 

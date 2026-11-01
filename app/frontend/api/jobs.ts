@@ -77,6 +77,17 @@ export type JobDeliveryStatus =
   | "upstream_closed_without_merge"
   | "delivery_needs_attention"
 
+export type JobRollbackReference = {
+  id: number
+  slug: string
+  title: string | null
+  state: string
+  path: string
+  closure_reason?: string | null
+  pr_number?: number | null
+  pr_url?: string | null
+}
+
 export type JobRecord = {
   id: number
   entity_revision?: number
@@ -142,6 +153,9 @@ export type JobRecord = {
   pr_mergeable_checked_at: string | null
   pr_checks: JobPrChecks | null
   closure_reason: string | null
+  rollback_of?: JobRollbackReference | null
+  unlanded_by?: JobRollbackReference | null
+  unland?: { state: "landed" | "in_progress" | "failed" | "reverted" | null; rollback_job: JobRollbackReference | null }
   emergency_landed_at?: string | null
   emergency_landed_by_user?: JobUserReference | null
   emergency_landed_by_membership_tier?: string | null
@@ -1033,6 +1047,7 @@ export type JobActions = {
   can_unapprove: boolean
   can_close_investigation: boolean
   can_reopen: boolean
+  can_unland?: boolean
   can_mark_valid: boolean
   can_start_chat: boolean
   can_open_in_local_mode: boolean
@@ -1105,6 +1120,7 @@ export type JobPaths = {
   app_unapprove_path: string
   app_close_investigation_path: string
   app_reopen_path: string
+  app_unland_path?: string
   app_poll_feedback_path: string
   app_rebase_path: string
   app_recheck_pr_checks_path?: string
@@ -1240,6 +1256,25 @@ export type JobDetailPayload = {
   feature_flags?: Record<string, boolean>
   actions: JobActions
   paths: JobPaths
+}
+
+export type JobUnlandPlan = {
+  subject: string
+  affected: string[]
+  base_sha: string
+  commits: string[]
+  files: string[]
+  dependents: string[]
+  deployment_stages: Record<string, string[]>
+  warnings: string[]
+  graders: string[]
+}
+
+export type JobUnlandResult = {
+  message: string
+  rollback_job_id: number
+  rollback_job_slug: string
+  rollback_job_path: string
 }
 
 export type JobFeedbackHistoryEntry = {
@@ -1589,6 +1624,14 @@ export type JobRunArtifactsPayload = {
 
 export function fetchJobDetail(id: string, search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}${search}`, options)
+}
+
+export function fetchJobUnlandPlan(path: string) {
+  return getJson<JobUnlandPlan>(path)
+}
+
+export function startJobUnland(path: string) {
+  return postJson<JobUnlandResult>(path, {})
 }
 
 export function fetchJobWorkflows(id: string, search = "") {

@@ -214,6 +214,8 @@ class McpToolRegistry
         chat(Mcp::Tools::ReadEpicTool),
         chat(Mcp::Tools::ApproveJobTool, mutation: true),
         chat(Mcp::Tools::CancelJobTool, mutation: true),
+        chat(Mcp::Tools::UnlandJobTool, tier: :deferred, mutation: true),
+        chat(Mcp::Tools::UnlandEpicTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::CloseJobSuccessfullyTool, mutation: true),
         chat(Mcp::Tools::RetryJobTool, mutation: true),
         chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),

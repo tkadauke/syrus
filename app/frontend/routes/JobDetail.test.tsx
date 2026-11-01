@@ -5667,6 +5667,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_unapprove_path: "/api/v1/app/jobs/1/unapprove",
       app_close_investigation_path: "/api/v1/app/jobs/1/close_investigation",
       app_reopen_path: "/api/v1/app/jobs/1/reopen",
+      app_unland_path: "/api/v1/app/jobs/1/unland",
       app_poll_feedback_path: "/api/v1/app/jobs/1/poll_feedback",
       app_rebase_path: "/api/v1/app/jobs/1/rebase",
       app_recheck_pr_checks_path: "/api/v1/app/jobs/1/recheck_pr_checks",
@@ -5952,6 +5953,42 @@ function run(overrides: Partial<JobRun>): JobRun {
     ...overrides
   }
 }
+
+describe("Job unland controls", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows the dry-run audit plan before creating rollback work", async () => {
+    const payload = jobPayload()
+    payload.job = { ...payload.job, state: "closed", summary_state: "closed", unland: { state: "landed", rollback_job: null } }
+    payload.actions = { ...payload.actions, can_unland: true }
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      subject: "JOB-1", affected: ["JOB-1"], base_sha: "base", commits: ["abc123"], files: ["app/a.rb"],
+      dependents: ["JOB-9"], deployment_stages: { "JOB-1": ["production"] }, warnings: ["Deployment reached"], graders: ["smoke"]
+    }))
+
+    renderJobDetail(payload)
+    fireEvent.click(screen.getByRole("button", { name: "Unland Job" }))
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("abc123")
+    expect(screen.getByRole("dialog")).toHaveTextContent("smoke")
+    expect(screen.getByRole("dialog")).toHaveTextContent("does not automatically roll back")
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("links active rollback progress without presenting the original as active", () => {
+    const payload = jobPayload()
+    payload.job = {
+      ...payload.job,
+      state: "closed",
+      summary_state: "closed",
+      unland: { state: "in_progress", rollback_job: { id: 2, slug: "JOB-2", title: "Rollback", state: "running", path: "/jobs/2" } }
+    }
+    renderJobDetail(payload)
+
+    expect(screen.getByText("Unland in progress. The original Job remains closed.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-2" })).toHaveAttribute("href", "/app-shell/jobs/2")
+  })
+})
 
 describe("PrChecksBanner attribution", () => {
   function renderWithChecks(pr_checks: Record<string, unknown>, overrides: Partial<JobDetailPayload> = {}) {
