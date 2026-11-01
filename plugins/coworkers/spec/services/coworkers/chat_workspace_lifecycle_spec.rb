@@ -78,6 +78,28 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(home_file("SOUL.md")).to include("voice: concise")
   end
 
+  it "persists a preference written through the advertised coworker tool to the home branch" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
+    session = chat
+    service = lifecycle(session)
+    service.prepare!
+
+    tool = Mcp::Sidecar.chat_tools(session, tier: :essential).find do |candidate|
+      McpToolRegistry.tool_name_for(candidate) == "write_coworker_file"
+    end
+    expect(tool).to be_present
+    expect(tool.call(path: "preferences.md", content: "Reviews: exhaustive\n",
+      server_context: { chat_session: session })).not_to be_error
+
+    service.finalize!
+
+    expect(home_file("preferences.md")).to eq("Reviews: exhaustive\n")
+    expect(run_git("log", "-1", "--format=%s", "coworkers/maya", chdir: @remote).strip)
+      .to eq("Update @maya from chat #{session.id}")
+  end
+
   it "merges overlapping chat branches with disjoint files and union-merges concurrent memory appends" do
     first = chat
     second = chat

@@ -246,12 +246,14 @@ coworker workspaces retain their previously seeded copy and receive the current
 expectation from the system prompt.
 
 Coworker chats are modeless: they do not show the Planning/Coding selector.
-Every turn receives create/replace, exact-edit,
-move, and delete tools rooted at that coworker's current checkout. Absolute
+Every turn with an active `workspace.files` grant receives create/replace,
+exact-edit, move, and delete tools rooted at that coworker's current checkout;
+revoking the grant removes them from the provider's effective inventory. Absolute
 paths, traversal, symbolic links, `.git`, attached product repositories, and
 other coworker workspaces are outside that boundary. The tools only mutate the
 working tree; branch commits, merges, pushes, and conflict recovery remain part
-of the orchestrated coworker branch lifecycle.
+of the orchestrated coworker branch lifecycle. Paths listed in `confirm_paths`
+still require owner confirmation when the grant's general policy is `auto`.
 
 When enabled, the plugin adds a Coworkers page and a badge counting pending
 approvals across the signed-in owner's coworkers. Syrus is
