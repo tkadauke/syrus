@@ -61,6 +61,8 @@
   "evidence_deployment_stage": "Deployment-Nachweis",
   "evidence_historical_reconstruction": "Rekonstruierte Position; aktuelle Metadaten",
   "history_aria": "Pipeline-Verlauf",
+  "history_short": "Verlauf",
+  "event_marker": "Pipeline um {{time}} anzeigen",
   "history_range": "Verlauf von {{from}} bis {{to}}",
   "historical_mode": "Historische Ansicht",
   "historical_mode_short": "Früher · nur Lesen",

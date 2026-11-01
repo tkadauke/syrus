@@ -61,6 +61,8 @@
   "evidence_deployment_stage": "Deployment evidence",
   "evidence_historical_reconstruction": "Reconstructed placement; current metadata",
   "history_aria": "Pipeline history",
+  "history_short": "History",
+  "event_marker": "View pipeline at {{time}}",
   "history_range": "History from {{from}} to {{to}}",
   "historical_mode": "Viewing history",
   "historical_mode_short": "Past · read-only",
