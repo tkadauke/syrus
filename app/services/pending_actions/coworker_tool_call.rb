@@ -36,7 +36,7 @@ module PendingActions
       callable = if descriptor.provider
         ->(server_context:, **arguments) { descriptor.provider.new.handle(descriptor.tool_name, arguments, server_context) }
       else
-        Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier)
+        Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier, agent_actor: action.subject)
           .find { |candidate| McpToolRegistry.tool_name_for(candidate) == descriptor.tool_name }
       end
       raise ArgumentError, "tool is no longer available to coworkers" unless callable
@@ -83,7 +83,7 @@ module PendingActions
     end
 
     def replay_server_context
-      return { chat_session: chat_session } if payload["run_id"].blank?
+      return { chat_session: chat_session, agent_actor: action.subject } if payload["run_id"].blank?
 
       run = Run.find_by(id: payload["run_id"])
       raise ArgumentError, "originating run is no longer available" unless run

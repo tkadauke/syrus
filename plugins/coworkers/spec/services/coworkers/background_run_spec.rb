@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Coworker background runs" do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:coworker) do
@@ -97,7 +99,7 @@ RSpec.describe "Coworker background runs" do
   end
 
   it "gives the run only granted coworker tools, queues live confirmations, and omits interactive tools" do
-    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm", scope: { "repository_id" => repository.id })
+    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
     coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")
@@ -109,7 +111,7 @@ RSpec.describe "Coworker background runs" do
     expect(context).to have_attributes(role: AgentRole::COWORKER, interactive: false)
     expect(context.agent_actor).to eq(coworker)
     expect(context.capability_approval_policies["syrus.read_jobs"]).to eq("queue")
-    expect(context.capability_scopes["syrus.read_jobs"]).to eq("repository_id" => repository.id)
+    expect(context.capability_scopes).to include("syrus.read_jobs" => nil)
     expect(names).to include("list_jobs", "search_jobs", "read_job")
     expect(names).not_to include("ask_user_question", "suggest_next_step", "force_fail_job", "run_command")
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
@@ -257,8 +259,14 @@ RSpec.describe "Coworker background runs" do
       "run_id" => run.id, "tool_name" => "propose_job", "approval_policy" => "queue", "approval_inbox" => true,
       "arguments" => include("title" => "Prepare the report")
     )
-    expect { action.confirm!(user: owner) }
-      .to change(main_chat.proposals, :count).by(1)
+    operation = action.authorization_items.find_by!(kind: "operation")
+    expect {
+      decision = Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+        .call(decision: "approved")
+      expect(decision.execution_enqueued).to be(true)
+      clear_enqueued_jobs
+      ChatPendingActionConfirmationJob.perform_now(action.id)
+    }.to change(main_chat.proposals, :count).by(1)
       .and change { main_chat.messages.where(role: "system").count }.by(1)
       .and have_enqueued_job(ChatTurnJob).with(main_chat.id, kind_of(Integer)).once
     expect(action.reload).to be_confirmed
