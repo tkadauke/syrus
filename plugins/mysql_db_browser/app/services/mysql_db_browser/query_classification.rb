@@ -35,9 +35,13 @@ module MysqlDbBrowser
 
     def self.call(arguments)
       sql = arguments.to_h.with_indifferent_access[:sql].to_s.strip
-      return MAXIMUM if sql.blank? || sql.match?(/\/\*!/) || sql.match?(/\AWITH\b/i) || sql.include?(";")
+      return MAXIMUM if sql.blank? || sql.match?(/\/\*!/) || sql.match?(/\AWITH\b/i) || sql.include?(";") || analyzing_explain?(sql)
 
       STRATEGIES.find { |strategy| strategy.match?(sql) }&.result || MAXIMUM
+    end
+
+    def self.analyzing_explain?(sql)
+      sql.match?(/\AEXPLAIN\b.*\bANALYZE\b/im)
     end
   end
 end
