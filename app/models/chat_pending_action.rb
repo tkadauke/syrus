@@ -139,6 +139,8 @@ class ChatPendingAction < ApplicationRecord
   ].freeze
   STATES = %w[ queued pending confirming confirmed rejected cancelled failed dismissed non_actionable ].freeze
   CHECKPOINT_STATES = %w[waiting resuming resumed resume_failed cancelled non_resumable].freeze
+  NONTERMINAL_CHECKPOINT_STATES = %w[waiting resuming resume_failed].freeze
+  TERMINAL_REQUEST_STATES = %w[confirmed rejected cancelled failed dismissed non_actionable].freeze
   CHECKPOINT_ORIGIN_TYPES = %w[ChatSession Job Workflow Run ScheduledTasks::Task].freeze
   REQUEST_KINDS = %w[ legacy_action authorization_request ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
@@ -620,8 +622,8 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def cancel_obsolete_checkpoint
-    return unless checkpoint_state.in?(%w[waiting resume_failed])
-    return unless state.in?(%w[cancelled dismissed non_actionable])
+    return unless checkpoint_state.in?(NONTERMINAL_CHECKPOINT_STATES)
+    return unless state.in?(TERMINAL_REQUEST_STATES)
 
     self.checkpoint_state = "cancelled"
   end
