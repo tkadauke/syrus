@@ -22,6 +22,8 @@ describe("ToolPresentationModal", () => {
     expect(screen.getByRole("dialog", { name: "Pipeline" })).toBeInTheDocument()
     expect(screen.getByTitle("Pipeline")).toHaveAttribute("src", "/app/repositories/2/plugin/sdlc-pipeline?q=x")
     expect(screen.getByRole("dialog")).toHaveClass("h-[100dvh]", "sm:h-[94dvh]")
+    view.rerender(<ToolPresentationModal chatId="8" prefix="/app" />)
+    expect(screen.getByTitle("Pipeline")).toHaveAttribute("src", "/app/repositories/2/plugin/sdlc-pipeline?q=x")
     expect(screen.getByRole("link", { name: "Open full page" })).toHaveAttribute("href", "/app/repositories/2/plugin/sdlc-pipeline?q=x")
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("http://localhost:3000/app/repositories/2/plugin/sdlc-pipeline?q=x")
