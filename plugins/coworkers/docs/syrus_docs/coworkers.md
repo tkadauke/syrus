@@ -1,5 +1,7 @@
 # Coworkers
 
+The Capabilities tab includes a permission cutover report for each coworker. It compares legacy grants with unified-permission recommended defaults, identifies authority that will be removed and requestable replacements, and blocks migration when descriptors or registry validation are incomplete. The report is a read-only dry run: legacy grants are audit evidence and never become active unified permission rules automatically.
+
 ## Background runs
 
 The plugin contributes an infrastructure workflow for unattended coworker
