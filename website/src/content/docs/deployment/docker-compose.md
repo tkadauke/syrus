@@ -346,6 +346,11 @@ and fills the secrets. Notable values:
   default for local use. Remote access requires an explicit bind override and
   should be protected by HTTPS; see [TLS](#tls).
 - `SYRUS_PORT=3000` — host port mapped to the container.
+
+Search maintenance versions each indexed entity independently. When indexed
+content changes, the admin maintenance task reports the concrete current-to-
+target version delta and rebuilds only affected entities; missing tables and
+missing-row repairs remain separate signals.
 - `SYRUS_PLUGIN_RUNTIME_URL`, `SYRUS_PLUGIN_RUNTIME_TOKEN` — how web and
   worker reach the plugin-runtime container. The installer generates the
   token (and adds both to an existing `.env` on update).
