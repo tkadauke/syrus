@@ -535,7 +535,7 @@ module WorkEngine
 
             old_queue = nil
             if plan.issue_kind == "queued_run_on_dead_resume_queue"
-              old_queue = stranded_affinity_queue(run)
+              old_queue = remove_stranded_affinity_queue(run)
               return skipped("affinity queue is no longer stranded") unless old_queue
             end
 
@@ -548,7 +548,7 @@ module WorkEngine
             # Dropping affinity then sends the replacement to the general queue
             # (the workspace is re-prepared, as it is for a dead queue).
             if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim queued_run_with_orphaned_queue_job queued_run_host_admission_deferral_budget_exhausted queued_run_in_healthy_reenqueue_loop])
-              delete_stale_solid_queue_jobs!
+              delete_stale_solid_queue_jobs! unless old_queue
               clear_dead_resume_affinity!(run)
             end
             run.reenqueue!(ignore_workflow_affinity: old_queue.present?)
@@ -587,21 +587,24 @@ module WorkEngine
         # exact affected execution immediately before deleting it: a worker may
         # have resumed heartbeating, or another repair may already have removed
         # or claimed the row. Either race makes this repair a no-op.
-        def stranded_affinity_queue(run)
-          scope = SolidQueue::Job.where(
-            id: Array(plan.affected_ids["solid_queue_job_ids"]),
-            class_name: "RunJob",
-            finished_at: nil
-          )
-          queue_job = Array(SolidQueueRunJobQuery.matching(scope: scope, run_id: run.id)).first
-          return unless queue_job
-          return unless queue_job.queue_name.to_s.start_with?("resume-", "worker-")
-          return unless SolidQueue::ReadyExecution.where(job_id: queue_job.id).exists?
-          diagnosis = RunQueueDiagnosis.call(run)
-          return unless diagnosis&.dig(:kind) == "ready_no_consumer"
-          return unless diagnosis.dig(:details, :queue_name) == queue_job.queue_name
+        def remove_stranded_affinity_queue(run)
+          old_queue = nil
+          job_ids = Array(plan.affected_ids["solid_queue_job_ids"])
+          return unless job_ids.one?
 
-          queue_job.queue_name
+          deleted = SolidQueueRunJobPruner.delete_ready_job_if!(job_ids.first) do |queue_job|
+            next false unless queue_job.class_name == "RunJob"
+            next false unless SolidQueueRunJobQuery.matching(scope: SolidQueue::Job.where(id: queue_job.id), run_id: run.id).any?
+            next false unless queue_job.queue_name.to_s.start_with?("resume-", "worker-")
+
+            diagnosis = RunQueueDiagnosis.call(run)
+            next false unless diagnosis&.dig(:kind) == "ready_no_consumer"
+            next false unless diagnosis.dig(:details, :queue_name) == queue_job.queue_name
+
+            old_queue = queue_job.queue_name
+            true
+          end
+          old_queue if deleted
         rescue NameError, ActiveRecord::StatementInvalid
           nil
         end

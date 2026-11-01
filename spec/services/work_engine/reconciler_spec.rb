@@ -502,6 +502,62 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(enqueued_jobs).to be_empty
   end
 
+  it "skips a dead-affinity repair when the ready execution is claimed before conditional removal" do
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_storage_key: "storage-claimed")
+    queue_job = solid_queue_run_job(run, ready: true, queue_name: "resume-storage-claimed", created_at: 5.minutes.ago)
+    stale_plan = WorkEngine::RepairPlanner::Plan.new(
+      issue_kind: "queued_run_on_dead_resume_queue",
+      action: "reenqueue_run",
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id,
+      affected_ids: { run_ids: [ run.id ], solid_queue_job_ids: [ queue_job.id ] },
+      execution_steps: [ "Run#reenqueue!" ],
+      preconditions: {},
+      reason: "queue was ready when planned"
+    )
+    ready = SolidQueue::ReadyExecution.find_by!(job_id: queue_job.id)
+    ready.delete
+    claiming_process = live_worker_queue!("unrelated", hostname: "claiming-worker")
+    SolidQueue::ClaimedExecution.create!(job_id: queue_job.id, process_id: claiming_process.id)
+    clear_enqueued_jobs
+
+    execution = WorkEngine::RepairExecutor::Policies::ReenqueueRun.new(plan: stale_plan, now: Time.current).execute
+
+    expect(execution).to have_attributes(status: "skipped", message: "affinity queue is no longer stranded")
+    expect(workflow.reload.worker_storage_key).to eq("storage-claimed")
+    expect(SolidQueue::Job.where(id: queue_job.id)).to exist
+    expect(SolidQueue::ClaimedExecution.where(job_id: queue_job.id)).to exist
+    expect(enqueued_jobs).to be_empty
+  end
+
+  it "skips a dead-affinity repair when conditional removal fails" do
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_storage_key: "storage-delete-failed")
+    queue_job = solid_queue_run_job(run, ready: true, queue_name: "resume-storage-delete-failed", created_at: 5.minutes.ago)
+    stale_plan = WorkEngine::RepairPlanner::Plan.new(
+      issue_kind: "queued_run_on_dead_resume_queue",
+      action: "reenqueue_run",
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id,
+      affected_ids: { run_ids: [ run.id ], solid_queue_job_ids: [ queue_job.id ] },
+      execution_steps: [ "Run#reenqueue!" ],
+      preconditions: {},
+      reason: "queue was stranded when planned"
+    )
+    allow(SolidQueueRunJobPruner).to receive(:delete_ready_job_if!).and_raise(ActiveRecord::StatementInvalid, "delete failed")
+    clear_enqueued_jobs
+
+    execution = WorkEngine::RepairExecutor::Policies::ReenqueueRun.new(plan: stale_plan, now: Time.current).execute
+
+    expect(execution).to have_attributes(status: "skipped", message: "affinity queue is no longer stranded")
+    expect(workflow.reload.worker_storage_key).to eq("storage-delete-failed")
+    expect(SolidQueue::Job.where(id: queue_job.id)).to exist
+    expect(enqueued_jobs).to be_empty
+  end
+
   it "does not re-enqueue a queued inline successor while the root RunJob is still claimed" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "succeeded", finished_at: 6.minutes.ago)
