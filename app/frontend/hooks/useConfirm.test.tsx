@@ -6,10 +6,7 @@ function Probe({ onResult }: { onResult?: (v: boolean) => void }) {
   const { confirm, dialog } = useConfirm()
   return (
     <div>
-      <button
-        onClick={() => confirm({ message: "Are you sure?" }).then((v) => onResult?.(v))}
-        type="button"
-      >
+      <button onClick={() => confirm({ message: "Are you sure?" }).then((v) => onResult?.(v))} type="button">
         open
       </button>
       {dialog}
@@ -19,7 +16,9 @@ function Probe({ onResult }: { onResult?: (v: boolean) => void }) {
 
 describe("useConfirm", () => {
   it("resolves true when the confirm button is clicked", async () => {
-    const onResult = (v: boolean) => { result = v }
+    const onResult = (v: boolean) => {
+      result = v
+    }
     let result: boolean | undefined
 
     render(<Probe onResult={onResult} />)
@@ -35,7 +34,9 @@ describe("useConfirm", () => {
 
   it("resolves false when the cancel button is clicked", async () => {
     let result: boolean | undefined
-    const onResult = (v: boolean) => { result = v }
+    const onResult = (v: boolean) => {
+      result = v
+    }
 
     render(<Probe onResult={onResult} />)
 
@@ -59,9 +60,38 @@ describe("useConfirm", () => {
       return captured!
     })()
 
-    act(() => { confirm({ message: "Delete it?", confirmLabel: "Yes, delete", destructive: true }) })
+    act(() => {
+      confirm({ message: "Delete it?", confirmLabel: "Yes, delete", destructive: true })
+    })
 
     expect(screen.getByText("Delete it?")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Yes, delete" }).className).toContain("bg-danger")
+  })
+
+  it("renders structured content while retaining the message as the accessible label", () => {
+    const { confirm } = (() => {
+      let captured: ReturnType<typeof useConfirm> | undefined
+      function Hook() {
+        captured = useConfirm()
+        return <>{captured.dialog}</>
+      }
+      render(<Hook />)
+      return captured!
+    })()
+
+    act(() => {
+      confirm({
+        message: "Review changes",
+        content: (
+          <ul>
+            <li>First change</li>
+            <li>Second change</li>
+          </ul>
+        )
+      })
+    })
+
+    expect(screen.getByRole("dialog", { name: "Review changes" })).toBeInTheDocument()
+    expect(screen.getAllByRole("listitem")).toHaveLength(2)
   })
 })
