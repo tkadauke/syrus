@@ -75,7 +75,7 @@ module Mcp::Tools
       end
 
       def searchable_chat_session_ids(coworker_id: nil)
-        scope = accessible_chat_sessions_scope
+        scope = accessible_chat_sessions_scope.where(chat_participants: { hidden_at: nil })
         return scope.distinct.ids if coworker_id.nil?
 
         chip = Filters::Registry.find("coworker_id", subject: :chat_message)

@@ -207,14 +207,46 @@ RSpec.describe PersistentMcpDaemon do
         )
       end
 
-      it "dispatches coworker chat reads over the persistent workflow route" do
+      it "dispatches owner-scoped coworker chat discovery and reads over the persistent workflow route" do
         PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
+        Syrus::PluginRegistry.clear_plugin_record_cache!
+        scope = Syrus::EffectScope.new(label: "persistent coworker chat reads")
+        Filters.subject(:chat_message)
+        Coworkers::SearchExtension.install_into(scope)
+        SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+        SearchRecord.connection.execute(<<~SQL)
+          CREATE VIRTUAL TABLE chat_message_fts
+          USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED, tokenize = 'porter unicode61')
+        SQL
+        SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
         coworker = Coworkers::Coworker.create!(
           owner_user: user, name: "Maya", handle: "maya-daemon-chat-reader",
           workspace_repo: job.repository.remote_url
         )
         chat = ChatSession.create!(user: user, repository: job.repository, title: "Maya")
         Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+        owner_chat = ChatSession.create!(user: user, title: "Owner planning")
+        owner_message = owner_chat.messages.create!(role: "user", content: { "text" => "ownerhistoryneedle" })
+        hidden_owner_chat = ChatSession.create!(user: user, title: "Hidden owner planning")
+        hidden_owner_chat.chat_participants.find_by!(user: user).update!(hidden_at: Time.current)
+        hidden_owner_message = hidden_owner_chat.messages.create!(
+          role: "user", content: { "text" => "hiddenownerhistoryneedle" }
+        )
+        other_coworker = Coworkers::Coworker.create!(
+          owner_user: user, name: "Robin", handle: "robin-daemon-chat-reader",
+          workspace_repo: job.repository.remote_url
+        )
+        other_coworker_chat = ChatSession.create!(user: user, title: "Robin")
+        Coworkers::Chat.create!(coworker: other_coworker, chat_session: other_coworker_chat, role: "main")
+        other_coworker_message = other_coworker_chat.messages.create!(
+          role: "user", content: { "text" => "robinhistoryneedle" }
+        )
+        other_user = Factories.user
+        inaccessible_chat = ChatSession.create!(user: other_user, title: "Private elsewhere")
+        inaccessible_message = inaccessible_chat.messages.create!(role: "user", content: { "text" => "foreignhistoryneedle" })
+        [ owner_message, hidden_owner_message, other_coworker_message, inaccessible_message ].each do |message|
+          ChatMessageSearchIndex.insert(message)
+        end
         coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
         coworker_job = Job.create!(
           user: user, repository: job.repository, kind: "coworker_task", priority: "low",
@@ -224,16 +256,55 @@ RSpec.describe PersistentMcpDaemon do
         coworker_run = Run.create!(job: coworker_job, user: user, step: workflow.steps.find_by!(kind: "coworker_run"),
           trigger_kind: "coworker_run", agent_provider: "codex")
         token = McpInvocationContext.issue_for_run(coworker_run, worker_id: worker_id, provider: "codex")
+        path = described_class.workflow_role_path(AgentRole::COWORKER)
 
-        response = call_workflow_tool(
-          described_class.workflow_role_path(AgentRole::COWORKER),
-          "list_chats",
-          token: token
+        list_response = call_workflow_tool(path, "list_chats", token: token)
+        listed = JSON.parse(json_body(list_response).dig("result", "content", 0, "text")).fetch("chats")
+        expect(listed.pluck("id")).to include(chat.id, owner_chat.id, other_coworker_chat.id)
+        expect(listed.pluck("id")).not_to include(hidden_owner_chat.id, inaccessible_chat.id)
+
+        search_response = call_workflow_tool(
+          path, "search_chats", token: token,
+          arguments: { query: "ownerhistoryneedle", coworker_id: "syrus" }
         )
+        search_results = JSON.parse(json_body(search_response).dig("result", "content", 0, "text")).fetch("results")
+        expect(search_results.pluck("chat_session_id")).to eq([ owner_chat.id ])
 
-        result = json_body(response).fetch("result")
-        expect(result["isError"]).to be_falsey
-        expect(JSON.parse(result.dig("content", 0, "text")).fetch("chats").pluck("id")).to eq([ chat.id ])
+        hidden_search = call_workflow_tool(
+          path, "search_chats", token: token,
+          arguments: { query: "hiddenownerhistoryneedle", coworker_id: "syrus" }
+        )
+        expect(JSON.parse(json_body(hidden_search).dig("result", "content", 0, "text")).fetch("results")).to be_empty
+
+        filtered_response = call_workflow_tool(
+          path, "search_chats", token: token,
+          arguments: { query: "robinhistoryneedle", coworker_id: other_coworker.id }
+        )
+        filtered_results = JSON.parse(json_body(filtered_response).dig("result", "content", 0, "text")).fetch("results")
+        expect(filtered_results.pluck("chat_session_id")).to eq([ other_coworker_chat.id ])
+
+        owner_filtered = Mcp::Tools::SearchChatsTool.call(
+          server_context: { chat_session: owner_chat }, query: "robinhistoryneedle", coworker_id: other_coworker.id
+        )
+        expect(JSON.parse(owner_filtered.content.first.fetch(:text)).fetch("results").pluck("chat_session_id"))
+          .to eq([ other_coworker_chat.id ])
+
+        read_response = call_workflow_tool(
+          path, "read_chat_messages", token: token,
+          arguments: { chat_session_id: owner_chat.id }
+        )
+        read_messages = JSON.parse(json_body(read_response).dig("result", "content", 0, "text")).fetch("messages")
+        expect(read_messages).to include(include("id" => owner_message.id))
+
+        foreign_search = call_workflow_tool(path, "search_chats", token: token, arguments: { query: "foreignhistoryneedle" })
+        expect(JSON.parse(json_body(foreign_search).dig("result", "content", 0, "text")).fetch("results")).to be_empty
+        foreign_read = call_workflow_tool(
+          path, "read_chat_messages", token: token,
+          arguments: { chat_session_id: inaccessible_chat.id }
+        )
+        expect(json_body(foreign_read).dig("result", "isError")).to be(true)
+      ensure
+        scope&.dispose
       end
 
       it "records a failed workflow usage row when the invocation token is invalid" do

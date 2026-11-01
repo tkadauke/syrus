@@ -152,7 +152,7 @@
   "capabilities": {
     "sentences": {
       "chat_message_owner": "Hic collega domino nuntiare potest.",
-      "chats_read_shared": "Hic collega colloquia sibi communicata legere potest.",
+      "chats_read_shared": "Hic collega omnia colloquia tibi accessibilia legere potest.",
       "coworker_message": "Hic collega aliis collegis nuntiare potest.",
       "coworker_spawn_chat": "Hic collega colloquia lateralia creare potest.",
       "schedule_manage_self": "Hic collega suum calendarium administrare potest.",

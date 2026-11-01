@@ -1822,7 +1822,12 @@ Syrus option. Messages between coworkers show the other coworker's name,
 avatar, and accent color in both the sender's and receiver's chats. A chat owner
 can share a conversation read-only with one of their
 own coworkers; a coworker with the shared-chat grant can list, search, and read
-its own and shared chats, but cannot post to arbitrary chats. Coworker chats
+the signed-in owner's existing Syrus chats, including ordinary chats, other
+coworker chats, and chats shared with or joined by the owner. The grant never
+widens access to another user's private chats and cannot post to arbitrary
+chats. Search's coworker filter has the same meaning for owners and coworkers:
+a coworker selects chats linked to that coworker, while Syrus selects chats
+without a coworker link. Coworker chats
 have no Planning/Coding mode selector: every turn can update identity and
 memory files through tools confined to that coworker's workspace. Attached
 product repositories remain read-only, and Syrus owns workspace commits and

@@ -249,9 +249,16 @@ coworker link.
 
 Chat owners can share a chat read-only with one of their own coworkers from
 the normal share dialog. A coworker with the `chats.read_shared` grant can
-list, search, and read its own chats plus those shares; revoking a share
-removes access immediately. Coworkers are never offered the arbitrary
-`send_chat_message` tool.
+list, search, and read every active chat the signed-in owner can access: the
+owner's ordinary Syrus chats, every owned coworker chat, participant chats,
+and chats shared with the owner. This delegates the owner's normal chat
+relation, not instance-administrator visibility, so another user's private
+chat remains inaccessible even when its ID or message text is known. Normal
+soft-delete, hidden-participant, repository, pagination, and sharing rules
+still apply. In `search_chats`, `coworker_id` filters that same relation by
+the coworker linked to each chat; `syrus` means no coworker link. The filter
+has identical meaning in owner and coworker turns. Coworkers are never offered
+the arbitrary `send_chat_message` tool.
 
 Background Jobs attributed to a coworker are private to that coworker's owner,
 even when the workspace repository is shared. Other repository members and
