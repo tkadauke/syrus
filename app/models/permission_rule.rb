@@ -129,19 +129,19 @@ class PermissionRule < ApplicationRecord
   end
 
   def append_creation_event!
-    append_audit_event!("created", saved_changes.keys)
+    append_audit_event!("created", saved_changes.keys, actor: created_by_user)
   end
 
   def append_change_event!
     event_type = saved_change_to_revoked_at? && revoked_at? ? "revoked" : "updated"
-    append_audit_event!(event_type, saved_changes.keys)
+    append_audit_event!(event_type, saved_changes.keys, actor: updated_by_user)
   end
 
-  def append_audit_event!(event_type, changed_fields)
+  def append_audit_event!(event_type, changed_fields, actor:)
     audit_events.create!(
       sequence: audit_events.maximum(:sequence).to_i + 1,
       event_type: event_type,
-      actor_user: updated_by_user,
+      actor_user: actor,
       snapshot: attributes.slice(*AUDITED_ATTRIBUTES),
       changed_fields: changed_fields.map(&:to_s).sort,
       created_at: Time.current
