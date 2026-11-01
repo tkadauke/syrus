@@ -53,12 +53,12 @@ class Coworkers::Coworker < ApplicationRecord
     Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
   end
 
-  # A coworker sees only its own conversations and chats explicitly shared
-  # with it. The owner's role (including admin) must never widen this scope.
+  # The shared-chat capability delegates the owner's existing chat visibility
+  # to the coworker. Keep this owner-scoped even when the owner is an instance
+  # admin: admin status must never turn a coworker chat read into an
+  # instance-wide read.
   def readable_chat_session_ids
-    own_ids = coworker_chats.select(:chat_session_id)
-    shared_ids = ChatShare.where(target_type: self.class.polymorphic_name, target_id: id).select(:chat_session_id)
-    ChatSession.where(id: own_ids).or(ChatSession.where(id: shared_ids)).active.distinct.ids
+    owner_user.accessible_chat_sessions.active.distinct.ids
   end
 
   def grant_capability_possession!(capability:, resource_scope:)
