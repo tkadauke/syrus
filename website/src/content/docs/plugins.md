@@ -113,6 +113,13 @@ user, while existing instance-scoped connections remain shared until an admin
 narrows them. Legacy embedded passwords are admin-only until migrated by
 re-entering the password in the connection editor.
 
+Admin MySQL and Browser publish scoped agent-permission boundaries. Admin
+database observation is distinct from exact-invocation query interruption.
+Browser observation, loopback navigation, interaction, JavaScript evaluation,
+upload, and session close are separate capabilities; evaluation and upload
+ask per invocation. Loopback-only navigation, exact upload paths, admin and
+repository checks, and Coding Mode input leases remain hard safety ceilings.
+
 Credential Store SSH tools publish unified permission metadata evaluated from
 arguments before credential resolution. Authority is scoped to the credential
 handle and exact SSH destination, while the command is bound by a stable

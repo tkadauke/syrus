@@ -66,6 +66,13 @@ forms are rejected.
 
 ## MCP tools
 
+Agent calls carry scoped permission descriptors in addition to the existing
+surface gates. Live status is the `mysql.admin.observe` capability and remains
+available only through the admin, MySQL-adapter, repository, and role checks.
+Query interruption is the separate `mysql.admin.kill_query` capability, is
+critical-risk, and is limited to exact-invocation authority in addition to its
+confirmed pending action and statement revalidation.
+
 Admin MySQL exposes different MCP tools on workflow and chat surfaces:
 
 - `admin_mysql_status(limit?)` — same payload as the admin page's snapshot.

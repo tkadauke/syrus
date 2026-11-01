@@ -25,6 +25,7 @@ module SyrusBrowser
     frontend i18n: [ "app/frontend/i18n/locales/*/browser.json" ]
     provides mcp_tool_set: "SyrusBrowser::McpToolSet",
              chat_mcp_tool_set: "SyrusBrowser::ChatToolSet",
+             permission_provider: "SyrusBrowser::PermissionProvider",
              artifact_renderer: "SyrusBrowser::ImageDiffRenderer",
              runtime_session_provider: "SyrusBrowser::RuntimeSessionProvider",
              "plugin_runtime:service" => "SyrusBrowser::RuntimeService"

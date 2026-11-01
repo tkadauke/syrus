@@ -34,6 +34,10 @@ RSpec.describe AdminMysql::ChatToolSet do
       "admin_mysql_kill_query"
     )
     expect(tools.find { |tool| tool.fetch(:name) == "admin_mysql_kill_query" }.dig(:input_schema, :required)).to eq([ "thread_id" ])
+    expect(tools.to_h { |tool| [ tool.fetch(:name), tool.fetch(:capability_descriptor).operation ] }).to eq(
+      "admin_mysql_status" => "mysql.admin/status@v1",
+      "admin_mysql_kill_query" => "mysql.admin/kill_query@v1"
+    )
   end
 
   it "creates a pending action with the current statement instead of killing immediately" do

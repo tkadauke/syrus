@@ -23,7 +23,8 @@ module AdminMysql
 
     provides admin_page: "AdminMysql::AdminPages",
              mcp_tool_set: "AdminMysql::WorkflowToolSet",
-             chat_mcp_tool_set: "AdminMysql::ChatToolSet"
+             chat_mcp_tool_set: "AdminMysql::ChatToolSet",
+             permission_provider: "AdminMysql::PermissionProvider"
     route :get, "/api/v1/app/admin/mysql", to: "api/v1/app/admin/mysql#show"
     route :post, "/api/v1/app/admin/mysql/kill_query", to: "api/v1/app/admin/mysql#kill_query"
     route :get, "/api/v1/admin/mysql", to: "api/v1/admin/mysql#show"

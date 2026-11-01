@@ -36,6 +36,19 @@ RSpec.describe SyrusBrowser::ChatToolSet do
       expect(described_class.tool_definitions(tier: :essential).map { |d| d[:name] })
         .to match_array(SyrusBrowser::McpToolSet.tool_definitions.map { |d| d[:name] })
     end
+
+    it "attaches scoped permission descriptors to every browser tool" do
+      definitions = described_class.tool_definitions(tier: :essential)
+
+      expect(definitions).to all(include(:capability_descriptor))
+      expect(definitions.to_h { |definition| [ definition[:name], definition[:capability_descriptor].capability ] })
+        .to include(
+          "browser_navigate" => "browser.navigate@v1",
+          "browser_evaluate" => "browser.execute@v1",
+          "browser_file_upload" => "browser.upload@v1",
+          "browser_drop" => "browser.upload@v1"
+        )
+    end
   end
 
   describe "#handle" do
