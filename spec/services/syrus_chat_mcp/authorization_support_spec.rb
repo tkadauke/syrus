@@ -284,7 +284,6 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       )
     end
   end
-
   it "routes scheduled tool calls through the shared authorization request" do
     job = Factories.job_record(user:, repository:, kind: "cron", scheduled_task_id: 41, issue_number: nil)
     run = Factories.run(job:, user:)
