@@ -56,7 +56,7 @@ module MaintenanceTasks
 
           return process_entity(task, entry)
         end
-        Result.new(done: true, processed: 0, failed: 0, message: "Selected search database rebuilds are complete.", level: "info", metadata: { PLAN_KEY => plan })
+        Result.new(done: true, processed: 0, failed: 0, message: I18n.t("server.maintenance_tasks.search_database_rebuild.complete"), level: "info", metadata: { PLAN_KEY => plan })
       end
 
       private

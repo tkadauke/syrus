@@ -2,6 +2,9 @@ la:
   coworkers:
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
+    maintenance_tasks:
+      search_database_rebuild:
+        complete: "Reconstructiones selectae datorum quaestionis perfectae sunt."
     errors:
       invalid_request: "Petitio invalida est."
       unavailable: "Haec actio ad tempus praesto non est."
