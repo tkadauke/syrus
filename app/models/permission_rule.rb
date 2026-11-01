@@ -3,11 +3,11 @@ class PermissionRule < ApplicationRecord
   POLICY_LAYERS = %w[ instance team repository role agent ].freeze
   SUBJECT_SELECTORS = {
     "agent" => { id: true, repository: false, role_snapshot: false, dynamic: false },
-    "interactive_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false },
-    "coding_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false },
-    "local_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false },
-    "workflow_role" => { id: true, repository: false, role_snapshot: false, dynamic: false },
-    "repository_role" => { id: true, repository: true, role_snapshot: false, dynamic: false },
+    "interactive_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false, role: AgentRole::CHAT_PLANNER },
+    "coding_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false, role: AgentRole::CHAT_CODING },
+    "local_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false, role: AgentRole::CHAT_LOCAL },
+    "workflow_role" => { id: true, repository: false, role_snapshot: false, dynamic: false, role_from_id: true },
+    "repository_role" => { id: true, repository: true, role_snapshot: false, dynamic: false, role_from_id: true },
     "eligible_roles" => { id: false, repository: false, role_snapshot: true, dynamic: true }
   }.freeze
   SUBJECT_SELECTOR_TYPES = SUBJECT_SELECTORS.keys.freeze
@@ -69,7 +69,22 @@ class PermissionRule < ApplicationRecord
     update!(attributes.merge(updated_by_user: actor))
   end
 
+  def to_policy_rule
+    Permissions::PolicyRule.new(
+      id: "permission-rule-#{id}", layer: policy_layer, policy:, source: "permission_rule",
+      capability:, operation:, resource_scope:, selectors: subject_selectors,
+      delegable:, rationale:
+    )
+  end
+
   private
+
+  def subject_selectors
+    { subject_selector_type: }.tap do |selectors|
+      selectors[:subject_selector_id] = subject_selector_id if subject_selector_id.present?
+      selectors[:subject_repository_id] = subject_repository_id if subject_repository_id.present?
+    end
+  end
 
   def canonicalize_json_objects
     self.resource_scope = canonicalize_json(resource_scope) if resource_scope.is_a?(Hash)

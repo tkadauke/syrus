@@ -1507,6 +1507,13 @@ resource scope, lifecycle, fingerprint, and remaining uses. Authority that was
 valid when granted cannot override a later deny or execute after its scope has
 ended.
 
+Agents can list and explain the operator's permissions, but they cannot silently
+change them. Grant, deny, revoke, temporary-lease, preset, and obsolete-request
+cancellation tools always produce an operator confirmation card. The change is
+applied only after confirmation and is checked independently against the
+capability's delegation and duration ceilings, so a requested grant cannot
+authorize its own confirmation.
+
 ## Permission parity diagnostics
 
 Syrus runs its capability policy evaluator in shadow mode alongside existing
