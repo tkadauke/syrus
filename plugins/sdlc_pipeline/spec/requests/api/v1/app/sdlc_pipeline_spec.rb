@@ -58,6 +58,20 @@ RSpec.describe "API: repository SDLC pipeline", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "skips historical reconstruction for the live polling request" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(double(stages: []))
+    allow(SdlcPipeline::History).to receive(:new)
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline", params: { history: "0" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).not_to have_key("history")
+    expect(SdlcPipeline::History).not_to have_received(:new)
+  end
+
   it "filters by the chat Jobs-tab association scope without including explicit attachments" do
     user = Factories.user
     repository = Factories.repository(user: user)
