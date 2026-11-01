@@ -110,10 +110,12 @@ module ChatSessionLifecycle
   end
 
   def enqueue_chat_title(chat_session, user_message)
-    if (message_text = chat_title_message_text(user_message))
-      ChatTitleJob.perform_later(chat_session.id, user_message.id, message_text: message_text)
-    else
-      ChatTitleJob.perform_later(chat_session.id, user_message.id)
+    ActiveRecord.after_all_transactions_commit do
+      if (message_text = chat_title_message_text(user_message))
+        ChatTitleJob.perform_later(chat_session.id, user_message.id, message_text: message_text)
+      else
+        ChatTitleJob.perform_later(chat_session.id, user_message.id)
+      end
     end
   end
 
@@ -124,7 +126,9 @@ module ChatSessionLifecycle
     prompt = goal.prompt.to_s.strip
     return if prompt.blank?
 
-    ChatTitleJob.perform_later(chat_session.id, nil, message_text: prompt)
+    ActiveRecord.after_all_transactions_commit do
+      ChatTitleJob.perform_later(chat_session.id, nil, message_text: prompt)
+    end
   end
 
   def chat_title_message_text(user_message)
@@ -139,7 +143,9 @@ module ChatSessionLifecycle
   end
 
   def enqueue_chat_turn(chat_session, user_message)
-    ChatSessions::Creator.enqueue_turn(chat_session, user_message)
+    ActiveRecord.after_all_transactions_commit do
+      ChatSessions::Creator.enqueue_turn(chat_session, user_message)
+    end
   end
 
   def find_chat_session

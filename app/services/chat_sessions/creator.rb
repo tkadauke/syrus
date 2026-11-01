@@ -55,9 +55,13 @@ module ChatSessions
     def call
       result = create_records
       if result.chat_session.title.blank?
-        ChatTitleJob.perform_later(result.chat_session.id, result.user_message.id, **title_job_options)
+        ActiveRecord.after_all_transactions_commit do
+          ChatTitleJob.perform_later(result.chat_session.id, result.user_message.id, **title_job_options)
+        end
       end
-      self.class.enqueue_turn(result.chat_session, result.user_message) if result.turn_triggered
+      if result.turn_triggered
+        ActiveRecord.after_all_transactions_commit { self.class.enqueue_turn(result.chat_session, result.user_message) }
+      end
       result
     end
 
