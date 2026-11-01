@@ -55,7 +55,7 @@ RSpec.describe Workflows::LifecyclePropagation do
     attention_since = 1.hour.ago
     job.update!(
       needs_attention: true,
-      needs_attention_reason: "agent_cannot_proceed",
+      needs_attention_reason: "upstream_pr_closed",
       needs_attention_since: attention_since
     )
     current_workflow = Workflow.create!(job: job, trigger_kind: "initial")
@@ -64,9 +64,33 @@ RSpec.describe Workflows::LifecyclePropagation do
 
     expect(job.reload).to have_attributes(
       needs_attention: true,
-      needs_attention_reason: "agent_cannot_proceed"
+      needs_attention_reason: "upstream_pr_closed"
     )
     expect(job.needs_attention_since).to be_within(1.second).of(attention_since)
+  end
+
+  it "clears stale cannot-proceed attention when a replacement retry starts" do
+    blocked_workflow = Workflow.create!(job: job, trigger_kind: "initial")
+
+    blocked_workflow.block!
+    blocked_workflow.save!
+
+    expect(blocked_workflow.reload).to be_blocked
+    expect(job.reload).to have_attributes(
+      needs_attention: true,
+      needs_attention_reason: "agent_cannot_proceed"
+    )
+    expect(job.needs_attention_since).to be_present
+
+    replacement_workflow = Workflow.create!(job: job, trigger_kind: "retry")
+
+    expect { replacement_workflow.start! }
+      .to change { job.reload.needs_attention }.from(true).to(false)
+
+    expect(job.reload).to have_attributes(
+      needs_attention_reason: nil,
+      needs_attention_since: nil
+    )
   end
 
   it "clears stale grader-loop attention for infrastructure workflows without changing Job state" do
