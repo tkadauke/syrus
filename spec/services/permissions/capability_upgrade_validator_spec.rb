@@ -30,6 +30,24 @@ RSpec.describe Permissions::CapabilityUpgradeValidator do
     expect(described_class.new(previous: [ descriptor ], current: [ current ]).findings).to be_empty
   end
 
+  it "rejects moving one operation to another capability while its old family remains" do
+    previous = [
+      descriptor,
+      descriptor(operation: "example.data/write@v1")
+    ]
+    current = [
+      descriptor(operation: "example.data/write@v1"),
+      descriptor(
+        capability: "other.data@v1",
+        operation: "other.data/read@v1",
+        operation_aliases: [ "example.data/read@v1" ]
+      )
+    ]
+
+    expect(described_class.new(previous: previous, current: current).findings)
+      .to contain_exactly(have_attributes(code: :capability_family_changed))
+  end
+
   it "rejects reuse of an identifier retained in the retired-key ledger" do
     validator = described_class.new(
       previous: [], current: [ descriptor ], retired_identifiers: [ "example.data/read@v1" ]
