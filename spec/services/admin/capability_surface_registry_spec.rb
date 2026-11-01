@@ -105,6 +105,22 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     end
   end
 
+  it "records confirmed permission mutations as pending-action capabilities" do
+    capabilities = described_class.capabilities.index_by(&:key)
+
+    %w[
+      apply_permission_preset cancel_authorization_request create_permission_lease
+      deny_permission grant_permission revoke_permission revoke_permission_lease
+    ].each do |key|
+      capability = capabilities.fetch(key)
+
+      expect(capability.decision_for(:mcp)).to be_exposed
+      expect(capability.decision_for(:admin_api)).to be_exposed
+      expect(capability.decision_for(:user_api).reason).to eq(described_class::USER_API_PENDING_ACTION_REASON)
+      expect(capability.decision_for(:cli).reason).to eq(described_class::CLI_PENDING_ACTION_REASON)
+    end
+  end
+
   it "fails when an allowlist entry for an open gap is removed" do
     decisions = {
       gap_action: {
