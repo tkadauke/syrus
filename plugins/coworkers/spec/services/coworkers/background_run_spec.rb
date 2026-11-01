@@ -93,7 +93,7 @@ RSpec.describe "Coworker background runs" do
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
   end
 
-  it "reads only the coworker's own and explicitly shared chats from a run context" do
+  it "reads the owner's accessible chats without exposing another user's chats from a run context" do
     SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
     SearchRecord.connection.execute(<<~SQL)
       CREATE VIRTUAL TABLE chat_message_fts
@@ -102,28 +102,33 @@ RSpec.describe "Coworker background runs" do
     SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
     shared_chat = ChatSession.create!(user: owner, title: "Shared feedback")
-    private_chat = ChatSession.create!(user: owner, title: "Owner private")
+    owner_chat = ChatSession.create!(user: owner, title: "Owner planning")
+    inaccessible_chat = ChatSession.create!(user: Factories.user, title: "Private elsewhere")
     ChatShare.create!(chat_session: shared_chat, target: coworker, shared_by_user: owner)
     own_message = main_chat.messages.create!(role: "user", content: { "text" => "background-own-needle" })
     shared_message = shared_chat.messages.create!(role: "user", content: { "text" => "background-shared-needle" })
-    private_message = private_chat.messages.create!(role: "user", content: { "text" => "background-private-needle" })
-    [ own_message, shared_message, private_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    owner_message = owner_chat.messages.create!(role: "user", content: { "text" => "background-owner-needle" })
+    inaccessible_message = inaccessible_chat.messages.create!(role: "user", content: { "text" => "background-foreign-needle" })
+    [ own_message, shared_message, owner_message, inaccessible_message ].each do |message|
+      ChatMessageSearchIndex.insert(message)
+    end
     workflow = Coworkers::Workflow.instantiate(job: job)
     run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
       trigger_kind: "coworker_run", agent_provider: "codex")
     context = { run: run }
 
     listed = JSON.parse(Mcp::Tools::ListChatsTool.call(server_context: context).content.first[:text]).fetch("chats")
-    expect(listed.pluck("id")).to contain_exactly(main_chat.id, shared_chat.id)
+    expect(listed.pluck("id")).to contain_exactly(main_chat.id, shared_chat.id, owner_chat.id)
 
     searched = JSON.parse(
       Mcp::Tools::SearchChatsTool.call(server_context: context, query: "background").content.first[:text]
     ).fetch("results")
-    expect(searched.pluck("chat_session_id")).to contain_exactly(main_chat.id, shared_chat.id)
+    expect(searched.pluck("chat_session_id")).to contain_exactly(main_chat.id, shared_chat.id, owner_chat.id)
 
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: main_chat.id)).not_to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).not_to be_error
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: private_chat.id)).to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: inaccessible_chat.id)).to be_error
   end
 
   it "calls every tool exposed to an unattended coworker once without raising from run-only context" do
@@ -163,7 +168,7 @@ RSpec.describe "Coworker background runs" do
     Coworkers::Chat.create!(coworker: coworker, chat_session: own_side_chat, role: "side")
     shared_chat = ChatSession.create!(user: owner, title: "Shared owner chat")
     ChatShare.create!(chat_session: shared_chat, target: coworker, shared_by_user: owner)
-    ChatSession.create!(user: owner, title: "Unshared owner chat")
+    owner_chat = ChatSession.create!(user: owner, title: "Unshared owner chat")
     other_coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Other", handle: "other-background",
       workspace_repo: repository.remote_url
@@ -177,7 +182,7 @@ RSpec.describe "Coworker background runs" do
       USING fts5(content, user_id UNINDEXED, chat_session_id UNINDEXED, chat_message_id UNINDEXED, role UNINDEXED, created_at UNINDEXED)
     SQL
     SearchRecord.connection.execute("CREATE TABLE chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
-    [ main_chat, own_side_chat, shared_chat, other_chat ].each do |session|
+    [ main_chat, own_side_chat, shared_chat, owner_chat, other_chat ].each do |session|
       message = session.messages.create!(role: "user", content: { "text" => "scheduled needle" })
       ChatMessageSearchIndex.insert(message)
     end
@@ -197,7 +202,9 @@ RSpec.describe "Coworker background runs" do
     list_response = list_tool.call(server_context: raw_context, page: 1, per_page: 10)
     listed_ids = JSON.parse(list_response.content.first[:text]).fetch("chats").pluck("id")
     expect(list_response).not_to be_error
-    expect(listed_ids).to contain_exactly(main_chat.id, own_side_chat.id, shared_chat.id)
+    expect(listed_ids).to contain_exactly(
+      main_chat.id, own_side_chat.id, shared_chat.id, owner_chat.id, other_chat.id
+    )
 
     search_tool = PersistentMcpDaemon::WorkflowToolDispatch.wrap(Mcp::Tools::SearchChatsTool)
     search_response = search_tool.call(server_context: raw_context, query: "needle", limit: 7)
