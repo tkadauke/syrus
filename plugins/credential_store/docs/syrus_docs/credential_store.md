@@ -306,6 +306,23 @@ temporary askpass helper and redacted from results. SSH private-key material is
 written with exactly one final newline for OpenSSH compatibility; this runtime
 normalization does not rewrite the encrypted credential payload.
 
+The plugin publishes a unified permission descriptor that is evaluated from
+the invocation arguments before the credential broker resolves or materializes
+a key. Permission requests are scoped to the credential handle, host, user,
+and port. The exact command is represented by a SHA-256 fingerprint in
+authorization arguments, not stored as permission material. Read-only
+diagnostics classify as `ssh.execute/read@v1`; every other command and any
+explicit risky-command bypass classifies as `ssh.execute/risky@v1`. Both
+default to ask, and authority is limited to one exact invocation. A missing or
+invisible credential produces the same not-found lookup result, so permission
+discovery does not disclose whether a hidden credential exists.
+
+Permission authority and the broker lease are separate controls. Permission
+grants authority for one fingerprinted SSH invocation; the existing short
+broker lease bounds secret materialization and continues to enforce scope,
+surface, tool, destination, expiry, revocation, redaction, and audit rules.
+Permission cannot override any of those broker ceilings.
+
 SSH targets use a deliberately narrow syntax. `user` must begin with an ASCII
 letter, digit, or underscore and may then contain only ASCII letters, digits,
 underscores, dots, or hyphens. `host` must be an ASCII hostname beginning with

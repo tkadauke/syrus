@@ -113,6 +113,16 @@ user, while existing instance-scoped connections remain shared until an admin
 narrows them. Legacy embedded passwords are admin-only until migrated by
 re-entering the password in the connection editor.
 
+Credential Store SSH tools publish unified permission metadata evaluated from
+arguments before credential resolution. Authority is scoped to the credential
+handle and exact SSH destination, while the command is bound by a stable
+fingerprint. Read-only diagnostics and risky commands are classified
+separately, but both default to an exact-invocation prompt. Existing credential
+scope, destination and host-key checks, redaction, auditing, and short
+secret-material leases remain non-overridable ceilings. Runtime CLI wrappers
+continue to require authenticated Syrus invocation context and explicit
+authorization for operator-host or risky execution.
+
 Provider copy on the homepage and FAQ should use the adapter display names
 from `plugins/*/lib/*.rb` and `AgentProviders::*#display_name`, not hand-rolled
 model names. As of this release, the provider adapters are Claude Code, Codex,

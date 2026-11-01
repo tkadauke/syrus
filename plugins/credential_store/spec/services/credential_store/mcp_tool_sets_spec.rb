@@ -6,6 +6,9 @@ RSpec.describe "CredentialStore MCP tool sets" do
 
     expect(tools.map { |tool| tool.fetch(:name) }).to eq([ "credential_store_ssh_exec" ])
     expect(tools.first.dig(:input_schema, :required)).to eq([ "credential", "host", "user", "command" ])
+    expect(tools.first.fetch(:capability_descriptor)).to have_attributes(
+      capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1"
+    )
   end
 
   it "never advertises SSH exec to coworkers through any grant" do
@@ -30,5 +33,7 @@ RSpec.describe "CredentialStore MCP tool sets" do
 
     expect(CredentialStore::WorkflowToolSet.tool_definitions(context: context).map { |tool| tool.fetch(:name) })
       .to eq([ "credential_store_ssh_exec" ])
+    expect(CredentialStore::WorkflowToolSet.tool_definitions(context: context).first.fetch(:capability_descriptor))
+      .to have_attributes(capability: "ssh.execute@v1")
   end
 end
