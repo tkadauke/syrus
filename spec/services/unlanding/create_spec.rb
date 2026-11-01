@@ -120,6 +120,9 @@ RSpec.describe Unlanding::Create do
 
       rollback.update_columns(state: "closed", closure_reason: "pr_merged", landed_sha: "rollback-landed")
       expect(epic.unlanded_by).to eq(rollback)
+      expect(first.reload.unlanded_by).to eq(rollback)
+      expect { described_class.call!(original: first) }
+        .to raise_error(described_class::Ineligible, /already successfully unlanded/)
     end
 
     it "uses merge-train membership order and includes reconciliation without reverting unrelated history" do
@@ -153,6 +156,48 @@ RSpec.describe Unlanding::Create do
 
       expect { described_class.plan!(original: epic) }
         .to raise_error(described_class::Ineligible, /shared commit ownership/)
+    end
+
+    it "excludes intra-Epic stack links from downstream dependents" do
+      JobDependency.create!(job: second, depends_on_job: first, source: "manual")
+      external = Factories.job_record(user: first.user, repository: first.repository)
+      JobDependency.create!(job: external, depends_on_job: second, source: "manual")
+      expect(external.reload.epic_id).to be_nil
+      expect(JobDependency.where(depends_on_job_id: [ first.id, second.id ]).pluck(:job_id)).to include(external.id)
+
+      plan = described_class.plan!(original: epic)
+
+      expect(plan.dependents).to eq([ external.slug ])
+      expect(plan.dependents).not_to include(second.slug)
+    end
+
+    it "topologically orders multiple parents" do
+      third = Factories.job_record(user: first.user, repository: first.repository, epic: epic, state: "closed", closure_reason: "pr_merged", landed_sha: "third-landed")
+      fourth = Factories.job_record(user: first.user, repository: first.repository, epic: epic, state: "closed", closure_reason: "pr_merged", landed_sha: "fourth-landed")
+      third.update_column(:epic_id, epic.id)
+      fourth.update_column(:epic_id, epic.id)
+      LandedCommit.create!(landable: third, sha: "third-commit", kind: "implementation", position: 0)
+      LandedCommit.create!(landable: fourth, sha: "fourth-commit", kind: "implementation", position: 0)
+      now = Time.current
+      JobDependency.insert_all!([
+        { job_id: third.id, depends_on_job_id: second.id, source: "manual", satisfaction_mode: "success", created_at: now, updated_at: now },
+        { job_id: fourth.id, depends_on_job_id: first.id, source: "manual", satisfaction_mode: "success", created_at: now, updated_at: now },
+        { job_id: fourth.id, depends_on_job_id: third.id, source: "manual", satisfaction_mode: "success", created_at: now, updated_at: now }
+      ])
+      %w[third-commit fourth-commit].each do |sha|
+        allow(git).to receive(:run).with("merge-base", "--is-ancestor", sha, "base", anything).and_return("")
+        allow(git).to receive(:run).with("rev-list", "--parents", "-n", "1", sha, anything).and_return("#{sha} parent\n")
+      end
+
+      expect(described_class.plan!(original: epic).commit_shas)
+        .to eq(%w[first-commit second-commit third-commit fourth-commit])
+    end
+
+    it "blocks an individual child while its Epic rollback is active" do
+      Factories.job_record(user: first.user, repository: first.repository, rollback_epic: epic, state: "running")
+
+      expect { described_class.call!(original: first) }
+        .to raise_error(described_class::Ineligible, /Epic unland is already active/)
     end
   end
 end

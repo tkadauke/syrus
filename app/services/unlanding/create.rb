@@ -1,5 +1,3 @@
-require "set"
-
 module Unlanding
   class Create
     class Ineligible < StandardError; end
@@ -69,12 +67,14 @@ module Unlanding
     def plan!
       validate_original!
       shas, base_sha, git, clone = verified_commits
+      dependents = dependent_slugs
+      deployment_stages = deployment_stage_reach
       Plan.new(
         original:, affected: affected_slugs, base_sha:, commit_shas: shas,
         files: changed_files(git, clone, shas),
-        dependents: dependent_slugs,
-        deployment_stages: deployment_stage_reach,
-        warnings: plan_warnings
+        dependents:,
+        deployment_stages:,
+        warnings: plan_warnings(dependents, deployment_stages)
       )
     end
 
@@ -98,6 +98,9 @@ module Unlanding
       if original.rollback_jobs.where(state: active_states).exists?
         raise Ineligible, "an unland is already active for this Job"
       end
+      if original.epic&.rollback_jobs&.where(state: active_states)&.exists?
+        raise Ineligible, "an Epic unland is already active for this Job"
+      end
     end
 
     def validate_epic!
@@ -111,6 +114,9 @@ module Unlanding
       raise Ineligible, "Epic was already successfully unlanded" if original.unlanded_by
       if original.rollback_jobs.where(state: active_states).exists?
         raise Ineligible, "an unland is already active for this Epic"
+      end
+      if Job.where(rollback_of_id: children.map(&:id), state: active_states).exists?
+        raise Ineligible, "an unland is already active for an Epic child"
       end
     end
 
@@ -174,16 +180,28 @@ module Unlanding
     def ordered_epic_jobs
       jobs = original.work_jobs.includes(:dependencies).to_a
       by_id = jobs.index_by(&:id)
-      jobs.sort_by do |job|
-        depth = 0
-        cursor = job
-        seen = Set.new
-        while (parent_id = cursor.dependencies.find(&:depends_on_job_id?)&.depends_on_job_id) && by_id[parent_id] && seen.add?(parent_id)
-          depth += 1
-          cursor = by_id.fetch(parent_id)
-        end
-        [ depth, job.id ]
+      parents = jobs.to_h do |job|
+        [ job.id, job.dependencies.filter_map(&:depends_on_job_id).select { |id| by_id.key?(id) } ]
       end
+      children = Hash.new { |hash, key| hash[key] = [] }
+      parents.each { |job_id, parent_ids| parent_ids.each { |parent_id| children[parent_id] << job_id } }
+      first_commit_id = LandedCommit.where(landable_type: "Job", landable_id: by_id.keys, kind: "implementation")
+                                    .group(:landable_id).minimum(:id)
+      sort_key = ->(job_id) { [ first_commit_id.fetch(job_id, Float::INFINITY), job_id ] }
+      ready = parents.select { |_job_id, parent_ids| parent_ids.empty? }.keys.sort_by(&sort_key)
+      ordered = []
+      until ready.empty?
+        job_id = ready.shift
+        ordered << by_id.fetch(job_id)
+        children[job_id].each do |child_id|
+          parents.fetch(child_id).delete(job_id)
+          ready << child_id if parents.fetch(child_id).empty?
+        end
+        ready.sort_by!(&sort_key)
+      end
+      raise Ineligible, "Epic child dependency graph contains a cycle" unless ordered.size == jobs.size
+
+      ordered
     end
 
     def changed_files(git, clone, shas)
@@ -196,12 +214,15 @@ module Unlanding
 
     def dependent_slugs
       jobs = original.is_a?(Epic) ? original.work_jobs : [ original ]
-      job_dependents = Job.where(id: JobDependency.where(depends_on_job_id: jobs.map(&:id)).select(:job_id)).pluck(:slug)
+      job_ids = jobs.map(&:id)
+      dependency_scope = JobDependency.where(depends_on_job_id: job_ids)
+      dependency_scope = dependency_scope.where.not(job_id: job_ids) if original.is_a?(Epic)
+      job_dependents = Job.where(id: dependency_scope.pluck(:job_id)).map(&:slug)
       epic_dependents = if original.is_a?(Epic)
-        original.dependent_epics.pluck(:slug) +
-          Job.where(id: JobDependency.where(depends_on_epic_id: original.id).select(:job_id)).pluck(:slug)
+        original.dependent_epics.map(&:slug) +
+          Job.where(id: JobDependency.where(depends_on_epic_id: original.id).pluck(:job_id)).map(&:slug)
       else
-        Epic.where(id: EpicDependency.where(depends_on_job_id: original.id).select(:epic_id)).pluck(:slug)
+        Epic.where(id: EpicDependency.where(depends_on_job_id: original.id).select(:epic_id)).map(&:slug)
       end
       (job_dependents + epic_dependents).compact.uniq.sort
     end
@@ -213,17 +234,18 @@ module Unlanding
     end
 
     def deployment_stage_reach
-      jobs = original.is_a?(Epic) ? original.work_jobs : [ original ]
-      jobs.each_with_object({}) do |job, result|
-        stages = job.deployment_stage_statuses.order(:reached_at).pluck(:stage_name)
-        result[job.slug] = stages if stages.any?
+      jobs = original.is_a?(Epic) ? original.work_jobs.to_a : [ original ]
+      slugs = jobs.to_h { |job| [ job.id, job.slug ] }
+      JobDeploymentStageStatus.where(job_id: slugs.keys).order(:reached_at).pluck(:job_id, :stage_name)
+                              .each_with_object({}) do |(job_id, stage_name), result|
+        (result[slugs.fetch(job_id)] ||= []) << stage_name
       end
     end
 
-    def plan_warnings
+    def plan_warnings(dependents = dependent_slugs, stages = deployment_stage_reach)
       warnings = []
-      warnings << "Downstream dependent work exists" if dependent_slugs.any?
-      warnings << "Landed work reached deployment stages" if deployment_stage_reach.any?
+      warnings << "Downstream dependent work exists" if dependents.any?
+      warnings << "Landed work reached deployment stages" if stages.any?
       warnings
     end
 

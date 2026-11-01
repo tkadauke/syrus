@@ -224,7 +224,26 @@ export type EpicDetailPayload = {
     app_unclaim_path: string
     app_reassign_path: string
     app_dependencies_path: string
+    app_unland_path: string
   }
+}
+
+export type EpicUnlandPlan = {
+  subject: string
+  affected: string[]
+  base_sha: string
+  commits: string[]
+  files: string[]
+  dependents: string[]
+  deployment_stages: Record<string, string[]>
+  warnings: string[]
+}
+
+export type EpicUnlandResult = {
+  message: string
+  rollback_job_id: number
+  rollback_job_slug: string
+  rollback_job_path: string
 }
 
 export function fetchNewEpicForm() {
@@ -279,6 +298,14 @@ export function claimEpic(path: string) {
 
 export function unclaimEpic(path: string) {
   return patchJson<EpicDetailPayload>(path)
+}
+
+export function fetchEpicUnlandPlan(path: string) {
+  return getJson<EpicUnlandPlan>(path)
+}
+
+export function startEpicUnland(path: string) {
+  return postJson<EpicUnlandResult>(path, {})
 }
 
 export function addEpicDependency(path: string, dependsOnEpicId: number) {

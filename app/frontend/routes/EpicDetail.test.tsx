@@ -74,7 +74,8 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       app_claim_path: "/api/v1/app/epics/3/claim",
       app_unclaim_path: "/api/v1/app/epics/3/unclaim",
       app_reassign_path: "/api/v1/app/epics/3/reassign",
-      app_dependencies_path: "/api/v1/app/epics/3/dependencies"
+      app_dependencies_path: "/api/v1/app/epics/3/dependencies",
+      app_unland_path: "/api/v1/app/epics/3/unland"
     }
   }
 }
@@ -341,6 +342,34 @@ describe("EpicDetail state transition confirm", () => {
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+})
+
+describe("EpicDetail unland preflight", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows the complete preflight plan before starting mutable rollback work", async () => {
+    const payload = detailPayload({ state: "done", startable: false })
+    const plan = {
+      subject: "EPIC-3",
+      affected: [ "EPIC-3", "JOB-4" ],
+      base_sha: "base",
+      commits: [ "abc123" ],
+      files: [ "app/example.rb" ],
+      dependents: [ "JOB-9" ],
+      deployment_stages: { "JOB-4": [ "production" ] },
+      warnings: [ "Downstream dependent work exists" ]
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(plan))
+    renderDetail(payload)
+
+    fireEvent.click(screen.getByRole("button", { name: "Unland Epic" }))
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("EPIC-3, JOB-4")
+    expect(screen.getByRole("dialog")).toHaveTextContent("JOB-9")
+    expect(screen.getByRole("dialog")).toHaveTextContent("production")
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/epics/3/unland", expect.objectContaining({ credentials: "same-origin" }))
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 })
 
