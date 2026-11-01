@@ -15,7 +15,8 @@ module Coworkers
         allowed_chat_session_ids: coworker.readable_chat_session_ids,
         granted_capabilities: Coworkers::PrivilegedGrantGate.allowed_capabilities(coworker),
         capability_approval_policies: unattended_approval_policies(coworker),
-        capability_scopes: capability_scopes(coworker)
+        capability_scopes: capability_scopes(coworker),
+        agent_actor: coworker
       }
     end
 
