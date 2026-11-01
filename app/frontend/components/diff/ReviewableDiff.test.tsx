@@ -1789,6 +1789,43 @@ describe("ReviewableDiff", () => {
 
     expect(screen.getByText("Diff not available")).toBeInTheDocument()
   })
+
+  it("switches textual renderable files independently without changing the persisted default", () => {
+    const renderImageDiff = vi.fn((file) => <div data-testid={`preview-${file.path}`}>{file.path}</div>)
+    const renderableFiles = [
+      { path: "README.md", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },
+      { path: "logo.svg", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-<svg/>\n+<svg></svg>" }
+    ]
+    render(
+      <ReviewableDiff
+        files={renderableFiles}
+        mode="continuous"
+        renderImageDiff={renderImageDiff}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, renderable_files: "code" }}
+        showFileHeaders
+      />
+    )
+
+    expect(screen.queryByTestId("preview-README.md")).not.toBeInTheDocument()
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" })
+    fireEvent.click(previewButtons[0])
+    expect(screen.getByTestId("preview-README.md")).toBeInTheDocument()
+    expect(screen.queryByTestId("preview-logo.svg")).not.toBeInTheDocument()
+  })
+
+  it("uses the persisted preview default for SVG and Markdown", () => {
+    const file = { path: "README.md", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
+    render(
+      <ReviewableDiff
+        files={[file]}
+        mode="continuous"
+        renderImageDiff={() => <div data-testid="markdown-preview" />}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, renderable_files: "preview" }}
+        showFileHeaders
+      />
+    )
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument()
+  })
 })
 
 describe("large-file gating", () => {

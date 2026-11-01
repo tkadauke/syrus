@@ -119,6 +119,16 @@ a `removed` file has no "after" thumbnail. Thumbnails are fetched from
 `Content-Type` — the JSON `source`/`source_diff` endpoints can't carry binary
 content without corrupting it.
 
+SVG and Markdown (`.md`, `.markdown`, and `.mdown`) remain text-reviewable and
+default to Code mode. The persisted `renderable_files` review setting can make
+their initial mode Preview instead; each file header also has an independent
+Code/Preview override for the current review session. Raster images remain
+preview-only. Rendered comparisons show the available Before and After sides,
+stack them on narrow screens, and let either side expand inline and restore.
+Markdown is fetched independently at both refs and rendered through the shared
+sanitized Markdown component. SVG is always loaded through `source_image` as an
+image resource—repository-controlled SVG markup is never inserted into the DOM.
+
 Listing follows normal Job visibility. Mutations use the existing Job write
 policy: the job owner, a global admin, or a write-tier-or-higher repository
 member. The list endpoint defaults to the latest diff review version and also

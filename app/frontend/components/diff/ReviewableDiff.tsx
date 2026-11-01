@@ -15,6 +15,7 @@ import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { renderPluginReviewAnnotation } from "../../pluginReviewAnnotations"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { Markdown } from "../../lib/Markdown"
+import { renderedFileKind } from "./ImageDiffThumbnails"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
   DEFAULT_FILE_HEADER_HEIGHT_PX,
@@ -268,6 +269,7 @@ type FileCacheEntry = {
   contextState: FileContextState
   forceLoaded: boolean
   patch: string | null
+  renderMode: "code" | "preview" | null
   tokensByHunk: Map<number, ThemedToken[][]>
 }
 
@@ -280,7 +282,14 @@ type ChangedFileTreeNode = {
 }
 
 function createFileCacheEntry(patch: string | null): FileCacheEntry {
-  return { collapsed: false, contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, patch, tokensByHunk: new Map() }
+  return {
+    collapsed: false,
+    contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" },
+    forceLoaded: false,
+    patch,
+    renderMode: null,
+    tokensByHunk: new Map()
+  }
 }
 
 // Mutates the shared cache entry in place and forces a re-render, rather
@@ -1189,6 +1198,9 @@ function DiffFileSection({
   const hunks = useMemo(() => hunksFromLines(lines), [lines])
   const rowCount = lines.length
   const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path, effectiveFile.patch)
+  const renderKind = renderedFileKind(file)
+  const supportsCode = renderKind === "markdown" || renderKind === "svg"
+  const renderMode = file.is_image && !supportsCode ? "preview" : (cacheEntry.renderMode ?? reviewSettings.renderable_files)
   const forceLoaded = cacheEntry.forceLoaded
   const collapsed = cacheEntry.collapsed
   const contextState = cacheEntry.contextState
@@ -1197,6 +1209,9 @@ function DiffFileSection({
   }
   function setCollapsed(value: boolean) {
     updateCacheEntry({ collapsed: value })
+  }
+  function setRenderMode(value: "code" | "preview") {
+    updateCacheEntry({ renderMode: value })
   }
   function setContextState(updater: (prev: FileContextState) => FileContextState) {
     updateCacheEntry({ contextState: updater(cacheEntry.contextState) })
@@ -1397,12 +1412,16 @@ function DiffFileSection({
           onLoadWholeFile={contextExpansionEnabled ? loadWholeFile : undefined}
           onToggleCollapsed={() => setCollapsed(true)}
           onToggleFilesPopup={onToggleFilesPopup}
+          onRenderModeChange={supportsCode ? setRenderMode : undefined}
+          renderMode={renderKind ? renderMode : undefined}
           reviewSettings={reviewSettings}
           selected={selected}
           showFilesPopupTrigger={showFilesPopupTrigger}
         />
       ) : null}
-      {effectiveFile.patch !== null ? (
+      {renderKind && renderMode === "preview" && renderImageDiff ? (
+        renderImageDiff(file)
+      ) : effectiveFile.patch !== null ? (
         <UnifiedDiffTable
           annotations={annotations}
           comments={comments}
@@ -1437,7 +1456,7 @@ function DiffFileSection({
           highlightedReviewAnnotationId={highlightedReviewAnnotationId}
           tokenCache={cacheEntry.tokensByHunk}
         />
-      ) : file.is_image && renderImageDiff ? (
+      ) : renderKind && renderImageDiff ? (
         renderImageDiff(file)
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
         <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
@@ -2892,6 +2911,8 @@ function DiffFileHeader({
   onLoadWholeFile,
   onToggleCollapsed,
   onToggleFilesPopup,
+  onRenderModeChange,
+  renderMode,
   reviewSettings,
   selected,
   showFilesPopupTrigger
@@ -2902,6 +2923,8 @@ function DiffFileHeader({
   onLoadWholeFile?: () => void
   onToggleCollapsed?: () => void
   onToggleFilesPopup?: (event: MouseEvent<HTMLButtonElement>) => void
+  onRenderModeChange?: (mode: "code" | "preview") => void
+  renderMode?: "code" | "preview"
   reviewSettings: ReviewDiffSettings
   selected: boolean
   showFilesPopupTrigger?: boolean
@@ -2945,6 +2968,20 @@ function DiffFileHeader({
       <GeneratedFileBadge file={file} />
       {typeof file.additions === "number" ? <span>+{file.additions}</span> : null}
       {typeof file.deletions === "number" ? <span>-{file.deletions}</span> : null}
+      {onRenderModeChange && renderMode ? (
+        <span className="inline-flex overflow-hidden rounded border border-gray-200 font-sans text-2xs dark:border-gray-700">
+          {(["code", "preview"] as const).map((mode) => (
+            <button
+              className={`px-2 py-1 ${renderMode === mode ? "bg-brand text-white" : "bg-surface text-text-secondary"}`}
+              key={mode}
+              onClick={() => onRenderModeChange(mode)}
+              type="button"
+            >
+              {t(`diff_review.${mode}`)}
+            </button>
+          ))}
+        </span>
+      ) : null}
       {onLoadWholeFile ? (
         <button
           className={`${DIFF_FILE_HEADER_CONTROL_BASE_CLASS} ${densityClasses.fileHeaderControl}`}

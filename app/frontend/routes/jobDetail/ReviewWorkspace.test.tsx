@@ -1052,10 +1052,14 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Implementation review")
-    const beforeThumb = screen.getByRole("button", { name: "Open Before" })
-    const afterThumb = screen.getByRole("button", { name: "Open After" })
-    expect(beforeThumb.querySelector("img")).toHaveAttribute("src", "/api/v1/app/jobs/42/source_image?ref=base-sha&path=app%2Fassets%2Fimages%2Flogo.png")
-    expect(afterThumb.querySelector("img")).toHaveAttribute("src", "/api/v1/app/jobs/42/source_image?ref=head-sha&path=app%2Fassets%2Fimages%2Flogo.png")
+    expect(screen.getByRole("img", { name: "Before: app/assets/images/logo.png" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/jobs/42/source_image?ref=base-sha&path=app%2Fassets%2Fimages%2Flogo.png"
+    )
+    expect(screen.getByRole("img", { name: "After: app/assets/images/logo.png" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/jobs/42/source_image?ref=head-sha&path=app%2Fassets%2Fimages%2Flogo.png"
+    )
   })
 
   it("starts review artifacts collapsed and expands them on demand", async () => {

@@ -102,24 +102,90 @@ export function ReviewDiffSettingsModal({
     <Modal className={REVIEW_SETTINGS_MODAL_CLASS} label={t("review_settings_title")} onClose={onClose} open>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-text-primary">{t("review_settings_title")}</h2>
-        <Button onClick={onClose} size="sm" variant="secondary">{t("review_settings_close")}</Button>
+        <Button onClick={onClose} size="sm" variant="secondary">
+          {t("review_settings_close")}
+        </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <SettingsSelect label={t("review_settings_line_wrapping")} onChange={(value) => updateSetting("line_wrapping", value as ReviewDiffSettings["line_wrapping"])} options={[["wrap", t("review_settings_wrap")], ["scroll", t("review_settings_scroll")]]} value={settings.line_wrapping} />
-        <SettingsSelect label={t("review_settings_desktop_view")} onChange={(value) => updateSetting("desktop_view", value as ReviewDiffSettings["desktop_view"])} options={[["unified", t("review_settings_unified")], ["split", t("review_settings_split")]]} value={settings.desktop_view} />
-        <SettingsSelect label={t("review_settings_intraline")} onChange={(value) => updateSetting("intraline_highlighting", value as ReviewDiffSettings["intraline_highlighting"])} options={[["word", t("review_settings_word")], ["off", t("review_settings_off")]]} value={settings.intraline_highlighting} />
-        <SettingsSelect label={t("review_settings_whitespace")} onChange={(value) => updateSetting("whitespace", value as ReviewDiffSettings["whitespace"])} options={[["show", t("review_settings_show")], ["trim_trailing", t("review_settings_trim_trailing")]]} value={settings.whitespace} />
-        <SettingsSelect label={t("review_settings_file_list_layout")} onChange={(value) => updateSetting("file_list_layout", value as ReviewDiffSettings["file_list_layout"])} options={[["flat", t("review_settings_flat")], ["nested", t("review_settings_nested")]]} value={settings.file_list_layout} />
-        <SettingsSelect label={t("review_settings_file_sort")} onChange={(value) => updateSetting("file_sort", value as ReviewDiffSettings["file_sort"])} options={[["original", t("review_settings_original_order")], ["alphabetical", t("review_settings_alphabetical")], ["change_size", t("review_settings_change_size")]]} value={settings.file_sort} />
-        <SettingsSelect label={t("review_settings_density")} onChange={(value) => updateSetting("density", value as ReviewDiffSettings["density"])} options={[["compact", t("review_settings_compact")], ["comfortable", t("review_settings_comfortable")], ["spacious", t("review_settings_spacious")]]} value={settings.density} />
+        <SettingsSelect
+          label={t("review_settings_line_wrapping")}
+          onChange={(value) => updateSetting("line_wrapping", value as ReviewDiffSettings["line_wrapping"])}
+          options={[
+            ["wrap", t("review_settings_wrap")],
+            ["scroll", t("review_settings_scroll")]
+          ]}
+          value={settings.line_wrapping}
+        />
+        <SettingsSelect
+          label={t("review_settings_desktop_view")}
+          onChange={(value) => updateSetting("desktop_view", value as ReviewDiffSettings["desktop_view"])}
+          options={[
+            ["unified", t("review_settings_unified")],
+            ["split", t("review_settings_split")]
+          ]}
+          value={settings.desktop_view}
+        />
+        <SettingsSelect
+          label={t("review_settings_intraline")}
+          onChange={(value) => updateSetting("intraline_highlighting", value as ReviewDiffSettings["intraline_highlighting"])}
+          options={[
+            ["word", t("review_settings_word")],
+            ["off", t("review_settings_off")]
+          ]}
+          value={settings.intraline_highlighting}
+        />
+        <SettingsSelect
+          label={t("review_settings_whitespace")}
+          onChange={(value) => updateSetting("whitespace", value as ReviewDiffSettings["whitespace"])}
+          options={[
+            ["show", t("review_settings_show")],
+            ["trim_trailing", t("review_settings_trim_trailing")]
+          ]}
+          value={settings.whitespace}
+        />
+        <SettingsSelect
+          label={t("review_settings_file_list_layout")}
+          onChange={(value) => updateSetting("file_list_layout", value as ReviewDiffSettings["file_list_layout"])}
+          options={[
+            ["flat", t("review_settings_flat")],
+            ["nested", t("review_settings_nested")]
+          ]}
+          value={settings.file_list_layout}
+        />
+        <SettingsSelect
+          label={t("review_settings_file_sort")}
+          onChange={(value) => updateSetting("file_sort", value as ReviewDiffSettings["file_sort"])}
+          options={[
+            ["original", t("review_settings_original_order")],
+            ["alphabetical", t("review_settings_alphabetical")],
+            ["change_size", t("review_settings_change_size")]
+          ]}
+          value={settings.file_sort}
+        />
+        <SettingsSelect
+          label={t("review_settings_density")}
+          onChange={(value) => updateSetting("density", value as ReviewDiffSettings["density"])}
+          options={[
+            ["compact", t("review_settings_compact")],
+            ["comfortable", t("review_settings_comfortable")],
+            ["spacious", t("review_settings_spacious")]
+          ]}
+          value={settings.density}
+        />
+        <SettingsSelect
+          label={t("review_settings_renderable_files")}
+          onChange={(value) => updateSetting("renderable_files", value as ReviewDiffSettings["renderable_files"])}
+          options={[
+            ["code", t("review_settings_code")],
+            ["preview", t("review_settings_preview")]
+          ]}
+          value={settings.renderable_files}
+        />
         {activeMetricGutterValue ? (
           <SettingsSelect
             label={t("review_metric_gutter_label")}
             onChange={(value) => updateSetting("metric_gutter", value)}
-            options={[
-              ["off", t("review_metric_gutter_off")],
-              ...metricGutterOptions.map((option) => [option.id, option.label] as [string, string])
-            ]}
+            options={[["off", t("review_metric_gutter_off")], ...metricGutterOptions.map((option) => [option.id, option.label] as [string, string])]}
             value={activeMetricGutterValue}
           />
         ) : null}
@@ -147,9 +213,21 @@ export function ReviewDiffSettingsModal({
             value={numericDrafts.context_lines}
           />
         </label>
-        <SettingsCheckbox checked={settings.syntax_highlighting} label={t("review_settings_syntax")} onChange={(checked) => updateSetting("syntax_highlighting", checked)} />
-        <SettingsCheckbox checked={settings.visible_whitespace} label={t("review_settings_visible_whitespace")} onChange={(checked) => updateSetting("visible_whitespace", checked)} />
-        <SettingsCheckbox checked={settings.line_numbers} label={t("review_settings_line_numbers")} onChange={(checked) => updateSetting("line_numbers", checked)} />
+        <SettingsCheckbox
+          checked={settings.syntax_highlighting}
+          label={t("review_settings_syntax")}
+          onChange={(checked) => updateSetting("syntax_highlighting", checked)}
+        />
+        <SettingsCheckbox
+          checked={settings.visible_whitespace}
+          label={t("review_settings_visible_whitespace")}
+          onChange={(checked) => updateSetting("visible_whitespace", checked)}
+        />
+        <SettingsCheckbox
+          checked={settings.line_numbers}
+          label={t("review_settings_line_numbers")}
+          onChange={(checked) => updateSetting("line_numbers", checked)}
+        />
         <SettingsCheckbox checked={settings.file_list} label={t("review_settings_file_list")} onChange={(checked) => updateSetting("file_list", checked)} />
       </div>
       {mutation.isError ? <p className="mt-3 text-sm text-danger-text">{t("review_settings_save_error")}</p> : null}
@@ -164,12 +242,26 @@ function metricGutterSettingValue(configuredValue: string, options: ReviewDiffSe
   return options[0]!.id
 }
 
-function SettingsSelect({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: Array<[string, string]>; value: string }) {
+function SettingsSelect({
+  label,
+  onChange,
+  options,
+  value
+}: {
+  label: string
+  onChange: (value: string) => void
+  options: Array<[string, string]>
+  value: string
+}) {
   return (
     <label className="space-y-1 text-sm text-text-secondary">
       <span>{label}</span>
       <Select className="w-full" onChange={(event) => onChange(event.target.value)} value={value}>
-        {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
       </Select>
     </label>
   )
