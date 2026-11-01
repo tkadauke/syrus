@@ -16,7 +16,7 @@ module Steps
           # --no-commit also makes a retry before the final commit harmless,
           # because workspace setup discards an interrupted clean worktree.
           git.run("revert", "--no-commit", *shas, chdir: workspace.path.to_s)
-          commit_agent_changes("Rollback #{job.rollback_of.slug}")
+          commit_agent_changes("Rollback #{job.rollback_subject.slug}")
         rescue GitRunner::GitError => e
           raise StepFailed, "rollback reversal failed without a resolvable conflict: #{e.message}" unless revert_in_progress?
 
