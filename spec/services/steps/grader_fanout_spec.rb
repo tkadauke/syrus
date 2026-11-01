@@ -930,6 +930,23 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader.details).to include("name" => "ruby-smoke", "phase" => "unland")
   end
 
+  it "fails an unland validation when no grader is configured for the phase" do
+    run
+    workflow.update_column(:trigger_kind, "unland")
+    write_config(<<~YAML)
+      grade:
+        - name: review-smoke
+          run: bin/review-smoke
+          phases: [review]
+    YAML
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      /unland validation selected no required grader/
+    )
+    expect(step.reload.details["grader_fanout_outcome"]).to eq("unland_required_grader_unavailable")
+  end
+
   it "fails an unland validation when changed-file filtering selects no required grader" do
     run
     workflow.update_column(:trigger_kind, "unland")
