@@ -24,7 +24,7 @@ module TestEvidenceLookup
       next [] unless provider.respond_to?(:failed_test_cases)
 
       Array(provider.failed_test_cases(run: run, grader_name: grader_name))
-    end.map { |test_case| test_case.to_h.stringify_keys }.uniq { |test_case| [ test_case["suite_name"], test_case["name"] ] }
+    end.map { |test_case| test_case.to_h.stringify_keys }.uniq { |test_case| TestCaseIdentity.for(test_case) }
   end
 
   def self.test_evidence_providers
@@ -51,7 +51,7 @@ module TestEvidenceLookup
 
     failures = summaries.flat_map { |summary| Array(summary["failures"] || summary[:failures]) }
       .map { |test_case| test_case.to_h.stringify_keys }
-      .uniq { |test_case| [ test_case["suite_name"], test_case["name"] ] }
+      .uniq { |test_case| TestCaseIdentity.for(test_case) }
       .first(limit)
     failed_count = summaries.sum { |summary| (summary["failed_count"] || summary[:failed_count]).to_i }
     return nil if failed_count.zero?

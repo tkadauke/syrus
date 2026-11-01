@@ -383,6 +383,12 @@ module Steps
         return true
       end
 
+      # A completed base comparison is evidence about this exact failure and
+      # outranks historical reputation. Falling through here used to let a
+      # flaky label dismiss a failure the base retry had just identified as
+      # introduced by the candidate revision.
+      return false if retry_result.ran && retry_result.introduced_failed_identities.any?
+
       accept_known_flaky_failure?(failed_cases)
     rescue StandardError => e
       log("[grader:#{name}] base-revision retry could not classify the failure: #{e.class}: #{e.message}")
@@ -429,7 +435,10 @@ module Steps
       accept_failure!(
         adjudicator: verdict.adjudicator,
         reason: verdict.reason,
-        evidence: verdict.evidence.to_h.merge("failed_tests" => failed_cases)
+        evidence: verdict.evidence.to_h.merge(
+          "failed_tests" => failed_cases,
+          "base_comparison" => step.details.to_h["base_retry_result"]
+        )
       )
       true
     end

@@ -145,6 +145,23 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     expect(verdict.reason).to eq("recent_failures_too_frequent")
   end
 
+  it "distinguishes consecutive baseline failures from an intermittent flake" do
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "currently broken" } ],
+      scores: {
+        [ "spec/foo_spec.rb", "currently broken" ] => {
+          score: 0.2, failed_count: 2, total_count: 10, flaky: true,
+          run_statuses: %w[passed passed passed passed passed passed passed passed failed failed]
+        }
+      }
+    ))
+
+    verdict = adjudicate
+
+    expect(verdict).to be_inconclusive
+    expect(verdict.reason).to eq("persistent_recent_failure")
+  end
+
   it "asks the score provider to exclude the workflow being adjudicated" do
     provider = Module.new do
       class << self
