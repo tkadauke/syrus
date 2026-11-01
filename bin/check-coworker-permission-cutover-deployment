@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+ENV["RAILS_ENV"] ||= "production"
+require_relative "../config/environment"
+
+begin
+  artifact = ENV["SYRUS_COWORKER_CUTOVER_ARTIFACT"]
+  abort "SYRUS_COWORKER_CUTOVER_ARTIFACT must name the reviewed deployment evidence JSON" if artifact.blank?
+
+  Permissions::CapabilityRegistryValidator.for_application.validate!
+  Permissions::CoworkerCutoverDeploymentGuard.new(
+    path: artifact,
+    target_sha: ENV.fetch("SYRUS_COWORKER_CUTOVER_TARGET_SHA"),
+    previous_sha: ENV.fetch("SYRUS_COWORKER_CUTOVER_PREVIOUS_SHA")
+  ).verify!
+
+  puts "Coworker permission cutover deployment evidence verified"
+rescue Permissions::CapabilityRegistryValidator::ValidationError,
+  Permissions::CoworkerCutoverDeploymentGuard::VerificationError => error
+  abort "Coworker permission cutover blocked: #{error.message}"
+end

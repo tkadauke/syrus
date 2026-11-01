@@ -98,6 +98,27 @@ else
 fi
 echo "→ deploying ${SHA} (branch ${BRANCH})"
 
+# Coworker unified-permission enforcement has no runtime fallback. The first
+# production rollout containing the authority reset therefore requires a
+# reviewed, commit-bound evidence artifact proving the catalog, schema, parity,
+# cutover report, evaluator/dispatch suites, and image rollback were verified.
+COWORKER_PERMISSION_CUTOVER=false
+if [ "$DEPLOY_PRODUCTION" = true ]; then
+  if [ -z "$IMAGE_BASE_SHA" ]; then
+    git cat-file -e "${SHA}:db/migrate/20261101193036_reset_coworker_legacy_authority.rb" 2>/dev/null && COWORKER_PERMISSION_CUTOVER=true
+  elif ! git diff --quiet "${IMAGE_BASE_SHA}..${SHA}" -- \
+    db/migrate/20261101193036_reset_coworker_legacy_authority.rb \
+    app/services/permissions/coworker_authorization_decision.rb; then
+    COWORKER_PERMISSION_CUTOVER=true
+  fi
+fi
+if [ "$COWORKER_PERMISSION_CUTOVER" = true ]; then
+  echo "→ verifying coworker permission cutover deployment evidence"
+  SYRUS_COWORKER_CUTOVER_TARGET_SHA="$SHA" \
+    SYRUS_COWORKER_CUTOVER_PREVIOUS_SHA="$IMAGE_BASE_SHA" \
+    bin/check-coworker-permission-cutover-deployment
+fi
+
 # --- preflight: eager-load probe -------------------------------------
 # Catches Zeitwerk superclass-mismatch crashes that lazy autoload in
 # dev/test hides. Shared with the agent's grade step (.syrus.yml

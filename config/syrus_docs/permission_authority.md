@@ -57,3 +57,15 @@ invalidates queued work, and retries cannot replay an already claimed call.
 Only tools explicitly classified as safe, ungated local operations bypass this
 flow. Other runtime roles continue to use shadow comparison rather than this
 enforcement cutover.
+
+The first production deployment containing coworker unified-permission
+enforcement is fail-closed. `bin/deploy` requires
+`SYRUS_COWORKER_CUTOVER_ARTIFACT` to point at reviewed JSON evidence bound to
+the target and previous image SHAs. The evidence must record the commands that
+verified complete descriptors and backward-compatible schema changes, at least
+100 parity samples with no more than a one-percent mismatch rate and no
+evaluation failures, an explicitly acknowledged ready cutover report, passing evaluator and dispatch
+suites, and a successful rollback drill of the previous image. Evidence is
+covered by a SHA-256 integrity checksum and expires after seven days; the deployment also validates
+the live capability registry before accepting it. There is no permission-mode
+override or runtime bypass when this gate fails.
