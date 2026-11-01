@@ -1012,13 +1012,25 @@ for each plugin-owned resource schema, and calls `register_capability(...)` for
 each operation. The capability declaration accepts the full descriptor
 contract: versioned family and operation identifiers, effects, risk,
 requestable-role recommendations and defaults, autonomy and authority-duration
-ceilings, classifier, fingerprint normalizer, redactor, aliases, and presets.
+ceilings, classifier, fingerprint normalizer, redactor, and aliases.
 It may reference a local resource schema by type. `capability_descriptor(key)`
 returns the immutable descriptor for reuse in MCP tool definitions, avoiding a
 second copy of authorization policy. Duplicate operation keys within a provider
 and duplicate resource-type ownership across enabled providers fail closed.
 Disabled providers contribute neither capabilities nor scopes to
 `Permissions::Catalog`; enabling a plugin registers metadata, never authority.
+
+`CapabilityDescriptor#role_recommendations` exposes the provider's role-specific
+defaults as recommendations. Providers may also call
+`register_permission_preset(name:, label:, description:, rules:)`. Each rule
+declares a capability, operation, eligible role, `allow`/`ask`/`deny` policy,
+resource scope, and constraints; `rules` may instead be a callable when a
+resource-specific draft depends on the operator's selection. Rendering adds the
+selected subject and returns complete immutable rule drafts. The confirmation
+for `apply_permission_preset` displays every draft before one transaction
+creates the rules. Registration, plugin installation or enablement, resource
+configuration, and migrations only expose this metadata and never apply a
+recommendation or preset automatically.
 
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
