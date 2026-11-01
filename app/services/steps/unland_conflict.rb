@@ -5,7 +5,7 @@ module Steps
       run.update!(prompt: Prompts::UnlandConflict.new(job: job, workflow: workflow).to_s) if run.prompt.blank?
       perform_agentic_change_step(
         log_message: "invoking agent to resolve rollback conflicts (#{workflow.slug})",
-        commit_message: "Resolve rollback conflicts for #{job.rollback_of.slug}"
+        commit_message: "Resolve rollback conflicts for #{job.rollback_subject.slug}"
       )
       raise StepFailed, "rollback conflict resolution left a revert in progress" if revert_in_progress?
     end

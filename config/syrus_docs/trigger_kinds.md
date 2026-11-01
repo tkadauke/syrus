@@ -12,14 +12,19 @@ The primary workflow: explores the repo, writes code, runs graders, and opens a 
 
 ## unland
 
-**When it fires:** An operator requests a compensating rollback for a
-successfully landed Job.
+**When it fires:** An operator confirms a compensating rollback for a
+successfully landed Job or Epic.
 
 **Step chain:** `unland_revert → unland_conflict? → prepare → grader_fanout → grader_collect → summarize → pr_open`
 
-Syrus creates a linked rollback Job while leaving the original Job's closed
-state, closure reason, landed SHA, and dependency graph intact. It verifies the
-original's recorded `LandedCommit` rows against current default-branch ancestry,
+Syrus first produces an operator-readable preflight plan listing the affected
+Job/Epic records, exact ordered commits, changed files, downstream dependents,
+deployment-stage reach, and warnings. For an Epic, merge-train membership or
+the child dependency order bounds the commit set; shared ownership, partial
+landing, and previously reverted children block creation. Once confirmed,
+Syrus creates one linked rollback Job and one revert PR while leaving every
+original Job's closed state, closure reason, landed SHA, and dependency graph
+intact. It verifies the recorded `LandedCommit` rows against current default-branch ancestry,
 reverts them in reverse order from the current default tip, and invokes the
 implementing agent only for conflicts. The proposed tree uses only graders
 explicitly configured with `phases: [unland]`; after changed-file filtering it

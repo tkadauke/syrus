@@ -264,6 +264,14 @@ explicit `unland` phase and refuse to pass when changed-file filtering leaves
 no required grader selected. The resulting PR follows ordinary review and
 landing.
 
+Landed Epics roll back as one coordinated unit, not one PR per child. Before
+starting mutable work, Syrus derives the ordered commit set from child landing
+provenance and merge-train membership and presents affected records, commits,
+files, dependents, deployment reach, and warnings. Partial or mixed landing,
+shared commit ownership, and previously reverted children fail preflight. The
+single rollback relationship preserves each child's original successful
+closure facts while making the Epic's reversal visible.
+
 ## Step Kinds
 
 | Step | Agentic | Purpose |
