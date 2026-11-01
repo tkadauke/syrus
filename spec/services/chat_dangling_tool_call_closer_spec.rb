@@ -122,6 +122,13 @@ RSpec.describe ChatDanglingToolCallCloser do
       )
     end
 
+    it "marks an authorization suspension as benign bookkeeping" do
+      expect(close_with("authorization_required")).to include(
+        "benign_cleanup" => true,
+        "cleanup_reason" => "authorization_required"
+      )
+    end
+
     # The reader has to see this one, so it must never be suppressed.
     it "does not mark a failed turn benign" do
       expect(close_with("turn_failed")).to include(
