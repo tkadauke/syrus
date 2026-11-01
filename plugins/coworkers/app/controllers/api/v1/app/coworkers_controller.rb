@@ -331,6 +331,7 @@ module Api
               { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints }
                 .merge(grant.scope.nil? ? {} : { scope: grant.scope })
             },
+            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json,
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
             message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)

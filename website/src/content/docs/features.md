@@ -1746,7 +1746,12 @@ own voice, summarizes its understanding of the role, and asks a few concrete
 questions about anything unclear or missing—or asks what to work on first when
 nothing needs clarification. The identity files and first conversation include
 the coworker's configured name and its owner's display name. Each coworker's
-Memory tab is a read-only, searchable browser for the daily, people, repository,
+Capabilities tab also shows a read-only unified-permission cutover report. It
+compares legacy grants with recommended defaults, calls out removed authority
+and requestable replacements, and blocks migration when capability descriptors
+or registry validation are incomplete. Viewing the report never converts a
+legacy grant into active authority.
+The Memory tab is a read-only, searchable browser for the daily, people, repository,
 and bank Markdown files on its home branch. It shows recent daily files first, links to
 the owner's existing Syrus memories, and reports empty and unreachable remotes
 separately. Large or provider-truncated trees remain browseable with an explicit

@@ -167,6 +167,19 @@
     "integrations": { "gmail": "Gmail", "calendar": "Calendar" },
     "coming_later": "Coming later"
   },
+  "cutover": {
+    "title": "Permission cutover report",
+    "description": "Dry-run comparison only. Legacy grants are audit evidence and do not become unified permission rules.",
+    "ready": "Ready",
+    "blocked": "Blocked",
+    "legacy_grants": "Legacy grants (before)",
+    "recommended_defaults": "Recommended defaults (after)",
+    "lost_authority": "Authority removed",
+    "requestable_replacements": "Requestable replacements",
+    "descriptor_gaps": "Descriptor gaps",
+    "migration_errors": "Blocking migration errors",
+    "none": "None"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",

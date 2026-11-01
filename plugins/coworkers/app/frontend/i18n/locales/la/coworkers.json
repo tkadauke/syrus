@@ -173,6 +173,19 @@
     "integrations": { "gmail": "Gmail", "calendar": "Calendarium" },
     "coming_later": "Postea adveniet"
   },
+  "cutover": {
+    "title": "Relatio transitionis permissionum",
+    "description": "Haec tantum probatio est. Concessiones veteres testimonia actorum sunt neque regulae permissionum fiunt.",
+    "ready": "Parata",
+    "blocked": "Impedita",
+    "legacy_grants": "Concessiones veteres (ante)",
+    "recommended_defaults": "Praedefinita commendata (post)",
+    "lost_authority": "Potestas remota",
+    "requestable_replacements": "Substitutiones petibiles",
+    "descriptor_gaps": "Lacunae descriptorum",
+    "migration_errors": "Errores migrationem impedientes",
+    "none": "Nulla"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",

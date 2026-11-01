@@ -5,6 +5,20 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "includes the permission cutover report in coworker details" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-report", workspace_repo: "https://github.com/acme/workspace.git")
+    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}"
+
+    expect(response).to have_http_status(:ok)
+    report = response.parsed_body.dig("coworker", "permission_cutover_report")
+    expect(report).to include("ready" => false)
+    expect(report.fetch("legacy_grants")).to contain_exactly(include("capability" => "syrus.read_jobs", "approval_policy" => "auto"))
+    expect(report.fetch("descriptor_gaps")).to contain_exactly(include("legacy_capability" => "syrus.read_jobs"))
+  end
+
   it "adds coworker sender and receiver appearances to chat messages without per-message queries" do
     sender = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-payload", workspace_repo: "https://github.com/acme/maya.git", avatar_key: "comet")
     receiver = Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin-payload", workspace_repo: "https://github.com/acme/rin.git", avatar_key: "prism")

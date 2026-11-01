@@ -23,6 +23,7 @@ export type CoworkerDetail = CoworkerSummary & {
   spend_usd: number
   chats: { id: number; role: "main" | "side"; title: string; path: string }[]
   grants: { capability: string; approval_policy: string; constraints: { confirm_paths?: string[] }; scope?: unknown }[]
+  permission_cutover_report: PermissionCutoverReport
   grant_catalog: {
     name: string
     label: string
@@ -42,6 +43,15 @@ export type CoworkerDetail = CoworkerSummary & {
     window_days: number
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
+}
+export type PermissionCutoverReport = {
+  ready: boolean
+  legacy_grants: { capability: string; approval_policy: string; effective_policy: "ask" | "allow"; scope: unknown; constraints: Record<string, unknown> }[]
+  recommended_defaults: { capability: string; operation: string; tools: string[]; roles: Record<string, "deny" | "ask" | "allow"> }[]
+  lost_authority: { legacy_capability: string; capability: string; operation: string; role: string; before: string; after: string }[]
+  requestable_replacements: { capability: string; operation: string; tools: string[]; roles: string[] }[]
+  descriptor_gaps: { legacy_capability: string; tools: string[]; reasons: string[] }[]
+  migration_errors: { code: string; message: string; tools: string[] }[]
 }
 export type CoworkerSchedule = {
   id: number
