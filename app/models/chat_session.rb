@@ -110,6 +110,7 @@ class ChatSession < ApplicationRecord
   # released BEFORE `dependent: :destroy` deletes the proposals they
   # reference, or the proposal delete raises InvalidForeignKey.
   before_destroy :release_unresolved_proposal_dependencies, prepend: true
+  before_destroy :destroy_legacy_pending_actions, prepend: true
   # Filesystem + FTS cleanup is deliberately NOT done here: it runs
   # post-commit on the worker via ChatSessionCleanupJob, so a rollback
   # can't leave irreversible side effects behind and the rm_rf happens
@@ -672,6 +673,10 @@ class ChatSession < ApplicationRecord
   end
 
   private
+
+  def destroy_legacy_pending_actions
+    pending_actions.where(request_kind: "legacy_action").destroy_all
+  end
 
   def broadcast_to_participants(recipients: nil, **event_args)
     (recipients || participants.to_a.presence || [ user ]).each do |p|

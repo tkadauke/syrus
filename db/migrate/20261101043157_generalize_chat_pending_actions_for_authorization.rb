@@ -1,24 +1,24 @@
 class GeneralizeChatPendingActionsForAuthorization < ActiveRecord::Migration[8.1]
   def up
     change_column_null :chat_pending_actions, :chat_session_id, true
-    add_reference :chat_pending_actions, :origin, polymorphic: true, null: true
-    add_reference :chat_pending_actions, :subject, polymorphic: true, null: true
-    add_column :chat_pending_actions, :request_kind, :string, null: false, default: "legacy_action"
-    add_column :chat_pending_actions, :runtime_role, :string
-    add_column :chat_pending_actions, :deduplication_key, :string
-    add_column :chat_pending_actions, :deduplication_active, :boolean
-    add_column :chat_pending_actions, :purpose, :text
-    add_column :chat_pending_actions, :non_actionable_reason, :text
-    add_column :chat_pending_actions, :non_actionable_at, :datetime
-    add_column :chat_pending_actions, :delivery_state, :string
-    add_column :chat_pending_actions, :delivery_attempts, :integer, null: false, default: 0
-    add_column :chat_pending_actions, :delivered_at, :datetime
-    add_column :chat_pending_actions, :last_delivery_error, :text
-    add_column :chat_pending_actions, :delivery_metadata, :json, null: false
+    add_reference :chat_pending_actions, :origin, polymorphic: true, null: true unless column_exists?(:chat_pending_actions, :origin_id)
+    add_reference :chat_pending_actions, :subject, polymorphic: true, null: true unless column_exists?(:chat_pending_actions, :subject_id)
+    add_column :chat_pending_actions, :request_kind, :string, null: false, default: "legacy_action" unless column_exists?(:chat_pending_actions, :request_kind)
+    add_column :chat_pending_actions, :runtime_role, :string unless column_exists?(:chat_pending_actions, :runtime_role)
+    add_column :chat_pending_actions, :deduplication_key, :string unless column_exists?(:chat_pending_actions, :deduplication_key)
+    add_column :chat_pending_actions, :deduplication_active, :boolean unless column_exists?(:chat_pending_actions, :deduplication_active)
+    add_column :chat_pending_actions, :purpose, :text unless column_exists?(:chat_pending_actions, :purpose)
+    add_column :chat_pending_actions, :non_actionable_reason, :text unless column_exists?(:chat_pending_actions, :non_actionable_reason)
+    add_column :chat_pending_actions, :non_actionable_at, :datetime unless column_exists?(:chat_pending_actions, :non_actionable_at)
+    add_column :chat_pending_actions, :delivery_state, :string unless column_exists?(:chat_pending_actions, :delivery_state)
+    add_column :chat_pending_actions, :delivery_attempts, :integer, null: false, default: 0 unless column_exists?(:chat_pending_actions, :delivery_attempts)
+    add_column :chat_pending_actions, :delivered_at, :datetime unless column_exists?(:chat_pending_actions, :delivered_at)
+    add_column :chat_pending_actions, :last_delivery_error, :text unless column_exists?(:chat_pending_actions, :last_delivery_error)
+    add_column :chat_pending_actions, :delivery_metadata, :json unless column_exists?(:chat_pending_actions, :delivery_metadata)
 
-    add_index :chat_pending_actions, [ :deduplication_key, :deduplication_active ], unique: true, name: "idx_pending_actions_active_deduplication"
-    add_index :chat_pending_actions, [ :state, :non_actionable_at ], name: "idx_pending_actions_actionability"
-    add_index :chat_pending_actions, [ :delivery_state, :created_at ], name: "idx_pending_actions_delivery"
+    add_index :chat_pending_actions, [ :deduplication_key, :deduplication_active ], unique: true, name: "idx_pending_actions_active_deduplication" unless index_exists?(:chat_pending_actions, name: "idx_pending_actions_active_deduplication")
+    add_index :chat_pending_actions, [ :state, :non_actionable_at ], name: "idx_pending_actions_actionability" unless index_exists?(:chat_pending_actions, name: "idx_pending_actions_actionability")
+    add_index :chat_pending_actions, [ :delivery_state, :created_at ], name: "idx_pending_actions_delivery" unless index_exists?(:chat_pending_actions, name: "idx_pending_actions_delivery")
 
     execute <<~SQL.squish
       UPDATE chat_pending_actions
@@ -26,6 +26,7 @@ class GeneralizeChatPendingActionsForAuthorization < ActiveRecord::Migration[8.1
       WHERE chat_session_id IS NOT NULL
     SQL
     execute "UPDATE chat_pending_actions SET delivery_metadata = '{}' WHERE delivery_metadata IS NULL"
+    change_column_null :chat_pending_actions, :delivery_metadata, false
   end
 
   def down
