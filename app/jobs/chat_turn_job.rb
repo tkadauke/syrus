@@ -137,7 +137,10 @@ class ChatTurnJob < ApplicationJob
     update_coding_checkout_uncommitted_state!
     touch_chat!
     stop_requested?(force: true)
-    if result&.success?
+    if @chat.reload.waiting_for_permission?
+      close_dangling_tool_calls!("authorization_required")
+      @turn_completed_successfully = true
+    elsif result&.success?
       close_dangling_tool_calls! unless @cancelled
       @turn_completed_successfully = !@cancelled
     else

@@ -19,6 +19,26 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result).not_to be_timed_out
   end
 
+  it "terminates an agent process when its chat reaches an authorization checkpoint" do
+    user = Factories.user
+    chat = ChatSession.create!(user: user)
+    request = ChatPendingAction.create!(
+      request_kind: "authorization_request", user: user, origin: chat, subject: user,
+      runtime_role: "interactive_chat", deduplication_key: "process-runner-authorization",
+      purpose: "Exercise checkpoint suspension"
+    )
+    request.checkpoint_authorization!(payload: { cursor: 1 })
+
+    result = described_class.new(
+      env: {}, command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir), network: "agent", timeout: 15,
+      kind: "agent", chat_session: chat, kill_grace_seconds: 0
+    ).run
+
+    expect(result).to be_stopped
+    expect(result.duration_s).to be < 5
+  end
+
   it "delegates the full execution request to the configured backend" do
     backend = Class.new(Execution::Backend) do
       attr_reader :request

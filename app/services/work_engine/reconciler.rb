@@ -784,6 +784,7 @@ module WorkEngine
       runs.select(&:running?).filter_map do |run|
         next if run.job&.closed?
         next if run.step&.terminal?
+        next if run.waiting_for_permission?
         next unless older_than?(run.started_at, ORPHAN_RUN_GRACE_PERIOD)
 
         sq = solid_queue_for_run(run)
