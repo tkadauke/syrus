@@ -460,6 +460,9 @@ function NoteMetadata({ note }: { note: CognitiveReviewNote }) {
 }
 
 function invalidateReviewQueries(queryClient: ReturnType<typeof useQueryClient>, jobId: number) {
-  void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "review_source_diff"] })
-  void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "diff_review_comments"] })
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "review_source_diff"] }),
+    queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "diff_review_comments"] }),
+    queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "diff_review_versions"] })
+  ])
 }
