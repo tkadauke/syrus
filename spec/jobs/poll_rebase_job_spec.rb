@@ -44,14 +44,18 @@ RSpec.describe PollRebaseJob, :ci_only do
       }.to have_enqueued_job(described_class).with(job.id, bypass_cache: false)
     end
 
-    it "creates a rebase Run when the PR is unmergeable and we own the head" do
+    it "materializes a patient rebase when the PR is unmergeable and we own the head" do
       stub_pr(pr_resource(mergeable: false))
 
       expect {
         described_class.perform_now(job.id)
-      }.to change { job.runs.where(trigger_kind: "rebase").count }.by(1)
+      }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
 
-      expect(job.workflows.where(trigger_kind: "rebase").last.work_unit).to be_present
+      workflow = job.workflows.where(trigger_kind: "rebase").last
+      expect(workflow.work_unit).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::PatientRebase::REASON
+      )
     end
 
     it "stores the live PR base on the rebase workflow" do
@@ -387,7 +391,12 @@ RSpec.describe PollRebaseJob, :ci_only do
 
       expect {
         described_class.perform_now(job.id)
-      }.to change { job.runs.where(trigger_kind: "rebase").count }.by(1)
+      }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+
+      expect(job.workflows.where(trigger_kind: "rebase").last.work_unit).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::PatientRebase::REASON
+      )
     end
 
     it "passes bypass_cache through when called with bypass_cache: true" do

@@ -136,7 +136,11 @@ RSpec.describe Steps::MergeabilityPreflight, :ci_only do
       "pre_sha" => "abc1234",
       "base_sha" => "def5678"
     )
-    expect(StepDispatcher).to have_received(:start_workflow).with(an_instance_of(Workflow))
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+    expect(job.workflows.where(trigger_kind: "rebase").last.work_unit).to have_attributes(
+      state: "blocked",
+      blocked_reason: WorkUnits::Gates::PatientRebase::REASON
+    )
   end
 
   it "continues to prepare when GitHub mergeability is unknown and local rebase is clean" do
@@ -189,7 +193,11 @@ RSpec.describe Steps::MergeabilityPreflight, :ci_only do
     expect(job.local_mergeable_state).to eq("conflict")
     expect(run.reload).to be_cancelled
     expect(workflow.reload).to be_cancelled
-    expect(StepDispatcher).to have_received(:start_workflow).with(an_instance_of(Workflow))
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+    expect(job.workflows.where(trigger_kind: "rebase").last.work_unit).to have_attributes(
+      state: "blocked",
+      blocked_reason: WorkUnits::Gates::PatientRebase::REASON
+    )
   end
 
   it "defers before prepare when GitHub mergeability is unknown and local rebase is inconclusive" do
