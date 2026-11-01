@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Coworker background runs" do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:coworker) do
@@ -97,7 +99,7 @@ RSpec.describe "Coworker background runs" do
   end
 
   it "gives the run only granted coworker tools, queues live confirmations, and omits interactive tools" do
-    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm", scope: { "repository_id" => repository.id })
+    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
     coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")
@@ -156,7 +158,9 @@ RSpec.describe "Coworker background runs" do
     SQL
     SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
     McpToolRegistry.entries(surface: :coworker).map(&:capability).compact.uniq.each do |capability|
-      coworker.grants.create!(capability: capability, approval_policy: "queue")
+      attributes = { capability: capability, approval_policy: "queue" }
+      attributes[:scope] = [ repository.id ] if capability.to_s == "code.read"
+      coworker.grants.create!(attributes)
     end
     workflow = Coworkers::Workflow.instantiate(job: job)
     run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"),
@@ -255,8 +259,14 @@ RSpec.describe "Coworker background runs" do
       "run_id" => run.id, "tool_name" => "propose_job", "approval_policy" => "queue", "approval_inbox" => true,
       "arguments" => include("title" => "Prepare the report")
     )
-    expect { action.confirm!(user: owner) }
-      .to change(main_chat.proposals, :count).by(1)
+    operation = action.authorization_items.find_by!(kind: "operation")
+    expect {
+      decision = Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+        .call(decision: "approved")
+      expect(decision.execution_enqueued).to be(true)
+      clear_enqueued_jobs
+      ChatPendingActionConfirmationJob.perform_now(action.id)
+    }.to change(main_chat.proposals, :count).by(1)
       .and change { main_chat.messages.where(role: "system").count }.by(1)
       .and have_enqueued_job(ChatTurnJob).with(main_chat.id, kind_of(Integer)).once
     expect(action.reload).to be_confirmed
@@ -397,12 +407,40 @@ RSpec.describe "Coworker background runs" do
     step = workflow.steps.find_by!(kind: "coworker_run")
     run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
     handler = Coworkers::RunStep.new(run)
-    allow(handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir)))
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir))
+    allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: "## Verdict\n\nAll clear."))
 
     handler.call
 
     expect(run.reload.agent_summary).to eq("## Verdict\n\nAll clear.")
+    # nil with containment off: a background run is confined on the same
+    # operator switch as any other chat turn, not by virtue of being a coworker.
+    expect(handler).to have_received(:run_agent).with(prompt: run.prompt, workload_policy: nil)
+    expect(lifecycle).to have_received(:finalize_background!).with(path: workspace.path, workflow: workflow)
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("merged")
+  end
+
+  it "fails before the successor step can clean uncommitted workspace output" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir))
+    handler = Coworkers::RunStep.new(run)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: "Memory updated."))
+    allow(lifecycle).to receive(:finalize_background!).and_return(:conflict)
+
+    expect { handler.call }.to raise_error(Coworkers::RunStep::PersistenceFailed, /remains recoverable/)
+    expect(run.reload.agent_summary).to include("Workspace persistence conflict")
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("failed")
+
+    run.update_columns(state: "failed", finished_at: Time.current)
+    step.update_columns(state: "failed")
+    expect { Coworkers::PostToChat.post_failure!(workflow) }.to change(main_chat.messages, :count).by(1)
+    expect(main_chat.messages.last.content.fetch("background_run")).to include(
+      "state" => "failed", "summary" => include("resolve the workspace conflict")
+    )
   end
 
   it "uses the final top-level assistant transcript when the stored summary is blank" do
