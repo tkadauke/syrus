@@ -1193,6 +1193,8 @@
   },
   "run_visual_review": {
     "job": "Job",
+    "instructions": "Anweisungen für die manuelle Prüfung",
+    "full_instructions": "Vollständige Anweisungen für die manuelle Prüfung",
     "missing_target": "Nicht angegeben",
     "media": "Review-Medien",
     "screenshot": "Screenshot",

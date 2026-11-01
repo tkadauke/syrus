@@ -143,8 +143,15 @@ module Steps
         test_plan_recommended: test_plan_artifact["visual_review_recommended"],
         test_plan_reason: test_plan_artifact["visual_review_reason"],
         seed_notes: visual_review_seed_notes,
+        manual_review_instructions: manual_review_instructions,
         preview_projects: visual_review_projects.to_a
       ).to_s
+    end
+
+    def manual_review_instructions
+      return unless workflow.trigger_kind == "manual_visual_review"
+
+      workflow.artifact("manual_visual_review_instructions")
     end
 
     def test_plan_artifact

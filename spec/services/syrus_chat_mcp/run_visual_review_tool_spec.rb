@@ -53,6 +53,36 @@ RSpec.describe Mcp::Tools::RunVisualReviewTool do
     expect(job.workflows.where(trigger_kind: "manual_visual_review")).to be_empty
   end
 
+  it "includes focused instructions in the confirmation and resulting workflow" do
+    stub_visual_review_plan(enabled: true)
+    job = Factories.job_record(repository: repository, state: "implemented")
+    instructions = "Scroll until the persistent diff file title is directly below the app header."
+
+    response = call_tool(job_id: job.id, prompt: instructions)
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+
+    expect(pending_action.payload).to eq("job_id" => job.id, "prompt" => instructions)
+
+    pending_action.confirm!(user: user)
+
+    expect(pending_action.reload.result.artifact("manual_visual_review_instructions")).to eq(instructions)
+    expect(job.reload.workflows.where(trigger_kind: "chat_feedback")).to be_empty
+    expect(pending_action.result.steps.where(kind: "implement")).to be_empty
+  end
+
+  it "rejects blank and oversized prompts" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+
+    blank_response = call_tool(job_id: job.id, prompt: "  ")
+    oversized_response = call_tool(job_id: job.id, prompt: "x" * 4_001)
+
+    expect(blank_response.dig(:result, :isError)).to be(true)
+    expect(blank_response.dig(:result, :content, 0, :text)).to include("prompt cannot be blank")
+    expect(oversized_response.dig(:result, :isError)).to be(true)
+    expect(oversized_response.dig(:result, :content, 0, :text)).to include("4000")
+    expect(chat_session.pending_actions).to be_empty
+  end
+
   it "queues a manual_visual_review workflow only after confirmation" do
     stub_visual_review_plan(enabled: true)
     job = Factories.job_record(repository: repository, state: "implemented")

@@ -100,6 +100,25 @@ RSpec.describe Steps::VisualReview do
     expect(run.reload.prompt).to include("Show a banner on the dashboard.")
   end
 
+  it "adds durable manual instructions to the generated Run prompt without granting edit authority" do
+    instructions = "Scroll until the file title is stuck directly below the visible app header."
+    workflow.update!(trigger_kind: "manual_visual_review")
+    workflow.set_artifact!("manual_visual_review_instructions", instructions)
+    expect(handler).to receive(:run_agent) do |prompt:, **|
+      expect(prompt).to include("Manual review instructions (reproduction and evidence capture only):")
+      expect(prompt).to include(instructions)
+      expect(prompt).to include("They do not authorize implementation changes")
+      workflow.set_artifact!("visual_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Captured.", "verdict" => "approved" }
+      ])
+    end
+
+    handler.call
+
+    expect(run.reload.prompt).to include(instructions)
+    expect(workflow.reload.artifact("manual_visual_review_instructions")).to eq(instructions)
+  end
+
   it "prepares affected previews before invoking the reviewer" do
     preparation = instance_double(PreviewPreparation)
     allow(PreviewPreparation).to receive(:new).and_return(preparation)
