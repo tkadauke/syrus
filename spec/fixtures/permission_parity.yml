@@ -1,0 +1,17 @@
+workflow_read:
+  role: "workflow:implement"
+  tool: read_live_state
+  current_policy: allow
+  shadow_policy: allow
+
+workflow_mutation:
+  role: "workflow:implement"
+  tool: submit_summary
+  current_policy: allow
+  shadow_policy: ask
+
+reviewer_role_gate:
+  role: "workflow:adversarial_reviewer"
+  tool: submit_summary
+  current_policy: deny
+  shadow_policy: deny
