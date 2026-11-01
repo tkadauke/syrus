@@ -784,7 +784,7 @@ module WorkEngine
       runs.select(&:running?).filter_map do |run|
         next if run.job&.closed?
         next if run.step&.terminal?
-        next if run.waiting_for_permission?
+        next if authorization_checkpoint_waiting?(run)
         next unless older_than?(run.started_at, ORPHAN_RUN_GRACE_PERIOD)
 
         sq = solid_queue_for_run(run)
@@ -839,6 +839,10 @@ module WorkEngine
           explanation: "Run ##{run.id} is running without enough evidence of a live worker continuing it."
         )
       end
+    end
+
+    def authorization_checkpoint_waiting?(run)
+      [ run, run.workflow, run.job ].compact.uniq.any?(&:waiting_for_permission?)
     end
 
     def classify_active_steps_with_terminal_runs
