@@ -51,6 +51,9 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_list_databases" }.fetch(:description)).to include("mysql_db_browser_list_connections")
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_execute_query" }.dig(:input_schema, :required)).to eq([ "mysql_connection_id", "sql" ])
     expect(tools).to all(include(coworker_safe: true, capability: "mysql.read"))
+    expect(tools).to all(include(capability_descriptor: be_a(Permissions::CapabilityDescriptor)))
+    expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_execute_query" }
+      .fetch(:capability_descriptor).operation).to eq("mysql.query/execute@v1")
     expect(described_class.coworker_grants.first).to include(default_policy: "confirm", maximum_policy: "auto")
   end
 
