@@ -26,7 +26,8 @@ module MysqlDbBrowser
     ]
     provides sidebar_page: "MysqlDbBrowser::SidebarPages",
              mcp_tool_set: "MysqlDbBrowser::WorkflowToolSet",
-             chat_mcp_tool_set: "MysqlDbBrowser::ChatToolSet"
+             chat_mcp_tool_set: "MysqlDbBrowser::ChatToolSet",
+             permission_provider: "MysqlDbBrowser::PermissionProvider"
     route :get, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#index"
     route :post, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#create"
     route :patch, "/api/v1/app/admin/mysql_connections/:id", to: "api/v1/app/admin/mysql_connections#update"
