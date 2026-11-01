@@ -18,11 +18,22 @@ module Filters
             "CAST(jobs.issue_number AS CHAR) LIKE :pattern OR epics.title LIKE :pattern OR CAST(epics.id AS CHAR) LIKE :pattern",
             pattern: pattern
           )
-          job_ids = query.scan(/\bJOB-(\d+)\b/i).flatten.map(&:to_i).uniq
-          epic_numbers = query.scan(/\bEPIC-(\d+)\b/i).flatten.map(&:to_i).uniq
+          job_ids = canonical_numbers(query, /\bJOB-(\d+)\b/i, model: Job, attribute: :id)
+          epic_numbers = canonical_numbers(query, /\bEPIC-(\d+)\b/i, model: Epic, attribute: :number)
           matches = matches.or(relation.where(jobs: { id: job_ids })) if job_ids.any?
           matches = matches.or(relation.where(epics: { number: epic_numbers })) if epic_numbers.any?
           matches
+        end
+
+        private
+
+        def canonical_numbers(query, pattern, model:, attribute:)
+          type = model.type_for_attribute(attribute.to_s)
+          query.scan(pattern).flatten.filter_map do |digits|
+            type.serialize(Integer(digits, 10))
+          rescue ArgumentError, ActiveModel::RangeError
+            nil
+          end.uniq
         end
       end
     end

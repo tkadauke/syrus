@@ -35,10 +35,14 @@ RSpec.describe SdlcPipeline::Filter do
     epic_slug_filter = described_class.from_tree(
       { "and" => [ { "field" => "search", "op" => "contains", "value" => "EPIC-#{epic.number}" } ] }, user: user
     )
+    oversized_slug_filter = described_class.from_tree(
+      { "and" => [ { "field" => "search", "op" => "contains", "value" => "JOB-#{'9' * 30} EPIC-#{'9' * 30}" } ] }, user: user
+    )
 
     expect(title_filter.apply(Job.all)).to contain_exactly(owned)
     expect(id_filter.apply(Job.all)).to include(other)
     expect(job_slug_filter.apply(Job.all)).to contain_exactly(other)
     expect(epic_slug_filter.apply(Job.all)).to contain_exactly(owned)
+    expect(oversized_slug_filter.apply(Job.all)).to be_empty
   end
 end
