@@ -141,7 +141,6 @@ class ChatPendingAction < ApplicationRecord
   CHECKPOINT_STATES = %w[waiting resuming resumed resume_failed cancelled non_resumable].freeze
   NONTERMINAL_CHECKPOINT_STATES = %w[waiting resuming resume_failed].freeze
   TERMINAL_REQUEST_STATES = %w[confirmed rejected cancelled failed dismissed non_actionable].freeze
-  CHECKPOINT_ORIGIN_TYPES = %w[ChatSession Job Workflow Run ScheduledTasks::Task].freeze
   REQUEST_KINDS = %w[ legacy_action authorization_request ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
   CONFIRMED_VISIBLE_FOR = 1.second
@@ -646,7 +645,7 @@ class ChatPendingAction < ApplicationRecord
     if checkpoint_state.present? && !CHECKPOINT_STATES.include?(checkpoint_state)
       errors.add(:checkpoint_state, "is not supported")
     end
-    if checkpoint_state.present? && !CHECKPOINT_ORIGIN_TYPES.include?(origin_type)
+    if checkpoint_state.present? && !origin.is_a?(AuthorizationCheckpointOrigin)
       errors.add(:origin, "does not support authorization checkpoints")
     end
     errors.add(:checkpoint_payload, "must be a JSON object") unless checkpoint_payload.is_a?(Hash)
