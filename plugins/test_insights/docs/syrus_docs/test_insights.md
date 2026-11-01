@@ -140,9 +140,11 @@ window.
 
 Identity canonicalization prefers `file_path` plus the test name when a source
 path is available, so JUnit class names, native runner output, and renamed suite
-labels do not split one test's history. Known-flaky adjudication also declines
-when the latest scored history ends in consecutive failures; that pattern is a
-persistent baseline regression, not an intermittent flake. A base-revision
+labels do not split one test's history. Deployment also merges existing
+suite-based identities that resolve to the same file and name, preserving their
+historical results under the canonical identity. Known-flaky adjudication also
+declines when the latest scored history ends in consecutive failures; that
+pattern is a persistent baseline regression, not an intermittent flake. A base-revision
 comparison that identifies an introduced failure takes precedence over this
 historical score and cannot be overridden by a known-flaky dismissal.
 

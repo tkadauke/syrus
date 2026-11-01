@@ -138,10 +138,11 @@ their recorded result is observed rather than agent-asserted. Dismissal also
 requires complete structured results whose aggregate counts and failed cases
 account for the grader's normal test exit; partial test output fails closed.
 Test identities prefer the source file and example name over formatter-specific
-suite labels. A completed base retry is authoritative for the current failure:
-if it finds an introduced test, historical flakiness cannot dismiss it. Recent
-consecutive failures are treated as a persistent regression rather than an
-intermittent flake.
+suite labels; existing suite-based histories are merged into that canonical
+identity during upgrade. A completed base retry is authoritative for the current
+failure: if it finds an introduced test, historical flakiness cannot dismiss it.
+Recent consecutive failures are treated as a persistent regression rather than
+an intermittent flake.
 
 ## JUnit and Test Insights
 
