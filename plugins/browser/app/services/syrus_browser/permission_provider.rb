@@ -49,10 +49,18 @@ module SyrusBrowser
 
       def normalize_arguments(arguments)
         source = arguments.to_h.with_indifferent_access
-        source.slice(:url, :target, :start_target, :end_target, :width, :height, :text, :text_gone, :time).stringify_keys.tap do |value|
-          value["url"] = normalize_url(source[:url]) if source[:url].present?
+        source.slice(:url, :target, :start_target, :end_target, :width, :height, :text_gone, :time).stringify_keys.tap do |value|
+          if source[:url].present?
+            value["url"] = normalize_url(source[:url])
+            userinfo = url_userinfo(source[:url])
+            value["url_userinfo_sha256"] = Digest::SHA256.hexdigest(userinfo) if userinfo.present?
+          end
           value["function_sha256"] = Digest::SHA256.hexdigest(source[:function].to_s) if source.key?(:function)
-          value["input_text_sha256"] = Digest::SHA256.hexdigest(source[:text].to_s) if source.key?(:text) && source.key?(:target)
+          if source.key?(:text) && source.key?(:target)
+            value["input_text_sha256"] = Digest::SHA256.hexdigest(source[:text].to_s)
+          elsif source.key?(:text)
+            value["text"] = source[:text]
+          end
           value["paths"] = Array(source[:paths]).map { |path| File.expand_path(path.to_s) }.sort if source.key?(:paths)
           value["data_sha256"] = Digest::SHA256.hexdigest(source[:data].to_json) if source.key?(:data)
         end
@@ -67,9 +75,17 @@ module SyrusBrowser
       def normalize_url(value)
         uri = URI.parse(value.to_s)
         uri.fragment = nil
+        uri.user = nil
+        uri.password = nil
         uri.to_s
       rescue URI::InvalidURIError
         value.to_s
+      end
+
+      def url_userinfo(value)
+        URI.parse(value.to_s).userinfo.to_s
+      rescue URI::InvalidURIError
+        ""
       end
 
       def fixed_classifier(operation, effects, risk)
