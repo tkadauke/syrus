@@ -60,7 +60,7 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 import { ToolErrorCard } from "./toolErrorCard"
 import { Avatar } from "../../components/Avatar"
-import { accentDark, accentRamp } from "../../lib/appearance"
+import { accentRamp } from "../../lib/appearance"
 
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
@@ -281,13 +281,11 @@ function CoworkerMessage({
 }) {
   const { t } = useT("chat")
   const colors = appearance ? accentRamp(appearance.accent_hex) : null
-  const darkColors = appearance ? accentDark(appearance.accent_hex) : null
   const label = appearance?.name || (fallbackHandle ? `@${fallbackHandle}` : "—")
   const accentStyle =
-    colors && darkColors
+    colors
       ? ({
-          "--coworker-message-wash": colors.wash,
-          "--coworker-message-dark-wash": darkColors.wash,
+          backgroundColor: `color-mix(in srgb, var(--color-surface) 88%, ${colors.solid})`,
           borderLeftColor: colors.solid
         } as CSSProperties)
       : undefined
@@ -296,7 +294,7 @@ function CoworkerMessage({
       <span className="absolute -top-4" id={`message-${item.id}`} />
       {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
       <div
-        className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 ${colors ? "coworker-message-accent" : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40"}`}
+        className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 text-text-primary ${colors ? "" : "border-border bg-surface-subtle"}`}
         style={accentStyle}
         data-testid={systemNote ? "coworker-outgoing-message" : "coworker-incoming-message"}
       >
@@ -566,13 +564,13 @@ export function ChatAssistantMarkdownSurface({
   onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
 }) {
   const compactClass = compact
-    ? "rounded border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-    : "px-0 py-1 sm:rounded sm:border sm:border-gray-200 sm:bg-white sm:px-4 sm:py-3 sm:dark:border-gray-700 sm:dark:bg-gray-900"
+    ? "rounded border border-border bg-surface px-3 py-2 text-sm"
+    : "px-0 py-1 sm:rounded sm:border sm:border-border sm:bg-surface sm:px-4 sm:py-3"
 
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${compactClass}`}>
       <BoundedChatMarkdown
-        className="chat-prose break-words text-gray-800 [overflow-wrap:anywhere] dark:text-gray-100"
+        className="chat-prose break-words text-text-primary [overflow-wrap:anywhere]"
         text={text}
         linkifyUrls
         onLinkClick={onLinkClick}
