@@ -12,4 +12,8 @@ class MaintenanceTaskRunJob < ApplicationJob
 
     MaintenanceTasks::Runner.new(task).call
   end
+
+  def operational_log_context
+    { maintenance_task_id: arguments.first }
+  end
 end

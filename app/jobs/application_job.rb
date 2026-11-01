@@ -1,6 +1,10 @@
 class ApplicationJob < ActiveJob::Base
   queue_as :control_plane
 
+  def operational_log_context
+    {}
+  end
+
   around_perform do |job, block|
     AppSetting.with_current_cache do
       PerformanceLogging.around_job(job) { block.call }
