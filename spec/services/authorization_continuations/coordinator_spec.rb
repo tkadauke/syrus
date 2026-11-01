@@ -114,7 +114,7 @@ RSpec.describe AuthorizationContinuations::Coordinator, :ci_only do
     expect(enqueued_jobs.count { |queued| queued[:job] == RunJob }).to eq(1)
   end
 
-  it "lets RunJob claim the prepared continuation only once" do
+  it "keeps the prepared continuation retryable until RunJob dispatches the handler" do
     job = Factories.job(user:, repository:)
     workflow = job.workflows.first
     run = workflow.runs.first
@@ -127,8 +127,39 @@ RSpec.describe AuthorizationContinuations::Coordinator, :ci_only do
     runner = RunJob.new
     runner.instance_variable_set(:@run, run.reload)
 
-    expect(runner.send(:authorization_continuation?)).to be(true)
+    expect(runner.send(:pending_authorization_continuation?)).to be(true)
+    expect(request.reload.checkpoint_state).to eq("resuming")
+    expect(runner.send(:claim_authorization_continuation!)).to be(true)
     expect(request.reload.checkpoint_state).to eq("resumed")
-    expect(runner.send(:authorization_continuation?)).to be(false)
+    expect(runner.send(:pending_authorization_continuation?)).to be(false)
+    expect(runner.send(:claim_authorization_continuation!)).to be(false)
+  end
+
+  it "does not claim a Run continuation when host admission defers it" do
+    job = Factories.job(user:, repository:)
+    workflow = job.workflows.first
+    run = workflow.runs.first
+    workflow.update!(state: "running")
+    run.step.update!(state: "running")
+    run.update!(state: "running", started_at: Time.current)
+    request = request_for(run)
+    described_class.call(request:, outcome: :denied)
+
+    runner = RunJob.new
+    runner.instance_variable_set(:@run, run.reload)
+    runner.instance_variable_set(:@step, run.step)
+    runner.instance_variable_set(:@workflow, workflow)
+    runner.instance_variable_set(:@job, job)
+    allow(runner).to receive(:execution_owner_consistent?).and_return(true)
+    allow(runner).to receive(:cancel_ineligible_retry_workflow!).and_return(false)
+    allow(runner).to receive(:defer_until_step_dependencies_settle).and_return(false)
+    allow(runner).to receive(:workflow_starting?).and_return(false)
+    allow(runner).to receive(:complete_pre_admission_skip?).and_return(false)
+    allow(runner).to receive(:defer_for_host_admission?).and_return(true)
+    expect(runner).not_to receive(:claim_authorization_continuation!)
+
+    runner.send(:perform_step)
+
+    expect(request.reload.checkpoint_state).to eq("resuming")
   end
 end

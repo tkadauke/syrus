@@ -432,7 +432,7 @@ class RunJob < ApplicationJob
       return
     end
 
-    authorization_continuation = authorization_continuation?
+    authorization_continuation = pending_authorization_continuation?
     return if !authorization_continuation && handle_running_reentry
     return if defer_until_step_dependencies_settle
 
@@ -455,6 +455,8 @@ class RunJob < ApplicationJob
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")
 
     @handler = Steps.handler_for(@step.kind).new(@run)
+    return if authorization_continuation && !claim_authorization_continuation!
+
     begin
       @handler.call
     rescue Steps::Base::AuthorizationCheckpointReached
@@ -554,10 +556,11 @@ class RunJob < ApplicationJob
     true
   end
 
-  def authorization_continuation?
-    return false unless @run.running?
-    return false unless @run.prompt.to_s.include?('"type": "authorization_continuation"')
+  def pending_authorization_continuation?
+    @run.running? && @run.authorization_requests.where(checkpoint_state: "resuming").exists?
+  end
 
+  def claim_authorization_continuation!
     request = @run.authorization_requests.find_by(checkpoint_state: "resuming")
     request&.complete_authorization_resume! || false
   end

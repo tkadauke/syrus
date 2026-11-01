@@ -341,6 +341,39 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(notice.reload.delivered_at).to be_present
     end
 
+    it "does not batch authorization continuations with adjacent system notices" do
+      continuation = chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Permission granted. Continuing...",
+          "internal_prompt" => "Continue with the exact authorization result.",
+          "source" => "authorization_continuation",
+          "authorization_continuation" => true
+        }
+      )
+      notice = chat.chat_queued_messages.create!(
+        content: {
+          "_role" => "system",
+          "text" => "Proposal rejected.",
+          "source" => "proposal_notification",
+          "acknowledgment" => "Rejected."
+        }
+      )
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be true
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
+
+      message = ChatMessage.where(chat_session: chat).last
+      expect(message.role).to eq("system")
+      expect(message.content).to include(
+        "source" => "authorization_continuation",
+        "authorization_continuation" => true,
+        "internal_prompt" => "Continue with the exact authorization result."
+      )
+      expect(continuation.reload.delivered_at).to be_present
+      expect(notice.reload.delivered_at).to be_nil
+    end
+
     it "does not batch system notices across an earlier user-authored queued message" do
       user_message = enqueue_message("please handle this first")
       system_notice = chat.chat_queued_messages.create!(

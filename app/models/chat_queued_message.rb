@@ -50,6 +50,10 @@ class ChatQueuedMessage < ApplicationRecord
     promoted_role == "user"
   end
 
+  def authorization_continuation?
+    content.is_a?(Hash) && content["authorization_continuation"] == true
+  end
+
   private
 
   def text_is_present
@@ -64,9 +68,5 @@ class ChatQueuedMessage < ApplicationRecord
 
   def goal_continuation?
     content.is_a?(Hash) && content["goal_continuation"] == true
-  end
-
-  def authorization_continuation?
-    content.is_a?(Hash) && content["authorization_continuation"] == true
   end
 end
