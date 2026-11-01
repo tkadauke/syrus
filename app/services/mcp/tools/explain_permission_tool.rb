@@ -9,7 +9,8 @@ module Mcp::Tools
       capability: { type: "string" }, operation: { type: "string" }, role: { type: "string" },
       resource_scope: { type: "object" }, arguments: { type: "object" },
       subject_selector_type: { type: "string" }, subject_selector_id: { type: "string" },
-      subject_repository_id: { type: "integer" }
+      subject_repository_id: { type: "integer" }, chat_session_id: { type: "integer" },
+      job_id: { type: "integer" }
     }, required: %w[capability operation role])
 
     class << self
@@ -17,8 +18,7 @@ module Mcp::Tools
         descriptor = Permissions::Catalog.find!(capability:, operation:)
         service = management(server_context)
         context = selectors.compact.transform_keys(&:to_sym).merge(role: role.to_s)
-        rules = service.rules.map(&:to_policy_rule) + service.leases.map(&:to_policy_rule)
-        decision = Permissions::PolicyEvaluator.new(descriptor:, role:, resource_scope:, arguments:, rules:, context:).call
+        decision = service.explain(descriptor:, role:, resource_scope:, arguments:, context:)
         Mcp::Tools.success(decision.to_h)
       rescue Permissions::Catalog::UnknownCapability, ArgumentError => error
         Mcp::Tools.invalid(error.message)

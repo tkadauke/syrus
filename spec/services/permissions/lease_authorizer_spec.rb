@@ -50,6 +50,17 @@ RSpec.describe Permissions::LeaseAuthorizer do
     expect(lease.reload.used_count).to eq(1)
   end
 
+  it "explains an exact invocation without consuming its lease" do
+    lease = issue(:invocation)
+
+    result = described_class.explain(descriptor:, owner:, role: "implementer",
+      resource_scope: { repository_id: repository.id }, context:, arguments: { job_id: job.id })
+
+    expect(result).to be_authorized
+    expect(result.lease).to eq(lease)
+    expect(lease.reload.used_count).to eq(0)
+  end
+
   it "ends chat-session and Job leases with their owning lifecycle" do
     chat_lease = issue(:chat_session, chat_session:)
     job_lease = issue(:job, job:)
@@ -116,6 +127,20 @@ RSpec.describe Permissions::LeaseAuthorizer do
         subject_selector_type: "workflow_role", subject_selector_id: "implementer", role: "implementer",
         resource_scope: { repository_id: repository.id }, context:, arguments: {}, job:)
     end.to raise_error(ArgumentError, /unsupported authority duration/)
+  end
+
+  it "rejects roles outside descriptor eligibility and mismatched role selectors" do
+    expect do
+      Permissions::AuthorityGrant.issue!(duration: :permanent, descriptor:, owner:, actor: owner,
+        subject_selector_type: "workflow_role", subject_selector_id: "reviewer", role: "reviewer",
+        resource_scope: { repository_id: repository.id })
+    end.to raise_error(ArgumentError, /role is not eligible/)
+
+    expect do
+      Permissions::AuthorityGrant.issue!(duration: :permanent, descriptor:, owner:, actor: owner,
+        subject_selector_type: "workflow_role", subject_selector_id: "reviewer", role: "implementer",
+        resource_scope: { repository_id: repository.id })
+    end.to raise_error(ArgumentError, /subject selector does not match/)
   end
 
   it "applies a provider maximum duration when no shorter expiry is requested" do

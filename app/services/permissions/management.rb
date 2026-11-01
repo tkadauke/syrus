@@ -18,6 +18,11 @@ module Permissions
       Catalog.find!(capability: payload.fetch("capability"), operation: payload["operation"])
     end
 
+    def explain(descriptor:, role:, resource_scope:, arguments:, context:)
+      LeaseAuthorizer.explain(descriptor:, owner: @user, role:, resource_scope:, arguments:,
+        context:, rules: policy_rules).decision
+    end
+
     def grant!(payload, actor:)
       descriptor = descriptor!(payload)
       AuthorityGrant.issue!(
