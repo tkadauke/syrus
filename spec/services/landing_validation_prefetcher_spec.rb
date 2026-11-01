@@ -66,6 +66,7 @@ RSpec.describe LandingValidationPrefetcher do
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: source_path.to_s).and_return("source-head\n")
     allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: source_path.to_s).and_return("source-tree\n")
     allow(GithubClient).to receive(:for).and_return(double("GithubClient", pull_request: pr("candidate-head", "main")))
+    allow(LandingValidationPrefetchSource).to receive(:publish!).and_return(double(id: 123))
     allow(WorkUnits::Launcher).to receive(:start!)
   end
 
@@ -97,6 +98,8 @@ RSpec.describe LandingValidationPrefetcher do
       "predicted_base_tree_sha" => "source-tree",
       "prefetch_candidate_head_sha" => "candidate-head"
     )
+    expect(prefetch.artifact("prefetch_source_snapshot_id")).to eq(123)
+    expect(prefetch.artifact("prefetch_source_workspace_path")).to be_nil
     expect(prefetch.work_unit).to be_present
     expect(prefetch.work_unit.parent_work_unit).to eq(source_unit)
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
