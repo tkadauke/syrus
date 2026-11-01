@@ -44,11 +44,13 @@ RSpec.describe Discord::GatewayConnectionJob do
     client
   end
 
-  def message_create(content:, author_id: 99, username: "alice", bot: false, guild_id: nil)
+  def message_create(content:, author_id: 99, username: "alice", bot: false, guild_id: nil, message_id: 123, channel_id: 456)
     {
       "t" => "MESSAGE_CREATE",
       "d" => {
         "content" => content,
+        "id" => message_id,
+        "channel_id" => channel_id,
         "guild_id" => guild_id,
         "author" => { "id" => author_id, "username" => username, "bot" => bot }
       }
@@ -162,7 +164,9 @@ RSpec.describe Discord::GatewayConnectionJob do
           platform: "discord",
           external_id: "99",
           external_handle: "alice",
-          message_text: "Hello Syrus"
+          message_text: "Hello Syrus",
+          native_message_id: "123",
+          conversation_id: "456"
         )
         expect(router).to have_received(:call)
       end

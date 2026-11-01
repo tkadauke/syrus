@@ -98,16 +98,18 @@ module Discord
       if text.start_with?("/link ")
         handle_linking(token: text.delete_prefix("/link ").strip, author: author)
       else
-        route_message(text: text, author: author)
+        route_message(text: text, author: author, message: message)
       end
     end
 
-    def route_message(text:, author:)
+    def route_message(text:, author:, message:)
       result = InboundMessageRouter.new(
         platform: "discord",
         external_id: author["id"].to_s,
         external_handle: author["username"],
-        message_text: text
+        message_text: text,
+        native_message_id: message["id"]&.to_s,
+        conversation_id: message["channel_id"]&.to_s
       ).call
 
       return unless result.status == :not_linked

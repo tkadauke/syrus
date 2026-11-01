@@ -106,7 +106,9 @@ RSpec.describe PollTelegramUpdatesJob do
           platform: "telegram",
           external_id: "99",
           external_handle: "alice",
-          message_text: "Hello Syrus"
+          message_text: "Hello Syrus",
+          native_message_id: "1",
+          conversation_id: "99"
         )
         expect(router).to have_received(:call)
       end
