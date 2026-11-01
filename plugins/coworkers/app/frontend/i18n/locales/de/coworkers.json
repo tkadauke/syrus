@@ -178,6 +178,19 @@
     "integrations": { "gmail": "Gmail", "calendar": "Kalender" },
     "coming_later": "Kommt später"
   },
+  "cutover": {
+    "title": "Bericht zur Berechtigungsumstellung",
+    "description": "Nur ein Probelauf. Alte Freigaben sind Auditnachweise und werden nicht zu einheitlichen Berechtigungsregeln.",
+    "ready": "Bereit",
+    "blocked": "Blockiert",
+    "legacy_grants": "Alte Freigaben (vorher)",
+    "recommended_defaults": "Empfohlene Standardwerte (nachher)",
+    "lost_authority": "Entfernte Berechtigungen",
+    "requestable_replacements": "Anforderbare Alternativen",
+    "descriptor_gaps": "Deskriptorlücken",
+    "migration_errors": "Blockierende Migrationsfehler",
+    "none": "Keine"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Neuer Nebenchat",

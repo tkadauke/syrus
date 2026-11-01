@@ -495,6 +495,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
 
   return (
     <section className="space-y-5">
+      <PermissionCutoverReport report={coworker.permission_cutover_report} />
       <div className="divide-y divide-border rounded border border-border bg-surface">
         {coworker.grant_catalog.map((descriptor) => {
           const capability = descriptor.name
@@ -574,6 +575,76 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
         ))}
       </div>
     </section>
+  )
+}
+
+function PermissionCutoverReport({ report }: { report: CoworkerDetail["permission_cutover_report"] }) {
+  const { t } = useT("coworkers")
+  return (
+    <section className="rounded border border-border bg-surface p-4" aria-labelledby="permission-cutover-heading">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold" id="permission-cutover-heading">
+          {t("cutover.title")}
+        </h2>
+        <span
+          className={`rounded px-2 py-1 text-xs font-medium ${report.ready ? "bg-success-surface text-success-text" : "bg-danger-surface text-danger-text"}`}
+        >
+          {t(report.ready ? "cutover.ready" : "cutover.blocked")}
+        </span>
+      </div>
+      <p className="mt-1 text-sm text-text-secondary">{t("cutover.description")}</p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <CutoverList
+          title={t("cutover.legacy_grants")}
+          empty={t("cutover.none")}
+          items={report.legacy_grants.map((grant) => `${grant.capability}: ${grant.approval_policy}`)}
+        />
+        <CutoverList
+          title={t("cutover.recommended_defaults")}
+          empty={t("cutover.none")}
+          items={report.recommended_defaults.map(
+            (item) =>
+              `${item.operation}: ${Object.entries(item.roles)
+                .map(([role, policy]) => `${role}=${policy}`)
+                .join(", ")}`
+          )}
+        />
+        <CutoverList
+          title={t("cutover.lost_authority")}
+          empty={t("cutover.none")}
+          items={report.lost_authority.map((item) => `${item.operation} (${item.role}): ${item.before} → ${item.after}`)}
+        />
+        <CutoverList
+          title={t("cutover.requestable_replacements")}
+          empty={t("cutover.none")}
+          items={report.requestable_replacements.map((item) => `${item.operation}: ${item.roles.join(", ")}`)}
+        />
+        <CutoverList
+          title={t("cutover.descriptor_gaps")}
+          empty={t("cutover.none")}
+          items={report.descriptor_gaps.map((gap) => `${gap.legacy_capability}: ${gap.reasons.join(", ")}`)}
+          danger
+        />
+        <CutoverList title={t("cutover.migration_errors")} empty={t("cutover.none")} items={report.migration_errors.map((error) => error.message)} danger />
+      </div>
+    </section>
+  )
+}
+
+function CutoverList({ title, items, empty, danger = false }: { title: string; items: string[]; empty: string; danger?: boolean }) {
+  return (
+    <div>
+      <h3 className="text-sm font-medium">{title}</h3>
+      {items.length ? (
+        <ul className={`mt-1 list-disc space-y-1 pl-5 text-sm ${danger ? "text-danger-text" : "text-text-secondary"}`}>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-sm text-text-secondary">{empty}</p>
+      )}
+    </div>
   )
 }
 
