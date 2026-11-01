@@ -152,6 +152,7 @@ class Job < ApplicationRecord
   def unland_lock_record
     epic || self
   end
+  has_many :permission_leases, dependent: :nullify
 
   validates :kind, presence: true, inclusion: { in: ->(_) { Job::Kind.values } }
   validates :state, presence: true, inclusion: { in: STATES }
