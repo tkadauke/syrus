@@ -58,7 +58,7 @@ class AppSetting < ApplicationRecord
   CONTAINED_CHAT_EXECUTION_MODES = %w[ off preferred required ].freeze
 
   validates :merge_train_failure_policy, inclusion: { in: MERGE_TRAIN_FAILURE_POLICIES }
-  validates :contained_chat_execution, inclusion: { in: CONTAINED_CHAT_EXECUTION_MODES }
+  validates :contained_chat_execution, inclusion: { in: CONTAINED_CHAT_EXECUTION_MODES }, if: -> { has_attribute?(:contained_chat_execution) }
   validates :report_issue_repo_slug, presence: true
   validates :singleton_key, inclusion: { in: [ SINGLETON_KEY ] }
 
@@ -190,8 +190,19 @@ class AppSetting < ApplicationRecord
   def self.main_concern_report_threshold
     current.main_concern_report_threshold
   end
+  # Reads defensively because a rolling deploy guarantees a window where this
+  # code runs against a schema snapshot taken before its own migration.
+  # ActiveRecord defines attribute methods from the column list cached when the
+  # process booted, so a pod that started before the migration has no such
+  # method however long ago the column was actually added -- and this is read
+  # on the chat turn path, where a NoMethodError is a broken chat rather than a
+  # degraded one. Absent column means "not configured", which is the default
+  # anyway. See `rollout_compatibility.md`.
   def self.contained_chat_execution
-    current.contained_chat_execution.presence_in(CONTAINED_CHAT_EXECUTION_MODES) || "off"
+    setting = current
+    return "off" unless setting.has_attribute?(:contained_chat_execution)
+
+    setting.contained_chat_execution.presence_in(CONTAINED_CHAT_EXECUTION_MODES) || "off"
   end
 
   def self.contained_chat_execution_requested? = contained_chat_execution != "off"

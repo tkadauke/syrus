@@ -79,6 +79,15 @@ Setting `deploy.mode: continuous` auto-triggers a deploy of the repository's def
 
 A manually-triggered deploy (see above) is unaffected by any of this — it always targets the ordinary Job it was launched on and is never subject to the concurrency/throttle checks here, which only gate the synthetic continuous-deploy anchor Job.
 
+## Two-version compatibility
+
+A rolling deploy always runs two versions against one database, so every
+release must be compatible with the one before it in both directions: new code
+against the old schema, and old code against the new schema. Both halves have
+caused production incidents here. The rule, the expand/migrate/contract
+sequence, and how to read a new column defensively are in
+[Rollout Compatibility](rollout_compatibility.md).
+
 ## Client behavior during a rollout
 
 The web Deployment runs `replicas=2` with `RollingUpdate(maxSurge=1,
@@ -152,6 +161,22 @@ the Job and retries: `DB_PREPARE_ATTEMPTS` attempts (default `4`), waiting
 error is retried -- a migration that genuinely failed stops the deploy on the
 first attempt, and the failure message distinguishes a Job that failed from one
 that ran out of `DB_PREPARE_TIMEOUT`.
+
+Before each retry, and before giving up, `bin/deploy` asks whether the work is
+still outstanding at all: `db_prepare_satisfied` runs a short Job on
+`${REGISTRY}:${SHA}` that exits zero when `needs_migration?` is false. The
+process that won the lock runs the same migrations from the same image, so by
+the time the loser is told "another migration is running" the schema may
+already be where this deploy wants it, and continuing is correct. The probe
+runs on the image being deployed rather than against a live web pod on purpose:
+a running pod answers from the old image's `db/migrate`, which cannot contain
+this release's migrations, and would report "nothing pending" for a database
+that is genuinely behind.
+
+That check exists because its absence cost a production deploy. Every attempt
+lost the race to a web pod's `db-prepare` initContainer, the Job exhausted its
+attempts, and `bin/deploy` rolled the image overrides back -- while the
+migration had already been applied successfully by the pod that won.
 
 Worker containers also check `db:abort_if_pending_migrations` before starting
 `bin/jobs`. In a normal deploy that check is already satisfied by the
