@@ -664,6 +664,32 @@ RSpec.describe "maintenance task definitions" do
       expect(ChatMessageSearchIndex.indexed?(second.id)).to be(true)
       expect(ChatMessageSearchIndex.content_version_current?).to be(true)
     end
+
+    it "finishes chat progress at the last eligible id when excluded messages have higher ids" do
+      SyrusSearchDatabaseTasks.prepare!
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      session = ChatSession.create!(repository: repository, user: user)
+      eligible = ChatMessage.create!(chat_session: session, content: { "text" => "index this" }, role: "user")
+      deleted_session = ChatSession.create!(repository: repository, user: user)
+      excluded = ChatMessage.create!(chat_session: deleted_session, content: { "text" => "exclude this" }, role: "user")
+      deleted_session.soft_delete_by!(user)
+      task = maintenance_task_for(definition)
+      task.checkpoint.merge!(
+        "schema_prepared" => true,
+        "rebuild_plan" => [ { "entity" => "chats", "current_version" => ChatMessageSearchIndex::CONTENT_VERSION, "target_version" => ChatMessageSearchIndex::CONTENT_VERSION, "reason" => "integrity_repair" } ]
+      )
+      ChatMessageSearchIndex.send(:write_metadata, ChatMessageSearchIndex::CONTENT_VERSION_KEY, ChatMessageSearchIndex::CONTENT_VERSION)
+
+      result = definition.perform_batch(task)
+
+      expect(result.processed).to eq(1)
+      expect(task.checkpoint).to include("last_chat_message_id" => eligible.id, "chats_done" => true)
+      expect(excluded.id).to be > eligible.id
+      expect(ChatMessageSearchIndex.indexed?(eligible.id)).to be(true)
+      expect(ChatMessageSearchIndex.indexed?(excluded.id)).to be(false)
+      expect(ChatMessageSearchIndex.search_database_integrity_repair_needed?).to be(false)
+    end
   end
 
   def maintenance_task_for(definition)
