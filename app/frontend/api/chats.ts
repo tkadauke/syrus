@@ -1757,15 +1757,19 @@ export type ChatJobStatusPendingProposal = {
 export type ChatJobStatusPayload = {
   pending_proposals: ChatJobStatusPendingProposal[]
   items: ChatJobStatusItem[]
+  extensions?: { actions?: ChatJobStatusAction[] }
 }
+
+export type ChatJobStatusAction = { id: string; label: string; repository_id: number; repository_label: string; path: string }
 
 export async function fetchChatJobStatus(chatId: string | number): Promise<ChatJobStatusPayload> {
   const payload = await getJson<Partial<ChatJobStatusPayload> | ChatJobStatusItem[]>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
-  if (Array.isArray(payload)) return { pending_proposals: [], items: payload }
+  if (Array.isArray(payload)) return { pending_proposals: [], items: payload, extensions: {} }
 
   return {
     pending_proposals: Array.isArray(payload?.pending_proposals) ? payload.pending_proposals : [],
-    items: Array.isArray(payload?.items) ? payload.items : []
+    items: Array.isArray(payload?.items) ? payload.items : [],
+    extensions: payload?.extensions && typeof payload.extensions === "object" ? payload.extensions : {}
   }
 }
 

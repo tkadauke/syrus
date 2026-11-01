@@ -11,13 +11,23 @@ class ChatJobStatusQuery
   end
 
   def call
-    {
+    payload = {
       pending_proposals: pending_proposals_json,
       items: job_status_items
     }
+    extensions = extension_payload
+    payload[:extensions] = extensions if extensions.present?
+    payload
   end
 
   private
+
+  def extension_payload
+    jobs = ChatAssociatedJobs.scope(@chat_session).includes(:repository).to_a
+    Syrus::PluginRegistry.providers_for(:chat_job_status_extension).each_with_object({}) do |provider, payload|
+      payload.merge!(provider.payload(chat_session: @chat_session, jobs: jobs))
+    end
+  end
 
   def pending_proposals_json
     @chat_session.proposals

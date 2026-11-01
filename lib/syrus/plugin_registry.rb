@@ -16,6 +16,7 @@ module Syrus
       chat_mcp_tool_set
       chat_media_source
       chat_payload_contributor
+      chat_job_status_extension
       chat_prompt_injector
       chat_turn_orientation
       chat_workspace_lifecycle
@@ -85,6 +86,7 @@ module Syrus
       chat_mcp_tool_set:       -> { Syrus::Plugin::ChatMcpToolSet },
       chat_media_source:       -> { Syrus::Plugin::ChatMediaSource },
       chat_payload_contributor: -> { Syrus::Plugin::ChatPayloadContributor },
+      chat_job_status_extension: -> { Syrus::Plugin::ChatJobStatusExtension },
       chat_prompt_injector:    -> { Syrus::Plugin::ChatPromptInjector },
       chat_turn_orientation:   -> { Syrus::Plugin::ChatTurnOrientation },
       chat_workspace_lifecycle: -> { Syrus::Plugin::ChatWorkspaceLifecycle },

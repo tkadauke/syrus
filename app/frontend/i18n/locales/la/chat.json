@@ -3295,5 +3295,8 @@
   "admin_kill_process_confirmation_other": "Processus {{targets}} finire?",
   "admin_kill_process_catalog_targets": "#41, #42 et #43",
   "show_complete_message": "Nuntium integrum ostendere",
-  "coworker_message_to": "ad @{{handle}}"
+  "coworker_message_to": "ad @{{handle}}",
+  "tool_presentation_title": "Praesentatio instrumenti",
+  "tool_presentation_open_full_page": "Paginam plenam aperire",
+  "tool_presentation_close": "Claude"
 }

@@ -97,6 +97,11 @@ expressions can be saved as reusable Pipeline views, including the built-in
 **All** and **Mine** views. Repository scope remains in the route rather than
 the saved view, and filters never hide configured pipeline stages, including
 empty ones.
+The same filtered view is available from a chat's Jobs workspace and through
+the read-only `show_pipeline` chat tool. Multi-repository chats ask the operator
+to choose a repository; live tool calls may present the view once, while saved
+tool cards retain explicit open and copy-link actions without reopening on
+transcript replay.
 The dedicated history rail reconstructs the filtered cohort at meaningful
 lifecycle and delivery ticks from a bounded checkpoint-plus-delta response, so
 scrubbing does not fetch a full board repeatedly. Historical mode is clearly
