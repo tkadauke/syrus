@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Admin::CapabilitySurfaceRegistry do
-  StubMcpEntry = Data.define(:capability, :tool_name, :surface, :mutation, :admin_only)
+  StubMcpEntry = Data.define(:capability, :tool_name, :surface, :mutation, :admin_only, :descriptor)
 
   around do |example|
     described_class.new.send(:load_pending_action_classes)
@@ -12,13 +12,14 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     PendingActions::REGISTRY.merge!(original_registry)
   end
 
-  def mcp_entry(capability:, tool_name: capability, surface: :workflow, mutation: false, admin_only: false)
+  def mcp_entry(capability:, tool_name: capability, surface: :workflow, mutation: false, admin_only: false, descriptor: nil)
     StubMcpEntry.new(
       capability: capability&.to_sym,
       tool_name: tool_name.to_s,
       surface: surface,
       mutation: mutation,
-      admin_only: admin_only
+      admin_only: admin_only,
+      descriptor: descriptor || Permissions::CapabilityDescriptorAdapter.for_plugin_definition(name: tool_name, capability: capability, mutation: mutation)
     )
   end
 
@@ -60,6 +61,18 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
 
   it "passes on the current reviewed surface-decision allowlist" do
     expect(described_class.coverage_gaps).to eq([])
+  end
+
+  it "reports descriptor coverage separately from surface exposure" do
+    entry = mcp_entry(capability: :stub_capability)
+    missing = entry.with(descriptor: nil)
+
+    expect(described_class.new(mcp_entries: [ entry ], pending_action_classes: []).descriptor_gaps).to eq([])
+    expect(described_class.new(mcp_entries: [ missing ], pending_action_classes: []).descriptor_gaps).to contain_exactly(
+      tool_name: "stub_capability",
+      surface: :workflow,
+      missing: %i[descriptor effects defaults role_decisions]
+    )
   end
 
   it "records workflow-only decisions for agent handoff capabilities" do

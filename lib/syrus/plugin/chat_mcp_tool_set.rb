@@ -23,6 +23,9 @@ module Syrus
     #
     # Defaults to false, so a tool set that says nothing behaves exactly as
     # it did before the flag existed.
+    # A definition may provide +capability_descriptor:+ using the canonical
+    # Permissions::CapabilityDescriptor contract. Existing hashes receive a
+    # compatibility descriptor and keep their current dispatch behavior.
     # * +coworker_safe+ explicitly opts a definition into coworker chats.
     #   Definitions are excluded there by default, including credential-backed
     #   tool sets, and should also name their required capability. A tool set

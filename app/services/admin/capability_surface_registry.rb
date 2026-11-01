@@ -215,6 +215,10 @@ module Admin
       def coverage_gaps(**kwargs)
         new(**kwargs).coverage_gaps
       end
+
+      def descriptor_gaps(**kwargs)
+        new(**kwargs).descriptor_gaps
+      end
     end
 
     def initialize(mcp_entries: McpToolRegistry.entries, pending_action_classes: nil, explicit_decisions: EXPLICIT_SURFACE_DECISIONS)
@@ -245,6 +249,15 @@ module Admin
             sources: capability.sources
           }
         end
+      end
+    end
+
+    def descriptor_gaps
+      mcp_entries.filter_map do |entry|
+        descriptor = entry.respond_to?(:descriptor) ? entry.descriptor : nil
+        next if descriptor
+
+        { tool_name: entry.tool_name, surface: entry.surface, missing: %i[descriptor effects defaults role_decisions] }
       end
     end
 
@@ -323,7 +336,8 @@ module Admin
             name: entry.tool_name,
             surface: entry.surface,
             mutation: entry.mutation,
-            admin_only: entry.admin_only
+            admin_only: entry.admin_only,
+            descriptor: entry.respond_to?(:descriptor) ? entry.descriptor&.to_h : nil
           }
         end
       end
