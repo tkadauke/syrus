@@ -1023,7 +1023,19 @@
   "placement_latest_audit": "Zuletzt geändert von {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Audit-Begründung",
   "confirm_placement_override": "Platzierungsänderung bestätigen",
-  "unland": "Job zurückrollen", "unlanding": "Rollback wird gestartet…", "unland_error": "Rollback konnte nicht geprüft oder gestartet werden.",
-  "unland_confirm_subject": "{{subject}} über einen verknüpften Rollback-Job zurückrollen?", "unland_confirm_commits": "Exakte Commits (Landereihenfolge): {{commits}}", "unland_confirm_files": "Dateien: {{files}}", "unland_confirm_dependents": "Nachgelagerte Abhängige: {{dependents}}", "unland_confirm_deployment": "Erreichte Deployment-Stufen: {{stages}}", "unland_confirm_graders": "Schnelle Unland-Grader: {{graders}}", "unland_confirm_deploy_warning": "Dies revertiert Git-Historie über einen neuen PR. Eine bereitgestellte Umgebung wird nicht automatisch zurückgerollt.", "unland_confirm_warnings": "Warnungen: {{warnings}}",
-  "unland_status_in_progress": "Unland läuft. Der ursprüngliche Job bleibt geschlossen.", "unland_status_failed": "Unland fehlgeschlagen. Prüfe den verknüpften Rollback-Job.", "unland_status_reverted": "Gelandet und anschließend über den verknüpften Rollback-Job revertiert.", "none": "keine"
+  "unland": "Job zurückrollen",
+  "unlanding": "Rollback wird gestartet…",
+  "unland_error": "Rollback konnte nicht geprüft oder gestartet werden.",
+  "unland_confirm_subject": "{{subject}} über einen verknüpften Rollback-Job zurückrollen?",
+  "unland_confirm_commits": "Exakte Commits (Landereihenfolge): {{commits}}",
+  "unland_confirm_files": "Dateien: {{files}}",
+  "unland_confirm_dependents": "Nachgelagerte Abhängige: {{dependents}}",
+  "unland_confirm_deployment": "Erreichte Deployment-Stufen: {{stages}}",
+  "unland_confirm_graders": "Schnelle Unland-Grader: {{graders}}",
+  "unland_confirm_deploy_warning": "Dies revertiert Git-Historie über einen neuen PR. Eine bereitgestellte Umgebung wird nicht automatisch zurückgerollt.",
+  "unland_confirm_warnings": "Warnungen: {{warnings}}",
+  "unland_status_in_progress": "Unland läuft. Der ursprüngliche Job bleibt geschlossen.",
+  "unland_status_failed": "Unland fehlgeschlagen. Prüfe den verknüpften Rollback-Job.",
+  "unland_status_reverted": "Gelandet und anschließend über den verknüpften Rollback-Job revertiert.",
+  "none": "keine"
 }
