@@ -432,7 +432,8 @@ class RunJob < ApplicationJob
       return
     end
 
-    return if handle_running_reentry
+    authorization_continuation = authorization_continuation?
+    return if !authorization_continuation && handle_running_reentry
     return if defer_until_step_dependencies_settle
 
     if workflow_starting? && (merged_pr = merged_pull_request)
@@ -444,7 +445,7 @@ class RunJob < ApplicationJob
 
     return if defer_for_host_admission?
 
-    unless acquire_run_execution!
+    unless authorization_continuation || acquire_run_execution!
       return
     end
 
@@ -551,6 +552,14 @@ class RunJob < ApplicationJob
       log("run abandoned — worker died mid-execution; use Retry to try again")
     end
     true
+  end
+
+  def authorization_continuation?
+    return false unless @run.running?
+    return false unless @run.prompt.to_s.include?('"type": "authorization_continuation"')
+
+    request = @run.authorization_requests.find_by(checkpoint_state: "resuming")
+    request&.complete_authorization_resume! || false
   end
 
   def succeed_run!(run)
