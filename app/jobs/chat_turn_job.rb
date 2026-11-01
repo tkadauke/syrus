@@ -725,6 +725,7 @@ class ChatTurnJob < ApplicationJob
   # daemon failure" is greppable via read_syrus_logs, not just via manual
   # inspection.
   def log_chat_mcp_transport_decision!(decision)
+    tool_context = McpToolContext.from_chat_session(@chat)
     expected_tools = %i[essential deferred].to_h do |tier|
       names = Mcp::Sidecar.chat_tool_names(@chat, tier: tier).sort
       [ tier.to_s, { "count" => names.size, "names" => names } ]
@@ -739,18 +740,25 @@ class ChatTurnJob < ApplicationJob
       "exposed_tools" => exposed_tools,
       "tool_surface_match" => comparison.values.all? { |tier| tier["match"] },
       "tool_surface_comparison" => comparison,
+      "agent_role" => tool_context.role,
+      "granted_capabilities" => tool_context.granted_capabilities.sort,
       "checked_at" => Time.current.utc.iso8601
     }.compact)
 
     tool_diagnostics = exposed_tools.map do |tier, payload|
       "#{tier}_tool_count=#{payload.fetch('count')} #{tier}_tools=#{payload.fetch('names').join(',')}"
     end.join(" ")
-    if decision.persistent? && comparison.values.any? { |tier| !tier["match"] }
-      Rails.logger.warn("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')} tool_surface_mismatch=#{comparison.to_json} #{tool_diagnostics}")
-    elsif decision.persistent?
-      Rails.logger.info("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')} #{tool_diagnostics}")
+    coworker_diagnostics = if tool_context.role == AgentRole::COWORKER_CHAT
+      " role=coworker_chat capabilities=#{tool_context.granted_capabilities.sort.join(',')}"
     else
-      Rails.logger.warn("[ChatTurnJob] mcp_transport=stdio chat_id=#{@chat.id} reason=#{decision.reason} #{tool_diagnostics}")
+      ""
+    end
+    if decision.persistent? && comparison.values.any? { |tier| !tier["match"] }
+      Rails.logger.warn("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')} tool_surface_mismatch=#{comparison.to_json}#{coworker_diagnostics} #{tool_diagnostics}")
+    elsif decision.persistent?
+      Rails.logger.info("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')}#{coworker_diagnostics} #{tool_diagnostics}")
+    else
+      Rails.logger.warn("[ChatTurnJob] mcp_transport=stdio chat_id=#{@chat.id} reason=#{decision.reason}#{coworker_diagnostics} #{tool_diagnostics}")
     end
   rescue StandardError => e
     Rails.logger.warn("[ChatTurnJob] failed to record mcp transport decision for chat ##{@chat.id}: #{e.class}: #{e.message}")

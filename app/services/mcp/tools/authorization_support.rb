@@ -58,10 +58,36 @@ module Mcp::Tools
 
         policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
         policy = "queue" if context.run? && policy == "confirm"
-        return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
+        protected_path = protected_coworker_workspace_path?(context, descriptor, arguments)
+        return if policy == "auto" && !protected_path || Thread.current[:coworker_tool_approval_bypass]
 
         create_coworker_pending_action(context:, server_context:, tool_name: descriptor.tool_name,
-          arguments:, capability: descriptor.capability)
+          arguments:, capability: descriptor.capability, always_pending: protected_path)
+      end
+
+      def protected_coworker_workspace_path?(context, descriptor, arguments)
+        return false unless descriptor.capability == "workspace.files"
+
+        grant = context.agent_actor&.grants&.find_by(capability: "workspace.files")
+        protected_paths = Array(grant&.constraints&.fetch("confirm_paths", nil)).filter_map do |path|
+          normalized_coworker_workspace_path(path)
+        end
+        requested_paths = [ arguments[:path], arguments[:source], arguments[:destination] ].compact.filter_map do |path|
+          normalized_coworker_workspace_path(path)
+        end
+        (protected_paths & requested_paths).any?
+      end
+
+      def normalized_coworker_workspace_path(path)
+        candidate = Pathname.new(path.to_s)
+        return if candidate.absolute?
+
+        clean = candidate.cleanpath
+        return if clean.to_s == ".." || clean.each_filename.first.in?([ "..", ".git" ])
+
+        clean.to_s
+      rescue ArgumentError
+        nil
       end
 
       def pending_coworker_plugin_approval(tool_name, capability, server_context, arguments, always_pending: false)

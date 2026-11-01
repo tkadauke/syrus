@@ -242,8 +242,9 @@ module ChatProviders
 
     def disallowed_tools
       if (capabilities = coworker_capabilities)
-        denied = [ "AskUserQuestion" ]
-        denied.concat(COWORKER_FILE_TOOLS) unless capabilities.include?("workspace.files")
+        # Coworkers mutate their home through the path-jailed MCP tools. Native
+        # file tools bypass protected-path confirmation and are never needed.
+        denied = [ "AskUserQuestion", *COWORKER_FILE_TOOLS ]
         denied << "Bash" unless capabilities.include?("workspace.shell")
         return denied.uniq
       end

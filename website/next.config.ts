@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
   // static-generation workers than their memory limit can sustain. Keep the
   // Pages build bounded; uncapped builds are killed with SIGKILL while
   // exporting the documentation routes.
-  experimental: { globalNotFound: true, cpus: 2 },
+  experimental: { globalNotFound: true, cpus: 1 },
   poweredByHeader: false,
   // Surfaced to the client for the footer build stamp. The Pages workflow
   // injects GIT_SHA / GIT_REF from the triggering commit.
