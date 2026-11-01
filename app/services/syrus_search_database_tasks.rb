@@ -3,6 +3,12 @@ require "zlib"
 
 module SyrusSearchDatabaseTasks
   BUILT_IN_TABLE_SQL = {
+    "search_index_metadata" => <<~SQL,
+      CREATE TABLE IF NOT EXISTS search_index_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    SQL
     "chat_message_fts" => <<~SQL,
       CREATE VIRTUAL TABLE IF NOT EXISTS chat_message_fts
       USING fts5(

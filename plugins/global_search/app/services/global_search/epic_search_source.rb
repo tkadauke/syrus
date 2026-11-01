@@ -14,6 +14,9 @@ module GlobalSearch
     end
 
     def self.search_database_rebuild_key = "epics"
+    def self.search_database_content_version = "1"
+    def self.current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
+    def self.finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
     def self.search_database_rebuild_units = Epic.count
 
     def self.search_database_rebuild_pending?
@@ -42,6 +45,7 @@ module GlobalSearch
       task.checkpoint_will_change!
       task.checkpoint["last_epic_id"] = batch[:last_id] if batch[:last_id].present?
       task.checkpoint["epics_done"] = true if batch[:done]
+      finish_content_version! if batch[:done]
       processed = batch[:processed].to_i
 
       MaintenanceTasks::Definitions::Base::Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
