@@ -49,6 +49,7 @@ module Permissions
     def classify(arguments) = classifier.call(arguments)
     def normalize_fingerprint(arguments) = fingerprint_normalizer.call(arguments)
     def redact(arguments) = redactor.call(arguments)
+    def role_recommendations = defaults
 
     def contract_key
       [

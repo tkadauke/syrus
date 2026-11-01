@@ -19,6 +19,22 @@ RSpec.describe Permissions::Catalog, :reset_plugin_registry do
       .to include(have_attributes(surface: :permission_provider, descriptor: provider.permission_capability_descriptors.first))
   end
 
+
+  it "collects inert named presets from enabled providers" do
+    provider = permission_provider
+    provider.register_permission_preset(
+      name: "observer", label: "Observer", description: "Read-only observation.",
+      rules: [ { capability: "example.observe@v1", operation: "example.observe/read@v1",
+        role: "chat_planner", policy: :allow, resource_scope: {}, constraints: {} } ]
+    )
+    Syrus::PluginRegistry.register(
+      name: "permission_example", version: "1.0.0", provides: { permission_provider: provider }
+    )
+
+    expect(described_class.presets).to eq("observer" => provider.permission_preset("observer"))
+    expect(PermissionRule.count).to eq(0)
+  end
+
   it "rejects ambiguous resource type ownership across providers" do
     first = permission_provider
     second = permission_provider

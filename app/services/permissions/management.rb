@@ -35,11 +35,19 @@ module Permissions
     end
 
     def deny!(payload, actor:)
+      create_rule!(payload, actor:, policy: "deny")
+    end
+
+    def ask!(payload, actor:)
+      create_rule!(payload, actor:, policy: "ask")
+    end
+
+    def create_rule!(payload, actor:, policy:)
       descriptor = descriptor!(payload)
       normalized = descriptor.resource_scope.normalize(payload.fetch("resource_scope", {}), context: {})
       raise ArgumentError, "resource scope could not be normalized" if normalized.fail_closed?
 
-      PermissionRule.create!(rule_attributes(payload, descriptor, normalized.value, actor).merge(policy: "deny"))
+      PermissionRule.create!(rule_attributes(payload, descriptor, normalized.value, actor).merge(policy:))
     end
 
     def lease!(payload, actor:)
@@ -64,16 +72,28 @@ module Permissions
     end
 
     def apply_preset!(payload, actor:)
-      descriptor = descriptor!(payload)
-      preset = descriptor.presets.find { |candidate| candidate.to_h.with_indifferent_access[:name].to_s == payload.fetch("preset") }
-      raise ArgumentError, "unknown permission preset" unless preset
-
-      settings = preset.to_h.with_indifferent_access
-      merged = payload.merge(settings.except(:name, :policy).stringify_keys)
-      settings.fetch(:policy, "allow").to_s == "deny" ? deny!(merged, actor:) : grant!(merged, actor:)
+      drafts = preset_drafts(payload)
+      PermissionRule.transaction do
+        drafts.map { |draft| public_send(PRESET_APPLIERS.fetch(draft.fetch("policy")), draft, actor:) }
+      end
     end
 
+    def preset_drafts(payload)
+      preset = Catalog.presets[payload.fetch("preset").to_s]
+      raise ArgumentError, "unknown permission preset" unless preset
+
+      preset.render(payload).each do |draft|
+        descriptor = descriptor!(draft)
+        raise ArgumentError, "preset capability does not match its operation" unless descriptor.capability == draft.fetch("capability")
+        raise ArgumentError, "preset role is not eligible" unless descriptor.requestable_roles.include?(draft.fetch("role"))
+      end
+    end
+
+    private :create_rule!
+
     private
+
+    PRESET_APPLIERS = { "allow" => :grant!, "ask" => :ask!, "deny" => :deny! }.freeze
 
     def policy_rules = rules.map(&:to_policy_rule)
 
