@@ -9,7 +9,6 @@ import template from "../../views/pwa/service_worker.js.erb?raw"
 type FallbackPolicy = (request: { mode?: string } | null, response: { status: number } | null, error: unknown) => boolean
 
 let shouldServeFallback: FallbackPolicy
-
 beforeAll(() => {
   const source = template.replace(/<%=.*?%>/g, "stub")
   const scope: Record<string, unknown> = {}
