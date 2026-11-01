@@ -13,6 +13,7 @@ require "tmpdir"
 # a common result shape.
 class ProcessRunner
   class_attribute :backend, default: Execution::Router.new
+  AUTHORIZATION_CHECKPOINT_POLL_INTERVAL_SECONDS = 1
 
   # Output collected by #capture. Buffers are capped independently so a noisy
   # child cannot grow the worker heap without bound; callers can distinguish a
@@ -697,6 +698,7 @@ class ProcessRunner
     @on_spawned_process = on_spawned_process
     @initial_resource_attribution = resource_attribution.deep_stringify_keys
     @backend = backend
+    @last_authorization_checkpoint_check = nil
 
     # Idempotent — only the first call in this process spawns the
     # supervisor thread. Web pods never reach this code path so they
@@ -970,7 +972,7 @@ class ProcessRunner
             next
           end
 
-          if @stop_requested.call
+          if @stop_requested.call || authorization_checkpoint_waiting?
             stopped = true
             terminate(wait_thread.pid)
             next
@@ -1029,6 +1031,30 @@ class ProcessRunner
 
     finalize_spawned_process!(outcome: outcome_for(result), exit_status: result.exit_status)
     result
+  end
+
+  # Authorization checkpoints are durable suspension points, not work for a
+  # provider process to wait on. Poll only agent processes: commands spawned by
+  # an agent may finish atomically, while the provider itself must relinquish
+  # its worker and queue claim as soon as the request has been persisted.
+  def authorization_checkpoint_waiting?
+    return false unless @kind == "agent"
+
+    now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    if @last_authorization_checkpoint_check &&
+        now - @last_authorization_checkpoint_check < AUTHORIZATION_CHECKPOINT_POLL_INTERVAL_SECONDS
+      return false
+    end
+    @last_authorization_checkpoint_check = now
+
+    [ @run, @workflow, @job, @chat_session ].compact.uniq.any? do |origin|
+      origin.reload.waiting_for_permission?
+    end
+  rescue ActiveRecord::RecordNotFound
+    false
+  rescue StandardError => error
+    Rails.logger.warn("[ProcessRunner] authorization checkpoint poll failed: #{error.class}: #{error.message}")
+    false
   end
 
   private

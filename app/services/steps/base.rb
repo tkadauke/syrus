@@ -89,6 +89,8 @@ module Steps
     class AgentTimedOut < StepFailed
       problem_code :timeout
     end
+
+    class AuthorizationCheckpointReached < StandardError; end
     AGENT_RESULT_PROBLEM_CODES = {
       "error_during_execution" => "provider_transient",
       "error_max_turns" => "agent_max_turns",
@@ -415,6 +417,7 @@ module Steps
       end
 
       adapter.record_result!(result, log: ->(message) { log(message) })
+      raise AuthorizationCheckpointReached if authorization_checkpoint_waiting?
       missing_required_tools = log_mcp_required_tool_health(required_mcp_tools)
       capture_mcp_sidecar_stderr if result.outcome == "mcp_sidecar_failed" || required_mcp_tools.present?
 
@@ -433,6 +436,10 @@ module Steps
       result
     rescue AgentProviders::ConfigurationError => e
       fail_with!(:provider_auth_or_config, e.message, evidence: { provider: agent_provider })
+    end
+
+    def authorization_checkpoint_waiting?
+      [ run, workflow, job ].uniq.any? { |origin| origin.reload.waiting_for_permission? }
     end
 
     def agent_result_failure(result)
