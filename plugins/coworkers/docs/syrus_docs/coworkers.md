@@ -201,6 +201,13 @@ and file-disjoint changes merge automatically; append-oriented files under
 conflicted local checkout intact and posts the affected file links into the
 chat. A missing local checkout is re-cloned from the canonical remote.
 
+Background runs use the same lifecycle before their agent step can succeed:
+Syrus captures modified, added, moved, deleted, and untracked files in a commit
+authored with the coworker's Git identity, then merges that immutable run ref
+into the home branch. Agents leave changes uncommitted. A conflict or push
+failure makes the run unsuccessful, preserves recoverable output, and posts an
+actionable result to the main chat before the anchor Job closes.
+
 Changing a coworker's handle moves its home branch in the same locked
 operation. Deleting a coworker preserves the home branch under
 `coworkers/archived/<handle>-<date>` (with a numeric suffix when that name is
