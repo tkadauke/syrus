@@ -209,6 +209,14 @@ roles, defaults, autonomy, duration, or risk under an existing identity. A
 renamed key must remain an alias; an intentionally removed key stays reserved
 through an explicit retirement declaration.
 
+MySQL DB Browser uses this contract to scope connection, database, table,
+query, schema, and administrative access independently. Its SQL classifier
+distinguishes reads, data writes, schema changes, and administrative effects;
+uncertain statements receive the maximum critical-risk classification. Query
+authority is limited to one invocation, fingerprints normalize harmless SQL
+whitespace, and authorization displays redact the SQL text. Its read-only and
+query-operator presets remain inert until an operator confirms them.
+
 Permission-provider authors can run `Permissions::ProviderTestKit` in their
 RSpec suite. A small adapter supplies real provider probes for normalization,
 redaction, hidden and unknown resources, uncertain classification, provider or
