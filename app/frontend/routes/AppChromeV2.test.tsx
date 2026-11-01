@@ -1336,6 +1336,30 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     expect(main).not.toHaveClass("overflow-hidden")
   })
 
+  it("keeps an open tool presentation mounted across the desktop breakpoint", () => {
+    const viewport = mockResponsiveViewport(true)
+
+    try {
+      renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
+      act(() =>
+        window.dispatchEvent(
+          new CustomEvent("syrus:tool-presentation", {
+            detail: { chat_session_id: 5, title: "Pipeline", path: "/repositories/2/plugin/sdlc-pipeline?q=x" }
+          })
+        )
+      )
+      expect(screen.getByRole("dialog", { name: "Pipeline" })).toBeInTheDocument()
+
+      act(() => viewport.setDesktop(false))
+
+      expect(screen.getByTestId("mobile-chat-content-shell")).toBeInTheDocument()
+      expect(screen.getByRole("dialog", { name: "Pipeline" })).toBeInTheDocument()
+      expect(screen.getByTitle("Pipeline")).toHaveAttribute("src", "/repositories/2/plugin/sdlc-pipeline?q=x")
+    } finally {
+      viewport.restore()
+    }
+  })
+
   it("leaves main as overflow-auto for a non-chat route even at mobile widths", () => {
     const restoreMatchMedia = mockNarrowViewport()
 
@@ -3503,6 +3527,35 @@ function mockNarrowViewport() {
       Object.defineProperty(window, "matchMedia", original)
     } else {
       Reflect.deleteProperty(window, "matchMedia")
+    }
+  }
+}
+
+function mockResponsiveViewport(initialDesktop: boolean) {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+  let desktop = initialDesktop
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      get matches() {
+        return query === "(min-width: 1024px)" ? desktop : false
+      },
+      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.delete(listener)
+    }))
+  })
+
+  return {
+    setDesktop(value: boolean) {
+      desktop = value
+      listeners.forEach((listener) => listener({ matches: desktop } as MediaQueryListEvent))
+    },
+    restore() {
+      if (original) Object.defineProperty(window, "matchMedia", original)
+      else Reflect.deleteProperty(window, "matchMedia")
     }
   }
 }
