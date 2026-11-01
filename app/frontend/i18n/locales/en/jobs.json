@@ -1021,5 +1021,8 @@
   "placement_current_provenance": "Current placement provenance: {{source}}",
   "placement_latest_audit": "Last changed by {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Audit reason",
-  "confirm_placement_override": "Confirm placement change"
+  "confirm_placement_override": "Confirm placement change",
+  "authorization_requests_title": "Authorization requests",
+  "authorization_requests_description": "Permission decisions related to this Job also appear in the central approval inbox.",
+  "authorization_request_fallback": "Scheduled operation requires permission"
 }

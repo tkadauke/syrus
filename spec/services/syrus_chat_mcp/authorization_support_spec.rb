@@ -185,4 +185,34 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
     expect(response[:result][:isError]).to be(true)
     expect(payload).to eq(error: "not_authorized")
   end
+
+  it "routes scheduled tool calls through the shared authorization request" do
+    job = Factories.job_record(user:, repository:, kind: "cron", scheduled_task_id: 41, issue_number: nil)
+    run = Factories.run(job:, user:)
+    descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+      tool_name: "write_external_record", capability: "records.write", mutation: true,
+      required_roles: [ McpToolContext.from_run(run).role ]
+    )
+    scheduled_tool = Class.new(MCP::Tool) do
+      tool_name "write_external_record"
+      input_schema(properties: { record_id: { type: "integer" } })
+
+      class << self
+        attr_accessor :invoked
+
+        def call(record_id:, server_context:)
+          self.invoked = true
+          Mcp::Tools.success(record_id:)
+        end
+      end
+    end
+    scheduled_tool.define_singleton_method(:capability_descriptor) { descriptor }
+
+    response = Mcp::Sidecar.authorize_tool(scheduled_tool).call(record_id: 7, server_context: { run_id: run.id })
+    payload = JSON.parse(response.content.first.fetch(:text), symbolize_names: true)
+
+    expect(payload).to include(authorization_status: "created", gated_operation_skipped: false)
+    expect(scheduled_tool.invoked).to be_nil
+    expect(job.reload.related_authorization_requests.pluck(:id)).to contain_exactly(payload.fetch(:authorization_request_id))
+  end
 end

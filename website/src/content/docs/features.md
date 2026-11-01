@@ -632,6 +632,12 @@ The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can
 auto-pause a task until an operator fixes and resumes it.
 
+If scheduled work needs operator authorization, equivalent fires share one
+active approval request rather than producing repeated prompts. The request is
+visible centrally and from each related Job. Later fires can continue useful
+work outside the gated operation, while recent denials and request caps keep a
+recurring schedule from flooding the approval inbox.
+
 A task can fire a named skill (see Skills below) with a set of parameters
 instead of a free-form prompt — the create/edit form lets an operator toggle
 between the two. A skill-based task still creates a `cron` Job and follows
