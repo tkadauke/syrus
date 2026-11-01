@@ -69,6 +69,9 @@ export type ToolCardPriorCall = { toolName: string; input: Record<string, unknow
 
 export type ToolCardRenderer = {
   toolName: string
+  // Override name-based side-effect classification when a tool's verb does
+  // not communicate whether it mutates state (for example, show_* tools).
+  readOnly?: boolean
   // Most cards need a completed result before their expanded body is useful.
   // Opt in when the card can also present an in-flight call from its input.
   renderWhilePending?: boolean
