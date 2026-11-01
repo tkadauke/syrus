@@ -38,6 +38,35 @@ RSpec.describe SyrusBrowser::PermissionProvider do
     expect(redacted.to_json).not_to include("report.txt")
   end
 
+  it "fingerprints form input without retaining credential text" do
+    descriptor = described_class.capability_descriptor("browser.interact/action@v1")
+
+    normalized = descriptor.normalize_fingerprint(target: "Password field", text: "secret-token")
+    redacted = descriptor.redact(target: "Password field", text: "secret-token")
+
+    expect(normalized).to eq(
+      "target" => "Password field",
+      "input_text_sha256" => Digest::SHA256.hexdigest("secret-token")
+    )
+    expect(redacted).to eq(normalized)
+    expect(redacted.to_json).not_to include("secret-token")
+  end
+
+  it "fingerprints loopback URL credentials without retaining userinfo" do
+    descriptor = described_class.capability_descriptor("browser.navigate/open@v1")
+
+    normalized = descriptor.normalize_fingerprint(url: "http://user:secret@localhost:3000/path#fragment")
+    redacted = descriptor.redact(url: "http://user:secret@localhost:3000/path#fragment")
+
+    expect(normalized).to eq(
+      "url" => "http://localhost:3000/path",
+      "url_userinfo_sha256" => Digest::SHA256.hexdigest("user:secret")
+    )
+    expect(redacted).to eq(normalized)
+    expect(URI.parse(redacted.fetch("url")).userinfo).to be_nil
+    expect(redacted.to_json).not_to include("user:secret")
+  end
+
   it "treats semantic browser interaction as uncertain while retaining the conservative ceiling" do
     descriptor = described_class.capability_descriptor("browser.interact/action@v1")
     result = Permissions::InvocationClassifier.call(descriptor:, arguments: { target: "submit" })
