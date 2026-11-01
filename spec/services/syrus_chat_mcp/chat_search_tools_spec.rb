@@ -121,6 +121,18 @@ RSpec.describe "Mcp::Tools chat search tools" do
       )
     end
 
+    it "does not return matches from chats hidden by the current user" do
+      hidden_chat = ChatSession.create!(user: user, title: "Hidden planning")
+      hidden_chat.chat_participants.find_by!(user: user).update!(hidden_at: Time.current)
+      hidden_message = message(hidden_chat, role: "user", text: "hiddenneedle private planning")
+      ChatMessageSearchIndex.insert(hidden_message)
+
+      response = call_tool("search_chats", query: "hiddenneedle")
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(response_payload(response).fetch(:results)).to be_empty
+    end
+
     it "uses the repository fallback title when a chat has no title" do
       untitled_chat = ChatSession.create!(user: user, repository: repository)
       indexed_message = message(untitled_chat, text: "fallback-title lookup")
