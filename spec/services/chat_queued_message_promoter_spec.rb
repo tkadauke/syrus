@@ -471,6 +471,8 @@ RSpec.describe ChatQueuedMessagePromoter do
 
       it "promotes but does not trigger the agent for an unmentioned queued message" do
         enqueue_message("no mention here")
+        expect_any_instance_of(ChatSession).to receive(:record_message_turn_state!)
+          .with(instance_of(ChatMessage), trigger_turn: false)
 
         result = nil
         expect {

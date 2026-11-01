@@ -25,9 +25,11 @@ module ChatIngressIdempotency
       end
 
       yield
+      raise ChatIngressUnsuccessful unless response.successful?
+
       body = JSON.parse(response.body.presence || "{}")
       chat_id = body.dig("chat", "id") || params[:id]
-      message_id = Array(body["messages"]).reverse.find { |message| message["client_idempotency_key"] == key }&.fetch("id", nil)
+      message_id = ChatMessage.where(sender_user: Current.user, client_idempotency_key: key).pick(:id)
       receipt.update!(
         chat_session_id: chat_id,
         chat_message_id: message_id,
@@ -40,6 +42,9 @@ module ChatIngressIdempotency
     render json: replay.response_body, status: replay.response_status if replay
   rescue ChatIngressConflict
     render_error("idempotency_conflict", "The idempotency key was already used for a different chat submission.", status: :conflict)
+  rescue ChatIngressUnsuccessful
+    # Keep the rendered error response, but roll back the claim and any work
+    # performed by the action so the same logical send can be retried.
   end
 
   def find_or_create_ingress_receipt!(key:, operation:, digest:)
@@ -66,4 +71,5 @@ module ChatIngressIdempotency
   end
 
   class ChatIngressConflict < StandardError; end
+  class ChatIngressUnsuccessful < StandardError; end
 end

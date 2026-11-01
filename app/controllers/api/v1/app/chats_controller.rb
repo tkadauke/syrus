@@ -314,7 +314,7 @@ module Api
           chat_session = create_chat_session
           return if performed?
 
-          Metrics::ProductUsage.record(:chat_created)
+          ActiveRecord.after_all_transactions_commit { Metrics::ProductUsage.record(:chat_created) }
           render json: {
             message: chat_session.messages.exists? ? "Message sent." : "Chat created.",
             redirect_to: chat_path(chat_session),
@@ -363,7 +363,7 @@ module Api
             enqueue_chat_title(chat_session, title_message)
           end
           enqueue_chat_turn(chat_session, user_message) if turn_triggered
-          Metrics::ProductUsage.record(:chat_message_sent)
+          ActiveRecord.after_all_transactions_commit { Metrics::ProductUsage.record(:chat_message_sent) }
 
           if stream_request?
             stream_chat_turn(chat_session, user_message, turn_enqueued: turn_triggered)
@@ -1787,6 +1787,7 @@ module Api
               skip_turn_trigger: promoted_role == "user" && !trigger_turn
             )
             locked_queued_message.update!(delivered_at: Time.current)
+            link_ingress_receipt_to_promoted_message!(locked_queued_message, user_message)
             locked_chat.update!(
               last_message_at: Time.current,
               turn_in_flight: trigger_turn
@@ -1796,6 +1797,14 @@ module Api
           user_message
         end
 
+        def link_ingress_receipt_to_promoted_message!(queued_message, message)
+          return if queued_message.client_idempotency_key.blank?
+
+          ChatIngressReceipt.find_by(
+            sender_user_id: queued_message.promoted_sender_user_id,
+            idempotency_key: queued_message.client_idempotency_key
+          )&.update!(chat_message: message)
+        end
 
         def find_pending_action(chat_session)
           chat_session.pending_actions.find(params[:pending_action_id])

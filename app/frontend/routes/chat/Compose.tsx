@@ -495,7 +495,13 @@ export function Compose({
     mutationFn: (draft: SubmittedChatDraft) =>
       agentActive
         ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments, draft.clientIdempotencyKey)
-        : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments, draft.chatProvider, draft.clientIdempotencyKey),
+        : sendChatMessage(
+            appendSearch(payload.paths.app_message_path, search),
+            draft.messageText,
+            draft.attachments,
+            draft.chatProvider,
+            draft.clientIdempotencyKey
+          ),
     onSuccess: (updated, draft) => {
       submittedDraftRef.current = null
       finishSubmittedDraft(draft, true)
@@ -511,6 +517,7 @@ export function Compose({
       if (finishSubmittedDraft(draft, false)) onNotice(errorMessage(error, t("message_send_error")))
     }
   })
+  const resetSend = send.reset
   useEffect(() => {
     const inFlight = getInFlightComposerDraft(chatId)
     if (!inFlight?.clientIdempotencyKey) return
@@ -523,9 +530,9 @@ export function Compose({
     )
       clearComposerDraft()
     submittedDraftRef.current = null
-    send.reset()
+    resetSend()
     onNotice(null)
-  }, [chatId, payload.messages, onNotice, send])
+  }, [chatId, payload.messages, onNotice, resetSend])
   const runShellCommand = useMutation({
     mutationFn: (input: { command: string; composerText: string }) => createChatShellCommand(chatId, input.command),
     onSuccess: (record, input) => {
