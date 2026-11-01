@@ -156,6 +156,45 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(home_file("SOUL.md")).to eq("role: foreground\n")
   end
 
+  it "commits every uncommitted background change with the coworker identity before merging" do
+    session = chat
+    background_path = @root.join("uncommitted-background")
+    run_git("clone", "--branch", "coworkers/maya", @remote.to_s, background_path.to_s)
+    write(background_path, "memory/new.md", "new memory\n")
+    write(background_path, "SOUL.md", "role: meticulous tester\n")
+    FileUtils.mv(background_path.join("shared.md"), background_path.join("renamed.md"))
+    FileUtils.rm(background_path.join("memory/daily.md"))
+
+    outcome = lifecycle(session).finalize_background!(
+      path: background_path, workflow: instance_double(Workflow, id: 49)
+    )
+
+    expect(outcome).to eq(:merged)
+    expect(home_file("memory/new.md")).to eq("new memory\n")
+    expect(home_file("SOUL.md")).to eq("role: meticulous tester\n")
+    expect(home_file("renamed.md")).to eq("first\ntwo\nthree\nfour\nlast\n")
+    expect { home_file("shared.md") }.to raise_error(Errno::ENOENT)
+    expect { home_file("memory/daily.md") }.to raise_error(Errno::ENOENT)
+    expect(run_git("log", "-1", "--format=%an <%ae>", "coworkers/maya", chdir: @remote).strip)
+      .to eq("Maya (@maya) <maya@coworkers.syrus.invalid>")
+  end
+
+  it "merges an agent-authored background commit without requiring more workspace edits" do
+    session = chat
+    background_path = @root.join("committed-background")
+    run_git("clone", "--branch", "coworkers/maya", @remote.to_s, background_path.to_s)
+    write(background_path, "memory/committed.md", "legacy agent commit\n")
+    run_git("add", "--all", chdir: background_path)
+    run_git("-c", "user.name=Agent", "-c", "user.email=agent@example.test", "commit", "-m", "legacy commit", chdir: background_path)
+
+    outcome = lifecycle(session).finalize_background!(
+      path: background_path, workflow: instance_double(Workflow, id: 50)
+    )
+
+    expect(outcome).to eq(:merged)
+    expect(home_file("memory/committed.md")).to eq("legacy agent commit\n")
+  end
+
   it "bounds each background Git operation below the shared Git timeout" do
     session = chat
     background_path = @root.join("bounded-background")
