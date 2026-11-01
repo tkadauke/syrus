@@ -39,6 +39,20 @@ RSpec.describe App::JobDetailPayload do
     expect(payload_for(rollback).dig(:job, :rollback_of)).to include(id: original.id, slug: original.slug)
   end
 
+  it "keeps the original closed while projecting active and failed rollback progress" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+    rollback = Factories.job_record(user: user, repository: repo, rollback_of: original, state: "running")
+
+    active = payload_for(original)
+    expect(active.dig(:job, :unland)).to include(state: "in_progress", rollback_job: include(id: rollback.id, path: "/jobs/#{rollback.id}"))
+    expect(original.reload).to be_closed
+
+    rollback.update!(state: "failed")
+    expect(payload_for(original).dig(:job, :unland)).to include(state: "failed")
+  end
+
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil, blocked_details: nil)
     primary = member_jobs.first
     intent = WorkIntent.create!(

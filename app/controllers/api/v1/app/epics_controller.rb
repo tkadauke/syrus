@@ -328,6 +328,7 @@ module Api
             merge_train_status: PerformanceLogging.phase("epic_detail.merge_train_status", epic_id: epic.id) { ::App::MergeTrainStatus.for_epic(epic) },
             origin_chat: PerformanceLogging.phase("epic_detail.origin_chat", epic_id: epic.id) { epic_origin_chat_json(epic) },
             epic: PerformanceLogging.phase("epic_detail.epic", epic_id: epic.id) { detail_epic_json(epic, jobs: jobs) },
+            unland: unland_json(epic),
             summary: {
               done_jobs_count: done_jobs_count(jobs),
               total_jobs_count: jobs.size,
@@ -385,6 +386,20 @@ module Api
 
         def visible_epic_jobs(epic)
           Job.visible_to(Current.user, scope: epic.jobs)
+        end
+
+        def unland_json(epic)
+          rollback = epic.rollback_jobs.order(created_at: :desc, id: :desc).first
+          state = if epic.unlanded_by
+            "reverted"
+          elsif rollback&.failed?
+            "failed"
+          elsif rollback && !rollback.state.in?(Job::TERMINAL_STATES + %w[failed])
+            "in_progress"
+          elsif epic.done?
+            "landed"
+          end
+          { state: state, rollback_job: rollback && { id: rollback.id, slug: rollback.slug, state: rollback.state, path: job_path(rollback), pr_number: rollback.pr_number, pr_url: rollback.pr_url } }
         end
 
         def epic_blocked_reason(dependency)
