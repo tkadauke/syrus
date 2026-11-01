@@ -50,6 +50,16 @@ RSpec.describe Ruby::MinitestGraderType do
     expect(steps.map(&:display_name)).to eq([ "Minitest", "Minitest (focused)", "Minitest (CI)" ])
   end
 
+  it "maps unland to the focused command without selecting the full command" do
+    steps = described_class.grade_steps(config: { "phases" => %w[unland] }, default_failures: "strict")
+
+    expect(steps.map { |entry| [ entry.name, entry.phases, entry.metadata["grader_mode"] ] }).to eq([
+      [ "minitest", [], "full" ],
+      [ "minitest-focused", %w[unland], "focused" ],
+      [ "minitest-ci", [], "ci" ]
+    ])
+  end
+
   it "honors command, focused_command, paths, project scope, dependencies, and per-mode timeouts" do
     steps = described_class.grade_steps(
       config: {

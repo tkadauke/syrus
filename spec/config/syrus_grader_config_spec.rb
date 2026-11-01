@@ -4,6 +4,30 @@ require "rails_helper"
 require "open3"
 
 RSpec.describe "Syrus grader configuration" do
+  it "keeps the unland gate fast and smoke-only" do
+    plan = LandingGraderPlan.effective(
+      RepoGradePlan.for(Rails.root),
+      trigger_kind: "unland",
+      iteration: 1
+    )
+
+    expect(plan.graders.map(&:name)).to eq(%w[
+      migration-collisions
+      migration-lint
+      thread-budget
+      feature-slugs
+      plugin-model-namespaces
+      plugin-boundaries
+      eager-load
+      production-build-boot
+      frontend-typecheck
+    ])
+    expect(plan.graders.find { |grader| grader.name == "frontend-typecheck" }).to have_attributes(
+      command: "npm run typecheck",
+      required: true
+    )
+  end
+
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 

@@ -236,6 +236,16 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.third.run).to include("RUN_CI_ONLY_SPECS=true")
   end
 
+  it "maps unland to the focused command without selecting the full command" do
+    steps = described_class.grade_steps(config: { "phases" => %w[unland] }, default_failures: "strict")
+
+    expect(steps.map { |entry| [ entry.name, entry.phases, entry.metadata["grader_mode"] ] }).to eq([
+      [ "rspec", [], "full" ],
+      [ "rspec-focused", %w[unland], "focused" ],
+      [ "rspec-ci", [], "ci" ]
+    ])
+  end
+
   it "supports a fixed full-path grader that runs configured paths in every selected phase" do
     steps = described_class.grade_steps(
       config: {

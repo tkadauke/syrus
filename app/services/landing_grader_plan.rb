@@ -16,6 +16,7 @@ class LandingGraderPlan
   # promotion uses. A repository opts a grader into both ref-movement
   # workflows with the same `phases: [promotion]`.
   PROMOTION_TRIGGER_KINDS = %w[ promotion hotfix_sync ].freeze
+  UNLAND_TRIGGER_KINDS = %w[ unland ].freeze
 
   def self.effective(plan, trigger_kind:, iteration:, phase: nil, repository: nil, job: nil)
     new(
@@ -69,6 +70,7 @@ class LandingGraderPlan
     return phase_override if phase_override
     return :ci if CI_TRIGGER_KINDS.include?(trigger_kind)
     return :promotion if PROMOTION_TRIGGER_KINDS.include?(trigger_kind)
+    return :unland if UNLAND_TRIGGER_KINDS.include?(trigger_kind)
     return :landing if repository.nil? && LANDING_TRIGGER_KINDS.include?(trigger_kind)
     return :review if repository.nil?
 

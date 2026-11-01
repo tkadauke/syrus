@@ -252,6 +252,13 @@ Syrus rebases before blaming the PR branch, and it avoids running many
 CI-failure Workflows with the same failing base at once. A rolling cap
 prevents endless CI-failure loops on the same Job.
 
+### Unland validation
+
+The non-agentic unland validation workflow runs `prepare -> grader fanout ->
+grader collect` against a proposed revert tree. It uses only the repository's
+explicit `unland` phase and refuses to pass when changed-file filtering leaves
+no required grader selected.
+
 ## Step Kinds
 
 | Step | Agentic | Purpose |
@@ -274,7 +281,7 @@ prevents endless CI-failure loops on the same Job.
 | `push` | No | Push commits to an existing PR branch, update the cost footer, and clean-rebase once if the remote branch advanced |
 | `push_agent_rebase` | Yes | Resolve a conflicting follow-up push rebase onto the current remote PR branch |
 | `push_after_rebase` | No | Push a branch after the agentic follow-up rebase and grade loop |
-| `grader` | No | Run one configured repo grader. The UI groups grader setup, fanout, and aggregation under a single Grade row. |
+| `grader` | No | Run one configured repo grader. The UI groups grader setup, fanout, and aggregation under a single Grade row. Unland workflows select the dedicated `unland` phase and reject a selection with no required grader. |
 | `auto_rebase` | No | Try a deterministic rebase before involving an agent |
 | `agent_rebase` | Yes | Resolve rebase conflicts with the agent |
 | `force_push` | No | Force-push a rebased branch with an explicit `--force-with-lease` lease |
