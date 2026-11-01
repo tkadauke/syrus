@@ -42,7 +42,8 @@ RSpec.describe ChatContextCompactor do
   end
 
   def add_messages(chat_session, count)
-    count.times do |i|
+    now = Time.current
+    rows = count.times.map do |i|
       role = i.even? ? "assistant" : "tool_result"
       content = if role == "assistant"
         [ { "type" => "text", "text" => "assistant event #{i}" } ]
@@ -54,8 +55,18 @@ RSpec.describe ChatContextCompactor do
           "is_error" => false
         }
       end
-      chat_session.messages.create!(role: role, content: content, tool_name: role == "tool_result" ? "admin.tool" : nil, tool_use_id: role == "tool_result" ? "tool-#{i}" : nil)
+      {
+        chat_session_id: chat_session.id,
+        role: role,
+        content: content,
+        tool_name: role == "tool_result" ? "admin.tool" : nil,
+        tool_use_id: role == "tool_result" ? "tool-#{i}" : nil,
+        created_at: now,
+        updated_at: now
+      }
     end
+
+    ChatMessage.insert_all!(rows)
   end
 
   it "does nothing while the feature is disabled" do

@@ -24,6 +24,19 @@ RSpec.describe ChatSessionRehydrator::Codex do
     jsonl.lines.map { |l| JSON.parse(l) }
   end
 
+  def create_assistant_messages!(count)
+    now = Time.current
+    ChatMessage.insert_all!(count.times.map do |i|
+      {
+        chat_session_id: session.id,
+        role: "assistant",
+        content: [ { "type" => "text", "text" => "assistant event #{i}" } ],
+        created_at: now,
+        updated_at: now
+      }
+    end)
+  end
+
   # ---------------------------------------------------------------------------
   # Unit: header and trailer
   # ---------------------------------------------------------------------------
@@ -580,11 +593,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
     it "rehydrates from a compaction checkpoint plus recent messages" do
       allow(Feature).to receive(:chat_context_compaction_enabled?).and_return(true)
       allow_any_instance_of(ChatContextCompactor).to receive(:enabled_for_chat?).and_return(true)
-      130.times do |i|
-        create_message!(role: "assistant", content: [
-          { "type" => "text", "text" => "assistant event #{i}" }
-        ])
-      end
+      create_assistant_messages!(130)
       ChatContextCompactor.maybe_compact!(session)
 
       jsonl = described_class.new(session, session_id: "compact-thread").call
