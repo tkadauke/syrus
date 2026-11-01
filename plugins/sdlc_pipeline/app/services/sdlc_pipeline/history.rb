@@ -10,15 +10,19 @@ module SdlcPipeline
       @user = user
       @filter = filter
       @now = now
-      @to = parse_time(to) || now
-      @from = [ parse_time(from) || (@to - DEFAULT_RANGE), @to - MAX_RANGE ].max
+      @to = [ parse_time(to) || now, now ].min
+      requested_from = parse_time(from) || (@to - DEFAULT_RANGE)
+      @from = [ [ requested_from, @to ].min, @to - MAX_RANGE ].max
     end
 
     def call
       entries = Stage.entries(RepoDeploymentStagesReader.for_repository(repository).stages)
-      jobs = filter.apply(Job.visible_to(user)).where(repository_id: repository.id)
+      job_scope = filter.apply(Job.visible_to(user)).where(repository_id: repository.id)
         .where("jobs.created_at <= ?", to).includes(:epic, :deployment_stage_statuses)
-        .order(created_at: :desc, id: :desc).limit(MAX_JOBS).to_a
+        .order(created_at: :asc, id: :asc)
+      jobs = job_scope.limit(MAX_JOBS + 1).to_a
+      jobs_truncated = jobs.length > MAX_JOBS
+      jobs = jobs.first(MAX_JOBS)
       transitions = StateTransition.where(subject_type: "Job", subject_id: jobs.map(&:id))
         .where("created_at <= ?", to).order(:created_at, :id).to_a.group_by(&:subject_id)
 
@@ -38,23 +42,27 @@ module SdlcPipeline
           }
         end
       end.sort_by { |delta| delta[:at] }
-      truncated = deltas.length > MAX_DELTAS || jobs.length == MAX_JOBS
+      deltas_truncated = deltas.length > MAX_DELTAS
       deltas = deltas.first(MAX_DELTAS)
-      traces = trace_payload(checkpoint, deltas)
+      effective_to = deltas_truncated ? Time.zone.parse(deltas.last[:at]) : to
+      traces = trace_payload(checkpoint, deltas, effective_to)
       legacy_job_count = jobs.count { |job| transitions.fetch(job.id, []).empty? && job.updated_at > job.created_at }
 
       {
         from: from.iso8601,
-        to: to.iso8601,
+        to: effective_to.iso8601,
         checkpoint: { at: from.iso8601, placements: checkpoint },
         deltas: deltas,
         ticks: deltas.map { |delta| delta[:at] }.uniq,
         traces: traces,
-        bounds: { maximum_days: (MAX_RANGE / 1.day).to_i, maximum_jobs: MAX_JOBS, maximum_deltas: MAX_DELTAS },
+        bounds: {
+          maximum_days: (MAX_RANGE / 1.day).to_i, maximum_jobs: MAX_JOBS, maximum_deltas: MAX_DELTAS,
+          included_jobs: jobs.length, omitted_jobs: jobs_truncated ? job_scope.count - jobs.length : 0
+        },
         accuracy: {
-          status: truncated ? "bounded" : (legacy_job_count.positive? ? "partial" : "reconstructed"),
-          message: "Stage placement is reconstructed from recorded transitions and delivery timestamps; legacy gaps fall back to current state. Card metadata is current.",
-          truncated: truncated,
+          status: (jobs_truncated || deltas_truncated) ? "bounded" : (legacy_job_count.positive? ? "partial" : "reconstructed"),
+          message: accuracy_message(jobs_truncated:, deltas_truncated:),
+          truncated: jobs_truncated || deltas_truncated,
           legacy_job_count: legacy_job_count
         }
       }
@@ -119,7 +127,7 @@ module SdlcPipeline
       }
     end
 
-    def trace_payload(checkpoint, deltas)
+    def trace_payload(checkpoint, deltas, trace_to)
       initial = checkpoint.index_by { |placement| placement[:job_id] }
       (initial.keys | deltas.map { |delta| delta[:job_id] }).filter_map do |job_id|
         entered_at = from
@@ -131,13 +139,24 @@ module SdlcPipeline
           stage = delta[:to_stage]
           entered_at = left_at
         end
-        segments << trace_segment(stage, entered_at, to) if stage
+        segments << trace_segment(stage, entered_at, trace_to) if stage
         { job_id: job_id, segments: segments } if segments.any?
       end
     end
 
     def trace_segment(stage, entered_at, left_at)
       { stage: stage, entered_at: entered_at.iso8601, left_at: left_at.iso8601, dwell_seconds: (left_at - entered_at).to_i }
+    end
+
+    def accuracy_message(jobs_truncated:, deltas_truncated:)
+      detail = if jobs_truncated
+        " The cohort exceeds the job bound; only the earliest bounded cohort is shown."
+      elsif deltas_truncated
+        " The range ends at the last complete event because the delta bound was reached."
+      else
+        ""
+      end
+      "Stage placement is reconstructed from recorded transitions and delivery timestamps; legacy gaps fall back to current state. Card metadata is current.#{detail}"
     end
   end
 end
