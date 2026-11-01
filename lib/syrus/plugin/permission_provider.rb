@@ -29,6 +29,40 @@ module Syrus
           descriptor
         end
 
+        def migrate_permission_scope(from_operation:, to_operation:, with:)
+          migration = Permissions::CapabilityScopeMigration.new(
+            from_operation: from_operation,
+            to_operation: to_operation,
+            transform: with
+          )
+          if registered_permission_scope_migrations.any? { |registered| registered.from_operation == migration.from_operation }
+            raise ArgumentError, "scope migration from #{migration.from_operation.inspect} is already registered"
+          end
+
+          registered_permission_scope_migrations << migration
+          migration
+        end
+
+        def retire_permission_identifier(identifier)
+          identifier = identifier.to_s
+          unless identifier.match?(/\A[a-z][a-z0-9_.-]*(?:\/[a-z][a-z0-9_.-]*)?@v[1-9]\d*\z/)
+            raise ArgumentError, "retired permission identifier must be versioned"
+          end
+          raise ArgumentError, "permission identifier #{identifier.inspect} is already retired" if registered_retired_permission_identifiers.include?(identifier)
+
+          registered_retired_permission_identifiers << identifier.freeze
+          identifier
+        end
+
+        def validate_permission_upgrade!(previous_descriptors:, retired_identifiers: retired_permission_identifiers)
+          Permissions::CapabilityUpgradeValidator.new(
+            previous: previous_descriptors,
+            current: permission_capability_descriptors,
+            scope_migrations: permission_scope_migrations,
+            retired_identifiers: retired_identifiers
+          ).validate!
+        end
+
         def capability_descriptor(operation)
           registered_permission_capability_descriptors.find { |descriptor| descriptor.operation == operation.to_s } ||
             raise(KeyError, "unknown permission operation: #{operation}")
@@ -42,6 +76,14 @@ module Syrus
           registered_permission_resource_scopes.dup.freeze
         end
 
+        def permission_scope_migrations
+          registered_permission_scope_migrations.dup.freeze
+        end
+
+        def retired_permission_identifiers
+          registered_retired_permission_identifiers.dup.freeze
+        end
+
         private
 
         def registered_permission_capability_descriptors
@@ -50,6 +92,14 @@ module Syrus
 
         def registered_permission_resource_scopes
           @permission_resource_scopes ||= {}
+        end
+
+        def registered_permission_scope_migrations
+          @permission_scope_migrations ||= []
+        end
+
+        def registered_retired_permission_identifiers
+          @retired_permission_identifiers ||= []
         end
       end
     end

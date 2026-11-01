@@ -202,6 +202,13 @@ permission metadata is absent from the active catalog. Registration describes
 what may be requested; it does not grant authority when a plugin is installed
 or enabled.
 
+Permission providers declare deterministic scope migrations when a new
+operation version changes the normalized resource shape. Upgrade validation
+rejects silent key removal, reuse of a retired identifier, and broader effects,
+roles, defaults, autonomy, duration, or risk under an existing identity. A
+renamed key must remain an alias; an intentionally removed key stays reserved
+through an explicit retirement declaration.
+
 Typed resource scopes are provider-defined through a shared schema contract.
 Providers apply the caller's normal resource visibility during lookup; hidden
 and unknown identifiers receive the same result. Syrus canonicalizes and
