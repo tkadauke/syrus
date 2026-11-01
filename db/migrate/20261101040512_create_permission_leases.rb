@@ -27,17 +27,22 @@ class CreatePermissionLeases < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :permission_leases, [ :owner_user_id, :subject_selector_type, :subject_selector_id, :revoked_at ],
-      name: "idx_permission_leases_current_subject" unless index_exists?(:permission_leases,
-        [ :owner_user_id, :subject_selector_type, :subject_selector_id, :revoked_at ],
-        name: "idx_permission_leases_current_subject")
-    add_index :permission_leases, [ :capability, :operation, :revoked_at, :expires_at ],
-      name: "idx_permission_leases_current_capability" unless index_exists?(:permission_leases,
-        [ :capability, :operation, :revoked_at, :expires_at ],
-        name: "idx_permission_leases_current_capability")
-    add_index :permission_leases, [ :subject_repository_id, :revoked_at ],
-      name: "idx_permission_leases_current_repository" unless index_exists?(:permission_leases,
-        [ :subject_repository_id, :revoked_at ], name: "idx_permission_leases_current_repository")
+    unless index_exists?(:permission_leases,
+      [ :owner_user_id, :subject_selector_type, :subject_selector_id, :revoked_at ],
+      name: "idx_permission_leases_current_subject")
+      add_index :permission_leases, [ :owner_user_id, :subject_selector_type, :subject_selector_id, :revoked_at ],
+        name: "idx_permission_leases_current_subject"
+    end
+    unless index_exists?(:permission_leases, [ :capability, :operation, :revoked_at, :expires_at ],
+      name: "idx_permission_leases_current_capability")
+      add_index :permission_leases, [ :capability, :operation, :revoked_at, :expires_at ],
+        name: "idx_permission_leases_current_capability"
+    end
+    unless index_exists?(:permission_leases, [ :subject_repository_id, :revoked_at ],
+      name: "idx_permission_leases_current_repository")
+      add_index :permission_leases, [ :subject_repository_id, :revoked_at ],
+        name: "idx_permission_leases_current_repository"
+    end
   end
 
   def down
