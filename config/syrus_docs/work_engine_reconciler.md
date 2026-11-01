@@ -172,6 +172,12 @@ Planner examples:
   Run.
 - A queued Run whose SolidQueue execution failed also returns `reenqueue_run`;
   the persisted Run remains the source of truth.
+- A queued Run left on a dead worker/storage-affinity queue is automatically
+  re-enqueued after the queued-Run grace period. Immediately before mutation,
+  the executor confirms that the same execution is still ready and its exact
+  queue still has no live consumer; otherwise the repair is skipped. A valid
+  repair deletes the stale queue row, clears Workflow affinity, and routes the
+  same Run again through normal capability-aware dispatch.
 - A stale queued Run with an existing queue claim returns
   `diagnose_queue_starvation`; it does not duplicate work.
 - A queued Run in a healthy re-enqueue loop returns `reenqueue_run`, but the

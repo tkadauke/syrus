@@ -62,6 +62,7 @@ The reconciler is the background safety net. It looks for states that should
 not persist:
 
 - queued runs with no queue claim,
+- queued runs stranded on a worker-specific queue after that worker disappears,
 - workflows with no first run,
 - stale running runs after worker death or deploy,
 - terminal workflows still attached to active Jobs,
@@ -71,6 +72,12 @@ not persist:
 The reconciler records what it found and what repair it applied. This is the
 best audit trail when something gets unstuck without an operator clicking a
 button.
+
+After the queued-run grace period, a run stranded on a dead worker-specific
+queue is rerouted automatically. Recovery keeps the same Run and priority,
+clears the stale worker/storage affinity, and rechecks the queue immediately
+before changing it so a returning worker or concurrent recovery wins without
+duplicating work.
 
 ## Retry Semantics
 

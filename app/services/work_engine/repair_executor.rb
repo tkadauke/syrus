@@ -533,6 +533,12 @@ module WorkEngine
             return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
             return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
+            old_queue = nil
+            if plan.issue_kind == "queued_run_on_dead_resume_queue"
+              old_queue = stranded_affinity_queue(run)
+              return skipped("affinity queue is no longer stranded") unless old_queue
+            end
+
             # A wedged claim needs the same treatment as a dead resume queue, for
             # the opposite reason: the worker is still heartbeating, so routing
             # would hand the Run straight back to the storage key it is stuck
@@ -545,8 +551,10 @@ module WorkEngine
               delete_stale_solid_queue_jobs!
               clear_dead_resume_affinity!(run)
             end
-            run.reenqueue!
-            success("re-enqueued #{run_label(run)}")
+            run.reenqueue!(ignore_workflow_affinity: old_queue.present?)
+            message = "re-enqueued #{run_label(run)}"
+            message += " from #{old_queue} after clearing stale affinity" if old_queue
+            success(message)
           end
         end
 
@@ -573,6 +581,29 @@ module WorkEngine
           run.step&.association(:workflow)&.reset
           run.association(:step).reset
           run.association(:job).reset
+        end
+
+        # The plan is based on a point-in-time queue snapshot. Re-read the
+        # exact affected execution immediately before deleting it: a worker may
+        # have resumed heartbeating, or another repair may already have removed
+        # or claimed the row. Either race makes this repair a no-op.
+        def stranded_affinity_queue(run)
+          scope = SolidQueue::Job.where(
+            id: Array(plan.affected_ids["solid_queue_job_ids"]),
+            class_name: "RunJob",
+            finished_at: nil
+          )
+          queue_job = Array(SolidQueueRunJobQuery.matching(scope: scope, run_id: run.id)).first
+          return unless queue_job
+          return unless queue_job.queue_name.to_s.start_with?("resume-", "worker-")
+          return unless SolidQueue::ReadyExecution.where(job_id: queue_job.id).exists?
+          diagnosis = RunQueueDiagnosis.call(run)
+          return unless diagnosis&.dig(:kind) == "ready_no_consumer"
+          return unless diagnosis.dig(:details, :queue_name) == queue_job.queue_name
+
+          queue_job.queue_name
+        rescue NameError, ActiveRecord::StatementInvalid
+          nil
         end
 
         def delete_stale_solid_queue_jobs!

@@ -12023,7 +12023,7 @@ describe("App", () => {
 
   it.each([
     ["ready_waiting_for_slot", { queue_name: "runs", live_worker_count: 2 }, "all of its threads are in use", "bg-info-surface", "pending"],
-    ["ready_no_consumer", { queue_name: "resume-storage-a", live_worker_count: 2 }, "unavailable queue resume-storage-a", "bg-warning-surface", "repair"],
+    ["ready_no_consumer", { queue_name: "resume-storage-a", live_worker_count: 2 }, "Worker unavailable; this run will be rerouted automatically", "bg-warning-surface", "pending"],
     ["concurrency_blocked", { queue_name: "runs" }, "concurrency lock", "bg-warning-surface", "pending"],
     ["scheduled", { queue_name: "runs", scheduled_at: "2026-05-30T12:00:00Z" }, "scheduled to become ready", "bg-info-surface", "pending"],
     ["claimed_not_started", { queue_name: "runs" }, "claimed the RunJob", "bg-info-surface", "workers"],
