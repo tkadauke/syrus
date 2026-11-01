@@ -174,6 +174,44 @@ RSpec.describe BaseRevisionRetry do
     expect(result.base_failed_identities).to eq([ "spec/models/widget_spec.rb\0Widget fails" ])
   end
 
+  it "matches a base failure when its formatter reports a renamed suite for the same file" do
+    provider = Class.new do
+      def self.command_for(**)
+        "bin/rspec-fast spec/models/widget_spec.rb"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    retry_check = described_class.new(
+      workflow: workflow, grader_step: grader_step, base_sha: "main123",
+      failed_cases: failed_cases, log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      path = chdir.join(".syrus/grade-output/rspec-junit.xml")
+      FileUtils.mkdir_p(path.dirname)
+      path.write(<<~XML)
+        <testsuite name="old suite">
+          <testcase classname="Renamed::WidgetSpec" file="spec/models/widget_spec.rb" name="Widget fails">
+            <failure message="same failure">same failure</failure>
+          </testcase>
+        </testsuite>
+      XML
+      output << "1 example, 1 failure"
+      command_execution
+    end
+
+    expect(retry_check.call).to have_attributes(inherited: true, introduced_failed_identities: [])
+  end
+
+  it "matches a uniquely named base failure when native RSpec output has no suite" do
+    retry_check = described_class.new(
+      workflow: workflow, grader_step: grader_step, base_sha: "main123",
+      failed_cases: failed_cases, log: ->(_message) { }
+    )
+
+    expect(retry_check.send(:introduced_identities,
+      [ "spec/models/widget_spec.rb\0Widget fails" ], [ "unknown\0Widget fails" ])).to be_empty
+  end
+
   it "reuses failed cases from the same grader in a main-grader run at the base SHA" do
     main_job = Factories.job_record(repository: job.repository, kind: "main_grader", issue_number: nil)
     main_workflow = Workflow.create!(job: main_job, trigger_kind: "main_grader", state: "running")

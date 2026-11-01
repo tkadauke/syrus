@@ -196,5 +196,25 @@ RSpec.describe Ruby::RspecParser do
         end
       end
     end
+
+    it "extracts a spec path nested under a plugin directory" do
+      Tempfile.create("rspec-plugin-location") do |f|
+        f.write(<<~OUTPUT)
+          Failures:
+
+            1) plugin example fails
+               Failure/Error: expect(false).to be(true)
+               # ./plugins/example/spec/services/example_spec.rb:12:in `block'
+
+          Finished in 0.01 seconds
+          1 example, 1 failure
+        OUTPUT
+        f.flush
+
+        test_case = described_class.call(output_path: f.path).cases.first
+        expect(test_case.file_path).to eq("plugins/example/spec/services/example_spec.rb")
+        expect(test_case.suite_name).to eq("plugins/example/spec/services/example_spec.rb")
+      end
+    end
   end
 end

@@ -77,10 +77,10 @@ class BaseRevisionRetry
     # error with the same identity is not enough to prove the PR failure was
     # inherited.
     base = parsed.cases.select { |test_case| test_case.status == "failed" }
-                 .map { |test_case| [ test_case.suite_name, test_case.name ].join(0.chr) }
+                 .filter_map { |test_case| TestCaseIdentity.for(test_case) }
                  .uniq
                  .sort
-    introduced = candidate - base
+    introduced = introduced_identities(candidate, base)
     inherited = candidate.any? && introduced.empty?
     Result.new(
       ran: true,
@@ -212,7 +212,7 @@ class BaseRevisionRetry
 
     candidate = @failed_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
     base = base_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
-    introduced = candidate - base
+    introduced = introduced_identities(candidate, base)
     inherited = candidate.any? && introduced.empty?
     @log.call("[brr:#{grader_name}] reused comparable main-grader result for #{@base_sha.first(9)}")
     Result.new(
@@ -363,14 +363,23 @@ class BaseRevisionRetry
   end
 
   def identity_for(test_case)
-    identity = test_case["identity"].to_s
-    return identity if identity.present?
+    TestCaseIdentity.for(test_case)
+  end
 
-    suite_name = test_case["suite_name"].to_s
-    name = test_case["name"].to_s
-    return nil if suite_name.blank? || name.blank?
+  # Native RSpec text can occasionally omit the location while retaining the
+  # full example name. Treat that deliberately lossy `unknown` suite as a
+  # fallback only when the name identifies exactly one candidate and one base
+  # failure. This repairs comparisons across structured and text ingestion
+  # without merging genuinely ambiguous examples that share a description.
+  def introduced_identities(candidate, base)
+    candidate.reject do |identity|
+      next true if base.include?(identity)
 
-    [ suite_name, name ].join(0.chr)
+      name = identity.split(TestCaseIdentity::SEPARATOR, 2).last
+      candidate_matches = candidate.count { |value| value.split(TestCaseIdentity::SEPARATOR, 2).last == name }
+      base_matches = base.select { |value| value.split(TestCaseIdentity::SEPARATOR, 2).last == name }
+      candidate_matches == 1 && base_matches.one? && base_matches.first.start_with?("unknown#{TestCaseIdentity::SEPARATOR}")
+    end
   end
 
   # byteslice with a negative offset past the start of the string is nil, which

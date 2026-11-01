@@ -30,8 +30,11 @@ module TestInsights
       where("test_insight_identities.name LIKE ? OR test_insight_identities.suite_name LIKE ? OR test_insight_identities.file_path LIKE ?", pattern, pattern, pattern)
     }
 
-    def self.fingerprint_for(suite_name:, name:)
-      Digest::SHA256.hexdigest([ suite_name.to_s, name.to_s ].join(FINGERPRINT_SEPARATOR))
+    def self.fingerprint_for(suite_name:, name:, file_path: nil)
+      canonical_suite = TestCaseIdentity.canonical_suite(
+        "suite_name" => suite_name, "name" => name, "file_path" => file_path
+      )
+      Digest::SHA256.hexdigest([ canonical_suite, name.to_s.strip ].join(FINGERPRINT_SEPARATOR))
     end
 
     def self.ensure_for_cases!(repository:, cases:)
@@ -40,11 +43,12 @@ module TestInsights
         # Fingerprint on the untruncated suite_name/name -- the stored name is
         # truncated to fit the column below, but the identity key must not
         # depend on where that truncation happens to cut the string.
-        fingerprint = fingerprint_for(suite_name: test_case.suite_name, name: test_case.name)
+        canonical_suite = TestCaseIdentity.canonical_suite(test_case)
+        fingerprint = fingerprint_for(suite_name: canonical_suite, name: test_case.name)
         attrs_by_fingerprint[fingerprint] ||= {
           repository_id: repository.id,
           fingerprint: fingerprint,
-          suite_name: TestCase.truncate_string_column(test_case.suite_name),
+          suite_name: TestCase.truncate_string_column(canonical_suite),
           name: TestCase.truncate_string_column(test_case.name),
           file_path: TestCase.truncate_string_column(test_case.file_path),
           created_at: Time.current,
@@ -77,7 +81,7 @@ module TestInsights
       return if rows.empty?
 
       identities = ensure_for_cases!(repository: repository, cases: rows)
-      rows.group_by { |test_case| fingerprint_for(suite_name: test_case.suite_name, name: test_case.name) }.each do |fingerprint, test_cases|
+      rows.group_by { |test_case| fingerprint_for(suite_name: test_case.suite_name, name: test_case.name, file_path: test_case.file_path) }.each do |fingerprint, test_cases|
         identity = identities[fingerprint]
         next unless identity
 

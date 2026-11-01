@@ -138,6 +138,14 @@ test is flaky if that window contains at least one `passed` row and at least
 one `failed`/`error` row; the score is `failed / total` within the scored
 window.
 
+Identity canonicalization prefers `file_path` plus the test name when a source
+path is available, so JUnit class names, native runner output, and renamed suite
+labels do not split one test's history. Known-flaky adjudication also declines
+when the latest scored history ends in consecutive failures; that pattern is a
+persistent baseline regression, not an intermittent flake. A base-revision
+comparison that identifies an introduced failure takes precedence over this
+historical score and cannot be overridden by a known-flaky dismissal.
+
 Scored history deliberately excludes a Job's own self-repaired WIP failures:
 when a failed/error `TestCase` came from a grader Step inside a workflow
 `retry_until` loop and a later grader Step in the same workflow, same loop,
