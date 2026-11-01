@@ -57,6 +57,42 @@ RSpec.describe Coworkers::PermissionCutoverReport do
     ))
   end
 
+  it "reports denied authority for a coworker role omitted from an explicit descriptor" do
+    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
+    report = described_class.new(
+      coworker: coworker,
+      registrations: [ registration(descriptor(roles: [ AgentRole::COWORKER_CHAT ])) ],
+      findings: []
+    ).as_json
+
+    expect(report[:recommended_defaults]).to contain_exactly(include(
+      roles: { AgentRole::COWORKER_CHAT => "ask", AgentRole::COWORKER => "deny" }
+    ))
+    expect(report[:lost_authority]).to contain_exactly(
+      include(role: AgentRole::COWORKER_CHAT, before: :allow, after: "ask"),
+      include(role: AgentRole::COWORKER, before: :allow, after: "deny")
+    )
+    expect(report[:requestable_replacements]).to contain_exactly(include(roles: [ AgentRole::COWORKER_CHAT ]))
+  end
+
+  it "reports both coworker roles as denied when neither role is requestable" do
+    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
+    report = described_class.new(
+      coworker: coworker,
+      registrations: [ registration(descriptor(roles: [])) ],
+      findings: []
+    ).as_json
+
+    expect(report[:recommended_defaults]).to contain_exactly(include(
+      roles: { AgentRole::COWORKER_CHAT => "deny", AgentRole::COWORKER => "deny" }
+    ))
+    expect(report[:lost_authority]).to contain_exactly(
+      include(role: AgentRole::COWORKER_CHAT, before: :allow, after: "deny"),
+      include(role: AgentRole::COWORKER, before: :allow, after: "deny")
+    )
+    expect(report[:requestable_replacements]).to be_empty
+  end
+
   it "surfaces registry findings affecting a legacy grant as blocking migration errors" do
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
     candidate = registration(descriptor)
