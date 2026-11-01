@@ -83,6 +83,53 @@ RSpec.describe ChatMessageSearchIndex do
     expect(described_class.search("deleted", chat_session_ids: [ session.id ])).to be_empty
   end
 
+  it "uses active messages in active chat sessions as the canonical rebuild eligibility scope" do
+    active_message = ChatMessage.create!(chat_session: session, role: "user", content: { "text" => "active search message" })
+    deleted_message = ChatMessage.create!(chat_session: session, role: "user", content: { "text" => "deleted search message" })
+    deleted_message.soft_delete_by!(user)
+
+    deleted_session = ChatSession.create!(repository: repo, user: user)
+    deleted_session_message = ChatMessage.create!(chat_session: deleted_session, role: "assistant", content: { "text" => "deleted chat message" })
+    deleted_session.soft_delete_by!(user)
+
+    orphaned_session = ChatSession.create!(repository: repo, user: user)
+    orphaned_message = ChatMessage.create!(chat_session: orphaned_session, role: "user", content: { "text" => "orphaned search message" })
+    ChatSession.where(id: orphaned_session.id).delete_all
+
+    expect(described_class.search_eligible_scope).to contain_exactly(active_message)
+    expect(described_class.search_database_rebuild_units).to eq(1)
+    expect(described_class.search_database_integrity_repair_needed?).to be(true)
+
+    described_class.insert(active_message)
+
+    expect(described_class.search_database_integrity_repair_needed?).to be(false)
+    expect(described_class.indexed?(active_message.id)).to be(true)
+    expect(described_class.indexed?(deleted_message.id)).to be(false)
+    expect(described_class.indexed?(deleted_session_message.id)).to be(false)
+    expect(described_class.indexed?(orphaned_message.id)).to be(false)
+  end
+
+  it "rechecks the active chat session when a rebuild message is deleted mid-batch" do
+    message = ChatMessage.create!(chat_session: session, role: "user", content: { "text" => "delete during rebuild" })
+    task = MaintenanceTask.new(batch_size: 10, checkpoint: {})
+    chat_session = session
+    actor = user
+    deleted = false
+    task.define_singleton_method(:checkpoint_will_change!) do
+      next if deleted
+
+      chat_session.soft_delete_by!(actor)
+      deleted = true
+    end
+
+    described_class.search_database_rebuild_batch(task: task, reason: "integrity_repair")
+
+    expect(described_class.indexed?(message.id)).to be(false)
+    expect(described_class.search("rebuild", chat_session_ids: [ session.id ])).to be_empty
+    expect(task.checkpoint["chats_done"]).to be(true)
+    expect(described_class.search_database_integrity_repair_needed?).to be(false)
+  end
+
   it "scopes results to the requested chat sessions" do
     own_message = ChatMessage.create!(
       chat_session: session,
