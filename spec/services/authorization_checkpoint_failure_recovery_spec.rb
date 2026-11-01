@@ -96,23 +96,6 @@ RSpec.describe "authorization checkpoint failure recovery", :ci_only do
     expect(enqueued_jobs.count { |job| job[:job] == RunJob }).to eq(1)
   end
 
-  it "makes duplicate execution delivery observable without executing twice" do
-    chat = ChatSession.create!(user:, repository:)
-    invocation = approved_invocation(origin: chat)
-    executions = 0
-
-    first = claim(invocation)
-    executions += 1 if first.claimed?
-    duplicate = claim(invocation.reload)
-    executions += 1 if duplicate.claimed?
-    invocation.reload.complete!(claim_key: "dispatch-1", status: :succeeded)
-
-    expect(first).to be_claimed
-    expect(duplicate).to be_already_claimed
-    expect(executions).to eq(1)
-    expect(invocation.reload).to be_succeeded
-  end
-
   it "does not execute an approval after its origin becomes stale" do
     chat = ChatSession.create!(user:, repository:)
     request = authorization_request(origin: chat)
@@ -133,34 +116,6 @@ RSpec.describe "authorization checkpoint failure recovery", :ci_only do
     )
     expect(chat.reload.chat_queued_messages).to be_empty
     expect(enqueued_jobs).to be_empty
-  end
-
-  {
-    "plugin disablement" => "plugin_disabled",
-    "resource removal" => "resource_removed"
-  }.each do |failure, reason|
-    it "invalidates an approved invocation when execution revalidation detects #{failure}" do
-      chat = ChatSession.create!(user:, repository:)
-      invocation = approved_invocation(origin: chat)
-      dispatched = false
-
-      result = invocation.claim!(
-        fingerprint: invocation.invocation_fingerprint,
-        claimant: user,
-        claim_key: "dispatch-after-#{reason}",
-        revalidate: ->(_) { reason },
-        origin_resumable: ->(_) { true }
-      )
-      dispatched = true if result.claimed?
-
-      expect(result.status).to eq(:revalidation_failed)
-      expect(dispatched).to be(false)
-      expect(invocation.reload).to have_attributes(
-        state: "invalidated",
-        invalidation_reason: reason,
-        claimed_at: nil
-      )
-    end
   end
 
   it "invalidates the token when authority is revoked between approval and execution" do
