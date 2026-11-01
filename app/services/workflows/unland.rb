@@ -1,14 +1,20 @@
 module Workflows
-  # Runs the repository's dedicated fast smoke gate against the proposed
-  # revert tree. Revert construction and publication are owned by the unland
-  # orchestration path; this workflow only prepares and grades that tree.
+  # Builds a compensating revert from the current default branch, lets the
+  # implementing agent resolve conflicts, and publishes a normal review PR.
   class Unland < Base
-    steps :prepare, :grader_fanout, :grader_collect
+    steps :unland_revert, :unland_conflict, :prepare, :grader_fanout,
+          :grader_collect, :summarize, :pr_open
 
     def self.trigger_kind = "unland"
 
-    def self.agentic? = false
-
     def self.queue_name = :merges
+
+    def self.after_fail(workflow)
+      workflow.job.mark_failed! if workflow.job.may_mark_failed?
+    end
+
+    def self.after_cancel(workflow)
+      workflow.job.mark_failed! if workflow.job.may_mark_failed?
+    end
   end
 end

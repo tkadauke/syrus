@@ -12,16 +12,21 @@ The primary workflow: explores the repo, writes code, runs graders, and opens a 
 
 ## unland
 
-**When it fires:** Unland orchestration has constructed a proposed revert tree
-and requests its dedicated validation gate.
+**When it fires:** An operator requests a compensating rollback for a
+successfully landed Job.
 
-**Step chain:** `prepare → grader_fanout → grader_collect`
+**Step chain:** `unland_revert → unland_conflict? → prepare → grader_fanout → grader_collect → summarize → pr_open`
 
-This is a non-agentic, urgent validation workflow. It selects only graders
+Syrus creates a linked rollback Job while leaving the original Job's closed
+state, closure reason, landed SHA, and dependency graph intact. It verifies the
+original's recorded `LandedCommit` rows against current default-branch ancestry,
+reverts them in reverse order from the current default tip, and invokes the
+implementing agent only for conflicts. The proposed tree uses only graders
 explicitly configured with `phases: [unland]`; after changed-file filtering it
-fails as configuration-unavailable unless at least one required grader was
-selected. Revert construction and publication are owned by the surrounding
-unland operation, not this grader workflow.
+fails unless at least one required grader was selected. A successful attempt
+opens an ordinary PR. Approval and landing remain normal, except final landing
+validation also uses `unland` and therefore cannot silently expand to the full
+landing suite.
 
 ## skill
 

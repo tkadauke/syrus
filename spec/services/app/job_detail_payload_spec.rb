@@ -26,6 +26,19 @@ RSpec.describe App::JobDetailPayload do
     queries
   end
 
+  it "exposes rollback provenance in both directions" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+    rollback = Factories.job_record(
+      user: user, repository: repo, rollback_of: original,
+      state: "closed", closure_reason: "pr_merged", landed_sha: "rollback"
+    )
+
+    expect(payload_for(original).dig(:job, :unlanded_by)).to include(id: rollback.id, slug: rollback.slug)
+    expect(payload_for(rollback).dig(:job, :rollback_of)).to include(id: original.id, slug: original.slug)
+  end
+
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil, blocked_details: nil)
     primary = member_jobs.first
     intent = WorkIntent.create!(
