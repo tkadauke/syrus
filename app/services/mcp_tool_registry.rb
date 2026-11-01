@@ -162,7 +162,7 @@ class McpToolRegistry
     def allowed_entry?(entry, context)
       return false unless surface_allowed?(entry, context)
       return false if entry.admin_only && !context.user.admin?
-      return false if entry.surface == :coworker && !context.granted_capabilities.include?(entry.capability.to_s)
+      return false if entry.surface == :coworker && !entry.ungated && !context.granted_capabilities.include?(entry.capability.to_s)
       return false if entry.interactive_only && !context.interactive
       return false unless feature_allowed?(entry, context)
       return false if entry.required_roles.any? && !entry.required_roles.include?(context.role)
@@ -388,6 +388,7 @@ class McpToolRegistry
       [
         coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
         coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
+        coworker(Mcp::Tools::DiscoverCoworkerCapabilitiesTool, tier: :deferred, ungated: true),
         coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
@@ -534,7 +535,8 @@ class McpToolRegistry
           tool_name: tool_name,
           capability: capability,
           mutation: mutation,
-          required_roles: required_roles,
+          required_roles: Array(required_roles).presence ||
+            (surface.to_sym == :coworker ? [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ] : []),
           admin_only: admin_only,
           descriptor: descriptor
         ),

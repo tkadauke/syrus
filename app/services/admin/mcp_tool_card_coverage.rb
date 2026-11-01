@@ -28,6 +28,7 @@ module Admin
       "revoke_permission_lease" => "generic",
       "apply_permission_preset" => "generic",
       "cancel_authorization_request" => "generic",
+      "discover_coworker_capabilities" => "generic",
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",

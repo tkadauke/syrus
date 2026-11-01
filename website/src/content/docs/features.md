@@ -1514,6 +1514,12 @@ applied only after confirmation and is checked independently against the
 capability's delegation and duration ceilings, so a requested grant cannot
 authorize its own confirmation.
 
+Coworker prompts remain limited to tools they can call now. Their deferred tool
+search includes a read-only capability discovery tool for eligible locked
+families; results include the required scope, effective policy, and lock reason.
+Available, requestable, prohibited, plugin-disabled, resource-unconfigured, and
+unavailable states remain distinct, and discovery itself never grants access.
+
 ## Permission parity diagnostics
 
 Syrus runs its capability policy evaluator in shadow mode alongside existing
