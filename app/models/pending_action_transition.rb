@@ -16,7 +16,11 @@ class PendingActionTransition < ApplicationRecord
   private
 
   def assign_sequence
-    self.sequence ||= chat_pending_action.transitions.maximum(:sequence).to_i + 1
+    return if sequence || !chat_pending_action
+
+    chat_pending_action.with_lock do
+      self.sequence = chat_pending_action.transitions.maximum(:sequence).to_i + 1
+    end
   end
 
   def item_belongs_to_action
