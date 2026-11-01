@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { Button, Input, Metric, Modal, Notice, PageHeading, Section, Text } from "@app/components/ui"
+import { Button, Input, Metric, Modal, Notice, PageHeading, Section, Select, Text } from "@app/components/ui"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
@@ -29,7 +29,7 @@ function duration(seconds: number | null, t: Translate) {
   return t("days", { count: Math.floor(seconds / 86_400) })
 }
 
-function ItemCard({ item, releaseTail = false }: { item: PipelineItem; releaseTail?: boolean }) {
+function ItemCard({ item, onTrace, releaseTail = false }: { item: PipelineItem; onTrace?: () => void; releaseTail?: boolean }) {
   const { t } = useT("sdlc_pipeline")
   const opacity = releaseTail ? Math.max(0.68, 1 - (item.age_seconds / (30 * 86_400)) * 0.32) : 1
   return (
@@ -45,6 +45,11 @@ function ItemCard({ item, releaseTail = false }: { item: PipelineItem; releaseTa
         <span>{t(`evidence_${item.evidence.type}`)}</span>
       </div>
       <div className="mt-2 flex flex-wrap gap-2 text-2xs font-medium">
+        {onTrace ? (
+          <button className="text-brand hover:underline" onClick={onTrace} type="button">
+            {t("view_trace")}
+          </button>
+        ) : null}
         <Link className="text-brand hover:underline" to={item.paths.job}>
           {t("job_details")}
         </Link>
@@ -68,7 +73,8 @@ function ItemCard({ item, releaseTail = false }: { item: PipelineItem; releaseTa
   )
 }
 
-function Aggregate({ group, stage }: { group: PipelineGroup; stage: PipelineStage }) {
+function Aggregate({ group, onTrace, stage }: { group: PipelineGroup; onTrace?: () => void; stage: PipelineStage }) {
+  const { t } = useT("sdlc_pipeline")
   const count = group.stage_totals[stage.key] || 0
   if (!count) return null
   const body = (
@@ -84,10 +90,32 @@ function Aggregate({ group, stage }: { group: PipelineGroup; stage: PipelineStag
       </div>
     </div>
   )
+  if (onTrace) {
+    return (
+      <button className="text-left" onClick={onTrace} type="button">
+        {body}
+        <span className="mt-1 block text-2xs text-brand">{t("view_epic_trace")}</span>
+      </button>
+    )
+  }
   return group.epic ? <Link to={`/epics/${group.epic.slug}`}>{body}</Link> : body
 }
 
-function StageColumn({ groups, onOpen, releaseTail, stage }: { groups: PipelineGroup[]; onOpen: () => void; releaseTail: boolean; stage: PipelineStage }) {
+function StageColumn({
+  groups,
+  onOpen,
+  onEpicTrace,
+  onTrace,
+  releaseTail,
+  stage
+}: {
+  groups: PipelineGroup[]
+  onOpen: () => void
+  onEpicTrace?: (group: PipelineGroup) => void
+  onTrace?: (item: PipelineItem) => void
+  releaseTail: boolean
+  stage: PipelineStage
+}) {
   const { t } = useT("sdlc_pipeline")
   const stageGroups = groups.filter((group) => (group.stage_totals[stage.key] || 0) > 0)
   return (
@@ -113,10 +141,10 @@ function StageColumn({ groups, onOpen, releaseTail, stage }: { groups: PipelineG
       </button>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
         {stage.highlighted_items.map((item) => (
-          <ItemCard item={item} key={item.id} releaseTail={releaseTail} />
+          <ItemCard item={item} key={item.id} onTrace={onTrace ? () => onTrace(item) : undefined} releaseTail={releaseTail} />
         ))}
         {stageGroups.slice(0, 4).map((group) => (
-          <Aggregate group={group} key={group.key} stage={stage} />
+          <Aggregate group={group} key={group.key} onTrace={group.epic && onEpicTrace ? () => onEpicTrace(group) : undefined} stage={stage} />
         ))}
         {!stage.total ? (
           <div className="rounded border border-dashed border-border p-5 text-center text-[length:var(--text-caption)] text-text-muted">{t("empty_stage")}</div>
@@ -194,6 +222,9 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
   const [selected, setSelected] = useState<PipelineStage | null>(null)
   const [query, setQuery] = useState("")
   const [edges, setEdges] = useState({ left: false, right: false })
+  const [traceJobId, setTraceJobId] = useState<number | null>(null)
+  const [traceEpic, setTraceEpic] = useState<PipelineGroup["epic"] | null>(null)
+  const [playing, setPlaying] = useState(false)
   const selectedAt = new URLSearchParams(search).get("at")
   const historical = Boolean(selectedAt)
   const history = payload.history ?? {
@@ -205,9 +236,19 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
     traces: [],
     accuracy: { status: "reconstructed" as const, message: "", truncated: false }
   }
+  const requestedAt = selectedAt ? new Date(selectedAt).getTime() : Number.NaN
+  const historicalAt = selectedAt
+    ? new Date(
+        Math.min(
+          Math.max(Number.isFinite(requestedAt) ? requestedAt : new Date(history.to).getTime(), new Date(history.from).getTime()),
+          new Date(history.to).getTime()
+        )
+      ).toISOString()
+    : null
+  const tracesByJob = useMemo(() => new Map(history.traces.map((trace) => [trace.job_id, trace])), [history.traces])
   const displayedPayload = useMemo(() => {
     if (!selectedAt) return payload
-    const at = new Date(selectedAt).getTime()
+    const at = new Date(historicalAt!).getTime()
     const placements = new Map(history.checkpoint.placements.map((placement) => [placement.job_id, placement]))
     history.deltas.forEach((delta) => {
       if (new Date(delta.at).getTime() > at) return
@@ -218,28 +259,27 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
     placements.forEach((placement) => byStage.set(placement.stage, [...(byStage.get(placement.stage) || []), placement]))
     const stages = payload.stages.map((stage) => {
       const rows = byStage.get(stage.key) || []
+      const highlighted_items = rows.map(({ item }) => ({
+        ...item,
+        needs_attention: false,
+        age_seconds: Math.max(
+          0,
+          (at -
+            new Date(
+              tracesByJob.get(item.id)?.segments.find((segment) => new Date(segment.entered_at).getTime() <= at && new Date(segment.left_at).getTime() >= at)
+                ?.entered_at || historicalAt!
+            ).getTime()) /
+            1000
+        ),
+        evidence: { type: "historical_reconstruction" }
+      }))
       return {
         ...stage,
         total: rows.length,
         attention_count: 0,
         aging_count: 0,
-        oldest_age_seconds: null,
-        highlighted_items: rows.slice(0, 5).map(({ item }) => ({
-          ...item,
-          needs_attention: false,
-          age_seconds: Math.max(
-            0,
-            (at -
-              new Date(
-                history.traces
-                  .find((trace) => trace.job_id === item.id)
-                  ?.segments.find((segment) => new Date(segment.entered_at).getTime() <= at && new Date(segment.left_at).getTime() >= at)?.entered_at ||
-                  selectedAt
-              ).getTime()) /
-              1000
-          ),
-          evidence: { type: "historical_reconstruction" }
-        }))
+        oldest_age_seconds: highlighted_items.length ? Math.max(...highlighted_items.map((item) => item.age_seconds)) : null,
+        highlighted_items
       }
     })
     const grouped = new Map<string, PipelineGroup>()
@@ -252,7 +292,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
       grouped.set(key, group)
     })
     return { ...payload, stages, groups: [...grouped.values()] }
-  }, [payload, selectedAt, history])
+  }, [payload, selectedAt, historicalAt, history, tracesByJob])
   const stages = useMemo(
     () =>
       displayedPayload.stages.map((stage) => {
@@ -278,6 +318,34 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
     else params.delete("at")
     navigate({ search: params.toString() })
   }
+  const selectedTime = historicalAt ? new Date(historicalAt).getTime() : new Date(history.to).getTime()
+  const currentTick = history.ticks.reduce((found, tick, index) => (new Date(tick).getTime() <= selectedTime ? index : found), -1)
+  const previousTick = currentTick > 0 ? history.ticks[currentTick - 1] : history.from
+  const changes = historical
+    ? history.deltas.filter((delta) => new Date(delta.at).getTime() > new Date(previousTick).getTime() && new Date(delta.at).getTime() <= selectedTime)
+    : []
+  const trace = history.traces.find((candidate) => candidate.job_id === traceJobId)
+  const tracedItem =
+    history.checkpoint.placements.find((placement) => placement.job_id === traceJobId)?.item ||
+    [...history.deltas].reverse().find((delta) => delta.job_id === traceJobId && delta.item)?.item?.item
+  const epicTraceJobs = traceEpic
+    ? history.traces.filter((candidate) => {
+        const placement =
+          history.checkpoint.placements.find((row) => row.job_id === candidate.job_id) ||
+          [...history.deltas].reverse().find((delta) => delta.job_id === candidate.job_id && delta.item)?.item
+        return placement?.item.epic?.id === traceEpic.id
+      })
+    : []
+  useEffect(() => {
+    if (!playing) return
+    const next = currentTick + 1
+    if (next >= history.ticks.length) {
+      setPlaying(false)
+      return
+    }
+    const timer = window.setTimeout(() => setAt(history.ticks[next]), reducedMotion() ? 900 : 600)
+    return () => window.clearTimeout(timer)
+  }, [playing, currentTick, history.ticks])
   function updateEdges() {
     const node = scroller.current
     if (node) setEdges({ left: node.scrollLeft > 2, right: node.scrollLeft + node.clientWidth < node.scrollWidth - 2 })
@@ -306,12 +374,12 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           <div>
             <Section.Title>{t("title")}</Section.Title>
             <Text className="mt-1" tone="muted">
-              {t("subtitle", { time: new Date(historical ? selectedAt! : payload.generated_at).toLocaleString() })}
+              {t("subtitle", { time: new Date(historicalAt || payload.generated_at).toLocaleString() })}
             </Text>
           </div>
           <Metric.Group className="xl:ml-auto xl:w-[38rem]" columns={4}>
             <Metric.Card label={t("in_pipeline")} value={total} />
-            <Metric.Card label={t("need_attention")} tone={attention ? "danger" : "neutral"} value={attention} />
+            <Metric.Card label={t("need_attention")} tone={attention ? "danger" : "neutral"} value={historical ? t("not_available") : attention} />
             <Metric.Card label={t("landed_gap")} tone={landed ? "warning" : "neutral"} value={landed} />
             <Metric.Card label={t("oldest_active")} value={duration(oldest, t)} />
           </Metric.Group>
@@ -335,15 +403,53 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
             min={0}
             onChange={(event) => setAt(event.target.value === String(history.ticks.length) ? null : history.ticks[Number(event.target.value)] || history.from)}
             type="range"
-            value={
-              historical
-                ? Math.max(
-                    0,
-                    history.ticks.findLastIndex((tick) => new Date(tick) <= new Date(selectedAt!))
-                  )
-                : history.ticks.length
-            }
+            value={historical ? Math.max(0, currentTick) : history.ticks.length}
           />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button
+              disabled={!history.ticks.length}
+              onClick={() => {
+                if (!historical) setAt(history.ticks[0])
+                setPlaying((value) => !value)
+              }}
+              size="sm"
+              variant="secondary"
+            >
+              {playing ? t("pause_history") : t("play_history")}
+            </Button>
+            <Button disabled={currentTick <= 0} onClick={() => setAt(history.ticks[currentTick - 1])} size="sm" variant="secondary">
+              {t("previous_tick")}
+            </Button>
+            <Button
+              disabled={!historical || currentTick >= history.ticks.length - 1}
+              onClick={() => setAt(history.ticks[currentTick + 1])}
+              size="sm"
+              variant="secondary"
+            >
+              {t("next_tick")}
+            </Button>
+            <label className="ml-auto text-2xs text-text-muted">
+              {t("history_window")}
+              <Select
+                className="ml-2 px-2 py-1"
+                fullWidth={false}
+                onChange={(event) => {
+                  const days = Number(event.target.value)
+                  const params = new URLSearchParams(search)
+                  const end = new Date(history.to)
+                  params.set("range_end", end.toISOString())
+                  params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
+                  navigate({ search: params.toString() })
+                }}
+                value={Math.max(1, Math.round((new Date(history.to).getTime() - new Date(history.from).getTime()) / 86_400_000))}
+              >
+                <option value="1">{t("one_day")}</option>
+                <option value="7">{t("seven_days")}</option>
+                <option value="30">{t("thirty_days")}</option>
+                <option value="90">{t("ninety_days")}</option>
+              </Select>
+            </label>
+          </div>
           {history.accuracy.message ? (
             <Text className="mt-2" variant="caption" tone="muted">
               {history.accuracy.message}
@@ -352,8 +458,71 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
         </Section.Root>
         {historical ? (
           <Notice className="mt-3" tone="warning">
-            {t("historical_banner", { time: new Date(selectedAt!).toLocaleString() })}
+            {t("historical_banner", { time: new Date(historicalAt!).toLocaleString() })}
+            <span className="ml-1">{t("current_freshness", { time: new Date(payload.generated_at).toLocaleString() })}</span>
           </Notice>
+        ) : null}
+        {historical ? (
+          <Section.Root className="mt-3 p-3">
+            <Section.Title>{t("changes_heading")}</Section.Title>
+            <Text className="mt-1" variant="caption" tone="muted">
+              {changes.length ? t("changes_count", { count: changes.length }) : t("no_changes")}
+            </Text>
+            {changes.slice(0, 8).map((change) => (
+              <Text className="mt-1" key={`${change.job_id}-${change.at}`} variant="caption">
+                {t("change_line", {
+                  job: change.item?.item.slug || change.job_id,
+                  from: change.from_stage || t("outside_pipeline"),
+                  to: change.to_stage || t("outside_pipeline")
+                })}
+              </Text>
+            ))}
+          </Section.Root>
+        ) : null}
+        {trace && tracedItem ? (
+          <Section.Root className="mt-3 p-3">
+            <div className="flex items-center gap-2">
+              <Section.Title>{t("trace_heading", { job: tracedItem.slug })}</Section.Title>
+              <Button className="ml-auto" onClick={() => setTraceJobId(null)} size="sm" variant="secondary">
+                {t("close")}
+              </Button>
+            </div>
+            {trace.segments.map((segment) => (
+              <Text className="mt-2" key={`${segment.stage}-${segment.entered_at}`} variant="caption">
+                {t("trace_segment", {
+                  stage: segment.stage,
+                  entered: new Date(segment.entered_at).toLocaleString(),
+                  left: new Date(segment.left_at).toLocaleString(),
+                  dwell: duration(segment.dwell_seconds, t)
+                })}
+              </Text>
+            ))}
+          </Section.Root>
+        ) : null}
+        {traceEpic ? (
+          <Section.Root className="mt-3 p-3">
+            <div className="flex items-center gap-2">
+              <Section.Title>{t("epic_trace_heading", { epic: traceEpic.slug })}</Section.Title>
+              <Button className="ml-auto" onClick={() => setTraceEpic(null)} size="sm" variant="secondary">
+                {t("close")}
+              </Button>
+            </div>
+            {epicTraceJobs.map((jobTrace) => (
+              <div className="mt-2" key={jobTrace.job_id}>
+                <Text variant="caption">{t("job_trace_heading", { job: jobTrace.job_id })}</Text>
+                {jobTrace.segments.map((segment) => (
+                  <Text className="mt-1" key={`${segment.stage}-${segment.entered_at}`} variant="caption" tone="muted">
+                    {t("trace_segment", {
+                      stage: segment.stage,
+                      entered: new Date(segment.entered_at).toLocaleString(),
+                      left: new Date(segment.left_at).toLocaleString(),
+                      dwell: duration(segment.dwell_seconds, t)
+                    })}
+                  </Text>
+                ))}
+              </div>
+            ))}
+          </Section.Root>
         ) : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Input
@@ -421,7 +590,14 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
         >
           {stages.map((stage) => (
             <div className="snap-start" key={stage.key}>
-              <StageColumn groups={payload.groups} onOpen={() => setSelected(stage)} releaseTail={Boolean(stage.release_tail)} stage={stage} />
+              <StageColumn
+                groups={displayedPayload.groups}
+                onOpen={() => setSelected(stage)}
+                onEpicTrace={historical ? (group) => setTraceEpic(group.epic || null) : undefined}
+                onTrace={historical ? (item) => setTraceJobId(item.id) : undefined}
+                releaseTail={Boolean(stage.release_tail)}
+                stage={stage}
+              />
             </div>
           ))}
           {!stages.length ? <Notice>{t("filter_empty")}</Notice> : null}
@@ -454,13 +630,37 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
     return value ? `?${value}` : ""
   }, [location.search])
   const queryKey = ["repositories", repositoryId, "sdlc_pipeline", requestSearch]
+  const withHistory = (value: string, enabled: boolean) => {
+    const params = new URLSearchParams(value)
+    params.set("history", enabled ? "1" : "0")
+    return `?${params.toString()}`
+  }
   const pipeline = useQuery({
     queryKey,
-    queryFn: () => fetchPipeline(repositoryId, requestSearch),
+    queryFn: () => fetchPipeline(repositoryId, withHistory(requestSearch, false)),
     enabled: repositoryId.length > 0,
+    placeholderData: (previous) => previous,
     refetchInterval: POLL_INTERVAL_MS
   })
-  const folders = pipeline.data?.smart_folders ?? []
+  const history = useQuery({
+    queryKey: [...queryKey, "history"],
+    queryFn: () => fetchPipeline(repositoryId, withHistory(requestSearch, true)),
+    enabled: repositoryId.length > 0,
+    placeholderData: (previous) => previous,
+    staleTime: POLL_INTERVAL_MS
+  })
+  const folders = useMemo(() => {
+    const presentation = new URLSearchParams(location.search)
+    const keys = ["at", "range_start", "range_end"]
+    return (pipeline.data?.smart_folders ?? []).map((folder) => {
+      const url = new URL(folder.path, window.location.origin)
+      keys.forEach((key) => {
+        const value = presentation.get(key)
+        if (value) url.searchParams.set(key, value)
+      })
+      return { ...folder, path: `${url.pathname}?${url.searchParams.toString()}` }
+    })
+  }, [pipeline.data?.smart_folders, location.search])
   return (
     <RepositoryPageShell
       activeTab="sdlc_pipeline.repository"
@@ -522,7 +722,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
             />
           }
         >
-          <PipelineOverview payload={pipeline.data} repositoryId={repositoryId} search={location.search} />
+          <PipelineOverview payload={{ ...pipeline.data, history: history.data?.history }} repositoryId={repositoryId} search={location.search} />
         </AdminFiltersLayout>
       ) : null}
     </RepositoryPageShell>
