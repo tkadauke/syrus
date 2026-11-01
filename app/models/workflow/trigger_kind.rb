@@ -44,15 +44,15 @@ class Workflow
       end
     end
 
-    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role, :owns_job_lifecycle, :coding_takeover_hold, :escalation_urgency, :diff_review_labeler) do
+    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role, :owns_job_lifecycle, :coding_takeover_hold, :escalation_urgency, :diff_review_labeler, :visual_review_instructions_artifact) do
       # owns_job_lifecycle defaults to false so existing built-in and
       # plugin-contributed entries that omit it keep the ordinary generic
       # workflow->Job propagation behavior.
       # coding_takeover_hold marks a queued workflow as compatible with Coding
       # Mode takeover: it is parked work that should not block the chat from
       # claiming implementation ownership.
-      def initialize(owns_job_lifecycle: false, coding_takeover_hold: false, escalation_urgency: "normal", diff_review_labeler: DiffReviewVersionLabels::Base, **rest)
-        super(owns_job_lifecycle: owns_job_lifecycle, coding_takeover_hold: coding_takeover_hold, escalation_urgency: escalation_urgency, diff_review_labeler: diff_review_labeler, **rest)
+      def initialize(owns_job_lifecycle: false, coding_takeover_hold: false, escalation_urgency: "normal", diff_review_labeler: DiffReviewVersionLabels::Base, visual_review_instructions_artifact: nil, **rest)
+        super(owns_job_lifecycle: owns_job_lifecycle, coding_takeover_hold: coding_takeover_hold, escalation_urgency: escalation_urgency, diff_review_labeler: diff_review_labeler, visual_review_instructions_artifact: visual_review_instructions_artifact, **rest)
       end
 
       # A plugin that owns a workflow keeps its template in its own namespace,
@@ -85,7 +85,7 @@ class Workflow
       Entry.new(kind: "merge_train_validation", template: "MergeTrainValidation", label: "Epic train validation", style: "bg-emerald-100 text-emerald-800", retry_label: nil, feedback_kind: nil, runtime_role: "child", owns_job_lifecycle: true),
       Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", escalation_urgency: "low"),
       Entry.new(kind: "base_refresh_retry", template: "BaseRefreshRetry", label: "Base refresh retry", style: "bg-teal-100 text-teal-700", retry_label: "Retry base refresh", feedback_kind: nil, runtime_role: "first_class", escalation_urgency: "low"),
-      Entry.new(kind: "manual_visual_review", template: "ManualVisualReview", label: "Manual visual review", style: "bg-pink-100 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "manual_visual_review", template: "ManualVisualReview", label: "Manual visual review", style: "bg-pink-100 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "first_class", visual_review_instructions_artifact: "manual_visual_review_instructions"),
       Entry.new(kind: "manual_post_implementation_review", template: "ManualPostImplementationReview", label: "Retry post-implementation review", style: "bg-amber-100 text-amber-700", retry_label: nil, feedback_kind: nil, runtime_role: "first_class"),
       Entry.new(kind: "visual_diff",   template: "VisualDiff",  label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "child", owns_job_lifecycle: true),
       Entry.new(kind: "replay",        template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "legacy"),
@@ -193,6 +193,11 @@ class Workflow
     # Returns :chat_feedback, :pr_comment, or nil based on trigger kind.
     def feedback_kind_for(trigger_kind)
       by_kind.fetch(trigger_kind.to_s, nil)&.feedback_kind
+    end
+
+    def visual_review_instructions_for(workflow)
+      artifact = by_kind.fetch(workflow.trigger_kind.to_s, nil)&.visual_review_instructions_artifact
+      workflow.artifact(artifact) if artifact
     end
 
     def escalation_urgency_for(trigger_kind)
