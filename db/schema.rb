@@ -2736,7 +2736,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_071918) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_pending_action_id", "origin_type", "origin_id"], name: "idx_pending_action_occurrences_unique_origin", unique: true
-    t.index ["chat_pending_action_id"], name: "index_pending_action_occurrences_on_chat_pending_action_id"
     t.index ["origin_type", "origin_id", "created_at"], name: "idx_pending_action_occurrences_origin_time"
     t.index ["origin_type", "origin_id"], name: "index_pending_action_occurrences_on_origin"
   end
