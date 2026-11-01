@@ -407,6 +407,31 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
     <link rel="manifest" href="/manifest.json">
 
+    <script nonce="<%= content_security_policy_nonce %>">
+      // Registers the deploy-resilience worker (app/views/pwa/service_worker.js.erb).
+      // It caches one fallback document and intercepts only failed navigations,
+      // so there is no asset-staleness risk to weigh against registering it.
+      //
+      // Deferred to `load` so it never competes with the SPA bundle for the
+      // first paint, and wrapped because registration throws outright on
+      // insecure origins -- which includes plain-HTTP local development.
+      (function () {
+        if (!("serviceWorker" in navigator)) return;
+
+        // Remembered here, not in the fallback page: by the time that page
+        // renders, the URL the user wanted has already been replaced.
+        try {
+          sessionStorage.setItem("syrus.unavailable.returnTo", window.location.pathname + window.location.search);
+        } catch (e) { /* private mode, or storage disabled */ }
+
+        window.addEventListener("load", function () {
+          try {
+            navigator.serviceWorker.register("/service-worker.js").catch(function () {});
+          } catch (e) { /* insecure origin */ }
+        });
+      })();
+    </script>
+
     <style nonce="<%= content_security_policy_nonce %>">
       .syrus-startup-status {
         align-items: center;

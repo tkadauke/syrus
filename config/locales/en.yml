@@ -188,6 +188,9 @@ en:
       loading_title: "Loading Syrus"
       loading_message: "Loading the app."
       retry: "Retry"
+      unavailable_title: "Syrus is getting ready"
+      unavailable_message: "Syrus is restarting after an update. This page will continue on its own as soon as it is back."
+      unavailable_retry: "Try now"
 
   github_app:
     manifest:

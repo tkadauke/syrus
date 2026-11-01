@@ -1,0 +1,164 @@
+<%# The service worker serves this from its cache when a navigation cannot
+    reach the app. It must stand entirely on its own: no SPA bundle, no
+    stylesheet, no font, no icon fetched over the network -- every one of those
+    would fail for the same reason the navigation did. The panel markup and
+    styles mirror app/views/spa/show.html.erb so the transition from this page
+    into the booting app is not a visual jump. %>
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title><%= t("spa.startup.unavailable_title") %></title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #f9fafb; }
+      @media (prefers-color-scheme: dark) { html, body { background: #111827; } }
+
+      .syrus-startup-status {
+        align-items: center;
+        box-sizing: border-box;
+        display: flex;
+        min-height: 100vh;
+        padding: 2rem;
+      }
+
+      .syrus-startup-status__panel {
+        color: #1f2937;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0 auto;
+        max-width: 28rem;
+        text-align: center;
+      }
+
+      .syrus-startup-status__spinner {
+        animation: syrus-startup-spin 0.9s linear infinite;
+        border: 3px solid #e5e7eb;
+        border-top-color: #b6492e;
+        border-radius: 9999px;
+        height: 2rem;
+        margin: 0 auto 1rem;
+        width: 2rem;
+      }
+
+      .syrus-startup-status__title { font-size: 1rem; font-weight: 700; margin: 0; }
+
+      .syrus-startup-status__message {
+        color: #4b5563;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        margin: 0.5rem 0 0;
+      }
+
+      .syrus-startup-status__retry {
+        appearance: none;
+        background: #b6492e;
+        border: 0;
+        border-radius: 0.375rem;
+        color: white;
+        cursor: pointer;
+        display: inline-flex;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 700;
+        line-height: 1.25;
+        margin-top: 1rem;
+        padding: 0.625rem 0.875rem;
+        text-decoration: none;
+      }
+
+      .syrus-startup-status__retry:focus-visible {
+        outline: 3px solid rgba(182, 73, 46, 0.35);
+        outline-offset: 2px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .syrus-startup-status__panel { color: #f9fafb; }
+        .syrus-startup-status__message { color: #d1d5db; }
+        .syrus-startup-status__spinner { border-color: #374151; border-top-color: #f0a078; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .syrus-startup-status__spinner { animation-duration: 0s; }
+      }
+
+      @keyframes syrus-startup-spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div id="syrus-startup-status" class="syrus-startup-status" role="status" aria-live="polite" data-startup-state="unavailable">
+      <div class="syrus-startup-status__panel">
+        <div class="syrus-startup-status__spinner" aria-hidden="true"></div>
+        <p class="syrus-startup-status__title"><%= t("spa.startup.unavailable_title") %></p>
+        <p class="syrus-startup-status__message"><%= t("spa.startup.unavailable_message") %></p>
+        <a class="syrus-startup-status__retry" href="/" data-syrus-unavailable-retry><%= t("spa.startup.unavailable_retry") %></a>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        // Poll the health endpoint rather than the destination: /up is the
+        // cheapest thing that proves a backend is serving again, and reloading
+        // optimistically would just land on the ingress error page a second
+        // time and replace this document with one that cannot retry.
+        var INITIAL_DELAY_MS = 1000;
+        var MAX_DELAY_MS = 8000;
+        var delay = INITIAL_DELAY_MS;
+        var stopped = false;
+
+        function target() {
+          try {
+            var stored = sessionStorage.getItem("syrus.unavailable.returnTo");
+            if (stored && stored.charAt(0) === "/") return stored;
+          } catch (e) { /* private mode, or storage disabled */ }
+          return "/";
+        }
+
+        function resume() {
+          if (stopped) return;
+          stopped = true;
+          window.location.replace(target());
+        }
+
+        function probe() {
+          if (stopped) return;
+          fetch("/up", { cache: "no-store", credentials: "same-origin" })
+            .then(function (response) {
+              if (response.ok) return resume();
+              schedule();
+            })
+            .catch(schedule);
+        }
+
+        function schedule() {
+          if (stopped) return;
+          // Backs off so a long rollout does not turn one device into a
+          // request flood against an ingress that is already struggling.
+          delay = Math.min(delay * 2, MAX_DELAY_MS);
+          window.setTimeout(probe, delay);
+        }
+
+        var retry = document.querySelector("[data-syrus-unavailable-retry]");
+        if (retry) {
+          retry.addEventListener("click", function (event) {
+            event.preventDefault();
+            delay = INITIAL_DELAY_MS;
+            probe();
+          });
+        }
+
+        // Checking on return to the foreground matters most on iOS, where a
+        // backgrounded PWA's timers are frozen: without this the app would sit
+        // on this page until the next timer the OS decides to allow.
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") {
+            delay = INITIAL_DELAY_MS;
+            probe();
+          }
+        });
+
+        window.setTimeout(probe, INITIAL_DELAY_MS);
+      })();
+    </script>
+  </body>
+</html>

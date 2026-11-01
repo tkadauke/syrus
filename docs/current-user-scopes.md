@@ -232,6 +232,7 @@ per-user/private:
 team-visible:
   - app/controllers/api/v1/app/diff_review_comments_controller.rb
   - plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb
+  - plugins/sdlc_pipeline/app/controllers/api/v1/app/repository_sdlc_pipeline_controller.rb
 team-tier:
   - app/controllers/api/v1/app/teams_controller.rb
   - app/controllers/api/v1/app/team_memberships_controller.rb

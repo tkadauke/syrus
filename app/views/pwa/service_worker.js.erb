@@ -1,0 +1,84 @@
+// Syrus service worker.
+//
+// Scope is deliberately tiny: it caches exactly one document and intercepts
+// exactly one kind of request. It exists because an installed PWA has no
+// address bar, so when a navigation returns the ingress's 502 during a rolling
+// deploy, the browser replaces the app with an error page the user cannot
+// retry from. Nothing in the React app can catch that -- by then our
+// JavaScript is gone.
+//
+// What it explicitly does NOT do: cache application assets. A caching service
+// worker in front of digested Vite bundles is how you ship a client pinned to
+// a build that no longer exists, and stale-asset incidents in this app have
+// already been expensive. Every request except a failed navigation goes
+// straight to the network, untouched.
+
+const CACHE = "syrus-shell-<%= SyrusVersion.current %>"
+const FALLBACK = "<%= Rails.application.routes.url_helpers.pwa_unavailable_path %>"
+
+// A navigation that reached a server which is up but refusing is the case we
+// serve the fallback for: 502/503/504 from the ingress while pods roll. A 500
+// from the app itself is a real error and belongs to the app's own error
+// pages, so it passes through.
+const GATEWAY_STATUSES = [ 502, 503, 504 ]
+
+function shouldServeFallback(request, response, error) {
+  if (!request || request.mode !== "navigate") return false
+  if (error) return true
+  if (!response) return true
+  return GATEWAY_STATUSES.indexOf(response.status) !== -1
+}
+
+// Exposed so the unit test exercises the shipped policy rather than a copy of
+// it; nothing in the worker's own lifecycle reads this back.
+self.__syrusShouldServeFallback = shouldServeFallback
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => cache.add(new Request(FALLBACK, { cache: "reload" })))
+      // Taking over immediately is safe precisely because nothing else is
+      // cached: there is no window in which a new worker serves assets an old
+      // page does not expect.
+      .then(() => self.skipWaiting())
+      .catch(() => self.skipWaiting())
+  )
+})
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  )
+})
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request
+  if (request.mode !== "navigate") return
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (!shouldServeFallback(request, response, null)) return response
+
+        return caches
+          .open(CACHE)
+          .then((cache) => cache.match(FALLBACK))
+          // Returning the original 502 when the fallback is somehow missing is
+          // the honest degradation: the user is no worse off than today.
+          .then((cached) => cached || response)
+      })
+      .catch(() =>
+        caches
+          .open(CACHE)
+          .then((cache) => cache.match(FALLBACK))
+          .then((cached) => {
+            if (cached) return cached
+            throw new Error("navigation failed and no cached shell is available")
+          })
+      )
+  )
+})

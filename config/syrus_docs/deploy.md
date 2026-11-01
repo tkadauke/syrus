@@ -79,6 +79,40 @@ Setting `deploy.mode: continuous` auto-triggers a deploy of the repository's def
 
 A manually-triggered deploy (see above) is unaffected by any of this — it always targets the ordinary Job it was launched on and is never subject to the concurrency/throttle checks here, which only gate the synthetic continuous-deploy anchor Job.
 
+## Client behavior during a rollout
+
+The web Deployment runs `replicas=2` with `RollingUpdate(maxSurge=1,
+maxUnavailable=0)`, so a ready pod exists throughout — but the ingress can
+still answer `502` for the moment it keeps routing at a pod that has begun
+terminating. In a browser tab that is a flicker; in an installed PWA it
+replaces the app with a proxy error page the user cannot reload from, because
+there is no address bar.
+
+`app/views/pwa/service_worker.js.erb` closes that gap. It is registered from
+the SPA layout and does exactly two things: it precaches
+`/pwa/unavailable`, and it intercepts **navigation** requests only. When one
+fails outright or returns `502`/`503`/`504`, it serves that cached page, which
+polls `/up` with backoff and navigates back to the original path (remembered
+in `sessionStorage` before the failure) once a backend answers.
+
+What it deliberately does not do:
+
+- **It caches no application assets.** A caching worker in front of digested
+  Vite bundles is how a client ends up pinned to a build that no longer
+  exists. Every request except a failed navigation is passed straight through.
+- **It does not swallow application errors.** A `500` from Rails is the app's
+  own error, not a rollover, and passes through to the app's error page; only
+  gateway statuses are treated as "still coming up".
+- **It is not a substitute for a graceful drain.** The fallback hides the
+  symptom. Eliminating it means the ingress stopping routing at a pod before
+  that pod stops accepting connections — a `preStop` drain delay on the web
+  pods in the infrastructure repo.
+
+The cache name carries the build SHA, so each deploy's worker drops the
+previous cache on activate. `/service-worker.js` is served `no-cache` and
+`skip_forgery_protection`, because Rails' cross-origin JavaScript protection
+otherwise rejects a `.js`-format response fetched as a worker.
+
 ## Syrus Kubernetes rollout ordering
 
 Syrus's own `bin/deploy` applies database migrations as an explicit

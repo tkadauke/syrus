@@ -155,6 +155,9 @@ la:
       loading_title: "Syrus oneratur"
       loading_message: "Applicatio oneratur."
       retry: "Iterum tenta"
+      unavailable_title: "Syrus se parat"
+      unavailable_message: "Syrus post novationem restituitur. Haec pagina sua sponte perget cum Syrus redierit."
+      unavailable_retry: "Nunc tenta"
 
   github_app:
     manifest:

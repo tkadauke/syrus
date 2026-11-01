@@ -691,7 +691,8 @@ Rails.application.routes.draw do
   get "manifest.json" => "rails/pwa#manifest", as: :pwa_manifest
   get "apple-touch-icon.png" => "pwa_assets#apple_touch_icon", as: :apple_touch_icon
   get "apple-touch-icon-precomposed.png" => "pwa_assets#apple_touch_icon", as: :apple_touch_icon_precomposed
-  # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
+  get "service-worker.js" => "pwa_assets#service_worker", as: :pwa_service_worker
+  get "pwa/unavailable" => "pwa_assets#unavailable", as: :pwa_unavailable
 
   # SPA shell for every path the React router owns, so a hard reload never
   # 404s just because core (or a plugin) forgot to hand-declare it here --
