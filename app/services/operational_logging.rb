@@ -140,6 +140,7 @@ module OperationalLogging
       source: "active_job",
       message: "#{job&.class&.name || payload[:job_class]} #{duration_ms.to_f.round(1)}ms",
       context: {
+        **job_operational_log_context(job),
         active_job_id: job&.job_id,
         job_class: job&.class&.name || payload[:job_class],
         queue_name: job&.queue_name,
@@ -153,6 +154,14 @@ module OperationalLogging
         run_id: current_run&.id
       }.compact_blank
     )
+  end
+
+  def job_operational_log_context(job)
+    return {} unless job.respond_to?(:operational_log_context)
+
+    job.operational_log_context || {}
+  rescue StandardError => e
+    { operational_log_context_error: "#{e.class}: #{e.message}" }
   end
 
   def suppress
