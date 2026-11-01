@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe PermissionRule do
   let(:owner) { Factories.user }
+  let(:creator) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
 
   def rule_attributes
@@ -39,12 +40,13 @@ RSpec.describe PermissionRule do
   end
 
   it "records immutable snapshots for creation, revision, and revocation" do
-    rule = create_rule
+    rule = create_rule(created_by_user: creator)
     rule.revise!(actor: owner, policy: "allow", rationale: "Delegated by the operator")
     rule.revoke!(actor: owner)
 
     events = rule.audit_events.reload
     expect(events.map(&:event_type)).to eq(%w[ created updated revoked ])
+    expect(events.map(&:actor_user)).to eq([ creator, owner, owner ])
     expect(events.map { |event| event.snapshot.fetch("policy") }).to eq(%w[ ask allow allow ])
     expect(events.second.changed_fields).to include("policy", "rationale")
     expect(events.last.snapshot.fetch("revoked_at")).to be_present
