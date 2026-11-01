@@ -64,7 +64,10 @@ class McpToolRegistry
     end
 
     def entries_for_context(context, surface: nil, tier: nil)
-      matching_entries(surface: surface, tier: tier).select { |entry| allowed_entry?(entry, context) }
+      candidates = matching_entries(surface: surface, tier: tier)
+      allowed = candidates.select { |entry| allowed_entry?(entry, context) }
+      Permissions::ShadowEvaluator.compare(entries: candidates, context:, current_entries: allowed)
+      allowed
     end
 
     def tools_for_context(context, surface: nil, tier: nil)
