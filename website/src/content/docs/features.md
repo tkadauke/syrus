@@ -1493,6 +1493,15 @@ including the actual PR number once one is open, e.g. "Sent upstream: PR
 button in the Job header, so a contributor doesn't have to wait for the
 automatic post-approval export trigger.
 
+## Permission parity diagnostics
+
+Syrus runs its capability policy evaluator in shadow mode alongside existing
+agent-tool dispatch. Existing role, feature, grant, and workflow filters remain
+authoritative while Syrus records differences between current behavior and the
+north-star policy. Admin diagnostics summarize recent mismatches and evaluator
+failures by capability and agent role. Safe local reads, isolated workspace
+writes, and isolated execution remain available if shadow infrastructure fails.
+
 ## Skills
 
 Skills are named, freeform instruction sets for work that resists being
