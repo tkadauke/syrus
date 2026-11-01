@@ -295,9 +295,13 @@ class ChatTurnJob < ApplicationJob
   end
 
   def resume_session_id_for(_provider)
-    return if ephemeral_agent_turn?
+    return if ephemeral_agent_turn? || authorization_continuation_turn?
 
     @chat.provider_session_metadata&.session_id
+  end
+
+  def authorization_continuation_turn?
+    @user_message.content.is_a?(Hash) && @user_message.content["authorization_continuation"] == true
   end
 
   def refresh_attached_repository_checkouts!(workspace_path)

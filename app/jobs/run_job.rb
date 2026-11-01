@@ -432,7 +432,8 @@ class RunJob < ApplicationJob
       return
     end
 
-    return if handle_running_reentry
+    authorization_continuation = pending_authorization_continuation?
+    return if !authorization_continuation && handle_running_reentry
     return if defer_until_step_dependencies_settle
 
     if workflow_starting? && (merged_pr = merged_pull_request)
@@ -444,7 +445,7 @@ class RunJob < ApplicationJob
 
     return if defer_for_host_admission?
 
-    unless acquire_run_execution!
+    unless authorization_continuation || acquire_run_execution!
       return
     end
 
@@ -454,6 +455,8 @@ class RunJob < ApplicationJob
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")
 
     @handler = Steps.handler_for(@step.kind).new(@run)
+    return if authorization_continuation && !claim_authorization_continuation!
+
     begin
       @handler.call
     rescue Steps::Base::AuthorizationCheckpointReached
@@ -551,6 +554,15 @@ class RunJob < ApplicationJob
       log("run abandoned — worker died mid-execution; use Retry to try again")
     end
     true
+  end
+
+  def pending_authorization_continuation?
+    @run.running? && @run.authorization_requests.where(checkpoint_state: "resuming").exists?
+  end
+
+  def claim_authorization_continuation!
+    request = @run.authorization_requests.find_by(checkpoint_state: "resuming")
+    request&.complete_authorization_resume! || false
   end
 
   def succeed_run!(run)
