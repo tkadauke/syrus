@@ -4,7 +4,7 @@ class ChatPendingAction < ApplicationRecord
   TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
   TOOL_CALL_ANCHOR_REPAIR_MAX_AGE = 1.day
 
-  attr_accessor :suppress_outcome_notification
+  attr_accessor :suppress_outcome_notification, :outcome_transition_pending
 
   ACTIONS = %w[
     cancel_job
@@ -166,6 +166,7 @@ class ChatPendingAction < ApplicationRecord
   before_validation :activate_authorization_deduplication
   before_update :release_terminal_deduplication, if: :will_save_change_to_state?
   after_create :record_creation_transition!
+  after_update :remember_outcome_transition, if: :saved_change_to_state?
   after_update :record_state_transition!, if: :saved_change_to_state?
   after_create_commit :broadcast_pending_action_created
   after_update_commit :broadcast_pending_action_state_updated, if: :broadcastable_state_change?
@@ -645,10 +646,11 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def notify_chat_of_outcome
+    return unless outcome_transition_pending
+
+    self.outcome_transition_pending = false
     return unless chat_session
     return if suppress_outcome_notification
-    return unless saved_change_to_state?
-    return unless confirmed? || rejected? || cancelled?
 
     text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
     message = chat_session.messages.create!(
@@ -697,6 +699,10 @@ class ChatPendingAction < ApplicationRecord
 
   def record_creation_transition!
     transitions.create!(event_type: "created", to_state: state, metadata: {})
+  end
+
+  def remember_outcome_transition
+    self.outcome_transition_pending = true if confirmed? || rejected? || cancelled?
   end
 
   def record_state_transition!
