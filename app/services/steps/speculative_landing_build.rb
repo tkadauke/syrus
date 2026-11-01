@@ -1,23 +1,20 @@
 module Steps
   class SpeculativeLandingBuild < Base
     def call
-      source_path = Pathname.new(required_artifact!("prefetch_source_workspace_path"))
-      source_workflow = source_workflow!
       source_head = required_artifact!("prefetch_source_head_sha")
+      source_tree = required_artifact!("prefetch_source_tree_sha")
+      snapshot_id = required_artifact!("prefetch_source_snapshot_id")
       candidate_head = workflow.artifact("prefetch_candidate_head_sha").presence
-
-      raise StepFailed, "speculative_landing: source workspace is missing" unless source_path.exist?
 
       workspace.setup
       git = GitRunner.new(log_sink: ->(line) { log(line, kind: "system") })
-      verify_source!(git, source_path, source_workflow, source_head)
       verify_candidate_head!(git, candidate_head) if candidate_head.present?
 
-      git.run("fetch", "--no-tags", source_path.to_s, "HEAD", chdir: workspace.path.to_s)
-      fetched = git.run("rev-parse", "FETCH_HEAD", chdir: workspace.path.to_s).strip
-      unless fetched == source_head
-        raise StepFailed, "speculative_landing: predicted base moved from #{source_head.first(7)} to #{fetched.first(7)}"
+      LandingValidationPrefetchSource.with_bundle(workflow, snapshot_id) do |snapshot, bundle_path|
+        verify_snapshot!(snapshot, source_head, source_tree)
+        git.run("fetch", "--no-tags", bundle_path, "HEAD", chdir: workspace.path.to_s)
       end
+      verify_fetched_source!(git, source_head, source_tree)
 
       log("speculative_landing: rebasing #{job.slug} onto predicted base #{source_head.first(7)}", kind: "system")
       git.run("rebase", "FETCH_HEAD", chdir: workspace.path.to_s)
@@ -40,17 +37,18 @@ module Steps
       value
     end
 
-    def source_workflow!
-      workflow_id = required_artifact!("prefetch_source_workflow_id").to_i
-      Workflow.find_by(id: workflow_id) ||
-        raise(StepFailed, "speculative_landing: source workflow #{workflow_id} is missing")
+    def verify_snapshot!(snapshot, source_head, source_tree)
+      return if snapshot.source_sha == source_head && snapshot.tree_sha == source_tree
+
+      raise StepFailed, "speculative_landing: source snapshot does not match the recorded predicted base"
     end
 
-    def verify_source!(git, source_path, source_workflow, source_head)
-      actual = git.run("rev-parse", "HEAD", chdir: source_path.to_s, workflow: source_workflow).strip
-      return if actual == source_head
+    def verify_fetched_source!(git, source_head, source_tree)
+      fetched = git.run("rev-parse", "FETCH_HEAD", chdir: workspace.path.to_s).strip
+      fetched_tree = git.run("rev-parse", "FETCH_HEAD^{tree}", chdir: workspace.path.to_s).strip
+      return if fetched == source_head && fetched_tree == source_tree
 
-      raise StepFailed, "speculative_landing: source workflow moved from #{source_head.first(7)} to #{actual.first(7)}"
+      raise StepFailed, "speculative_landing: predicted base snapshot mismatch"
     end
 
     def verify_candidate_head!(git, candidate_head)
