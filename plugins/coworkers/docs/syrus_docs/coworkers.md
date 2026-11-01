@@ -168,8 +168,13 @@ Operator chat exposes the same aggregated catalog through
 `list_coworker_grants`. `propose_coworker_grants` accepts one or more desired
 capability, policy, and optional scope changes; `off` removes a grant and lower
 policies reduce it. The proposal remains inert until its pending-action card is
-confirmed. Coworker prompts list held and missing catalog grants with their
-unlocked tool names so a coworker can request the specific missing grant.
+confirmed. Ordinary coworker prompts and tool lists contain only callable
+tools. Deferred discovery adds `discover_coworker_capabilities`, a read-only,
+ungated lookup for eligible but locked capability families. Each result names
+the required resource scope, effective policy, and lock reason without granting
+authority. Explicit discovery keeps `available`, `requestable`, `prohibited`,
+`plugin_disabled`, `resource_unconfigured`, and `unavailable` as separate
+states so an absent tool is never presented as an implicit denial or grant.
 
 Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's

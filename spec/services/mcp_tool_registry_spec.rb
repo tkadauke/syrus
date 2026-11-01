@@ -110,6 +110,18 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".tools_for_context" do
+    it "keeps ungated deferred discovery callable without granting the capability it describes" do
+      context = McpToolContext.new(
+        surface: :chat, role: AgentRole::COWORKER_CHAT, user: user,
+        granted_capabilities: []
+      )
+
+      expect(tool_names_for(context, tier: :deferred)).to include("discover_coworker_capabilities")
+      expect(tool_names_for(context, tier: :essential)).not_to include("list_jobs")
+      expect(described_class.entries(surface: :coworker).find { |entry| entry.tool_name == "list_jobs" }.descriptor.requestable_roles)
+        .to include(AgentRole::COWORKER_CHAT, AgentRole::COWORKER)
+    end
+
     it "returns the legacy tool set when shadow comparison raises" do
       run = Factories.job.initial_run
       context = McpToolContext.from_run(run)

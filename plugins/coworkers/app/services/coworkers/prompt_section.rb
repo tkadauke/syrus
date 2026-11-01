@@ -26,7 +26,7 @@ class Coworkers::PromptSection
       end
       rendered = candidate
     end
-    rendered
+    rendered == HEADING ? nil : rendered
   end
 
   def self.paths_for(chat_session:, repository:, message:)
@@ -54,18 +54,17 @@ class Coworkers::PromptSection
   end
 
   def self.grant_section(coworker)
-    held = coworker.grants.index_by(&:capability)
-    lines = Coworkers::GrantCatalog.all.sort_by(&:name).map do |descriptor|
-      grant = held[descriptor.name]
-      tools = descriptor.tools.presence&.join(", ") || "no tools currently registered"
-      if grant
-        scope = grant.scope.nil? ? "" : "; scope: #{descriptor.scope_label(grant.scope)}"
-        "- `#{descriptor.name}` — held (#{grant.approval_policy}#{scope}); unlocks: #{tools}"
-      else
-        "- `#{descriptor.name}` — not held; unlocks: #{tools}"
-      end
+    catalog = Coworkers::GrantCatalog.all.index_by(&:name)
+    lines = coworker.grants.filter_map do |grant|
+      descriptor = catalog[grant.capability]
+      next unless descriptor
+
+      scope = grant.scope.nil? ? "" : "; scope: #{descriptor.scope_label(grant.scope)}"
+      "- `#{descriptor.name}` — held (#{grant.approval_policy}#{scope})"
     end
-    "### Tool grants\n\nYour available tools are still determined by these grants. If a needed tool is missing, ask your owner for the named grant.\n\n#{lines.join("\n")}"
+    return "" if lines.empty?
+
+    "### Tool grants\n\nThese held grants determine the tools callable in this turn. Use deferred capability discovery when a needed tool is absent.\n\n#{lines.join("\n")}"
   end
 
   private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section
