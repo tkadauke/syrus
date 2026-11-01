@@ -21,7 +21,7 @@ function renderExpanded(context: ToolCardContext) {
   const open = () =>
     window.dispatchEvent(
       new CustomEvent("syrus:tool-presentation", {
-        detail: { chat_session_id: context.chatSessionId, title: t("title"), path: card.path }
+        detail: { chat_session_id: context.chatSessionId, title_i18n_key: "sdlc_pipeline:title", path: card.path }
       })
     )
   return (

@@ -83,7 +83,7 @@ RSpec.describe "API: repository SDLC pipeline", type: :request do
     allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(double(stages: []))
     sign_in_as(user)
 
-    tree = { "and" => [ { "field" => "chat_session_id", "op" => "is", "value" => chat.id } ] }
+    tree = { "and" => [ { "field" => "associated_chat_id", "op" => "is", "value" => chat.id } ] }
     get "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline", params: { q: Filters::QueryParam.encode(tree) }
 
     ids = response.parsed_body.fetch("stages").flat_map { |stage| stage.fetch("highlighted_items") }.map { |row| row.fetch("id") }

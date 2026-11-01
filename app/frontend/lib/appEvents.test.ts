@@ -1428,7 +1428,7 @@ describe("applyAppEvent", () => {
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
-      payload: { action: "open_tool_presentation", presentation: "example", title: "Example", path: "/example?q=kept" }
+      payload: { action: "open_tool_presentation", presentation: "example", title_i18n_key: "example:title", path: "/example?q=kept" }
     })
 
     expect(dispatched).toHaveLength(1)
@@ -1436,7 +1436,7 @@ describe("applyAppEvent", () => {
       chat_session_id: 9,
       action: "open_tool_presentation",
       presentation: "example",
-      title: "Example",
+      title_i18n_key: "example:title",
       path: "/example?q=kept"
     })
     expect(queryClient.getQueryData(["chats", "9"])).toBeUndefined()

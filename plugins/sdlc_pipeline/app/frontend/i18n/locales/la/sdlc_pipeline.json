@@ -102,5 +102,6 @@
   "tool_open": "Pipeline aperire",
   "tool_copy_link": "Vinculum exscribere",
   "tool_summary": "Pipeline pro {{repository}}",
-  "tool_malformed": "Hoc responsum pipeline ostendi non potest."
+  "tool_malformed": "Hoc responsum pipeline ostendi non potest.",
+  "chat_view_pipeline": "Pipeline videre"
 }
