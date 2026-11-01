@@ -61,6 +61,8 @@
   "evidence_deployment_stage": "Deployment-Nachweis",
   "evidence_historical_reconstruction": "Rekonstruierte Position; aktuelle Metadaten",
   "history_aria": "Pipeline-Verlauf",
+  "history_short": "Verlauf",
+  "event_marker": "Pipeline um {{time}} anzeigen",
   "history_range": "Verlauf von {{from}} bis {{to}}",
   "historical_mode": "Historische Ansicht",
   "historical_mode_short": "Früher · nur Lesen",
@@ -96,5 +98,12 @@
   "change_line": "{{job}}: {{from}} → {{to}}",
   "outside_pipeline": "außerhalb der Pipeline",
   "trace_heading": "Verlauf für {{job}}",
-  "trace_segment": "{{stage}} — Eintritt {{entered}}, Austritt {{left}} ({{dwell}})"
+  "trace_segment": "{{stage}} — Eintritt {{entered}}, Austritt {{left}} ({{dwell}})",
+  "tool_repository": "Repository",
+  "tool_historical_cursor": "Historischer Zeitpunkt",
+  "tool_open": "Pipeline öffnen",
+  "tool_copy_link": "Link kopieren",
+  "tool_summary": "Pipeline für {{repository}}",
+  "tool_malformed": "Dieses Pipeline-Ergebnis kann nicht angezeigt werden.",
+  "chat_view_pipeline": "Pipeline anzeigen"
 }

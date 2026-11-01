@@ -11,16 +11,26 @@ import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayloa
 import type { MaintenanceTask } from "../api/maintenanceTasks"
 import { recentChatsQueryKey } from "../lib/chatCache"
 import { AppChromeV2 } from "./AppChromeV2"
-import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_WIDTH_KEY, adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
+import {
+  SIDEBAR_COLLAPSED_KEY,
+  SIDEBAR_WIDTH_KEY,
+  adminNavLinkClass,
+  adminSubnavLinkClass,
+  chatSectionsFromPayload,
+  recentChatLinkClass,
+  sidebarLinkClass
+} from "./appChromeV2/helpers"
 import { buildAdminNavItems, filterAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 import { useMobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 import { useShortcut } from "../contexts/ShortcutsContext"
 
-const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
-  toBlob(callback: (blob: Blob | null) => void) {
-    callback(new Blob(["screenshot"], { type: "image/png" }))
-  }
-})))
+const html2canvasMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    toBlob(callback: (blob: Blob | null) => void) {
+      callback(new Blob(["screenshot"], { type: "image/png" }))
+    }
+  }))
+)
 
 vi.mock("html2canvas-pro", () => ({
   default: html2canvasMock
@@ -44,7 +54,9 @@ describe("AppChromeV2", () => {
   })
 
   it("uses one out-of-flow test-channel marker per expanded desktop and mobile brand lockup", () => {
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopBuild/0.1.5-test.3 SyrusDesktopChannel/test")
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopBuild/0.1.5-test.3 SyrusDesktopChannel/test"
+    )
     renderAppChrome()
 
     for (const chrome of [screen.getByTestId("sidebar-content"), screen.getByTestId("mobile-app-header")]) {
@@ -222,10 +234,13 @@ describe("AppChromeV2", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dark" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ theme: "dark" })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/theme",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ theme: "dark" })
+        })
+      )
     })
     expect(document.documentElement.classList.contains("dark")).toBe(true)
   })
@@ -247,10 +262,13 @@ describe("AppChromeV2", () => {
       fireEvent.click(screen.getByRole("button", { name: "System" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({ theme: "system" })
-        }))
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/theme",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ theme: "system" })
+          })
+        )
       })
       expect(document.documentElement.classList.contains("dark")).toBe(true)
     } finally {
@@ -306,7 +324,8 @@ describe("AppChromeV2", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
-      if (path === "/api/v1/app/theme") return Promise.resolve(jsonResponse({ theme: "light", color_theme_id: forestColorTheme().id, color_theme: forestColorTheme() }))
+      if (path === "/api/v1/app/theme")
+        return Promise.resolve(jsonResponse({ theme: "light", color_theme_id: forestColorTheme().id, color_theme: forestColorTheme() }))
 
       return Promise.resolve(jsonResponse({}))
     })
@@ -323,10 +342,13 @@ describe("AppChromeV2", () => {
     fireEvent.click(screen.getByRole("button", { name: "Forest" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ color_theme_id: forestColorTheme().id })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/theme",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ color_theme_id: forestColorTheme().id })
+        })
+      )
     })
     expect(document.documentElement.getAttribute("data-theme")).toBe("forest")
   })
@@ -348,18 +370,18 @@ describe("AppChromeV2", () => {
     renderAppChrome(<div>Settings</div>, {
       initialEntries: ["/settings/agent"],
       bootstrap: bootstrapPayload({
-        system_alerts: [{
-          id: "provider_auth:claude:1",
-          dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
-          severity: "alarm",
-          title: "Claude sign-in expired.",
-          message: "Claude authentication failed for this account.",
-          action_steps: ["Reconnect Claude here or open agent settings."],
-          cta: null,
-          actions: [
-            { text: "Recheck Claude", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" } }
-          ]
-        }]
+        system_alerts: [
+          {
+            id: "provider_auth:claude:1",
+            dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
+            severity: "alarm",
+            title: "Claude sign-in expired.",
+            message: "Claude authentication failed for this account.",
+            action_steps: ["Reconnect Claude here or open agent settings."],
+            cta: null,
+            actions: [{ text: "Recheck Claude", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" } }]
+          }
+        ]
       })
     })
 
@@ -368,10 +390,13 @@ describe("AppChromeV2", () => {
     fireEvent.click(screen.getByRole("button", { name: "Recheck Claude" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/recheck_provider_availability", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ provider: "claude" })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/credentials/recheck_provider_availability",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ provider: "claude" })
+        })
+      )
     })
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
@@ -386,27 +411,31 @@ describe("AppChromeV2", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/credentials/test_claude_cli") {
-        return Promise.resolve(jsonResponse({
-          credential_test: {
-            credential: "claude_oauth_token",
-            ok: false,
-            message: "Claude is not authenticated on this machine yet.",
-            details: {}
-          }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            credential_test: {
+              credential: "claude_oauth_token",
+              ok: false,
+              message: "Claude is not authenticated on this machine yet.",
+              details: {}
+            }
+          })
+        )
       }
       if (path === "/api/v1/app/credentials/claude_oauth_start") {
         return Promise.resolve(jsonResponse({ authorize_url: "https://claude.ai/oauth/authorize?state=abc" }))
       }
       if (path === "/api/v1/app/credentials/claude_oauth_exchange") {
-        return Promise.resolve(jsonResponse({
-          credential_test: {
-            credential: "claude_oauth_token",
-            ok: true,
-            message: "Claude OAuth token is valid.",
-            details: {}
-          }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            credential_test: {
+              credential: "claude_oauth_token",
+              ok: true,
+              message: "Claude OAuth token is valid.",
+              details: {}
+            }
+          })
+        )
       }
       if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse(chatsIndexPayload()))
       if (path === "/api/v1/app/bootstrap") return Promise.resolve(jsonResponse(bootstrapPayload({ system_alerts: [] })))
@@ -420,19 +449,21 @@ describe("AppChromeV2", () => {
     renderAppChrome(<div>Dashboard</div>, {
       initialEntries: ["/dashboard"],
       bootstrap: bootstrapPayload({
-        system_alerts: [{
-          id: "provider_auth:claude:1",
-          dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
-          severity: "alarm",
-          title: "Claude sign-in expired.",
-          message: "Claude authentication failed for this account.",
-          action_steps: ["Reconnect Claude here or open agent settings."],
-          cta: { text: "Open agent settings", path: "/settings/agent" },
-          actions: [
-            { text: "Reauthorize Claude", kind: "reauthorize_provider", provider: "claude" },
-            { text: "Recheck Claude", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" } }
-          ]
-        }]
+        system_alerts: [
+          {
+            id: "provider_auth:claude:1",
+            dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
+            severity: "alarm",
+            title: "Claude sign-in expired.",
+            message: "Claude authentication failed for this account.",
+            action_steps: ["Reconnect Claude here or open agent settings."],
+            cta: { text: "Open agent settings", path: "/settings/agent" },
+            actions: [
+              { text: "Reauthorize Claude", kind: "reauthorize_provider", provider: "claude" },
+              { text: "Recheck Claude", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" } }
+            ]
+          }
+        ]
       })
     })
 
@@ -468,63 +499,65 @@ describe("AppChromeV2", () => {
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
         expect(url.searchParams.has("smart_folder_id")).toBe(false)
-        return Promise.resolve(jsonResponse({
-          subject: "job",
-          view: "list",
-          page: 1,
-          per_page: 25,
-          counts: { jobs: 1, epics: 0, workflows: 0 },
-          preferences: {
-            sort: { column: "created_at", direction: "desc" },
-            visible_columns: [],
-            kanban_lanes: [],
-            ownership_scope: "team",
-            owner_user_id: null,
-            owner_id: null,
-            raw: {}
-          },
-          controls: {
-            views: ["list"],
-            ownership_scopes: [],
-            owners: [],
-            sort_columns: [],
-            sort_directions: [],
-            columns: { required: [], optional: [] },
-            kanban_lanes: [],
-            filter_schema: [],
-            filter_suggestions: []
-          },
-          filter: chromeFilter,
-          landing_queue: { visible: false, paused: false, toggle_path: "/api/v1/app/dashboard/landing_pause" },
-          ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
-          ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
-          smart_folders: [
-            {
-              id: 7,
-              name: "My work",
-              key: null,
-              kind: "user_defined",
-              subject_type: "job",
-              visibility: "user_defined",
-              position: 2,
-              count: 1,
-              active: false,
-              filter: savedFilter,
-              path: "/dashboard/jobs?smart_folder_id=7"
+        return Promise.resolve(
+          jsonResponse({
+            subject: "job",
+            view: "list",
+            page: 1,
+            per_page: 25,
+            counts: { jobs: 1, epics: 0, workflows: 0 },
+            preferences: {
+              sort: { column: "created_at", direction: "desc" },
+              visible_columns: [],
+              kanban_lanes: [],
+              ownership_scope: "team",
+              owner_user_id: null,
+              owner_id: null,
+              raw: {}
+            },
+            controls: {
+              views: ["list"],
+              ownership_scopes: [],
+              owners: [],
+              sort_columns: [],
+              sort_directions: [],
+              columns: { required: [], optional: [] },
+              kanban_lanes: [],
+              filter_schema: [],
+              filter_suggestions: []
+            },
+            filter: chromeFilter,
+            landing_queue: { visible: false, paused: false, toggle_path: "/api/v1/app/dashboard/landing_pause" },
+            ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
+            ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
+            smart_folders: [
+              {
+                id: 7,
+                name: "My work",
+                key: null,
+                kind: "user_defined",
+                subject_type: "job",
+                visibility: "user_defined",
+                position: 2,
+                count: 1,
+                active: false,
+                filter: savedFilter,
+                path: "/dashboard/jobs?smart_folder_id=7"
+              }
+            ],
+            active_smart_folder_id: null,
+            setup: null,
+            paths: {
+              dashboard_path: "/dashboard",
+              dashboard_jobs_path: "/dashboard/jobs",
+              dashboard_epics_path: "/dashboard/epics",
+              dashboard_workflows_path: "/dashboard/workflows",
+              new_epic_path: "/epics/new",
+              new_job_path: "/jobs/new",
+              app_dashboard_path: "/api/v1/app/dashboard"
             }
-          ],
-          active_smart_folder_id: null,
-          setup: null,
-          paths: {
-            dashboard_path: "/dashboard",
-            dashboard_jobs_path: "/dashboard/jobs",
-            dashboard_epics_path: "/dashboard/epics",
-            dashboard_workflows_path: "/dashboard/workflows",
-            new_epic_path: "/epics/new",
-            new_job_path: "/jobs/new",
-            app_dashboard_path: "/api/v1/app/dashboard"
-          }
-        }))
+          })
+        )
       }
 
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
@@ -552,56 +585,62 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "design_docs",
-            label: "Design Docs",
-            label_key: null,
-            path: "/design_docs",
-            paths: ["/design_docs"],
-            order: 25,
-            component: "DesignDocs",
-            icon: "document",
-            smart_folder_api_path: "/api/v1/app/design_docs",
-            smart_folder_subject: "design_doc"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "design_docs",
+                label: "Design Docs",
+                label_key: null,
+                path: "/design_docs",
+                paths: ["/design_docs"],
+                order: 25,
+                component: "DesignDocs",
+                icon: "document",
+                smart_folder_api_path: "/api/v1/app/design_docs",
+                smart_folder_subject: "design_doc"
+              }
+            ]
+          })
+        )
       }
 
       if (url.pathname === "/api/v1/app/design_docs") {
         expect(url.searchParams.get("smart_folder_id")).toBe("21")
-        return Promise.resolve(jsonResponse({
-          active_smart_folder_id: 21,
-          filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
-          smart_folders: [
-            {
-              id: 11,
-              name: "Open comments",
-              key: "design_docs_open_comments",
-              kind: "builtin",
-              subject_type: "design_doc",
-              visibility: "when_present",
-              position: 2,
-              count: 3,
-              active: false,
-              filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
-              path: "/design_docs?smart_folder_id=11"
-            },
-            {
-              id: 21,
-              name: "Team docs",
-              key: null,
-              kind: "user_defined",
-              subject_type: "design_doc",
-              visibility: "user_defined",
-              position: 1,
-              count: 4,
-              active: true,
-              filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
-              path: "/design_docs?smart_folder_id=21"
-            }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            active_smart_folder_id: 21,
+            filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
+            smart_folders: [
+              {
+                id: 11,
+                name: "Open comments",
+                key: "design_docs_open_comments",
+                kind: "builtin",
+                subject_type: "design_doc",
+                visibility: "when_present",
+                position: 2,
+                count: 3,
+                active: false,
+                filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
+                path: "/design_docs?smart_folder_id=11"
+              },
+              {
+                id: 21,
+                name: "Team docs",
+                key: null,
+                kind: "user_defined",
+                subject_type: "design_doc",
+                visibility: "user_defined",
+                position: 1,
+                count: 4,
+                active: true,
+                filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+                path: "/design_docs?smart_folder_id=21"
+              }
+            ]
+          })
+        )
       }
 
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
@@ -634,58 +673,64 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "agent_activity.mine",
-            label: "Agent Activity",
-            label_key: null,
-            path: "/agent_activity",
-            paths: ["/agent_activity"],
-            order: 35,
-            component: "agent_activity/AgentActivity",
-            icon: "activity",
-            smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
-            smart_folder_subject: "agent_session",
-            smart_folder_all_link: false
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "agent_activity.mine",
+                label: "Agent Activity",
+                label_key: null,
+                path: "/agent_activity",
+                paths: ["/agent_activity"],
+                order: 35,
+                component: "agent_activity/AgentActivity",
+                icon: "activity",
+                smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
+                smart_folder_subject: "agent_session",
+                smart_folder_all_link: false
+              }
+            ]
+          })
+        )
       }
 
       if (url.pathname === "/api/v1/app/agent_activity/sessions") {
         expect(url.searchParams.get("smart_folder_id")).toBe("81")
-        return Promise.resolve(jsonResponse({
-          active_smart_folder_id: 81,
-          filter: { and: [] },
-          smart_folders: [
-            {
-              id: 81,
-              name: "All",
-              key: "agent_activity_all",
-              kind: "builtin",
-              subject_type: "agent_session",
-              visibility: "always",
-              position: 0,
-              count: 1000,
-              count_capped: true,
-              active: true,
-              filter: { and: [] },
-              path: "/agent_activity?smart_folder_id=81"
-            },
-            {
-              id: 82,
-              name: "Running",
-              key: "agent_activity_running",
-              kind: "builtin",
-              subject_type: "agent_session",
-              visibility: "always",
-              position: 1,
-              count: 5,
-              active: false,
-              filter: { and: [{ field: "status", op: "is", value: "running" }] },
-              path: "/agent_activity?smart_folder_id=82"
-            }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            active_smart_folder_id: 81,
+            filter: { and: [] },
+            smart_folders: [
+              {
+                id: 81,
+                name: "All",
+                key: "agent_activity_all",
+                kind: "builtin",
+                subject_type: "agent_session",
+                visibility: "always",
+                position: 0,
+                count: 1000,
+                count_capped: true,
+                active: true,
+                filter: { and: [] },
+                path: "/agent_activity?smart_folder_id=81"
+              },
+              {
+                id: 82,
+                name: "Running",
+                key: "agent_activity_running",
+                kind: "builtin",
+                subject_type: "agent_session",
+                visibility: "always",
+                position: 1,
+                count: 5,
+                active: false,
+                filter: { and: [{ field: "status", op: "is", value: "running" }] },
+                path: "/agent_activity?smart_folder_id=82"
+              }
+            ]
+          })
+        )
       }
 
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
@@ -717,55 +762,57 @@ describe("AppChromeV2", () => {
 
       if (url.pathname === "/api/v1/app/repositories") {
         expect(url.searchParams.get("smart_folder_id")).toBe("2")
-        return Promise.resolve(jsonResponse({
-          active_repositories: [],
-          archived_repositories: [],
-          new_repository_path: "/repositories/new",
-          active_smart_folder_id: 2,
-          filter: { and: [] },
-          message: null,
-          smart_folders: [
-            {
-              id: 1,
-              name: "All",
-              i18n_key: "repositories_all",
-              kind: "builtin",
-              subject_type: "repository",
-              visibility: "always",
-              position: 0,
-              count: 4,
-              active: false,
-              filter: { and: [] },
-              path: "/repositories?smart_folder_id=1"
-            },
-            {
-              id: 2,
-              name: "Recent",
-              i18n_key: "repositories_recent",
-              kind: "builtin",
-              subject_type: "repository",
-              visibility: "always",
-              position: 1,
-              count: 2,
-              active: true,
-              filter: { and: [{ field: "last_job_activity_at", op: "within_days", value: 30 }] },
-              path: "/repositories?smart_folder_id=2"
-            },
-            {
-              id: 3,
-              name: "Archived",
-              i18n_key: "repositories_archived",
-              kind: "builtin",
-              subject_type: "repository",
-              visibility: "always",
-              position: 2,
-              count: 1,
-              active: false,
-              filter: { and: [{ field: "archived", op: "is_true", value: null }] },
-              path: "/repositories?smart_folder_id=3"
-            }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            active_repositories: [],
+            archived_repositories: [],
+            new_repository_path: "/repositories/new",
+            active_smart_folder_id: 2,
+            filter: { and: [] },
+            message: null,
+            smart_folders: [
+              {
+                id: 1,
+                name: "All",
+                i18n_key: "repositories_all",
+                kind: "builtin",
+                subject_type: "repository",
+                visibility: "always",
+                position: 0,
+                count: 4,
+                active: false,
+                filter: { and: [] },
+                path: "/repositories?smart_folder_id=1"
+              },
+              {
+                id: 2,
+                name: "Recent",
+                i18n_key: "repositories_recent",
+                kind: "builtin",
+                subject_type: "repository",
+                visibility: "always",
+                position: 1,
+                count: 2,
+                active: true,
+                filter: { and: [{ field: "last_job_activity_at", op: "within_days", value: 30 }] },
+                path: "/repositories?smart_folder_id=2"
+              },
+              {
+                id: 3,
+                name: "Archived",
+                i18n_key: "repositories_archived",
+                kind: "builtin",
+                subject_type: "repository",
+                visibility: "always",
+                position: 2,
+                count: 1,
+                active: false,
+                filter: { and: [{ field: "archived", op: "is_true", value: null }] },
+                path: "/repositories?smart_folder_id=3"
+              }
+            ]
+          })
+        )
       }
 
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
@@ -795,20 +842,24 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "design_docs",
-            label: "Design Docs",
-            label_key: null,
-            path: "/design_docs",
-            paths: ["/design_docs"],
-            order: 25,
-            component: "DesignDocs",
-            icon: "document",
-            smart_folder_api_path: "/api/v1/app/design_docs",
-            smart_folder_subject: "design_doc"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "design_docs",
+                label: "Design Docs",
+                label_key: null,
+                path: "/design_docs",
+                paths: ["/design_docs"],
+                order: 25,
+                component: "DesignDocs",
+                icon: "document",
+                smart_folder_api_path: "/api/v1/app/design_docs",
+                smart_folder_subject: "design_doc"
+              }
+            ]
+          })
+        )
       }
 
       if (url.pathname === "/api/v1/app/design_docs") {
@@ -837,20 +888,24 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "design_docs",
-            label: "Design Docs",
-            label_key: null,
-            path: "/design_docs",
-            paths: ["/design_docs"],
-            order: 25,
-            component: "DesignDocs",
-            icon: "document",
-            smart_folder_api_path: "/api/v1/app/design_docs",
-            smart_folder_subject: "design_doc"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "design_docs",
+                label: "Design Docs",
+                label_key: null,
+                path: "/design_docs",
+                paths: ["/design_docs"],
+                order: 25,
+                component: "DesignDocs",
+                icon: "document",
+                smart_folder_api_path: "/api/v1/app/design_docs",
+                smart_folder_subject: "design_doc"
+              }
+            ]
+          })
+        )
       }
 
       if (url.pathname === "/api/v1/app/design_docs") {
@@ -890,7 +945,9 @@ describe("AppChromeV2", () => {
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
         if (url.searchParams.get("subject") === "epic") {
-          return new Promise((resolve) => { resolveEpicsFetch = resolve })
+          return new Promise((resolve) => {
+            resolveEpicsFetch = resolve
+          })
         }
         return Promise.resolve(jsonResponse(dashboardChromePayload({ subject: "job" })))
       }
@@ -1085,29 +1142,32 @@ describe("AppChromeV2", () => {
       }) as chatsApi.ChatRecord
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          key: "general",
-          label: "General",
-          repository_id: null,
-          group_by: "repository",
-          group_value: null,
-          chats: [
-            chatNav({
-              id: 12,
-              title: null,
-              title_pending: true,
-              chat_path: "/chats/12",
-              current: false,
-              last_message_at: null,
-              created_at: "2026-06-01T00:00:00Z",
-              updated_at: "2026-06-01T00:00:00Z"
-            })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            key: "general",
+            label: "General",
+            repository_id: null,
+            group_by: "repository",
+            group_value: null,
+            chats: [
+              chatNav({
+                id: 12,
+                title: null,
+                title_pending: true,
+                chat_path: "/chats/12",
+                current: false,
+                last_message_at: null,
+                created_at: "2026-06-01T00:00:00Z",
+                updated_at: "2026-06-01T00:00:00Z"
+              })
+            ]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(<LocationProbe />, {
       initialEntries: ["/app-shell/dashboard/jobs"],
@@ -1209,7 +1269,9 @@ describe("AppChromeV2", () => {
   it("disables New Chat while a creation request is in flight and ignores a rapid second click", async () => {
     let resolveFetchNewChat: (value: chatsApi.NewChatPayload) => void = () => {}
     vi.spyOn(chatsApi, "fetchNewChat").mockReturnValue(
-      new Promise((resolve) => { resolveFetchNewChat = resolve })
+      new Promise((resolve) => {
+        resolveFetchNewChat = resolve
+      })
     )
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
@@ -1334,6 +1396,41 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     const main = screen.getByTestId("app-scroll-pane")
     expect(main).toHaveClass("overflow-auto")
     expect(main).not.toHaveClass("overflow-hidden")
+  })
+
+  it("keeps an open tool presentation mounted across the desktop breakpoint", () => {
+    const viewport = mockResponsiveViewport(true)
+
+    try {
+      renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
+      act(() =>
+        window.dispatchEvent(
+          new CustomEvent("syrus:tool-presentation", {
+            detail: { chat_session_id: 5, title: "Pipeline", path: "/repositories/2/plugin/sdlc-pipeline?q=x" }
+          })
+        )
+      )
+      expect(screen.getByRole("dialog", { name: "Pipeline" })).toBeInTheDocument()
+
+      act(() => viewport.setDesktop(false))
+
+      expect(screen.getByTestId("mobile-chat-content-shell")).toBeInTheDocument()
+      expect(screen.getByRole("dialog", { name: "Pipeline" })).toBeInTheDocument()
+      expect(screen.getByTitle("Pipeline")).toHaveAttribute("src", "/repositories/2/plugin/sdlc-pipeline?q=x&syrus_presentation=embedded")
+    } finally {
+      viewport.restore()
+    }
+  })
+
+  it("removes redundant application chrome from embedded tool presentations", () => {
+    renderAppChrome(<div data-testid="pipeline-presentation">Pipeline presentation</div>, {
+      initialEntries: ["/repositories/2/plugin/sdlc-pipeline?q=x&syrus_presentation=embedded"]
+    })
+
+    expect(screen.getByTestId("embedded-presentation-root")).toContainElement(screen.getByTestId("pipeline-presentation"))
+    expect(screen.queryByTestId("app-chrome-root")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("desktop-sidebar")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("mobile-app-header")).not.toBeInTheDocument()
   })
 
   it("leaves main as overflow-auto for a non-chat route even at mobile widths", () => {
@@ -1539,16 +1636,18 @@ describe("AppChromeV2 mobile header pinning", () => {
         initialEntries: ["/chats/5"],
         bootstrap: bootstrapPayload({
           flash: { alert: "Deployment is paused.", notice: null },
-          system_alerts: [{
-            id: "provider_auth:claude:1",
-            dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
-            severity: "alarm",
-            title: "Claude sign-in expired.",
-            message: "Claude authentication failed for this account.",
-            action_steps: [],
-            cta: null,
-            actions: []
-          }]
+          system_alerts: [
+            {
+              id: "provider_auth:claude:1",
+              dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
+              severity: "alarm",
+              title: "Claude sign-in expired.",
+              message: "Claude authentication failed for this account.",
+              action_steps: [],
+              cta: null,
+              actions: []
+            }
+          ]
         })
       })
 
@@ -1754,12 +1853,14 @@ describe("AppChromeV2 primary nav reordering", () => {
 
   it("applies the operator's saved order, appending items missing from it at the end", () => {
     const bootstrap = bootstrapPayload({ team_user_count: 2 })
-    bootstrap.current_user = { ...bootstrap.current_user!, sidebar_nav_order: [ "dashboard" ] }
+    bootstrap.current_user = { ...bootstrap.current_user!, sidebar_nav_order: ["dashboard"] }
 
     renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/repositories"], bootstrap })
 
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
-    const labels = within(primaryNav).getAllByRole("link").map((link) => link.textContent)
+    const labels = within(primaryNav)
+      .getAllByRole("link")
+      .map((link) => link.textContent)
 
     // "dashboard" follows the saved order; "repositories" is absent from it,
     // so it's appended at the end.
@@ -1794,10 +1895,13 @@ describe("AppChromeV2 primary nav reordering", () => {
     fireEvent.dragEnd(repositoriesRow)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ order: ["repositories", "dashboard"] })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/sidebar_nav_order",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ order: ["repositories", "dashboard"] })
+        })
+      )
     })
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
@@ -1806,7 +1910,11 @@ describe("AppChromeV2 primary nav reordering", () => {
 
   it("keeps the live reorder intact when an unrelated query update re-renders the sidebar mid-drag", async () => {
     const badgedPage = {
-      id: "badged.page", label: "Badged", path: "/badged", paths: ["/badged"], order: 40,
+      id: "badged.page",
+      label: "Badged",
+      path: "/badged",
+      paths: ["/badged"],
+      order: 40,
       badge_api_path: "/api/v1/app/badged/count"
     }
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -1819,7 +1927,7 @@ describe("AppChromeV2 primary nav reordering", () => {
         return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
       }
       if (path === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({ pages: [ badgedPage ] }))
+        return Promise.resolve(jsonResponse({ pages: [badgedPage] }))
       }
       if (path === "/api/v1/app/badged/count") {
         return Promise.resolve(jsonResponse({ count: 0 }))
@@ -1859,16 +1967,21 @@ describe("AppChromeV2 primary nav reordering", () => {
     // Flush react-query's notifyManager-scheduled re-render so the update
     // above has definitely propagated through AppChromeV2 (and, pre-fix,
     // through the resync effect) before we drop.
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
 
     fireEvent.drop(dashboardRow)
     fireEvent.dragEnd(scheduleRow)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ order: ["repositories", "dashboard", "badged.page"] })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/sidebar_nav_order",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ order: ["repositories", "dashboard", "badged.page"] })
+        })
+      )
     })
   })
 
@@ -1905,7 +2018,10 @@ describe("AppChromeV2 primary nav reordering", () => {
     })
 
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
-    const labels = () => within(primaryNav).getAllByRole("link").map((link) => link.textContent)
+    const labels = () =>
+      within(primaryNav)
+        .getAllByRole("link")
+        .map((link) => link.textContent)
     expect(labels()).toEqual(["Dashboard", "Repositories"])
 
     const repositoriesRow = within(primaryNav).getByRole("link", { name: "Repositories" }).parentElement!
@@ -2030,8 +2146,7 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
 
   it("keeps the collapsed hover rail full-height above sticky top controls and the peek", async () => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
-    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
-      .mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
 
     renderAppChrome(<div>Dashboard</div>, { bootstrap: bootstrapPayload({ team_user_count: 3 }) })
 
@@ -2096,27 +2211,35 @@ describe("AppChromeV2 recent chats", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(jsonResponse(chatsIndexPayload({
-          groups: [
-            chatGroup({
-              chats: [
-                chatNav({ id: 3, title: "Newest", last_message_at: "2026-06-27T12:02:00Z" }),
-                chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" })
-              ],
-              has_more: true
+        return Promise.resolve(
+          jsonResponse(
+            chatsIndexPayload({
+              groups: [
+                chatGroup({
+                  chats: [
+                    chatNav({ id: 3, title: "Newest", last_message_at: "2026-06-27T12:02:00Z" }),
+                    chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" })
+                  ],
+                  has_more: true
+                })
+              ]
             })
-          ]
-        })))
+          )
+        )
       }
 
       if (path === "/api/v1/app/chats/more?group_by=repository&group_key=general&before_id=2") {
-        return Promise.resolve(jsonResponse(moreChatsPayload({
-          chats: [
-            chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" }),
-            chatNav({ id: 1, title: "Older loaded chat", last_message_at: "2026-06-27T12:00:00Z" })
-          ],
-          has_more: false
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            moreChatsPayload({
+              chats: [
+                chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" }),
+                chatNav({ id: 1, title: "Older loaded chat", last_message_at: "2026-06-27T12:00:00Z" })
+              ],
+              has_more: false
+            })
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse({}))
@@ -2135,16 +2258,20 @@ describe("AppChromeV2 recent chats", () => {
   it("renders pinned chats before unpinned chats in the sidebar", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/chats") {
-        return Promise.resolve(jsonResponse(chatsIndexPayload({
-          groups: [
-            chatGroup({
-              chats: [
-                chatNav({ id: 2, title: "Older pinned", pinned: true, last_message_at: "2026-06-27T12:00:00Z" }),
-                chatNav({ id: 1, title: "Recent unpinned", pinned: false, last_message_at: "2026-06-27T12:02:00Z" })
+        return Promise.resolve(
+          jsonResponse(
+            chatsIndexPayload({
+              groups: [
+                chatGroup({
+                  chats: [
+                    chatNav({ id: 2, title: "Older pinned", pinned: true, last_message_at: "2026-06-27T12:00:00Z" }),
+                    chatNav({ id: 1, title: "Recent unpinned", pinned: false, last_message_at: "2026-06-27T12:02:00Z" })
+                  ]
+                })
               ]
             })
-          ]
-        })))
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse({}))
@@ -2167,16 +2294,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Unpinned chat", pinned: false }),
-            chatNav({ id: 2, title: "Pinned chat", pinned: true })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unpinned chat", pinned: false }), chatNav({ id: 2, title: "Pinned chat", pinned: true })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2207,15 +2334,16 @@ describe("AppChromeV2 recent chats", () => {
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Unpinned chat", pinned: false })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unpinned chat", pinned: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2223,10 +2351,13 @@ describe("AppChromeV2 recent chats", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Pin chat" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ chat: { pinned: true } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ chat: { pinned: true } })
+        })
+      )
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     })
   })
@@ -2240,16 +2371,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Unread chat", unread: true }),
-            chatNav({ id: 2, title: "Read chat", unread: false })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unread chat", unread: true }), chatNav({ id: 2, title: "Read chat", unread: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2275,13 +2406,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [chatNav({ id: 1, title: "Unread chat", unread: true })]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unread chat", unread: true })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2309,13 +2443,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [chatNav({ id: 1, title: "Read chat", unread: false })]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Read chat", unread: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2338,15 +2475,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Menu order chat", pinned: false })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Menu order chat", pinned: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2376,15 +2514,16 @@ describe("AppChromeV2 recent chats", () => {
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Old name" })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Old name" })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2404,10 +2543,13 @@ describe("AppChromeV2 recent chats", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1/rename", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ chat: { title: "New name" } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/1/rename",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ chat: { title: "New name" } })
+        })
+      )
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     })
   })
@@ -2430,15 +2572,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Doomed chat" })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Doomed chat" })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2467,9 +2610,14 @@ describe("AppChromeV2 recent chats", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1" && init?.method === "DELETE") {
-        return Promise.resolve(new Response(JSON.stringify({
-          error: { code: "turn_in_flight", message: "Cannot delete this chat while a turn is in progress. Stop the turn first." }
-        }), { status: 409, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: { code: "turn_in_flight", message: "Cannot delete this chat while a turn is in progress. Stop the turn first." }
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
 
       if (path === "/api/v1/app/chats/1") {
@@ -2483,15 +2631,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Busy chat" })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Busy chat" })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2594,9 +2743,12 @@ describe("chat row mode icons", () => {
 
   it("shows planning icon by default when chat has no mode set", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Planning chat" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Planning chat" })] })]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2606,9 +2758,12 @@ describe("chat row mode icons", () => {
 
   it("shows coding icon when coding_mode feature is enabled and chat mode is coding", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -2622,9 +2777,12 @@ describe("chat row mode icons", () => {
 
   it("falls back to planning icon when coding_mode flag is disabled even if chat mode is coding", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -2638,9 +2796,12 @@ describe("chat row mode icons", () => {
 
   it("shows local icon when local_mode feature is enabled and chat mode is local", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -2654,9 +2815,12 @@ describe("chat row mode icons", () => {
 
   it("falls back to planning icon when local_mode flag is disabled even if chat mode is local", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -2670,9 +2834,12 @@ describe("chat row mode icons", () => {
 
   it("keeps status dots in a reserved slot that becomes invisible when the action menu appears", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Active chat", turn_in_flight: true })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Active chat", turn_in_flight: true })] })]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -2726,17 +2893,21 @@ describe("AdminNav grouped navigation", () => {
   it("places plugin pages with a known group_id into the matching section", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/admin/plugin_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "test.perf",
-            label: "Performance",
-            label_key: null,
-            path: "/admin/performance",
-            paths: ["/admin/performance"],
-            order: 10,
-            group_id: "observability"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "test.perf",
+                label: "Performance",
+                label_key: null,
+                path: "/admin/performance",
+                paths: ["/admin/performance"],
+                order: 10,
+                group_id: "observability"
+              }
+            ]
+          })
+        )
       }
       return Promise.resolve(jsonResponse({}))
     })
@@ -2869,54 +3040,78 @@ describe("buildAdminNavItems", () => {
   })
 
   it("places plugin pages with known group_id into the correct group", () => {
-    const { groups } = buildAdminNavItems({}, [{
-      id: "test.logs",
-      label: "Logs",
-      path: "/admin/logs",
-      paths: ["/admin/logs"],
-      order: 50,
-      group_id: "observability"
-    }], translate)
+    const { groups } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "test.logs",
+          label: "Logs",
+          path: "/admin/logs",
+          paths: ["/admin/logs"],
+          order: 50,
+          group_id: "observability"
+        }
+      ],
+      translate
+    )
 
     const observabilityGroup = groups.find(({ group }) => group.id === "observability")
     expect(observabilityGroup?.items.map((i) => i.id)).toContain("test.logs")
   })
 
   it("puts plugin pages with unknown group_id in ungroupedExtensions", () => {
-    const { ungroupedExtensions } = buildAdminNavItems({}, [{
-      id: "test.custom",
-      label: "Custom Page",
-      path: "/admin/custom",
-      paths: ["/admin/custom"],
-      order: 10,
-      group_id: "unknown_group"
-    }], translate)
+    const { ungroupedExtensions } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "test.custom",
+          label: "Custom Page",
+          path: "/admin/custom",
+          paths: ["/admin/custom"],
+          order: 10,
+          group_id: "unknown_group"
+        }
+      ],
+      translate
+    )
 
     expect(ungroupedExtensions.map((i) => i.id)).toContain("test.custom")
   })
 
   it("puts plugin pages without group_id in ungroupedExtensions", () => {
-    const { ungroupedExtensions } = buildAdminNavItems({}, [{
-      id: "test.legacy",
-      label: "Legacy",
-      path: "/admin/legacy",
-      paths: ["/admin/legacy"],
-      order: 10
-    }], translate)
+    const { ungroupedExtensions } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "test.legacy",
+          label: "Legacy",
+          path: "/admin/legacy",
+          paths: ["/admin/legacy"],
+          order: 10
+        }
+      ],
+      translate
+    )
 
     expect(ungroupedExtensions.map((i) => i.id)).toContain("test.legacy")
   })
 
   it("does not duplicate a plugin's admin page nav entry (agent_insights)", () => {
-    const { groups } = buildAdminNavItems({}, [{
-      id: "agent_insights.admin",
-      label: "Insights",
-      label_key: "agent_insights:nav_insights",
-      path: "/admin/insights",
-      paths: ["/admin/insights"],
-      order: 20,
-      group_id: "product_data"
-    }], translate)
+    const { groups } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "agent_insights.admin",
+          label: "Insights",
+          label_key: "agent_insights:nav_insights",
+          path: "/admin/insights",
+          paths: ["/admin/insights"],
+          order: 20,
+          group_id: "product_data"
+        }
+      ],
+      translate
+    )
 
     const productDataGroup = groups.find(({ group }) => group.id === "product_data")
     const insightsItems = productDataGroup?.items.filter((i) => i.label === "Insights") ?? []
@@ -2924,10 +3119,14 @@ describe("buildAdminNavItems", () => {
   })
 
   it("sorts group items by order then label", () => {
-    const { groups } = buildAdminNavItems({}, [
-      { id: "p.b", label: "B Plugin", path: "/admin/b", paths: ["/admin/b"], order: 10, group_id: "operations" },
-      { id: "p.a", label: "A Plugin", path: "/admin/a", paths: ["/admin/a"], order: 10, group_id: "operations" }
-    ], translate)
+    const { groups } = buildAdminNavItems(
+      {},
+      [
+        { id: "p.b", label: "B Plugin", path: "/admin/b", paths: ["/admin/b"], order: 10, group_id: "operations" },
+        { id: "p.a", label: "A Plugin", path: "/admin/a", paths: ["/admin/a"], order: 10, group_id: "operations" }
+      ],
+      translate
+    )
 
     const opItems = groups.find(({ group }) => group.id === "operations")?.items.map((i) => i.id) ?? []
     const aIndex = opItems.indexOf("p.a")
@@ -2939,25 +3138,11 @@ describe("buildAdminNavItems", () => {
     const { groups } = buildAdminNavItems({}, [], translate)
     const opItems = groups.find(({ group }) => group.id === "operations")?.items.map((i) => i.id) ?? []
 
-    expect(opItems).toEqual([
-      "queue",
-      "stuck",
-      "work_units",
-      "maintenance_tasks",
-      "processes",
-      "activity",
-      "reconciler_activity"
-    ])
+    expect(opItems).toEqual(["queue", "stuck", "work_units", "maintenance_tasks", "processes", "activity", "reconciler_activity"])
   })
 
   it("preserves all five stable group ids in order", () => {
-    expect(ADMIN_NAV_GROUPS.map((g) => g.id)).toEqual([
-      "operations",
-      "observability",
-      "users_access",
-      "system",
-      "product_data"
-    ])
+    expect(ADMIN_NAV_GROUPS.map((g) => g.id)).toEqual(["operations", "observability", "users_access", "system", "product_data"])
   })
 
   it("includes scoped_chat_events in the product_data group", () => {
@@ -2975,14 +3160,20 @@ describe("filterAdminNavItems", () => {
   const translate = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
 
   it("matches page labels while preserving matching groups", () => {
-    const navItems = buildAdminNavItems({}, [{
-      id: "test.retention_report",
-      label: "Retention Report",
-      path: "/admin/retention_report",
-      paths: ["/admin/retention_report"],
-      order: 5,
-      group_id: "observability"
-    }], translate)
+    const navItems = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "test.retention_report",
+          label: "Retention Report",
+          path: "/admin/retention_report",
+          paths: ["/admin/retention_report"],
+          order: 5,
+          group_id: "observability"
+        }
+      ],
+      translate
+    )
 
     const filtered = filterAdminNavItems(navItems, "retention")
 
@@ -3080,7 +3271,7 @@ describe("AppChromeV2 signed-out chrome", () => {
 
     renderAppChrome(<SignedOutShortcutProbe onShortcut={shortcut} />, {
       bootstrap: signedOutBootstrap(),
-      initialEntries: [ "/session/new" ]
+      initialEntries: ["/session/new"]
     })
 
     await waitFor(() => expect(screen.getByText("Sign in")).toBeInTheDocument())
@@ -3092,10 +3283,9 @@ describe("AppChromeV2 signed-out chrome", () => {
   })
 
   it("requests it once somebody is signed in", async () => {
-    const sidebar = vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
-      .mockResolvedValue({ tasks: [] })
+    const sidebar = vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({ tasks: [] })
 
-    renderAppChrome(<div>Dashboard</div>, { initialEntries: [ "/dashboard" ] })
+    renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/dashboard"] })
 
     await waitFor(() => expect(sidebar).toHaveBeenCalled())
   })
@@ -3108,8 +3298,7 @@ describe("AppChromeV2 maintenance sidebar", () => {
   })
 
   it("remembers the collapsed maintenance task state across remounts", async () => {
-    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
-      .mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
 
     const firstRender = renderAppChrome()
     await screen.findByText("Repair stale indexes")
@@ -3127,17 +3316,19 @@ describe("AppChromeV2 maintenance sidebar", () => {
   })
 
   it("expands a remembered collapsed maintenance box when a new task appears", async () => {
-    window.localStorage.setItem("syrus.maintenance_sidebar.state", JSON.stringify({
-      collapsed: true,
-      taskKeys: [ "1:repair-stale-indexes" ]
-    }))
-    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
-      .mockResolvedValue({
-        tasks: [
-          maintenanceTask({ id: 1, task_key: "repair-stale-indexes", title: "Repair stale indexes" }),
-          maintenanceTask({ id: 2, task_key: "backfill-agents", title: "Backfill agents" })
-        ]
+    window.localStorage.setItem(
+      "syrus.maintenance_sidebar.state",
+      JSON.stringify({
+        collapsed: true,
+        taskKeys: ["1:repair-stale-indexes"]
       })
+    )
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({
+      tasks: [
+        maintenanceTask({ id: 1, task_key: "repair-stale-indexes", title: "Repair stale indexes" }),
+        maintenanceTask({ id: 2, task_key: "backfill-agents", title: "Backfill agents" })
+      ]
+    })
 
     renderAppChrome()
 
@@ -3200,11 +3391,7 @@ function renderAppChrome(
   } = {}
 ) {
   const queryClient = options.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const chrome = (
-    <AppChromeV2 initialBootstrap={options.bootstrap ?? bootstrapPayload()}>
-      {ui}
-    </AppChromeV2>
-  )
+  const chrome = <AppChromeV2 initialBootstrap={options.bootstrap ?? bootstrapPayload()}>{ui}</AppChromeV2>
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -3217,7 +3404,9 @@ function renderAppChrome(
           <Routes>
             <Route element={chrome} path="*" />
           </Routes>
-        ) : chrome}
+        ) : (
+          chrome
+        )}
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -3225,7 +3414,12 @@ function renderAppChrome(
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 function SignedOutShortcutProbe({ onShortcut }: { onShortcut: () => void }) {
@@ -3503,6 +3697,35 @@ function mockNarrowViewport() {
       Object.defineProperty(window, "matchMedia", original)
     } else {
       Reflect.deleteProperty(window, "matchMedia")
+    }
+  }
+}
+
+function mockResponsiveViewport(initialDesktop: boolean) {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+  let desktop = initialDesktop
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      get matches() {
+        return query === "(min-width: 1024px)" ? desktop : false
+      },
+      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.delete(listener)
+    }))
+  })
+
+  return {
+    setDesktop(value: boolean) {
+      desktop = value
+      listeners.forEach((listener) => listener({ matches: desktop } as MediaQueryListEvent))
+    },
+    restore() {
+      if (original) Object.defineProperty(window, "matchMedia", original)
+      else Reflect.deleteProperty(window, "matchMedia")
     }
   }
 }

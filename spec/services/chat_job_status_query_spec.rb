@@ -75,6 +75,18 @@ RSpec.describe ChatJobStatusQuery do
       expect(result.first).to include(kind: "job", job_id: job.id, title: job.title)
     end
 
+    it "includes enabled plugin actions without coupling the query to the plugin" do
+      _, job = confirmed_job_proposal(title: "Pipeline Job")
+
+      action = described_class.call(session).dig(:extensions, :actions).sole
+
+      expect(action).to include(repository_id: repository.id, repository_label: repository.slug, label_i18n_key: "sdlc_pipeline:chat_view_pipeline")
+      expect(Filters::QueryParam.decode(URI.parse(action.fetch(:path)).query.split("=", 2).last)).to eq(
+        "and" => [ { "field" => "associated_chat_id", "op" => "is", "value" => session.id } ]
+      )
+      expect(job.repository_id).to eq(repository.id)
+    end
+
     it "includes direct jobs linked to the session via linked_chat_id" do
       job = Factories.job_record(
         user: user,

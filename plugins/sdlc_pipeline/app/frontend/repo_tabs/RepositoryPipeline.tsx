@@ -11,7 +11,15 @@ import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
 import { routePrefix } from "@app/lib/routing"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchPipeline, fetchPipelineStage, type PipelineGroup, type PipelineItem, type PipelinePayload, type PipelineStage } from "../api/pipeline"
+import {
+  fetchPipeline,
+  fetchPipelineStage,
+  type PipelineGroup,
+  type PipelineHistory,
+  type PipelineItem,
+  type PipelinePayload,
+  type PipelineStage
+} from "../api/pipeline"
 
 const POLL_INTERVAL_MS = 30_000
 const ITEM_CARD_CLASSES =
@@ -233,6 +241,126 @@ function DrillDown({ onClose, repositoryId, search, stage }: { onClose: () => vo
         </Button>
       </div>
     </Modal>
+  )
+}
+
+function HistoryRail({
+  currentTick,
+  historical,
+  historicalAt,
+  history,
+  onRangeChange,
+  onSelect,
+  playing,
+  setPlaying
+}: {
+  currentTick: number
+  historical: boolean
+  historicalAt: string | null
+  history: PipelineHistory
+  onRangeChange: (days: number) => void
+  onSelect: (at: string | null) => void
+  playing: boolean
+  setPlaying: (value: boolean | ((current: boolean) => boolean)) => void
+}) {
+  const { t } = useT("sdlc_pipeline")
+  const selectedIndex = historical ? Math.max(0, currentTick) : history.ticks.length
+  const markerSteps = Math.max(1, history.ticks.length - 1)
+  return (
+    <Section.Root aria-label={t("history_aria")} className="flex w-24 shrink-0 flex-col items-stretch gap-2 overflow-hidden p-2 sm:w-44 sm:p-3">
+      <div>
+        <Section.Title>{t("history_short")}</Section.Title>
+        <Text className="mt-1 truncate" variant="caption" tone="muted">
+          {historical && historicalAt ? new Date(historicalAt).toLocaleString() : t("live_mode")}
+        </Text>
+      </div>
+      <div className="grid w-full grid-cols-2 gap-1">
+        <Button
+          aria-label={playing ? t("pause_history") : t("play_history")}
+          disabled={!history.ticks.length}
+          onClick={() => {
+            if (!historical) onSelect(history.ticks[0])
+            setPlaying((value) => !value)
+          }}
+          size="icon"
+          title={playing ? t("pause_history") : t("play_history")}
+          variant="secondary"
+        >
+          {playing ? "Ⅱ" : "▶"}
+        </Button>
+        <Button aria-label={t("return_now")} disabled={!historical} onClick={() => onSelect(null)} size="icon" title={t("return_now")} variant="secondary">
+          ●
+        </Button>
+        <Button
+          aria-label={t("previous_tick")}
+          disabled={!historical || currentTick <= 0}
+          onClick={() => onSelect(history.ticks[currentTick - 1])}
+          size="icon"
+          title={t("previous_tick")}
+          variant="secondary"
+        >
+          ‹
+        </Button>
+        <Button
+          aria-label={t("next_tick")}
+          disabled={!historical || currentTick >= history.ticks.length - 1}
+          onClick={() => onSelect(history.ticks[currentTick + 1])}
+          size="icon"
+          title={t("next_tick")}
+          variant="secondary"
+        >
+          ›
+        </Button>
+      </div>
+      <div className="relative min-h-52 w-full flex-1" data-testid="pipeline-time-rail">
+        <Input
+          aria-label={t("time_scrubber")}
+          className={TIME_SCRUBBER_CLASSES}
+          max={history.ticks.length}
+          min={0}
+          onChange={(event) => onSelect(event.target.value === String(history.ticks.length) ? null : history.ticks[Number(event.target.value)] || history.from)}
+          style={{ direction: "rtl", writingMode: "vertical-lr" }}
+          type="range"
+          value={selectedIndex}
+        />
+        {history.ticks.map((tick, index) => {
+          const active = historical && index === currentTick
+          return (
+            <button
+              aria-label={t("event_marker", { time: new Date(tick).toLocaleString() })}
+              aria-pressed={active}
+              className={`${EVENT_MARKER_CLASSES} ${active ? "border-brand text-brand ring-2 ring-brand ring-offset-2 ring-offset-surface" : "border-border text-text-muted"}`}
+              key={tick}
+              onClick={() => onSelect(tick)}
+              style={{ top: `calc(${history.ticks.length === 1 ? 50 : 8 + ((history.ticks.length - index - 1) / markerSteps) * 84}% - 1.375rem)` }}
+              title={new Date(tick).toLocaleString()}
+              type="button"
+            >
+              <span
+                aria-hidden
+                className={`h-2.5 w-2.5 border transition-transform ${active ? "scale-125 rounded-full border-brand bg-brand" : "rotate-45 border-current bg-surface"}`}
+              />
+            </button>
+          )
+        })}
+      </div>
+      <div>
+        <label className="text-2xs text-text-muted">
+          {t("history_window")}
+          <Select
+            className="mt-1 px-1 py-1 text-2xs sm:px-2"
+            fullWidth
+            onChange={(event) => onRangeChange(Number(event.target.value))}
+            value={Math.max(1, Math.round((new Date(history.to).getTime() - new Date(history.from).getTime()) / 86_400_000))}
+          >
+            <option value="1">{t("one_day")}</option>
+            <option value="7">{t("seven_days")}</option>
+            <option value="30">{t("thirty_days")}</option>
+            <option value="90">{t("ninety_days")}</option>
+          </Select>
+        </label>
+      </div>
+    </Section.Root>
   )
 }
 
@@ -708,6 +836,22 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
             ))}
           </div>
         </div>
+        <HistoryRail
+          currentTick={currentTick}
+          historical={historical}
+          historicalAt={historicalAt}
+          history={history}
+          onRangeChange={(days) => {
+            const params = new URLSearchParams(search)
+            const end = new Date(history.to)
+            params.set("range_end", end.toISOString())
+            params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
+            navigate({ search: params.toString() })
+          }}
+          onSelect={setAt}
+          playing={playing}
+          setPlaying={setPlaying}
+        />
       </div>
       <div className="space-y-2 py-3">
         {!deploymentStages.length ? <Notice tone="warning">{t("no_deployment_config")}</Notice> : null}
@@ -724,6 +868,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
   const requestSearch = useMemo(() => {
     const params = new URLSearchParams(location.search)
     params.delete("at")
+    params.delete("syrus_presentation")
     const value = params.toString()
     return value ? `?${value}` : ""
   }, [location.search])
@@ -749,7 +894,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
   })
   const folders = useMemo(() => {
     const presentation = new URLSearchParams(location.search)
-    const keys = ["at", "range_start", "range_end"]
+    const keys = ["at", "range_start", "range_end", "syrus_presentation"]
     return (pipeline.data?.smart_folders ?? []).map((folder) => {
       const url = new URL(folder.path, window.location.origin)
       keys.forEach((key) => {

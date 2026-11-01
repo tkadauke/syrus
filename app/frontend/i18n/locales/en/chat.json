@@ -3295,5 +3295,9 @@
   "admin_kill_process_confirmation_other": "Kill processes {{targets}}?",
   "admin_kill_process_catalog_targets": "#41, #42, and #43",
   "show_complete_message": "Show complete message",
-  "coworker_message_to": "to @{{handle}}"
+  "coworker_message_to": "to @{{handle}}",
+  "tool_presentation_title": "Tool presentation",
+  "tool_presentation_open_full_page": "Open full page",
+  "tool_presentation_copy_link": "Copy link",
+  "tool_presentation_close": "Close"
 }

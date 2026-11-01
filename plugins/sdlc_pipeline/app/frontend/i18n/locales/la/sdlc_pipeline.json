@@ -61,6 +61,8 @@
   "evidence_deployment_stage": "Testimonium deployment",
   "evidence_historical_reconstruction": "Locus restitutus; metadata praesentia",
   "history_aria": "Historia canalis",
+  "history_short": "Historia",
+  "event_marker": "Canalem tempore {{time}} ostende",
   "history_range": "Historia ab {{from}} ad {{to}}",
   "historical_mode": "Historiam spectas",
   "historical_mode_short": "Praeteritum · solum legendum",
@@ -96,5 +98,12 @@
   "change_line": "{{job}}: {{from}} → {{to}}",
   "outside_pipeline": "extra canalem",
   "trace_heading": "Vestigia {{job}}",
-  "trace_segment": "{{stage}} — ingressus {{entered}}, egressus {{left}} ({{dwell}})"
+  "trace_segment": "{{stage}} — ingressus {{entered}}, egressus {{left}} ({{dwell}})",
+  "tool_repository": "Repositorium",
+  "tool_historical_cursor": "Cursor historicus",
+  "tool_open": "Pipeline aperire",
+  "tool_copy_link": "Vinculum exscribere",
+  "tool_summary": "Pipeline pro {{repository}}",
+  "tool_malformed": "Hoc responsum pipeline ostendi non potest.",
+  "chat_view_pipeline": "Pipeline videre"
 }

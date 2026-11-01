@@ -373,8 +373,9 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
 
   const pendingProposals = data?.pending_proposals ?? []
   const items: ChatJobStatusItem[] = data?.items ?? []
+  const pipelineActions = data?.extensions?.actions ?? []
 
-  if (items.length === 0 && pendingProposals.length === 0) {
+  if (items.length === 0 && pendingProposals.length === 0 && pipelineActions.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t("job_status_empty")}</p>
   }
 
@@ -393,6 +394,27 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
 
   return (
     <div className="space-y-3">
+      {pipelineActions.length ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          {pipelineActions.map((action) => {
+            const label = t(action.label_i18n_key)
+            return (
+              <Button
+                key={action.id}
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("syrus:tool-presentation", { detail: { chat_session_id: chatId, title: action.repository_label, path: action.path } })
+                  )
+                }
+                size="sm"
+                variant="secondary"
+              >
+                {pipelineActions.length > 1 ? `${label} · ${action.repository_label}` : label}
+              </Button>
+            )
+          })}
+        </div>
+      ) : null}
       <ProposedProposalsSection chatId={chatId} onSelectMessage={onSelectMessage} proposals={pendingProposals} />
       {hasClosedItems ? (
         <div className="flex justify-end">
