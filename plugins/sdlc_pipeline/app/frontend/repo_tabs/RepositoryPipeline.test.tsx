@@ -145,7 +145,20 @@ describe("RepositoryPipelineRoute", () => {
         filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
         filter_schema: [{ field: "owner_user_id", label: "Owner", bucket: "enum", operators: ["is"], values: [{ value: "me", label: "Me" }] }],
         active_smart_folder_id: 7,
-        smart_folders: [{ id: 7, name: "Mine", position: 1, kind: "builtin", subject_type: "sdlc_pipeline", visibility: "always", count: 0, active: true, filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] }, path: "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7" }]
+        smart_folders: [
+          {
+            id: 7,
+            name: "Mine",
+            position: 1,
+            kind: "builtin",
+            subject_type: "sdlc_pipeline",
+            visibility: "always",
+            count: 0,
+            active: true,
+            filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+            path: "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7"
+          }
+        ]
       })
     )
 

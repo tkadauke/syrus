@@ -378,7 +378,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
               activeSmartFolderId={pipeline.data.active_smart_folder_id}
               buildLink={(pathname, search, updates) => {
                 const params = new URLSearchParams(search)
-                Object.entries(updates).forEach(([key, value]) => value == null ? params.delete(key) : params.set(key, String(value)))
+                Object.entries(updates).forEach(([key, value]) => (value == null ? params.delete(key) : params.set(key, String(value))))
                 const query = params.toString()
                 return query ? `${pathname}?${query}` : pathname
               }}
