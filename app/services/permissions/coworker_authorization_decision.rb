@@ -28,9 +28,8 @@ module Permissions
           return Result.new(request:, execution_enqueued: false)
         end
 
-        authority = possession_authority
-        duration = item.kind == "operation" ? "invocation" : nil
-        item.decide!(decision, principal: user, duration:, resulting_authority: authority)
+        item.decide!(decision, principal: user, duration: "invocation")
+        issue_invocation!(item) if item.kind == "operation"
         request.reload.ready_for_authorized_invocation?
       end
       enqueued = ready && request.enqueue_confirmation!(user: user)
@@ -41,15 +40,43 @@ module Permissions
 
     attr_reader :request, :item, :user
 
-    def possession_authority
-      return unless item.kind == "capability_possession"
+    def issue_invocation!(operation)
+      descriptor = permission_descriptor
+      arguments = request.payload.fetch("arguments")
+      authority = Management.new(user).grant_authority!(
+        duration: :invocation, descriptor:, actor: user,
+        subject_selector_type: "agent", subject_selector_id: request.subject_id,
+        subject_repository: request.repository, role: request.runtime_role,
+        resource_scope: operation.resource_scope, arguments:,
+        context: evaluation_context, source: request
+      )
+      AuthorizedInvocation.issue!(
+        pending_action_item: operation, authority:, tool_name: request.payload.fetch("tool_name"),
+        execution_authority: evaluation_context, audit_payload: { pending_action_id: request.id }
+      )
+    end
 
-      subject = request.subject
-      unless subject.respond_to?(:grant_capability_possession!)
-        raise ArgumentError, "authorization subject cannot receive capability possession"
-      end
+    def permission_descriptor
+      catalog_entry = Mcp::CoworkerToolCatalog.resolve(request.payload.fetch("tool_name"), chat_session: request.chat_session)
+      raise ArgumentError, "tool is not available to coworkers" unless catalog_entry
 
-      subject.grant_capability_possession!(capability: item.capability, resource_scope: item.resource_scope)
+      if catalog_entry.tool
+        McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == catalog_entry.tool }&.descriptor
+      else
+        CapabilityDescriptorAdapter.for_plugin_definition(catalog_entry.definition)
+      end || raise(ArgumentError, "tool has no permission descriptor")
+    end
+
+    def evaluation_context
+      {
+        role: request.runtime_role,
+        agent_id: request.subject_id,
+        subject_selector_type: "agent",
+        subject_selector_id: request.subject_id.to_s,
+        subject_repository_id: request.repository_id,
+        chat_session_id: request.chat_session_id,
+        job_id: (request.origin_id if request.origin_type == "Job")
+      }.compact
     end
   end
 end

@@ -29,7 +29,7 @@ RSpec.describe "Coworker observability tools" do
     JSON.parse(response.content.first.fetch(:text))
   end
 
-  it "advertises exactly the five read-only tools only with the grant" do
+  it "advertises exactly the five read-only tools independently of legacy grants" do
     expected = %w[
       admin_read_operational_logs read_worker_health read_backend_exception_events
       read_browser_error_events read_performance_log_events
@@ -40,7 +40,7 @@ RSpec.describe "Coworker observability tools" do
     expect(Coworkers::GrantCatalog.fetch("ops.read_logs")).to have_attributes(
       default_policy: "confirm", maximum_policy: "auto", tools: contain_exactly(*expected)
     )
-    expect(advertised_names).not_to include(*expected)
+    expect(advertised_names & expected).to contain_exactly(*expected)
 
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
 

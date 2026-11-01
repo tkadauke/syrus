@@ -44,11 +44,10 @@ module Permissions
     def result_for(capability, tools_and_descriptors)
       tools, descriptors = tools_and_descriptors
       eligible = descriptors.any? { |descriptor| descriptor.requestable_roles.include?(context.role) }
-      granted = context.granted_capabilities.include?(capability.to_s)
       policy = effective_policy(descriptors)
       availability = tools.map { |tool| tool_availability(tool) }
         .max_by { |state| availability_rank.fetch(state.to_sym) }
-      state, reason = state_and_reason(availability:, eligible:, granted:, policy:)
+      state, reason = state_and_reason(availability:, eligible:, policy:)
 
       Result.new(
         capability: capability,
@@ -67,7 +66,12 @@ module Permissions
           role: context.role,
           resource_scope: {},
           arguments: {},
-          context: { role: context.role, agent_id: context.agent_actor&.id }
+          context: {
+            role: context.role, agent_id: context.agent_actor&.id,
+            subject_selector_type: "agent", subject_selector_id: context.agent_actor&.id&.to_s,
+            subject_repository_id: context.repository&.id,
+            chat_session_id: context.chat_session&.id, job_id: context.job&.id
+          }.compact
         ).policy
       rescue ArgumentError
         descriptor.defaults.fetch(context.role, :deny)
@@ -75,13 +79,13 @@ module Permissions
       policies.min_by { |policy| Permissions::PolicyEvaluator::POLICY_RANK.fetch(policy) } || :deny
     end
 
-    def state_and_reason(availability:, eligible:, granted:, policy:)
+    def state_and_reason(availability:, eligible:, policy:)
       return [ availability.to_s, availability_reason(availability) ] unless availability.to_sym == :available
       return [ "prohibited", "role_not_eligible" ] unless eligible
       return [ "prohibited", "effective_policy_denies" ] if policy == :deny
-      return [ "available", nil ] if granted
+      return [ "available", nil ] if policy == :allow
 
-      [ "requestable", "capability_not_granted" ]
+      [ "requestable", "operation_requires_approval" ]
     end
 
     def availability_rank

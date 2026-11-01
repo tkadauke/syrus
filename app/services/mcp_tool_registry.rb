@@ -162,7 +162,6 @@ class McpToolRegistry
     def allowed_entry?(entry, context)
       return false unless surface_allowed?(entry, context)
       return false if entry.admin_only && !context.user.admin?
-      return false if entry.surface == :coworker && !entry.ungated && !context.granted_capabilities.include?(entry.capability.to_s)
       return false if entry.interactive_only && !context.interactive
       return false unless feature_allowed?(entry, context)
       return false if entry.required_roles.any? && !entry.required_roles.include?(context.role)

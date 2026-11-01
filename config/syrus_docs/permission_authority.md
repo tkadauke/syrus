@@ -40,16 +40,20 @@ use the permission it is attempting to create to authorize itself. Durable
 rules keep append-only audit events, and revoking either a rule or lease also
 invalidates its unclaimed authorized invocations.
 
-## Compound coworker requests
+## Coworker enforcement
 
-A gated coworker invocation evaluates the named coworker's possession of the
-capability family and the attempted operation in one pass. Missing possession
-and exact-invocation approval become independently decidable items on one
-generalized pending action. The operation item depends on possession, stores a
-redacted argument snapshot and stable invocation fingerprint, and defaults to
-invocation-only authority. Equivalent active requests deduplicate, preserving
-one interruption for one attempted operation.
-Approving possession records a confirm-level grant for that named coworker;
-approving the exact operation then replays only the fingerprinted arguments.
-Execution remains blocked until every prerequisite is approved, and denying
-either item closes the request without running the tool.
+A gated coworker invocation runs through the common evaluator. Descriptor
+defaults are active authority; legacy coworker grants neither advertise a tool
+nor bypass its decision. An `allow` decision dispatches immediately, `deny`
+fails closed, and `ask` creates one exact-operation request containing a
+redacted argument snapshot and stable invocation fingerprint. Equivalent active
+requests deduplicate.
+
+Approval creates an invocation-only lease and an `AuthorizedInvocation` before
+enqueueing execution. The worker atomically claims that record, re-evaluates the
+current rule and lease chain under the claim lock, and dispatches only for a new
+claim with an exact fingerprint. A revoked or newly denied authority therefore
+invalidates queued work, and retries cannot replay an already claimed call.
+Only tools explicitly classified as safe, ungated local operations bypass this
+flow. Other runtime roles continue to use shadow comparison rather than this
+enforcement cutover.
