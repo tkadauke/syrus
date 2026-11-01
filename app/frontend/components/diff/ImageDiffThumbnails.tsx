@@ -37,8 +37,13 @@ export function InlineRenderedFileComparison({
   const [failedSides, setFailedSides] = useState<Set<"before" | "after">>(() => new Set())
   const hasBefore = file.status !== "added"
   const hasAfter = file.status !== "removed"
+  const contentKey = `${baseRef ?? ""}\u0000${headRef ?? ""}`
 
   useEffect(() => {
+    setContents(null)
+    setLoadState("idle")
+    setLoadedSides(new Set())
+    setFailedSides(new Set())
     if (kind !== "markdown" || !loadContents) return
     let active = true
     setLoadState("loading")
@@ -53,8 +58,8 @@ export function InlineRenderedFileComparison({
       active = false
     }
     // The loader is intentionally excluded: route render callbacks are often
-    // created inline, while the file identity is the actual cache boundary.
-  }, [kind, file.path])
+    // created inline. The explicit ref-pair identity is the content boundary.
+  }, [kind, file.path, contentKey])
 
   const sides = (["before", "after"] as const).filter((side) => (side === "before" ? hasBefore : hasAfter))
   return (
