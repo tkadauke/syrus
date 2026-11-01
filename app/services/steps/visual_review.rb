@@ -149,9 +149,7 @@ module Steps
     end
 
     def manual_review_instructions
-      return unless workflow.trigger_kind == "manual_visual_review"
-
-      workflow.artifact("manual_visual_review_instructions")
+      Workflow::TriggerKind.visual_review_instructions_for(workflow)
     end
 
     def test_plan_artifact
