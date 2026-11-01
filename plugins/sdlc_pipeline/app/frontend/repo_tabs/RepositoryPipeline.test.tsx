@@ -215,9 +215,21 @@ describe("RepositoryPipelineRoute", () => {
                     metadata_as_of: "2026-10-31T12:00:00Z"
                   }
                 }
+              },
+              {
+                at: "2026-10-31T11:00:00Z",
+                job_id: 9,
+                from_stage: "review",
+                to_stage: "deployment:production"
+              },
+              {
+                at: "2026-10-31T11:30:00Z",
+                job_id: 9,
+                from_stage: "deployment:production",
+                to_stage: "blocked"
               }
             ],
-            ticks: ["2026-10-31T10:00:00Z"],
+            ticks: ["2026-10-31T10:00:00Z", "2026-10-31T11:00:00Z", "2026-10-31T11:30:00Z"],
             traces: [{ job_id: 9, segments: [{ stage: "review", entered_at: "2026-10-31T10:00:00Z", left_at: "2026-10-31T12:00:00Z", dwell_seconds: 7200 }] }],
             accuracy: { status: "reconstructed", truncated: false, message: "Stage placement is reconstructed. Card metadata is current." }
           }
@@ -237,14 +249,23 @@ describe("RepositoryPipelineRoute", () => {
     expect(screen.getByText("Reconstructed placement; current metadata")).toBeInTheDocument()
     expect(screen.getByText(/This view is read-only/)).toBeInTheDocument()
     expect(screen.getByText(/1 placement changed/)).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /stage movement/ })).toBeInTheDocument()
+    const movementMark = screen.getByRole("button", { name: /stage movement/ })
+    expect(movementMark).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /deployment/ })).toHaveTextContent("◆")
+    expect(screen.getByRole("button", { name: /failure or blocked work/ })).toHaveTextContent("!")
     expect(screen.getByTestId("pipeline-time-rail")).toBeVisible()
     fireEvent.click(screen.getByRole("button", { name: "View trace" }))
     expect(screen.getByText("Trace for JOB-9")).toBeInTheDocument()
     expect(screen.getByText(/entered/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Options"))
     fireEvent.change(screen.getByLabelText("History window"), { target: { value: "30" } })
     await waitFor(() => expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("range_start=") && String(url).includes("range_end="))).toBe(true))
     expect(String(fetchSpy.mock.calls[0][0])).not.toContain("at=")
+    fireEvent.click(screen.getByRole("button", { name: /deployment/ }))
+    await waitFor(() => expect(screen.queryByText("Historical card")).not.toBeInTheDocument())
+    expect(screen.getByTestId("selected-history-time")).toHaveAttribute("datetime", "2026-10-31T11:00:00.000Z")
+    fireEvent.click(movementMark)
+    await waitFor(() => expect(screen.getByText("Historical card")).toBeInTheDocument())
     fireEvent.click(await screen.findByRole("button", { name: "Return to now" }))
     await waitFor(() => expect(screen.queryByText(/This view is read-only/)).not.toBeInTheDocument())
     expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(4)
