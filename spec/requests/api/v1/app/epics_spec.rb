@@ -48,6 +48,25 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body).to include("rollback_job_id" => rollback.id, "rollback_job_slug" => rollback.slug)
   end
 
+  it "forbids a read-only collaborator from preflighting an Epic unland" do
+    owner = Factories.user(email_address: "unland-owner@example.com")
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "unland-read-only")
+    shared_repository.repository_memberships.create!(user: user, role: "read")
+    epic = Factories.epic(user: owner, repository: shared_repository, state: "done")
+    allow(Unlanding::Create).to receive(:plan!)
+    sign_in_as(user)
+
+    get "/api/v1/app/epics/#{epic.id}/unland"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(Unlanding::Create).not_to have_received(:plan!)
+
+    get "/api/v1/app/epics/#{epic.id}"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "can_unland")).to be(false)
+  end
+
   it "returns the new epic form payload with the user's repositories" do
     user.update!(global_role: "user")
     sign_in_as(user)

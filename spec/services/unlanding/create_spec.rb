@@ -6,12 +6,32 @@ RSpec.describe Unlanding::Create do
   end
   let(:clone) { instance_double(RepositoryBareClone, path: Pathname.new("/tmp/repo.git"), sync!: true) }
   let(:git) { instance_double(GitRunner) }
+  let(:unland_grader) do
+    RepoGradePlan::Grader.new(
+      name: "unland-smoke", display_name: nil, command: "bin/smoke", phases: %w[unland],
+      description: nil, required: true, timeout_minutes: 5, when_files_changed: nil,
+      junit_output: nil, failures: "strict", base_retry: nil, deps: [],
+      metadata: { "target_label" => "//:grade/unland-smoke" }, capabilities: nil, resources: nil
+    )
+  end
+  let(:grade_plan) do
+    RepoGradePlan::Result.new(
+      graders: [ unland_grader ], source: ".syrus.yml", note: nil,
+      max_iterations: 1, rerun_only_failed: false
+    )
+  end
+  let(:target_graph) { instance_double(TargetGraph) }
 
   before do
     LandedCommit.create!(landable: original, sha: "commit-a", kind: "implementation", position: 0)
     allow(RepositoryBareClone).to receive(:new).and_return(clone)
     allow(clone).to receive(:read_from_default_branch).and_return(nil)
     allow(GitRunner).to receive(:new).and_return(git)
+    allow(TargetGraph::Compiler).to receive(:compile).with(clone.path).and_return(target_graph)
+    allow(TargetGraph::GradePlan).to receive(:for).with(workspace_path: clone.path, graph: target_graph).and_return(grade_plan)
+    allow(target_graph).to receive(:affected)
+      .with("//:grade/unland-smoke", changed_files: [ "app/models/example.rb" ])
+      .and_return(TargetGraph::Selection.new(target: nil, affected: true, reason: "repo-wide"))
     allow(git).to receive(:run).with("rev-parse", "refs/heads/#{original.repository.default_branch}", anything).and_return("base\n")
     allow(git).to receive(:run).with("merge-base", "--is-ancestor", "commit-a", "base", anything).and_return("")
     allow(git).to receive(:run).with("rev-list", "--parents", "-n", "1", "commit-a", anything)
@@ -77,6 +97,15 @@ RSpec.describe Unlanding::Create do
     Factories.job_record(repository: original.repository, user: original.user, rollback_of: original, state: "failed")
 
     expect { described_class.call!(original: original) }.to change(original.rollback_jobs, :count).by(1)
+  end
+
+  it "rejects preflight when conditional unland graders do not match the reverted files" do
+    allow(target_graph).to receive(:affected)
+      .with("//:grade/unland-smoke", changed_files: [ "app/models/example.rb" ])
+      .and_return(TargetGraph::Selection.new(target: nil, affected: false, reason: "no matching files changed"))
+
+    expect { described_class.plan!(original: original) }
+      .to raise_error(described_class::Ineligible, /selected no required grader/)
   end
 
   context "with a landed Epic" do

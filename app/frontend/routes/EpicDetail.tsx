@@ -218,7 +218,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
                 {t("edit")}
               </Link>
             ) : null}
-            {payload.unland?.state === "landed" || (!payload.unland && payload.epic.state === "done") ? (
+            {payload.epic.can_unland && (payload.unland?.state === "landed" || (!payload.unland && payload.epic.state === "done")) ? (
               <Button disabled={unlandCommand.isPending} onClick={() => unlandCommand.mutate()} variant="danger">
                 {unlandCommand.isPending ? t("unlanding") : t("unland")}
               </Button>

@@ -3,7 +3,7 @@ module Api
     module App
       class EpicsController < BaseController
         before_action :authorize_epic_mutation!, only: %i[
-          update archive claim unclaim reassign start update_state add_dependency remove_dependency unland
+          update archive claim unclaim reassign start update_state add_dependency remove_dependency unland_plan unland
         ]
 
         def index
@@ -453,6 +453,7 @@ module Api
             landing: epic.landing?(jobs: jobs),
             stuck: epic.stuck?,
             startable: epic.may_start_implementing?(actor: Current.user),
+            can_unland: EpicPolicy.new(Current.user, epic).write? && epic.done?,
             # Names of unfinished dependencies keeping a backlog/ready Epic
             # from being startable; the UI renders a muted "Waiting on ..."
             # hint in place of the hidden Start implementing button.
