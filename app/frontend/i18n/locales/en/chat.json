@@ -1457,6 +1457,8 @@
   },
   "run_visual_review": {
     "job": "Job",
+    "instructions": "Manual review instructions",
+    "full_instructions": "Full manual review instructions",
     "missing_target": "Not provided",
     "media": "Review media",
     "screenshot": "Screenshot",

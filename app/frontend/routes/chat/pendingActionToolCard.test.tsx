@@ -275,6 +275,14 @@ describe("run_visual_review pending action card", () => {
     expect(screen.getByText("Not provided")).toBeInTheDocument()
   })
 
+  it("shows focused manual review instructions before confirmation", () => {
+    render(<>{runVisualReviewCard.renderExpanded(visualReviewContext({ input: { job_id: 4222, prompt: "Capture the **sticky header** boundary." } }))}</>)
+
+    expect(screen.getByText("Manual review instructions")).toBeInTheDocument()
+    expect(screen.getByText(/Capture the/)).toBeInTheDocument()
+    expect(screen.getByText("sticky header")).toBeInTheDocument()
+  })
+
   it("renders production-shaped live workflow media as responsive previews", () => {
     const livePendingAction = liveAction({
       action: "run_visual_review",

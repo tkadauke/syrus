@@ -1,3 +1,5 @@
+require "set"
+
 class ChatMessageSearchIndex < SearchRecord
   include FtsQueryParser
 
@@ -248,7 +250,56 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     def content_version_current?
-      metadata_value(CONTENT_VERSION_KEY) == CONTENT_VERSION
+      current_content_version == CONTENT_VERSION
+    end
+
+    def search_database_rebuild_key = "chats"
+    def search_database_content_version = CONTENT_VERSION
+    def current_content_version
+      return nil unless SyrusSearchDatabaseTasks.table_exists?("chat_search_metadata")
+
+      metadata_value(CONTENT_VERSION_KEY)
+    end
+    def search_database_tables = %w[chat_message_fts chat_search_metadata]
+    def search_database_rebuild_units = search_database_scope.count
+
+    def search_database_integrity_repair_needed?
+      return search_database_rebuild_units.positive? unless SyrusSearchDatabaseTasks.table_exists?("chat_search_metadata")
+
+      indexed = connection.select_values("SELECT key FROM chat_search_metadata WHERE key LIKE 'indexed_chat_message:%'").map { |key| key.delete_prefix(INDEXED_MESSAGE_KEY_PREFIX).to_i }.to_set
+      search_database_scope.find_each.any? { |message| indexable?(message) && !indexed.include?(message.id) }
+    end
+
+    def search_database_rebuild_batch(task:, reason:)
+      task.current_step_key = search_database_rebuild_key
+      task.current_step_title = "Index chat messages"
+      if reason == "version_mismatch" && !task.checkpoint["chats_prepared"]
+        prepare_content_version!
+        task.checkpoint_will_change!
+        task.checkpoint["chats_prepared"] = true
+        task.checkpoint["last_chat_message_id"] = 0
+      end
+
+      processed = 0
+      search_database_scope.order(:id).where("id > ?", task.checkpoint["last_chat_message_id"].to_i).limit(SearchIndexWriteLimits.clamp_rows(task.batch_size)).find_each do |message|
+        task.checkpoint_will_change!
+        task.checkpoint["last_chat_message_id"] = message.id
+        processed += 1
+        insert(message) if indexable?(message) && !indexed?(message.id)
+      end
+      done = processed.zero? || task.checkpoint["last_chat_message_id"].to_i >= ChatMessage.maximum(:id).to_i
+      if done
+        finish_content_version!
+        task.checkpoint_will_change!
+        task.checkpoint["chats_done"] = true
+      end
+      MaintenanceTasks::Definitions::Base::Result.new(
+        done: false,
+        processed: processed.nonzero? || (done ? 1 : 0),
+        failed: 0,
+        message: "Indexed #{processed} chat message(s).",
+        level: "progress"
+      )
     end
 
     # Invalidates only assistant messages written by an older content
@@ -284,6 +335,8 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     private
+
+    def search_database_scope = ChatMessage.where(role: %w[user assistant]).where.not(content: [ nil, "" ])
 
     def mark_indexed!(message_id)
       connection.exec_insert(

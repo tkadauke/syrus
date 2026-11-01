@@ -2,6 +2,9 @@ de:
   coworkers:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
+    maintenance_tasks:
+      search_database_rebuild:
+        complete: "Die ausgewählten Neuerstellungen der Suchdatenbank sind abgeschlossen."
     errors:
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."

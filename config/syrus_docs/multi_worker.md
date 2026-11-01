@@ -352,6 +352,14 @@ under `db/search_migrate`; if they are required even when an older schema
 version was recorded, add them to the task's required-table verification list
 too.
 
+The repeatable **Rebuild search database** maintenance task tracks content
+versions independently for chats, Jobs, Epics, operational logs, and enabled
+plugin search sources. Its persisted rebuild plan shows the current and target
+version plus whether each selected source needs a version rebuild, missing
+schema, or an integrity repair. A content-version change rebuilds only that
+source; sources whose first version matches an existing table are initialized
+in place and still receive their normal missing-row integrity check.
+
 Boot-time replay only covers the moment the table is (re)created. A process
 that never consumes `indexing` — a compute-tier worker in a split
 home/compute deployment, or a per-Run MCP sidecar spawned as its subprocess —

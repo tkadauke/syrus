@@ -33,6 +33,9 @@ en:
   hello: "Hello world"
 
   server:
+    maintenance_tasks:
+      search_database_rebuild:
+        complete: "Selected search database rebuilds are complete."
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."

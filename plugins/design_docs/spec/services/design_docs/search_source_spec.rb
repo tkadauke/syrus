@@ -15,6 +15,18 @@ RSpec.describe DesignDocs::SearchSource, type: :service do
     expect(described_class.row_id_key).to eq(:design_doc_id)
   end
 
+  it "publishes and completes its search content version" do
+    SearchIndexVersion.ensure_table!
+    SearchIndexVersion.write!(described_class.search_database_rebuild_key, "0")
+
+    expect(described_class.search_database_rebuild_key).to eq("design_docs")
+    expect(described_class.current_content_version).to eq("0")
+
+    described_class.finish_content_version!
+
+    expect(described_class.current_content_version).to eq(described_class.search_database_content_version)
+  end
+
   it "filters scopes through DesignDocs::DesignDoc.visible_to" do
     owner = Factories.user
     viewer = Factories.user

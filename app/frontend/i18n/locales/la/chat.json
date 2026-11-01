@@ -1193,6 +1193,8 @@
   },
   "run_visual_review": {
     "job": "Job",
+    "instructions": "Praecepta recognitionis manualis",
+    "full_instructions": "Praecepta recognitionis manualis plena",
     "missing_target": "Non datum",
     "media": "Media recensionis",
     "screenshot": "Imago",

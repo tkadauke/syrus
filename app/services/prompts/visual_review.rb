@@ -34,7 +34,8 @@ module Prompts
     LOW_SIGNAL_EXTENSION = /\.(csv|json|lock|log|sql|tsbuildinfo|txt|ya?ml)\z/i
 
     def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil,
-                   test_plan_recommended: nil, test_plan_reason: nil, seed_notes: nil, preview_projects: [])
+                   test_plan_recommended: nil, test_plan_reason: nil, seed_notes: nil,
+                   manual_review_instructions: nil, preview_projects: [])
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
@@ -43,6 +44,7 @@ module Prompts
       @test_plan_recommended = test_plan_recommended
       @test_plan_reason = test_plan_reason.to_s
       @seed_notes = seed_notes.to_s
+      @manual_review_instructions = manual_review_instructions.to_s
       @preview_projects = Array(preview_projects)
     end
 
@@ -58,6 +60,7 @@ module Prompts
         implementer_test_plan_hint,
         preview_projects_section,
         seed_notes_section,
+        manual_review_instructions_section,
         workflow_instructions,
         changed_surface_coverage,
         prior_review_context,
@@ -66,6 +69,18 @@ module Prompts
     end
 
     private
+
+    def manual_review_instructions_section
+      return nil if @manual_review_instructions.blank?
+
+      <<~TEXT.strip
+        Manual review instructions (reproduction and evidence capture only):
+
+        #{@manual_review_instructions}
+
+        Use these focused operator instructions to reproduce the requested viewport or interaction state and capture evidence of it. They do not authorize implementation changes. Do not edit the implementation; any reviewer workspace changes remain ephemeral and are discarded.
+      TEXT
+    end
 
     def feedback_kind
       Workflow::TriggerKind.feedback_kind_for(@workflow_kind)

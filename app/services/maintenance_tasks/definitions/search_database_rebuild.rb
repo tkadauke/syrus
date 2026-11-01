@@ -1,11 +1,11 @@
-require "set"
-
 module MaintenanceTasks
   module Definitions
     class SearchDatabaseRebuild < Base
+      PLAN_KEY = "rebuild_plan"
+
       key "search_database_rebuild"
       title "Rebuild search database"
-      summary "Creates missing search tables and backfills searchable chats, jobs, epics, logs, and plugin-provided search sources."
+      summary "Creates missing search tables and selectively rebuilds stale search entities."
       category "index"
       recurrence "repeatable"
       required_role "admin"
@@ -16,220 +16,152 @@ module MaintenanceTasks
 
       step "schema", "Prepare search schema", "Creates or repairs the local SQLite FTS tables used by global search."
       step "chats", "Index chat messages", "Indexes searchable user and assistant chat messages."
-      step "jobs", "Index jobs", "Indexes job titles, descriptions, and summaries when Global Search is installed."
-      step "epics", "Index epics", "Indexes epic titles and descriptions when Global Search is installed."
+      step "jobs", "Index jobs", "Indexes jobs when Global Search is installed."
+      step "epics", "Index epics", "Indexes epics when Global Search is installed."
       step "logs", "Index operational logs", "Indexes operational logs when instance logging is configured."
 
       def estimate_total_units
-        1 + chat_messages_count + jobs_count + epics_count + operational_logs_count
+        estimate_units(rebuild_plan)
       end
 
-      def pending?
-        search_database_needs_prepare? || !chat_content_version_current? || missing_chat_messages_count.positive? || jobs_need_rebuild? || epics_need_rebuild? || operational_logs_need_rebuild?
+      def pending? = rebuild_plan.any?
+      def pending_reason = pending_reason_for(rebuild_plan)
+
+      def build_task_attributes(**arguments)
+        plan = rebuild_plan
+        super(**arguments).deep_merge(
+          total_units: estimate_units(plan),
+          checkpoint: { PLAN_KEY => plan },
+          metadata: { PLAN_KEY => plan, "pending_reason" => pending_reason_for(plan) }
+        )
       end
 
-      def pending_reason
-        "Search database schema or indexed rows are missing/stale."
+      def revival_checkpoint(task)
+        { PLAN_KEY => rebuild_plan.presence || Array(task.metadata[PLAN_KEY]) }
       end
 
       def perform_batch(task)
+        plan = task_plan(task)
         unless task.checkpoint["schema_prepared"]
-          return prepare_schema(task)
+          schema = plan.find { |entry| entry["entity"] == "schema" }
+          return prepare_schema(task, plan, schema) if schema || selected_schema_missing?(plan)
+
+          change_checkpoint(task) { task.checkpoint["schema_prepared"] = true }
         end
 
-        unless chat_content_version_current? || task.checkpoint["chat_content_version_prepared"]
-          prepare_chat_content_version!
-          task.checkpoint_will_change!
-          task.checkpoint["chat_content_version_prepared"] = true
-          task.checkpoint["last_chat_message_id"] = 0
-          task.checkpoint.delete("chats_done")
-        end
+        plan.each do |entry|
+          entity = entry.fetch("entity")
+          next if entity == "schema" || task.checkpoint["#{entity}_done"]
+          return mark_done(task, entity, "#{entity.humanize} index is already current.") unless selected_entry_pending?(entry)
 
-        if missing_chat_messages_count.positive?
-          return index_chat_messages(task)
+          return process_entity(task, entry)
         end
-
-        if task.checkpoint["chat_content_version_prepared"] && !chat_content_version_current?
-          finish_chat_content_version!
-        end
-
-        if jobs_need_rebuild?
-          return index_jobs(task)
-        end
-
-        if epics_need_rebuild?
-          return index_epics(task)
-        end
-
-        if operational_logs_need_rebuild?
-          return index_operational_logs(task)
-        end
-
-        Result.new(done: true, processed: 0, failed: 0, message: "Search database rebuild is complete.", level: "info")
+        Result.new(done: true, processed: 0, failed: 0, message: I18n.t("server.maintenance_tasks.search_database_rebuild.complete"), level: "info", metadata: { PLAN_KEY => plan })
       end
 
       private
 
-      def prepare_schema(task)
+      def rebuild_plan
+        missing = SyrusSearchDatabaseTasks.required_table_sql.keys.reject { |table| SyrusSearchDatabaseTasks.table_exists?(table) }
+        plan = []
+        plan << entry("schema", nil, nil, "missing_schema", "tables" => missing) if missing.any?
+        versioned_sources.each do |source|
+          source.search_database_initialize_content_version! if source.respond_to?(:search_database_initialize_content_version!) && source_tables(source).none? { |table| missing.include?(table) }
+          key = source.search_database_rebuild_key.to_s
+          current = source.current_content_version&.to_s
+          target = source.search_database_content_version.to_s
+          reason = if source_tables(source).intersect?(missing)
+            "missing_schema"
+          elsif current != target
+            "version_mismatch"
+          elsif source.search_database_integrity_repair_needed?
+            "integrity_repair"
+          end
+          plan << entry(key, current, target, reason) if reason
+        end
+        plan
+      end
+
+      def entry(entity, current, target, reason, extra = {})
+        { "entity" => entity, "current_version" => current, "target_version" => target, "reason" => reason }.merge(extra)
+      end
+
+      def pending_reason_for(plan)
+        deltas = plan.map do |item|
+          item["reason"] == "version_mismatch" ? "#{item['entity']} #{item['current_version'] || 'unversioned'} → #{item['target_version']}" : "#{item['entity']} (#{item['reason'].tr('_', ' ')})"
+        end
+        "Search rebuild required: #{deltas.join(', ')}."
+      end
+
+      def task_plan(task) = Array(task.checkpoint[PLAN_KEY]).presence || Array(task.metadata[PLAN_KEY]).presence || rebuild_plan
+
+      def prepare_schema(task, plan, schema)
         task.current_step_key = "schema"
         task.current_step_title = "Prepare search schema"
         SyrusSearchDatabaseTasks.prepare!
-        task.checkpoint_will_change!
-        task.checkpoint["schema_prepared"] = true
-        Result.new(done: false, processed: 1, failed: 0, message: "Prepared search database schema.", level: "progress")
-      end
-
-      def index_chat_messages(task)
-        task.current_step_key = "chats"
-        task.current_step_title = "Index chat messages"
-
-        processed = 0
-        limit = SearchIndexWriteLimits.clamp_rows(task.batch_size)
-        ChatMessage.order(:id).where("id > ?", task.checkpoint["last_chat_message_id"].to_i).limit(limit).find_each do |message|
-          task.checkpoint_will_change!
-          task.checkpoint["last_chat_message_id"] = message.id
-          processed += 1
-          next unless ChatMessageSearchIndex.indexable?(message)
-          next if ChatMessageSearchIndex.indexed?(message.id)
-
-          ChatMessageSearchIndex.insert(message)
+        change_checkpoint(task) do
+          task.checkpoint["schema_prepared"] = true
+          task.checkpoint["schema_done"] = true if schema
         end
-        task.checkpoint_will_change!
-        task.checkpoint["chats_done"] = true if processed.zero? || task.checkpoint["last_chat_message_id"].to_i >= ChatMessage.maximum(:id).to_i
-        ChatMessageSearchIndex.finish_content_version! if task.checkpoint["chats_done"]
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} chat message(s).", level: "progress")
+        Result.new(done: false, processed: 1, failed: 0, message: "Prepared search database schema.", level: "progress", metadata: { PLAN_KEY => plan })
       end
 
-      def index_jobs(task)
-        index_plugin_search_source(task, "jobs")
-      end
-
-      def index_epics(task)
-        index_plugin_search_source(task, "epics")
-      end
-
-      def index_operational_logs(task)
-        task.current_step_key = "logs"
-        task.current_step_title = "Index operational logs"
-        return mark_plugin_step_done(task, "logs") unless OperationalLogging.configured_for_instance?
-
-        limit = SearchIndexWriteLimits.clamp_rows(task.batch_size)
-        ids = OperationalLogEvent.order(:id).where("id > ?", task.checkpoint["last_operational_log_id"].to_i).limit(limit).pluck(:id)
-        IndexOperationalLogEventsJob.perform_now(ids)
-        task.checkpoint_will_change!
-        task.checkpoint["last_operational_log_id"] = ids.last if ids.any?
-        task.checkpoint["logs_done"] = true if ids.empty? || ids.last.to_i >= OperationalLogEvent.maximum(:id).to_i
-
-        Result.new(done: false, processed: ids.size, failed: 0, message: "Indexed #{ids.size} operational log event(s).", level: "progress")
-      end
-
-      def mark_plugin_step_done(task, step)
-        task.checkpoint_will_change!
-        task.checkpoint["#{step}_done"] = true
-        Result.new(done: false, processed: 0, failed: 0, message: "#{step.humanize} index is not available in this installation.", level: "info")
-      end
-
-      def index_plugin_search_source(task, key)
-        source = plugin_search_source(key)
-        return mark_plugin_step_done(task, key) unless source&.respond_to?(:search_database_rebuild_batch)
+      def process_entity(task, item)
+        source = source_for(item.fetch("entity"))
+        return mark_done(task, item.fetch("entity"), "#{item.fetch('entity').humanize} index is unavailable.") unless source
 
         PerformanceLogging.plugin_call(extension_point: "global_search:source", provider: source, operation: :search_database_rebuild_batch) do
-          source.search_database_rebuild_batch(task: task)
+          source.search_database_rebuild_batch(task: task, reason: item.fetch("reason"))
         end
       end
 
-      def search_database_needs_prepare?
-        SyrusSearchDatabaseTasks.required_table_sql.keys.any? { |table| !SyrusSearchDatabaseTasks.table_exists?(table) }
-      rescue StandardError
-        true
+      def mark_done(task, key, message)
+        change_checkpoint(task) { task.checkpoint["#{key}_done"] = true }
+        Result.new(done: false, processed: 1, failed: 0, message: message, level: "info")
       end
 
-      def chat_content_version_current?
-        ChatMessageSearchIndex.content_version_current?
-      rescue StandardError
-        false
-      end
+      def selected_entry_pending?(item)
+        source = source_for(item.fetch("entity"))
+        return false unless source
 
-      def prepare_chat_content_version!
-        ChatMessageSearchIndex.prepare_content_version!
-      end
-
-      def finish_chat_content_version!
-        ChatMessageSearchIndex.finish_content_version!
-      end
-
-      def missing_chat_messages_count
-        return chat_message_scope.count unless SyrusSearchDatabaseTasks.table_exists?("chat_search_metadata")
-
-        indexed_ids = indexed_chat_message_ids.map(&:to_i).to_set
-        chat_message_scope.find_each.count do |message|
-          ChatMessageSearchIndex.indexable?(message) && !indexed_ids.include?(message.id)
+        if source.current_content_version.nil? && source.respond_to?(:search_database_initialize_content_version!) && source_tables(source).all? { |table| SyrusSearchDatabaseTasks.table_exists?(table) }
+          source.search_database_initialize_content_version!
         end
-      rescue StandardError
-        chat_message_scope.count
+        return true if source.current_content_version.to_s != item["target_version"].to_s
+
+        source.search_database_integrity_repair_needed?
       end
 
-      def chat_message_scope
-        ChatMessage.where(role: %w[user assistant]).where.not(content: [ nil, "" ])
+      def selected_schema_missing?(plan)
+        plan.reject { |item| item["entity"] == "schema" }.any? do |item|
+          source = source_for(item["entity"])
+          source && source_tables(source).any? { |table| !SyrusSearchDatabaseTasks.table_exists?(table) }
+        end
       end
 
-      def indexed_chat_message_ids
-        SearchRecord.connection.select_values(
-          "SELECT CAST(SUBSTR(key, ?) AS INTEGER) FROM chat_search_metadata WHERE key LIKE ?",
-          "MaintenanceTasks::SearchDatabaseRebuild Indexed Chat Messages",
-          [
-            bind(ChatMessageSearchIndex::INDEXED_MESSAGE_KEY_PREFIX.length + 1),
-            bind("#{ChatMessageSearchIndex::INDEXED_MESSAGE_KEY_PREFIX}%")
-          ]
-        )
+      def versioned_sources
+        [ ChatMessageSearchIndex, OperationalLogIndex, *plugin_search_sources ].select do |source|
+          (!source.respond_to?(:search_database_available?) || source.search_database_available?) &&
+            source.respond_to?(:search_database_rebuild_key) &&
+            source.respond_to?(:search_database_content_version) &&
+            source.respond_to?(:current_content_version) &&
+            source.respond_to?(:search_database_tables) &&
+            source.respond_to?(:search_database_rebuild_units) &&
+            source.respond_to?(:search_database_integrity_repair_needed?) &&
+            source.respond_to?(:search_database_rebuild_batch)
+        end.uniq { |source| source.search_database_rebuild_key.to_s }
       end
 
-      def jobs_need_rebuild?
-        plugin_search_source_pending?("jobs")
-      rescue StandardError
-        false
-      end
+      def source_for(key) = versioned_sources.find { |source| source.search_database_rebuild_key.to_s == key.to_s }
 
-      def epics_need_rebuild?
-        plugin_search_source_pending?("epics")
-      rescue StandardError
-        false
-      end
+      def source_tables(source) = Array(source.search_database_tables).map(&:to_s)
 
-      def operational_logs_need_rebuild?
-        OperationalLogging.configured_for_instance? && indexed_count("operational_log_fts", "operational_log_event_id") < OperationalLogEvent.count
-      rescue StandardError
-        OperationalLogging.configured_for_instance? && OperationalLogEvent.exists?
-      end
+      def estimate_units(plan)
+        plan.sum do |item|
+          next 1 if item["entity"] == "schema"
 
-      def indexed_count(table, id_column)
-        return 0 unless SyrusSearchDatabaseTasks.table_exists?(table)
-
-        SearchRecord.connection.select_value("SELECT COUNT(DISTINCT #{id_column}) FROM #{table}").to_i
-      end
-
-      def chat_messages_count = chat_message_scope.count
-      def jobs_count = plugin_search_source_units("jobs")
-      def epics_count = plugin_search_source_units("epics")
-      def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
-
-      def plugin_search_source_pending?(key)
-        source = plugin_search_source(key)
-        source&.respond_to?(:search_database_rebuild_pending?) && source.search_database_rebuild_pending?
-      end
-
-      def plugin_search_source_units(key)
-        source = plugin_search_source(key)
-        return 0 unless source&.respond_to?(:search_database_rebuild_units)
-
-        source.search_database_rebuild_units.to_i
-      end
-
-      def plugin_search_source(key)
-        plugin_search_sources.find do |source|
-          source.respond_to?(:search_database_rebuild_key) &&
-            source.search_database_rebuild_key.to_s == key.to_s
+          source = source_for(item["entity"])
+          source ? [ source.search_database_rebuild_units.to_i, 1 ].max : 1
         end
       end
 
@@ -241,8 +173,9 @@ module MaintenanceTasks
         []
       end
 
-      def bind(value)
-        ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
+      def change_checkpoint(task)
+        task.checkpoint_will_change!
+        yield
       end
     end
   end
