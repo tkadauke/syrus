@@ -1349,7 +1349,13 @@ export function startOnboardingChat() {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats/onboarding")
 }
 
-export function sendChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = [], chatProvider?: string | null, clientIdempotencyKey?: string) {
+export function sendChatMessage(
+  path: string,
+  text: string,
+  attachments: ChatMessageAttachmentInput[] = [],
+  chatProvider?: string | null,
+  clientIdempotencyKey?: string
+) {
   return postJson<ChatPayload>(path, {
     ...(chatProvider ? { chat_provider: chatProvider } : {}),
     ...(clientIdempotencyKey ? { client_idempotency_key: clientIdempotencyKey } : {}),
@@ -1454,7 +1460,10 @@ export function shareChat(path: string) {
 }
 
 export function enqueueChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = [], clientIdempotencyKey?: string) {
-  return postJson<ChatPayload>(path, { ...chatMessagePayload(text, attachments), ...(clientIdempotencyKey ? { client_idempotency_key: clientIdempotencyKey } : {}) })
+  return postJson<ChatPayload>(path, {
+    ...chatMessagePayload(text, attachments),
+    ...(clientIdempotencyKey ? { client_idempotency_key: clientIdempotencyKey } : {})
+  })
 }
 
 export function enqueueChatDraftMessage(path: string, draft: ChatDraftMessage) {
