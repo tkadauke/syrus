@@ -48,6 +48,14 @@ spoke. When a session has more than one human participant, `ChatTurnJob`
 prefixes persisted user messages in fallback context with the sender's first
 name.
 
+Browser submissions carry one client idempotency key for the logical Send
+action. Syrus durably claims that key per sender before creating a chat,
+message, or queued message and replays the original outcome on an equivalent
+retry. Reusing it with changed text, command, chat, or attachments returns a
+conflict. Persisted user-message events echo the client key so the browser can
+treat realtime delivery as acknowledgment and remove a stale failure notice or
+automatically restored draft after an ambiguous HTTP failure.
+
 Platform-origin chats use `chat_sessions.origin_platform` plus participant
 membership to find the durable conversation for a user's external account.
 `ChatSession.for_platform(user:, platform:)` creates that session when missing

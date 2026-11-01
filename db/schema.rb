@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_31_162746) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_033028) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -484,6 +484,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_162746) do
     t.index ["user_id"], name: "index_chat_goals_on_user_id"
   end
 
+  create_table "chat_ingress_receipts", force: :cascade do |t|
+    t.integer "sender_user_id", null: false
+    t.string "idempotency_key", null: false
+    t.string "operation", null: false
+    t.string "payload_digest", null: false
+    t.integer "chat_session_id"
+    t.integer "chat_message_id"
+    t.integer "chat_queued_message_id"
+    t.integer "response_status"
+    t.json "response_body"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_message_id"], name: "index_chat_ingress_receipts_on_chat_message_id"
+    t.index ["chat_queued_message_id"], name: "index_chat_ingress_receipts_on_chat_queued_message_id"
+    t.index ["chat_session_id"], name: "index_chat_ingress_receipts_on_chat_session_id"
+    t.index ["sender_user_id", "idempotency_key"], name: "idx_chat_ingress_receipts_sender_key", unique: true
+    t.index ["sender_user_id"], name: "index_chat_ingress_receipts_on_sender_user_id"
+  end
+
   create_table "chat_message_pins", force: :cascade do |t|
     t.integer "chat_message_id", null: false
     t.datetime "created_at", null: false
@@ -509,6 +528,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_162746) do
     t.integer "deleted_by_user_id"
     t.bigint "entity_revision", default: 0, null: false
     t.json "mentions"
+    t.string "client_idempotency_key"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"
@@ -524,6 +544,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_162746) do
     t.index ["pending_action_id"], name: "index_chat_messages_on_pending_action_id"
     t.index ["proposal_id", "id"], name: "idx_chat_messages_proposal_id_id"
     t.index ["proposal_id"], name: "index_chat_messages_on_proposal_id"
+    t.index ["sender_user_id", "client_idempotency_key"], name: "idx_chat_messages_sender_idempotency", unique: true, where: "client_idempotency_key IS NOT NULL"
     t.index ["sender_user_id"], name: "index_chat_messages_on_sender_user_id"
   end
 
@@ -651,6 +672,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_162746) do
     t.datetime "created_at", null: false
     t.datetime "delivered_at"
     t.datetime "updated_at", null: false
+    t.string "client_idempotency_key"
+    t.index ["chat_session_id", "client_idempotency_key"], name: "idx_chat_queued_messages_session_idempotency", unique: true, where: "client_idempotency_key IS NOT NULL"
     t.index ["chat_session_id", "delivered_at", "created_at", "id"], name: "idx_chat_queued_messages_pending_order"
     t.index ["chat_session_id"], name: "index_chat_queued_messages_on_chat_session_id"
   end

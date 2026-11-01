@@ -1351,7 +1351,7 @@ describe("chat compose drafts", () => {
     await waitFor(() => expect(sendButton).not.toBeDisabled())
     fireEvent.click(sendButton)
 
-    await waitFor(() => expect(textarea).toHaveValue(""))
+    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue(""))
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
     await waitFor(() => {
       expect(
@@ -1359,7 +1359,10 @@ describe("chat compose drafts", () => {
           (call) =>
             String(call[0]) === "/api/v1/app/chats/8/message" &&
             (call[1] as RequestInit)?.method === "POST" &&
-            (call[1] as RequestInit)?.body === JSON.stringify({ chat_message: { text: "Please investigate the slow turn start." } })
+            (() => {
+              const body = JSON.parse(String((call[1] as RequestInit)?.body))
+              return body.chat_message?.text === "Please investigate the slow turn start." && typeof body.client_idempotency_key === "string"
+            })()
         )
       ).toBe(true)
     })
@@ -1387,8 +1390,9 @@ describe("chat compose drafts", () => {
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
   }, 30000)
 
-  it("does not hydrate the submitted first message into the composer mounted by replace_tail", async () => {
+  it("treats a matching realtime message as delivery acknowledgment before a late HTTP error", async () => {
     let resolveMessage: ((response: Response) => void) | null = null
+    let clientIdempotencyKey = ""
     const messageRequest = new Promise<Response>((resolve) => {
       resolveMessage = resolve
     })
@@ -1397,7 +1401,10 @@ describe("chat compose drafts", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
-      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") return messageRequest
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
       return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
     })
 
@@ -1418,7 +1425,8 @@ describe("chat compose drafts", () => {
       tool_name: null,
       content: { text: "This is the first message." },
       text: "This is the first message.",
-      bookmarkable: true
+      bookmarkable: true,
+      client_idempotency_key: clientIdempotencyKey
     }
     act(() => {
       actionCableSubscriptions
@@ -1438,12 +1446,13 @@ describe("chat compose drafts", () => {
     expect(screen.queryByRole("button", { name: "Remove first.png" })).not.toBeInTheDocument()
 
     await act(async () => {
-      resolveMessage?.(jsonResponse(chatPayload({ messages: [firstMessage] })))
+      resolveMessage?.(jsonResponse({ error: "response lost" }, 500))
       await messageRequest
     })
 
     expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue("")
     expect(screen.queryByRole("button", { name: "Remove first.png" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
   }, 30000)
 
   it("keeps a failed send draft for its chat after the composer unmounts", async () => {
@@ -1481,6 +1490,62 @@ describe("chat compose drafts", () => {
 
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this failed message with chat eight.")
     expect(getDraftAttachments("8")).toEqual([attachment])
+  }, 30000)
+
+  it("clears a restored draft and failure after a late realtime delivery acknowledgment", async () => {
+    let rejectMessage: ((reason?: unknown) => void) | null = null
+    let clientIdempotencyKey = ""
+    const messageRequest = new Promise<Response>((_resolve, reject) => {
+      rejectMessage = reject
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Committed despite the network." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await act(async () => rejectMessage?.(new Error("connection lost")))
+
+    await waitFor(() => expect(textarea).toHaveValue("Committed despite the network."))
+    expect(screen.getByText("Message failed.")).toBeInTheDocument()
+
+    act(() => {
+      actionCableSubscriptions
+        .find((subscription) => subscription.params.channel === "ChatChannel")
+        ?.mixin.received({
+          type: "updated",
+          resource: "chat",
+          id: 8,
+          payload: {
+            action: "replace_tail",
+            replace_from_id: 10,
+            messages: [
+              {
+                type: "message",
+                id: 10,
+                role: "user",
+                content: { text: "Committed despite the network." },
+                text: "Committed despite the network.",
+                bookmarkable: true,
+                client_idempotency_key: clientIdempotencyKey
+              }
+            ]
+          }
+        })
+    })
+
+    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue(""))
+    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+    expect(screen.queryByText("Message could not be sent.")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
   }, 30000)
 
   it("does not discard newer typing when an earlier send succeeds", async () => {

@@ -30,6 +30,7 @@ class ChatQueuedMessagePromoter
         content: promoted_content_for(queued_messages),
         mentions: mentions,
         sender_user_id: queued_messages.one? ? queued_messages.first.promoted_sender_user_id : nil,
+        client_idempotency_key: queued_messages.one? ? queued_messages.first.client_idempotency_key : nil,
         skip_turn_trigger: promoted_role == "user" && !turn_triggered
       )
       delivered_at = Time.current

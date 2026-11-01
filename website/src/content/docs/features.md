@@ -1092,6 +1092,13 @@ messages instead of waiting for the turn to finish. Queued messages remain
 editable and deletable until Syrus promotes the next one into the transcript
 and starts the following turn.
 
+Chat sends are safe to retry after an interrupted response. The browser keeps
+the same delivery identity until Syrus acknowledges the persisted message, and
+the server replays the first accepted result instead of creating a duplicate
+chat, message, queued follow-up, or agent turn. A matching realtime message
+also clears a stale send-failure notice and restored draft when the HTTP
+response was lost after the message committed.
+
 The chat agent can schedule one-shot wakeups for the current chat. At the
 requested time, Syrus starts another visible chat turn with the stored prompt,
 so the wakeup and any follow-up action remain part of the transcript. The

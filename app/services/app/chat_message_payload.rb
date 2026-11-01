@@ -189,6 +189,7 @@ module App
         pinnable: message.pinnable?,
         created_at: message.created_at.iso8601
       }
+      payload[:client_idempotency_key] = message.client_idempotency_key if message.client_idempotency_key.present?
 
       payload[:attachments] = message.content["attachments"] if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
       payload[:video_walkthrough_id] = message.content["video_walkthrough_id"] if message.content.is_a?(Hash) && message.content["video_walkthrough_id"].present?
