@@ -79,7 +79,7 @@ export function EpicDetailRoute() {
     const canonicalId = String(epic.data.epic.id)
     queryClient.setQueryData(["epics", canonicalId], epic.data)
     navigate(`${location.pathname.replace(/\/epics\/[^/]+/, `/epics/${canonicalId}`)}${location.search}${location.hash}`, { replace: true })
-  }, [ epic.data, id, location.hash, location.pathname, location.search, navigate, queryClient ])
+  }, [epic.data, id, location.hash, location.pathname, location.search, navigate, queryClient])
 
   return (
     <Page.Root aria-label={t("detail_label")} gutter="responsive" size="wide">
@@ -132,15 +132,20 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
         t("unland_confirm_files", { files: plan.files.join(", ") }),
         t("unland_confirm_dependents", { dependents: plan.dependents.join(", ") || t("none") }),
         t("unland_confirm_deployment", {
-          stages: Object.entries(plan.deployment_stages).map(([ job, stages ]) => `${job}: ${stages.join(", ")}`).join("; ") || t("none")
+          stages:
+            Object.entries(plan.deployment_stages)
+              .map(([job, stages]) => `${job}: ${stages.join(", ")}`)
+              .join("; ") || t("none")
         }),
-        ...(plan.warnings.length > 0 ? [ t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") }) ] : [])
+        ...(plan.warnings.length > 0 ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : [])
       ]
       if (!(await confirm({ message: sections.join("\n\n"), destructive: true }))) return null
 
       return startEpicUnland(payload.paths.app_unland_path)
     },
-    onSuccess: (result) => { if (result) setNotice(result.message) }
+    onSuccess: (result) => {
+      if (result) setNotice(result.message)
+    }
   })
   async function runTransition(transition: EpicStateTransition) {
     if (transition.confirm && !(await confirm({ message: transition.confirm, destructive: true }))) return
