@@ -75,12 +75,27 @@ RSpec.describe "Mcp::Tools job control tools" do
     job = Factories.job_record(repository: repository, state: "closed", closure_reason: "pr_merged", landed_sha: "abc")
     plan = instance_double(Unlanding::Create::Plan, to_h: { subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ], warnings: [] })
     allow(Unlanding::Create).to receive(:plan!).with(original: job, user: user).and_return(plan)
+    allow(Unlanding::Create).to receive(:call!)
 
     body = payload(call_tool("unland_job", job_id: job.id))
     pending = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
 
     expect(body).to include(subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ])
     expect(pending).to have_attributes(action: "unland_job", state: "pending")
+    expect(Unlanding::Create).not_to have_received(:call!)
+  end
+
+  it "returns the Epic unland preflight and waits for confirmation before creating rollback work" do
+    epic = Factories.epic(user: user, repository: repository, state: "done")
+    plan = instance_double(Unlanding::Create::Plan, to_h: { subject: epic.slug, affected: [ epic.slug ], commits: [ "abc" ], graders: [ "smoke" ], warnings: [] })
+    allow(Unlanding::Create).to receive(:plan!).with(original: epic, user: user).and_return(plan)
+    allow(Unlanding::Create).to receive(:call!)
+
+    body = payload(call_tool("unland_epic", epic_id: epic.id))
+    pending = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+
+    expect(body).to include(subject: epic.slug, affected: [ epic.slug ], commits: [ "abc" ], graders: [ "smoke" ])
+    expect(pending).to have_attributes(action: "unland_epic", state: "pending")
     expect(Unlanding::Create).not_to have_received(:call!)
   end
 
