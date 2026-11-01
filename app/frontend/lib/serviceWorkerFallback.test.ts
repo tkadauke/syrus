@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeAll } from "vitest"
 import { readFileSync } from "node:fs"
-import path from "node:path"
+
+const SERVICE_WORKER_TEMPLATE_PATH = "app/views/pwa/service_worker.js.erb"
 
 // Exercises the policy the worker actually ships rather than a transcription
 // of it: the ERB template is read from disk, its ERB tags stripped, and the
@@ -16,7 +17,7 @@ type FallbackPolicy = (
 let shouldServeFallback: FallbackPolicy
 
 beforeAll(() => {
-  const template = readFileSync(path.join(__dirname, "../../views/pwa/service_worker.js.erb"), "utf8")
+  const template = readFileSync(SERVICE_WORKER_TEMPLATE_PATH, "utf-8")
   const source = template.replace(/<%=.*?%>/g, "stub")
   const scope: Record<string, unknown> = {}
   // The worker's top level only defines things and calls addEventListener, so
@@ -69,7 +70,7 @@ describe("service worker fallback policy", () => {
   })
 
   it("caches nothing but the fallback document", () => {
-    const template = readFileSync(path.join(__dirname, "../../views/pwa/service_worker.js.erb"), "utf8")
+    const template = readFileSync(SERVICE_WORKER_TEMPLATE_PATH, "utf-8")
     // One cache.add, of the fallback, and no precache manifest or asset globs.
     expect(template.match(/cache\.add/g) ?? []).toHaveLength(1)
     expect(template).not.toMatch(/addAll|\.css|\.js["']|assets\//)
