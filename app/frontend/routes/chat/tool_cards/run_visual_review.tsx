@@ -1,6 +1,7 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../../i18n"
 import { MediaPreviewShell } from "../mediaPreviewShell"
+import { MarkdownPreview } from "../toolCardMarkdown"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 import { displayValue, EmptyState, EntityReference, Row } from "../toolCardUi"
 
@@ -47,6 +48,7 @@ function liveReviewMedia(context: ToolCardContext) {
 
 function VisualReviewDetails({ context }: { context: ToolCardContext }) {
   const jobId = displayValue(context.input?.job_id)
+  const instructions = displayValue(context.input?.prompt)
   const media = liveReviewMedia(context)
   return (
     <>
@@ -54,6 +56,14 @@ function VisualReviewDetails({ context }: { context: ToolCardContext }) {
         label={i18n.t("chat:run_visual_review.job")}
         value={jobId ? <EntityReference id={jobId} kind="job" /> : <EmptyState>{i18n.t("chat:run_visual_review.missing_target")}</EmptyState>}
       />
+      {instructions ? (
+        <MarkdownPreview
+          maxLines={4}
+          modalLabel={i18n.t("chat:run_visual_review.full_instructions")}
+          text={instructions}
+          title={i18n.t("chat:run_visual_review.instructions")}
+        />
+      ) : null}
       {media.length ? (
         <div>
           <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:run_visual_review.media")}</div>
@@ -116,7 +126,7 @@ export const examples: ToolCardExample[] = [
     id: "pending",
     label: "Pending confirmation",
     description: "Shows the linked Job while the visual review request waits for confirmation.",
-    input: { job_id: 4222 },
+    input: { job_id: 4222, prompt: "Capture the sticky file title directly below the app header." },
     parsedResult: pendingResult,
     sourceType: "generic"
   },

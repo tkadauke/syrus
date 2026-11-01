@@ -5,7 +5,7 @@ module PendingActions
     def execute
       job = action_user_job
       progress!("Creating visual review workflow for #{job.slug}...")
-      result = ManualVisualReviewSubmission.call(job: job)
+      result = ManualVisualReviewSubmission.call(job: job, prompt: payload["prompt"])
       raise ArgumentError, result.error unless result.success?
 
       result.workflow
@@ -17,10 +17,15 @@ module PendingActions
 
     def validate_payload(errors)
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
+      prompt = payload["prompt"]
+      errors.add(:payload, "prompt cannot be blank") if prompt && prompt.to_s.strip.blank?
+      if prompt.to_s.length > ManualVisualReviewSubmission::MAX_PROMPT_LENGTH
+        errors.add(:payload, "prompt must be #{ManualVisualReviewSubmission::MAX_PROMPT_LENGTH} characters or fewer")
+      end
     end
 
     def action_detail
-      "job_id: #{payload["job_id"]}"
+      [ "job_id: #{payload["job_id"]}", ("instructions: #{payload["prompt"]}" if payload["prompt"].present?) ].compact.join(", ")
     end
 
     def presentation_label
@@ -51,7 +56,12 @@ module PendingActions
         }.compact
       end
 
-      { workflow_id: workflow.id, job_id: workflow.job_id, media: media }
+      {
+        workflow_id: workflow.id,
+        job_id: workflow.job_id,
+        instructions: workflow.artifact("manual_visual_review_instructions"),
+        media: media
+      }.compact
     end
   end
 end

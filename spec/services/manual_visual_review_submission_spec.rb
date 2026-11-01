@@ -27,6 +27,26 @@ RSpec.describe ManualVisualReviewSubmission do
     expect(result.run).to be_present
   end
 
+  it "persists focused instructions on the workflow" do
+    stub_visual_review_plan(enabled: true)
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+    result = described_class.call(job: job, prompt: "Show the menu expanded at mobile width.")
+
+    expect(result).to be_success
+    expect(result.workflow.reload.artifact("manual_visual_review_instructions")).to eq("Show the menu expanded at mobile width.")
+  end
+
+  it "preserves backward compatibility when instructions are omitted" do
+    stub_visual_review_plan(enabled: true)
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("manual_visual_review_instructions")).to be_nil
+  end
+
   it "dispatches for an approved job" do
     stub_visual_review_plan(enabled: true)
     job = Factories.job_record(user: user, repository: repository, state: "approved")

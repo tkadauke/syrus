@@ -33,6 +33,36 @@ RSpec.describe PendingActions::RunVisualReview do
     expect(action.result.trigger_kind).to eq("manual_visual_review")
   end
 
+  it "carries instructions through confirmation and exposes them in operator output" do
+    stub_visual_review_plan(enabled: true)
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    action = chat_session.pending_actions.create!(
+      action: "run_visual_review",
+      payload: { "job_id" => job.id, "prompt" => "Capture the sticky header boundary." },
+      requested_by: "agent"
+    )
+
+    action.confirm!(user: user)
+
+    expect(action.reload.result.artifact("manual_visual_review_instructions")).to eq("Capture the sticky header boundary.")
+    expect(described_class.new(action).action_detail).to include("instructions: Capture the sticky header boundary.")
+    expect(described_class.new(action).tool_card_outcome).to include(instructions: "Capture the sticky header boundary.")
+  end
+
+  it "rejects blank or oversized instructions in a forged pending payload" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+    [ " ", "x" * 4_001 ].each do |prompt|
+      expect {
+        chat_session.pending_actions.create!(
+          action: "run_visual_review",
+          payload: { "job_id" => job.id, "prompt" => prompt },
+          requested_by: "agent"
+        )
+      }.to raise_error(ActiveRecord::RecordInvalid)
+    end
+  end
+
   it "presents screenshots added to the resulting workflow after confirmation" do
     stub_visual_review_plan(enabled: true)
     job = Factories.job_record(user: user, repository: repository, state: "implemented")

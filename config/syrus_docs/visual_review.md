@@ -355,6 +355,14 @@ the branch; unlike the automatic loop, it does not loop back into
 on the workflow the same way an automatic pass records them, for the operator
 to read and act on manually.
 
+The chat `run_visual_review` tool also accepts an optional `prompt` of up to
+4,000 characters. It appears in the confirmation card and is stored on the
+resulting workflow so retries and worker handoffs retain it. The reviewer sees
+it in a separately labelled manual-review section for reproducing a focused
+viewport or interaction state and capturing the requested evidence. It does
+not become implementation feedback, does not change repository seed notes,
+and never authorizes the reviewer to modify the implementation.
+
 The Job detail page also exposes a separate "Run before/after comparison"
 action when visual-review screenshots already exist. That dispatches
 `visual_diff` directly for operator inspection rather than changing the
