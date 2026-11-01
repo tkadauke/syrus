@@ -494,7 +494,7 @@
   "run_queued_suffix": "queued {{elapsed}}",
   "run_queue_wait": {
     "ready_waiting_for_slot": "{{count}} live worker consumes {{queue}}, but all of its threads are in use. This run starts when a slot frees up; it is not stuck.",
-    "ready_no_consumer": "The RunJob is ready on unavailable queue {{queue}}. {{count}} compatible live workers are available through current routing.",
+    "ready_no_consumer": "Worker unavailable; this run will be rerouted automatically.",
     "concurrency_blocked": "The RunJob is waiting behind this Job's concurrency lock. Retry the Job if the earlier work is no longer active.",
     "scheduled": "The RunJob is scheduled to become ready {{time}}; it is not stuck.",
     "claimed_not_started": "A worker claimed the RunJob, but the Run has not started yet.",
