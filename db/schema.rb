@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_044928) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_054810) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -616,6 +616,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_044928) do
     t.datetime "delivered_at"
     t.text "last_delivery_error"
     t.json "delivery_metadata", null: false
+    t.string "checkpoint_state"
+    t.json "checkpoint_payload", null: false
+    t.datetime "checkpointed_at"
+    t.datetime "resume_started_at"
+    t.datetime "resumed_at"
+    t.integer "resume_attempts", default: 0, null: false
+    t.text "last_resume_error"
     t.index ["chat_message_id"], name: "index_chat_pending_actions_on_chat_message_id"
     t.index ["chat_session_id", "state", "confirmed_at"], name: "idx_chat_pending_actions_payload_confirmed"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
@@ -624,6 +631,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_044928) do
     t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
     t.index ["deduplication_key", "deduplication_active"], name: "idx_pending_actions_active_deduplication", unique: true
     t.index ["delivery_state", "created_at"], name: "idx_pending_actions_delivery"
+    t.index ["origin_type", "origin_id", "checkpoint_state"], name: "idx_pending_actions_origin_checkpoint"
     t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
     t.index ["pending_action_group_id"], name: "index_chat_pending_actions_on_pending_action_group_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
