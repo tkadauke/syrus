@@ -8,4 +8,15 @@ RSpec.describe SdlcPipeline::Engine do
     expect(manifest.provides[:repo_page_tab]).to eq(SdlcPipeline::RepoPageTabs)
     expect(Syrus::PluginRegistry.providers_for(:repo_page_tab)).to include(SdlcPipeline::RepoPageTabs)
   end
+
+  it "registers and retires the plugin-owned filter and SmartFolder subjects" do
+    expect(Filters.subject(:sdlc_pipeline).fields).to contain_exactly("search", "chat_session_id", "epic_id", "job_id", "owner_user_id")
+    expect(SmartFolder.registered_subjects.fetch("sdlc_pipeline").fetch(:builtins).map { |row| row.fetch(:name) }).to eq([ "All", "Mine" ])
+
+    PluginRecord.find_by!(name: "sdlc_pipeline").update!(enabled: false)
+    expect(Filters.subjects).not_to have_key(:sdlc_pipeline)
+    expect(SmartFolder.registered_subjects).not_to have_key("sdlc_pipeline")
+  ensure
+    PluginRecord.find_by!(name: "sdlc_pipeline")&.update!(enabled: true)
+  end
 end

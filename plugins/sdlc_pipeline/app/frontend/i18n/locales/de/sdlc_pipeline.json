@@ -3,6 +3,8 @@
   "aria_pipeline": "SDLC-Pipeline des Repositorys",
   "title": "SDLC-Pipeline",
   "subtitle": "Aktuelle Arbeit von der Aufnahme bis zur Auslieferung · aktualisiert {{time}}",
+  "folders_heading": "Ansichten",
+  "folders_aria": "Gespeicherte Pipeline-Ansichten",
   "loading": "Pipeline wird geladen...",
   "loading_items": "Elemente werden geladen...",
   "load_error": "Die Pipeline konnte nicht geladen werden.",
