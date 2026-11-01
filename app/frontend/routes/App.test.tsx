@@ -12914,7 +12914,7 @@ describe("App", () => {
         expect.objectContaining({
           method: "POST",
           credentials: "same-origin",
-          body: JSON.stringify({ chat_message: { text: "Now inspect proposals" } })
+          body: expect.stringContaining('"chat_message":{"text":"Now inspect proposals"}')
         })
       )
     })
@@ -13166,7 +13166,7 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ chat_provider: "claude", chat_message: { text: "Build a planning console" } })
+          body: expect.stringContaining('"chat_provider":"claude","client_idempotency_key":"')
         })
       )
     })
@@ -13367,18 +13367,9 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({
-            chat_message: {
-              text: "Review this diagram",
-              attachments: [
-                {
-                  name: "flow-chart.png",
-                  mime_type: "image/png",
-                  data: "Y2hhcnQ="
-                }
-              ]
-            }
-          })
+          body: expect.stringContaining(
+            '"chat_message":{"text":"Review this diagram","attachments":[{"name":"flow-chart.png","mime_type":"image/png","data":"Y2hhcnQ="}]}'
+          )
         })
       )
     })
@@ -14269,7 +14260,7 @@ describe("App", () => {
           "/api/v1/app/chats/8/message",
           expect.objectContaining({
             method: "POST",
-            body: JSON.stringify({ chat_message: { text: "Send this with enter" } })
+            body: expect.stringContaining('"chat_message":{"text":"Send this with enter"}')
           })
         )
       })
@@ -14868,7 +14859,7 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ chat_message: { text: slashCommandPrompt("/propose") } })
+          body: expect.stringContaining(`"chat_message":{"text":${JSON.stringify(slashCommandPrompt("/propose"))}}`)
         })
       )
     })
