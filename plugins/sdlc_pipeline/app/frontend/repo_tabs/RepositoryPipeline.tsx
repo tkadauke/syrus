@@ -868,6 +868,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
   const requestSearch = useMemo(() => {
     const params = new URLSearchParams(location.search)
     params.delete("at")
+    params.delete("syrus_presentation")
     const value = params.toString()
     return value ? `?${value}` : ""
   }, [location.search])
@@ -893,7 +894,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
   })
   const folders = useMemo(() => {
     const presentation = new URLSearchParams(location.search)
-    const keys = ["at", "range_start", "range_end"]
+    const keys = ["at", "range_start", "range_end", "syrus_presentation"]
     return (pipeline.data?.smart_folders ?? []).map((folder) => {
       const url = new URL(folder.path, window.location.origin)
       keys.forEach((key) => {

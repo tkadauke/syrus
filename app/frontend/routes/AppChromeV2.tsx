@@ -662,6 +662,18 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     )
   }
 
+  if (new URLSearchParams(location.search).get("syrus_presentation") === "embedded") {
+    return (
+      <ShortcutsProvider>
+        <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
+          <div className="h-[100dvh] overflow-auto bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white" data-testid="embedded-presentation-root">
+            {pageContent}
+          </div>
+        </ThemeProvider>
+      </ShortcutsProvider>
+    )
+  }
+
   return (
     <ShortcutsProvider>
       <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
