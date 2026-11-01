@@ -135,6 +135,40 @@ RSpec.describe RunJob, :ci_only do
   # ----- Initial workflow ----------------------------------------
 
   describe "Initial workflow (issue → PR)" do
+    it "releases a checkpointed provider without advancing or failing the background Job" do
+      RunJob.agent_runner = ->(**_) {
+        current_run = Thread.current[:syrus_current_run]
+        if current_run.step.kind == "implement"
+          request = ChatPendingAction.create!(
+            request_kind: "authorization_request", user: user, repository: repository,
+            origin: current_run, subject: user, runtime_role: "implementer",
+            deduplication_key: "workflow-run-authorization",
+            purpose: "Request a protected operation"
+          )
+          request.checkpoint_authorization!(payload: { run_id: current_run.id })
+          AgentInvocation::Result.new(
+            turns: 1, exit_status: nil, timed_out: false, is_error: false,
+            outcome: "stopped", final_text: nil, session_id: "authorization-session",
+            stopped: true
+          )
+        else
+          default_agent_runner(**_)
+        end
+      }
+
+      job
+      drain_workflow!(job)
+
+      workflow = job.workflows.first
+      implement = workflow.steps.find_by!(kind: "implement")
+      expect(implement.reload).to be_running
+      expect(implement.runs.first.reload).to be_running
+      expect(workflow.reload).to be_running
+      expect(job.reload).to be_running
+      expect(job).to be_waiting_for_permission
+      expect(implement.runs.first.job_logs.pluck(:chunk).join).to include("released its provider while waiting for permission")
+    end
+
     it "runs implement → summarize → pr_open end-to-end, opens PR, and records commit metadata" do
       expect(PollRebaseJob).to receive(:set).with(hash_including(:wait)).and_return(double(perform_later: true))
 
