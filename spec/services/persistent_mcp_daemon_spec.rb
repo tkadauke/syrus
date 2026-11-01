@@ -227,6 +227,11 @@ RSpec.describe PersistentMcpDaemon do
         Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
         owner_chat = ChatSession.create!(user: user, title: "Owner planning")
         owner_message = owner_chat.messages.create!(role: "user", content: { "text" => "ownerhistoryneedle" })
+        hidden_owner_chat = ChatSession.create!(user: user, title: "Hidden owner planning")
+        hidden_owner_chat.chat_participants.find_by!(user: user).update!(hidden_at: Time.current)
+        hidden_owner_message = hidden_owner_chat.messages.create!(
+          role: "user", content: { "text" => "hiddenownerhistoryneedle" }
+        )
         other_coworker = Coworkers::Coworker.create!(
           owner_user: user, name: "Robin", handle: "robin-daemon-chat-reader",
           workspace_repo: job.repository.remote_url
@@ -239,7 +244,9 @@ RSpec.describe PersistentMcpDaemon do
         other_user = Factories.user
         inaccessible_chat = ChatSession.create!(user: other_user, title: "Private elsewhere")
         inaccessible_message = inaccessible_chat.messages.create!(role: "user", content: { "text" => "foreignhistoryneedle" })
-        [ owner_message, other_coworker_message, inaccessible_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+        [ owner_message, hidden_owner_message, other_coworker_message, inaccessible_message ].each do |message|
+          ChatMessageSearchIndex.insert(message)
+        end
         coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
         coworker_job = Job.create!(
           user: user, repository: job.repository, kind: "coworker_task", priority: "low",
@@ -254,7 +261,7 @@ RSpec.describe PersistentMcpDaemon do
         list_response = call_workflow_tool(path, "list_chats", token: token)
         listed = JSON.parse(json_body(list_response).dig("result", "content", 0, "text")).fetch("chats")
         expect(listed.pluck("id")).to include(chat.id, owner_chat.id, other_coworker_chat.id)
-        expect(listed.pluck("id")).not_to include(inaccessible_chat.id)
+        expect(listed.pluck("id")).not_to include(hidden_owner_chat.id, inaccessible_chat.id)
 
         search_response = call_workflow_tool(
           path, "search_chats", token: token,
@@ -262,6 +269,12 @@ RSpec.describe PersistentMcpDaemon do
         )
         search_results = JSON.parse(json_body(search_response).dig("result", "content", 0, "text")).fetch("results")
         expect(search_results.pluck("chat_session_id")).to eq([ owner_chat.id ])
+
+        hidden_search = call_workflow_tool(
+          path, "search_chats", token: token,
+          arguments: { query: "hiddenownerhistoryneedle", coworker_id: "syrus" }
+        )
+        expect(JSON.parse(json_body(hidden_search).dig("result", "content", 0, "text")).fetch("results")).to be_empty
 
         filtered_response = call_workflow_tool(
           path, "search_chats", token: token,
