@@ -225,6 +225,14 @@ operation or resource-type registrations fail closed, and a disabled plugin's
 permission metadata is absent from the active catalog. Registration describes
 what may be requested; it does not grant authority when a plugin is installed
 or enabled.
+Permission-provider authors can run `Permissions::ProviderTestKit` in their
+RSpec suite. A small adapter supplies real provider probes for normalization,
+redaction, hidden and unknown resources, uncertain classification, provider or
+resource ceilings, descriptor upgrades, and plugin installation. The shared
+suite reports the capability operation or resource scope that violates the
+contract and verifies that installing or enabling the plugin creates no rules
+or leases. Probes must exercise the plugin's real lookup and lifecycle paths,
+not return a hand-built answer.
 
 Providers can also register named permission presets made from complete rule
 templates. A preset may render several role-, operation-, resource-, and
