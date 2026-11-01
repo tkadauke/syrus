@@ -95,6 +95,15 @@ RSpec.describe LandingGraderPlan do
       expect(described_class.phase_for(trigger_kind: "unland", iteration: 1)).to eq(:unland)
     end
 
+    it "keeps rollback Jobs on unland validation during final landing" do
+      original = Factories.job_record(state: "closed", closure_reason: "pr_merged", landed_sha: "abc")
+      rollback = Factories.job_record(repository: original.repository, user: original.user, rollback_of: original)
+
+      expect(described_class.phase_for(
+        trigger_kind: "auto_merge", iteration: 1, repository: rollback.repository, job: rollback
+      )).to eq(:unland)
+    end
+
     it "falls back to :review for everything else" do
       expect(described_class.phase_for(trigger_kind: "initial", iteration: 1)).to eq(:review)
       expect(described_class.phase_for(trigger_kind: "pr_comment", iteration: 1)).to eq(:review)

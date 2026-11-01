@@ -11,7 +11,6 @@
 # It's strongly recommended that you check this file into your version control system.
 
 ActiveRecord::Schema[8.1].define(version: 2026_11_01_205046) do
-
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1931,6 +1930,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_205046) do
     t.string "emergency_land_source_sha"
     t.json "emergency_land_skipped_controls"
     t.datetime "pr_feedback_poll_selected_at"
+    t.integer "rollback_of_id"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
@@ -1969,6 +1969,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_205046) do
     t.index ["repository_id", "user_id", "kind", "state"], name: "idx_jobs_dashboard_repo_user_kind_state"
     t.index ["repository_id", "validity", "created_at", "id"], name: "idx_jobs_classifier_candidates"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
+    t.index ["rollback_of_id"], name: "index_jobs_on_rollback_of_id"
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
     t.index ["slug"], name: "index_jobs_on_slug", unique: true
     t.index ["source_ref"], name: "index_jobs_on_source_ref"

@@ -252,12 +252,17 @@ Syrus rebases before blaming the PR branch, and it avoids running many
 CI-failure Workflows with the same failing base at once. A rolling cap
 prevents endless CI-failure loops on the same Job.
 
-### Unland validation
+### Compensating rollback Jobs
 
-The non-agentic unland validation workflow runs `prepare -> grader fanout ->
-grader collect` against a proposed revert tree. It uses only the repository's
-explicit `unland` phase and refuses to pass when changed-file filtering leaves
-no required grader selected.
+Unlanding creates a linked rollback Job; it never rewinds or reopens the
+original landed Job. The workflow verifies the original's recorded landed
+commits on the current default branch, reverses them in safe reverse order,
+uses an implementing agent if conflicts need resolution, and then runs
+`prepare -> grader fanout -> grader collect -> summarize -> PR open`. Both the
+initial rollback check and final landing check use only the repository's
+explicit `unland` phase and refuse to pass when changed-file filtering leaves
+no required grader selected. The resulting PR follows ordinary review and
+landing.
 
 ## Step Kinds
 
