@@ -1,6 +1,10 @@
 # Coworkers
 
-The Capabilities tab includes a permission cutover report for each coworker. It compares legacy grants with unified-permission recommended defaults, identifies authority that will be removed and requestable replacements, and blocks migration when descriptors or registry validation are incomplete. The report is a read-only dry run: legacy grants are audit evidence and never become active unified permission rules automatically.
+Coworker tool dispatch is enforced by the unified permission evaluator. Capability
+descriptors supply the recommended defaults, while operator rules and temporary
+leases can narrow or extend those defaults within each descriptor's ceiling.
+Legacy coworker grant rows are cleared during the cutover and are not runtime
+authority.
 
 ## Background runs
 
@@ -21,11 +25,12 @@ and appear in the main chat for resolution. Failed scheduled runs post the same
 kind of block, count toward consecutive-failure auto-pause, and close their
 infrastructure Jobs so completed attempts do not accumulate.
 
-Background runs use the coworker's capability grants. They never receive the
-interactive-only tool surface, and a grant configured for live confirmation
-uses the queued approval policy during an unattended run. Queued mutations
+Background runs use the same unified permission policy as interactive turns.
+They never receive the interactive-only tool surface. Operations whose effective
+policy is `ask`
 appear on that coworker's Approvals tab with their originating run and tool
-input. Approving replays the tool in its original run context; rejecting posts
+input. Approval issues one fingerprint-bound invocation; atomic claiming prevents
+duplicate dispatch in its original run context. Rejecting posts
 the outcome to the coworker's main chat.
 
 The Schedule tab creates recurring or one-shot tasks on the coworker's
@@ -87,12 +92,12 @@ The coworker-facing inventory is `message_coworker`, `reply_in_chat_thread`,
 Those essential tools remain governed by the coworker's grants and workspace
 boundary; coworkers do not receive owner control-plane tools.
 
-Grant policy is enforced for every gated call, including read-only core tools
-and plugin-defined tools. `auto` runs immediately; `confirm` creates an
-in-chat approval during an interactive turn and joins the approval inbox for
-an unattended run; `queue` always joins the approval inbox. Confirming replays
-the stored tool name and arguments exactly once through the owning provider.
-Tools explicitly classified as `ungated` bypass this policy because they stay
+Unified permission policy is enforced for every gated call, including read-only
+core tools and plugin-defined tools. `allow` runs immediately, `ask` creates an
+approval request, and `deny` fails closed. Confirming authorizes the stored tool
+name and fingerprinted arguments exactly once through the owning provider; the
+evaluator is rerun while the invocation is atomically claimed. Tools explicitly
+classified as `ungated` bypass this policy because they stay
 within the coworker's workspace or current chat, expose no additional owner
 data, and incur no external cost. The workspace file tools, read-only memory
 tools, `reply_in_chat_thread`, and the in-turn question/suggestion helpers use

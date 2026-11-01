@@ -199,10 +199,13 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       end
     end
     let(:permission_descriptor) do
-      Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+      generated = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
         tool_name: "read_custom_data", capability: "custom.read", mutation: false,
         required_roles: [ AgentRole::COWORKER_CHAT ]
       )
+      Permissions::CapabilityDescriptor.new(**generated.to_h.merge(
+        defaults: { AgentRole::COWORKER_CHAT => :ask }
+      ))
     end
     let(:catalog_descriptor) do
       Mcp::CoworkerToolCatalog::Descriptor.new(
@@ -237,16 +240,18 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         "approval_policy" => "queue"
       )
       expect(request).to be_authorization_request
-      expect(request.authorization_items.pluck(:kind)).to contain_exactly("capability_possession", "operation")
+      expect(request.authorization_items.pluck(:kind)).to contain_exactly("operation")
     end
 
-    it "returns immediately when possession and automatic invocation approval are already present" do
+    it "does not let a legacy automatic grant bypass unified invocation approval" do
       coworker.grants.create!(capability: "custom.read", approval_policy: "auto")
 
-      expect(described_class.pending_coworker_approval(
+      response = described_class.pending_coworker_approval(
         coworker_tool, { chat_session: }, { query: "customers" }
-      )).to be_nil
-      expect(ChatPendingAction.where(request_kind: "authorization_request")).to be_empty
+      )
+      request_id = JSON.parse(response.content.first[:text]).fetch("pending_action_id")
+
+      expect(ChatPendingAction.find(request_id).authorization_items.pluck(:kind)).to eq([ "operation" ])
     end
 
     it "fails closed when a core registry entry has no permission descriptor" do
@@ -263,7 +268,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         tool_name: "plugin_read", capability: "plugin.read", ungated: false,
         tier: :essential, tool: nil, provider: Class.new,
         definition: {
-          name: "plugin_read", capability: "plugin.read", mutation: false,
+          name: "plugin_read", capability: "plugin.read", mutation: true,
           requestable_roles: [ AgentRole::COWORKER_CHAT ]
         }
       )

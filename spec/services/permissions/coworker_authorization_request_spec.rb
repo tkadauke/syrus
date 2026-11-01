@@ -38,18 +38,14 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     )
   end
 
-  it "creates one compound request for named-agent possession and the exact invocation" do
+  it "creates one request for the exact invocation without legacy capability possession" do
     result = described_class.new(context: context, descriptor:, arguments:).call
     request = result.request
-    possession, operation = request.authorization_items.order(:id).to_a
+    operation = request.authorization_items.sole
 
     expect(request).to have_attributes(
       request_kind: "authorization_request", subject: coworker, origin: chat,
       runtime_role: AgentRole::COWORKER_CHAT
-    )
-    expect(possession).to have_attributes(
-      kind: "capability_possession", capability: "database.read",
-      capability_version: 1, requested_durations: [ "job" ]
     )
     expect(operation).to have_attributes(
       kind: "operation", operation: "database.read/query", operation_version: 2,
@@ -59,7 +55,7 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     expect(operation.invocation_fingerprint).to eq(
       Permissions::InvocationFingerprint.call(descriptor:, arguments:)
     )
-    expect(operation.prerequisites).to contain_exactly(possession)
+    expect(operation.prerequisites).to be_empty
   end
 
   it "reuses an equivalent active request instead of interrupting twice" do
@@ -68,10 +64,10 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
 
     expect(second).to eq(first)
     expect(ChatPendingAction.where(request_kind: "authorization_request").count).to eq(1)
-    expect(first.authorization_items.count).to eq(2)
+    expect(first.authorization_items.count).to eq(1)
   end
 
-  it "requests only exact invocation approval when the named agent already possesses the family" do
+  it "ignores legacy capability possession when evaluating exact invocation approval" do
     request = described_class.new(
       context: context(granted: [ "database.read" ]), descriptor:, arguments:
     ).call.request
@@ -79,14 +75,6 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     expect(request.authorization_items.sole).to have_attributes(
       kind: "operation", requested_durations: [ "invocation" ]
     )
-  end
-
-  it "still requests possession when an inconsistent legacy auto policy lacks its grant" do
-    request = described_class.new(
-      context: context, descriptor:, arguments:, invocation_policy: "auto"
-    ).call.request
-
-    expect(request.authorization_items.pluck(:kind)).to contain_exactly("capability_possession", "operation")
   end
 
   it "fails closed without creating a request when effective policy denies the operation" do

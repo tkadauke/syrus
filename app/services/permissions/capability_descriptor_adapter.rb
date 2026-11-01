@@ -19,11 +19,14 @@ module Permissions
         definition = definition.symbolize_keys
         return coerce(definition[:capability_descriptor]) if definition[:capability_descriptor]
 
+        roles = Array(definition[:requestable_roles])
+        roles |= [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ] if definition[:coworker_safe]
+
         build_legacy(
           tool_name: definition.fetch(:name),
           capability: definition[:capability],
           mutation: definition.fetch(:mutation, false),
-          roles: Array(definition[:requestable_roles]).presence || default_roles
+          roles: roles.presence || default_roles
         )
       end
 

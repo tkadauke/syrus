@@ -88,6 +88,17 @@ RSpec.describe Permissions::CapabilityDescriptorAdapter do
     end
   end
 
+  it "gives coworker-safe plugin definitions explicit coworker defaults" do
+    descriptor = described_class.for_plugin_definition(
+      name: "send_message", capability: "coworker.message", coworker_safe: true, mutation: true
+    )
+
+    expect(descriptor.requestable_roles).to include(AgentRole::COWORKER_CHAT, AgentRole::COWORKER)
+    expect(descriptor.defaults).to include(
+      AgentRole::COWORKER_CHAT => :ask, AgentRole::COWORKER => :ask
+    )
+  end
+
   it "accepts an explicit canonical descriptor from a plugin definition" do
     explicit = Permissions::CapabilityDescriptor.new(**{
       capability: "plugin.observe@v2", operation: "plugin.observe/read@v3", effects: [ :network_read ], risk: :low,
