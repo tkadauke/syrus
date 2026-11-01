@@ -224,6 +224,14 @@ authority is limited to one invocation, fingerprints normalize harmless SQL
 whitespace, and authorization displays redact the SQL text. Its read-only and
 query-operator presets remain inert until an operator confirms them.
 
+Kubernetes Cluster Viewer separates ordinary observation, secret metadata,
+workload operations, node administration, and raw kubectl authority. Rules can
+target a cluster, namespace, resource kind, or individual object. Observation
+may be bounded to a Job and secret metadata to a chat session; mutations and
+raw commands require exact-invocation authority. Existing per-cluster agentic
+and write toggles remain ceilings and never grant these capabilities by
+themselves.
+
 Permission-provider authors can run `Permissions::ProviderTestKit` in their
 RSpec suite. A small adapter supplies real provider probes for normalization,
 redaction, hidden and unknown resources, uncertain classification, provider or

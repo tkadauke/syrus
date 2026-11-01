@@ -20,6 +20,7 @@ module K8sCluster
     provides sidebar_page: "K8sCluster::SidebarPages",
              mcp_tool_set: "K8sCluster::WorkflowToolSet",
              chat_mcp_tool_set: "K8sCluster::ChatToolSet",
+             permission_provider: "K8sCluster::PermissionProvider",
              callbacks: "K8sCluster::Callbacks"
     tick_interval 5.minutes
     route :get, "/api/v1/app/admin/kubernetes_clusters", to: "api/v1/app/admin/kubernetes_clusters#index"

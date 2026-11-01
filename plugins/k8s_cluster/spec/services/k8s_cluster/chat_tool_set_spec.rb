@@ -76,6 +76,9 @@ RSpec.describe K8sCluster::ChatToolSet do
     )
     expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_pods" }.fetch(:description)).to include("k8s_cluster_list_clusters")
     expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_pod_logs" }.dig(:input_schema, :required)).to eq([ "cluster_id", "name", "namespace" ])
+    expect(tools).to all(include(:capability_descriptor))
+    expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_secrets" }.fetch(:capability_descriptor).capability)
+      .to eq("k8s.secret_access@v1")
   end
 
   it "advertises only the read-only cluster tools through k8s.read" do

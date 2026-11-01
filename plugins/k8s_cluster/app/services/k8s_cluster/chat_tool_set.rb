@@ -88,5 +88,37 @@ module K8sCluster
     def self.credential_backed_tool_available?
       K8sCluster.enabled? && defined?(CredentialStore) && CredentialStore.enabled?
     end
+
+    DESCRIPTORS = {
+      "k8s_cluster_list_clusters" => "k8s.cluster/list@v1",
+      "k8s_cluster_namespaces" => "k8s.namespace/read@v1",
+      "k8s_cluster_nodes" => "k8s.node/read@v1",
+      "k8s_cluster_pods" => "k8s.pod/read@v1",
+      "k8s_cluster_pod_logs" => "k8s.pod_logs/read@v1",
+      "k8s_cluster_deployments" => "k8s.deployment/read@v1",
+      "k8s_cluster_statefulsets" => "k8s.statefulset/read@v1",
+      "k8s_cluster_daemonsets" => "k8s.daemonset/read@v1",
+      "k8s_cluster_jobs" => "k8s.job/read@v1",
+      "k8s_cluster_services" => "k8s.service/read@v1",
+      "k8s_cluster_ingresses" => "k8s.ingress/read@v1",
+      "k8s_cluster_configmaps" => "k8s.configmap/read@v1",
+      "k8s_cluster_secrets" => "k8s.secret/read@v1",
+      "k8s_cluster_events" => "k8s.event/read@v1",
+      "k8s_cluster_pvcs" => "k8s.persistent_volume_claim/read@v1",
+      "k8s_cluster_cronjobs" => "k8s.cronjob/read@v1",
+      "k8s_cluster_overview" => "k8s.metrics/read@v1",
+      "k8s_cluster_restart_rollout" => "k8s.deployment/restart@v1",
+      "k8s_cluster_scale_deployment" => "k8s.deployment/scale@v1",
+      "k8s_cluster_delete_pod" => "k8s.pod/delete@v1",
+      "k8s_cluster_set_node_cordon" => "k8s.node/cordon@v1",
+      "k8s_cluster_kubectl" => "k8s.raw/execute@v1"
+    }.freeze
+
+    def self.tool_definitions(tier: nil, context: nil)
+      super.map do |definition|
+        operation = DESCRIPTORS.fetch(definition.fetch(:name))
+        definition.merge(capability_descriptor: PermissionProvider.capability_descriptor(operation))
+      end
+    end
   end
 end
