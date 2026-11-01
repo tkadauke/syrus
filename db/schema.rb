@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_033222) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_040512) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2647,6 +2647,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_033222) do
     t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
     t.index ["event_name", "occurred_at"], name: "idx_perf_events_name_occurred"
     t.index ["occurred_at", "id"], name: "idx_perf_events_occurred_at_id"
+  end
+
+  create_table "permission_leases", force: :cascade do |t|
+    t.integer "owner_user_id", null: false
+    t.string "subject_selector_type", null: false
+    t.string "subject_selector_id"
+    t.integer "subject_repository_id"
+    t.string "capability", null: false
+    t.string "operation"
+    t.string "resource_type", null: false
+    t.json "resource_scope", null: false
+    t.json "constraints", null: false
+    t.json "effects", null: false
+    t.string "duration_kind", null: false
+    t.integer "chat_session_id"
+    t.integer "job_id"
+    t.string "invocation_fingerprint"
+    t.string "source_type"
+    t.integer "source_id"
+    t.integer "issued_by_user_id", null: false
+    t.integer "revoked_by_user_id"
+    t.integer "max_uses"
+    t.integer "used_count", default: 0, null: false
+    t.datetime "expires_at"
+    t.datetime "revoked_at"
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["capability", "operation", "revoked_at", "expires_at"], name: "idx_permission_leases_current_capability"
+    t.index ["chat_session_id"], name: "index_permission_leases_on_chat_session_id"
+    t.index ["issued_by_user_id"], name: "index_permission_leases_on_issued_by_user_id"
+    t.index ["job_id"], name: "index_permission_leases_on_job_id"
+    t.index ["owner_user_id", "subject_selector_type", "subject_selector_id", "revoked_at"], name: "idx_permission_leases_current_subject"
+    t.index ["owner_user_id"], name: "index_permission_leases_on_owner_user_id"
+    t.index ["revoked_by_user_id"], name: "index_permission_leases_on_revoked_by_user_id"
+    t.index ["source_type", "source_id"], name: "index_permission_leases_on_source"
+    t.index ["subject_repository_id", "revoked_at"], name: "idx_permission_leases_current_repository"
+    t.index ["subject_repository_id"], name: "index_permission_leases_on_subject_repository_id"
   end
 
   create_table "permission_rule_audit_events", force: :cascade do |t|

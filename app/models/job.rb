@@ -128,6 +128,7 @@ class Job < ApplicationRecord
   has_many :dependents, through: :dependent_links, source: :job
   has_many :stack_children, class_name: "Job", foreign_key: :parent_job_id, dependent: :nullify, inverse_of: :parent_job
   has_many :preview_environments, dependent: :destroy
+  has_many :permission_leases, dependent: :nullify
 
   validates :kind, presence: true, inclusion: { in: ->(_) { Job::Kind.values } }
   validates :state, presence: true, inclusion: { in: STATES }

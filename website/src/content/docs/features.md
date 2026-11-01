@@ -1493,6 +1493,20 @@ including the actual PR number once one is open, e.g. "Sent upstream: PR
 button in the Job header, so a contributor doesn't have to wait for the
 automatic post-approval export trigger.
 
+## Lifecycle-bound permission authority
+
+Syrus's permission foundation distinguishes permanent scoped rules from
+temporary authority. Temporary authority can cover one exact invocation, the
+current chat session, or the current Job; Workflow and Run retries do not create
+new authority lifetimes. Exact invocations are fingerprinted and single-use,
+while chat and Job authority ends with its owning lifecycle. Expiry, use limits,
+and explicit revocation can narrow every temporary grant.
+
+Before each invocation, Syrus rechecks the current policy ceilings, subject,
+resource scope, lifecycle, fingerprint, and remaining uses. Authority that was
+valid when granted cannot override a later deny or execute after its scope has
+ended.
+
 ## Permission parity diagnostics
 
 Syrus runs its capability policy evaluator in shadow mode alongside existing
