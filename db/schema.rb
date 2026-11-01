@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_054810) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_071918) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2726,6 +2726,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_054810) do
     t.index ["decision_principal_type", "decision_principal_id"], name: "index_pending_action_items_on_decision_principal"
     t.index ["invocation_fingerprint"], name: "index_pending_action_items_on_invocation_fingerprint"
     t.index ["resulting_authority_type", "resulting_authority_id"], name: "index_pending_action_items_on_resulting_authority"
+  end
+
+  create_table "pending_action_occurrences", force: :cascade do |t|
+    t.integer "chat_pending_action_id", null: false
+    t.string "origin_type", null: false
+    t.integer "origin_id", null: false
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_pending_action_id", "origin_type", "origin_id"], name: "idx_pending_action_occurrences_unique_origin", unique: true
+    t.index ["chat_pending_action_id"], name: "index_pending_action_occurrences_on_chat_pending_action_id"
+    t.index ["origin_type", "origin_id", "created_at"], name: "idx_pending_action_occurrences_origin_time"
+    t.index ["origin_type", "origin_id"], name: "index_pending_action_occurrences_on_origin"
   end
 
   create_table "pending_action_transitions", force: :cascade do |t|
