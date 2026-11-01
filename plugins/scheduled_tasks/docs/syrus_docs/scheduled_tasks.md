@@ -113,6 +113,13 @@ write authorization, fire timestamps, and one-shot state transitions for every
 handler. Returning the registration's teardown from `scope.effect` removes the
 handler when its plugin is disabled.
 
+When a scheduled agent reaches an authorization boundary, equivalent later
+fires reuse the active request and associate their Jobs with it. Only the fire
+that creates the request opens an authorization checkpoint; later fires may
+still perform useful ungated work. A short denial cooldown and a per-agent,
+per-capability active-request cap prevent recurring schedules from repeatedly
+asking for the same authority.
+
 ## Auto-pause
 
 When `consecutive_failure_count` reaches `AppSetting.max_job_failures` (default: 3), the task transitions to `auto_paused`. The operator must unpause the task (via admin UI or Rails console: `task.update!(state: 'scheduled', consecutive_failure_count: 0)`) to re-enable it.

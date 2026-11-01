@@ -2748,6 +2748,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.index ["resulting_authority_type", "resulting_authority_id"], name: "index_pending_action_items_on_resulting_authority"
   end
 
+  create_table "pending_action_occurrences", force: :cascade do |t|
+    t.integer "chat_pending_action_id", null: false
+    t.string "origin_type", null: false
+    t.integer "origin_id", null: false
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_pending_action_id", "origin_type", "origin_id"], name: "idx_pending_action_occurrences_unique_origin", unique: true
+    t.index ["chat_pending_action_id"], name: "index_pending_action_occurrences_on_chat_pending_action_id"
+    t.index ["origin_type", "origin_id", "created_at"], name: "idx_pending_action_occurrences_origin_time"
+    t.index ["origin_type", "origin_id"], name: "index_pending_action_occurrences_on_origin"
+  end
+
   create_table "pending_action_transitions", force: :cascade do |t|
     t.integer "chat_pending_action_id", null: false
     t.integer "pending_action_item_id"
