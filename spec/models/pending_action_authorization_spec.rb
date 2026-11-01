@@ -72,6 +72,49 @@ RSpec.describe "surface-neutral pending action authorization", :ci_only do
     expect(action.user).to eq(user)
   end
 
+  it "destroys pending actions and their transition history through existing ownership cascades" do
+    request = ChatPendingAction.create!(
+      request_kind: "authorization_request",
+      user: user,
+      origin: user,
+      subject: user,
+      deduplication_key: "user-owned-request"
+    )
+    item = create_item(request)
+    transition_ids = request.transitions.ids
+
+    expect { request.destroy! }.to change(ChatPendingAction, :count).by(-1)
+      .and change(PendingActionItem, :count).by(-1)
+      .and change(PendingActionTransition, :count).by(-transition_ids.size)
+    expect(PendingActionItem.exists?(item.id)).to be(false)
+
+    owned_request = ChatPendingAction.create!(
+      request_kind: "authorization_request",
+      user: user,
+      origin: user,
+      subject: user,
+      deduplication_key: "second-user-owned-request"
+    )
+
+    expect { user.destroy! }.to change(ChatPendingAction.where(id: owned_request.id), :count).from(1).to(0)
+  end
+
+  it "destroys legacy actions with their chat while preserving chat-origin authorization requests" do
+    chat = ChatSession.create!(user: user, repository: repository)
+    legacy = chat.pending_actions.create!(action: "pause_landing_queue", payload: {})
+    authorization = create_request(
+      chat_session: chat,
+      origin: chat,
+      deduplication_key: "chat-authorization-request"
+    )
+
+    chat.destroy!
+
+    expect(ChatPendingAction.exists?(legacy.id)).to be(false)
+    expect(authorization.reload.chat_session).to be_nil
+    expect(authorization.origin).to be_nil
+  end
+
   it "decides compound items independently and requires every item before invocation" do
     request = create_request
     possession = request.authorization_items.create!(

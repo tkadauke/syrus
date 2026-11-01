@@ -154,6 +154,7 @@ class Repository < ApplicationRecord
   after_create :create_github_input_source
   after_save :sync_input_source_attrs, if: -> { saved_change_to_polling_enabled? || saved_change_to_trigger_label? }
   before_destroy :destroy_chat_sessions, prepend: true
+  before_destroy :destroy_legacy_pending_actions, prepend: true
 
   scope :active,   -> { where(archived_at: nil) }
   scope :git,      -> { where(vcs: "git") }
@@ -575,6 +576,10 @@ class Repository < ApplicationRecord
   end
 
   private
+
+  def destroy_legacy_pending_actions
+    chat_pending_actions.where(request_kind: "legacy_action").destroy_all
+  end
 
   def explicit_agent_provider_for?(effective_user)
     return true if agent_provider.present?
