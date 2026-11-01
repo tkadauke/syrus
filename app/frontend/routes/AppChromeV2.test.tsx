@@ -1416,10 +1416,21 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
 
       expect(screen.getByTestId("mobile-chat-content-shell")).toBeInTheDocument()
       expect(screen.getByRole("dialog", { name: "Pipeline" })).toBeInTheDocument()
-      expect(screen.getByTitle("Pipeline")).toHaveAttribute("src", "/repositories/2/plugin/sdlc-pipeline?q=x")
+      expect(screen.getByTitle("Pipeline")).toHaveAttribute("src", "/repositories/2/plugin/sdlc-pipeline?q=x&syrus_presentation=embedded")
     } finally {
       viewport.restore()
     }
+  })
+
+  it("removes redundant application chrome from embedded tool presentations", () => {
+    renderAppChrome(<div data-testid="pipeline-presentation">Pipeline presentation</div>, {
+      initialEntries: ["/repositories/2/plugin/sdlc-pipeline?q=x&syrus_presentation=embedded"]
+    })
+
+    expect(screen.getByTestId("embedded-presentation-root")).toContainElement(screen.getByTestId("pipeline-presentation"))
+    expect(screen.queryByTestId("app-chrome-root")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("desktop-sidebar")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("mobile-app-header")).not.toBeInTheDocument()
   })
 
   it("leaves main as overflow-auto for a non-chat route even at mobile widths", () => {
