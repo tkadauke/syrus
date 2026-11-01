@@ -57,5 +57,13 @@
   "evidence_job_state": "Status operis",
   "evidence_landed_commit": "Commit depositum",
   "evidence_completed": "Opus perfectum",
-  "evidence_deployment_stage": "Testimonium deployment"
+  "evidence_deployment_stage": "Testimonium deployment",
+  "evidence_historical_reconstruction": "Locus restitutus; metadata praesentia",
+  "history_aria": "Historia canalis",
+  "history_range": "Historia ab {{from}} ad {{to}}",
+  "historical_mode": "Historiam spectas",
+  "live_mode": "Nunc",
+  "return_now": "Redi ad nunc",
+  "time_scrubber": "Tempus historicum",
+  "historical_banner": "Canalem ad {{time}} spectas. Hic conspectus solum legitur; mutationes hodiernae in postico accipiuntur."
 }

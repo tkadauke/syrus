@@ -176,4 +176,56 @@ describe("RepositoryPipelineRoute", () => {
     expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/sdlc_pipeline?q=encoded-tree"), expect.anything())
     expect(screen.getByRole("link", { name: /Mine/ })).toHaveAttribute("href", "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7")
   })
+
+  it("reconstructs a historical tick without requesting the at presentation state", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository: { id: 1, slug: "acme/widgets" },
+        generated_at: "2026-10-31T12:00:00Z",
+        evidence: { status: "complete", incomplete_count: 0 },
+        tabs: [],
+        groups: [],
+        stages: [
+          { key: "review", label: "Review", kind: "lifecycle", total: 0, attention_count: 0, aging_count: 0, oldest_age_seconds: null, highlighted_items: [] }
+        ],
+        history: {
+          from: "2026-10-30T12:00:00Z",
+          to: "2026-10-31T12:00:00Z",
+          checkpoint: { at: "2026-10-30T12:00:00Z", placements: [] },
+          deltas: [
+            {
+              at: "2026-10-31T10:00:00Z",
+              job_id: 9,
+              from_stage: "implementing",
+              to_stage: "review",
+              item: {
+                job_id: 9,
+                stage: "review",
+                item: { id: 9, slug: "JOB-9", title: "Historical card", state: "closed", paths: { job: "/jobs/JOB-9" }, metadata_as_of: "2026-10-31T12:00:00Z" }
+              }
+            }
+          ],
+          ticks: ["2026-10-31T10:00:00Z"],
+          traces: [],
+          accuracy: { status: "reconstructed", truncated: false, message: "Stage placement is reconstructed. Card metadata is current." }
+        }
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?at=2026-10-31T10%3A00%3A00Z"]}>
+          <RepositoryPipelineRoute repositoryId="1" prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Historical card")).toBeInTheDocument()
+    expect(screen.getByText("Reconstructed placement; current metadata")).toBeInTheDocument()
+    expect(screen.getByText(/This view is read-only/)).toBeInTheDocument()
+    expect(String(fetchSpy.mock.calls[0][0])).not.toContain("at=")
+    fireEvent.click(screen.getByRole("button", { name: "Return to now" }))
+    await waitFor(() => expect(screen.queryByText(/This view is read-only/)).not.toBeInTheDocument())
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
 })

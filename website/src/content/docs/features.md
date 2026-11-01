@@ -97,6 +97,13 @@ expressions can be saved as reusable Pipeline views, including the built-in
 **All** and **Mine** views. Repository scope remains in the route rather than
 the saved view, and filters never hide configured pipeline stages, including
 empty ones.
+The dedicated history rail reconstructs the filtered cohort at meaningful
+lifecycle and delivery ticks from a bounded checkpoint-plus-delta response, so
+scrubbing does not fetch a full board repeatedly. Historical mode is clearly
+read-only and URL-backed, keeps stage navigation spatially fixed, and shows
+entered/left times and dwell data in its trace contract. Stage placement is
+identified as reconstructed while titles and other mutable card metadata are
+identified as current when no historical record exists.
 
 Job kinds:
 

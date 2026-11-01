@@ -22,8 +22,13 @@ module Api
             page: params[:page] || 1,
             limit: params[:limit] || ::SdlcPipeline::Projection::PAGE_DEFAULT
           ).call
+          history = ::SdlcPipeline::History.new(
+            repository: repository, user: Current.user, filter: resolution.filter,
+            from: params[:range_start], to: params[:range_end]
+          ).call
 
           render json: projection.merge(
+            history: history,
             repository: { id: repository.id, slug: repository.slug },
             tabs: repository_tabs_json(repository),
             active_smart_folder_id: active_folder&.id,

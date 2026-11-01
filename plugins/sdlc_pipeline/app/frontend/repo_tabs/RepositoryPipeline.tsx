@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button, Input, Metric, Modal, Notice, PageHeading, Section, Text } from "@app/components/ui"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
@@ -194,9 +194,68 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
   const [selected, setSelected] = useState<PipelineStage | null>(null)
   const [query, setQuery] = useState("")
   const [edges, setEdges] = useState({ left: false, right: false })
+  const selectedAt = new URLSearchParams(search).get("at")
+  const historical = Boolean(selectedAt)
+  const history = payload.history ?? {
+    from: payload.generated_at,
+    to: payload.generated_at,
+    checkpoint: { at: payload.generated_at, placements: [] },
+    deltas: [],
+    ticks: [],
+    traces: [],
+    accuracy: { status: "reconstructed" as const, message: "", truncated: false }
+  }
+  const displayedPayload = useMemo(() => {
+    if (!selectedAt) return payload
+    const at = new Date(selectedAt).getTime()
+    const placements = new Map(history.checkpoint.placements.map((placement) => [placement.job_id, placement]))
+    history.deltas.forEach((delta) => {
+      if (new Date(delta.at).getTime() > at) return
+      if (!delta.to_stage || !delta.item) placements.delete(delta.job_id)
+      else placements.set(delta.job_id, delta.item)
+    })
+    const byStage = new Map<string, typeof history.checkpoint.placements>()
+    placements.forEach((placement) => byStage.set(placement.stage, [...(byStage.get(placement.stage) || []), placement]))
+    const stages = payload.stages.map((stage) => {
+      const rows = byStage.get(stage.key) || []
+      return {
+        ...stage,
+        total: rows.length,
+        attention_count: 0,
+        aging_count: 0,
+        oldest_age_seconds: null,
+        highlighted_items: rows.slice(0, 5).map(({ item }) => ({
+          ...item,
+          needs_attention: false,
+          age_seconds: Math.max(
+            0,
+            (at -
+              new Date(
+                history.traces
+                  .find((trace) => trace.job_id === item.id)
+                  ?.segments.find((segment) => new Date(segment.entered_at).getTime() <= at && new Date(segment.left_at).getTime() >= at)?.entered_at ||
+                  selectedAt
+              ).getTime()) /
+              1000
+          ),
+          evidence: { type: "historical_reconstruction" }
+        }))
+      }
+    })
+    const grouped = new Map<string, PipelineGroup>()
+    placements.forEach((placement) => {
+      const epic = placement.item.epic
+      const key = epic ? `epic:${epic.id}` : "ungrouped"
+      const group = grouped.get(key) || { key, label: epic?.title || "Ungrouped", epic, total: 0, stage_totals: {} }
+      group.total += 1
+      group.stage_totals[placement.stage] = (group.stage_totals[placement.stage] || 0) + 1
+      grouped.set(key, group)
+    })
+    return { ...payload, stages, groups: [...grouped.values()] }
+  }, [payload, selectedAt, history])
   const stages = useMemo(
     () =>
-      payload.stages.map((stage) => {
+      displayedPayload.stages.map((stage) => {
         if (!query) return stage
         const normalized = query.toLowerCase()
         const stageMatches = stage.label.toLowerCase().includes(normalized)
@@ -205,13 +264,20 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           : stage.highlighted_items.filter((item) => `${item.slug} ${item.title}`.toLowerCase().includes(normalized))
         return { ...stage, highlighted_items }
       }),
-    [payload.stages, query]
+    [displayedPayload.stages, query]
   )
-  const active = payload.stages.find((stage) => stage.total > 0 && stage.kind === "lifecycle")
-  const total = payload.stages.reduce((sum, stage) => sum + stage.total, 0)
-  const attention = payload.stages.reduce((sum, stage) => sum + stage.attention_count, 0)
-  const landed = payload.stages.find((stage) => stage.key === "landed")?.total || 0
-  const oldest = Math.max(0, ...payload.stages.map((stage) => stage.oldest_age_seconds || 0))
+  const active = displayedPayload.stages.find((stage) => stage.total > 0 && stage.kind === "lifecycle")
+  const total = displayedPayload.stages.reduce((sum, stage) => sum + stage.total, 0)
+  const attention = displayedPayload.stages.reduce((sum, stage) => sum + stage.attention_count, 0)
+  const landed = displayedPayload.stages.find((stage) => stage.key === "landed")?.total || 0
+  const oldest = Math.max(0, ...displayedPayload.stages.map((stage) => stage.oldest_age_seconds || 0))
+  const navigate = useNavigate()
+  function setAt(at: string | null) {
+    const params = new URLSearchParams(search)
+    if (at) params.set("at", at)
+    else params.delete("at")
+    navigate({ search: params.toString() })
+  }
   function updateEdges() {
     const node = scroller.current
     if (node) setEdges({ left: node.scrollLeft > 2, right: node.scrollLeft + node.clientWidth < node.scrollWidth - 2 })
@@ -240,7 +306,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           <div>
             <Section.Title>{t("title")}</Section.Title>
             <Text className="mt-1" tone="muted">
-              {t("subtitle", { time: new Date(payload.generated_at).toLocaleTimeString() })}
+              {t("subtitle", { time: new Date(historical ? selectedAt! : payload.generated_at).toLocaleString() })}
             </Text>
           </div>
           <Metric.Group className="xl:ml-auto xl:w-[38rem]" columns={4}>
@@ -250,6 +316,45 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
             <Metric.Card label={t("oldest_active")} value={duration(oldest, t)} />
           </Metric.Group>
         </div>
+        <Section.Root className="mt-4 p-3" aria-label={t("history_aria")}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Text variant="caption" tone="muted">
+              {t("history_range", { from: new Date(history.from).toLocaleDateString(), to: new Date(history.to).toLocaleDateString() })}
+            </Text>
+            {historical ? <TonePill tone="amber">{t("historical_mode")}</TonePill> : <TonePill tone="gray">{t("live_mode")}</TonePill>}
+            {historical ? (
+              <Button className="ml-auto" onClick={() => setAt(null)} size="sm" variant="secondary">
+                {t("return_now")}
+              </Button>
+            ) : null}
+          </div>
+          <Input
+            aria-label={t("time_scrubber")}
+            className="mt-3 w-full accent-[var(--color-brand)]"
+            max={history.ticks.length}
+            min={0}
+            onChange={(event) => setAt(event.target.value === String(history.ticks.length) ? null : history.ticks[Number(event.target.value)] || history.from)}
+            type="range"
+            value={
+              historical
+                ? Math.max(
+                    0,
+                    history.ticks.findLastIndex((tick) => new Date(tick) <= new Date(selectedAt!))
+                  )
+                : history.ticks.length
+            }
+          />
+          {history.accuracy.message ? (
+            <Text className="mt-2" variant="caption" tone="muted">
+              {history.accuracy.message}
+            </Text>
+          ) : null}
+        </Section.Root>
+        {historical ? (
+          <Notice className="mt-3" tone="warning">
+            {t("historical_banner", { time: new Date(selectedAt!).toLocaleString() })}
+          </Notice>
+        ) : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Input
             aria-label={t("filter_aria")}
@@ -334,7 +439,7 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           ))}
         </div>
       </div>
-      {selected ? <DrillDown onClose={() => setSelected(null)} repositoryId={repositoryId} search={search} stage={selected} /> : null}
+      {selected && !historical ? <DrillDown onClose={() => setSelected(null)} repositoryId={repositoryId} search={search} stage={selected} /> : null}
     </>
   )
 }
@@ -342,10 +447,16 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
 export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId: string; prefix: string }) {
   const { t } = useT("sdlc_pipeline")
   const location = useLocation()
-  const queryKey = ["repositories", repositoryId, "sdlc_pipeline", location.search]
+  const requestSearch = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    params.delete("at")
+    const value = params.toString()
+    return value ? `?${value}` : ""
+  }, [location.search])
+  const queryKey = ["repositories", repositoryId, "sdlc_pipeline", requestSearch]
   const pipeline = useQuery({
     queryKey,
-    queryFn: () => fetchPipeline(repositoryId, location.search),
+    queryFn: () => fetchPipeline(repositoryId, requestSearch),
     enabled: repositoryId.length > 0,
     refetchInterval: POLL_INTERVAL_MS
   })
