@@ -8,7 +8,7 @@ module SdlcPipeline
       path = "/repositories/#{repository.id}/plugin/sdlc-pipeline"
       [ {
         id: "sdlc_pipeline.repository",
-        label: "Pipeline",
+        label: I18n.t("sdlc_pipeline.tabs.pipeline"),
         label_key: "sdlc_pipeline:tab_pipeline",
         path: path,
         paths: [ path ],

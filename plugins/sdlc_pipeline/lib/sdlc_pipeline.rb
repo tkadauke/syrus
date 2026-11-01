@@ -5,6 +5,7 @@ module SdlcPipeline
     display_name "SDLC Pipeline"
     category "collaboration"
     author "Thomas Kadauke"
+    icon_url "/plugin-icons/sdlc_pipeline.svg"
     description "A bounded repository pipeline derived from existing lifecycle and deployment facts."
     long_description "SDLC Pipeline turns the existing Job, Epic, landing, and deployment-stage records into an ordered repository view. It is a read-only projection: disabling or removing the plugin does not change delivery state."
 

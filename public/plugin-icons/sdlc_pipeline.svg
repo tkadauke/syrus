@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="SDLC Pipeline">
+  <rect width="24" height="24" rx="5" fill="#9a3412"/>
+  <path d="M5 7h4m2 0h8M5 12h8m2 0h4M5 17h4m2 0h8" fill="none" stroke="#ffedd5" stroke-width="1.75" stroke-linecap="round"/>
+  <circle cx="10" cy="7" r="1.75" fill="#fdba74"/>
+  <circle cx="14" cy="12" r="1.75" fill="#fdba74"/>
+  <circle cx="10" cy="17" r="1.75" fill="#fdba74"/>
+</svg>
