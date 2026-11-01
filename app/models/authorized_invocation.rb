@@ -1,6 +1,17 @@
 class AuthorizedInvocation < ApplicationRecord
   STATES = %w[ issued claimed succeeded failed invalidated non_resumable ].freeze
   RESULT_STATUSES = %w[ succeeded failed ].freeze
+  LIFECYCLE_ATTRIBUTES = %w[
+    state claim_key claimed_by_type claimed_by_id claimed_at executed_at result_status
+    result_type result_id invalidated_at invalidation_reason
+  ].freeze
+  TRANSITION_ATTRIBUTES = {
+    %w[issued claimed] => %w[state claim_key claimed_by_type claimed_by_id claimed_at],
+    %w[issued invalidated] => %w[state invalidated_at invalidation_reason],
+    %w[issued non_resumable] => %w[state invalidated_at invalidation_reason],
+    %w[claimed succeeded] => %w[state executed_at result_status result_type result_id],
+    %w[claimed failed] => %w[state executed_at result_status result_type result_id]
+  }.freeze
 
   ClaimResult = Data.define(:status, :invocation) do
     def claimed? = status == :claimed
@@ -25,21 +36,44 @@ class AuthorizedInvocation < ApplicationRecord
   validate :validate_json_shapes
   validate :validate_claim_fields
   validate :immutable_authorization, on: :update
+  validate :forward_only_lifecycle, on: :update
 
   before_validation :canonicalize_json
 
   scope :unclaimed, -> { where(state: "issued") }
 
   def self.issue!(pending_action_item:, authority: nil, tool_name:, execution_authority: {}, audit_payload: {})
+    attributes = {
+      pending_action_item:, authority:, tool_name:,
+      invocation_fingerprint: pending_action_item.invocation_fingerprint,
+      execution_authority:, audit_payload:
+    }
+    return issue_under_lock!(attributes) unless authority
+
+    authority.with_lock do
+      existing = find_by(pending_action_item:)
+      return existing if existing
+
+      unless authority.revoked_at.nil?
+        invocation = new(attributes)
+        invocation.errors.add(:authority, "has been revoked")
+        raise ActiveRecord::RecordInvalid, invocation
+      end
+
+      issue_under_lock!(attributes)
+    end
+  end
+
+  def self.issue_under_lock!(attributes)
+    pending_action_item = attributes.fetch(:pending_action_item)
     existing = find_by(pending_action_item:)
     return existing if existing
 
-    create!(pending_action_item:, authority:, tool_name:,
-      invocation_fingerprint: pending_action_item.invocation_fingerprint,
-      execution_authority:, audit_payload:)
+    create!(attributes)
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     find_by(pending_action_item:) || raise
   end
+  private_class_method :issue_under_lock!
 
   # Both callbacks run under the row lock and must be side-effect-free. Dispatch
   # belongs exclusively to the caller that receives a newly claimed result.
@@ -137,13 +171,32 @@ class AuthorizedInvocation < ApplicationRecord
 
   def validate_claim_fields
     fields_present = claim_key.present? && claimed_by.present? && claimed_at.present?
-    errors.add(:base, "claimed invocations require complete claim attribution") if claimed? && !fields_present
-    errors.add(:executed_at, "is required for a result") if state.in?(RESULT_STATUSES) && executed_at.blank?
+    claimed_or_completed = claimed? || state.in?(RESULT_STATUSES)
+    errors.add(:base, "claimed invocations require complete claim attribution") if claimed_or_completed && !fields_present
+    if state.in?(RESULT_STATUSES)
+      errors.add(:executed_at, "is required for a result") if executed_at.blank?
+      errors.add(:result_status, "must match the terminal state") unless result_status == state
+    end
+    if invalidated? || non_resumable?
+      errors.add(:invalidated_at, "is required for invalidation") if invalidated_at.blank?
+      errors.add(:invalidation_reason, "is required for invalidation") if invalidation_reason.blank?
+    end
   end
 
   def immutable_authorization
     immutable = %w[pending_action_item_id authority_type authority_id invocation_fingerprint tool_name execution_authority audit_payload created_at]
     errors.add(:base, "Authorized invocation claims are immutable") if changes_to_save.keys.intersect?(immutable)
+  end
+
+  def forward_only_lifecycle
+    changed = changes_to_save.keys.intersection(LIFECYCLE_ATTRIBUTES)
+    return if changed.empty?
+
+    from = state_in_database
+    allowed = TRANSITION_ATTRIBUTES[[ from, state ]]
+    if allowed.nil? || (changed - allowed).any?
+      errors.add(:base, "Authorized invocation lifecycle is immutable outside its permitted transition")
+    end
   end
 
   def canonicalize_json
