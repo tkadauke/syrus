@@ -1,4 +1,5 @@
 class Job < ApplicationRecord
+  include AuthorizationCheckpointOrigin
   has_many :planned_execution_overrides, dependent: :destroy
   include AASM
   include RecordsStateTransitions
@@ -15,6 +16,12 @@ class Job < ApplicationRecord
   include NormalizesPlannedExecutionRequirements
 
   attr_accessor :visual_diff_transition_source_workflow_id
+
+  def waiting_for_permission?
+    super ||
+      ChatPendingAction.waiting_for_permission.where(origin: workflows).exists? ||
+      ChatPendingAction.waiting_for_permission.where(origin: runs).exists?
+  end
 
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   DEPLOY_CLOSURE_REASON = "deploy".freeze

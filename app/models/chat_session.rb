@@ -1,6 +1,7 @@
 class ChatSession < ApplicationRecord
   include Revisionable
   include PluginDataCleanup
+  include AuthorizationCheckpointOrigin
 
   MESSAGE_PAGE_SIZE = 30
   TITLE_MAX_LENGTH = 120
