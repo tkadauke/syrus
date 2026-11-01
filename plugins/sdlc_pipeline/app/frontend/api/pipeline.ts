@@ -1,5 +1,7 @@
 import { getJson } from "@app/api/client"
 import type { RepositoryTab } from "@app/api/repositories"
+import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type PipelineItem = {
   id: number
@@ -51,13 +53,19 @@ export type PipelinePayload = {
   groups: PipelineGroup[]
   evidence: { status: "complete" | "partial"; incomplete_count: number }
   drill_down?: PipelineDrillDown
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+  smart_folders: AdminSmartFolder[]
+  active_smart_folder_id: number | null
 }
 
-export function fetchPipelineStage(repositoryId: string, stage: string, page = 1) {
-  const params = new URLSearchParams({ stage, page: String(page) })
+export function fetchPipelineStage(repositoryId: string, stage: string, page = 1, search = "") {
+  const params = new URLSearchParams(search)
+  params.set("stage", stage)
+  params.set("page", String(page))
   return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline?${params}`)
 }
 
-export function fetchPipeline(repositoryId: string) {
-  return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline`)
+export function fetchPipeline(repositoryId: string, search = "") {
+  return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline${search}`)
 }

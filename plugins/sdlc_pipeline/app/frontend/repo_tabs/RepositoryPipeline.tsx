@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { Button, Input, Metric, Modal, Notice, PageHeading, Section, Text } from "@app/components/ui"
 import { CloseIcon } from "@app/components/CloseIcon"
+import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
+import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
+import { SmartFolderFilterBar } from "@app/components/SmartFolderFilterBar"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
@@ -128,12 +131,12 @@ function StageColumn({ groups, onOpen, releaseTail, stage }: { groups: PipelineG
   )
 }
 
-function DrillDown({ onClose, repositoryId, stage }: { onClose: () => void; repositoryId: string; stage: PipelineStage }) {
+function DrillDown({ onClose, repositoryId, search, stage }: { onClose: () => void; repositoryId: string; search: string; stage: PipelineStage }) {
   const { t } = useT("sdlc_pipeline")
   const [page, setPage] = useState(1)
   const result = useQuery({
-    queryKey: ["repositories", repositoryId, "sdlc_pipeline", stage.key, page],
-    queryFn: () => fetchPipelineStage(repositoryId, stage.key, page),
+    queryKey: ["repositories", repositoryId, "sdlc_pipeline", search, stage.key, page],
+    queryFn: () => fetchPipelineStage(repositoryId, stage.key, page, search),
     placeholderData: (previous) => previous
   })
   const drill = result.data?.drill_down
@@ -185,7 +188,7 @@ function DrillDown({ onClose, repositoryId, stage }: { onClose: () => void; repo
   )
 }
 
-function PipelineOverview({ payload, repositoryId }: { payload: PipelinePayload; repositoryId: string }) {
+function PipelineOverview({ payload, repositoryId, search }: { payload: PipelinePayload; repositoryId: string; search: string }) {
   const { t } = useT("sdlc_pipeline")
   const scroller = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<PipelineStage | null>(null)
@@ -331,19 +334,22 @@ function PipelineOverview({ payload, repositoryId }: { payload: PipelinePayload;
           ))}
         </div>
       </div>
-      {selected ? <DrillDown onClose={() => setSelected(null)} repositoryId={repositoryId} stage={selected} /> : null}
+      {selected ? <DrillDown onClose={() => setSelected(null)} repositoryId={repositoryId} search={search} stage={selected} /> : null}
     </>
   )
 }
 
 export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId: string; prefix: string }) {
   const { t } = useT("sdlc_pipeline")
+  const location = useLocation()
+  const queryKey = ["repositories", repositoryId, "sdlc_pipeline", location.search]
   const pipeline = useQuery({
-    queryKey: ["repositories", repositoryId, "sdlc_pipeline"],
-    queryFn: () => fetchPipeline(repositoryId),
+    queryKey,
+    queryFn: () => fetchPipeline(repositoryId, location.search),
     enabled: repositoryId.length > 0,
     refetchInterval: POLL_INTERVAL_MS
   })
+  const folders = pipeline.data?.smart_folders ?? []
   return (
     <RepositoryPageShell
       activeTab="sdlc_pipeline.repository"
@@ -366,7 +372,48 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
           </Button>
         </div>
       ) : null}
-      {pipeline.data ? <PipelineOverview payload={pipeline.data} repositoryId={repositoryId} /> : null}
+      {pipeline.data ? (
+        <AdminFiltersLayout
+          filterBar={
+            <SmartFolderFilterBar
+              activeSmartFolderId={pipeline.data.active_smart_folder_id}
+              buildLink={(pathname, search, updates) => {
+                const params = new URLSearchParams(search)
+                Object.entries(updates).forEach(([key, value]) => value == null ? params.delete(key) : params.set(key, String(value)))
+                const query = params.toString()
+                return query ? `${pathname}?${query}` : pathname
+              }}
+              filter={pipeline.data.filter}
+              filterSchema={pipeline.data.filter_schema ?? []}
+              pathname={location.pathname}
+              search={location.search}
+              smartFolders={folders}
+              suggestionSearch={{ surface: "sdlc_pipeline", subject: "sdlc_pipeline" }}
+            />
+          }
+          mobileSummaryLabel={folders.find((folder) => folder.active)?.name}
+          smartFolders={
+            <AdminSmartFolderNav
+              activeFolderId={pipeline.data.active_smart_folder_id}
+              allowSaveWithoutActiveFolder
+              ariaLabel={t("folders_aria")}
+              currentFilter={pipeline.data.filter}
+              folders={folders}
+              heading={t("folders_heading")}
+              onMutationSuccess={() => void pipeline.refetch()}
+              prefix={prefix}
+              queryKey={queryKey}
+              rewriteRedirectTo={(path) => {
+                const query = path.split("?", 2)[1]
+                return query ? `${location.pathname}?${query}` : location.pathname
+              }}
+              subjectType="sdlc_pipeline"
+            />
+          }
+        >
+          <PipelineOverview payload={pipeline.data} repositoryId={repositoryId} search={location.search} />
+        </AdminFiltersLayout>
+      ) : null}
     </RepositoryPageShell>
   )
 }
