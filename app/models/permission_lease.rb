@@ -8,6 +8,7 @@ class PermissionLease < ApplicationRecord
   belongs_to :source, polymorphic: true, optional: true
   belongs_to :issued_by_user, class_name: "User"
   belongs_to :revoked_by_user, class_name: "User", optional: true
+  has_many :authorized_invocations, as: :authority, dependent: :nullify
 
   validates :subject_selector_type, inclusion: { in: PermissionRule::SUBJECT_SELECTOR_TYPES }
   validates :capability, :resource_type, presence: true
@@ -44,10 +45,13 @@ class PermissionLease < ApplicationRecord
   end
 
   def revoke!(actor:, at: Time.current)
-    with_lock do
-      return self if revoked_at?
+    transaction do
+      with_lock do
+        return self if revoked_at?
 
-      update!(revoked_at: at, revoked_by_user: actor)
+        update!(revoked_at: at, revoked_by_user: actor)
+      end
+      AuthorizedInvocation.invalidate_unclaimed_for!(self)
     end
     self
   end
