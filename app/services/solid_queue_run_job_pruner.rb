@@ -10,6 +10,27 @@ class SolidQueueRunJobPruner
     delete_solid_queue_rows!(ids)
   end
 
+  # Removes an unclaimed job only while its ready row remains claimable. Locking
+  # the ready row serializes this transaction with Solid Queue's claim path; if
+  # another worker won the claim first, there is no ready row to lock and the
+  # caller must leave the job alone.
+  def self.delete_ready_job_if!(job_id)
+    deleted = false
+    SolidQueue::Job.transaction do
+      job = SolidQueue::Job.lock.find_by(id: job_id, finished_at: nil)
+      ready = SolidQueue::ReadyExecution.lock.find_by(job_id: job_id) if job
+      next unless job && ready
+      next unless yield(job)
+
+      next unless SolidQueue::ReadyExecution.where(id: ready.id).delete_all == 1
+      raise ActiveRecord::Rollback if SolidQueue::ClaimedExecution.where(job_id: job_id).exists?
+
+      deleted = SolidQueue::Job.where(id: job_id, finished_at: nil).delete_all == 1
+      raise ActiveRecord::Rollback unless deleted
+    end
+    deleted
+  end
+
   def initialize(run_id:, include_claimed: false)
     @run_id = run_id.to_i
     @include_claimed = include_claimed
