@@ -3,11 +3,11 @@ class PermissionRule < ApplicationRecord
   POLICY_LAYERS = %w[ instance team repository role agent ].freeze
   SUBJECT_SELECTORS = {
     "agent" => { id: true, repository: false, role_snapshot: false, dynamic: false },
-    "interactive_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false },
-    "coding_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false },
-    "local_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false },
-    "workflow_role" => { id: true, repository: false, role_snapshot: false, dynamic: false },
-    "repository_role" => { id: true, repository: true, role_snapshot: false, dynamic: false },
+    "interactive_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false, role: AgentRole::CHAT_PLANNER },
+    "coding_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false, role: AgentRole::CHAT_CODING },
+    "local_chat" => { id: false, repository: false, role_snapshot: false, dynamic: false, role: AgentRole::CHAT_LOCAL },
+    "workflow_role" => { id: true, repository: false, role_snapshot: false, dynamic: false, role_from_id: true },
+    "repository_role" => { id: true, repository: true, role_snapshot: false, dynamic: false, role_from_id: true },
     "eligible_roles" => { id: false, repository: false, role_snapshot: true, dynamic: true }
   }.freeze
   SUBJECT_SELECTOR_TYPES = SUBJECT_SELECTORS.keys.freeze
