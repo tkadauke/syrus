@@ -16,10 +16,16 @@ module AdminMysql
         {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h
+          input_schema: klass.input_schema_value.to_h,
+          capability_descriptor: PermissionProvider.capability_descriptor(DESCRIPTORS.fetch(klass.tool_name))
         }
       end
     end
+
+    DESCRIPTORS = {
+      "admin_mysql_status" => "mysql.admin/status@v1",
+      "admin_mysql_kill_query" => "mysql.admin/kill_query@v1"
+    }.freeze
 
     def handle(tool_name, params, server_context)
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }

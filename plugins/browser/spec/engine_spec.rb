@@ -26,6 +26,10 @@ RSpec.describe SyrusBrowser::Engine do
     expect(Syrus::PluginRegistry.providers_for(:runtime_session_provider)).to include(SyrusBrowser::RuntimeSessionProvider)
   end
 
+  it "registers the scoped permission provider" do
+    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(SyrusBrowser::PermissionProvider)
+  end
+
   it "registers a manifest named 'browser'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "browser" }
     expect(manifest).not_to be_nil

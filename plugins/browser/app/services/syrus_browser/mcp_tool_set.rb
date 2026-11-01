@@ -37,10 +37,27 @@ module SyrusBrowser
         {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h
+          input_schema: klass.input_schema_value.to_h,
+          capability_descriptor: PermissionProvider.capability_descriptor(DESCRIPTORS.fetch(klass.tool_name))
         }
       end
     end
+
+    DESCRIPTORS = {
+      "browser_navigate" => "browser.navigate/open@v1",
+      "browser_snapshot" => "browser.observe/read@v1",
+      "browser_click" => "browser.interact/action@v1",
+      "browser_fill" => "browser.interact/action@v1",
+      "browser_hover" => "browser.interact/action@v1",
+      "browser_screenshot" => "browser.observe/read@v1",
+      "browser_wait_for" => "browser.observe/read@v1",
+      "browser_resize" => "browser.observe/read@v1",
+      "browser_evaluate" => "browser.execute/evaluate@v1",
+      "browser_file_upload" => "browser.upload/file@v1",
+      "browser_drop" => "browser.upload/file@v1",
+      "browser_drag" => "browser.interact/action@v1",
+      "browser_close" => "browser.close/session@v1"
+    }.freeze
 
     def handle(tool_name, params, server_context)
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
