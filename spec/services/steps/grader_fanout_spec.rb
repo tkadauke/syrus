@@ -908,6 +908,51 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(details["phase"]).to eq("landing")
   end
 
+  it "uses only changed-file-matching unland graders" do
+    run
+    workflow.update_column(:trigger_kind, "unland")
+    stub_changed_files("app/models/job.rb")
+    write_config(<<~YAML)
+      grade:
+        - name: ruby-smoke
+          run: bin/ruby-smoke
+          phases: [unland]
+          when_files_changed: [app/**/*.rb]
+        - name: frontend-smoke
+          run: npm run typecheck
+          phases: [unland]
+          when_files_changed: [app/frontend/**/*.ts]
+    YAML
+
+    handler.call
+
+    grader = workflow.steps.find_by!(kind: "grader")
+    expect(grader.details).to include("name" => "ruby-smoke", "phase" => "unland")
+  end
+
+  it "fails an unland validation when changed-file filtering selects no required grader" do
+    run
+    workflow.update_column(:trigger_kind, "unland")
+    stub_changed_files("README.md")
+    write_config(<<~YAML)
+      grade:
+        - name: ruby-smoke
+          run: bin/ruby-smoke
+          phases: [unland]
+          when_files_changed: [app/**/*.rb]
+        - name: advisory
+          run: bin/advisory
+          phases: [unland]
+          required: false
+    YAML
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      /unland validation selected no required grader/
+    )
+    expect(step.reload.details["grader_fanout_outcome"]).to eq("unland_required_grader_unavailable")
+  end
+
   it "uses landing-phase graders for speculative landing validations" do
     workflow.update!(trigger_kind: "landing_validation")
     write_config(<<~YAML)

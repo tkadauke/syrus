@@ -40,6 +40,7 @@ RSpec.describe LandingGraderPlan do
         grader("landing-check", phases: %w[landing]),
         grader("minimal-landing-check", phases: %w[landing_minimal]),
         grader("ci-check", phases: %w[ci]),
+        grader("unland-check", phases: %w[unland]),
         grader("promotion-check", phases: %w[promotion])
       ],
       source: ".syrus.yml",
@@ -65,6 +66,9 @@ RSpec.describe LandingGraderPlan do
       described_class::PROMOTION_TRIGGER_KINDS.each do |trigger_kind|
         expect(described_class.phase_for(trigger_kind: trigger_kind, iteration: 1, repository: repository, job: job)).to eq(:promotion)
       end
+      described_class::UNLAND_TRIGGER_KINDS.each do |trigger_kind|
+        expect(described_class.phase_for(trigger_kind: trigger_kind, iteration: 1, repository: repository, job: job)).to eq(:unland)
+      end
       expect(described_class.phase_for(trigger_kind: "initial", iteration: 1, repository: repository, job: job)).to eq(:review)
     end
 
@@ -85,6 +89,10 @@ RSpec.describe LandingGraderPlan do
 
     it "maps hotfix_sync to :promotion (there is no separate built-in hotfix_sync grade phase)" do
       expect(described_class.phase_for(trigger_kind: "hotfix_sync", iteration: 1)).to eq(:promotion)
+    end
+
+    it "maps unland to its dedicated phase" do
+      expect(described_class.phase_for(trigger_kind: "unland", iteration: 1)).to eq(:unland)
     end
 
     it "falls back to :review for everything else" do
@@ -171,6 +179,13 @@ RSpec.describe LandingGraderPlan do
       effective = described_class.effective(plan, trigger_kind: "auto_merge", iteration: 1)
 
       expect(effective.graders.map(&:name)).to eq([ "landing-check" ])
+    end
+
+    it "selects only graders whose phases include unland for trigger_kind unland" do
+      effective = described_class.effective(plan, trigger_kind: "unland", iteration: 1)
+
+      expect(effective.graders.map(&:name)).to eq([ "unland-check" ])
+      expect(effective.graders.first.metadata).to include("phase" => "unland", "configured_phases" => %w[unland])
     end
 
     it "selects only graders whose phases include review by default" do
