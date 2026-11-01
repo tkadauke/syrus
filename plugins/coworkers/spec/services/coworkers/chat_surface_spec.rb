@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Coworker chat surface" do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user: owner) }
   let(:coworker) do
@@ -202,14 +204,21 @@ RSpec.describe "Coworker chat surface" do
     expect(Coworkers::MessageCoworkerTool).not_to have_received(:call)
 
     action = chat.pending_actions.find(response_payload(message).fetch("pending_action_id"))
-    expect { action.confirm!(user: owner) }
-      .to change { chat.messages.where(role: "system").count }.by(1)
+    expect(action.subject).to eq(coworker)
+    operation = action.authorization_items.find_by!(kind: "operation")
+    decision = Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+      .call(decision: "approved")
+    expect(decision.execution_enqueued).to be(true)
+    clear_enqueued_jobs
+    action.execute_confirmation!(raise_on_error: true)
     expect(Coworkers::MessageCoworkerTool).to have_received(:call)
       .with(**arguments, server_context: include(chat_session: chat)).once
     expect(action.reload.payload.fetch("tool_result")).to include("stored result")
     expect(chat.messages.where(role: "system").order(:id).last.content.fetch("text"))
       .to include("Coworker tool approved and executed", "stored result")
-    expect(action.confirm!(user: owner)).to be(false)
+    repeated = Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+      .call(decision: "approved")
+    expect(repeated.execution_enqueued).to be(false)
     expect(Coworkers::MessageCoworkerTool).to have_received(:call).once
 
     message_grant.update!(approval_policy: "queue")

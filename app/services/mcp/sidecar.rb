@@ -99,10 +99,10 @@ module Mcp
       chat_tool_names(chat_session, tier: tier)
     end
 
-    def self.chat_tools(chat_session = nil, tier: :essential)
+    def self.chat_tools(chat_session = nil, tier: :essential, agent_actor: nil)
       return McpToolRegistry.tools(surface: :chat, tier: tier) unless chat_session
 
-      chat_tools_for(chat_session, tier: tier)
+      chat_tools_for(chat_session, tier: tier, agent_actor:)
     end
 
     def self.chat_essential_tools
@@ -133,22 +133,22 @@ module Mcp
     end
     private_class_method :chat_tools_for_role
 
-    def self.chat_tools_for(chat_session, tier:)
+    def self.chat_tools_for(chat_session, tier:, agent_actor: nil)
       evaluator = tier.to_s == "evaluator"
-      context = McpToolContext.from_chat_session(chat_session, evaluator: evaluator)
+      context = McpToolContext.from_chat_session(chat_session, evaluator: evaluator, agent_actor:)
       if evaluator
         # The evaluator's core set is a fixed read-only allowlist. A plugin
         # joins it by marking a definition `evaluator: true` -- otherwise a
         # tool that moved out of core would silently disappear from here.
         McpToolPolicy.for(context).map { |tool| authorize_tool(tool) } +
-          plugin_tools_for(chat_session, tier: :evaluator, policy: :evaluator)
+          plugin_tools_for(chat_session, tier: :evaluator, policy: :evaluator, agent_actor:)
       else
         registry_tier = tier.to_s == "all" ? :essential : tier
         surface = context.role == AgentRole::COWORKER_CHAT ? :coworker : :chat
         allowed = McpToolRegistry.tools_for_context(context, surface: surface, tier: registry_tier)
         tools = allowed.map { |tool| authorize_tool(tool) }
         tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
-        tools + plugin_tools_for(chat_session, tier: registry_tier, policy: surface)
+        tools + plugin_tools_for(chat_session, tier: registry_tier, policy: surface, agent_actor:)
       end
     end
 
@@ -163,7 +163,7 @@ module Mcp
       end
     end
 
-    def self.plugin_tools_for(chat_session, tier:, policy: nil)
+    def self.plugin_tools_for(chat_session, tier:, policy: nil, agent_actor: nil)
       tool_sets = PerformanceLogging.phase("chat_mcp_sidecar.plugin_tool_sets", chat_id: chat_session.id, tier: tier) do
         Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)
       end
@@ -179,10 +179,10 @@ module Mcp
             end
           end
         end
-        .flat_map { |tool_set| mcp_tools_for(tool_set, tier: tier, chat_session: chat_session, policy: policy) }
+        .flat_map { |tool_set| mcp_tools_for(tool_set, tier: tier, chat_session: chat_session, policy: policy, agent_actor:) }
     end
 
-    def self.mcp_tools_for(tool_set_class, tier:, chat_session: nil, policy: nil)
+    def self.mcp_tools_for(tool_set_class, tier:, chat_session: nil, policy: nil, agent_actor: nil)
       definitions = PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set_class, operation: :tool_definitions) do
         # Optional `chat_session:` keyword, mirroring the workflow side's
         # optional `context:`: a tool set whose advertised set depends on who
@@ -198,7 +198,7 @@ module Mcp
       definitions = filter_by_policy(definitions, policy)
       definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
       if policy == :coworker
-        grants = McpToolContext.from_chat_session(chat_session).granted_capabilities
+        grants = McpToolContext.from_chat_session(chat_session, agent_actor:).granted_capabilities
         definitions = definitions.select do |definition|
           capability = definition[:capability] || definition["capability"]
           ungated = definition[:ungated] || definition["ungated"]
