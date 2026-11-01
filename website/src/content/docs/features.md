@@ -322,6 +322,10 @@ and grading continues.
 Operators can also trigger a visual review pass on demand from the Job detail
 page's "Run visual review" action — useful for a fresh look after
 implementation, or to cover a pass that was skipped or never configured.
+From chat, `run_visual_review` can include optional focused instructions for
+the state to reproduce and the evidence to capture. Syrus shows those
+instructions for confirmation and keeps them with the manual review workflow;
+they guide visual QA only and do not start an implementation-feedback pass.
 
 A repository's `.syrus.yml` can opt a repository out, bound how many review
 rounds run, restrict visual review to specific changed files, and record seed
