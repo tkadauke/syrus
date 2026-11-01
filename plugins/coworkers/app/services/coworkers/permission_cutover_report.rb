@@ -42,13 +42,12 @@ module Coworkers
       @recommendations ||= relevant_registrations.filter_map do |registration|
         descriptor = registration.descriptor
         next unless registration.explicit_descriptor && descriptor
-        next unless (descriptor.requestable_roles & ROLES).any?
 
         {
           capability: descriptor.capability,
           operation: descriptor.operation,
           tools: [ registration.tool_name ],
-          roles: ROLES.index_with { |role| descriptor.defaults[role]&.to_s }.compact,
+          roles: ROLES.index_with { |role| descriptor.defaults.fetch(role, :deny).to_s },
           requestable_roles: descriptor.requestable_roles & ROLES
         }
       end.group_by { |item| [ item[:capability], item[:operation], item[:roles] ] }.map do |_, items|
@@ -79,7 +78,9 @@ module Coworkers
 
     def requestable_replacements
       recommendations.filter_map do |recommendation|
-        roles = recommendation[:roles].select { |_, policy| policy == "ask" }.keys
+        roles = recommendation[:roles].select do |role, policy|
+          policy == "ask" && recommendation[:requestable_roles].include?(role)
+        end.keys
         next if roles.empty?
 
         recommendation.slice(:capability, :operation, :tools).merge(roles: roles)
