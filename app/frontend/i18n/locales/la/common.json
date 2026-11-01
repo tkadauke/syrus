@@ -360,6 +360,7 @@
     "visual_diff_obsolete": "Comparatio non iam necessaria",
     "preempted": "Praeoccupatum",
     "landing_paused": "Descensus suspensus",
+    "patient_rebase_waiting_for_active_workflow": "Rebasis cursum activum exspectat",
     "coworker_turn_in_flight": "Colloquium collegae agitur"
   },
   "start_blocked_reason_tooltips": {
@@ -387,6 +388,7 @@
     "visual_diff_obsolete": "Opus statum praeteriit cui haec comparatio disposita erat.",
     "preempted": "Unitas operis potioris ordinis hanc substituit.",
     "landing_paused": "Descensus huic receptaculo suspensus est.",
+    "patient_rebase_waiting_for_active_workflow": "Haec rebasis automatica exspectat dum cursus activus ramum missurus finiatur.",
     "coworker_turn_in_flight": "Hic cursus posterior exspectat dum colloquium activum collegae finiatur."
   },
   "admission_diagnostics_link": "Diagnostica oneris videre",
