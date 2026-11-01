@@ -29,6 +29,16 @@ module Permissions
       end.freeze
     end
 
+    def self.presets
+      Syrus::PluginRegistry.providers_for(:permission_provider).each_with_object({}) do |provider, presets|
+        provider.permission_presets.each do |name, preset|
+          raise ArgumentError, "permission preset #{name.inspect} is registered by more than one provider" if presets.key?(name)
+
+          presets[name] = preset
+        end
+      end.freeze
+    end
+
     def self.find!(capability:, operation: nil)
       matches = descriptors.select { |descriptor| descriptor.capability == capability.to_s }
       matches.select! { |descriptor| descriptor.operation == operation.to_s } if operation.present?

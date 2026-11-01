@@ -1,3 +1,5 @@
+require_dependency "permissions/permission_preset"
+
 module Syrus
   module Plugin
     # Declarative permission contract for plugin-owned capabilities and scopes.
@@ -27,6 +29,26 @@ module Syrus
 
           registered_permission_capability_descriptors << descriptor
           descriptor
+        end
+
+        def register_permission_preset(**attributes)
+          preset = Permissions::PermissionPreset.new(**attributes)
+          if registered_permission_presets.key?(preset.name)
+            raise ArgumentError, "permission preset #{preset.name.inspect} is already registered"
+          end
+
+          # Static declarations are checked immediately. Callable declarations are
+          # checked each time they render because their scopes are context-dependent.
+          unless attributes.fetch(:rules).respond_to?(:call)
+            preset.render(subject_selector_type: "role").each do |rule|
+              descriptor = capability_descriptor(rule.fetch("operation"))
+              raise ArgumentError, "preset capability does not match its operation" unless descriptor.capability == rule.fetch("capability")
+              unless descriptor.requestable_roles.include?(rule.fetch("role"))
+                raise ArgumentError, "preset role #{rule.fetch('role').inspect} is not eligible for #{descriptor.operation}"
+              end
+            end
+          end
+          registered_permission_presets[preset.name] = preset
         end
 
         def migrate_permission_scope(from_operation:, to_operation:, with:)
@@ -80,6 +102,14 @@ module Syrus
           registered_permission_scope_migrations.dup.freeze
         end
 
+        def permission_presets
+          registered_permission_presets.dup.freeze
+        end
+
+        def permission_preset(name)
+          registered_permission_presets.fetch(name.to_s)
+        end
+
         def retired_permission_identifiers
           registered_retired_permission_identifiers.dup.freeze
         end
@@ -96,6 +126,10 @@ module Syrus
 
         def registered_permission_scope_migrations
           @permission_scope_migrations ||= []
+        end
+
+        def registered_permission_presets
+          @permission_presets ||= {}
         end
 
         def registered_retired_permission_identifiers

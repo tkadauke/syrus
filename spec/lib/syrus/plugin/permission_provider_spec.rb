@@ -26,6 +26,16 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
         fingerprint_normalizer: ->(arguments) { arguments },
         redactor: ->(arguments) { arguments.except(:secret) }
       )
+
+      register_permission_preset(
+        name: "interactive_observer",
+        label: "Interactive observer",
+        description: "Allow interactive agents to read records.",
+        rules: [ {
+          capability: "example.records@v1", operation: "example.records/read@v1",
+          role: "chat_planner", policy: :allow, resource_scope: {}, constraints: {}
+        } ]
+      )
     end
   end
 
@@ -42,6 +52,50 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
     expect(descriptor.redact(secret: "hidden", query: "select 1")).to eq(query: "select 1")
     expect(provider.permission_capability_descriptors).to be_frozen
     expect(provider.permission_resource_scopes).to be_frozen
+    expect(descriptor.role_recommendations).to eq("chat_planner" => :allow, "coworker" => :ask)
+  end
+
+
+  it "renders named presets as complete, inert permission rule drafts" do
+    preset = provider.permission_preset("interactive_observer")
+    draft = preset.render(
+      subject_selector_type: "role", subject_selector_id: "interactive_chat",
+      subject_repository_id: 12
+    ).sole
+
+    expect(draft).to include(
+      "capability" => "example.records@v1", "operation" => "example.records/read@v1",
+      "role" => "chat_planner", "policy" => "allow", "resource_scope" => {},
+      "constraints" => {}, "subject_selector_type" => "role",
+      "subject_selector_id" => "interactive_chat", "subject_repository_id" => 12
+    )
+    expect(provider.permission_presets).to eq("interactive_observer" => preset)
+    expect(provider.permission_presets).to be_frozen
+    expect(PermissionRule.count).to eq(0)
+  end
+
+  it "rejects incomplete, duplicate, or ineligible presets" do
+    expect do
+      provider.register_permission_preset(
+        name: "interactive_observer", label: "Duplicate", description: "Duplicate.",
+        rules: [ { capability: "example.records@v1", operation: "example.records/read@v1",
+          role: "chat_planner", policy: :allow, resource_scope: {}, constraints: {} } ]
+      )
+    end.to raise_error(ArgumentError, /already registered/)
+
+    expect do
+      provider.register_permission_preset(
+        name: "broken", label: "Broken", description: "Incomplete.", rules: [ { policy: :allow } ]
+      )
+    end.to raise_error(ArgumentError, /missing/)
+
+    expect do
+      provider.register_permission_preset(
+        name: "reviewer", label: "Reviewer", description: "Wrong role.",
+        rules: [ { capability: "example.records@v1", operation: "example.records/read@v1",
+          role: "reviewer", policy: :allow, resource_scope: {}, constraints: {} } ]
+      )
+    end.to raise_error(ArgumentError, /not eligible/)
   end
 
   it "rejects duplicate scopes, duplicate operations, and unknown scope references" do

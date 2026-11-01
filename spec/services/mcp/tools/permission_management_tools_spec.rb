@@ -41,6 +41,32 @@ RSpec.describe "permission management MCP tools" do
     )
   end
 
+  it "renders every preset rule for confirmation and applies none before confirmation" do
+    preset = Permissions::PermissionPreset.new(
+      name: "interactive_observer", label: "Interactive observer",
+      description: "Read-only interactive access.",
+      rules: [ {
+        capability: descriptor.capability, operation: descriptor.operation,
+        role: AgentRole::CHAT_PLANNER, policy: :allow, resource_scope: {}, constraints: {}
+      } ]
+    )
+    allow(Permissions::Catalog).to receive(:presets).and_return("interactive_observer" => preset)
+
+    response = Mcp::Tools::ApplyPermissionPresetTool.call(
+      server_context: context, subject_selector_type: "interactive_chat", preset: "interactive_observer"
+    )
+    pending = ChatPendingAction.find(body(response).fetch(:pending_action_id))
+
+    expect(PendingActions::ApplyPermissionPreset.new(pending).presentation_detail)
+      .to eq("ALLOW example.records/read@v1 for #{AgentRole::CHAT_PLANNER} (interactive_chat)")
+    expect(PermissionRule.count).to eq(0)
+
+    pending.confirm!(user: user)
+    expect(PermissionRule.active.sole).to have_attributes(
+      capability: descriptor.capability, operation: descriptor.operation, policy: "allow"
+    )
+  end
+
   it "creates confirmed deny rules and exposes them through the read API" do
     response = Mcp::Tools::DenyPermissionTool.call(
       server_context: context, role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
