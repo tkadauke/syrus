@@ -44,7 +44,8 @@ module ChatSessionLifecycle
         repository: repository,
         provider: chat_provider,
         content: content,
-        title_message_text: ChatGoalCommand.parse(text)&.then { |parsed| parsed.fetch(:args).presence if parsed.fetch(:action) == "start" }
+        title_message_text: ChatGoalCommand.parse(text)&.then { |parsed| parsed.fetch(:args).presence if parsed.fetch(:action) == "start" },
+        client_idempotency_key: params[:client_idempotency_key]
       ).call
       return result.chat_session
     end
@@ -68,7 +69,7 @@ module ChatSessionLifecycle
       if text.present?
         mentions = chat_session.resolve_mentions(text)
         turn_triggered = chat_session.should_trigger_agent?(mentions)
-        user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
+        user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, client_idempotency_key: params[:client_idempotency_key], skip_turn_trigger: !turn_triggered)
         chat_session.pin_chat_provider!
       end
     end
@@ -109,10 +110,12 @@ module ChatSessionLifecycle
   end
 
   def enqueue_chat_title(chat_session, user_message)
-    if (message_text = chat_title_message_text(user_message))
-      ChatTitleJob.perform_later(chat_session.id, user_message.id, message_text: message_text)
-    else
-      ChatTitleJob.perform_later(chat_session.id, user_message.id)
+    ActiveRecord.after_all_transactions_commit do
+      if (message_text = chat_title_message_text(user_message))
+        ChatTitleJob.perform_later(chat_session.id, user_message.id, message_text: message_text)
+      else
+        ChatTitleJob.perform_later(chat_session.id, user_message.id)
+      end
     end
   end
 
@@ -123,7 +126,9 @@ module ChatSessionLifecycle
     prompt = goal.prompt.to_s.strip
     return if prompt.blank?
 
-    ChatTitleJob.perform_later(chat_session.id, nil, message_text: prompt)
+    ActiveRecord.after_all_transactions_commit do
+      ChatTitleJob.perform_later(chat_session.id, nil, message_text: prompt)
+    end
   end
 
   def chat_title_message_text(user_message)
@@ -138,7 +143,9 @@ module ChatSessionLifecycle
   end
 
   def enqueue_chat_turn(chat_session, user_message)
-    ChatSessions::Creator.enqueue_turn(chat_session, user_message)
+    ActiveRecord.after_all_transactions_commit do
+      ChatSessions::Creator.enqueue_turn(chat_session, user_message)
+    end
   end
 
   def find_chat_session

@@ -45,7 +45,9 @@ class PollTelegramUpdatesJob < PlatformPollingJob
         platform: "telegram",
         external_id: from["id"].to_s,
         external_handle: from["username"],
-        message_text: text
+        message_text: text,
+        native_message_id: update["update_id"].to_s,
+        conversation_id: message.dig("chat", "id")&.to_s || from["id"].to_s
       ).call
 
       if result.status == :not_linked

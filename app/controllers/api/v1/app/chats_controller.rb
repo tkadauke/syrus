@@ -19,6 +19,7 @@ module Api
         include ChatSessionLifecycle
         include ChatLockErrors
         include ChatProposalOutcomeNotice
+        include ChatIngressIdempotency
 
         HIDDEN_CHATS_PAGE_SIZE = 20
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
@@ -313,7 +314,7 @@ module Api
           chat_session = create_chat_session
           return if performed?
 
-          Metrics::ProductUsage.record(:chat_created)
+          ActiveRecord.after_all_transactions_commit { Metrics::ProductUsage.record(:chat_created) }
           render json: {
             message: chat_session.messages.exists? ? "Message sent." : "Chat created.",
             redirect_to: chat_path(chat_session),
@@ -354,7 +355,7 @@ module Api
               last_message_at: Time.current,
               chat_provider: chat_provider || chat_session.chat_provider
             )
-            user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
+            user_message = chat_session.messages.create!(role: "user", content: content, mentions: mentions, sender_user_id: Current.user.id, client_idempotency_key: params[:client_idempotency_key], skip_turn_trigger: !turn_triggered)
             chat_session.pin_chat_provider!
           end
           chat_session.reload
@@ -362,7 +363,7 @@ module Api
             enqueue_chat_title(chat_session, title_message)
           end
           enqueue_chat_turn(chat_session, user_message) if turn_triggered
-          Metrics::ProductUsage.record(:chat_message_sent)
+          ActiveRecord.after_all_transactions_commit { Metrics::ProductUsage.record(:chat_message_sent) }
 
           if stream_request?
             stream_chat_turn(chat_session, user_message, turn_enqueued: turn_triggered)
@@ -565,7 +566,10 @@ module Api
           content = message_content(text)
           return if performed?
 
-          queued_message = chat_session.chat_queued_messages.create!(content: content)
+          queued_message = chat_session.chat_queued_messages.create!(
+            content: content.merge(ChatQueuedMessage::INTERNAL_SENDER_USER_ID_KEY => Current.user.id),
+            client_idempotency_key: params[:client_idempotency_key]
+          )
           chat_session.touch
           notice = "Message queued."
 
@@ -1779,9 +1783,11 @@ module Api
               content: locked_queued_message.promoted_content,
               mentions: promoted_role == "user" ? locked_chat.resolve_mentions(locked_queued_message.text) : [],
               sender_user_id: promoted_role == "user" ? Current.user.id : nil,
+              client_idempotency_key: locked_queued_message.client_idempotency_key,
               skip_turn_trigger: promoted_role == "user" && !trigger_turn
             )
             locked_queued_message.update!(delivered_at: Time.current)
+            link_ingress_receipt_to_promoted_message!(locked_queued_message, user_message)
             locked_chat.update!(
               last_message_at: Time.current,
               turn_in_flight: trigger_turn
@@ -1791,6 +1797,14 @@ module Api
           user_message
         end
 
+        def link_ingress_receipt_to_promoted_message!(queued_message, message)
+          return if queued_message.client_idempotency_key.blank?
+
+          ChatIngressReceipt.find_by(
+            sender_user_id: queued_message.promoted_sender_user_id,
+            idempotency_key: queued_message.client_idempotency_key
+          )&.update!(chat_message: message)
+        end
 
         def find_pending_action(chat_session)
           chat_session.pending_actions.find(params[:pending_action_id])

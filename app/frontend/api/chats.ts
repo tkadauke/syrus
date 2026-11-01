@@ -449,6 +449,7 @@ export type ChatMessageItem = {
   sidechain?: boolean
   parent_tool_use_id?: string | null
   cross_chat_bridge?: ChatCrossChatBridge | null
+  client_idempotency_key?: string
   coworker_sender?: ChatCoworkerAppearance | null
   coworker_receiver?: ChatCoworkerAppearance | null
 }
@@ -1348,9 +1349,16 @@ export function startOnboardingChat() {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats/onboarding")
 }
 
-export function sendChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = [], chatProvider?: string | null) {
+export function sendChatMessage(
+  path: string,
+  text: string,
+  attachments: ChatMessageAttachmentInput[] = [],
+  chatProvider?: string | null,
+  clientIdempotencyKey?: string
+) {
   return postJson<ChatPayload>(path, {
     ...(chatProvider ? { chat_provider: chatProvider } : {}),
+    ...(clientIdempotencyKey ? { client_idempotency_key: clientIdempotencyKey } : {}),
     ...chatMessagePayload(text, attachments)
   })
 }
@@ -1451,8 +1459,11 @@ export function shareChat(path: string) {
   return postJson<ShareChatPayload>(path)
 }
 
-export function enqueueChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = []) {
-  return postJson<ChatPayload>(path, chatMessagePayload(text, attachments))
+export function enqueueChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = [], clientIdempotencyKey?: string) {
+  return postJson<ChatPayload>(path, {
+    ...chatMessagePayload(text, attachments),
+    ...(clientIdempotencyKey ? { client_idempotency_key: clientIdempotencyKey } : {})
+  })
 }
 
 export function enqueueChatDraftMessage(path: string, draft: ChatDraftMessage) {

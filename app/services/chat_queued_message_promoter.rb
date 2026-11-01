@@ -30,10 +30,12 @@ class ChatQueuedMessagePromoter
         content: promoted_content_for(queued_messages),
         mentions: mentions,
         sender_user_id: queued_messages.one? ? queued_messages.first.promoted_sender_user_id : nil,
+        client_idempotency_key: queued_messages.one? ? queued_messages.first.client_idempotency_key : nil,
         skip_turn_trigger: promoted_role == "user" && !turn_triggered
       )
       delivered_at = Time.current
       queued_messages.each { |queued_message| queued_message.update!(delivered_at: delivered_at) }
+      link_ingress_receipt!(queued_messages.first, user_message) if queued_messages.one?
       chat.update!(
         last_message_at: Time.current,
         turn_in_flight: turn_triggered
@@ -46,6 +48,15 @@ class ChatQueuedMessagePromoter
   end
 
   private
+
+  def link_ingress_receipt!(queued_message, message)
+    return if queued_message.client_idempotency_key.blank?
+
+    ChatIngressReceipt.find_by(
+      sender_user_id: queued_message.promoted_sender_user_id,
+      idempotency_key: queued_message.client_idempotency_key
+    )&.update!(chat_message: message)
+  end
 
   # This batches only notices that already flow through chat_queued_messages.
   # Direct ChatWakeupFireJob turns keep their separate per-wakeup semantics.

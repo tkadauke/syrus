@@ -41,7 +41,7 @@ module ChatSessions
       end
     end
 
-    def initialize(user:, prompt:, repository: nil, provider: nil, title: nil, content: nil, title_message_text: nil)
+    def initialize(user:, prompt:, repository: nil, provider: nil, title: nil, content: nil, title_message_text: nil, client_idempotency_key: nil)
       @user = user
       @prompt = prompt.to_s
       @repository = repository
@@ -49,20 +49,25 @@ module ChatSessions
       @title = title.to_s.strip.presence
       @content = content || { "text" => @prompt }
       @title_message_text = title_message_text
+      @client_idempotency_key = client_idempotency_key
     end
 
     def call
       result = create_records
       if result.chat_session.title.blank?
-        ChatTitleJob.perform_later(result.chat_session.id, result.user_message.id, **title_job_options)
+        ActiveRecord.after_all_transactions_commit do
+          ChatTitleJob.perform_later(result.chat_session.id, result.user_message.id, **title_job_options)
+        end
       end
-      self.class.enqueue_turn(result.chat_session, result.user_message) if result.turn_triggered
+      if result.turn_triggered
+        ActiveRecord.after_all_transactions_commit { self.class.enqueue_turn(result.chat_session, result.user_message) }
+      end
       result
     end
 
     private
 
-    attr_reader :user, :prompt, :repository, :provider, :title, :content, :title_message_text
+    attr_reader :user, :prompt, :repository, :provider, :title, :content, :title_message_text, :client_idempotency_key
 
     def title_job_options
       title_message_text.present? ? { message_text: title_message_text } : {}
@@ -89,6 +94,7 @@ module ChatSessions
           content: content,
           mentions: mentions,
           sender_user_id: user.id,
+          client_idempotency_key: client_idempotency_key,
           skip_turn_trigger: !turn_triggered
         )
         chat_session.pin_chat_provider!(provider)

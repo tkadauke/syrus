@@ -136,7 +136,7 @@ import {
 } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
-import { clearInFlightComposerDraft, setInFlightComposerDraft } from "./inFlightComposerDraftStore"
+import { clearInFlightComposerDraft, getInFlightComposerDraft, setInFlightComposerDraft } from "./inFlightComposerDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -149,11 +149,13 @@ type SubmittedChatDraft = {
   composerText: string
   attachments: ChatComposeAttachment[]
   chatProvider?: string | null
+  clientIdempotencyKey: string
 }
 
 type ComposerDraftSnapshot = {
   composerText: string
   attachments: ChatComposeAttachment[]
+  clientIdempotencyKey?: string
 }
 
 type ComposerHistoryMode = {
@@ -448,8 +450,8 @@ export function Compose({
   }
 
   function finishSubmittedDraft(draft: ComposerDraftSnapshot, succeeded: boolean) {
-    if (!clearInFlightComposerDraft(chatId, draft)) return
-    if (succeeded) return
+    if (succeeded) return clearInFlightComposerDraft(chatId, draft)
+    if (getInFlightComposerDraft(chatId) !== draft) return false
 
     let storedText = ""
     try {
@@ -458,19 +460,24 @@ export function Compose({
       // Local storage can be unavailable in hardened browser modes.
     }
     const storedDraft = { composerText: storedText, attachments: getDraftAttachments(chatId) }
-    if (draftHasContent(currentDraftRef.current) || draftHasContent(storedDraft)) return
+    if (draftHasContent(currentDraftRef.current) || draftHasContent(storedDraft)) return true
 
     persistComposerDraft(draft)
     restoreComposerDraft(draft)
     window.dispatchEvent(new CustomEvent(CHAT_COMPOSER_DRAFT_RESTORED_EVENT, { detail: { chatId } }))
+    return true
   }
 
   function sendComposerDraft(composerText: string, messageText = slashCommandPrompt(composerText, slashCommandContext)) {
+    const previousAttempt = getInFlightComposerDraft(chatId)
+    const retryingPreviousAttempt =
+      previousAttempt?.composerText === composerText && JSON.stringify(previousAttempt.attachments) === JSON.stringify(attachments)
     const draft = {
       messageText,
       composerText,
       attachments,
-      chatProvider: newChatForm ? selectedChatProvider : null
+      chatProvider: newChatForm ? selectedChatProvider : null,
+      clientIdempotencyKey: retryingPreviousAttempt && previousAttempt.clientIdempotencyKey ? previousAttempt.clientIdempotencyKey : crypto.randomUUID()
     }
     submittedDraftRef.current = draft
     setInFlightComposerDraft(chatId, draft)
@@ -487,8 +494,14 @@ export function Compose({
   const send = useMutation({
     mutationFn: (draft: SubmittedChatDraft) =>
       agentActive
-        ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
-        : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments, draft.chatProvider),
+        ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments, draft.clientIdempotencyKey)
+        : sendChatMessage(
+            appendSearch(payload.paths.app_message_path, search),
+            draft.messageText,
+            draft.attachments,
+            draft.chatProvider,
+            draft.clientIdempotencyKey
+          ),
     onSuccess: (updated, draft) => {
       submittedDraftRef.current = null
       finishSubmittedDraft(draft, true)
@@ -501,10 +514,25 @@ export function Compose({
     },
     onError: (error, draft) => {
       submittedDraftRef.current = null
-      finishSubmittedDraft(draft, false)
-      onNotice(errorMessage(error, t("message_send_error")))
+      if (finishSubmittedDraft(draft, false)) onNotice(errorMessage(error, t("message_send_error")))
     }
   })
+  const resetSend = send.reset
+  useEffect(() => {
+    const inFlight = getInFlightComposerDraft(chatId)
+    if (!inFlight?.clientIdempotencyKey) return
+    if (!payload.messages.some((message) => message.client_idempotency_key === inFlight.clientIdempotencyKey)) return
+
+    clearInFlightComposerDraft(chatId, inFlight)
+    if (
+      currentDraftRef.current.composerText === inFlight.composerText &&
+      JSON.stringify(currentDraftRef.current.attachments) === JSON.stringify(inFlight.attachments)
+    )
+      clearComposerDraft()
+    submittedDraftRef.current = null
+    resetSend()
+    onNotice(null)
+  }, [chatId, payload.messages, onNotice, resetSend])
   const runShellCommand = useMutation({
     mutationFn: (input: { command: string; composerText: string }) => createChatShellCommand(chatId, input.command),
     onSuccess: (record, input) => {

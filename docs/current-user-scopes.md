@@ -133,6 +133,7 @@ per-user/private:
   - app/controllers/api/v1/app/chat_shell_commands_controller.rb
   - app/controllers/api/v1/app/chats_controller.rb
   - app/controllers/concerns/chat_goal_actions.rb
+  - app/controllers/concerns/chat_ingress_idempotency.rb
   - app/controllers/concerns/chat_index_payload.rb
   - app/controllers/concerns/chat_proposal_outcome.rb
   - app/controllers/concerns/chat_provider_options.rb
@@ -369,6 +370,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/preview_panels_controller.rb` | per-user/private | Panels are scoped by `PreviewPanel.accessible_to(Current.user)` — you can see a panel if you can see its chat. |
 | `app/controllers/concerns/chat_attachable_resolution.rb` | per-user/private | Attachable-resolution helpers (extracted from `ChatsController`) resolve a specific repository/job/document/epic through `Current.user`'s associations. |
 | `app/controllers/concerns/chat_attachment_search.rb` | per-user/private | Attachment-search helpers (extracted from `ChatsController`) scope candidate repositories/jobs/documents/epics through `Current.user`'s associations. |
+| `app/controllers/concerns/chat_ingress_idempotency.rb` | per-user/private | Chat submission receipts are claimed and replayed within the authenticated sender's `Current.user` scope, so one user's idempotency key cannot collide with another user's submission. |
 | `app/controllers/concerns/chat_index_payload.rb` | per-user/private | Chat index / recent-chats payload builders (extracted from `ChatsController`) list and group the current user's chat sessions through `Current.user.chat_sessions`. |
 | `app/controllers/concerns/chat_proposal_outcome.rb` | per-user/private | Proposal-outcome helpers (extracted from `ChatsController`) start a confirmed Epic as `Current.user` and build the confirmation/rejection notices. |
 | `app/controllers/concerns/chat_serialization.rb` | per-user/private | Chat JSON serializers (extracted from `ChatsController`) build the chat/message/attachment payloads, reading `Current.user` for unread state and ownership-scoped fields. |
