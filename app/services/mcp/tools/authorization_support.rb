@@ -61,8 +61,8 @@ module Mcp::Tools
         protected_path = protected_coworker_workspace_path?(context, descriptor, arguments)
         return if policy == "auto" && !protected_path || Thread.current[:coworker_tool_approval_bypass]
 
-        create_coworker_pending_action(context:, server_context:, tool_name: descriptor.tool_name,
-          arguments:, capability: descriptor.capability, always_pending: protected_path)
+        create_coworker_pending_action(context:, server_context:, descriptor:,
+          arguments:, always_pending: protected_path)
       end
 
       def protected_coworker_workspace_path?(context, descriptor, arguments)
@@ -95,20 +95,30 @@ module Mcp::Tools
         return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
         raise AuthorizationError unless context.granted_capabilities.include?(capability.to_s)
 
-        create_coworker_pending_action(context:, server_context:, tool_name:, arguments:, capability:, always_pending:)
+        descriptor = Mcp::CoworkerToolCatalog.resolve(tool_name, chat_session: context.chat_session)
+        raise AuthorizationError, "tool is not available to coworkers" unless descriptor&.capability.to_s == capability.to_s
+
+        create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending:)
       end
 
-      def create_coworker_pending_action(context:, server_context:, tool_name:, arguments:, capability:, always_pending: false)
-        policy = context.capability_approval_policies.fetch(capability.to_s, "queue")
+      def create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending: false)
+        policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
         policy = context.run? ? "queue" : "confirm" if always_pending && policy == "auto"
         return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
 
-        action = context.chat_session.pending_actions.create!(
+        capability_descriptor = if descriptor.tool
+          McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == descriptor.tool }&.descriptor
+        else
+          Permissions::CapabilityDescriptorAdapter.for_plugin_definition(descriptor.definition)
+        end
+        raise AuthorizationError, "tool has no permission descriptor" unless capability_descriptor
+
+        result = Permissions::CoworkerAuthorizationRequest.new(
+          context:, descriptor: capability_descriptor, arguments:,
+          purpose: "Invoke #{descriptor.tool_name}", invocation_policy: policy,
           action: "coworker_tool_call",
-          state: "pending",
-          requested_by: "agent",
           payload: {
-            "tool_name" => tool_name,
+            "tool_name" => descriptor.tool_name,
             "arguments" => arguments.stringify_keys,
             "run_id" => context.run&.id,
             "origin_message_id" => server_context[:current_message]&.id,
@@ -116,13 +126,16 @@ module Mcp::Tools
             "approval_inbox" => policy == "queue",
             "actor" => approval_actor(context.agent_actor)
           }.compact
-        )
+        ).call
+        return unless result.request
+
+        action = result.request
         server_context[:current_message]&.update_columns(pending_action_id: action.id)
         Mcp::Tools.success(
           pending_confirmation_id: action.id,
           pending_action_id: action.id,
           approval_policy: policy,
-          message: policy == "confirm" ? "Waiting for the owner to confirm this action." : "Queued for owner approval."
+          message: "Waiting for the owner to decide the required permissions."
         )
       end
 
