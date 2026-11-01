@@ -9,7 +9,10 @@ module ChatSessionLifecycle
   BRANCH_TITLE_SUFFIX = " (branch)".freeze
 
   def most_recent_chat_repository
-    recent_repo_id = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+    eligible_chats = Syrus::PluginRegistry.providers_for(:chat_repository_default_filter).reduce(Current.user.accessible_chat_sessions) do |scope, filter|
+      filter.apply(scope: scope)
+    end
+    recent_repo_id = invocation_scoped_chat_scope(eligible_chats)
       .joins(:repository_attachments)
       .order("chat_sessions.created_at DESC")
       .limit(1)
