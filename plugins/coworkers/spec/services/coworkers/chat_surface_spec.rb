@@ -281,10 +281,10 @@ RSpec.describe "Coworker chat surface" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
     coworker.grants.create!(capability: "workspace.files", approval_policy: "auto",
-      constraints: { "confirm_paths" => [ "SOUL.md" ] })
+      constraints: { "confirm_paths" => [ "./SOUL.md" ] })
 
     response = coworker_tool("write_coworker_file").call(
-      path: "SOUL.md", content: "changed", server_context: { chat_session: chat }
+      path: "memory/../SOUL.md", content: "changed", server_context: { chat_session: chat }
     )
 
     expect(response_payload(response)).to include("approval_policy" => "confirm")
