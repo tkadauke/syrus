@@ -166,7 +166,9 @@ class ChatPendingAction < ApplicationRecord
   before_validation :activate_authorization_deduplication
   before_update :release_terminal_deduplication, if: :will_save_change_to_state?
   after_create :record_creation_transition!
+  after_update :capture_outcome_transition, if: :saved_change_to_state?
   after_update :record_state_transition!, if: :saved_change_to_state?
+  after_rollback :clear_outcome_transition
   after_create_commit :broadcast_pending_action_created
   after_update_commit :broadcast_pending_action_state_updated, if: :broadcastable_state_change?
   after_update_commit :notify_chat_of_outcome
@@ -647,20 +649,41 @@ class ChatPendingAction < ApplicationRecord
   def notify_chat_of_outcome
     return unless chat_session
     return if suppress_outcome_notification
-    return unless saved_change_to_state?
-    return unless confirmed? || rejected? || cancelled?
+    return unless @outcome_state_to_notify
 
-    text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
+    outcome = @outcome_state_to_notify
+    text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: outcome)
     message = chat_session.messages.create!(
       role: "system",
-      content: { "text" => text, "source" => ChatPendingActionOutcomeNotification::SOURCE, "outcome" => state }
+      content: { "text" => text, "source" => ChatPendingActionOutcomeNotification::SOURCE, "outcome" => outcome }
     )
     chat_session.update!(last_message_at: Time.current)
     chat_session.pin_chat_provider!
     ChatTurnJob.perform_later(chat_session_id, message.id)
+  ensure
+    @outcome_state_to_notify = nil
+  end
+
+  # Creating the append-only transition row takes a lock on this record. That
+  # reloads it before the commit callbacks run and clears Active Record's
+  # saved-change tracking, so a commit guard based on saved_change_to_state?
+  # silently misses the outcome. Capture the terminal transition before the
+  # audit callback and consume it exactly once after commit instead.
+  def capture_outcome_transition
+    self_state = saved_change_to_state&.last
+    return unless self_state.in?(%w[confirmed rejected cancelled])
+
+    @outcome_state_to_notify = self_state
+    @outcome_state_to_broadcast = self_state
+  end
+
+  def clear_outcome_transition
+    @outcome_state_to_notify = nil
+    @outcome_state_to_broadcast = nil
   end
 
   def broadcastable_state_change?
+    return true if @outcome_state_to_broadcast
     return true if saved_change_to_state? && state.in?(%w[confirming confirmed rejected cancelled failed])
 
     saved_change_to_execution_status? || saved_change_to_execution_step? || saved_change_to_execution_error?
@@ -672,6 +695,8 @@ class ChatPendingAction < ApplicationRecord
 
   def broadcast_pending_action_state_updated
     broadcast_pending_action_updated
+  ensure
+    @outcome_state_to_broadcast = nil
   end
 
   def broadcast_pending_action_updated
