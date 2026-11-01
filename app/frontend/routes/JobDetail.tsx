@@ -116,6 +116,7 @@ import {
 } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
+import { UnlandPlanConfirmation } from "../components/UnlandPlanConfirmation"
 import { normalizeJobDetailPayload } from "../lib/entityStore"
 import { useConfirm } from "../hooks/useConfirm"
 
@@ -293,19 +294,34 @@ export function JobDetailView({
       const path = payload.paths.app_unland_path
       if (!path) return null
       const plan = await fetchJobUnlandPlan(path)
-      const sections = [
-        t("unland_confirm_subject", { subject: plan.subject }),
+      const details = [
         t("unland_confirm_commits", { commits: plan.commits.join(", ") }),
         t("unland_confirm_files", { files: plan.files.join(", ") }),
         t("unland_confirm_dependents", { dependents: plan.dependents.join(", ") || t("none") }),
         t("unland_confirm_deployment", {
-          stages: Object.entries(plan.deployment_stages).map(([job, stages]) => `${job}: ${stages.join(", ")}`).join("; ") || t("none")
+          stages:
+            Object.entries(plan.deployment_stages)
+              .map(([job, stages]) => `${job}: ${stages.join(", ")}`)
+              .join("; ") || t("none")
         }),
-        t("unland_confirm_graders", { graders: plan.graders.join(", ") || t("none") }),
-        t("unland_confirm_deploy_warning"),
-        ...(plan.warnings.length ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : [])
+        t("unland_confirm_graders", { graders: plan.graders.join(", ") || t("none") })
       ]
-      if (!(await confirmUnland({ message: sections.join("\n\n"), destructive: true }))) return null
+      const subject = t("unland_confirm_subject", { subject: plan.subject })
+      if (
+        !(await confirmUnland({
+          message: subject,
+          content: (
+            <UnlandPlanConfirmation
+              subject={subject}
+              details={details}
+              deploymentWarning={t("unland_confirm_deploy_warning")}
+              warnings={plan.warnings.length ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : []}
+            />
+          ),
+          destructive: true
+        }))
+      )
+        return null
       return startJobUnland(path)
     },
     onSuccess: (result) => {

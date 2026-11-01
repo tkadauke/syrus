@@ -372,6 +372,7 @@ describe("EpicDetail unland preflight", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unland Epic" }))
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("EPIC-3, JOB-4")
+    expect(screen.getByRole("dialog").querySelectorAll("li")).toHaveLength(6)
     expect(screen.getByRole("dialog")).toHaveTextContent("JOB-9")
     expect(screen.getByRole("dialog")).toHaveTextContent("production")
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/epics/3/unland", expect.objectContaining({ credentials: "same-origin" }))

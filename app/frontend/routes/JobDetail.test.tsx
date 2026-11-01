@@ -5961,15 +5961,25 @@ describe("Job unland controls", () => {
     const payload = jobPayload()
     payload.job = { ...payload.job, state: "closed", summary_state: "closed", unland: { state: "landed", rollback_job: null } }
     payload.actions = { ...payload.actions, can_unland: true }
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      subject: "JOB-1", affected: ["JOB-1"], base_sha: "base", commits: ["abc123"], files: ["app/a.rb"],
-      dependents: ["JOB-9"], deployment_stages: { "JOB-1": ["production"] }, warnings: ["Deployment reached"], graders: ["smoke"]
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        subject: "JOB-1",
+        affected: ["JOB-1"],
+        base_sha: "base",
+        commits: ["abc123"],
+        files: ["app/a.rb"],
+        dependents: ["JOB-9"],
+        deployment_stages: { "JOB-1": ["production"] },
+        warnings: ["Deployment reached"],
+        graders: ["smoke"]
+      })
+    )
 
     renderJobDetail(payload)
     fireEvent.click(screen.getByRole("button", { name: "Unland Job" }))
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("abc123")
+    expect(screen.getByRole("dialog").querySelectorAll("li")).toHaveLength(5)
     expect(screen.getByRole("dialog")).toHaveTextContent("smoke")
     expect(screen.getByRole("dialog")).toHaveTextContent("does not automatically roll back")
     expect(fetchSpy).toHaveBeenCalledTimes(1)
