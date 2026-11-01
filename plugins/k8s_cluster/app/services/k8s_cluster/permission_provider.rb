@@ -6,6 +6,10 @@ module K8sCluster
     ASK_DEFAULTS = ROLES.index_with { :ask }.freeze
     OBSERVE_DURATIONS = %i[invocation chat_session job].freeze
     SECRET_DURATIONS = %i[invocation chat_session].freeze
+    NAMESPACED_KINDS = %w[
+      pod pod_logs deployment statefulset daemonset job service ingress configmap
+      secret event persistent_volume_claim cronjob metrics
+    ].freeze
 
     class << self
       def kubernetes_scope(kind)
@@ -13,10 +17,14 @@ module K8sCluster
           options: { hierarchy: %w[cluster_id namespace kind name] },
           lookup: method(:lookup_cluster),
           normalize: ->(scope, context:) { normalize_scope(scope, kind:) },
-          validate: method(:validate_scope),
+          validate: ->(scope, context:) { validate_scope(scope, kind:) },
           label: method(:scope_label),
           compare: method(:compare_scopes)
         }
+      end
+
+      def raw_scope
+        kubernetes_scope(:raw).merge(lookup: method(:lookup_credential))
       end
 
       def lookup_cluster(identifier, context:)
@@ -25,6 +33,15 @@ module K8sCluster
 
         credential = ClusterCredential.credential_for(cluster)
         cluster if AgenticAccess.usable_by?(cluster, context[:mcp_context], credential: credential)
+      end
+
+      def lookup_credential(identifier, context:)
+        credential = CredentialStore::Broker.resolve_credential!(
+          context: context.fetch(:mcp_context), credential_ref: identifier
+        )
+        credential if credential.active? && credential.credential_type == ClusterCredential::CREDENTIAL_TYPE
+      rescue CredentialStore::Broker::Error
+        nil
       end
 
       def normalize_scope(scope, kind:)
@@ -41,10 +58,16 @@ module K8sCluster
         Integer(value, exception: false) || value.to_s
       end
 
-      def validate_scope(scope, context:)
+      def validate_scope(scope, kind:)
         errors = []
         errors << "namespace requires cluster_id" if scope["namespace"].present? && scope["cluster_id"].blank?
         errors << "name requires cluster_id" if scope["name"].present? && scope["cluster_id"].blank?
+        if scope["name"].present? && NAMESPACED_KINDS.include?(kind.to_s) && scope["namespace"].blank?
+          errors << "name requires namespace for #{kind}"
+        end
+        if scope["namespace"].present? && %i[cluster node].include?(kind.to_sym)
+          errors << "namespace is not valid for #{kind}"
+        end
         errors
       end
 
@@ -77,6 +100,7 @@ module K8sCluster
           value["args"] = Array(source[:args]).map(&:to_s) if source.key?(:args)
           value["replicas"] = source[:replicas] if source.key?(:replicas)
           value["cordoned"] = source[:cordoned] if source.key?(:cordoned)
+          value["allow_secret_output"] = source[:allow_secret_output] if source.key?(:allow_secret_output)
         end
       end
 
@@ -92,8 +116,9 @@ module K8sCluster
       end
     end
 
-    RESOURCE_KINDS = %i[cluster namespace node pod pod_logs deployment statefulset daemonset job service ingress configmap secret event persistent_volume_claim cronjob metrics raw].freeze
+    RESOURCE_KINDS = %i[cluster namespace node pod pod_logs deployment statefulset daemonset job service ingress configmap secret event persistent_volume_claim cronjob metrics].freeze
     RESOURCE_KINDS.each { |kind| register_resource_scope(kind, **kubernetes_scope(kind)) }
+    register_resource_scope(:raw, **raw_scope)
 
     OBSERVE_OPERATIONS = {
       "k8s.cluster/list@v1" => :cluster,
