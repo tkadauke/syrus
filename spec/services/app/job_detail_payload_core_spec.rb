@@ -26,6 +26,21 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     queries
   end
 
+  it "serializes authorization requests associated with the Job" do
+    job = Factories.job_record(user: user, repository: repo)
+    request = ChatPendingAction.create!(request_kind: "authorization_request", user:, repository: repo,
+      origin: job, subject: user, purpose: "Publish scheduled update", deduplication_key: "scheduled:publish")
+    request.authorization_items.create!(kind: "operation", capability: "records.write@v1",
+      capability_version: 1, operation: "records.write/publish@v1", operation_version: 1,
+      resource_type: "none", invocation_fingerprint: "fingerprint")
+    request.occurrences.create!(origin: job, metadata: {})
+
+    expect(payload_for(job).fetch(:authorization_requests)).to contain_exactly(include(
+      id: request.id, purpose: "Publish scheduled update",
+      items: [ include(operation: "records.write/publish@v1", state: "pending") ]
+    ))
+  end
+
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil)
     primary = member_jobs.first
     intent = WorkIntent.create!(

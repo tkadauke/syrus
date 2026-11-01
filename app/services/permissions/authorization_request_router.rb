@@ -17,6 +17,7 @@ module Permissions
     def self.route!(**attributes) = new(**attributes).route!
 
     def initialize(user:, repository:, origin:, subject:, runtime_role:, deduplication_key:, purpose:,
+      occurrence_origin: origin,
       capability:, operation:, item_attributes:, occurrence_metadata: {}, now: Time.current)
       @request_attributes = {
         user:, repository:, origin:, subject:, runtime_role:, deduplication_key:, purpose:
@@ -25,12 +26,16 @@ module Permissions
       @operation = operation.to_s
       @item_attributes = item_attributes
       @occurrence_metadata = occurrence_metadata
+      @occurrence_origin = occurrence_origin
       @now = now
     end
 
     def route!
       subject.with_lock do
-        return Result.new(request: recent_denied_request, status: :denial_cooldown) if recent_denied_request
+        if (request = recent_denied_request)
+          associate!(request)
+          return Result.new(request:, status: :denial_cooldown)
+        end
 
         if (request = ChatPendingAction.find_equivalent(deduplication_key))
           associate!(request)
@@ -58,7 +63,7 @@ module Permissions
     def deduplication_key = @request_attributes.fetch(:deduplication_key)
 
     def associate!(request)
-      request.occurrences.create_or_find_by!(origin:) do |occurrence|
+      request.occurrences.create_or_find_by!(origin: @occurrence_origin) do |occurrence|
         occurrence.metadata = @occurrence_metadata
       end
     end

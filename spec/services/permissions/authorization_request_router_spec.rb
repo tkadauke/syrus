@@ -48,7 +48,8 @@ RSpec.describe Permissions::AuthorizationRequestRouter, :ci_only do
     expect(result.status).to eq(:denial_cooldown)
     expect(result.request).to eq(first.request)
     expect(result).to be_continue_ungated
-    expect(first.request.occurrences.count).to eq(1)
+    expect(first.request.occurrences.count).to eq(2)
+    expect(second_origin.related_authorization_requests).to contain_exactly(first.request)
   end
 
   it "caps active requests for the same subject and capability" do
