@@ -19,6 +19,15 @@ module Admin
     TOOL_CARD_SPREAD_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)(?:\s*:\s*[^=]+)?\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s*\{[\s\S]*?\.\.\.\1\b/
     EXPLICIT_CARD_STATUSES = {
       "withdraw_pending_action" => "generic",
+      "list_permissions" => "generic",
+      "explain_permission" => "generic",
+      "grant_permission" => "generic",
+      "deny_permission" => "generic",
+      "revoke_permission" => "generic",
+      "create_permission_lease" => "generic",
+      "revoke_permission_lease" => "generic",
+      "apply_permission_preset" => "generic",
+      "cancel_authorization_request" => "generic",
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",

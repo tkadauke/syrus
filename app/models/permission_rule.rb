@@ -69,7 +69,22 @@ class PermissionRule < ApplicationRecord
     update!(attributes.merge(updated_by_user: actor))
   end
 
+  def to_policy_rule
+    Permissions::PolicyRule.new(
+      id: "permission-rule-#{id}", layer: policy_layer, policy:, source: "permission_rule",
+      capability:, operation:, resource_scope:, selectors: subject_selectors,
+      delegable:, rationale:
+    )
+  end
+
   private
+
+  def subject_selectors
+    { subject_selector_type: }.tap do |selectors|
+      selectors[:subject_selector_id] = subject_selector_id if subject_selector_id.present?
+      selectors[:subject_repository_id] = subject_repository_id if subject_repository_id.present?
+    end
+  end
 
   def canonicalize_json_objects
     self.resource_scope = canonicalize_json(resource_scope) if resource_scope.is_a?(Hash)
