@@ -53,6 +53,26 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
       .to raise_error(KeyError)
   end
 
+  it "registers scope migrations and validates upgrades through the public provider API" do
+    migration = provider.migrate_permission_scope(
+      from_operation: "legacy.records/read@v1",
+      to_operation: "example.records/read@v1",
+      with: ->(scope, context:) { scope }
+    )
+
+    expect(provider.permission_scope_migrations).to contain_exactly(migration)
+    expect(provider.permission_scope_migrations).to be_frozen
+    expect { provider.migrate_permission_scope(
+      from_operation: "legacy.records/read@v1",
+      to_operation: "example.records/read@v1",
+      with: ->(scope, context:) { scope }
+    ) }.to raise_error(ArgumentError, /already registered/)
+    provider.retire_permission_identifier("example.records/read@v1")
+    expect(provider.retired_permission_identifiers).to eq([ "example.records/read@v1" ])
+    expect { provider.validate_permission_upgrade!(previous_descriptors: []) }
+      .to raise_error(Permissions::CapabilityUpgradeValidator::ValidationError, /retired capability identifier/)
+  end
+
   def capability_attributes(resource_scope:)
     {
       capability: "other.records@v1", operation: "other.records/read@v1", effects: [ :network_read ], risk: :low,

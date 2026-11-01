@@ -984,6 +984,14 @@ ceilings, resource scope, classification, fingerprint normalization, and
 redaction hooks. A renamed identifier remains listed in `capability_aliases`
 or `operation_aliases`; aliases are versioned, cannot repeat the canonical
 identifier, and may resolve to only one canonical identifier registry-wide.
+When a new descriptor version changes the normalized resource-scope shape, the
+permission provider must also register `migrate_permission_scope` with the old
+and new operation keys and a deterministic transform. Providers validate an
+upgrade with `validate_permission_upgrade!`; it rejects broader effects,
+defaults, eligible roles, autonomy, durations, or risk under an existing
+identity. Removing a key requires an alias, a scope migration, or a durable
+`retire_permission_identifier` declaration. Retired keys remain reserved and
+cannot later be reused as canonical identifiers or aliases.
 Diagnostics identify the plugin provider, surface, and tool when mappings or
 descriptor contracts conflict. Pre-contract definitions retain conservative
 compatibility descriptors behind a frozen per-provider CI baseline; changing
