@@ -360,6 +360,7 @@
     "visual_diff_obsolete": "Vergleich nicht mehr nötig",
     "preempted": "Verdrängt",
     "landing_paused": "Landing pausiert",
+    "patient_rebase_waiting_for_active_workflow": "Rebase wartet auf aktiven Workflow",
     "coworker_turn_in_flight": "Coworker-Unterhaltung läuft"
   },
   "start_blocked_reason_tooltips": {
@@ -387,6 +388,7 @@
     "visual_diff_obsolete": "Der Job hat den Zustand überschritten, für den dieser Vergleich eingeplant war.",
     "preempted": "Eine Arbeitseinheit mit höherer Priorität hat diese ersetzt.",
     "landing_paused": "Landing ist für dieses Repository pausiert.",
+    "patient_rebase_waiting_for_active_workflow": "Dieser automatische Rebase wartet, bis der aktive Branch-Push-Workflow abgeschlossen ist.",
     "coworker_turn_in_flight": "Dieser Hintergrundlauf wartet, bis die aktive Unterhaltung des Coworkers beendet ist."
   },
   "admission_diagnostics_link": "Druckdiagnose anzeigen",

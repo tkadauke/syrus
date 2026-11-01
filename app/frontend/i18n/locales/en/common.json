@@ -360,6 +360,7 @@
     "visual_diff_obsolete": "Comparison no longer needed",
     "preempted": "Preempted",
     "landing_paused": "Landing paused",
+    "patient_rebase_waiting_for_active_workflow": "Rebase waiting on active workflow",
     "coworker_turn_in_flight": "Coworker turn in progress"
   },
   "start_blocked_reason_tooltips": {
@@ -387,6 +388,7 @@
     "visual_diff_obsolete": "The job moved past the state this comparison was queued for.",
     "preempted": "A higher-priority work unit replaced this one.",
     "landing_paused": "Landing is paused for this repository.",
+    "patient_rebase_waiting_for_active_workflow": "This automatic rebase is waiting for the active branch-pushing workflow to finish.",
     "coworker_turn_in_flight": "This background run is waiting for the coworker's active chat turn to finish."
   },
   "admission_diagnostics_link": "View pressure diagnostics",

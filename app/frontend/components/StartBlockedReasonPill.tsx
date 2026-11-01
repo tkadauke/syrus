@@ -37,6 +37,7 @@ type StartBlockedReason =
   | "main_branch_broken"
   | "workflow_admission_budget"
   | "landing_paused"
+  | "patient_rebase_waiting_for_active_workflow"
   | "coworker_turn_in_flight"
 
 const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
@@ -64,6 +65,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   main_branch_broken: "red",
   workflow_admission_budget: "amber",
   landing_paused: "gray",
+  patient_rebase_waiting_for_active_workflow: "gray",
   coworker_turn_in_flight: "gray"
 }
 
