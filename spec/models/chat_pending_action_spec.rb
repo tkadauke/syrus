@@ -909,7 +909,7 @@ RSpec.describe ChatPendingAction, :ci_only do
       expect {
         action.confirm!
       }.to change { chat_session.messages.where(role: "system").count }.by(1)
-        .and have_enqueued_job(ChatTurnJob)
+        .and have_enqueued_job(ChatTurnJob).with(chat_session.id, kind_of(Integer)).once
 
       message = chat_session.messages.where(role: "system").last
       expect(message.content["source"]).to eq(ChatPendingActionOutcomeNotification::SOURCE)
@@ -924,7 +924,7 @@ RSpec.describe ChatPendingAction, :ci_only do
       expect {
         action.reject!
       }.to change { chat_session.messages.where(role: "system").count }.by(1)
-        .and have_enqueued_job(ChatTurnJob)
+        .and have_enqueued_job(ChatTurnJob).with(chat_session.id, kind_of(Integer)).once
 
       message = chat_session.messages.where(role: "system").last
       expect(message.content["outcome"]).to eq("rejected")
@@ -938,21 +938,42 @@ RSpec.describe ChatPendingAction, :ci_only do
       expect {
         action.cancel!
       }.to change { chat_session.messages.where(role: "system").count }.by(1)
-        .and have_enqueued_job(ChatTurnJob)
+        .and have_enqueued_job(ChatTurnJob).with(chat_session.id, kind_of(Integer)).once
 
       message = chat_session.messages.where(role: "system").last
       expect(message.content["outcome"]).to eq("cancelled")
       expect(message.content["text"]).to include("dismissed")
     end
 
-    it "does not enqueue ChatTurnJob when state does not change" do
+    it "does not notify when execution status changes without a terminal state change" do
       allow(AppEvents).to receive(:broadcast)
       action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
-      action.confirm!
 
+      message_count = chat_session.messages.where(role: "system").count
       expect {
-        action.update!(updated_at: Time.current)
+        action.update!(execution_status: "running", execution_step: "Applying...")
       }.not_to have_enqueued_job(ChatTurnJob)
+      expect(chat_session.messages.where(role: "system").count).to eq(message_count)
+    end
+
+    it "clears a captured outcome when the transaction rolls back" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+
+      message_count = chat_session.messages.where(role: "system").count
+      expect {
+        described_class.transaction do
+          action.update!(state: "rejected", rejected_at: Time.current)
+          raise ActiveRecord::Rollback
+        end
+      }.not_to have_enqueued_job(ChatTurnJob)
+      expect(chat_session.messages.where(role: "system").count).to eq(message_count)
+
+      expect(action.reload).to be_pending
+      expect {
+        action.update!(execution_status: "running")
+      }.not_to have_enqueued_job(ChatTurnJob)
+      expect(chat_session.messages.where(role: "system").count).to eq(message_count)
     end
 
     it "includes the job_id detail for job-scoped actions" do
