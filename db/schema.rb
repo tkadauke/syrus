@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_040512) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_043159) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -547,7 +547,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_040512) do
     t.string "action"
     t.string "action_type"
     t.datetime "cancelled_at"
-    t.integer "chat_session_id", null: false
+    t.integer "chat_session_id"
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
     t.json "payload", null: false
@@ -570,15 +570,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_040512) do
     t.datetime "execution_started_at"
     t.datetime "execution_finished_at"
     t.bigint "pending_action_group_id"
+    t.string "origin_type"
+    t.integer "origin_id"
+    t.string "subject_type"
+    t.integer "subject_id"
+    t.string "request_kind", default: "legacy_action", null: false
+    t.string "runtime_role"
+    t.string "deduplication_key"
+    t.boolean "deduplication_active"
+    t.text "purpose"
+    t.text "non_actionable_reason"
+    t.datetime "non_actionable_at"
+    t.string "delivery_state"
+    t.integer "delivery_attempts", default: 0, null: false
+    t.datetime "delivered_at"
+    t.text "last_delivery_error"
+    t.json "delivery_metadata", null: false
     t.index ["chat_message_id"], name: "index_chat_pending_actions_on_chat_message_id"
     t.index ["chat_session_id", "state", "confirmed_at"], name: "idx_chat_pending_actions_payload_confirmed"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
     t.index ["chat_session_id", "state"], name: "index_chat_pending_actions_on_chat_session_id_and_state"
     t.index ["chat_session_id", "tool_use_id"], name: "index_chat_pending_actions_on_session_and_tool_use_id"
     t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
+    t.index ["deduplication_key", "deduplication_active"], name: "idx_pending_actions_active_deduplication", unique: true
+    t.index ["delivery_state", "created_at"], name: "idx_pending_actions_delivery"
+    t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
     t.index ["pending_action_group_id"], name: "index_chat_pending_actions_on_pending_action_group_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
     t.index ["result_type", "result_id"], name: "index_chat_pending_actions_on_result_type_and_result_id"
+    t.index ["state", "non_actionable_at"], name: "idx_pending_actions_actionability"
+    t.index ["subject_type", "subject_id"], name: "index_chat_pending_actions_on_subject"
     t.index ["user_id"], name: "index_chat_pending_actions_on_user_id"
   end
 
@@ -2622,6 +2643,69 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_040512) do
     t.index ["chat_session_id"], name: "index_pending_action_groups_on_chat_session_id"
     t.index ["repository_id"], name: "index_pending_action_groups_on_repository_id"
     t.index ["user_id"], name: "index_pending_action_groups_on_user_id"
+  end
+
+  create_table "pending_action_item_prerequisites", force: :cascade do |t|
+    t.integer "pending_action_item_id", null: false
+    t.integer "prerequisite_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["pending_action_item_id", "prerequisite_id"], name: "idx_pending_action_item_prerequisites_unique", unique: true
+    t.index ["prerequisite_id"], name: "index_pending_action_item_prerequisites_on_prerequisite_id"
+  end
+
+  create_table "pending_action_items", force: :cascade do |t|
+    t.integer "chat_pending_action_id", null: false
+    t.string "kind", null: false
+    t.string "state", default: "pending", null: false
+    t.string "capability", null: false
+    t.integer "capability_version", default: 1, null: false
+    t.string "operation"
+    t.integer "operation_version"
+    t.string "resource_type", null: false
+    t.json "resource_scope", null: false
+    t.json "normalized_arguments", null: false
+    t.string "invocation_fingerprint"
+    t.json "effects", null: false
+    t.string "risk"
+    t.string "classifier_confidence"
+    t.json "policy_chain", null: false
+    t.json "decisive_rule", null: false
+    t.text "purpose"
+    t.json "requested_durations", null: false
+    t.string "selected_duration"
+    t.string "decision_principal_type"
+    t.integer "decision_principal_id"
+    t.string "resulting_authority_type"
+    t.integer "resulting_authority_id"
+    t.datetime "decided_at"
+    t.text "decision_reason"
+    t.datetime "non_actionable_at"
+    t.text "non_actionable_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_pending_action_id", "state"], name: "idx_pending_action_items_request_state"
+    t.index ["chat_pending_action_id"], name: "index_pending_action_items_on_chat_pending_action_id"
+    t.index ["decision_principal_type", "decision_principal_id"], name: "index_pending_action_items_on_decision_principal"
+    t.index ["invocation_fingerprint"], name: "index_pending_action_items_on_invocation_fingerprint"
+    t.index ["resulting_authority_type", "resulting_authority_id"], name: "index_pending_action_items_on_resulting_authority"
+  end
+
+  create_table "pending_action_transitions", force: :cascade do |t|
+    t.integer "chat_pending_action_id", null: false
+    t.integer "pending_action_item_id"
+    t.integer "sequence", null: false
+    t.string "event_type", null: false
+    t.string "from_state"
+    t.string "to_state", null: false
+    t.string "actor_type"
+    t.integer "actor_id"
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.index ["actor_type", "actor_id"], name: "index_pending_action_transitions_on_actor"
+    t.index ["chat_pending_action_id", "sequence"], name: "idx_pending_action_transitions_sequence", unique: true
+    t.index ["chat_pending_action_id"], name: "index_pending_action_transitions_on_chat_pending_action_id"
+    t.index ["pending_action_item_id", "created_at"], name: "idx_pending_action_item_transitions"
+    t.index ["pending_action_item_id"], name: "index_pending_action_transitions_on_pending_action_item_id"
   end
 
   create_table "performance_log_events", force: :cascade do |t|

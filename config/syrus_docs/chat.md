@@ -112,6 +112,20 @@ a delayed worker-pruning decision cannot cause full-rate polling indefinitely.
 
 ## Grouped pending actions
 
+Pending actions are also the durable, surface-neutral foundation for
+authorization requests. A legacy chat action still belongs to its chat and
+uses the same confirm/reject behavior, but an authorization request may instead
+originate from a Job, Workflow, Run, Step, schedule, or another registered
+surface without owning a chat. Such a request records its polymorphic origin
+and subject, runtime role, stable deduplication key, purpose, actionability,
+and delivery attempts. It contains independently decidable capability or
+operation items; prerequisite edges prevent an invocation from becoming ready
+until every required item is approved. Resource removal or failed
+revalidation makes the request and its unresolved items non-actionable without
+turning that outcome into a deny decision. Request and item state changes are
+recorded as append-only transitions so dismissal and delivery never erase the
+authorization history.
+
 A `PendingActionGroup` links several `ChatPendingAction` rows created
 together as one batch (e.g. reopening every Job a bad merge-train landing
 incorrectly closed) so the chat renders them as a single card instead of one
