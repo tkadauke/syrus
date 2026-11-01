@@ -182,6 +182,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:id/diff` | `api/v1/app/jobs#diff` |
 | core | GET | `/api/v1/app/jobs/:id/source` | `api/v1/app/jobs#source` |
 | core | GET | `/api/v1/app/jobs/:id/source_diff` | `api/v1/app/jobs#source_diff` |
+| core | GET | `/api/v1/app/jobs/:id/source_file_diff` | `api/v1/app/jobs#source_file_diff` |
+| core | GET | `/api/v1/app/jobs/:id/source_file_diff_download` | `api/v1/app/jobs#source_file_diff_download` |
 | core | GET | `/api/v1/app/jobs/:id/source_image` | `api/v1/app/jobs#source_image` |
 | core | GET | `/api/v1/app/jobs/:id/timeline` | `api/v1/app/jobs#timeline` |
 | core | GET | `/api/v1/app/jobs/:id/transcript` | `api/v1/app/jobs#transcript` |

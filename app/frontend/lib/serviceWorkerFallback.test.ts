@@ -1,22 +1,16 @@
 import { describe, expect, it, beforeAll } from "vitest"
-import { readFileSync } from "node:fs"
-import path from "node:path"
+import template from "../../views/pwa/service_worker.js.erb?raw"
 
 // Exercises the policy the worker actually ships rather than a transcription
 // of it: the ERB template is read from disk, its ERB tags stripped, and the
 // script evaluated against a stub `self`. If the worker's rules change, these
 // change with it -- which is the whole point, because the failure this guards
 // against is a 502 reaching an installed PWA that has no way to retry.
-type FallbackPolicy = (
-  request: { mode?: string } | null,
-  response: { status: number } | null,
-  error: unknown
-) => boolean
+type FallbackPolicy = (request: { mode?: string } | null, response: { status: number } | null, error: unknown) => boolean
 
 let shouldServeFallback: FallbackPolicy
 
 beforeAll(() => {
-  const template = readFileSync(path.join(__dirname, "../../views/pwa/service_worker.js.erb"), "utf8")
   const source = template.replace(/<%=.*?%>/g, "stub")
   const scope: Record<string, unknown> = {}
   // The worker's top level only defines things and calls addEventListener, so
@@ -38,7 +32,7 @@ beforeAll(() => {
 
 describe("service worker fallback policy", () => {
   it("serves the fallback for a navigation that hits a gateway error", () => {
-    for (const status of [ 502, 503, 504 ]) {
+    for (const status of [502, 503, 504]) {
       expect(shouldServeFallback({ mode: "navigate" }, { status }, null)).toBe(true)
     }
   })
@@ -54,7 +48,7 @@ describe("service worker fallback policy", () => {
   })
 
   it("passes successful navigations through untouched", () => {
-    for (const status of [ 200, 302, 404 ]) {
+    for (const status of [200, 302, 404]) {
       expect(shouldServeFallback({ mode: "navigate" }, { status }, null)).toBe(false)
     }
   })
@@ -62,14 +56,13 @@ describe("service worker fallback policy", () => {
   // Asset and API requests must never be intercepted — that is what keeps a
   // digested bundle from being pinned to a build that no longer exists.
   it("never intercepts anything that is not a navigation", () => {
-    for (const mode of [ "cors", "no-cors", "same-origin" ]) {
+    for (const mode of ["cors", "no-cors", "same-origin"]) {
       expect(shouldServeFallback({ mode }, { status: 502 }, null)).toBe(false)
       expect(shouldServeFallback({ mode }, null, new Error("offline"))).toBe(false)
     }
   })
 
   it("caches nothing but the fallback document", () => {
-    const template = readFileSync(path.join(__dirname, "../../views/pwa/service_worker.js.erb"), "utf8")
     // One cache.add, of the fallback, and no precache manifest or asset globs.
     expect(template.match(/cache\.add/g) ?? []).toHaveLength(1)
     expect(template).not.toMatch(/addAll|\.css|\.js["']|assets\//)
