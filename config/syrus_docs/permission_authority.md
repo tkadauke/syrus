@@ -39,3 +39,13 @@ duration and delegation ceilings. A management request can therefore never
 use the permission it is attempting to create to authorize itself. Durable
 rules keep append-only audit events, and revoking either a rule or lease also
 invalidates its unclaimed authorized invocations.
+
+## Compound coworker requests
+
+A gated coworker invocation evaluates the named coworker's possession of the
+capability family and the attempted operation in one pass. Missing possession
+and exact-invocation approval become independently decidable items on one
+generalized pending action. The operation item depends on possession, stores a
+redacted argument snapshot and stable invocation fingerprint, and defaults to
+invocation-only authority. Equivalent active requests deduplicate, preserving
+one interruption for one attempted operation.
