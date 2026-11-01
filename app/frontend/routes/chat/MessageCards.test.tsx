@@ -16,7 +16,6 @@ import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, Ch
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 import i18n from "../../i18n"
-import { accentDark, accentRamp } from "../../lib/appearance"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -289,10 +288,12 @@ describe("coworker messages", () => {
     expect(message).toHaveTextContent("Dinesh")
     expect(message).toHaveTextContent("I made it faster.")
     expect(message).not.toHaveTextContent("Message from @dinesh")
-    expect(message).toHaveClass("coworker-message-accent")
+    expect(message).toHaveClass("text-text-primary")
     expect(message).toHaveStyle({ borderLeftColor: "#0090FF" })
-    expect(message.style.getPropertyValue("--coworker-message-wash")).toBe(accentRamp("#0090FF").wash)
-    expect(message.style.getPropertyValue("--coworker-message-dark-wash")).toBe(accentDark("#0090FF").wash)
+    expect(message.style.backgroundColor).toBe("color-mix(in srgb, var(--color-surface) 88%, #0090FF)")
+    const proseSurface = message.querySelector(".chat-prose")?.parentElement
+    expect(proseSurface).toHaveClass("sm:bg-surface", "sm:border-border")
+    expect(message.querySelector(".chat-prose")).toHaveClass("text-text-primary")
     expect(message.querySelector("img")).toBeInTheDocument()
     expect(message.closest("article")).not.toHaveClass("justify-end")
   })
@@ -319,8 +320,8 @@ describe("coworker messages", () => {
     renderChatMessageItem(item)
 
     const message = screen.getByTestId("coworker-outgoing-message")
-    expect(message).toHaveClass("coworker-message-accent")
-    expect(message.style.getPropertyValue("--coworker-message-dark-wash")).toBe(accentDark("#8B5CF6").wash)
+    expect(message).toHaveClass("text-text-primary")
+    expect(message.style.backgroundColor).toBe("color-mix(in srgb, var(--color-surface) 88%, #8B5CF6)")
     expect(message).toHaveTextContent("Gilfoyle")
     expect(message).toHaveTextContent("to @gilfoyle")
     expect(message).toHaveTextContent("Your deploy is broken.")
@@ -340,7 +341,7 @@ describe("coworker messages", () => {
 
     const message = screen.getByTestId("coworker-incoming-message")
     expect(message).toHaveTextContent("@gone")
-    expect(message).toHaveClass("border-gray-300", "bg-gray-50")
+    expect(message).toHaveClass("border-border", "bg-surface-subtle", "text-text-primary")
   })
 
   it("keeps owner and cross-chat bridge user messages in the user bubble", () => {
