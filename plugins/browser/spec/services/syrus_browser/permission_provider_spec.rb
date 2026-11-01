@@ -67,6 +67,18 @@ RSpec.describe SyrusBrowser::PermissionProvider do
     expect(redacted.to_json).not_to include("user:secret")
   end
 
+  it "fingerprints malformed URLs without retaining potential userinfo" do
+    descriptor = described_class.capability_descriptor("browser.navigate/open@v1")
+    url = "http://user:secret@localhost:bad/path"
+
+    normalized = descriptor.normalize_fingerprint(url: url)
+    redacted = descriptor.redact(url: url)
+
+    expect(normalized).to eq("invalid_url_sha256" => Digest::SHA256.hexdigest(url))
+    expect(redacted).to eq(normalized)
+    expect(redacted.to_json).not_to include("user:secret")
+  end
+
   it "treats semantic browser interaction as uncertain while retaining the conservative ceiling" do
     descriptor = described_class.capability_descriptor("browser.interact/action@v1")
     result = Permissions::InvocationClassifier.call(descriptor:, arguments: { target: "submit" })
