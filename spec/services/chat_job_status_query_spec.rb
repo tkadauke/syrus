@@ -80,9 +80,9 @@ RSpec.describe ChatJobStatusQuery do
 
       action = described_class.call(session).dig(:extensions, :actions).sole
 
-      expect(action).to include(repository_id: repository.id, repository_label: repository.slug, label: "View pipeline")
+      expect(action).to include(repository_id: repository.id, repository_label: repository.slug, label_i18n_key: "sdlc_pipeline:chat_view_pipeline")
       expect(Filters::QueryParam.decode(URI.parse(action.fetch(:path)).query.split("=", 2).last)).to eq(
-        "and" => [ { "field" => "chat_session_id", "op" => "is", "value" => session.id } ]
+        "and" => [ { "field" => "associated_chat_id", "op" => "is", "value" => session.id } ]
       )
       expect(job.repository_id).to eq(repository.id)
     end
