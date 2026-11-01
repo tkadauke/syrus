@@ -44,15 +44,12 @@ module Permissions
     def possession_authority
       return unless item.kind == "capability_possession"
 
-      coworker = request.subject
-      raise ArgumentError, "authorization subject is not a coworker" unless coworker.is_a?(Coworkers::Coworker)
-
-      legacy_descriptor = Coworkers::GrantCatalog.fetch(item.capability)
-      scope = legacy_descriptor.scopeable? ? item.resource_scope : nil
-      coworker.grants.find_or_create_by!(capability: item.capability) do |grant|
-        grant.approval_policy = "confirm"
-        grant.scope = scope
+      subject = request.subject
+      unless subject.respond_to?(:grant_capability_possession!)
+        raise ArgumentError, "authorization subject cannot receive capability possession"
       end
+
+      subject.grant_capability_possession!(capability: item.capability, resource_scope: item.resource_scope)
     end
   end
 end
