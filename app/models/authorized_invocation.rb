@@ -82,6 +82,16 @@ class AuthorizedInvocation < ApplicationRecord
     raise ArgumentError, "revalidate must be callable" unless revalidate.respond_to?(:call)
     raise ArgumentError, "origin_resumable must be callable" unless origin_resumable.respond_to?(:call)
 
+    claim = -> { claim_under_lock!(fingerprint:, claimant:, claim_key:, revalidate:, origin_resumable:) }
+    return claim.call unless authority
+
+    authority.with_lock { claim.call }
+  rescue ActiveRecord::RecordNotUnique
+    reload
+    ClaimResult.new(status: self.claim_key == claim_key ? :already_claimed : :unavailable, invocation: self)
+  end
+
+  def claim_under_lock!(fingerprint:, claimant:, claim_key:, revalidate:, origin_resumable:)
     with_lock do
       if claimed? || succeeded? || failed?
         status = self.claim_key == claim_key ? :already_claimed : :unavailable
@@ -109,10 +119,8 @@ class AuthorizedInvocation < ApplicationRecord
       update!(state: "claimed", claim_key:, claimed_by: claimant, claimed_at: Time.current)
       ClaimResult.new(status: :claimed, invocation: self)
     end
-  rescue ActiveRecord::RecordNotUnique
-    reload
-    ClaimResult.new(status: self.claim_key == claim_key ? :already_claimed : :unavailable, invocation: self)
   end
+  private :claim_under_lock!
 
   def complete!(claim_key:, status:, result: nil, at: Time.current)
     status = status.to_s

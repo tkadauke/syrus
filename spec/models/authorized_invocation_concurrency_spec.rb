@@ -80,4 +80,55 @@ RSpec.describe AuthorizedInvocation, :ci_only do
 
     expect(issued.pop.reload).to be_invalidated
   end
+
+  it "serializes claim revalidation with authority revocation" do
+    suffix = SecureRandom.hex(6)
+    user = User.create!(email_address: "authorized-invocation-claim-revocation-race-#{suffix}@example.com", password: "supersecret")
+    request = ChatPendingAction.create!(request_kind: "authorization_request", user:, origin: user,
+      subject: user, deduplication_key: "authorized-invocation-claim-revocation-race-#{suffix}")
+    item = request.authorization_items.create!(kind: "operation", capability: "mysql.data", operation: "write",
+      operation_version: 1, resource_type: "mysql_connection", invocation_fingerprint: "sha256:claim-revoke-race")
+    item.decide!("approved", principal: user, duration: "invocation")
+    lease = PermissionLease.create!(
+      owner_user: user, subject_selector_type: "workflow_role", subject_selector_id: "implementer",
+      capability: "mysql.data", operation: "write", resource_type: "mysql_connection",
+      resource_scope: {}, constraints: {}, effects: [], duration_kind: "invocation",
+      invocation_fingerprint: "sha256:claim-revoke-race", max_uses: 1, issued_by_user: user
+    )
+    invocation = described_class.issue!(pending_action_item: item, authority: lease, tool_name: "mysql_write")
+
+    revalidation_started = Queue.new
+    finish_revalidation = Queue.new
+    claim_result = Queue.new
+    expect(lease).to receive(:with_lock).and_call_original
+    claimant = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        claim_result << invocation.claim!(fingerprint: "sha256:claim-revoke-race", claimant: user,
+          claim_key: "claim-revoke-race-#{suffix}", origin_resumable: ->(_) { true },
+          revalidate: ->(_) do
+            revalidation_started << true
+            finish_revalidation.pop
+            true
+          end)
+      end
+    end
+    revalidation_started.pop
+
+    revoked = Queue.new
+    revoker = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        PermissionLease.find(lease.id).revoke!(actor: user)
+        revoked << true
+      end
+    end
+
+    expect { revoked.pop(true) }.to raise_error(ThreadError)
+    finish_revalidation << true
+    [ claimant, revoker ].each(&:join)
+
+    expect(claim_result.pop).to be_claimed
+    expect(revoked.pop).to be(true)
+    expect(invocation.reload).to be_claimed
+    expect(lease.reload).to be_revoked_at
+  end
 end
