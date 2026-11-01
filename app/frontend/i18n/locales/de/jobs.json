@@ -1041,5 +1041,8 @@
   "unland_status_in_progress": "Unland läuft. Der ursprüngliche Job bleibt geschlossen.",
   "unland_status_failed": "Unland fehlgeschlagen. Prüfe den verknüpften Rollback-Job.",
   "unland_status_reverted": "Gelandet und anschließend über den verknüpften Rollback-Job revertiert.",
-  "none": "keine"
+  "none": "keine",
+  "authorization_requests_title": "Autorisierungsanfragen",
+  "authorization_requests_description": "Berechtigungsentscheidungen für diesen Job erscheinen auch im zentralen Genehmigungseingang.",
+  "authorization_request_fallback": "Geplanter Vorgang benötigt eine Berechtigung"
 }

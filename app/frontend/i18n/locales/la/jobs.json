@@ -1041,5 +1041,8 @@
   "unland_status_in_progress": "Retractio agitur. Opus originale clausum manet.",
   "unland_status_failed": "Retractio defecit. Opus conexum inspice.",
   "unland_status_reverted": "Adlatum, deinde reversum.",
-  "none": "nulla"
+  "none": "nulla",
+  "authorization_requests_title": "Petitiones auctoritatis",
+  "authorization_requests_description": "Iudicia permissionis ad hoc Opus pertinentia etiam in receptaculo centrali approbationum apparent.",
+  "authorization_request_fallback": "Operatio constituta permissionem requirit"
 }
