@@ -397,7 +397,11 @@ module Observability
     end
 
     def event_identity(event)
-      [ event["occurred_at"], event["event"], event["request_id"], event["phase"], event["name"], event["message"] ]
+      [
+        event["occurred_at"], event["event"], event["app_revision"], event["request_id"], event["trace_id"],
+        event["active_job_id"], event["job_class"], event["phase"], event["path"], event["fingerprint"],
+        event["name"], event["message"]
+      ]
     end
   end
 end

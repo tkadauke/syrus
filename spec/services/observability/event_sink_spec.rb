@@ -52,6 +52,26 @@ RSpec.describe Observability::EventSink do
     )
   end
 
+  it "keeps distinct performance events recorded at the same instant" do
+    occurred_at = Time.zone.parse("2026-08-14T03:00:00Z").iso8601(6)
+
+    described_class.append(kind: :performance, event: {
+      "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
+      "occurred_at" => occurred_at,
+      "app_revision" => "old-sha",
+      "path" => "/old"
+    })
+    described_class.append(kind: :performance, event: {
+      "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
+      "occurred_at" => occurred_at,
+      "app_revision" => "new-sha",
+      "path" => "/new"
+    })
+
+    expect(described_class.recent(kind: :performance, limit: 10).map { |event| event["path"] })
+      .to contain_exactly("/old", "/new")
+  end
+
   it "uses small batches for performance log inserts" do
     stream = Observability::EventStream.fetch(:performance)
 
