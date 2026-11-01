@@ -30,7 +30,7 @@ module Permissions
 
     def findings
       retired_identifier_findings + migration_contract_findings + unaccounted_removal_findings +
-        missing_migration_findings + semantic_widening_findings
+        capability_family_change_findings + missing_migration_findings + semantic_widening_findings
     end
 
     private
@@ -82,6 +82,21 @@ module Permissions
         end
       end
       findings
+    end
+
+    def capability_family_change_findings
+      previous.filter_map do |old_descriptor|
+        new_descriptor = successor_for(old_descriptor)
+        next unless new_descriptor
+        next if new_descriptor.capability == old_descriptor.capability
+        next if new_descriptor.capability_aliases.include?(old_descriptor.capability)
+
+        Finding.new(
+          :capability_family_changed,
+          "operation #{old_descriptor.operation.inspect} moves from capability #{old_descriptor.capability.inspect} " \
+            "to #{new_descriptor.capability.inspect} without a capability alias"
+        )
+      end
     end
 
     def missing_migration_findings
