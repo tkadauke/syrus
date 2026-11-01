@@ -7,7 +7,7 @@ module Mcp::Tools
     input_schema(properties: {
       query: { type: "string", description: "Optional capability or operation search text." },
       include_non_requestable: { type: "boolean", default: false,
-        description: "Also include available and prohibited families with their distinct state." }
+        description: "Also include available, prohibited, disabled, unconfigured, and unavailable families with their distinct state." }
     })
 
     class << self

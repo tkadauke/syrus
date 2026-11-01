@@ -90,7 +90,7 @@ RSpec.describe Coworkers::PromptSection do
   it "returns no section when every context file is missing" do
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 
-    expect(section).to include("### Tool grants", "`workspace.files` — not held", "unlocks:")
+    expect(section).to be_nil
   end
 
   it "lists held policy and scope alongside missing catalog grants" do
@@ -105,7 +105,8 @@ RSpec.describe Coworkers::PromptSection do
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 
     expect(section).to include("`database.read` — held (confirm; scope: Connection #{owner.id})")
-    expect(section).to include("unlocks: list_database_tables")
+    expect(section).not_to include("list_database_tables")
+    expect(section).not_to include("not held")
   end
 
   it "caps each file and the total context with visible markers" do
