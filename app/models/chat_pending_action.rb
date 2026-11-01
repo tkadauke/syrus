@@ -877,7 +877,6 @@ class ChatPendingAction < ApplicationRecord
   def remember_outcome_transition
     self.outcome_transition_pending = true if confirmed? || rejected? || cancelled?
   end
-
   def record_state_transition!(from, to)
     @state_changed_in_transaction = true
     transitions.create!(event_type: "state_changed", from_state: from, to_state: to, metadata: {})
