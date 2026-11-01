@@ -1765,6 +1765,12 @@ compares legacy grants with recommended defaults, calls out removed authority
 and requestable replacements, and blocks migration when capability descriptors
 or registry validation are incomplete. Viewing the report never converts a
 legacy grant into active authority.
+The first production rollout that includes coworker unified-permission
+enforcement is also guarded by reviewed deployment evidence. The evidence is
+bound to the new and rollback image revisions and covers descriptor and schema
+checks, parity thresholds, report acknowledgement, evaluator and dispatch
+suites, and a successful rollback drill. A missing, stale, or inconsistent
+artifact stops the rollout; there is no runtime permission fallback.
 The Memory tab is a read-only, searchable browser for the daily, people, repository,
 and bank Markdown files on its home branch. It shows recent daily files first, links to
 the owner's existing Syrus memories, and reports empty and unreachable remotes
