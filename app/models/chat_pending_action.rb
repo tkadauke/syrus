@@ -69,6 +69,13 @@ class ChatPendingAction < ApplicationRecord
     clear_provider_circuit
     wake_provider_admission
     mutate_provider_routing_rules
+    grant_permission
+    deny_permission
+    revoke_permission
+    create_permission_lease
+    revoke_permission_lease
+    apply_permission_preset
+    cancel_authorization_request
     override_job_planned_execution
     local_tool_call
     coworker_tool_call
