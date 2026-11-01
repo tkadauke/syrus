@@ -91,9 +91,11 @@ module Admin
       admin_unpause_user_scheduling
       accept_insights
       adopt_current_pr_head
+      apply_permission_preset
       approve_job
       archive_epic
       base_refresh_retry_job
+      cancel_authorization_request
       cancel_job
       cancel_stale_work
       check_job_mergeability
@@ -102,10 +104,12 @@ module Admin
       complete_implement_step
       coworker_tool_call
       create_coworker
+      create_permission_lease
       create_repo_document
       delegate_issue
       delete_design_doc
       delete_repo_document
+      deny_permission
       dismiss_insights
       emergency_land
       escalate_coworker_grants
@@ -114,6 +118,7 @@ module Admin
       force_landing_recheck
       force_rebase
       force_state_transition
+      grant_permission
       local_tool_call
       manual_agentic_run
       mark_ci_repair_noop
@@ -130,6 +135,8 @@ module Admin
       reopen_job
       repair_provider_circuit_evidence
       replace_pr_branch_with_workflow_output
+      revoke_permission
+      revoke_permission_lease
       retire_insights
       retire_terminal_work_unit
       rerun_ci_repair
