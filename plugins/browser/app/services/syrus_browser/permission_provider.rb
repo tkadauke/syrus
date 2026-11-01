@@ -49,12 +49,8 @@ module SyrusBrowser
 
       def normalize_arguments(arguments)
         source = arguments.to_h.with_indifferent_access
-        source.slice(:url, :target, :start_target, :end_target, :width, :height, :text_gone, :time).stringify_keys.tap do |value|
-          if source[:url].present?
-            value["url"] = normalize_url(source[:url])
-            userinfo = url_userinfo(source[:url])
-            value["url_userinfo_sha256"] = Digest::SHA256.hexdigest(userinfo) if userinfo.present?
-          end
+        source.slice(:target, :start_target, :end_target, :width, :height, :text_gone, :time).stringify_keys.tap do |value|
+          value.merge!(normalize_url(source[:url])) if source[:url].present?
           value["function_sha256"] = Digest::SHA256.hexdigest(source[:function].to_s) if source.key?(:function)
           if source.key?(:text) && source.key?(:target)
             value["input_text_sha256"] = Digest::SHA256.hexdigest(source[:text].to_s)
@@ -75,17 +71,14 @@ module SyrusBrowser
       def normalize_url(value)
         uri = URI.parse(value.to_s)
         uri.fragment = nil
+        userinfo = uri.userinfo.to_s
         uri.user = nil
         uri.password = nil
-        uri.to_s
+        { "url" => uri.to_s }.tap do |normalized|
+          normalized["url_userinfo_sha256"] = Digest::SHA256.hexdigest(userinfo) if userinfo.present?
+        end
       rescue URI::InvalidURIError
-        value.to_s
-      end
-
-      def url_userinfo(value)
-        URI.parse(value.to_s).userinfo.to_s
-      rescue URI::InvalidURIError
-        ""
+        { "invalid_url_sha256" => Digest::SHA256.hexdigest(value.to_s) }
       end
 
       def fixed_classifier(operation, effects, risk)
