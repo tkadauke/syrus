@@ -13,7 +13,8 @@ class ReviewDiffSettings
     "file_list" => true,
     "file_list_layout" => "flat",
     "file_sort" => "original",
-    "metric_gutter" => "cognitive_review.risk"
+    "metric_gutter" => "cognitive_review.risk",
+    "renderable_files" => "code"
   }.freeze
 
   VALUES = {
@@ -23,7 +24,8 @@ class ReviewDiffSettings
     "whitespace" => %w[show trim_trailing],
     "density" => %w[compact comfortable spacious],
     "file_list_layout" => %w[flat nested],
-    "file_sort" => %w[original alphabetical change_size]
+    "file_sort" => %w[original alphabetical change_size],
+    "renderable_files" => %w[code preview]
   }.freeze
   BOOLEAN_KEYS = %w[syntax_highlighting visible_whitespace line_numbers file_list].freeze
   STRING_KEYS = %w[metric_gutter].freeze

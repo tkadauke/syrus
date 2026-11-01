@@ -24,7 +24,7 @@ import {
   type JobWorkflow
 } from "../../api/jobs"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
-import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
+import { ImageDiffThumbnails, renderedFileKind } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, diffLineMetricProvidersForReview, type DiffLineMetricProvider, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
 import { useResizableSplitter } from "../chat/useResizableSplitter"
@@ -478,7 +478,30 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}
               onStartEditThread={feedback.onStartEditThread}
-              renderImageDiff={(file) => <ImageDiffThumbnails baseRef={activeBaseContentRef} file={file} headRef={activeHeadContentRef} jobId={jobId} />}
+              renderImageDiff={(file) => (
+                <ImageDiffThumbnails
+                  baseRef={activeBaseContentRef}
+                  file={file}
+                  headRef={activeHeadContentRef}
+                  jobId={jobId}
+                  kind={renderedFileKind(file)}
+                  loadContents={
+                    renderedFileKind(file) === "markdown"
+                      ? async () => {
+                          const [before, after] = await Promise.all([
+                            file.status === "added" || !activeBaseContentRef
+                              ? Promise.resolve(null)
+                              : fetchJobSourceFileContent(jobId, activeBaseContentRef, file.path).catch(() => null),
+                            file.status === "removed" || !activeHeadContentRef
+                              ? Promise.resolve(null)
+                              : fetchJobSourceFileContent(jobId, activeHeadContentRef, file.path).catch(() => null)
+                          ])
+                          return { before, after }
+                        }
+                      : undefined
+                  }
+                />
+              )}
               reviewSettings={reviewSettings}
               reviewAnnotations={activeReviewAnnotations.annotations}
               reviewAnnotationCounts={activeReviewAnnotations.counts}

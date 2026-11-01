@@ -15,6 +15,7 @@ export type ReviewDiffSettings = {
   file_list_layout: "flat" | "nested"
   file_sort: "original" | "alphabetical" | "change_size"
   metric_gutter: string
+  renderable_files: "code" | "preview"
 }
 
 export type ReviewDiffSettingsPayload = {
@@ -36,7 +37,8 @@ export const DEFAULT_REVIEW_DIFF_SETTINGS: ReviewDiffSettings = {
   file_list: true,
   file_list_layout: "flat",
   file_sort: "original",
-  metric_gutter: "cognitive_review.risk"
+  metric_gutter: "cognitive_review.risk",
+  renderable_files: "code"
 }
 
 export function fetchReviewDiffSettings() {

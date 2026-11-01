@@ -385,6 +385,14 @@ dominating the first viewport: lockfiles and generated outputs declared in
 `.syrus.yml` are marked in the file header/list and their diff bodies are hidden
 until a reviewer chooses to reveal them.
 
+Review diffs can also preview renderable files inline. SVG and Markdown keep
+their normal Code view and add a per-file Code/Preview switch; the review
+setting chooses their initial mode without overriding an individual file's
+session choice. Raster images are preview-only. Modified files compare Before
+and After side by side (stacked on narrow screens), while added or removed
+files show only the side that exists. Either side can temporarily expand to
+the full diff width without opening a modal.
+
 The review tab also shows a PR-level review-note debt rollup for the
 selected diff version: total flagged ranges, open/unacknowledged notes,
 acknowledged notes, dismissed notes, and a zero-note state when the reviewer
