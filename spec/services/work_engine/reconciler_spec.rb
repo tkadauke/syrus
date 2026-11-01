@@ -449,6 +449,22 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     }.not_to have_enqueued_job(RunJob)
   end
 
+  it "automatically removes a stranded affinity job when no workers are live" do
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_storage_key: "storage-dead")
+    old_queue_job = solid_queue_run_job(run, ready: true, queue_name: "resume-storage-dead", created_at: 5.minutes.ago)
+    clear_enqueued_jobs
+
+    result = reconcile_and_execute(run_id: run.id)
+
+    expect(result.repair_executions).to include(
+      have_attributes(action: "reenqueue_run", status: "applied", target_id: run.id)
+    )
+    expect(workflow.reload.worker_storage_key).to be_nil
+    expect(SolidQueue::Job.where(id: old_queue_job.id)).not_to exist
+    expect(enqueued_jobs.count { |queued| queued[:job] == RunJob && queued[:args] == [ run.id ] }).to eq(1)
+  end
+
   it "skips a planned dead-affinity repair when the queue regains a live consumer" do
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_storage_key: "storage-recovered")
