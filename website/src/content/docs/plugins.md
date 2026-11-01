@@ -216,6 +216,15 @@ confirmation and creates the rules only after that confirmation. Role defaults
 and presets are recommendations only: installing, enabling, configuring, or
 migrating a plugin never applies them automatically.
 
+Permission-provider authors can run `Permissions::ProviderTestKit` in their
+RSpec suite. A small adapter supplies real provider probes for normalization,
+redaction, hidden and unknown resources, uncertain classification, provider or
+resource ceilings, descriptor upgrades, and plugin installation. The shared
+suite reports the capability operation or resource scope that violates the
+contract and verifies that installing or enabling the plugin creates no rules
+or leases. Probes must exercise the plugin's real lookup and lifecycle paths,
+not return a hand-built answer.
+
 Tool usage is logged so operators can see which tools are active, failing, or
 worth consolidating.
 
