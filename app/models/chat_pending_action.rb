@@ -670,11 +670,11 @@ class ChatPendingAction < ApplicationRecord
   # silently misses the outcome. Capture the terminal transition before the
   # audit callback and consume it exactly once after commit instead.
   def capture_outcome_transition
-    self_state = saved_change_to_state&.last
-    return unless self_state.in?(%w[confirmed rejected cancelled])
+    new_state = saved_change_to_state&.last
+    return unless new_state.in?(%w[confirmed rejected cancelled])
 
-    @outcome_state_to_notify = self_state
-    @outcome_state_to_broadcast = self_state
+    @outcome_state_to_notify = new_state
+    @outcome_state_to_broadcast = new_state
   end
 
   def clear_outcome_transition

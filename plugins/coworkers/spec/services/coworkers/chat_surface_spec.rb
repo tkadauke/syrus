@@ -186,6 +186,7 @@ RSpec.describe "Coworker chat surface" do
   it "applies every policy and replays confirmed plugin calls exactly once" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
+    Coworkers::ChatExtension.install_into(scope)
     message_grant = coworker.grants.create!(capability: "coworker.message", approval_policy: "confirm")
     schedule_grant = coworker.grants.create!(capability: "schedule.manage_self", approval_policy: "confirm")
     allow(Coworkers::MessageCoworkerTool).to receive(:call)
@@ -201,6 +202,7 @@ RSpec.describe "Coworker chat surface" do
     action = chat.pending_actions.find(response_payload(message).fetch("pending_action_id"))
     expect { action.confirm!(user: owner) }
       .to change { chat.messages.where(role: "system").count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
     expect(Coworkers::MessageCoworkerTool).to have_received(:call)
       .with(**arguments, server_context: include(chat_session: chat)).once
     expect(action.reload.payload.fetch("tool_result")).to include("stored result")
