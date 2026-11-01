@@ -250,6 +250,34 @@ RSpec.describe "surface-neutral pending action authorization", :ci_only do
     )
   end
 
+  it "clears the waiting blocker when its request is rejected" do
+    request = create_request
+    request.checkpoint_authorization!(payload: { cursor: 1 })
+
+    expect(request.reject!(user: user)).to be(true)
+    expect(request.reload).to have_attributes(state: "rejected", checkpoint_state: "cancelled")
+    expect(job.reload).not_to be_waiting_for_permission
+    expect(request.transitions.where(event_type: "checkpoint_state_changed").last).to have_attributes(
+      from_state: "waiting",
+      to_state: "cancelled"
+    )
+  end
+
+  it "prevents an in-flight resume from completing after cancellation" do
+    request = create_request
+    request.checkpoint_authorization!(payload: { cursor: 1 })
+    request.begin_authorization_resume!
+
+    expect(request.cancel!(user: user)).to be(true)
+    expect(request.reload).to have_attributes(state: "cancelled", checkpoint_state: "cancelled")
+    expect(request.complete_authorization_resume!).to be(false)
+    expect(request.reload.checkpoint_state).to eq("cancelled")
+    expect(request.transitions.where(event_type: "checkpoint_state_changed").pluck(:from_state, :to_state).last(2)).to eq([
+      [ "waiting", "resuming" ],
+      [ "resuming", "cancelled" ]
+    ])
+  end
+
   it "derives parent blockers from a Run-origin request" do
     execution_job = Factories.job(user: user, repository: repository)
     workflow = execution_job.workflows.first
