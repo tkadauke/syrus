@@ -22,6 +22,7 @@ module Adjudicators
     # overrides this per repository.
     DEFAULT_MIN_SCORE = 0.1
     DEFAULT_MAX_DISMISSIBLE_SCORE = 0.5
+    MAX_CONSECUTIVE_FAILURES = 2
 
     def self.adjudicate(problem:, workflow: nil, step: nil, base_sha: nil, **)
       return Adjudication.inconclusive(adjudicator: name) unless problem&.code == "grader_failure"
@@ -39,6 +40,7 @@ module Adjudicators
       return Adjudication.inconclusive(adjudicator: name, reason: "no_flakiness_history") if per_step_tests.any?(&:nil?)
 
       tests = per_step_tests.flatten(1)
+      return Adjudication.inconclusive(adjudicator: name, reason: "persistent_recent_failure") if tests.any? { |entry| entry.fetch(:persistent_failure) }
       return Adjudication.inconclusive(adjudicator: name, reason: "recent_failures_too_frequent") if tests.any? { |entry| entry.fetch(:mostly_failing) }
       return Adjudication.inconclusive(adjudicator: name, reason: "not_all_confirmed_flaky") unless tests.all? { |entry| entry.fetch(:confirmed_flaky) }
 
@@ -75,6 +77,7 @@ module Adjudicators
         signature = test_case["failure_message"].to_s.presence
         return nil if signature.blank? || !signatures.include?(signature)
         mostly_failing = score[:score] > DEFAULT_MAX_DISMISSIBLE_SCORE
+        consecutive_failures = Array(score[:run_statuses]).reverse.take_while { |status| status.in?(%w[failed error]) }.size
 
         {
           suite_name: test_case["suite_name"],
@@ -83,6 +86,8 @@ module Adjudicators
           failed_count: score[:failed_count],
           total_count: score[:total_count],
           failure_signature: signature,
+          consecutive_failures: consecutive_failures,
+          persistent_failure: consecutive_failures >= MAX_CONSECUTIVE_FAILURES,
           mostly_failing: mostly_failing,
           confirmed_flaky: !mostly_failing && score[:flaky] && score[:score] >= min_score
         }

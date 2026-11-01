@@ -141,7 +141,7 @@ module Ruby
     def extract_location(line)
       return [nil, nil] if line.nil?
 
-      if (m = line.match(%r{#\s+\./(spec/[^\s:]+):(\d+)}))
+      if (m = line.match(%r{#\s+\./((?:[^\s:]+/)*spec/[^\s:]+):(\d+)}))
         [m[1], m[2].to_i]
       else
         [nil, nil]

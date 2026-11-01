@@ -714,6 +714,7 @@ RSpec.describe Steps::Grader, :ci_only do
       output: "1 example, 0 failures",
       method: "focused_files"
     ))
+    expect(Adjudicators::KnownFlakyFailure).not_to receive(:adjudicate)
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader rspec failed/)
     expect(step.reload.details["accepted_failure"]).to be_nil

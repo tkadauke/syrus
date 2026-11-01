@@ -134,7 +134,8 @@ module TestInsights
         rows = slice.map do |c|
           # Fingerprint on the untruncated suite_name/name so identity keys
           # stay stable regardless of column-width truncation below.
-          fingerprint = TestIdentity.fingerprint_for(suite_name: c.suite_name, name: c.name)
+          canonical_suite = TestCaseIdentity.canonical_suite(c)
+          fingerprint = TestIdentity.fingerprint_for(suite_name: canonical_suite, name: c.name)
           test_identity = identities.fetch(fingerprint)
           touched_identity_ids << test_identity.id
 
@@ -143,7 +144,7 @@ module TestInsights
             repository_id: @repository.id,
             test_identity_id: test_identity.id,
             name: TestCase.truncate_string_column(c.name),
-            suite_name: TestCase.truncate_string_column(c.suite_name),
+            suite_name: TestCase.truncate_string_column(canonical_suite),
             file_path: TestCase.truncate_string_column(c.file_path),
             status: c.status,
             duration_ms: c.duration_ms,

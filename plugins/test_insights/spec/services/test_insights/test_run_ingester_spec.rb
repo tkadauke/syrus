@@ -83,6 +83,16 @@ RSpec.describe TestInsights::Ingester do
     )
   end
 
+  it "canonicalizes renamed suites to the source file for durable identity" do
+    first_case = parsed_case("same example", "failed")
+    first_case = first_case.with(suite_name: "Old::Suite", file_path: "spec/models/widget_spec.rb")
+    first_run = JunitXmlParser::ParsedRun.new(total_count: 1, passed_count: 0, failed_count: 1, skipped_count: 0, error_count: 0, duration_ms: 1, cases: [ first_case ])
+    described_class.new(run: run, grader_name: "rspec", parsed_run: first_run).ingest!
+
+    expect(TestInsights::TestIdentity.sole.suite_name).to eq("spec/models/widget_spec.rb")
+    expect(TestInsights::TestCase.sole.suite_name).to eq("spec/models/widget_spec.rb")
+  end
+
   it "indexes durable test identities instead of individual test cases" do
     # Indexing is enqueued rather than written inline: ingestion runs on the
     # compute tier, which has no access to the search database.
