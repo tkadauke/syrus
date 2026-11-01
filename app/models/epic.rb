@@ -50,6 +50,10 @@ class Epic < ApplicationRecord
     rollback_jobs.closed.find_by(closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
   end
 
+  def unland_lock_record
+    self
+  end
+
   validates :number, presence: true, numericality: { only_integer: true, greater_than: 0 }, uniqueness: true
   validates :title, presence: true
   validates :state, presence: true, inclusion: { in: STATES }
