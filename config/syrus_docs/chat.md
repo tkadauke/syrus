@@ -126,6 +126,14 @@ turning that outcome into a deny decision. Request and item state changes are
 recorded as append-only transitions so dismissal and delivery never erase the
 authorization history.
 
+Equivalent unattended requests are routed through one active record. Each
+origin is associated with that record, so it can be shown both in the central
+approval inbox and beside every related Job or schedule fire. A later fire
+continues work that does not require the gated operation instead of opening a
+second checkpoint. Recently denied equivalents observe a short cooldown, and
+active requests are capped per subject and capability to prevent unattended
+work from flooding operator attention.
+
 A `PendingActionGroup` links several `ChatPendingAction` rows created
 together as one batch (e.g. reopening every Job a bad merge-train landing
 incorrectly closed) so the chat renders them as a single card instead of one
