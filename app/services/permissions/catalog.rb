@@ -3,8 +3,18 @@ module Permissions
     class UnknownCapability < ArgumentError; end
 
     def self.descriptors
-      (McpToolRegistry.entries.map(&:descriptor) + plugin_descriptors)
+      existing = (McpToolRegistry.entries.map(&:descriptor) + plugin_tool_descriptors)
         .uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
+      (existing + permission_provider_descriptors)
+        .group_by { |descriptor| [ descriptor.capability, descriptor.operation ] }
+        .map do |(capability, operation), registrations|
+          contracts = registrations.map(&:contract_key).uniq
+          if contracts.many?
+            raise ArgumentError,
+              "permission operation #{operation.inspect} for capability #{capability.inspect} has conflicting contracts"
+          end
+          registrations.first
+        end
     end
 
     def self.resource_scopes
@@ -33,10 +43,14 @@ module Permissions
       )
     end
 
-    def self.plugin_descriptors
-      registered = Syrus::PluginRegistry.providers_for(:permission_provider)
+    def self.permission_provider_descriptors
+      Syrus::PluginRegistry.providers_for(:permission_provider)
         .flat_map(&:permission_capability_descriptors)
-      tool_definitions = %i[mcp_tool_set chat_mcp_tool_set].flat_map do |extension_point|
+    end
+    private_class_method :permission_provider_descriptors
+
+    def self.plugin_tool_descriptors
+      %i[mcp_tool_set chat_mcp_tool_set].flat_map do |extension_point|
         Syrus::PluginRegistry.providers_for(extension_point).flat_map do |provider|
           Syrus::PluginRegistry.all_tool_definitions(provider).filter_map do |definition|
             definition = definition.symbolize_keys
@@ -46,8 +60,7 @@ module Permissions
           end
         end
       end
-      registered + tool_definitions
     end
-    private_class_method :plugin_descriptors
+    private_class_method :plugin_tool_descriptors
   end
 end
