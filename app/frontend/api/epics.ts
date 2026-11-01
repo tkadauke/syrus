@@ -207,7 +207,10 @@ export type EpicDetailPayload = {
   origin_chat?: EpicOriginChat | null
   merge_train_status?: MergeTrainStatus | null
   epic: EpicDetailRecord
-  unland?: { state: "landed" | "in_progress" | "failed" | "reverted" | null; rollback_job: { id: number; slug: string; state: string; path: string; pr_number: number | null; pr_url: string | null } | null }
+  unland?: {
+    state: "landed" | "in_progress" | "failed" | "reverted" | null
+    rollback_job: { id: number; slug: string; state: string; path: string; pr_number: number | null; pr_url: string | null } | null
+  }
   summary: EpicDetailSummary
   state_transitions: EpicStateTransition[]
   graph: EpicGraph
