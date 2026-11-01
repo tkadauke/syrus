@@ -33,7 +33,7 @@ module Unlanding
     end
 
     def call!
-      original.with_lock do
+      original.unland_lock_record.with_lock do
         plan = plan!
 
         rollback = Job.create!(

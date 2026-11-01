@@ -148,6 +148,10 @@ class Job < ApplicationRecord
     rollback_of || rollback_epic
   end
 
+  def unland_lock_record
+    epic || self
+  end
+
   validates :kind, presence: true, inclusion: { in: ->(_) { Job::Kind.values } }
   validates :state, presence: true, inclusion: { in: STATES }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }

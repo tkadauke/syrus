@@ -199,5 +199,19 @@ RSpec.describe Unlanding::Create do
       expect { described_class.call!(original: first) }
         .to raise_error(described_class::Ineligible, /Epic unland is already active/)
     end
+
+    it "serializes Epic and child unlands on the same Epic row" do
+      locked_ids = []
+      allow_any_instance_of(Epic).to receive(:with_lock).and_wrap_original do |method, *args, &block|
+        locked_ids << method.receiver.id
+        method.call(*args, &block)
+      end
+
+      child_rollback = described_class.call!(original: first)
+      child_rollback.update!(state: "failed")
+      described_class.call!(original: epic)
+
+      expect(locked_ids).to eq([ epic.id, epic.id ])
+    end
   end
 end
