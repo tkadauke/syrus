@@ -42,6 +42,7 @@ function renderExpanded(context: ToolCardContext) {
 
 const renderer: ToolCardRenderer = {
   toolName: "show_pipeline",
+  readOnly: true,
   collapsedSummary: (context) => {
     const card = parseCard(context)
     return card ? t("tool_summary", { repository: card.repository }) : null

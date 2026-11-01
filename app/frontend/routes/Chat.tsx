@@ -160,7 +160,6 @@ import { ChatMessage, SharedMessageRenderer, shouldAnimateMessageEntrance, ToolG
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle, TurnRetryIndicator } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
 import { ThemePreviewModal } from "./chat/ThemePreviewModal"
-import { ToolPresentationModal } from "./chat/ToolPresentationModal"
 import { routePrefix } from "../lib/routing"
 import { useConnectionContext } from "../lib/connectionContext"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
@@ -542,7 +541,6 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
       )}
 
       <ThemePreviewModal chatId={chatId} prefix={prefix} />
-      <ToolPresentationModal chatId={chatId} prefix={prefix} />
     </div>
   )
 }

@@ -289,7 +289,7 @@ function mcpToolEntryFor(discovered: { renderer: ToolCardRenderer; owner: ToolCa
     ownerType: owner.ownerType,
     ownerName: owner.ownerName,
     sourceType: "mcp_tool",
-    readOnly: isReadOnlyToolName(toolName),
+    readOnly: renderer.readOnly ?? isReadOnlyToolName(toolName),
     displayLabel: toolLabel(toolName),
     progressLabel: simpleToolProgressLabel(toolName),
     argumentSummary: (input = {}) => toolDetail(toolName, input),
