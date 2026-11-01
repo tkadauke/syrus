@@ -80,7 +80,7 @@ module Permissions
 
     def active_request_count
       ChatPendingAction.actionable
-        .where(user:, subject:, request_kind: "authorization_request")
+        .where(user:, subject:, repository: @request_attributes.fetch(:repository), request_kind: "authorization_request")
         .joins(:authorization_items)
         .where(pending_action_items: { capability: })
         .distinct
