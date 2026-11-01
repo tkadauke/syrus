@@ -185,6 +185,13 @@ conflicting definitions and identifies the provider, surface, and tool that
 needs correction. Older bundled definitions remain on a frozen compatibility
 baseline while they are migrated; that baseline cannot grow.
 
+Permission providers declare deterministic scope migrations when a new
+operation version changes the normalized resource shape. Upgrade validation
+rejects silent key removal, reuse of a retired identifier, and broader effects,
+roles, defaults, autonomy, duration, or risk under an existing identity. A
+renamed key must remain an alias; an intentionally removed key stays reserved
+through an explicit retirement declaration.
+
 Typed resource scopes are provider-defined through a shared schema contract.
 Providers apply the caller's normal resource visibility during lookup; hidden
 and unknown identifiers receive the same result. Syrus canonicalizes and
