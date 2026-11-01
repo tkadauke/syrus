@@ -4,6 +4,8 @@ RSpec.describe Permissions::ShadowEvaluator do
   let(:user) { Factories.user }
   let(:context) { McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_IMPLEMENT, user:) }
 
+  before { described_class.reset_diagnostic_throttle! }
+
   def entry(tool)
     McpToolRegistry.entry_for(tool)
   end
@@ -34,6 +36,17 @@ RSpec.describe Permissions::ShadowEvaluator do
     expect(result.to_h).to include(current_policy: :allow,
       status: :evaluation_failed_safe_local, safe_local: true)
     expect(result.shadow_policy).to be_nil
+  end
+
+  it "deduplicates repeated durable diagnostics in the dispatch hot path" do
+    registration = entry(Mcp::Tools::SubmitSummaryTool)
+    allow(OperationalLogging).to receive(:ingest)
+
+    2.times do
+      described_class.new(entry: registration, context:, currently_allowed: true).call
+    end
+
+    expect(OperationalLogging).to have_received(:ingest).once
   end
 
   it "pins representative current and north-star decisions in parity fixtures" do
