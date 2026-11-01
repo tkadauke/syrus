@@ -1420,6 +1420,27 @@ describe("applyAppEvent", () => {
     expect(dispatched[0].detail).toEqual({ chat_session_id: 9, theme_id: 42, path: "/design_system?theme_id=42" })
     expect(invalidate).not.toHaveBeenCalled()
   })
+
+  it("dispatches a generic live tool presentation without persisting replay state", () => {
+    const queryClient = new QueryClient()
+    const dispatched: CustomEvent[] = []
+    window.addEventListener("syrus:tool-presentation", (e) => dispatched.push(e as CustomEvent))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "open_tool_presentation", presentation: "example", title: "Example", path: "/example?q=kept" }
+    })
+
+    expect(dispatched).toHaveLength(1)
+    expect(dispatched[0].detail).toEqual({
+      chat_session_id: 9,
+      action: "open_tool_presentation",
+      presentation: "example",
+      title: "Example",
+      path: "/example?q=kept"
+    })
+    expect(queryClient.getQueryData(["chats", "9"])).toBeUndefined()
+  })
 })
 
 describe("applyAppEvent revisioned event patches", () => {

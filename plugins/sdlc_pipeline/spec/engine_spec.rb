@@ -7,6 +7,8 @@ RSpec.describe SdlcPipeline::Engine do
     expect(manifest).to be_present
     expect(manifest.provides[:repo_page_tab]).to eq(SdlcPipeline::RepoPageTabs)
     expect(Syrus::PluginRegistry.providers_for(:repo_page_tab)).to include(SdlcPipeline::RepoPageTabs)
+    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(SdlcPipeline::ChatToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:chat_job_status_extension)).to include(SdlcPipeline::ChatJobStatusExtension)
   end
 
   it "registers and retires the plugin-owned filter and SmartFolder subjects" do
