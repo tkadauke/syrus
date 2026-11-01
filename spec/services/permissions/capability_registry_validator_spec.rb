@@ -124,6 +124,7 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     allow(McpToolRegistry).to receive(:entries).and_return([])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
     expect(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([
       { name: "read_plugin_data", capability_descriptor: plugin_descriptor }
     ])

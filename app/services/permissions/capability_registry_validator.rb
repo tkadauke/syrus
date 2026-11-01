@@ -70,7 +70,16 @@ module Permissions
           plugin_registrations(provider, extension_point)
         end
       end
-      new(core + plugin)
+      permission_providers = Syrus::PluginRegistry.providers_for(:permission_provider).flat_map do |provider|
+        provider.permission_capability_descriptors.map do |descriptor|
+          Registration.new(
+            tool_name: descriptor.operation, surface: :permission_provider,
+            source: provider.name.presence || provider.to_s,
+            descriptor: descriptor, explicit_descriptor: true
+          )
+        end
+      end
+      new(core + plugin + permission_providers)
     end
 
     def self.plugin_registrations(provider, extension_point)

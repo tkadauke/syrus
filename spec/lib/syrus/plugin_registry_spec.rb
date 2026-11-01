@@ -53,6 +53,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::ChatMcpToolSet }
   end
 
+  let(:permission_provider_class) do
+    Class.new { include Syrus::Plugin::PermissionProvider }
+  end
+
   let(:source_control_provider_class) do
     Class.new { include Syrus::Plugin::SourceControlProvider }
   end
@@ -107,6 +111,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "includes :admin_page and :chat_mcp_tool_set" do
       expect(described_class::EXTENSION_POINTS).to include(:admin_page, :chat_mcp_tool_set)
+    end
+
+    it "includes :permission_provider" do
+      expect(described_class::EXTENSION_POINTS).to include(:permission_provider)
     end
 
     it "includes the chat turn finalization hook" do
@@ -222,6 +230,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "maps UI and chat MCP extension points to their interfaces" do
       expect(described_class::INTERFACE_FOR[:admin_page].call).to eq(Syrus::Plugin::AdminPage)
       expect(described_class::INTERFACE_FOR[:chat_mcp_tool_set].call).to eq(Syrus::Plugin::ChatMcpToolSet)
+    end
+
+    it "maps :permission_provider to its interface" do
+      expect(described_class::INTERFACE_FOR[:permission_provider].call).to eq(Syrus::Plugin::PermissionProvider)
     end
 
     it "maps :source_control_provider to Syrus::Plugin::SourceControlProvider" do

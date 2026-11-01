@@ -191,6 +191,17 @@ and unknown identifiers receive the same result. Syrus canonicalizes and
 validates normalized scopes and treats any lookup or normalization failure as
 a closed authorization outcome.
 
+Plugin authors can expose reusable permission metadata through a
+`permission_provider`. The provider registers typed resource scopes and
+complete capability operations, including effects, classifiers, redactors,
+stable fingerprints, eligible-role recommendations, requestability defaults,
+autonomy ceilings, and supported authority durations. Tool definitions reuse
+the registered immutable descriptor instead of copying policy. Conflicting
+operation or resource-type registrations fail closed, and a disabled plugin's
+permission metadata is absent from the active catalog. Registration describes
+what may be requested; it does not grant authority when a plugin is installed
+or enabled.
+
 Tool usage is logged so operators can see which tools are active, failing, or
 worth consolidating.
 
