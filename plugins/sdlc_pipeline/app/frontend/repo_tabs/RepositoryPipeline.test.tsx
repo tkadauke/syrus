@@ -134,32 +134,34 @@ describe("RepositoryPipelineRoute", () => {
   })
 
   it("round-trips the canonical filter query through overview requests", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({
-        repository: { id: 1, slug: "acme/widgets" },
-        generated_at: "2026-10-31T12:00:00Z",
-        evidence: { status: "complete", incomplete_count: 0 },
-        tabs: [],
-        groups: [],
-        stages: [],
-        filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
-        filter_schema: [{ field: "owner_user_id", label: "Owner", bucket: "enum", operators: ["is"], values: [{ value: "me", label: "Me" }] }],
-        active_smart_folder_id: 7,
-        smart_folders: [
-          {
-            id: 7,
-            name: "Mine",
-            position: 1,
-            kind: "builtin",
-            subject_type: "sdlc_pipeline",
-            visibility: "always",
-            count: 0,
-            active: true,
-            filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
-            path: "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7"
-          }
-        ]
-      })
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          repository: { id: 1, slug: "acme/widgets" },
+          generated_at: "2026-10-31T12:00:00Z",
+          evidence: { status: "complete", incomplete_count: 0 },
+          tabs: [],
+          groups: [],
+          stages: [],
+          filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+          filter_schema: [{ field: "owner_user_id", label: "Owner", bucket: "enum", operators: ["is"], values: [{ value: "me", label: "Me" }] }],
+          active_smart_folder_id: 7,
+          smart_folders: [
+            {
+              id: 7,
+              name: "Mine",
+              position: 1,
+              kind: "builtin",
+              subject_type: "sdlc_pipeline",
+              visibility: "always",
+              count: 0,
+              active: true,
+              filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+              path: "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7"
+            }
+          ]
+        })
+      )
     )
 
     render(
@@ -176,38 +178,47 @@ describe("RepositoryPipelineRoute", () => {
   })
 
   it("reconstructs a historical tick without requesting the at presentation state", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({
-        repository: { id: 1, slug: "acme/widgets" },
-        generated_at: "2026-10-31T12:00:00Z",
-        evidence: { status: "complete", incomplete_count: 0 },
-        tabs: [],
-        groups: [],
-        stages: [
-          { key: "review", label: "Review", kind: "lifecycle", total: 0, attention_count: 0, aging_count: 0, oldest_age_seconds: null, highlighted_items: [] }
-        ],
-        history: {
-          from: "2026-10-30T12:00:00Z",
-          to: "2026-10-31T12:00:00Z",
-          checkpoint: { at: "2026-10-30T12:00:00Z", placements: [] },
-          deltas: [
-            {
-              at: "2026-10-31T10:00:00Z",
-              job_id: 9,
-              from_stage: "implementing",
-              to_stage: "review",
-              item: {
-                job_id: 9,
-                stage: "review",
-                item: { id: 9, slug: "JOB-9", title: "Historical card", state: "closed", paths: { job: "/jobs/JOB-9" }, metadata_as_of: "2026-10-31T12:00:00Z" }
-              }
-            }
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          repository: { id: 1, slug: "acme/widgets" },
+          generated_at: "2026-10-31T12:00:00Z",
+          evidence: { status: "complete", incomplete_count: 0 },
+          tabs: [],
+          groups: [],
+          stages: [
+            { key: "review", label: "Review", kind: "lifecycle", total: 0, attention_count: 0, aging_count: 0, oldest_age_seconds: null, highlighted_items: [] }
           ],
-          ticks: ["2026-10-31T10:00:00Z"],
-          traces: [],
-          accuracy: { status: "reconstructed", truncated: false, message: "Stage placement is reconstructed. Card metadata is current." }
-        }
-      })
+          history: {
+            from: "2026-10-30T12:00:00Z",
+            to: "2026-10-31T12:00:00Z",
+            checkpoint: { at: "2026-10-30T12:00:00Z", placements: [] },
+            deltas: [
+              {
+                at: "2026-10-31T10:00:00Z",
+                job_id: 9,
+                from_stage: "implementing",
+                to_stage: "review",
+                item: {
+                  job_id: 9,
+                  stage: "review",
+                  item: {
+                    id: 9,
+                    slug: "JOB-9",
+                    title: "Historical card",
+                    state: "closed",
+                    paths: { job: "/jobs/JOB-9" },
+                    metadata_as_of: "2026-10-31T12:00:00Z"
+                  }
+                }
+              }
+            ],
+            ticks: ["2026-10-31T10:00:00Z"],
+            traces: [{ job_id: 9, segments: [{ stage: "review", entered_at: "2026-10-31T10:00:00Z", left_at: "2026-10-31T12:00:00Z", dwell_seconds: 7200 }] }],
+            accuracy: { status: "reconstructed", truncated: false, message: "Stage placement is reconstructed. Card metadata is current." }
+          }
+        })
+      )
     )
 
     render(
@@ -221,9 +232,15 @@ describe("RepositoryPipelineRoute", () => {
     expect(await screen.findByText("Historical card")).toBeInTheDocument()
     expect(screen.getByText("Reconstructed placement; current metadata")).toBeInTheDocument()
     expect(screen.getByText(/This view is read-only/)).toBeInTheDocument()
+    expect(screen.getByText(/1 placement changed/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "View trace" }))
+    expect(screen.getByText("Trace for JOB-9")).toBeInTheDocument()
+    expect(screen.getByText(/entered/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("History window"), { target: { value: "30" } })
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("range_start=") && String(url).includes("range_end="))).toBe(true))
     expect(String(fetchSpy.mock.calls[0][0])).not.toContain("at=")
-    fireEvent.click(screen.getByRole("button", { name: "Return to now" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Return to now" }))
     await waitFor(() => expect(screen.queryByText(/This view is read-only/)).not.toBeInTheDocument())
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(4)
   })
 })
