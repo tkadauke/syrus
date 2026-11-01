@@ -130,38 +130,119 @@ class ChatPendingAction < ApplicationRecord
     pause_landing_queue
     resume_landing_queue
   ].freeze
-  STATES = %w[ queued pending confirming confirmed rejected cancelled failed ].freeze
+  STATES = %w[ queued pending confirming confirmed rejected cancelled failed dismissed non_actionable ].freeze
+  REQUEST_KINDS = %w[ legacy_action authorization_request ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
   CONFIRMED_VISIBLE_FOR = 1.second
 
   attribute :payload, :json, default: -> { {} }
   attribute :before_snapshot, :json, default: -> { {} }
   attribute :after_snapshot, :json, default: -> { {} }
+  attribute :delivery_metadata, :json, default: -> { {} }
 
-  belongs_to :chat_session
+  belongs_to :chat_session, optional: true
   belongs_to :repository, optional: true
   belongs_to :user
+  belongs_to :origin, polymorphic: true, optional: true
+  belongs_to :subject, polymorphic: true, optional: true
   belongs_to :result, polymorphic: true, optional: true
   belongs_to :tool_call_message, class_name: "ChatMessage", foreign_key: :chat_message_id, optional: true
   belongs_to :pending_action_group, optional: true, inverse_of: :chat_pending_actions
   has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
+  has_many :authorization_items, class_name: "PendingActionItem", dependent: :destroy, inverse_of: :chat_pending_action
+  has_many :transitions, class_name: "PendingActionTransition", dependent: :delete_all, inverse_of: :chat_pending_action
 
   enum :state, STATES.index_with(&:itself), validate: true
 
   before_validation :derive_owner_from_chat_session
+  before_validation :derive_origin_from_chat_session
+  before_validation :activate_authorization_deduplication
+  before_update :release_terminal_deduplication, if: :will_save_change_to_state?
+  after_create :record_creation_transition!
+  after_update :record_state_transition!, if: :saved_change_to_state?
   after_create_commit :broadcast_pending_action_created
   after_update_commit :broadcast_pending_action_state_updated, if: :broadcastable_state_change?
   after_update_commit :notify_chat_of_outcome
 
   validates :action, inclusion: { in: ACTIONS }, allow_nil: true
   validates :action_type, inclusion: { in: ACTION_TYPES }, allow_nil: true
+  validates :request_kind, inclusion: { in: REQUEST_KINDS }
   validates :requested_by, presence: true, inclusion: { in: REQUESTED_BY }, if: :note_action?
-  validates :payload, presence: true, unless: :empty_payload_action?
-  validate :known_action
-  validate :payload_matches_action
-  validate :queued_actions_are_job_scoped
+  validates :payload, presence: true, if: -> { legacy_action? && !empty_payload_action? }
+  validates :origin, :subject, presence: true, if: :authorization_request?
+  validate :known_action, if: :legacy_action?
+  validate :payload_matches_action, if: :legacy_action?
+  validate :queued_actions_are_job_scoped, if: :legacy_action?
   validate :repository_matches_chat_session
   validate :user_matches_chat_session
+
+  scope :actionable, -> { where(deduplication_active: true, non_actionable_at: nil) }
+
+  def self.find_equivalent(deduplication_key)
+    return if deduplication_key.blank?
+
+    actionable.find_by(deduplication_key: deduplication_key)
+  end
+
+  def self.create_or_find_authorization_request!(attributes)
+    create!(attributes.merge(request_kind: "authorization_request"))
+  rescue ActiveRecord::RecordNotUnique
+    find_equivalent(attributes[:deduplication_key] || attributes["deduplication_key"]) || raise
+  end
+
+  def legacy_action?
+    request_kind == "legacy_action"
+  end
+
+  def authorization_request?
+    request_kind == "authorization_request"
+  end
+
+  def actionable?
+    non_actionable_at.nil? && !dismissed? && !non_actionable?
+  end
+
+  def ready_for_authorized_invocation?
+    authorization_request? && authorization_items.exists? && authorization_items.where.not(state: "approved").none?
+  end
+
+  def mark_non_actionable!(reason)
+    with_lock do
+      return false unless actionable?
+
+      authorization_items.pending.find_each { |item| item.mark_non_actionable!(reason) }
+      update!(state: "non_actionable", non_actionable_at: Time.current, non_actionable_reason: reason)
+    end
+    true
+  end
+
+  def dismiss!
+    with_lock do
+      return false unless state.in?(%w[pending non_actionable failed])
+
+      update!(state: "dismissed")
+    end
+    true
+  end
+
+  def record_delivery!(metadata: {}, at: Time.current)
+    update!(
+      delivery_state: "delivered",
+      delivered_at: at,
+      delivery_attempts: delivery_attempts + 1,
+      last_delivery_error: nil,
+      delivery_metadata: delivery_metadata.to_h.merge(metadata.to_h.stringify_keys)
+    )
+  end
+
+  def record_delivery_failure!(error, metadata: {})
+    update!(
+      delivery_state: "failed",
+      delivery_attempts: delivery_attempts + 1,
+      last_delivery_error: "#{error.class}: #{error.message}",
+      delivery_metadata: delivery_metadata.to_h.merge(metadata.to_h.stringify_keys)
+    )
+  end
 
   def confirm!(user: nil)
     return false unless start_confirmation!(
@@ -481,6 +562,18 @@ class ChatPendingAction < ApplicationRecord
     self.user ||= chat_session.user
   end
 
+  def derive_origin_from_chat_session
+    self.origin ||= chat_session
+  end
+
+  def activate_authorization_deduplication
+    self.deduplication_active = true if authorization_request? && deduplication_key.present? && deduplication_active.nil? && actionable?
+  end
+
+  def release_terminal_deduplication
+    self.deduplication_active = nil if state.in?(%w[confirmed rejected cancelled failed dismissed non_actionable])
+  end
+
   def note_action?
     action.present?
   end
@@ -545,6 +638,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def notify_chat_of_outcome
+    return unless chat_session
     return if suppress_outcome_notification
     return unless saved_change_to_state?
     return unless confirmed? || rejected? || cancelled?
@@ -574,6 +668,8 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def broadcast_pending_action_updated
+    return unless chat_session
+
     AppEvents.broadcast(
       user: chat_session.user,
       type: "updated",
@@ -590,5 +686,14 @@ class ChatPendingAction < ApplicationRecord
         execution_error: execution_error
       }
     )
+  end
+
+  def record_creation_transition!
+    transitions.create!(event_type: "created", to_state: state, metadata: {})
+  end
+
+  def record_state_transition!
+    from, to = saved_change_to_state
+    transitions.create!(event_type: "state_changed", from_state: from, to_state: to, metadata: {})
   end
 end
