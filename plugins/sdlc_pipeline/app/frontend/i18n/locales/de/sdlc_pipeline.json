@@ -93,5 +93,6 @@
   "tool_open": "Pipeline öffnen",
   "tool_copy_link": "Link kopieren",
   "tool_summary": "Pipeline für {{repository}}",
-  "tool_malformed": "Dieses Pipeline-Ergebnis kann nicht angezeigt werden."
+  "tool_malformed": "Dieses Pipeline-Ergebnis kann nicht angezeigt werden.",
+  "chat_view_pipeline": "Pipeline anzeigen"
 }

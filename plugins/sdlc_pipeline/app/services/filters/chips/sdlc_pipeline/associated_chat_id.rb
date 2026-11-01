@@ -1,8 +1,8 @@
 module Filters
   module Chips
     module SdlcPipeline
-      class ChatSessionId < Base
-        filter_name "chat_session_id"
+      class AssociatedChatId < Base
+        filter_name "associated_chat_id"
         label "Associated chat"
         bucket :enum
         operators :is, :is_not, :is_one_of, :is_none_of

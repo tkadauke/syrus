@@ -108,6 +108,45 @@ describe("ChatJobStatusPanel empty state", () => {
   })
 })
 
+describe("ChatJobStatusPanel plugin actions", () => {
+  it("requires an explicit repository action and preserves its filtered path", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        items: [],
+        pending_proposals: [],
+        extensions: {
+          actions: [
+            {
+              id: "pipeline.1",
+              label_i18n_key: "sdlc_pipeline:chat_view_pipeline",
+              repository_id: 1,
+              repository_label: "acme/one",
+              path: "/repositories/1/plugin/sdlc-pipeline?q=one"
+            },
+            {
+              id: "pipeline.2",
+              label_i18n_key: "sdlc_pipeline:chat_view_pipeline",
+              repository_id: 2,
+              repository_label: "acme/two",
+              path: "/repositories/2/plugin/sdlc-pipeline?q=two"
+            }
+          ]
+        }
+      })
+    )
+    const listener = vi.fn()
+    window.addEventListener("syrus:tool-presentation", listener)
+    renderPanel()
+
+    const actions = await screen.findAllByRole("button", { name: /View pipeline/ })
+    expect(actions).toHaveLength(2)
+    fireEvent.click(screen.getByRole("button", { name: "View pipeline · acme/two" }))
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toMatchObject({ chat_session_id: 8, path: "/repositories/2/plugin/sdlc-pipeline?q=two" })
+    window.removeEventListener("syrus:tool-presentation", listener)
+  })
+})
+
 describe("ChatJobStatusPanel job cards", () => {
   beforeEach(() => {
     Object.assign(navigator, {

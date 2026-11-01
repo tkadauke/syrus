@@ -1204,7 +1204,7 @@ type ChatThemePreviewPayload = {
 type ChatToolPresentationPayload = {
   action: "open_tool_presentation"
   presentation: string
-  title: string
+  title_i18n_key: string
   path: string
 }
 
@@ -1541,8 +1541,8 @@ function chatToolPresentationPayload(payload: unknown): ChatToolPresentationPayl
   if (!payload || typeof payload !== "object") return null
   const candidate = payload as Partial<ChatToolPresentationPayload>
   if (candidate.action !== "open_tool_presentation") return null
-  if (typeof candidate.presentation !== "string" || typeof candidate.title !== "string" || typeof candidate.path !== "string") return null
-  return { action: candidate.action, presentation: candidate.presentation, title: candidate.title, path: candidate.path }
+  if (typeof candidate.presentation !== "string" || typeof candidate.title_i18n_key !== "string" || typeof candidate.path !== "string") return null
+  return { action: candidate.action, presentation: candidate.presentation, title_i18n_key: candidate.title_i18n_key, path: candidate.path }
 }
 
 function chatParticipantsPayload(payload: unknown): ChatParticipantsPayload | null {

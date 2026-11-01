@@ -396,20 +396,23 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
     <div className="space-y-3">
       {pipelineActions.length ? (
         <div className="flex flex-wrap justify-end gap-2">
-          {pipelineActions.map((action) => (
-            <Button
-              key={action.id}
-              onClick={() =>
-                window.dispatchEvent(
-                  new CustomEvent("syrus:tool-presentation", { detail: { chat_session_id: chatId, title: action.repository_label, path: action.path } })
-                )
-              }
-              size="sm"
-              variant="secondary"
-            >
-              {pipelineActions.length > 1 ? `${action.label} · ${action.repository_label}` : action.label}
-            </Button>
-          ))}
+          {pipelineActions.map((action) => {
+            const label = t(action.label_i18n_key)
+            return (
+              <Button
+                key={action.id}
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("syrus:tool-presentation", { detail: { chat_session_id: chatId, title: action.repository_label, path: action.path } })
+                  )
+                }
+                size="sm"
+                variant="secondary"
+              >
+                {pipelineActions.length > 1 ? `${label} · ${action.repository_label}` : label}
+              </Button>
+            )
+          })}
         </div>
       ) : null}
       <ProposedProposalsSection chatId={chatId} onSelectMessage={onSelectMessage} proposals={pendingProposals} />

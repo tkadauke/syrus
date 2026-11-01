@@ -7,7 +7,7 @@ module SdlcPipeline
     ].freeze
     CHIPS = {
       "search" => "Filters::Chips::SdlcPipeline::Search",
-      "chat_session_id" => "Filters::Chips::SdlcPipeline::ChatSessionId",
+      "associated_chat_id" => "Filters::Chips::SdlcPipeline::AssociatedChatId",
       "epic_id" => "Filters::Chips::Jobs::EpicId",
       "job_id" => "Filters::Chips::SdlcPipeline::JobId",
       "owner_user_id" => "Filters::Chips::Jobs::OwnerUserId"

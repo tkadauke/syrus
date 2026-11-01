@@ -1,8 +1,12 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ToolPresentationModal } from "./ToolPresentationModal"
 
 describe("ToolPresentationModal", () => {
+  beforeEach(() => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+  })
+
   it("opens only for a live matching-chat event and does not rehydrate itself", () => {
     const view = render(<ToolPresentationModal chatId="8" prefix="/app" />)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
@@ -17,7 +21,12 @@ describe("ToolPresentationModal", () => {
     )
     expect(screen.getByRole("dialog", { name: "Pipeline" })).toBeInTheDocument()
     expect(screen.getByTitle("Pipeline")).toHaveAttribute("src", "/app/repositories/2/plugin/sdlc-pipeline?q=x")
-    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    expect(screen.getByRole("dialog")).toHaveClass("h-[100dvh]", "sm:h-[94dvh]")
+    expect(screen.getByRole("link", { name: "Open full page" })).toHaveAttribute("href", "/app/repositories/2/plugin/sdlc-pipeline?q=x")
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("http://localhost:3000/app/repositories/2/plugin/sdlc-pipeline?q=x")
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 
     view.unmount()
     render(<ToolPresentationModal chatId="8" prefix="/app" />)
