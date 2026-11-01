@@ -20,14 +20,22 @@ class CreateAuthorizedInvocations < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :authorized_invocations, :pending_action_item_id,
-      unique: true, name: "idx_authorized_invocations_item_unique" unless index_exists?(:authorized_invocations, name: "idx_authorized_invocations_item_unique")
-    add_index :authorized_invocations, :claim_key,
-      unique: true, where: "claim_key IS NOT NULL", name: "idx_authorized_invocations_claim_key_unique" unless index_exists?(:authorized_invocations, name: "idx_authorized_invocations_claim_key_unique")
-    add_index :authorized_invocations, [ :authority_type, :authority_id, :state ],
-      name: "idx_authorized_invocations_authority_state" unless index_exists?(:authorized_invocations, name: "idx_authorized_invocations_authority_state")
-    add_index :authorized_invocations, [ :invocation_fingerprint, :state ],
-      name: "idx_authorized_invocations_fingerprint_state" unless index_exists?(:authorized_invocations, name: "idx_authorized_invocations_fingerprint_state")
+    unless index_exists?(:authorized_invocations, :pending_action_item_id, name: "idx_authorized_invocations_item_unique")
+      add_index :authorized_invocations, :pending_action_item_id,
+        unique: true, name: "idx_authorized_invocations_item_unique"
+    end
+    unless index_exists?(:authorized_invocations, :claim_key, name: "idx_authorized_invocations_claim_key_unique")
+      add_index :authorized_invocations, :claim_key,
+        unique: true, where: "claim_key IS NOT NULL", name: "idx_authorized_invocations_claim_key_unique"
+    end
+    unless index_exists?(:authorized_invocations, [ :authority_type, :authority_id, :state ], name: "idx_authorized_invocations_authority_state")
+      add_index :authorized_invocations, [ :authority_type, :authority_id, :state ],
+        name: "idx_authorized_invocations_authority_state"
+    end
+    unless index_exists?(:authorized_invocations, [ :invocation_fingerprint, :state ], name: "idx_authorized_invocations_fingerprint_state")
+      add_index :authorized_invocations, [ :invocation_fingerprint, :state ],
+        name: "idx_authorized_invocations_fingerprint_state"
+    end
   end
 
   def down
