@@ -6,6 +6,7 @@ RSpec.describe MysqlDbBrowser::PermissionProvider do
 
     {
       "SELECT email FROM users" => [ "mysql.query/read@v1", :medium ],
+      "EXPLAIN SELECT email FROM users" => [ "mysql.query/read@v1", :medium ],
       "UPDATE users SET active = 0" => [ "mysql.query/write@v1", :high ],
       "ALTER TABLE users ADD archived_at datetime" => [ "mysql.query/schema_change@v1", :critical ],
       "GRANT ALL ON app.* TO operator" => [ "mysql.query/administer@v1", :critical ]
@@ -23,6 +24,19 @@ RSpec.describe MysqlDbBrowser::PermissionProvider do
       expect(result).to have_attributes(
         operation: "mysql.query/execute@v1", risk: :critical, effects: descriptor.effects, fallback?: true
       )
+    end
+
+    it "falls back to the maximum risk when EXPLAIN ANALYZE could execute a mutation" do
+      [
+        "EXPLAIN ANALYZE DELETE FROM users WHERE active = 0",
+        "EXPLAIN /* diagnostic */ ANALYZE UPDATE users SET active = 0"
+      ].each do |sql|
+        result = Permissions::InvocationClassifier.call(descriptor:, arguments: { sql: sql })
+
+        expect(result).to have_attributes(
+          operation: "mysql.query/execute@v1", risk: :critical, effects: descriptor.effects, fallback?: true
+        )
+      end
     end
 
     it "redacts SQL while retaining non-sensitive routing arguments" do
