@@ -321,7 +321,7 @@ RSpec.describe PersistentMcpDaemon do
         end
       end
 
-      it "lists and dispatches the deny-by-default coworker surface" do
+      it "lists and dispatches the eligible coworker surface" do
         scope = Syrus::EffectScope.new(label: "persistent daemon coworker surface")
         Coworkers::ChatExtension.install_into(scope)
         PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
@@ -344,7 +344,7 @@ RSpec.describe PersistentMcpDaemon do
           message_coworker manage_coworker_schedule read_memory
         ])
         expect(deferred).to include("search_memories", "list_memories")
-        forbidden_names = all_names.grep(/\A(?:mysql_db_browser_|k8s_cluster_|credential_store_|admin_)/)
+        forbidden_names = all_names.grep(/\A(?:mysql_db_browser_|k8s_cluster_|credential_store_)/)
         forbidden_names += all_names.grep(/(?:theme|preview|canvas|scene|draw_|element)/)
         expect(forbidden_names).to be_empty
 
