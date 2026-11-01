@@ -55,6 +55,5 @@ module AuthorizationContinuations
 
       Payload.denied(checkpoint:, reason: denial_reason)
     end
-
   end
 end

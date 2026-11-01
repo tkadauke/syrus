@@ -62,7 +62,7 @@ class ChatQueuedMessagePromoter
   end
 
   def batchable_system_notice?(queued_message)
-    queued_message.promoted_role == "system"
+    queued_message.promoted_role == "system" && !queued_message.authorization_continuation?
   end
 
   def promoted_content_for(queued_messages)
