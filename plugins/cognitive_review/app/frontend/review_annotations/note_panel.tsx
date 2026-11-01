@@ -48,15 +48,10 @@ type NotePanelProps = {
 type NotePanelItemProps = NotePanelProps & Partial<CognitiveReviewNote>
 
 const VISIBLE_NOTE_LIMIT = 12
-const NOTE_CARD_CLASS = [
-  "rounded border p-3 text-sm text-text-primary focus-within:ring-2"
-].join(" ")
+const NOTE_CARD_CLASS = ["rounded border p-3 text-sm text-text-primary focus-within:ring-2"].join(" ")
 const OPEN_NOTE_CARD_CLASS = "border-warning-border bg-warning-bg/45 focus-within:ring-warning-border"
 const HANDLED_NOTE_CARD_CLASS = "border-success-border bg-success-bg/35 focus-within:ring-success-border"
-const AGENT_NOTE_BADGE_CLASS = [
-  "shrink-0 rounded border bg-surface px-1.5 py-0.5",
-  "text-2xs font-semibold uppercase"
-].join(" ")
+const AGENT_NOTE_BADGE_CLASS = ["shrink-0 rounded border bg-surface px-1.5 py-0.5", "text-2xs font-semibold uppercase"].join(" ")
 const METADATA_CHIP_CLASS = "rounded border border-border bg-surface px-1.5 py-0.5 text-2xs text-text-secondary"
 const RANGE_BUTTON_CLASS = [
   "mt-1 block max-w-full whitespace-normal break-all text-left",
@@ -67,10 +62,7 @@ const FEEDBACK_REPLY_TEXTAREA_CLASS = [
   "text-sm text-text-primary shadow-sm",
   "focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
 ].join(" ")
-const DISCUSSION_DIALOG_CLASS = [
-  "w-full max-w-lg rounded border border-border bg-surface p-4",
-  "shadow-[var(--shadow-panel)]"
-].join(" ")
+const DISCUSSION_DIALOG_CLASS = ["w-full max-w-lg rounded border border-border bg-surface p-4", "shadow-[var(--shadow-panel)]"].join(" ")
 const DISCUSSION_PROMPT_TEXTAREA_CLASS = [
   "min-h-36 w-full rounded border border-border bg-surface px-3 py-2",
   "text-sm text-text-primary shadow-sm focus:outline-brand"
@@ -88,10 +80,12 @@ export default function CognitiveReviewNotePanel({ item, surface }: PluginReview
 
   return (
     <div className="space-y-3">
-      {hideHeader ? null : <div>
-        <div className="text-sm font-semibold text-text-primary">{t("panel.title")}</div>
-        <p className="mt-1 text-xs text-text-secondary">{summaryText(t, rollup, total, notes)}</p>
-      </div>}
+      {hideHeader ? null : (
+        <div>
+          <div className="text-sm font-semibold text-text-primary">{t("panel.title")}</div>
+          <p className="mt-1 text-xs text-text-secondary">{summaryText(t, rollup, total, notes)}</p>
+        </div>
+      )}
       {rollup ? <RollupGrid rollup={rollup} /> : null}
       {visibleNotes.length > 0 ? (
         <div className="space-y-3">
@@ -300,13 +294,23 @@ function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNot
             <Button disabled={!replyBody.trim() || comment.isPending} onClick={() => comment.mutate(replyBody.trim())} size="sm">
               {comment.isPending ? t("actions.saving_feedback_reply") : t("actions.save_feedback_reply")}
             </Button>
-            <Button disabled={comment.isPending} onClick={() => { setReplyOpen(false); setReplyBody("") }} size="sm" variant="secondary">
+            <Button
+              disabled={comment.isPending}
+              onClick={() => {
+                setReplyOpen(false)
+                setReplyBody("")
+              }}
+              size="sm"
+              variant="secondary"
+            >
               {t("actions.cancel")}
             </Button>
           </div>
         </div>
       ) : null}
-      {acknowledge.isError || (!discussionDialogOpen && discuss.isError) || comment.isError ? <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p> : null}
+      {acknowledge.isError || (!discussionDialogOpen && discuss.isError) || comment.isError ? (
+        <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p>
+      ) : null}
     </article>
   )
 }
@@ -350,7 +354,9 @@ function ReviewNoteDiscussionDialog({
       open
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-base font-semibold text-text-primary" id="review-note-discussion-title">{t("actions.discussion_title")}</h2>
+        <h2 className="text-base font-semibold text-text-primary" id="review-note-discussion-title">
+          {t("actions.discussion_title")}
+        </h2>
         <button
           aria-label={t("actions.close_discussion")}
           className="inline-flex h-8 w-8 items-center justify-center rounded text-text-muted hover:bg-surface-muted hover:text-text-primary"
@@ -374,9 +380,15 @@ function ReviewNoteDiscussionDialog({
           required
           value={prompt}
         />
-        {error ? <p className="text-sm text-danger-text" role="alert">{errorMessage(error, t("actions.discussion_error"))}</p> : null}
+        {error ? (
+          <p className="text-sm text-danger-text" role="alert">
+            {errorMessage(error, t("actions.discussion_error"))}
+          </p>
+        ) : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button disabled={isPending} onClick={onClose} variant="secondary">{t("actions.cancel")}</Button>
+          <Button disabled={isPending} onClick={onClose} variant="secondary">
+            {t("actions.cancel")}
+          </Button>
           <Button disabled={isPending || !trimmedPrompt} type="submit" variant="primary">
             {isPending ? t("actions.discussing") : t("actions.start_discussion")}
           </Button>
