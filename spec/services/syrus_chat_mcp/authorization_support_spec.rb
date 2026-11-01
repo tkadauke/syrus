@@ -185,4 +185,98 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
     expect(response[:result][:isError]).to be(true)
     expect(payload).to eq(error: "not_authorized")
   end
+
+  describe ".pending_coworker_approval" do
+    let(:coworker) do
+      Coworkers::Coworker.create!(
+        owner_user: user, name: "Maya", handle: "maya", workspace_repo: repository.remote_url
+      )
+    end
+    let(:coworker_tool) do
+      Class.new(MCP::Tool) do
+        tool_name "read_custom_data"
+        input_schema(properties: { query: { type: "string" } }, required: %w[query])
+      end
+    end
+    let(:permission_descriptor) do
+      Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "read_custom_data", capability: "custom.read", mutation: false,
+        required_roles: [ AgentRole::COWORKER_CHAT ]
+      )
+    end
+    let(:catalog_descriptor) do
+      Mcp::CoworkerToolCatalog::Descriptor.new(
+        tool_name: "read_custom_data", capability: "custom.read", ungated: false,
+        tier: :essential, tool: coworker_tool, provider: nil
+      )
+    end
+    let(:registry_entry) { Struct.new(:tool, :descriptor).new(coworker_tool, permission_descriptor) }
+
+    before do
+      Coworkers::Chat.create!(coworker:, chat_session:, role: "main")
+      assigned_coworker = coworker
+      chat_session.define_singleton_method(:coworker) { assigned_coworker }
+      allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(catalog_descriptor)
+      allow(McpToolRegistry).to receive(:entries).with(surface: :coworker).and_return([ registry_entry ])
+      grant_descriptor = instance_double(Coworkers::GrantCatalog::Descriptor, valid_scope?: true)
+      allow(Coworkers::GrantCatalog).to receive(:fetch).with("custom.read").and_return(grant_descriptor)
+    end
+
+    it "creates and anchors one compound request through the production dispatch helper" do
+      current_message = instance_double(Mcp::Tools::CurrentMessage)
+      expect(current_message).to receive(:update_columns).with(pending_action_id: kind_of(Integer))
+
+      response = described_class.pending_coworker_approval(
+        coworker_tool, { chat_session:, current_message: }, { query: "customers" }
+      )
+      payload = JSON.parse(response.content.first[:text])
+      request = ChatPendingAction.find(payload.fetch("pending_action_id"))
+
+      expect(payload).to include(
+        "message" => "Waiting for the owner to decide the required permissions.",
+        "approval_policy" => "queue"
+      )
+      expect(request).to be_authorization_request
+      expect(request.authorization_items.pluck(:kind)).to contain_exactly("capability_possession", "operation")
+    end
+
+    it "returns immediately when possession and automatic invocation approval are already present" do
+      coworker.grants.create!(capability: "custom.read", approval_policy: "auto")
+
+      expect(described_class.pending_coworker_approval(
+        coworker_tool, { chat_session: }, { query: "customers" }
+      )).to be_nil
+      expect(ChatPendingAction.where(request_kind: "authorization_request")).to be_empty
+    end
+
+    it "fails closed when a core registry entry has no permission descriptor" do
+      allow(McpToolRegistry).to receive(:entries).with(surface: :coworker)
+        .and_return([ Struct.new(:tool, :descriptor).new(coworker_tool, nil) ])
+
+      expect {
+        described_class.pending_coworker_approval(coworker_tool, { chat_session: }, { query: "customers" })
+      }.to raise_error(described_class::AuthorizationError, "tool has no permission descriptor")
+    end
+
+    it "adapts plugin tool definitions into permission descriptors" do
+      plugin_descriptor = Mcp::CoworkerToolCatalog::Descriptor.new(
+        tool_name: "plugin_read", capability: "plugin.read", ungated: false,
+        tier: :essential, tool: nil, provider: Class.new,
+        definition: {
+          name: "plugin_read", capability: "plugin.read", mutation: false,
+          requestable_roles: [ AgentRole::COWORKER_CHAT ]
+        }
+      )
+      allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(plugin_descriptor)
+
+      response = described_class.pending_coworker_approval(
+        "plugin_read", { chat_session: }, { query: "customers" }
+      )
+      request = ChatPendingAction.find(JSON.parse(response.content.first[:text]).fetch("pending_action_id"))
+
+      expect(request.authorization_items.find_by(kind: "operation")).to have_attributes(
+        capability: "plugin.read", operation: "plugin.read/plugin_read"
+      )
+    end
+  end
 end

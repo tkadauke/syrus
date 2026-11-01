@@ -81,6 +81,14 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     )
   end
 
+  it "still requests possession when an inconsistent legacy auto policy lacks its grant" do
+    request = described_class.new(
+      context: context, descriptor:, arguments:, invocation_policy: "auto"
+    ).call.request
+
+    expect(request.authorization_items.pluck(:kind)).to contain_exactly("capability_possession", "operation")
+  end
+
   it "fails closed without creating a request when effective policy denies the operation" do
     denied = Permissions::CapabilityDescriptor.new(**descriptor.to_h.merge(
       defaults: { AgentRole::COWORKER_CHAT => :deny }
