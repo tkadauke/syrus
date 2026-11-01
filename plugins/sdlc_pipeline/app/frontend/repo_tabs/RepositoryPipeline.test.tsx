@@ -132,4 +132,33 @@ describe("RepositoryPipelineRoute", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     expect(opener).toHaveFocus()
   })
+
+  it("round-trips the canonical filter query through overview requests", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository: { id: 1, slug: "acme/widgets" },
+        generated_at: "2026-10-31T12:00:00Z",
+        evidence: { status: "complete", incomplete_count: 0 },
+        tabs: [],
+        groups: [],
+        stages: [],
+        filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+        filter_schema: [{ field: "owner_user_id", label: "Owner", bucket: "enum", operators: ["is"], values: [{ value: "me", label: "Me" }] }],
+        active_smart_folder_id: 7,
+        smart_folders: [{ id: 7, name: "Mine", position: 1, kind: "builtin", subject_type: "sdlc_pipeline", visibility: "always", count: 0, active: true, filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] }, path: "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7" }]
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=encoded-tree"]}>
+          <RepositoryPipelineRoute repositoryId="1" prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/sdlc_pipeline?q=encoded-tree"), expect.anything())
+    expect(screen.getByRole("link", { name: /Mine/ })).toHaveAttribute("href", "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7")
+  })
 })
