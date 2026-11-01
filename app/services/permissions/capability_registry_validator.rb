@@ -161,7 +161,7 @@ module Permissions
     def descriptor_conflict_findings
       registrations.select { |registration| registration.explicit_descriptor && registration.descriptor }
         .group_by { |registration| registration.descriptor.operation }.filter_map do |operation, group|
-        contracts = group.group_by { |registration| descriptor_contract(registration.descriptor) }
+        contracts = group.group_by { |registration| registration.descriptor.contract_key }
         next if contracts.one?
         Finding.new(
           code: :conflicting_descriptor,
@@ -169,17 +169,6 @@ module Permissions
           registrations: group
         )
       end
-    end
-
-    def descriptor_contract(descriptor)
-      [
-        descriptor.capability, descriptor.effects.sort, descriptor.risk,
-        descriptor.maximum_autonomy, descriptor.authority_durations.sort,
-        descriptor.maximum_duration, descriptor.resource_scope.type, descriptor.resource_scope.options,
-        descriptor.requestable_roles.sort, descriptor.defaults.sort,
-        descriptor.presets,
-        descriptor.capability_aliases.sort, descriptor.operation_aliases.sort
-      ]
     end
 
     def canonical_and_alias_findings(kind)
