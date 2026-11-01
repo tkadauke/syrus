@@ -73,7 +73,7 @@ RSpec.describe "Coworker background runs" do
   end
 
   it "gives the run only granted coworker tools, queues live confirmations, and omits interactive tools" do
-    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
+    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm", scope: { "repository_id" => repository.id })
     coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")
@@ -83,7 +83,9 @@ RSpec.describe "Coworker background runs" do
     names = McpToolPolicy.for(context).map { |tool| McpToolRegistry.tool_name_for(tool) }
 
     expect(context).to have_attributes(role: AgentRole::COWORKER, interactive: false)
+    expect(context.agent_actor).to eq(coworker)
     expect(context.capability_approval_policies["syrus.read_jobs"]).to eq("queue")
+    expect(context.capability_scopes["syrus.read_jobs"]).to eq("repository_id" => repository.id)
     expect(names).to include("list_jobs", "search_jobs", "read_job")
     expect(names).not_to include("ask_user_question", "suggest_next_step", "force_fail_job", "run_command")
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
