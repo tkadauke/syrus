@@ -52,6 +52,20 @@ RSpec.describe AuthorizedInvocation, :ci_only do
     expect { invocation.complete!(claim_key: "dispatch-1", status: :succeeded, result: job) }.not_to raise_error
   end
 
+  it "prevents claimed and completed invocations from being reset or rewritten" do
+    invocation = issue
+    claim(invocation)
+
+    expect { invocation.update!(state: "issued", claim_key: nil, claimed_by: nil, claimed_at: nil) }
+      .to raise_error(ActiveRecord::RecordInvalid, /lifecycle is immutable/)
+
+    invocation.reload.complete!(claim_key: "dispatch-1", status: :succeeded, result: job)
+    expect { invocation.update!(state: "failed", result_status: "failed") }
+      .to raise_error(ActiveRecord::RecordInvalid, /lifecycle is immutable/)
+    expect { invocation.update!(claim_key: "rewritten-dispatch") }
+      .to raise_error(ActiveRecord::RecordInvalid, /lifecycle is immutable/)
+  end
+
   it "rejects an inexact fingerprint before revalidation or dispatch" do
     invocation = issue
     revalidated = false
@@ -93,6 +107,14 @@ RSpec.describe AuthorizedInvocation, :ci_only do
     claim(claimed)
     second_lease.revoke!(actor: user)
     expect(claimed.reload).to be_claimed
+  end
+
+  it "refuses to issue a new invocation from revoked authority" do
+    lease = create_lease
+    lease.revoke!(actor: user)
+
+    expect { issue(approved_item(fingerprint: "sha256:revoked"), authority: lease) }
+      .to raise_error(ActiveRecord::RecordInvalid, /Authority has been revoked/)
   end
 
   it "invalidates an unclaimed token when its durable rule is revoked" do
