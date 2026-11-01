@@ -94,7 +94,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe "EXTENSION_POINTS" do
     it "includes :chat_provider and :coverage_analyzer" do
-      expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer, :mentionable, :chat_result_decorator)
+      expect(described_class::EXTENSION_POINTS).to include(
+        :chat_provider,
+        :coverage_analyzer,
+        :mentionable,
+        :chat_result_decorator,
+        :chat_repository_default_filter
+      )
     end
 
     it "includes :ci_log_parser" do
@@ -203,6 +209,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
+    end
+  end
+
+  describe "Syrus::Plugin::ChatRepositoryDefaultFilter" do
+    it "requires providers to implement .apply" do
+      provider = Class.new { include Syrus::Plugin::ChatRepositoryDefaultFilter }
+
+      expect { provider.apply(scope: ChatSession.all) }
+        .to raise_error(NotImplementedError, /must define \.apply/)
     end
   end
 

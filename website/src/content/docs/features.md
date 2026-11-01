@@ -671,9 +671,11 @@ coworker from the roster.
 
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
-when one is available; the new-chat form shows that attachment in a repository
-dropdown, lets the operator choose any accessible repository, and includes a
-clear control plus a "No repository" option for starting without code context.
+in an ordinary chat when one is available; dedicated coworker main and side
+chats do not replace that default with their workspace repository. The new-chat
+form shows the default attachment in a repository dropdown, lets the operator
+choose any accessible repository, and includes a clear control plus a "No
+repository" option for starting without code context.
 A chat can attach repositories, Jobs, documents,
 memories, whiteboard state, and message-level image or PDF files. The chat
 can include one owner participant and additional member participants; every
