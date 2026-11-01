@@ -7,13 +7,14 @@ module SdlcPipeline
     RECENT_TAIL_AGE = 30.days
     AGING_AGE = 7.days
 
-    def initialize(repository:, user:, stage: nil, page: 1, limit: PAGE_DEFAULT, now: Time.current)
+    def initialize(repository:, user:, filter: Filter.from_tree({ "and" => [] }, user: user), stage: nil, page: 1, limit: PAGE_DEFAULT, now: Time.current)
       @repository = repository
       @user = user
       @selected_stage = stage.presence
       @page = [ page.to_i, 1 ].max
       @limit = limit.to_i.clamp(1, PAGE_MAX)
       @now = now
+      @filter = filter
     end
 
     def call
@@ -29,6 +30,7 @@ module SdlcPipeline
 
       {
         repository_id: repository.id,
+        filter: filter.to_h,
         generated_at: now.iso8601,
         bounds: {
           highlighted_items_per_stage: HIGHLIGHT_LIMIT,
@@ -48,10 +50,10 @@ module SdlcPipeline
 
     private
 
-    attr_reader :repository, :user, :selected_stage, :page, :limit, :now
+    attr_reader :repository, :user, :filter, :selected_stage, :page, :limit, :now
 
     def load_jobs
-      relation = Job.visible_to(user)
+      relation = filter.apply(Job.visible_to(user))
         .where(repository_id: repository.id)
         .includes(:epic, :deployment_stage_statuses)
         .order(updated_at: :desc, id: :desc)
@@ -77,7 +79,7 @@ module SdlcPipeline
         aging_count: ages.count { |age| age >= AGING_AGE },
         oldest_age_seconds: ages.max&.to_i,
         highlighted_items: ordered.first(HIGHLIGHT_LIMIT).map { |job| item_payload(job, entry.key) },
-        drill_down_path: "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline?stage=#{CGI.escapeURIComponent(entry.key)}"
+        drill_down_path: "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline?q=#{CGI.escapeURIComponent(filter.to_query_param)}&stage=#{CGI.escapeURIComponent(entry.key)}"
       }
     end
 
