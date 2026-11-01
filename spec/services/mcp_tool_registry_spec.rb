@@ -117,7 +117,7 @@ RSpec.describe McpToolRegistry do
       )
 
       expect(tool_names_for(context, tier: :deferred)).to include("discover_coworker_capabilities")
-      expect(tool_names_for(context, tier: :essential)).not_to include("list_jobs")
+      expect(tool_names_for(context, tier: :essential)).to include("list_jobs")
       expect(described_class.entries(surface: :coworker).find { |entry| entry.tool_name == "list_jobs" }.descriptor.requestable_roles)
         .to include(AgentRole::COWORKER_CHAT, AgentRole::COWORKER)
     end

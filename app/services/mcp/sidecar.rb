@@ -197,20 +197,6 @@ module Mcp
 
       definitions = filter_by_policy(definitions, policy)
       definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
-      if policy == :coworker
-        grants = McpToolContext.from_chat_session(chat_session, agent_actor:).granted_capabilities
-        definitions = definitions.select do |definition|
-          capability = definition[:capability] || definition["capability"]
-          ungated = definition[:ungated] || definition["ungated"]
-          if ungated == true
-            true
-          else
-            descriptor = Mcp::CoworkerToolCatalog.resolve(definition[:name] || definition["name"], chat_session: chat_session)
-            descriptor && capability.present? && grants.include?(capability.to_s)
-          end
-        end
-      end
-
       definitions.map do |defn|
         tool = MCP::Tool.define(
           name: defn[:name],

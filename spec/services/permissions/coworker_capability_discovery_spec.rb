@@ -48,7 +48,7 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
       required_scope: a_hash_including(type: :repository),
       effective_policy: "ask",
       state: "requestable",
-      lock_reason: "capability_not_granted"
+        lock_reason: "operation_requires_approval"
     )
   end
 
@@ -109,14 +109,15 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
     expect(Permissions::Management).to have_received(:new).once
   end
 
-  context "when the family is already granted" do
+  context "when the family has a legacy grant" do
     let(:granted_capabilities) { [ "example.records" ] }
 
-    it "keeps it out of requestable discovery and labels it available in explicit discovery" do
+    it "continues to report the unified ask policy" do
       allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
 
-      expect(described_class.new(context).call).to be_empty
-      expect(described_class.new(context).call(include_non_requestable: true).sole.state).to eq("available")
+      expect(described_class.new(context).call.sole).to have_attributes(
+        state: "requestable", lock_reason: "operation_requires_approval"
+      )
     end
   end
 end

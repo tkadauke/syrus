@@ -6756,7 +6756,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(request.reload).to be_pending
   end
 
-  it "records an independent coworker possession decision" do
+  it "records a coworker operation denial without creating legacy possession" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     coworker = Coworkers::Coworker.create!(
@@ -6765,13 +6765,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
     request = chat.pending_actions.create!(
       request_kind: "authorization_request", action: "coworker_tool_call",
-      requested_by: "agent", origin: chat, subject: coworker,
+      requested_by: "agent", origin: chat, subject: coworker, runtime_role: AgentRole::COWORKER_CHAT,
       payload: { "tool_name" => "read_syrus_logs", "arguments" => { "query" => "errors" } }
-    )
-    possession = request.authorization_items.create!(
-      kind: "capability_possession", capability: "ops.read_logs", capability_version: 1,
-      resource_type: "none", normalized_arguments: {}, effects: [], policy_chain: [],
-      decisive_rule: {}, requested_durations: []
     )
     operation = request.authorization_items.create!(
       kind: "operation", capability: "ops.read_logs", capability_version: 1,
@@ -6779,15 +6774,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       invocation_fingerprint: "sha256:pending", normalized_arguments: { "query" => "errors" },
       effects: [], policy_chain: [], decisive_rule: {}, requested_durations: [ "invocation" ]
     )
-    operation.prerequisites << possession
-
-    post "/api/v1/app/chats/#{chat.id}/pending_actions/#{request.id}/authorization_items/#{possession.id}/decision",
-      params: { decision: "approved" }
+    post "/api/v1/app/chats/#{chat.id}/pending_actions/#{request.id}/authorization_items/#{operation.id}/decision",
+      params: { decision: "denied" }
 
     expect(response).to have_http_status(:ok)
-    expect(possession.reload).to be_approved
-    expect(coworker.grants.find_by!(capability: "ops.read_logs")).to have_attributes(approval_policy: "confirm")
-    expect(request.reload).to be_pending
+    expect(operation.reload).to be_denied
+    expect(coworker.grants).to be_empty
+    expect(request.reload).to be_rejected
   end
 
   it "includes the created repository document result for a confirmed pending action" do

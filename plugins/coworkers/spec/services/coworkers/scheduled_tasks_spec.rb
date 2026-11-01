@@ -23,6 +23,19 @@ RSpec.describe "Coworker scheduled tasks" do
     }.merge(attributes))
   end
 
+  def allow_schedule_tool
+    definition = Coworkers::ChatToolSet.tool_definitions(tier: :essential)
+      .find { |item| item[:name] == "manage_coworker_schedule" }
+    descriptor = Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition)
+    PermissionRule.create!(
+      owner_user: owner, created_by_user: owner, updated_by_user: owner,
+      subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+      subject_role_keys: [], capability: descriptor.capability, operation: descriptor.operation,
+      resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+      policy: "allow", policy_layer: "agent", source: "operator", provenance: {}
+    )
+  end
+
   it "fires a coworker Job and coworker workflow without PR behaviors" do
     scheduled_task = task
     workflow = instance_double(Workflow)
@@ -133,13 +146,12 @@ RSpec.describe "Coworker scheduled tasks" do
       skip_turn_trigger: true
     )
     allow(ScheduledTasks::Fire).to receive(:new)
+    allow_schedule_tool
 
-    result = Mcp::Tools::AuthorizationSupport.with_coworker_approval_bypass do
-      Coworkers::ManageScheduleTool.call(
-        action: "fire_now", scheduled_task_id: scheduled_task.id,
-        server_context: { chat_session: chat, current_message: followup_message }
-      )
-    end
+    result = Coworkers::ManageScheduleTool.call(
+      action: "fire_now", scheduled_task_id: scheduled_task.id,
+      server_context: { chat_session: chat, current_message: followup_message }
+    )
 
     expect(result).to be_error
     expect(result.content.to_s).to include("cannot fire another scheduled run")
@@ -160,13 +172,12 @@ RSpec.describe "Coworker scheduled tasks" do
       skip_turn_trigger: true
     )
     allow(ScheduledTasks::Fire).to receive(:new)
+    allow_schedule_tool
 
-    result = Mcp::Tools::AuthorizationSupport.with_coworker_approval_bypass do
-      Coworkers::ManageScheduleTool.call(
-        action: "fire_now", scheduled_task_id: scheduled_task.id,
-        server_context: { chat_session: chat, current_message: followup_message }
-      )
-    end
+    result = Coworkers::ManageScheduleTool.call(
+      action: "fire_now", scheduled_task_id: scheduled_task.id,
+      server_context: { chat_session: chat, current_message: followup_message }
+    )
 
     expect(result).to be_error
     expect(ScheduledTasks::Fire).not_to have_received(:new)

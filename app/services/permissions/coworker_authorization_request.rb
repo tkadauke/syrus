@@ -4,23 +4,23 @@ module Permissions
   class CoworkerAuthorizationRequest
     Result = Data.define(:request, :decision)
 
-    def initialize(context:, descriptor:, arguments:, purpose: nil, invocation_policy: nil, action: nil, payload: {})
+    def initialize(context:, descriptor:, arguments:, purpose: nil, action: nil, payload: {})
       @context = context
       @descriptor = descriptor
       @arguments = arguments.to_h
       @purpose = purpose
-      @invocation_policy = invocation_policy&.to_s
       @action = action
       @payload = payload
     end
 
     def call
-      decision = Permissions::Management.new(context.user).explain(
+      authorization = Permissions::Management.new(context.user).authorize(
         descriptor:, role: context.role, resource_scope:, arguments:,
         context: evaluation_context
       )
+      decision = authorization.decision
       raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "permission policy denies this operation" if denied?(decision)
-      return Result.new(request: nil, decision:) if possessed? && invocation_allowed?(decision)
+      return Result.new(request: nil, decision:) if authorization.authorized?
 
       request = create_request(decision)
       Result.new(request:, decision:)
@@ -28,7 +28,7 @@ module Permissions
 
     private
 
-    attr_reader :context, :descriptor, :arguments, :purpose, :invocation_policy, :action, :payload
+    attr_reader :context, :descriptor, :arguments, :purpose, :action, :payload
 
     def create_request(decision)
       fingerprint = InvocationFingerprint.call(descriptor:, arguments:)
@@ -57,20 +57,6 @@ module Permissions
     end
 
     def populate_items(request, decision, fingerprint)
-      possession = unless possessed?
-        request.authorization_items.create!(
-          common_attributes(decision).merge(
-            kind: "capability_possession",
-            operation: nil,
-            operation_version: nil,
-            normalized_arguments: {},
-            invocation_fingerprint: nil,
-            effects: [],
-            requested_durations: possession_durations
-          )
-        )
-      end
-
       operation = request.authorization_items.create!(
         common_attributes(decision).merge(
           kind: "operation",
@@ -84,7 +70,6 @@ module Permissions
           requested_durations: [ "invocation" ]
         )
       )
-      operation.prerequisites << possession if possession
     end
 
     def common_attributes(decision)
@@ -100,7 +85,7 @@ module Permissions
     end
 
     def resource_scope
-      context.capability_scopes.fetch(unversioned_capability, {}) || {}
+      {}
     end
 
     def evaluation_context
@@ -113,25 +98,7 @@ module Permissions
       }.compact
     end
 
-    def possessed? = context.granted_capabilities.include?(unversioned_capability)
-
-    def invocation_allowed?(decision)
-      invocation_policy == "auto" || (invocation_policy.nil? && decision.allow?)
-    end
-
-    # Legacy coworker grants remain authoritative during the enforcement
-    # cutover, but cannot override an explicit rule or a fail-closed evaluator
-    # result. This branch disappears with the legacy-grant migration.
-    def denied?(decision)
-      return false if possessed? && invocation_policy.present? && decision.decisive_rule.nil? &&
-        decision.chain.none? { |item| item.status == :decisive_failure }
-
-      decision.deny?
-    end
-
-    def possession_durations
-      descriptor.authority_durations.map(&:to_s) - [ "invocation" ]
-    end
+    def denied?(decision) = decision.deny?
 
     def unversioned_capability = identifier_name(descriptor.capability)
 
@@ -141,7 +108,7 @@ module Permissions
     def deduplication_key(decision, fingerprint)
       material = [ context.agent_actor.class.name, context.agent_actor.id, descriptor.capability,
         decision.invocation.operation, decision.invocation.resource_scope, fingerprint,
-        context.job&.id || context.chat_session&.id, invocation_policy ]
+        context.job&.id || context.chat_session&.id ]
       "coworker-authorization:#{Digest::SHA256.hexdigest(JSON.generate(material))}"
     end
   end

@@ -13,13 +13,22 @@ RSpec.describe PendingActions::CoworkerToolCall do
     Class.new(MCP::Tool) do
       tool_name "read_custom_data"
       input_schema(properties: { query: { type: "string" } }, required: %w[query])
+
+      class << self
+        def call(query:, server_context:)
+          Mcp::Tools.success(result: query)
+        end
+      end
     end
   end
   let(:descriptor) do
-    Permissions::CapabilityDescriptorAdapter.for_registry_entry(
-      tool_name: "read_custom_data", capability: "custom.read", mutation: false,
+    generated = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+      tool_name: "read_custom_data", capability: "custom.read", mutation: true,
       required_roles: [ AgentRole::COWORKER_CHAT ]
     )
+    Permissions::CapabilityDescriptor.new(**generated.to_h.merge(
+      defaults: { AgentRole::COWORKER_CHAT => :ask }
+    ))
   end
   let(:catalog_descriptor) do
     Mcp::CoworkerToolCatalog::Descriptor.new(
@@ -64,5 +73,22 @@ RSpec.describe PendingActions::CoworkerToolCall do
     request.update!(payload: request.payload.merge("arguments" => { "query" => "payments" }))
     expect { described_class.new(request).authorize_execution! }
       .to raise_error(ArgumentError, /no longer matches/)
+  end
+
+  it "claims an approved invocation once and refuses replay" do
+    operation = request.authorization_items.sole
+    Permissions::CoworkerAuthorizationDecision.new(
+      request:, item: operation, user: owner
+    ).call(decision: "approved")
+    allow(Mcp::Sidecar).to receive(:chat_tools).and_return([ tool ])
+    allow(tool).to receive(:call).and_call_original
+
+    command = described_class.new(request)
+    expect { command.execute }.not_to raise_error
+    expect(operation.reload.authorized_invocation).to be_succeeded
+    expect(tool).to have_received(:call).once
+
+    expect { command.execute }.to raise_error(ArgumentError, /no longer available/)
+    expect(tool).to have_received(:call).once
   end
 end
