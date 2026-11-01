@@ -245,7 +245,6 @@ function DrillDown({ onClose, repositoryId, search, stage }: { onClose: () => vo
 }
 
 function HistoryRail({
-  changes,
   currentTick,
   historical,
   historicalAt,
@@ -255,7 +254,6 @@ function HistoryRail({
   playing,
   setPlaying
 }: {
-  changes: PipelineHistory["deltas"]
   currentTick: number
   historical: boolean
   historicalAt: string | null
@@ -269,17 +267,14 @@ function HistoryRail({
   const selectedIndex = historical ? Math.max(0, currentTick) : history.ticks.length
   const markerSteps = Math.max(1, history.ticks.length - 1)
   return (
-    <Section.Root
-      aria-label={t("history_aria")}
-      className="flex w-[4.75rem] shrink-0 flex-col items-center gap-2 overflow-hidden p-2 sm:w-44 sm:items-stretch sm:p-3"
-    >
-      <div className="hidden sm:block">
+    <Section.Root aria-label={t("history_aria")} className="flex w-24 shrink-0 flex-col items-stretch gap-2 overflow-hidden p-2 sm:w-44 sm:p-3">
+      <div>
         <Section.Title>{t("history_short")}</Section.Title>
-        <Text className="mt-1" variant="caption" tone="muted">
+        <Text className="mt-1 truncate" variant="caption" tone="muted">
           {historical && historicalAt ? new Date(historicalAt).toLocaleString() : t("live_mode")}
         </Text>
       </div>
-      <div className="flex w-full items-center justify-center gap-1 sm:justify-start">
+      <div className="grid w-full grid-cols-2 gap-1">
         <Button
           aria-label={playing ? t("pause_history") : t("play_history")}
           disabled={!history.ticks.length}
@@ -296,6 +291,26 @@ function HistoryRail({
         <Button aria-label={t("return_now")} disabled={!historical} onClick={() => onSelect(null)} size="icon" title={t("return_now")} variant="secondary">
           ●
         </Button>
+        <Button
+          aria-label={t("previous_tick")}
+          disabled={!historical || currentTick <= 0}
+          onClick={() => onSelect(history.ticks[currentTick - 1])}
+          size="icon"
+          title={t("previous_tick")}
+          variant="secondary"
+        >
+          ‹
+        </Button>
+        <Button
+          aria-label={t("next_tick")}
+          disabled={!historical || currentTick >= history.ticks.length - 1}
+          onClick={() => onSelect(history.ticks[currentTick + 1])}
+          size="icon"
+          title={t("next_tick")}
+          variant="secondary"
+        >
+          ›
+        </Button>
       </div>
       <div className="relative min-h-52 w-full flex-1" data-testid="pipeline-time-rail">
         <Input
@@ -304,6 +319,7 @@ function HistoryRail({
           max={history.ticks.length}
           min={0}
           onChange={(event) => onSelect(event.target.value === String(history.ticks.length) ? null : history.ticks[Number(event.target.value)] || history.from)}
+          style={{ direction: "rtl", writingMode: "vertical-lr" }}
           type="range"
           value={selectedIndex}
         />
@@ -313,23 +329,26 @@ function HistoryRail({
             <button
               aria-label={t("event_marker", { time: new Date(tick).toLocaleString() })}
               aria-pressed={active}
-              className={`${EVENT_MARKER_CLASSES} ${active ? "border-brand text-brand" : "border-border text-text-muted"}`}
+              className={`${EVENT_MARKER_CLASSES} ${active ? "border-brand text-brand ring-2 ring-brand ring-offset-2 ring-offset-surface" : "border-border text-text-muted"}`}
               key={tick}
               onClick={() => onSelect(tick)}
               style={{ top: `calc(${history.ticks.length === 1 ? 50 : 8 + ((history.ticks.length - index - 1) / markerSteps) * 84}% - 1.375rem)` }}
               title={new Date(tick).toLocaleString()}
               type="button"
             >
-              <span aria-hidden className={`h-2.5 w-2.5 rotate-45 border ${active ? "border-brand bg-brand" : "border-current bg-surface"}`} />
+              <span
+                aria-hidden
+                className={`h-2.5 w-2.5 border transition-transform ${active ? "scale-125 rounded-full border-brand bg-brand" : "rotate-45 border-current bg-surface"}`}
+              />
             </button>
           )
         })}
       </div>
-      <div className="hidden sm:block">
+      <div>
         <label className="text-2xs text-text-muted">
           {t("history_window")}
           <Select
-            className="mt-1 px-2 py-1"
+            className="mt-1 px-1 py-1 text-2xs sm:px-2"
             fullWidth
             onChange={(event) => onRangeChange(Number(event.target.value))}
             value={Math.max(1, Math.round((new Date(history.to).getTime() - new Date(history.from).getTime()) / 86_400_000))}
@@ -340,11 +359,6 @@ function HistoryRail({
             <option value="90">{t("ninety_days")}</option>
           </Select>
         </label>
-        {historical ? (
-          <Text className="mt-2" variant="caption" tone="muted">
-            {changes.length ? t("changes_count", { count: changes.length }) : t("no_changes")}
-          </Text>
-        ) : null}
       </div>
     </Section.Root>
   )
@@ -823,7 +837,6 @@ function PipelineOverview({ payload, repositoryId, search }: { payload: Pipeline
           </div>
         </div>
         <HistoryRail
-          changes={changes}
           currentTick={currentTick}
           historical={historical}
           historicalAt={historicalAt}
