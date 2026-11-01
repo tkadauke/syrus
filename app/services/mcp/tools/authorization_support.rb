@@ -56,29 +56,39 @@ module Mcp::Tools
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
         return if descriptor.ungated
 
-        policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
-        policy = "queue" if context.run? && policy == "confirm"
-        return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
+        return if Thread.current[:coworker_tool_approval_bypass]
 
-        action = context.chat_session.pending_actions.create!(
+        capability_descriptor = if descriptor.tool
+          McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == descriptor.tool }&.descriptor
+        else
+          Permissions::CapabilityDescriptorAdapter.for_plugin_definition(descriptor.definition)
+        end
+        raise AuthorizationError, "tool has no permission descriptor" unless capability_descriptor
+
+        legacy_policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
+        legacy_policy = "queue" if context.run? && legacy_policy == "confirm"
+        result = Permissions::CoworkerAuthorizationRequest.new(
+          context:, descriptor: capability_descriptor, arguments:,
+          purpose: "Invoke #{descriptor.tool_name}", invocation_policy: legacy_policy,
           action: "coworker_tool_call",
-          state: "pending",
-          requested_by: "agent",
           payload: {
             "tool_name" => descriptor.tool_name,
             "arguments" => arguments.stringify_keys,
             "run_id" => context.run&.id,
-            "approval_policy" => policy,
-            "approval_inbox" => policy == "queue",
+            "approval_policy" => legacy_policy,
+            "approval_inbox" => legacy_policy == "queue",
             "actor" => approval_actor(context.agent_actor)
           }.compact
-        )
+        ).call
+        return unless result.request
+
+        action = result.request
         server_context[:current_message]&.update_columns(pending_action_id: action.id)
         Mcp::Tools.success(
           pending_confirmation_id: action.id,
           pending_action_id: action.id,
-          approval_policy: policy,
-          message: policy == "confirm" ? "Waiting for the owner to confirm this action." : "Queued for owner approval."
+          approval_policy: legacy_policy,
+          message: "Waiting for the owner to decide the required permissions."
         )
       end
 
