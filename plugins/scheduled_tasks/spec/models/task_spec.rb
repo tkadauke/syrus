@@ -202,6 +202,25 @@ RSpec.describe ScheduledTasks::Task do
     end
   end
 
+  describe "authorization checkpoints" do
+    it "derives a waiting-for-permission blocker from an originating request" do
+      task = build_cron
+      task.save!
+      request = ChatPendingAction.create!(
+        request_kind: "authorization_request",
+        user: user,
+        repository: repository,
+        origin: task,
+        subject: user,
+        deduplication_key: "scheduled-task-checkpoint"
+      )
+
+      request.checkpoint_authorization!(payload: { fire_window: Time.current.iso8601 })
+
+      expect(task.reload).to be_waiting_for_permission
+    end
+  end
+
   describe "#hourly_cron_expression" do
     it "uses the stored cron expression without replacing the minute slot" do
       task = build_cron(cron_expression: "37 9 * * 1", minute_offset: 23)

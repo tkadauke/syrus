@@ -6,6 +6,7 @@ module ScheduledTasks
   class Task < ApplicationRecord
     self.table_name = "scheduled_tasks"
     include AutoApproveModes
+    include AuthorizationCheckpointOrigin
 
     KINDS = %w[ cron one_shot ].freeze
     STATES = %w[ scheduled paused auto_paused fired ].freeze
