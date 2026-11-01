@@ -99,6 +99,5 @@ module ContainerExecution
         ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_#{key}"].presence ||
         fallback
     end
-
   end
 end

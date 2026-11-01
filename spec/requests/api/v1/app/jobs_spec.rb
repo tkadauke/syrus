@@ -69,6 +69,28 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       .update_all(state: "succeeded", finished_at: Time.current, blocked_reason: nil, blocked_until: nil, blocked_details: {})
   end
 
+  it "preflights and explicitly starts a confirmed Job unland" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "landed"
+    )
+    rollback = Factories.job_record(user: user, repository: repo, rollback_of: original, state: "running")
+    plan = instance_double(Unlanding::Create::Plan, to_h: {
+      subject: original.slug, affected: [ original.slug ], base_sha: "base", commits: [ "abc" ], files: [ "app/a.rb" ],
+      dependents: [], deployment_stages: {}, warnings: [], graders: [ "smoke" ]
+    })
+    allow(Unlanding::Create).to receive(:plan!).with(original: original, user: user).and_return(plan)
+    allow(Unlanding::Create).to receive(:call!).with(original: original, user: user).and_return(rollback)
+
+    get "/api/v1/app/jobs/#{original.id}/unland"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("commits" => [ "abc" ], "graders" => [ "smoke" ])
+    expect(Unlanding::Create).not_to have_received(:call!)
+
+    post "/api/v1/app/jobs/#{original.id}/unland"
+    expect(response).to have_http_status(:created)
+    expect(parse_body).to include("rollback_job_id" => rollback.id, "rollback_job_path" => job_path(rollback))
+  end
+
   it "localizes Job validation errors in German without changing the machine contract" do
     user.update!(locale: "de")
 

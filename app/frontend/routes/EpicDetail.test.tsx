@@ -37,6 +37,7 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       landing: false,
       stuck: false,
       startable: true,
+      can_unland: false,
       start_blocked_on: [],
       owner: null,
       owned_by_current_user: false,
@@ -354,7 +355,7 @@ describe("EpicDetail unland preflight", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("shows the complete preflight plan before starting mutable rollback work", async () => {
-    const payload = detailPayload({ state: "done", startable: false })
+    const payload = detailPayload({ state: "done", startable: false, can_unland: true })
     const plan = {
       subject: "EPIC-3",
       affected: ["EPIC-3", "JOB-4"],
@@ -371,10 +372,17 @@ describe("EpicDetail unland preflight", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unland Epic" }))
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("EPIC-3, JOB-4")
+    expect(screen.getByRole("dialog").querySelectorAll("li")).toHaveLength(6)
     expect(screen.getByRole("dialog")).toHaveTextContent("JOB-9")
     expect(screen.getByRole("dialog")).toHaveTextContent("production")
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/epics/3/unland", expect.objectContaining({ credentials: "same-origin" }))
     expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("hides the control when the operator cannot mutate the Epic", () => {
+    renderDetail(detailPayload({ state: "done", startable: false, can_unland: false }))
+
+    expect(screen.queryByRole("button", { name: "Unland Epic" })).not.toBeInTheDocument()
   })
 })
 

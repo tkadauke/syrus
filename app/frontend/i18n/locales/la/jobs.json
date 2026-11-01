@@ -1022,5 +1022,20 @@
   "placement_current_provenance": "Origo loci praesentis: {{source}}",
   "placement_latest_audit": "Novissime mutatum ab {{actor}} ({{provenance}}): {{reason}}",
   "placement_audit_reason": "Causa actorum",
-  "confirm_placement_override": "Mutationem loci confirma"
+  "confirm_placement_override": "Mutationem loci confirma",
+  "unland": "Opus retrahe",
+  "unlanding": "Reversio incipitur…",
+  "unland_error": "Reversio explorari vel incipi non potuit.",
+  "unland_confirm_subject": "{{subject}} per Opus reversionis conexum retrahere?",
+  "unland_confirm_commits": "Commissiones exactae: {{commits}}",
+  "unland_confirm_files": "Fasciculi: {{files}}",
+  "unland_confirm_dependents": "Opera dependentia: {{dependents}}",
+  "unland_confirm_deployment": "Gradus dispositionis: {{stages}}",
+  "unland_confirm_graders": "Probatores retractionis: {{graders}}",
+  "unland_confirm_deploy_warning": "Hoc historiam Git revertit; ambitum dispositum automatice non revertit.",
+  "unland_confirm_warnings": "Monita: {{warnings}}",
+  "unland_status_in_progress": "Retractio agitur. Opus originale clausum manet.",
+  "unland_status_failed": "Retractio defecit. Opus conexum inspice.",
+  "unland_status_reverted": "Adlatum, deinde reversum.",
+  "none": "nulla"
 }

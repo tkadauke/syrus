@@ -29,12 +29,14 @@ import {
   deleteJobCommand,
   fetchJobDependencyOptions,
   fetchJobDetail,
+  fetchJobUnlandPlan,
   fetchJobWorkflows,
   ignorePendingFeedback,
   openJobInCodingMode,
   replacePendingFeedback,
   retryPendingFeedback,
   startJobDiscussionChat,
+  startJobUnland,
   stopPreview as stopPreviewRequest,
   submitJobFeedback,
   updateJobPriority,
@@ -114,7 +116,9 @@ import {
 } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
+import { UnlandPlanConfirmation } from "../components/UnlandPlanConfirmation"
 import { normalizeJobDetailPayload } from "../lib/entityStore"
+import { useConfirm } from "../hooks/useConfirm"
 
 const HIDE_UNSATISFIED_DEPENDENCIES_STATES = new Set(["running", "coding", "implemented", "approved", "landing", "closed", "no_change_needed"])
 
@@ -247,6 +251,7 @@ export function JobDetailView({
   const [previewStopModal, setPreviewStopModal] = useState<{ onProceed: () => void } | null>(null)
   const showNotice = (message: string | null, tone: NoticeToastTone = "notice") => setNotice(message ? { message, tone } : null)
   const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, showNotice)
+  const { confirm: confirmUnland, dialog: unlandDialog } = useConfirm()
   const bugReportTrigger = useBugReportTrigger()
   const title = payload.job.issue_title || jobSourceLabel(payload, t)
   const workflowAnchor = location.hash.startsWith("#workflow-") ? location.hash.slice(1) : null
@@ -281,6 +286,48 @@ export function JobDetailView({
       showNotice(t("feedback_submitted"))
       scheduleJobDetailInvalidation(queryClient, queryKey)
       if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
+    }
+  })
+
+  const unland = useMutation({
+    mutationFn: async () => {
+      const path = payload.paths.app_unland_path
+      if (!path) return null
+      const plan = await fetchJobUnlandPlan(path)
+      const details = [
+        t("unland_confirm_commits", { commits: plan.commits.join(", ") }),
+        t("unland_confirm_files", { files: plan.files.join(", ") }),
+        t("unland_confirm_dependents", { dependents: plan.dependents.join(", ") || t("none") }),
+        t("unland_confirm_deployment", {
+          stages:
+            Object.entries(plan.deployment_stages)
+              .map(([job, stages]) => `${job}: ${stages.join(", ")}`)
+              .join("; ") || t("none")
+        }),
+        t("unland_confirm_graders", { graders: plan.graders.join(", ") || t("none") })
+      ]
+      const subject = t("unland_confirm_subject", { subject: plan.subject })
+      if (
+        !(await confirmUnland({
+          message: subject,
+          content: (
+            <UnlandPlanConfirmation
+              subject={subject}
+              details={details}
+              deploymentWarning={t("unland_confirm_deploy_warning")}
+              warnings={plan.warnings.length ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : []}
+            />
+          ),
+          destructive: true
+        }))
+      )
+        return null
+      return startJobUnland(path)
+    },
+    onSuccess: (result) => {
+      if (!result) return
+      showNotice(result.message)
+      queryClient.invalidateQueries({ queryKey })
     }
   })
 
@@ -414,6 +461,11 @@ export function JobDetailView({
               onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
               payload={payload}
             />
+            {(payload.actions.can_unland ?? (payload.actions.can_write && payload.job.unland?.state === "landed")) ? (
+              <Button disabled={unland.isPending} onClick={() => unland.mutate()} variant="danger">
+                {unland.isPending ? t("unlanding") : t("unland")}
+              </Button>
+            ) : null}
             <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
           </div>
         </div>
@@ -422,6 +474,18 @@ export function JobDetailView({
       <NoticeToast message={notice?.message ?? null} onDismiss={() => setNotice(null)} tone={notice?.tone ?? "notice"} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
+      {unlandDialog}
+      {unland.isError ? <PanelMessage tone="error">{errorMessage(unland.error, t("unland_error"))}</PanelMessage> : null}
+      {payload.job.unland?.state && payload.job.unland.state !== "landed" ? (
+        <Notice tone={payload.job.unland.state === "failed" ? "danger" : payload.job.unland.state === "reverted" ? "success" : "warning"}>
+          <span>{t(`unland_status_${payload.job.unland.state}`)}</span>
+          {payload.job.unland.rollback_job ? (
+            <Link className="ml-2 font-mono underline" to={withRoutePrefix(payload.job.unland.rollback_job.path, prefix)}>
+              {payload.job.unland.rollback_job.slug}
+            </Link>
+          ) : null}
+        </Notice>
+      ) : null}
       {mainHealthBannerVisible(payload) ? (
         <Notice className="flex items-center gap-3" role="alert" tone="warning">
           <span>{payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}</span>

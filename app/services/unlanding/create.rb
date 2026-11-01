@@ -3,7 +3,7 @@ module Unlanding
     class Ineligible < StandardError; end
 
     Plan = Data.define(:original, :affected, :base_sha, :commit_shas, :files, :dependents,
-                       :deployment_stages, :warnings) do
+                       :deployment_stages, :warnings, :graders) do
       def to_h
         {
           subject: original.slug,
@@ -13,7 +13,8 @@ module Unlanding
           files:,
           dependents:,
           deployment_stages:,
-          warnings:
+          warnings:,
+          graders:
         }
       end
     end
@@ -69,12 +70,14 @@ module Unlanding
       shas, base_sha, git, clone = verified_commits
       dependents = dependent_slugs
       deployment_stages = deployment_stage_reach
+      files = changed_files(git, clone, shas)
       Plan.new(
         original:, affected: affected_slugs, base_sha:, commit_shas: shas,
-        files: changed_files(git, clone, shas),
+        files:,
         dependents:,
         deployment_stages:,
-        warnings: plan_warnings(dependents, deployment_stages)
+        warnings: plan_warnings(dependents, deployment_stages),
+        graders: unland_graders(clone, files)
       )
     end
 
@@ -247,6 +250,37 @@ module Unlanding
       warnings << "Downstream dependent work exists" if dependents.any?
       warnings << "Landed work reached deployment stages" if stages.any?
       warnings
+    end
+
+    def unland_graders(clone, files)
+      graph = TargetGraph::Compiler.compile(clone.path)
+      plan = TargetGraph::GradePlan.for(workspace_path: clone.path, graph: graph)
+      phase_graders = LandingGraderPlan.effective(
+        plan, trigger_kind: "unland", iteration: 1, repository: original.repository,
+        job: original.is_a?(Job) ? original : original.work_jobs.first
+      ).graders
+      matching_files = affected_test_files(clone.path, files)
+      selected = phase_graders.select do |grader|
+        graph.affected(grader.metadata["target_label"].presence || "//:grade/#{grader.name}", changed_files: matching_files).affected
+      end
+      unless selected.any?(&:required)
+        raise Ineligible, "unland validation selected no required grader; configure at least one required unland grader whose when_files_changed scope matches"
+      end
+
+      selected.map(&:name)
+    rescue SyrusYml::ParseError => e
+      raise Ineligible, "unland graders could not be selected: #{e.message}"
+    end
+
+    def affected_test_files(repo_path, files)
+      return files if files.empty?
+
+      extras = Syrus::PluginRegistry.providers_for(:affected_test_analyzer).flat_map do |analyzer|
+        Array(analyzer.affected_files(repo_path: repo_path.to_s, changed_files: files))
+      rescue StandardError
+        []
+      end
+      (files + extras).uniq
     end
 
     def workflow_agent_provider

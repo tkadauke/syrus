@@ -50,6 +50,7 @@ import { EpicDeploymentStagePipeline } from "../components/DeploymentStagePipeli
 import { createEpicJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../lib/jobNavigationContext"
 import { Page } from "../components/ui"
 import { UnderlineTabs } from "../components/Tabs"
+import { UnlandPlanConfirmation } from "../components/UnlandPlanConfirmation"
 
 type EpicCommand = { kind: "state"; transition: EpicStateTransition } | { kind: "start" } | { kind: "archive" } | { kind: "claim" } | { kind: "unclaim" }
 type EpicDetailTab = "overview" | "jobs" | "dependencies" | "history"
@@ -125,8 +126,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
   const unlandCommand = useMutation({
     mutationFn: async () => {
       const plan = await fetchEpicUnlandPlan(payload.paths.app_unland_path)
-      const sections = [
-        t("unland_confirm_subject", { subject: plan.subject }),
+      const details = [
         t("unland_confirm_affected", { affected: plan.affected.join(", ") }),
         t("unland_confirm_commits", { commits: plan.commits.join(", ") }),
         t("unland_confirm_files", { files: plan.files.join(", ") }),
@@ -137,9 +137,24 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               .map(([job, stages]) => `${job}: ${stages.join(", ")}`)
               .join("; ") || t("none")
         }),
-        ...(plan.warnings.length > 0 ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : [])
+        t("unland_confirm_graders", { graders: plan.graders?.join(", ") || t("none") })
       ]
-      if (!(await confirm({ message: sections.join("\n\n"), destructive: true }))) return null
+      const subject = t("unland_confirm_subject", { subject: plan.subject })
+      if (
+        !(await confirm({
+          message: subject,
+          content: (
+            <UnlandPlanConfirmation
+              subject={subject}
+              details={details}
+              deploymentWarning={t("unland_confirm_deploy_warning")}
+              warnings={plan.warnings.length > 0 ? [t("unland_confirm_warnings", { warnings: plan.warnings.join("; ") })] : []}
+            />
+          ),
+          destructive: true
+        }))
+      )
+        return null
 
       return startEpicUnland(payload.paths.app_unland_path)
     },
@@ -216,7 +231,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
                 {t("edit")}
               </Link>
             ) : null}
-            {payload.epic.state === "done" ? (
+            {payload.epic.can_unland && (payload.unland?.state === "landed" || (!payload.unland && payload.epic.state === "done")) ? (
               <Button disabled={unlandCommand.isPending} onClick={() => unlandCommand.mutate()} variant="danger">
                 {unlandCommand.isPending ? t("unlanding") : t("unland")}
               </Button>
@@ -252,6 +267,16 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {unlandCommand.isError ? <PanelMessage tone="error">{errorMessage(unlandCommand.error, t("unland_error"))}</PanelMessage> : null}
+      {payload.unland?.state && payload.unland.state !== "landed" ? (
+        <PanelMessage tone={payload.unland.state === "failed" ? "error" : undefined}>
+          {t(`unland_status_${payload.unland.state}`)}{" "}
+          {payload.unland.rollback_job ? (
+            <Link className="font-mono underline" to={withRoutePrefix(payload.unland.rollback_job.path, prefix)}>
+              {payload.unland.rollback_job.slug}
+            </Link>
+          ) : null}
+        </PanelMessage>
+      ) : null}
       {dialog}
 
       <EpicTabNav active={activeTab} jobsCount={payload.jobs.length} onSelect={setActiveTab} />
