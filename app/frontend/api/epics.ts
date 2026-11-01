@@ -260,8 +260,7 @@ export function fetchEpicDetail(id: string, options: { signal?: AbortSignal } = 
 
 export function searchEpicOptions(query: string, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ field: "epic_id", q: query })
-  return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options)
-    .then((payload) => payload.options || [])
+  return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options).then((payload) => payload.options || [])
 }
 
 export function createEpic(values: EpicInput, options: { start?: boolean } = {}) {
@@ -335,4 +334,3 @@ export function fetchPickerEpics(params: { repo?: string; limit?: number } = {})
 export function removeEpicDependency(path: string, dependsOnEpicId: number) {
   return deleteJson<EpicDetailPayload>(`${path}/${dependsOnEpicId}`)
 }
-
