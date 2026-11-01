@@ -58,10 +58,24 @@ module Mcp::Tools
 
         policy = context.capability_approval_policies.fetch(descriptor.capability.to_s, "queue")
         policy = "queue" if context.run? && policy == "confirm"
-        return if policy == "auto" || Thread.current[:coworker_tool_approval_bypass]
+        protected_path = protected_coworker_workspace_path?(context, descriptor, arguments)
+        return if policy == "auto" && !protected_path || Thread.current[:coworker_tool_approval_bypass]
 
         create_coworker_pending_action(context:, server_context:, tool_name: descriptor.tool_name,
-          arguments:, capability: descriptor.capability)
+          arguments:, capability: descriptor.capability, always_pending: protected_path)
+      end
+
+      def protected_coworker_workspace_path?(context, descriptor, arguments)
+        return false unless descriptor.capability == "workspace.files"
+
+        grant = context.agent_actor&.grants&.find_by(capability: "workspace.files")
+        protected_paths = Array(grant&.constraints&.fetch("confirm_paths", nil))
+        requested_paths = [ arguments[:path], arguments[:source], arguments[:destination] ].compact.map do |path|
+          Pathname.new(path.to_s).cleanpath.to_s
+        rescue ArgumentError
+          path.to_s
+        end
+        (protected_paths & requested_paths).any?
       end
 
       def pending_coworker_plugin_approval(tool_name, capability, server_context, arguments, always_pending: false)

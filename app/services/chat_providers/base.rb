@@ -69,7 +69,9 @@ module ChatProviders
       return unless capabilities
       return if capabilities.include?("workspace.files") && capabilities.include?("workspace.shell")
 
-      raise ArgumentError, "This provider cannot safely run with the coworker's current workspace grants."
+      raise ArgumentError,
+        "#{self.class.display_name} cannot safely run this coworker turn unless both workspace.files and " \
+        "workspace.shell are granted; choose Claude for independently enforced bounded file access."
     end
 
     def transcript_from_result(result)

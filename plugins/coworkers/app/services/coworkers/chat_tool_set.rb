@@ -20,6 +20,12 @@ module Coworkers
     def self.coworker_grants
       [
         {
+          name: "workspace.files", label: "Update coworker workspace files",
+          description: "Create, exactly edit, move, and delete files inside the coworker's isolated workspace.",
+          default_policy: "auto", maximum_policy: "auto", tools: WORKSPACE_TOOLS.map(&:tool_name),
+          scope_options_callback: nil, scope_label_callback: nil, valid_scope_callback: nil
+        },
+        {
           name: "coworker.message", label: "Message coworkers",
           description: "Send bounded messages to another active coworker.",
           default_policy: "confirm", maximum_policy: "auto", tools: [ MessageCoworkerTool.tool_name ],
@@ -73,7 +79,7 @@ module Coworkers
                         else
               "coworker.message"
                         end,
-            ungated: workspace_tool || klass == ReplyInChatThreadTool,
+            ungated: klass == ReplyInChatThreadTool,
             mutation: true
           }
         end

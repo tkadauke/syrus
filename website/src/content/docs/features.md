@@ -1802,8 +1802,9 @@ avatar, and accent color in both the sender's and receiver's chats. A chat owner
 can share a conversation read-only with one of their
 own coworkers; a coworker with the shared-chat grant can list, search, and read
 its own and shared chats, but cannot post to arbitrary chats. Coworker chats
-have no Planning/Coding mode selector: every turn can update identity and
-memory files through tools confined to that coworker's workspace. Attached
+have no Planning/Coding mode selector: turns with the workspace-files grant
+can update identity and memory files through tools confined to that coworker's
+workspace. Revoking the grant removes those mutation tools. Attached
 product repositories remain read-only, and Syrus owns workspace commits and
 pushes. The system prompt makes memory maintenance a standing duty: before
 replying, coworkers save durable facts, preferences, decisions, commitments,
@@ -1856,7 +1857,7 @@ The selected policy applies to every call in the capability, including
 read-only and plugin-provided tools. On unattended work, `confirm` is queued
 in the approval inbox like `queue`; approval runs the stored call once and
 returns its result to the coworker's next turn. A small explicitly ungated set
-— workspace file operations, read-only memory, replies to an owner-opened
+— read-only memory, replies to an owner-opened
 bridge thread, and the two in-turn helpers — stays inside the coworker's
 workspace or current chat and runs immediately.
 Queued and confirmation-gated actions identify the coworker and show the real
