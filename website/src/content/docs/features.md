@@ -91,6 +91,12 @@ separate so undeployed changes stay visible. Partial delivery evidence is
 called out explicitly, and Job cards link through to their Job, latest
 Workflow, and delivery/release evidence. The projection is read-only;
 disabling or deleting the plugin does not alter Job or deployment state.
+Its standard FilterBar narrows the Job cohort by search, associated chat,
+Epic, Job, or owner before every total and card is computed. Nested AND/OR/NOT
+expressions can be saved as reusable Pipeline views, including the built-in
+**All** and **Mine** views. Repository scope remains in the route rather than
+the saved view, and filters never hide configured pipeline stages, including
+empty ones.
 
 Job kinds:
 

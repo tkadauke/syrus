@@ -14,5 +14,9 @@ module SdlcPipeline
 
     frontend routes: { "sdlc_pipeline/RepositoryPipeline" => "app/frontend/repo_tabs/RepositoryPipeline.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/sdlc_pipeline.json" ]
+
+    while_enabled do |scope|
+      SdlcPipeline::SmartFolders.install_into(scope)
+    end
   end
 end

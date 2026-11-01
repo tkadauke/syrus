@@ -3,6 +3,8 @@
   "aria_pipeline": "Repository SDLC pipeline",
   "title": "SDLC Pipeline",
   "subtitle": "Current work from intake through delivery · updated {{time}}",
+  "folders_heading": "Views",
+  "folders_aria": "Pipeline saved views",
   "loading": "Loading pipeline...",
   "loading_items": "Loading stage items...",
   "load_error": "Unable to load the pipeline.",
