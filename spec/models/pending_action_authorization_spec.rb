@@ -1,0 +1,154 @@
+require "rails_helper"
+
+RSpec.describe "surface-neutral pending action authorization", :ci_only do
+  let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user: user) }
+  let(:job) { Factories.job_record(user: user, repository: repository) }
+
+  def create_request(**attributes)
+    ChatPendingAction.create!({
+      request_kind: "authorization_request",
+      user: user,
+      repository: repository,
+      origin: job,
+      subject: user,
+      runtime_role: "implementer",
+      deduplication_key: "agent:#{user.id}:mysql.data/write:fingerprint",
+      purpose: "Apply the requested data correction"
+    }.merge(attributes))
+  end
+
+  def create_item(request, **attributes)
+    request.authorization_items.create!({
+      kind: "operation",
+      capability: "mysql.data",
+      operation: "write",
+      operation_version: 1,
+      resource_type: "mysql_connection",
+      resource_scope: { connection_id: 4 },
+      normalized_arguments: { sql_digest: "sha256:abc" },
+      invocation_fingerprint: "sha256:fingerprint",
+      effects: %w[external_write credential_use],
+      policy_chain: [],
+      decisive_rule: {},
+      requested_durations: %w[invocation job]
+    }.merge(attributes))
+  end
+
+  it "persists an authorization request without a chat and finds its active duplicate" do
+    request = create_request
+
+    expect(request.chat_session).to be_nil
+    expect(request.origin).to eq(job)
+    expect(request.subject).to eq(user)
+    expect(ChatPendingAction.find_equivalent(request.deduplication_key)).to eq(request)
+    expect(request.transitions.pluck(:event_type, :to_state)).to eq([ [ "created", "pending" ] ])
+  end
+
+  it "atomically reuses an equivalent active authorization request" do
+    request = create_request
+    duplicate = ChatPendingAction.create_or_find_authorization_request!(
+      user: user,
+      repository: repository,
+      origin: job,
+      subject: user,
+      deduplication_key: request.deduplication_key
+    )
+
+    expect(duplicate).to eq(request)
+    expect(ChatPendingAction.where(deduplication_key: request.deduplication_key).count).to eq(1)
+
+    request.mark_non_actionable!("Connection removed")
+    replacement = create_request
+    expect(replacement).not_to eq(request)
+  end
+
+  it "keeps legacy chat pending actions and derives their origin" do
+    chat = ChatSession.create!(user: user, repository: repository)
+    action = chat.pending_actions.create!(action: "pause_landing_queue", payload: {})
+
+    expect(action).to be_legacy_action
+    expect(action.origin).to eq(chat)
+    expect(action.user).to eq(user)
+  end
+
+  it "decides compound items independently and requires every item before invocation" do
+    request = create_request
+    possession = request.authorization_items.create!(
+      kind: "capability_possession",
+      capability: "mysql.data",
+      resource_type: "mysql_connection",
+      resource_scope: { connection_id: 4 },
+      normalized_arguments: {},
+      effects: [],
+      policy_chain: [],
+      decisive_rule: {},
+      requested_durations: %w[job]
+    )
+    operation = create_item(request)
+    operation.prerequisites << possession
+
+    expect(operation.prerequisites_approved?).to be(false)
+    expect(request.ready_for_authorized_invocation?).to be(false)
+
+    expect(possession.decide!("approved", principal: user, duration: "job")).to be(true)
+    expect(operation.prerequisites_approved?).to be(true)
+    expect(request.ready_for_authorized_invocation?).to be(false)
+
+    expect(operation.decide!("approved", principal: user, duration: "invocation")).to be(true)
+    expect(request.ready_for_authorized_invocation?).to be(true)
+    expect(operation.decide!("denied", principal: user)).to be(false)
+  end
+
+  it "rejects prerequisite relationships across requests" do
+    item = create_item(create_request)
+    other = create_item(create_request(deduplication_key: "other"))
+
+    expect { item.prerequisites << other }.to raise_error(ActiveRecord::RecordInvalid, /same pending action/)
+  end
+
+  it "rejects cyclic prerequisite relationships" do
+    request = create_request
+    first = create_item(request)
+    second = create_item(request, invocation_fingerprint: "sha256:second")
+    second.prerequisites << first
+
+    expect { first.prerequisites << second }.to raise_error(ActiveRecord::RecordInvalid, /cycle/)
+  end
+
+  it "marks unresolved items and their request non-actionable without denying them" do
+    request = create_request
+    item = create_item(request)
+
+    expect(request.mark_non_actionable!("The resource was removed")).to be(true)
+
+    expect(request.reload).to be_non_actionable
+    expect(request.non_actionable_reason).to eq("The resource was removed")
+    expect(item.reload).to be_non_actionable
+    expect(item.decision_principal).to be_nil
+    expect(ChatPendingAction.find_equivalent(request.deduplication_key)).to be_nil
+  end
+
+  it "tracks delivery attempts and metadata independently of decisions" do
+    request = create_request
+
+    request.record_delivery_failure!(RuntimeError.new("inbox unavailable"), metadata: { channel: "inbox" })
+    expect(request).to have_attributes(delivery_state: "failed", delivery_attempts: 1, delivery_metadata: { "channel" => "inbox" })
+
+    request.record_delivery!(metadata: { notification_id: 12 })
+    expect(request).to have_attributes(delivery_state: "delivered", delivery_attempts: 2, last_delivery_error: nil)
+    expect(request.delivery_metadata).to eq("channel" => "inbox", "notification_id" => 12)
+  end
+
+  it "records append-only request and item transitions" do
+    request = create_request
+    item = create_item(request)
+
+    item.decide!("denied", principal: user, reason: "Use a read-only query")
+    request.dismiss!
+
+    expect(request.transitions.order(:sequence).pluck(:to_state)).to eq(%w[pending pending denied dismissed])
+    expect { request.transitions.first.update!(event_type: "changed") }.to raise_error(ActiveRecord::ReadOnlyRecord, /append-only/)
+    expect { request.transitions.first.destroy! }.to raise_error(ActiveRecord::ReadOnlyRecord, /append-only/)
+  end
+end

@@ -177,7 +177,7 @@ RSpec.describe ChatPendingAction, :ci_only do
   end
 
   it "keeps existing state enum values valid when adding queued" do
-    expect(described_class.states.keys).to eq(%w[queued pending confirming confirmed rejected cancelled failed])
+    expect(described_class.states.keys).to eq(%w[queued pending confirming confirmed rejected cancelled failed dismissed non_actionable])
     %w[pending confirming confirmed rejected cancelled failed].each do |state|
       action = chat_session.pending_actions.build(
         action: "pause_landing_queue",
