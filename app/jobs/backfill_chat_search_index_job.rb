@@ -31,11 +31,12 @@ class BackfillChatSearchIndexJob < ApplicationJob
   private
 
   def next_batch_ids
-    ChatMessage
+    ChatMessageSearchIndex
+      .search_eligible_scope
       .where("chat_messages.id > ?", last_backfilled_id)
-      .order(:id)
+      .order("chat_messages.id")
       .limit(BATCH_SIZE)
-      .pluck(:id)
+      .pluck("chat_messages.id")
   end
 
   def last_backfilled_id
