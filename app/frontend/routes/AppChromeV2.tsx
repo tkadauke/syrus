@@ -4,6 +4,7 @@ import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_DEFAULT_WIDTH, 
 import { buildAdminNavItems, filterAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
+import { ToolPresentationModal } from "./chat/ToolPresentationModal"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -740,6 +741,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         />
       ) : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
+      {activeChatId != null ? <ToolPresentationModal chatId={String(activeChatId)} prefix={prefix} /> : null}
       {groupChatPickerOpen ? (
         <ParticipantPickerModal
           confirmLabel={t("chat:group_picker_create_button")}
