@@ -39,6 +39,7 @@ import { buildAdminNavItems, filterAdminNavItems, type AdminNavGroup, type Merge
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { PermissionInboxDrawer } from "../components/PermissionInboxDrawer"
+import { ToolPresentationModal } from "./chat/ToolPresentationModal"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -866,6 +867,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
               />
             ) : null}
             <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
+            {activeChatId != null ? <ToolPresentationModal chatId={String(activeChatId)} prefix={prefix} /> : null}
             {groupChatPickerOpen ? (
               <ParticipantPickerModal
                 confirmLabel={t("chat:group_picker_create_button")}
