@@ -42,6 +42,19 @@ RSpec.describe K8sCluster::PermissionProvider do
     expect(object).to include("kind" => "pod", "name" => "web-123")
   end
 
+  it "rejects scopes that omit required hierarchy parents" do
+    pod = described_class.permission_resource_scopes.fetch(:pod)
+    node = described_class.permission_resource_scopes.fetch(:node)
+
+    expect(pod.normalize({ cluster_id: 7, name: "web" }, context: {})).to have_attributes(
+      status: :invalid, errors: include("name requires namespace for pod")
+    )
+    expect(node.normalize({ cluster_id: 7, namespace: "web" }, context: {})).to have_attributes(
+      status: :invalid, errors: include("namespace is not valid for node")
+    )
+    expect(node.normalize({ cluster_id: 7, name: "worker-1" }, context: {})).to have_attributes(status: :ok)
+  end
+
   it "scopes raw kubectl authority by credential or cluster and redacts sensitive invocation data" do
     descriptor = described_class.capability_descriptor("k8s.raw/execute@v1")
     schema = descriptor.resource_scope
@@ -50,6 +63,21 @@ RSpec.describe K8sCluster::PermissionProvider do
       .to include("cluster_id" => "production", "namespace" => "web", "kind" => "raw")
     expect(descriptor.redact(credential: "production", args: %w[get pods], namespace: "web"))
       .to eq("credential" => "[REDACTED CREDENTIAL]", "namespace" => "web", "args" => "[REDACTED KUBECTL ARGUMENTS]")
+  end
+
+  it "resolves raw kubectl scopes through visible kubeconfig credentials" do
+    schema = described_class.permission_resource_scopes.fetch(:raw)
+    mcp_context = instance_double(McpToolContext)
+    credential = instance_double(
+      CredentialStore::Credential,
+      active?: true,
+      credential_type: K8sCluster::ClusterCredential::CREDENTIAL_TYPE
+    )
+    allow(CredentialStore::Broker).to receive(:resolve_credential!)
+      .with(context: mcp_context, credential_ref: "production")
+      .and_return(credential)
+
+    expect(schema.lookup("production", context: { mcp_context: })).to have_attributes(status: :ok, value: credential)
   end
 
   it "normalizes exact invocation fingerprints without retaining unrelated arguments" do
@@ -62,5 +90,17 @@ RSpec.describe K8sCluster::PermissionProvider do
     )
 
     expect(first).to eq(second)
+  end
+
+  it "includes secret-output authority in raw kubectl invocation fingerprints" do
+    descriptor = described_class.capability_descriptor("k8s.raw/execute@v1")
+    denied = Permissions::InvocationFingerprint.call(
+      descriptor:, arguments: { credential: "production", args: %w[get secrets -o yaml], allow_secret_output: false }
+    )
+    allowed = Permissions::InvocationFingerprint.call(
+      descriptor:, arguments: { credential: "production", args: %w[get secrets -o yaml], allow_secret_output: true }
+    )
+
+    expect(denied).not_to eq(allowed)
   end
 end
