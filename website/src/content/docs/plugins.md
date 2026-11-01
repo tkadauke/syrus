@@ -209,6 +209,13 @@ permission metadata is absent from the active catalog. Registration describes
 what may be requested; it does not grant authority when a plugin is installed
 or enabled.
 
+Providers can also register named permission presets made from complete rule
+templates. A preset may render several role-, operation-, resource-, and
+constraint-specific drafts. Syrus shows every rendered rule for operator
+confirmation and creates the rules only after that confirmation. Role defaults
+and presets are recommendations only: installing, enabling, configuring, or
+migrating a plugin never applies them automatically.
+
 Tool usage is logged so operators can see which tools are active, failing, or
 worth consolidating.
 
