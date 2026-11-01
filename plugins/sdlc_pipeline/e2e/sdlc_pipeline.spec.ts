@@ -25,6 +25,8 @@ test("SDLC Pipeline repository tab is aggregate-first and drills into a bounded 
   await expect(pipeline.getByRole("region", { name: "Pipeline stages" })).toBeVisible()
   await expect(pipeline.getByRole("button", { name: "Next pipeline stages" })).toBeVisible()
   await expect(pipeline.getByRole("slider", { name: "Historical time" })).toBeVisible()
+  await expect(pipeline.getByText("History window")).toBeVisible()
+  await expect(pipeline.getByRole("button", { name: "Play" })).toBeVisible()
   expect(await pipeline.getByRole("link", { name: "Job" }).count()).toBeLessThanOrEqual(5 * (await pipeline.locator("[data-stage]").count()))
   await expect(pipeline.locator('[draggable="true"]')).toHaveCount(0)
   const stage = pipeline.locator("[data-stage]").first()

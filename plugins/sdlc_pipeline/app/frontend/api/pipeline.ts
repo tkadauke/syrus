@@ -77,6 +77,7 @@ export type PipelineHistory = {
   ticks: string[]
   traces: { job_id: number; segments: { stage: string; entered_at: string; left_at: string; dwell_seconds: number }[] }[]
   accuracy: { status: "reconstructed" | "partial" | "bounded"; message: string; truncated: boolean; legacy_job_count?: number }
+  bounds?: { maximum_days: number; maximum_jobs: number; maximum_deltas: number; included_jobs: number; omitted_jobs: number }
 }
 
 export function fetchPipelineStage(repositoryId: string, stage: string, page = 1, search = "") {

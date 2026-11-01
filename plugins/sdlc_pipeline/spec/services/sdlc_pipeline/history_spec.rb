@@ -57,4 +57,44 @@ RSpec.describe SdlcPipeline::History do
     expect(queries.grep(/FROM ["`]?state_transitions/i).length).to eq(1)
     expect(queries.grep(/FROM ["`]?job_deployment_stage_statuses/i).length).to be <= 1
   end
+
+  it "clamps reversed and future range boundaries" do
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now + 2.days).iso8601, to: (now + 1.day).iso8601, now: now
+    ).call
+
+    expect(payload[:from]).to eq(now.iso8601)
+    expect(payload[:to]).to eq(now.iso8601)
+  end
+
+  it "reports an omitted cohort instead of silently treating it as complete" do
+    stub_const("SdlcPipeline::History::MAX_JOBS", 2)
+    3.times do |index|
+      job = Factories.job_record(repository: repository, user: user, state: "running", issue_number: 900 + index)
+      job.update_columns(created_at: now - 2.days + index.minutes)
+    end
+
+    payload = described_class.new(repository: repository, user: user, filter: filter, from: (now - 1.day).iso8601, to: now.iso8601, now: now).call
+
+    expect(payload.dig(:accuracy, :status)).to eq("bounded")
+    expect(payload.dig(:accuracy, :truncated)).to be(true)
+    expect(payload.dig(:bounds, :included_jobs)).to eq(2)
+    expect(payload.dig(:bounds, :omitted_jobs)).to eq(1)
+  end
+
+  it "shortens the reconstructable range when the delta bound is reached" do
+    stub_const("SdlcPipeline::History::MAX_DELTAS", 1)
+    job = Factories.job_record(repository: repository, user: user, state: "landing", created_at: now - 3.days)
+    job.update_columns(created_at: now - 3.days)
+    StateTransition.create!(subject: job, from_state: "running", to_state: "implemented", source: "aasm", created_at: now - 2.days)
+    StateTransition.create!(subject: job, from_state: "implemented", to_state: "landing", source: "aasm", created_at: now - 1.day)
+
+    payload = described_class.new(repository: repository, user: user, filter: filter, from: (now - 4.days).iso8601, to: now.iso8601, now: now).call
+
+    expect(payload[:deltas].length).to eq(1)
+    expect(Time.zone.parse(payload[:to])).to eq(Time.zone.parse(payload[:deltas].first[:at]))
+    expect(payload[:ticks]).to eq([ payload[:deltas].first[:at] ])
+    expect(payload.dig(:accuracy, :status)).to eq("bounded")
+  end
 end
