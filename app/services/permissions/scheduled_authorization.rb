@@ -53,8 +53,9 @@ module Permissions
 
     def deduplication_key(decision, fingerprint)
       subject = context.agent_actor || context.user
-      [ "scheduled", subject.class.polymorphic_name, subject.id, decision.invocation.capability,
-        decision.invocation.operation, fingerprint ].join(":")
+      scope_fingerprint = Digest::SHA256.hexdigest(decision.invocation.resource_scope.to_h.to_query)
+      [ "scheduled", subject.class.polymorphic_name, subject.id, "repository", context.repository&.id || "none",
+        decision.invocation.capability, decision.invocation.operation, scope_fingerprint, fingerprint ].join(":")
     end
 
     def item_attributes(descriptor, decision, fingerprint)
