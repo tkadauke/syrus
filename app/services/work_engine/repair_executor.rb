@@ -598,7 +598,7 @@ module WorkEngine
             next false unless queue_job.queue_name.to_s.start_with?("resume-", "worker-")
 
             diagnosis = RunQueueDiagnosis.call(run)
-            next false unless diagnosis&.dig(:kind) == "ready_no_consumer"
+            next false unless diagnosis&.dig(:kind).in?(%w[ready_no_consumer no_live_workers])
             next false unless diagnosis.dig(:details, :queue_name) == queue_job.queue_name
 
             old_queue = queue_job.queue_name
