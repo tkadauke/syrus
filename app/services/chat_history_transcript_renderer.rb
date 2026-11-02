@@ -186,6 +186,7 @@ class ChatHistoryTranscriptRenderer
     content = message.content.is_a?(Hash) ? message.content : {}
     source = content["source"].to_s
     return true if source == "proposal_notification"
+    return true if source == ChatPendingActionOutcomeNotification::SOURCE
     return true if source == "grader_report"
     return true if content["scoped_event"].present?
 

@@ -144,7 +144,6 @@ class ChatPendingAction < ApplicationRecord
   STATES = %w[ queued pending confirming confirmed rejected cancelled failed dismissed non_actionable ].freeze
   REQUEST_KINDS = %w[ legacy_action authorization_request ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
-  CONFIRMED_VISIBLE_FOR = 1.second
 
   attribute :payload, :json, default: -> { {} }
   attribute :before_snapshot, :json, default: -> { {} }
@@ -159,6 +158,7 @@ class ChatPendingAction < ApplicationRecord
   belongs_to :result, polymorphic: true, optional: true
   belongs_to :tool_call_message, class_name: "ChatMessage", foreign_key: :chat_message_id, optional: true
   belongs_to :pending_action_group, optional: true, inverse_of: :chat_pending_actions
+  belongs_to :outcome_message, class_name: "ChatMessage", optional: true
   has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
   has_many :authorization_items, class_name: "PendingActionItem", dependent: :destroy, inverse_of: :chat_pending_action
   has_many :transitions, class_name: "PendingActionTransition", dependent: :delete_all, inverse_of: :chat_pending_action
@@ -422,13 +422,53 @@ class ChatPendingAction < ApplicationRecord
 
   def cancel!(user: nil)
     raise ActiveRecord::RecordNotFound, "pending action belongs to another user" if user && self.user != user
-    return false unless pending? || queued? || failed?
+    return false unless pending? || queued?
 
     update!(state: "cancelled", cancelled_at: Time.current)
   end
 
+  def dismiss!(user: nil)
+    raise ActiveRecord::RecordNotFound, "pending action belongs to another user" if user && self.user != user
+    return false unless terminal?
+
+    ensure_outcome_notification!
+    update!(dismissed_at: Time.current) unless dismissed_at?
+    true
+  end
+
+  def terminal?
+    confirmed? || rejected? || cancelled? || failed?
+  end
+
+  def ensure_outcome_notification!
+    return outcome_message if pending_action_group_id.present? || !terminal?
+
+    message = nil
+    with_lock do
+      return outcome_message if outcome_message_id.present?
+
+      text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
+      message = chat_session.messages.create!(
+        role: "system",
+        content: {
+          "text" => text,
+          "source" => ChatPendingActionOutcomeNotification::SOURCE,
+          "outcome" => state,
+          "pending_action_id" => id,
+          "action_kind" => action_key,
+          "execution_status" => execution_status
+        }
+      )
+      update_columns(outcome_message_id: message.id, updated_at: Time.current)
+      chat_session.update!(last_message_at: Time.current)
+      chat_session.pin_chat_provider!
+    end
+    ChatTurnJob.perform_later(chat_session_id, message.id) if message
+    message || outcome_message
+  end
+
   def visible_in_chat_payload?
-    queued? || pending? || confirming? || failed? || recently_confirmed?
+    dismissed_at.blank?
   end
 
   def group_outcome
@@ -437,10 +477,6 @@ class ChatPendingAction < ApplicationRecord
     return "applied" if confirmed?
 
     nil
-  end
-
-  def recently_confirmed?
-    confirmed? && confirmed_at.present? && confirmed_at >= CONFIRMED_VISIBLE_FOR.ago
   end
 
   def promote!
@@ -503,16 +539,11 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def self.repair_tool_call_anchors_for!(chat_session)
-    # Match visible_in_chat_payload?'s state set (minus confirmed, which is
-    # only visible for a fleeting second and not worth repairing for): a
-    # pending action can transition from pending to confirming to failed
-    # before this repair ever runs, and if it was never anchored to its
-    # originating tool call it must not fall out of scope just because it
-    # is no longer queued/pending -- that's what left failed actions
-    # permanently stuck at the bottom of the chat instead of anchored to
-    # the tool call that created them.
+    # A pending action can become terminal before this repair runs. Keep
+    # every visible card eligible so its final outcome remains anchored to
+    # the tool call that created it.
     unanchored_actions = chat_session.pending_actions
-      .where(state: %w[queued pending confirming failed], chat_message_id: nil)
+      .where(dismissed_at: nil, chat_message_id: nil)
       .select(:id, :chat_session_id, :tool_use_id, :created_at)
       .to_a
     return if unanchored_actions.blank?
@@ -662,19 +693,9 @@ class ChatPendingAction < ApplicationRecord
     self.outcome_transition_pending = false
     return unless chat_session
     return if suppress_outcome_notification
-    return unless @outcome_state_to_notify
+    return unless terminal?
 
-    outcome = @outcome_state_to_notify
-    text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: outcome)
-    message = chat_session.messages.create!(
-      role: "system",
-      content: { "text" => text, "source" => ChatPendingActionOutcomeNotification::SOURCE, "outcome" => outcome }
-    )
-    chat_session.update!(last_message_at: Time.current)
-    chat_session.pin_chat_provider!
-    ChatTurnJob.perform_later(chat_session_id, message.id)
-  ensure
-    @outcome_state_to_notify = nil
+    ensure_outcome_notification!
   end
 
   # Creating the append-only transition row takes a lock on this record. That
