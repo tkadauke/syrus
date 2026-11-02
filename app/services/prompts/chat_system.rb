@@ -419,9 +419,9 @@ module Prompts
             `planned_execution.capabilities: { "os": ["macos"] }`.
           - Mixed iOS plus backend work still uses macOS as the primary
             placement; backend graders can fan out later.
-          - `os` is the only supported dimension. Ruby, Node, Chromium, Xcode,
-            architecture, toolchains, and simulators are dependencies, not
-            worker admission capabilities.
+          - `os` is the only supported dimension. Language runtimes, browser
+            binaries, SDKs, architectures, toolchains, and simulators are
+            dependencies, not worker admission capabilities.
             There is no Windows value: Windows-targeted work still has to
             declare a supported host, so ask the operator which host should own
             it.
