@@ -957,13 +957,8 @@ RSpec.describe Run, :ci_only do
       )
     end
 
-    it "requires live workers to satisfy iOS toolchain and runtime requirements" do
-      requirements = {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ],
-        "runtime" => [ "ios_simulator" ]
-      }
+    it "routes by OS without treating toolchain diagnostics as admission requirements" do
+      requirements = { "os" => [ "macos" ] }
       workflow.update!(
         planned_execution_capabilities: requirements,
         planned_execution_source: "explicit"
@@ -981,24 +976,21 @@ RSpec.describe Run, :ci_only do
       )
 
       clear_enqueued_jobs
-      expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
-      # Not dispatched is the property under test; the Run now waits for a
-      # capable worker rather than being failed terminally.
-      expect(run.reload).not_to be_failed
-      expect(workflow.reload.artifact("run_queue_blocked")).to include(
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
+      expect(workflow.reload.artifact("run_queue_decisions").last).to include(
         "queue_name" => "runs-macos-arm64",
         "requirements" => requirements,
-        "reason" => "no_live_worker_for_capabilities"
-      )
-      expect(workflow.artifact("run_queue_blocked").fetch("live_workers")).to contain_exactly(
-        include(
-          "hostname" => "syrus-worker-1",
-          "selected_queue" => true,
-          "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] },
-          "capability_diagnostics" => include(
-            "xcode_version" => "16.4",
-            "ios_simulator" => false,
-            "ios_simulator_runtimes" => []
+        "blocked" => false,
+        "live_workers" => contain_exactly(
+          include(
+            "hostname" => "syrus-worker-1",
+            "selected_queue" => true,
+            "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] },
+            "capability_diagnostics" => include(
+              "xcode_version" => "16.4",
+              "ios_simulator" => false,
+              "ios_simulator_runtimes" => []
+            )
           )
         )
       )
