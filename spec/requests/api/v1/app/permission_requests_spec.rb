@@ -23,6 +23,7 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     expect(response).to have_http_status(:ok)
     payload = JSON.parse(response.body)
     expect(payload.fetch("pagination")).to include("page" => 1, "per_page" => 50, "total" => 1)
+    expect(payload.fetch("summary")).to eq("pending_count" => 1, "blocked_agent_count" => 0)
     expect(payload.fetch("requests")).to contain_exactly(include(
       "id" => request.id, "purpose" => "Publish a status update",
       "origin" => include("type" => "Job", "id" => job.id, "label" => job.slug),
@@ -33,6 +34,19 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
       ) ]
     ))
     expect(response.body).not_to include("secret", "Invisible")
+  end
+
+
+  it "summarizes pending requests and agents blocked at authorization checkpoints" do
+    waiting = authorization_request
+    waiting.update!(checkpoint_state: "waiting", checkpointed_at: Time.current)
+    authorization_request(deduplication_key: "permission-inbox-spec-2")
+    completed = authorization_request(deduplication_key: "permission-inbox-spec-3")
+    completed.update!(state: "confirmed")
+
+    get "/api/v1/app/permission_requests"
+
+    expect(JSON.parse(response.body).fetch("summary")).to eq("pending_count" => 2, "blocked_agent_count" => 1)
   end
 
   it "records one compatible decision across the request items" do

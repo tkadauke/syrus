@@ -11,6 +11,7 @@ module Api
           requests = relation.offset((page - 1) * PER_PAGE).limit(PER_PAGE)
           render json: {
             requests: requests.map { |request| present(request) },
+            summary: request_summary(relation),
             pagination: { page:, per_page: PER_PAGE, total:, total_pages: (total.to_f / PER_PAGE).ceil }
           }
         end
@@ -81,6 +82,14 @@ module Api
 
         def present(request)
           Permissions::RequestPresenter.new(request, current_user: Current.user).as_json
+        end
+
+        def request_summary(relation)
+          pending = relation.where(state: "pending")
+          {
+            pending_count: pending.count,
+            blocked_agent_count: pending.where(checkpoint_state: "waiting").count
+          }
         end
       end
     end
