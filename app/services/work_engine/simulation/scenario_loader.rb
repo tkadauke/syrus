@@ -12,11 +12,12 @@ module WorkEngine
         distributed_workflow_dag_enabled
       ].freeze
       JOB_UPDATE_KEYS = %w[
-        state closure_reason pr_number branch_name pr_checks_state pr_checks_sha
+        state priority closure_reason pr_number branch_name pr_checks_state pr_checks_sha
         pr_checks_base_sha pr_checks_failing_names
         commits_behind_base manual_paused approved_at approved_via landed_sha
         external_pr_number external_pr_author external_pr_fork mergeability_base_sha
-        mergeability_head_sha github_mergeable github_mergeable_state
+        mergeability_head_sha mergeability_checked_at github_mergeable github_mergeable_state
+        local_mergeable local_mergeable_state
         triaging_reason classifier_attempts created_at updated_at
       ].freeze
       WORKFLOW_UPDATE_KEYS = %w[
@@ -239,6 +240,7 @@ module WorkEngine
         updates["approved_at"] = Time.zone.parse(updates["approved_at"]) if updates["approved_at"].present?
         updates["created_at"] = Time.zone.parse(updates["created_at"]) if updates["created_at"].present?
         updates["updated_at"] = Time.zone.parse(updates["updated_at"]) if updates["updated_at"].present?
+        updates["mergeability_checked_at"] = Time.zone.parse(updates["mergeability_checked_at"]) if updates["mergeability_checked_at"].present?
         updates
       end
 

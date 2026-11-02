@@ -5976,6 +5976,75 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(repair_job.reload).to be_landing
   end
 
+  it "releases only a stale urgent-blocked repository landing slot and wakes the queue" do
+    repository = job.repository
+    landing_job = Factories.job_record(user: job.user, repository: repository, state: "landing", priority: "medium")
+    blocked_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_job)
+    blocked_workflow.update_columns(
+      state: "queued",
+      created_at: 5.minutes.ago,
+      artifacts: {
+        "start_blocked_reason" => "urgent_job_active",
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    unit = attach_work_unit(
+      blocked_workflow,
+      kind: "auto_merge",
+      state: "blocked",
+      blocked_reason: "urgent_job_active",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => "urgent_job_active" }
+    )
+    urgent_job = Factories.job_record(user: job.user, repository: repository, state: "approved", priority: "urgent")
+    landing_lock = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:repository:%")
+    preserved_locks = unit.work_unit_locks.active.where.not(id: landing_lock.id).to_a
+    expect(LandingQueueProcessorJob).to receive(:perform_later).at_least(:once).and_call_original
+
+    result = reconcile_and_execute(workflow_id: blocked_workflow.id)
+    issue = kind(result, :urgent_blocked_landing_slot)
+
+    expect(issue).to have_attributes(safe_to_auto_repair: true, recommended_repair_action: "release_urgent_blocked_landing_slot")
+    expect(issue.evidence).to include(
+      "lock_owner" => unit.slug,
+      "blocked_workflow" => blocked_workflow.slug,
+      "urgent_blocker_jobs" => [ include("id" => urgent_job.id, "slug" => urgent_job.slug) ],
+      "automatic_action" => "release repository landing lock only",
+      "resulting_queue_wake" => "LandingQueueProcessorJob"
+    )
+    expect(landing_lock.reload).not_to be_active
+    expect(preserved_locks.map { |lock| lock.reload.active? }).to all(be(true))
+    expect(result.repair_executions.map(&:message)).to include(match(/preserved job\/Epic locks, and woke the landing queue/))
+
+    repeated = reconcile_and_execute(workflow_id: blocked_workflow.id)
+    expect(kind(repeated, :urgent_blocked_landing_slot)).to be_nil
+  end
+
+  it "skips urgent-blocked slot repair when the urgent blocker clears after planning" do
+    repository = job.repository
+    landing_job = Factories.job_record(user: job.user, repository: repository, state: "landing", priority: "medium")
+    blocked_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_job)
+    blocked_workflow.update_columns(
+      state: "queued",
+      created_at: 5.minutes.ago,
+      artifacts: {
+        "start_blocked_reason" => "urgent_job_active",
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    unit = attach_work_unit(blocked_workflow, kind: "auto_merge", state: "blocked", blocked_reason: "urgent_job_active", blocked_until: 3.minutes.from_now)
+    urgent_job = Factories.job_record(user: job.user, repository: repository, state: "approved", priority: "urgent")
+    landing_lock = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:repository:%")
+    result = reconcile(workflow_id: blocked_workflow.id)
+    repair_plan = plan(result, :release_urgent_blocked_landing_slot)
+
+    urgent_job.update_columns(state: "closed")
+    execution = WorkEngine::RepairExecutor::Policies::ReleaseUrgentBlockedLandingSlot.new(plan: repair_plan, now: Time.current).execute
+
+    expect(execution).to have_attributes(status: "skipped", message: "No unrelated urgent blocker remains active")
+    expect(landing_lock.reload).to be_active
+  end
+
   it "releases a WorkUnit-only main-health-blocked landing slot when a fix-main Job is ready" do
     repository = job.repository
     repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, auto_merge_enabled: true, ci_health: "broken", landing_paused: true)
