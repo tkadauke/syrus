@@ -457,7 +457,7 @@ class ChatPendingAction < ApplicationRecord
       end
       update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
 
-      if !legacy_outcome? && outcome_wake_enqueued_at.blank?
+      if !legacy_outcome_record? && outcome_wake_enqueued_at.blank?
         ChatTurnJob.perform_later(chat_session_id, message.id)
         update_columns(outcome_wake_enqueued_at: Time.current, updated_at: Time.current)
       end
@@ -695,7 +695,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def legacy_outcome_message
-    return unless legacy_outcome?
+    return unless legacy_outcome_record?
 
     chat_session.messages.where(role: "system").order(id: :desc).limit(200).detect do |candidate|
       content = candidate.content.to_h
@@ -703,6 +703,10 @@ class ChatPendingAction < ApplicationRecord
         content["outcome"] == state &&
         content["text"].to_s.include?(action_key.to_s)
     end
+  end
+
+  def legacy_outcome_record?
+    self[:legacy_outcome] == true
   end
 
   def broadcastable_state_change?
