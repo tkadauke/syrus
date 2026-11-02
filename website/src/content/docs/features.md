@@ -271,6 +271,8 @@ known size with `runtime_start(provider: "cli_tui", options: { columns: 100,
 rows: 30 })`, acquire an `input` lease, and send text plus named keys with
 `runtime_input`. Terminal input supports Escape, Shift+Tab, F1–F12, and Ctrl
 chords such as `Ctrl+C`, in addition to navigation keys and resize events.
+Text input is limited to 64 KiB per event, and bounded relay I/O keeps operator
+takeover available if a terminal stops responding.
 After each action, `runtime_inspect` can wait for a later screen generation,
 specific visible text, and a quiet period. Calling
 `runtime_capture_artifact(checkpoint_label: "settings saved")` then retains a
