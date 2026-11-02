@@ -20,6 +20,8 @@ export type InheritedPermission = {
   effects: string[]
   risk: string
   defaults: Record<string, string>
+  requestable_roles: string[]
+  authority_durations: string[]
   owner: { kind: string; name: string }
   editable: false
   explanation: string
