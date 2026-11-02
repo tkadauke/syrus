@@ -77,6 +77,16 @@ RSpec.describe RunJob, :ci_only do
     FileUtils.rm_rf(@data_root) if @data_root
   end
 
+  describe "stale queue entries" do
+    it "discards a missing Run without attempting failure logging" do
+      missing_run_id = Run.maximum(:id).to_i + 1
+
+      expect(JobLog).not_to receive(:append!)
+
+      expect { RunJob.perform_now(missing_run_id) }.not_to raise_error
+    end
+  end
+
   describe "stale retry workflows" do
     it "cancels a retry run if the job was approved before it started" do
       initial_run = job.initial_run

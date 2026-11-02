@@ -130,6 +130,13 @@ class RunJob < ApplicationJob
       Thread.current[:syrus_current_run] = @run
     end
   rescue StandardError => e
+    # Let ApplicationJob's discard_on handler consume stale queue entries.
+    # A missing initial Run raises before @run is assigned; routing it through
+    # the step-failure path would try to append a JobLog for nil and mask the
+    # intentionally discardable exception with NoMethodError. RecordNotFound
+    # raised later by a step still belongs to that Run's normal failure path.
+    raise if e.is_a?(ActiveRecord::RecordNotFound) && !@run
+
     if PostImplementationReviewFailure.optional_step?(@step)
       log("WARNING: optional post-implementation review failed: #{e.class}: #{e.message}", kind: "system")
       PostImplementationReviewFailure.record!(run: @run, exception: e, workspace: handler_workspace)
