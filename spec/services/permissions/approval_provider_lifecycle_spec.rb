@@ -110,6 +110,15 @@ RSpec.describe Permissions::ApprovalProviderLifecycle do
     expect(AuthorizedInvocation.where(pending_action_item: item).count).to eq(1)
   end
 
+  it "reconsiders when only secret-bearing evidence differs" do
+    allow(provider).to receive(:decide) { calls << :asked; { outcome: :escalate, rationale: "Unsure", policy_factors: [], confidence: 1.0, evidence: {} } }
+
+    expect(run(transcript: [ { role: "user", content: "token=aaaaaaaaaaaaaaaaaaaa" } ])).to be_escalated
+    expect(run(transcript: [ { role: "user", content: "token=bbbbbbbbbbbbbbbbbbbb" } ])).to be_escalated
+    expect(calls.size).to eq(2)
+    expect(request.transitions.where(event_type: described_class::EVALUATED_EVENT).last.metadata.to_json).not_to include("aaaaaaaa")
+  end
+
   it "escalates without a delegation and never calls the provider" do
     delegation.destroy!
 
@@ -124,5 +133,39 @@ RSpec.describe Permissions::ApprovalProviderLifecycle do
 
     expect(run).to be_skipped
     expect(calls).to be_empty
+  end
+end
+
+RSpec.describe Permissions::AuthorizationRequestRouter, "AI approval wiring", :ci_only do
+  let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user:) }
+  let(:job) { Factories.job_record(user:, repository:) }
+  let(:provider) do
+    Class.new do
+      include Syrus::Plugin::ApprovalProvider
+      def self.provider_key = "reviewer"
+      def self.display_name = "Reviewer"
+      def self.data_sharing = "Sent."
+      def self.default_guidance = "Careful."
+      def self.decide(_evidence) = { outcome: :allow, rationale: "ok", policy_factors: [], confidence: 0.95, evidence: {} }
+    end
+  end
+
+  it "evaluates a newly routed request and skips human notification once approved" do
+    ApprovalProviderDelegation.create!(owner_user: user, provider_key: "reviewer", capability: "k8s.workload",
+      resource_type: "cluster", resource_scope: { cluster_id: 7 })
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:approval_provider).and_return([ provider ])
+    expect(ApprovalNotifications::Router).not_to receive(:route!)
+
+    result = described_class.route!(user:, repository:, origin: job, subject: user, runtime_role: "implementer",
+      deduplication_key: "agent:#{user.id}:k8s:wired", purpose: "Restart", capability: "k8s.workload", operation: "restart",
+      ai_approval: { tool_name: "restart_workload", transcript: [ { role: "user", content: "restart" } ] },
+      item_attributes: { kind: "operation", operation_version: 1, resource_type: "cluster", resource_scope: { cluster_id: 7 },
+        invocation_fingerprint: "sha256:wired", normalized_arguments: {}, effects: [ "operational" ],
+        policy_chain: [], decisive_rule: {}, requested_durations: %w[invocation] })
+
+    expect(result.request.reload).to be_confirmed
+    expect(AuthorizedInvocation.count).to eq(1)
   end
 end
