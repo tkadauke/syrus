@@ -127,6 +127,15 @@ RSpec.describe SyrusBrowser::EmulateTool do
     end
   end
 
+  it "re-reads the page viewport so a prior browser_resize is kept by media-only emulation" do
+    described_class.call(color_scheme: "dark", server_context: ctx)
+
+    expect(sent_patch).not_to have_key("viewport")
+    expect(session).to have_received(:call_tool) do |name:, arguments:|
+      expect(arguments["code"]).to include("page.viewportSize()")
+    end
+  end
+
   it "embeds the CDP safe-area command in the generated script" do
     described_class.call(preset: "iphone-15-pro", server_context: ctx)
 
