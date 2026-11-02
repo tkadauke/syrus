@@ -48,13 +48,7 @@ module Mcp::Tools
         end
 
       return false if raw_capabilities.blank?
-      return !raw_capabilities.empty? if raw_capabilities.is_a?(TargetGraph::ExecutionCapabilities)
-      if raw_capabilities.respond_to?(:to_h)
-        normalized = TargetGraph::ExecutionCapabilities.new(**raw_capabilities.to_h.deep_symbolize_keys)
-        return normalized.to_h.present?
-      end
-
-      true
+      PlannedExecutionRequirement.normalize_capabilities(raw_capabilities).present?
     end
 
     def repository_for(chat_session, repo)

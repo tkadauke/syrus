@@ -71,4 +71,18 @@ RSpec.describe GenerateJobTitleJob, type: :job do
 
     expect(job.reload.issue_title).to eq("Already named")
   end
+
+  it "does not replace a pending title after execution starts" do
+    job.update!(state: "running")
+    expect(DirectJobTitleGenerator).to receive(:generate).and_return(
+      DirectJobTitleGenerator::Result.new(title: "Late generated title", error: nil)
+    )
+
+    described_class.perform_now(job)
+
+    expect(job.reload).to have_attributes(
+      issue_title: GenerateJobTitleJob::PENDING_TITLE,
+      title_pending: false
+    )
+  end
 end

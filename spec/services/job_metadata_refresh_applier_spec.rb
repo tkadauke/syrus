@@ -37,18 +37,19 @@ RSpec.describe JobMetadataRefreshApplier do
   end
   let(:client) { instance_double(GithubClient) }
 
-  it "updates a direct Job title, managed PR metadata, audit artifact, and announces the change" do
+  it "keeps the Job definition frozen while updating managed PR metadata and the audit artifact" do
     allow(client).to receive(:pull_request)
       .with("acme/widgets", 9, bypass_cache: true)
       .and_return(Struct.new(:title, :body).new("Old PR title", "Old PR body"))
     allow(client).to receive(:update_pull_request_metadata)
     workflow # materialize before spying so creation events do not pollute the assertion
+    job.update!(state: "running")
     allow(Syrus::Events).to receive(:publish).and_call_original
 
     result = described_class.new(workflow, client: client).call
 
     expect(result).to eq("applied refreshed Job metadata")
-    expect(job.reload.issue_title).to eq("Preserve provider switching")
+    expect(job.reload.issue_title).to eq("Pin provider creation")
     expect(client).to have_received(:update_pull_request_metadata) do |slug, pr_number, title:, body:|
       expect(slug).to eq("acme/widgets")
       expect(pr_number).to eq(9)

@@ -18,7 +18,9 @@ class GenerateJobTitleJob < ApplicationJob
     raise TitleGenerationFailed, result.error unless result.success?
 
     title = result.title
-    job.update!(issue_title: title, title_pending: false)
+    JobDefinitionUpdater.new(job).update!(title: title, title_pending: false)
+  rescue JobDefinitionUpdater::Immutable
+    job.update!(title_pending: false)
   rescue => e
     clear_pending_title(job)
     raise e
@@ -29,10 +31,9 @@ class GenerateJobTitleJob < ApplicationJob
   def clear_pending_title(job)
     return unless job&.persisted?
 
-    job.update!(
-      issue_title: fallback_title_for(job),
-      title_pending: false
-    )
+    JobDefinitionUpdater.new(job).update!(title: fallback_title_for(job), title_pending: false)
+  rescue JobDefinitionUpdater::Immutable
+    job.update!(title_pending: false)
   end
 
   def fallback_title_for(job)

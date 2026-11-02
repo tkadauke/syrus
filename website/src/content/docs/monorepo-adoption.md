@@ -5,6 +5,9 @@ description: A staged guide for adopting project-aware .syrus.yml configuration 
 
 # Monorepo Adoption
 
+The only permitted planned-execution capability dimension is `os`; repository
+dependencies and toolchains belong in preparation and target commands.
+
 Syrus's project-aware configuration is staged on purpose. Small repositories
 can keep one root `.syrus.yml` forever. Medium monorepos can add nested project
 configuration, explicit targets, and build-system imports only when those

@@ -852,6 +852,14 @@ It defaults to false. Set it true only when the proposed work directly advances
 the chat's active goal; unrelated or opportunistic follow-up proposals should
 remain unlinked so their later Job state changes do not wake the goal loop.
 
+The chat `update_job` tool may change a Job's title or description only before
+execution begins. The editable states are `backlog`, `needs_triage`,
+`triaging`, `blocked_by_epic`, and `queued`. Once the Job enters `running` (or
+any later execution state), its source prompt is immutable; use feedback or a
+new Job instead of rewriting the definition that an existing attempt consumed.
+The state check and definition update hold the Job row lock together, so a
+concurrent start cannot race a late edit.
+
 `propose_job` also accepts `route_to_backlog` for a single direct Job proposal
 card. It defaults to false, preserving the current confirmation path: the Job
 starts normally after dependency wiring and triage advancement when it is not
@@ -926,11 +934,10 @@ state transition, so admission and the first queued Run use that priority.
 `propose_job` requires `planned_execution.capabilities`, and
 `propose_epic_with_jobs` requires `jobs[].planned_execution.capabilities` on
 every child Job. Callers must choose explicit execution capabilities before the
-proposal card is created, for example `{"os":["linux"]}` for normal
-Linux/backend/web work or
-`{"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}`
-for iOS/Xcode work. Supported dimensions are `os`, `arch`, `toolchain`, and
-`runtime`; Windows, feature, and free-form dimensions are rejected. Missing or
+proposal card is created: `{"os":["linux"]}` or `{"os":["macos"]}`. `os` is
+the only permitted dimension; architecture, runtime, toolchain, feature, and
+free-form dimensions are rejected with guidance to put dependencies in
+repository preparation. Missing or
 empty capabilities are rejected instead of being inferred from proposal
 title/body text.
 

@@ -35,6 +35,45 @@ RSpec.describe PlannedExecutionOverrides::Operation do
     expect(job.reload.planned_execution_capabilities).to eq(ExecutionPlacementProfile.fetch("macos_desktop").capabilities)
   end
 
+  it "updates a pristine blocked-by-Epic Job atomically without releasing its dependency block" do
+    job.workflows.destroy_all
+    job.update!(state: "blocked_by_epic")
+
+    result = operation(profile: "macos_desktop").apply!
+
+    expect(result.eligible).to be(true)
+    expect(job.reload).to have_attributes(state: "blocked_by_epic", planned_execution_capabilities: { "os" => [ "macos" ] })
+    expect(job.planned_execution_overrides.sole).to be_present
+  end
+
+  it "refuses a blocked-by-Epic Job with Workflow or Run history" do
+    run
+    job.update!(state: "blocked_by_epic")
+
+    expect(operation.inspect.reason).to include("already has Workflow or Run history")
+    expect { operation.apply! }.to raise_error(described_class::Unsafe, /already has Workflow or Run history/)
+  end
+
+  it "refuses a blocked-by-Epic Job with a mutable workspace using an actionable error" do
+    workflow
+    job.update!(state: "blocked_by_epic")
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.mktmpdir))
+
+    expect(operation.inspect.reason).to include("mutable workspace or worker assignment")
+    expect { operation.apply! }.to raise_error(described_class::Unsafe, /host-affine execution state/)
+  end
+
+  it "refuses a blocked-by-Epic Job with WorkUnit execution history" do
+    job.workflows.destroy_all
+    job.update!(state: "blocked_by_epic")
+    intent = WorkIntent.create!(kind: "initial", state: "requested", repository: repository, scope_type: "job", scope_id: job.id)
+    unit = WorkUnit.create!(work_intent: intent, kind: "initial", state: "queued", repository: repository, scope_type: "job", scope_id: job.id)
+    unit.work_unit_members.create!(job: job, role: "primary")
+
+    expect(operation.inspect.reason).to include("WorkUnit execution history")
+    expect { operation.apply! }.to raise_error(described_class::Unsafe, /host-affine execution state/)
+  end
+
   it "starts a queued initial Workflow with no Run after changing its lane" do
     empty_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     allow(WorkUnits::Launcher).to receive(:start!).with(empty_workflow).and_return(double(run: nil))
@@ -148,12 +187,13 @@ RSpec.describe PlannedExecutionOverrides::Operation do
     expect(job.planned_execution_overrides).to be_empty
   end
 
-  it "keeps macOS desktop distinct from iOS/Xcode and rejects unknown profiles" do
+  it "keeps every named profile OS-only and rejects unknown profiles" do
     desktop = operation(profile: "macos_desktop").inspect.after.fetch("capabilities")
     ios = operation(profile: "ios_xcode").inspect.after.fetch("capabilities")
 
-    expect(desktop).not_to have_key("toolchain")
-    expect(ios).to include("toolchain" => [ "xcode" ], "runtime" => [ "ios_simulator" ])
+    expect(desktop).to eq("os" => [ "macos" ])
+    expect(ios).to eq("os" => [ "macos" ])
+    expect(ExecutionPlacementProfile::PROFILES.values).to all(satisfy { |definition| definition.fetch("capabilities").keys == [ "os" ] })
     expect { operation(profile: "windows") }.to raise_error(ArgumentError, /unknown execution placement profile/)
   end
 end

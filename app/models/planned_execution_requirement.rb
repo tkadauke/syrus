@@ -1,6 +1,8 @@
 class PlannedExecutionRequirement
   SOURCES = %w[defaulted inferred explicit prompt classifier operator operator_confirmed].freeze
   DEFAULT_CAPABILITIES = { "os" => [ "linux" ] }.freeze
+  PERMITTED_CAPABILITY_KEYS = %w[os].freeze
+  FORBIDDEN_CAPABILITY_GUIDANCE = "Dependencies such as Ruby, Node, Chromium, Xcode, architecture, toolchains, and simulators do not belong in worker admission capabilities.".freeze
 
   attr_reader :project_label, :target_label, :capabilities, :source
 
@@ -34,7 +36,11 @@ class PlannedExecutionRequirement
   end
 
   def self.normalize_capabilities(value)
-    return value.to_h if value.is_a?(TargetGraph::ExecutionCapabilities)
+    if value.is_a?(TargetGraph::ExecutionCapabilities)
+      raw = value.to_h
+      validate_capability_keys!(raw)
+      return raw
+    end
 
     raw = value.presence || DEFAULT_CAPABILITIES
     unless raw.is_a?(Hash)
@@ -42,12 +48,15 @@ class PlannedExecutionRequirement
     end
 
     raw = raw.deep_stringify_keys
-    unsupported_keys = raw.keys - TargetGraph::ExecutionCapabilities::DIMENSIONS
-    if unsupported_keys.any?
-      raise ArgumentError, "planned execution capabilities include unsupported keys #{unsupported_keys.join(', ')}; supported keys: #{TargetGraph::ExecutionCapabilities::DIMENSIONS.join(', ')}"
-    end
-
+    validate_capability_keys!(raw)
     TargetGraph::ExecutionCapabilities.new(**raw.symbolize_keys).to_h
+  end
+
+  def self.validate_capability_keys!(raw)
+    forbidden_keys = raw.keys - PERMITTED_CAPABILITY_KEYS
+    if forbidden_keys.any?
+      raise ArgumentError, "planned execution capabilities contain forbidden keys: #{forbidden_keys.sort.join(', ')}. Only os is permitted. #{FORBIDDEN_CAPABILITY_GUIDANCE}"
+    end
   end
 
   def initialize(project_label: nil, target_label: nil, capabilities: nil, source: nil)

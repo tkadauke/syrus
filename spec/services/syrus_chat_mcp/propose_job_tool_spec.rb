@@ -255,6 +255,21 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     end
   end
 
+  it "rejects every forbidden capability key with actionable guidance before creating a proposal" do
+    %i[runtime feature].each do |forbidden_key|
+      response = call_tool_without_defaults(
+        repo: repository.slug,
+        title: "Reject #{forbidden_key}",
+        description: "Dependencies are installed during preparation.",
+        planned_execution: { capabilities: { os: [ "linux" ], forbidden_key => [ "node", "ruby" ] } }
+      )
+
+      expect(response[:result][:isError]).to be_truthy
+      expect(response.dig(:result, :content, 0, :text)).to match(/forbidden keys: #{forbidden_key}.*Only os is permitted.*Ruby, Node, Chromium, Xcode, architecture, toolchains, and simulators/)
+      expect(chat_session.proposals.find_by(title: "Reject #{forbidden_key}")).to be_nil
+    end
+  end
+
   it "normalizes literal backslash-n sequences in the description into real line breaks" do
     response = call_tool(
       repo: repository.slug,
@@ -400,7 +415,7 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       planned_execution: {
         project_label: "iOS App",
         target_label: "//ios:app",
-        capabilities: { os: [ "macos" ], arch: [ "arm64" ], toolchain: [ "xcode" ], runtime: [ "ios_simulator" ] }
+        capabilities: { os: [ "macos" ] }
       }
     )
 
@@ -409,19 +424,14 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:planned_execution]).to include(
       source: "operator",
-      capabilities: { os: [ "macos" ], arch: [ "arm64" ], toolchain: [ "xcode" ], runtime: [ "ios_simulator" ] }
+      capabilities: { os: [ "macos" ] }
     )
 
     result = ChatProposalFiler.new(user: user, repository: repository).file!([ proposal ])
     expect(result.jobs.sole.planned_execution_json).to include(
       "project_label" => "iOS App",
       "target_label" => "//ios:app",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ],
-        "runtime" => [ "ios_simulator" ]
-      },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "operator"
     )
   end

@@ -68,6 +68,7 @@ RSpec.describe "planned execution placement" do
 
       File.readlines(path).each_with_index.filter_map do |line, index|
         next if line.strip.start_with?("#")
+        next if line.include?("FORBIDDEN_CAPABILITY_GUIDANCE")
         next unless line.match?(pattern)
 
         "#{relative}:#{index + 1}: #{line.strip}"

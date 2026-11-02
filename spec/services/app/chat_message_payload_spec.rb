@@ -452,7 +452,7 @@ RSpec.describe App::ChatMessagePayload do
       title: "Fix Xcode project",
       body: "Repair the build.",
       kind: "job",
-      planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "operator"
     )
     message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Job proposal proposed." })
@@ -460,7 +460,7 @@ RSpec.describe App::ChatMessagePayload do
     payload = described_class.messages([ message ], repository: repository).sole
 
     expect(payload.dig(:proposal, :planned_execution)).to include(
-      "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "operator"
     )
   end

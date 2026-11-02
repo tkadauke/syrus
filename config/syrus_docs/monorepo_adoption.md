@@ -1,5 +1,8 @@
 # Project-Aware Monorepo Adoption Guide
 
+The only permitted planned-execution capability dimension is `os`; repository
+dependencies and toolchains belong in preparation and target commands.
+
 This guide is the practical path for adopting project-aware `.syrus.yml`
 configuration. It mirrors DOC-20's staged model: start with unchanged
 root-only behavior, then add precision only where a repository actually needs
