@@ -209,6 +209,7 @@ RSpec.describe PersistentMcpDaemon do
 
       it "dispatches coworker chat reads over the persistent workflow route" do
         PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
+        Syrus::PluginRegistry.clear_plugin_record_cache!
         coworker = Coworkers::Coworker.create!(
           owner_user: user, name: "Maya", handle: "maya-daemon-chat-reader",
           workspace_repo: job.repository.remote_url

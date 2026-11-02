@@ -49,7 +49,7 @@ RSpec.describe RuntimeTerminal::Renderer do
   end
 
   it "maps ANSI, indexed, and RGB foregrounds to exact pixels" do
-    rendered = image("\e[?25l\e[31mM\e[38;5;202mM\e[38;2;1;2;3mM", cols: 3, rows: 1)
+    rendered = image("\e[?25l\e[31m█\e[38;5;202m█\e[38;2;1;2;3m█", cols: 3, rows: 1)
 
     expect(include_pixel?(rendered, [ 191, 97, 106 ])).to be(true)
     expect(include_pixel?(rendered, [ 255, 95, 0 ])).to be(true)
