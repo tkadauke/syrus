@@ -260,6 +260,9 @@ module App
         last_feedback_addressed_at: iso8601(@job.last_feedback_addressed_at),
         last_ci_handled_sha: @job.last_ci_handled_sha,
         closure_reason: @job.closure_reason,
+        rollback_of: rollback_reference_json(@job.rollback_of),
+        unlanded_by: rollback_reference_json(unland_audit[:successful]),
+        unland: unland_json(@job),
         emergency_landed_at: iso8601(@job.emergency_landed_at),
         emergency_landed_by_user: user_reference_json(@job.emergency_landed_by_user),
         emergency_landed_by_membership_tier: @job.emergency_landed_by_membership_tier,
@@ -318,6 +321,16 @@ module App
         start_blocked_details: start_blocked.fetch(:details),
         start_blocked_breakdown: start_blocked.fetch(:breakdown)
       }.merge(deployment_stages_json)
+    end
+
+    def rollback_reference_json(job)
+      return nil unless job
+
+      {
+        id: job.id, slug: job.slug, title: job.issue_title, state: job.state,
+        closure_reason: job.closure_reason, path: job_path(job),
+        pr_number: job.pr_number, pr_url: job.pr_number && "https://github.com/#{job.repository.slug}/pull/#{job.pr_number}"
+      }
     end
 
     def active_provider_routing_holds_json
@@ -1289,6 +1302,7 @@ module App
         app_unapprove_path: "/api/v1/app/jobs/#{@job.id}/unapprove",
         app_close_investigation_path: "/api/v1/app/jobs/#{@job.id}/close_investigation",
         app_reopen_path: "/api/v1/app/jobs/#{@job.id}/reopen",
+        app_unland_path: "/api/v1/app/jobs/#{@job.id}/unland",
         app_poll_feedback_path: "/api/v1/app/jobs/#{@job.id}/poll_feedback",
         app_rebase_path: "/api/v1/app/jobs/#{@job.id}/rebase",
         app_retry_pr_ingestion_path: "/api/v1/app/jobs/#{@job.id}/retry_pr_ingestion",
@@ -1321,6 +1335,34 @@ module App
         app_ref_movement_actions_path: "/api/v1/app/jobs/#{@job.id}/ref_movement_actions",
         admin_resource_admission_path: admin_resource_admission_path
       }
+    end
+
+    def unland_json(job)
+      @unland_json ||= begin
+        rollback = unland_audit[:latest]
+        state = if unland_audit[:successful]
+          "reverted"
+        elsif rollback&.failed?
+          "failed"
+        elsif rollback && !rollback.state.in?(Job::TERMINAL_STATES + %w[failed])
+          "in_progress"
+        elsif job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(job.closure_reason) && job.landed_sha.present?
+          "landed"
+        end
+        { state:, rollback_job: rollback_reference_json(rollback) }
+      end
+    end
+
+    def unland_audit
+      @unland_audit ||= begin
+        attempts = @job.rollback_jobs.to_a
+        attempts.concat(@job.epic.rollback_jobs.to_a) if @job.epic_id.present?
+        attempts.sort_by! { |attempt| [ attempt.created_at, attempt.id ] }.reverse!
+        {
+          latest: attempts.first,
+          successful: attempts.find { |attempt| attempt.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(attempt.closure_reason) }
+        }
+      end
     end
 
     def timeline_event_json(event)

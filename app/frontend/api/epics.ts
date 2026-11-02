@@ -90,6 +90,7 @@ export type EpicDetailRecord = {
   landing: boolean
   stuck: boolean
   startable: boolean
+  can_unland: boolean
   start_blocked_on: string[]
   owner: EpicOwner | null
   owned_by_current_user: boolean
@@ -206,6 +207,10 @@ export type EpicDetailPayload = {
   origin_chat?: EpicOriginChat | null
   merge_train_status?: MergeTrainStatus | null
   epic: EpicDetailRecord
+  unland?: {
+    state: "landed" | "in_progress" | "failed" | "reverted" | null
+    rollback_job: { id: number; slug: string; state: string; path: string; pr_number: number | null; pr_url: string | null } | null
+  }
   summary: EpicDetailSummary
   state_transitions: EpicStateTransition[]
   graph: EpicGraph
@@ -224,7 +229,27 @@ export type EpicDetailPayload = {
     app_unclaim_path: string
     app_reassign_path: string
     app_dependencies_path: string
+    app_unland_path: string
   }
+}
+
+export type EpicUnlandPlan = {
+  subject: string
+  affected: string[]
+  base_sha: string
+  commits: string[]
+  files: string[]
+  dependents: string[]
+  deployment_stages: Record<string, string[]>
+  warnings: string[]
+  graders: string[]
+}
+
+export type EpicUnlandResult = {
+  message: string
+  rollback_job_id: number
+  rollback_job_slug: string
+  rollback_job_path: string
 }
 
 export function fetchNewEpicForm() {
@@ -241,8 +266,7 @@ export function fetchEpicDetail(id: string, options: { signal?: AbortSignal } = 
 
 export function searchEpicOptions(query: string, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ field: "epic_id", q: query })
-  return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options)
-    .then((payload) => payload.options || [])
+  return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options).then((payload) => payload.options || [])
 }
 
 export function createEpic(values: EpicInput, options: { start?: boolean } = {}) {
@@ -281,6 +305,14 @@ export function unclaimEpic(path: string) {
   return patchJson<EpicDetailPayload>(path)
 }
 
+export function fetchEpicUnlandPlan(path: string) {
+  return getJson<EpicUnlandPlan>(path)
+}
+
+export function startEpicUnland(path: string) {
+  return postJson<EpicUnlandResult>(path, {})
+}
+
 export function addEpicDependency(path: string, dependsOnEpicId: number) {
   return postJson<EpicDetailPayload>(path, { depends_on_epic_id: dependsOnEpicId })
 }
@@ -308,4 +340,3 @@ export function fetchPickerEpics(params: { repo?: string; limit?: number } = {})
 export function removeEpicDependency(path: string, dependsOnEpicId: number) {
   return deleteJson<EpicDetailPayload>(`${path}/${dependsOnEpicId}`)
 }
-

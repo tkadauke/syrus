@@ -18,6 +18,9 @@ la:
         invalid_utf8: "%{name} textus UTF-8 validus non est."
         total_too_large: "Adiuncta simul non maiora quam 20 MB esse debent."
     mcp:
+      unland_confirmation:
+        job: "%{subject} revocare? Confirmatio operatoris requiritur."
+        epic: "%{subject} revocare? Confirmatio operatoris requiritur."
       bulk_confirmation:
         cleanup_workspaces: "%{count} spatia laboris workflow delere?"
         cancel_stale_work: "Opera obsoleta pro %{count} Job abrogare?"
@@ -463,6 +466,7 @@ la:
       dependency_not_found: "Dependentia inventa non est."
       parsed_dependency_retained: "Dependentiae lectae ad inspectionem servantur."
       dependency_removed: "Dependentia remota est."
+      unland_started: "Reversio %{rollback} incepta est."
       epic_not_found: "Epic inventum non est."
       epic_dependency_added: "Dependentia Epic addita est."
       epic_dependency_not_found: "Dependentia Epic inventa non est."

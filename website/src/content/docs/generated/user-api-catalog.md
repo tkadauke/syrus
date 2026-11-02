@@ -167,6 +167,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/epics/:id/start` | `api/v1/app/epics#start` |
 | core | PATCH | `/api/v1/app/epics/:id/state` | `api/v1/app/epics#update_state` |
 | core | PATCH | `/api/v1/app/epics/:id/unclaim` | `api/v1/app/epics#unclaim` |
+| core | GET | `/api/v1/app/epics/:id/unland` | `api/v1/app/epics#unland_plan` |
+| core | POST | `/api/v1/app/epics/:id/unland` | `api/v1/app/epics#unland` |
 | core | GET | `/api/v1/app/epics/graph` | `api/v1/app/epics#graph` |
 | core | GET | `/api/v1/app/epics/new` | `api/v1/app/epics#new` |
 | core | POST | `/api/v1/app/event_actions/file_job` | `api/v1/app/event_actions#file_job` |
@@ -187,6 +189,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:id/source_image` | `api/v1/app/jobs#source_image` |
 | core | GET | `/api/v1/app/jobs/:id/timeline` | `api/v1/app/jobs#timeline` |
 | core | GET | `/api/v1/app/jobs/:id/transcript` | `api/v1/app/jobs#transcript` |
+| core | GET | `/api/v1/app/jobs/:id/unland` | `api/v1/app/jobs#unland_plan` |
+| core | POST | `/api/v1/app/jobs/:id/unland` | `api/v1/app/jobs#unland` |
 | core | GET | `/api/v1/app/jobs/:id/waterfall` | `api/v1/app/jobs#waterfall` |
 | core | GET | `/api/v1/app/jobs/:id/workflows` | `api/v1/app/jobs#workflows` |
 | core | POST | `/api/v1/app/jobs/:job_id/accept_triage` | `api/v1/app/job_lifecycle#accept_triage` |

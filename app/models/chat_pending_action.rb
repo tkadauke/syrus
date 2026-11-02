@@ -19,6 +19,8 @@ class ChatPendingAction < ApplicationRecord
     approve_job
     unapprove_job
     force_fail_job
+    unland_job
+    unland_epic
     fire_scheduled_task_now
     create_repo_document
     create_coworker
@@ -91,6 +93,7 @@ class ChatPendingAction < ApplicationRecord
     retry_job
     base_refresh_retry_job
     force_fail_job
+    unland_job
     override_job_planned_execution
     rebase_job
     force_rebase
@@ -118,6 +121,7 @@ class ChatPendingAction < ApplicationRecord
   EPIC_RESOURCE_ACTIONS = %w[
     restack_epic
     archive_epic
+    unland_epic
   ].freeze
   EMPTY_PAYLOAD_ACTIONS = %w[
     admin_reap_stale_runs

@@ -3,7 +3,7 @@ module Api
     module App
       class EpicsController < BaseController
         before_action :authorize_epic_mutation!, only: %i[
-          update archive claim unclaim reassign start update_state add_dependency remove_dependency
+          update archive claim unclaim reassign start update_state add_dependency remove_dependency unland_plan unland
         ]
 
         def index
@@ -211,6 +211,24 @@ module Api
           render_error("transition_not_allowed", I18n.t("api.epics.transition_not_allowed"), status: :unprocessable_content)
         end
 
+        def unland_plan
+          render json: Unlanding::Create.plan!(original: find_epic, user: Current.user).to_h
+        rescue Unlanding::Create::Ineligible => e
+          render_error("unland_ineligible", e.message, status: :unprocessable_content)
+        end
+
+        def unland
+          rollback = Unlanding::Create.call!(original: find_epic, user: Current.user)
+          render json: {
+            message: I18n.t("api.epics.unland_started", rollback: rollback.slug),
+            rollback_job_id: rollback.id,
+            rollback_job_slug: rollback.slug,
+            rollback_job_path: job_path(rollback)
+          }, status: :created
+        rescue Unlanding::Create::Ineligible => e
+          render_error("unland_ineligible", e.message, status: :unprocessable_content)
+        end
+
         def add_dependency
           epic = find_epic
           depends_on_epic = policy_scope(Epic).find(params.require(:depends_on_epic_id))
@@ -310,6 +328,7 @@ module Api
             merge_train_status: PerformanceLogging.phase("epic_detail.merge_train_status", epic_id: epic.id) { ::App::MergeTrainStatus.for_epic(epic) },
             origin_chat: PerformanceLogging.phase("epic_detail.origin_chat", epic_id: epic.id) { epic_origin_chat_json(epic) },
             epic: PerformanceLogging.phase("epic_detail.epic", epic_id: epic.id) { detail_epic_json(epic, jobs: jobs) },
+            unland: unland_json(epic),
             summary: {
               done_jobs_count: done_jobs_count(jobs),
               total_jobs_count: jobs.size,
@@ -353,7 +372,8 @@ module Api
               app_claim_path: "/api/v1/app/epics/#{epic.id}/claim",
               app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim",
               app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign",
-              app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies"
+              app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies",
+              app_unland_path: "/api/v1/app/epics/#{epic.id}/unland"
             }
           }
 
@@ -366,6 +386,20 @@ module Api
 
         def visible_epic_jobs(epic)
           Job.visible_to(Current.user, scope: epic.jobs)
+        end
+
+        def unland_json(epic)
+          rollback = epic.rollback_jobs.order(created_at: :desc, id: :desc).first
+          state = if epic.unlanded_by
+            "reverted"
+          elsif rollback&.failed?
+            "failed"
+          elsif rollback && !rollback.state.in?(Job::TERMINAL_STATES + %w[failed])
+            "in_progress"
+          elsif epic.done?
+            "landed"
+          end
+          { state: state, rollback_job: rollback && { id: rollback.id, slug: rollback.slug, state: rollback.state, path: job_path(rollback), pr_number: rollback.pr_number, pr_url: rollback.pr_url } }
         end
 
         def epic_blocked_reason(dependency)
@@ -419,6 +453,7 @@ module Api
             landing: epic.landing?(jobs: jobs),
             stuck: epic.stuck?,
             startable: epic.may_start_implementing?(actor: Current.user),
+            can_unland: EpicPolicy.new(Current.user, epic).write? && epic.done?,
             # Names of unfinished dependencies keeping a backlog/ready Epic
             # from being startable; the UI renders a muted "Waiting on ..."
             # hint in place of the hidden Start implementing button.

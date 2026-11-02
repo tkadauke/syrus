@@ -67,6 +67,16 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.map(&:display_name)).to eq([ "Vitest", "Vitest (focused)", "Vitest (CI)" ])
   end
 
+  it "maps unland to the focused command without selecting the full command" do
+    steps = described_class.grade_steps(config: { "phases" => %w[unland] }, default_failures: "strict")
+
+    expect(steps.map { |entry| [ entry.name, entry.phases, entry.metadata["grader_mode"] ] }).to eq([
+      [ "vitest", [], "full" ],
+      [ "vitest-focused", %w[unland], "focused" ],
+      [ "vitest-ci", [], "ci" ]
+    ])
+  end
+
   it "lets an explicit display_name override the generated default" do
     steps = described_class.grade_steps(config: { "display_name" => "Frontend suite" }, default_failures: "strict")
 

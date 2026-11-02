@@ -271,7 +271,7 @@ grade:
       separate namespaces. Hand-rolled timestamps silently corrupt dev
       DBs and crash production deploys with "table already exists."
     run: bin/check-migration-collisions --all
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
     timeout_minutes: 1
 
   - name: migration-lint
@@ -283,7 +283,7 @@ grade:
       migrations touched by this branch. Syrus intentionally uses indexed
       bigint/reference columns without DB-level FK constraints.
     run: bin/check-migrations
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
     timeout_minutes: 1
 
   - name: migration-baselines
@@ -305,7 +305,7 @@ grade:
       RAILS_MAX_THREADS / config/database.yml's pool, or trim the
       queue's thread count.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && bin/check-thread-budget
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
     # Landing dispatches graders in parallel; this one starts with the same
     # `bundle check` as eager-load/production-build-boot, so it needs the
     # same 3-minute headroom under contention instead of the tighter 1-minute
@@ -320,7 +320,7 @@ grade:
       payload, so feature rollout code must stay aligned with the YAML
       declaration.
     run: bin/check_feature_slugs
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
     required: true
     timeout_minutes: 1
 
@@ -383,7 +383,7 @@ grade:
       owned by the plugin to avoid collisions once engine migrations are
       installed into the host app.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-model-namespaces
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
     required: true
     # Boots Rails before checking plugin-owned model classes. Under
     # shared-worker IO pressure, the app boot can exceed the tight
@@ -399,7 +399,7 @@ grade:
       undeletable, so this has to fail fast rather than surface as a
       mysterious boot error after someone removes a gem.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-boundaries
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
     required: true
     # Boots Rails to read the plugin registry, same as the model-namespace
     # checker, then scans the full source tree for boundary references. Shared
@@ -417,7 +417,7 @@ grade:
       the same constant with different superclasses — check umbrella
       files vs per-class siblings.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
     # Same shared-worker contention as thread-budget/plugin-model-namespaces/
     # plugin-boundaries, plus this one also forces Zeitwerk to autoload every
     # file (heavier than a plain boot). Landing now runs enough concurrent
@@ -476,7 +476,26 @@ grade:
       application tables; if an initializer performs DB work at build time,
       this grader fails before the production image build does.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-production-build-boot
-    phases: [review, landing, ci]
+    phases: [review, landing, ci, unland]
+    timeout_minutes: 3
+
+  - name: frontend-typecheck
+    description: |
+      Typechecks frontend changes without running Vitest, coverage, or browser
+      suites. Unland validation uses this fast compile-time contract check
+      instead of the normal frontend test graders.
+    run: npm run typecheck
+    phases: [unland]
+    required: true
+    when_files_changed:
+      - "app/frontend/**/*.ts"
+      - "app/frontend/**/*.tsx"
+      - "plugins/*/app/frontend/**/*.ts"
+      - "plugins/*/app/frontend/**/*.tsx"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
     timeout_minutes: 3
 
   - name: fresh-production-db-prepare

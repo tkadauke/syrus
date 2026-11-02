@@ -1,8 +1,9 @@
-import { useCallback, useState } from "react"
+import { useCallback, useState, type ReactNode } from "react"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 
 export interface ConfirmOptions {
   message: string
+  content?: ReactNode
   confirmLabel?: string
   cancelLabel?: string
   destructive?: boolean
@@ -50,6 +51,7 @@ export function useConfirm() {
     <ConfirmDialog
       open={state !== null}
       message={state?.options.message ?? ""}
+      content={state?.options.content}
       confirmLabel={state?.options.confirmLabel}
       cancelLabel={state?.options.cancelLabel}
       destructive={state?.options.destructive}

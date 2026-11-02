@@ -252,6 +252,34 @@ Syrus rebases before blaming the PR branch, and it avoids running many
 CI-failure Workflows with the same failing base at once. A rolling cap
 prevents endless CI-failure loops on the same Job.
 
+### Compensating rollback Jobs
+
+Unlanding creates a linked rollback Job; it never rewinds or reopens the
+original landed Job. The workflow verifies the original's recorded landed
+commits on the current default branch, reverses them in safe reverse order,
+uses an implementing agent if conflicts need resolution, and then runs
+`prepare -> grader fanout -> grader collect -> summarize -> PR open`. Both the
+initial rollback check and final landing check use only the repository's
+explicit `unland` phase and refuse to pass when changed-file filtering leaves
+no required grader selected. The resulting PR follows ordinary review and
+landing.
+
+Landed Epics roll back as one coordinated unit, not one PR per child. Before
+starting mutable work, Syrus derives the ordered commit set from child landing
+provenance and merge-train membership and presents affected records, commits,
+files, dependents, deployment reach, selected fast graders, and warnings. Partial or mixed landing,
+shared commit ownership, and previously reverted children fail preflight. The
+single rollback relationship preserves each child's original successful
+closure facts while making the Epic's reversal visible.
+
+Job and Epic details keep the original completion audit intact while showing
+whether an unland is in progress, failed, or landed and then reverted, with a
+link to the rollback Job and PR. Unlanding changes Git through an ordinary
+revert PR; it does not automatically roll back a deployed environment. Recover
+the deployment separately, retry failures from the linked rollback Job, and
+reapply reverted work later through a new reviewed change rather than by
+rewriting the original record.
+
 ## Step Kinds
 
 | Step | Agentic | Purpose |
@@ -274,7 +302,7 @@ prevents endless CI-failure loops on the same Job.
 | `push` | No | Push commits to an existing PR branch, update the cost footer, and clean-rebase once if the remote branch advanced |
 | `push_agent_rebase` | Yes | Resolve a conflicting follow-up push rebase onto the current remote PR branch |
 | `push_after_rebase` | No | Push a branch after the agentic follow-up rebase and grade loop |
-| `grader` | No | Run one configured repo grader. The UI groups grader setup, fanout, and aggregation under a single Grade row. |
+| `grader` | No | Run one configured repo grader. The UI groups grader setup, fanout, and aggregation under a single Grade row. Unland workflows select the dedicated `unland` phase and reject a selection with no required grader. |
 | `auto_rebase` | No | Try a deterministic rebase before involving an agent |
 | `agent_rebase` | Yes | Resolve rebase conflicts with the agent |
 | `force_push` | No | Force-push a rebased branch with an explicit `--force-with-lease` lease |

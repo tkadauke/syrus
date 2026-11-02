@@ -43,6 +43,16 @@ class Epic < ApplicationRecord
            dependent: :destroy,
            inverse_of: :depends_on_epic
   has_many :dependent_epics, through: :dependent_links, source: :epic
+  has_many :rollback_jobs, class_name: "Job", foreign_key: :rollback_epic_id,
+           dependent: :restrict_with_error, inverse_of: :rollback_epic
+
+  def unlanded_by
+    rollback_jobs.closed.find_by(closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
+  end
+
+  def unland_lock_record
+    self
+  end
 
   validates :number, presence: true, numericality: { only_integer: true, greater_than: 0 }, uniqueness: true
   validates :title, presence: true

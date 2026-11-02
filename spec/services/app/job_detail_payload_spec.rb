@@ -26,6 +26,53 @@ RSpec.describe App::JobDetailPayload do
     queries
   end
 
+  it "exposes rollback provenance in both directions" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+    rollback = Factories.job_record(
+      user: user, repository: repo, rollback_of: original,
+      state: "closed", closure_reason: "pr_merged", landed_sha: "rollback"
+    )
+
+    expect(payload_for(original).dig(:job, :unlanded_by)).to include(id: rollback.id, slug: rollback.slug)
+    expect(payload_for(rollback).dig(:job, :rollback_of)).to include(id: original.id, slug: original.slug)
+  end
+
+  it "keeps the original closed while projecting active and failed rollback progress" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+    rollback = Factories.job_record(user: user, repository: repo, rollback_of: original, state: "running")
+
+    active = payload_for(original)
+    expect(active.dig(:job, :unland)).to include(state: "in_progress", rollback_job: include(id: rollback.id, path: "/jobs/#{rollback.id}"))
+    expect(original.reload).to be_closed
+
+    rollback.update!(state: "failed")
+    expect(payload_for(original).dig(:job, :unland)).to include(state: "failed")
+  end
+
+  it "projects a coordinated Epic rollback onto each child Job" do
+    epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+    original = Factories.job_record(
+      user: user, repository: repo, epic: epic,
+      state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+    epic.update_column(:state, "done")
+    rollback = Factories.job_record(
+      user: user, repository: repo, rollback_epic: epic,
+      state: "closed", closure_reason: "pr_merged", landed_sha: "rollback"
+    )
+
+    payload = payload_for(original.reload)
+
+    expect(payload.dig(:job, :unlanded_by)).to include(id: rollback.id, slug: rollback.slug)
+    expect(payload.dig(:job, :unland)).to include(
+      state: "reverted", rollback_job: include(id: rollback.id, path: "/jobs/#{rollback.id}")
+    )
+  end
+
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil, blocked_details: nil)
     primary = member_jobs.first
     intent = WorkIntent.create!(

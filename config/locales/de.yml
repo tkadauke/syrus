@@ -18,6 +18,9 @@ de:
         invalid_utf8: "%{name} ist kein gültiger UTF-8-Text."
         total_too_large: "Anhänge dürfen insgesamt höchstens 20 MB groß sein."
     mcp:
+      unland_confirmation:
+        job: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
+        epic: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
       bulk_confirmation:
         cleanup_workspaces: "%{count} Workflow-Arbeitsbereiche löschen?"
         cancel_stale_work: "Veraltete Arbeit für %{count} Jobs abbrechen?"
@@ -463,6 +466,7 @@ de:
       dependency_not_found: "Abhängigkeit nicht gefunden."
       parsed_dependency_retained: "Erkannte Abhängigkeiten werden für die Prüfung beibehalten."
       dependency_removed: "Abhängigkeit entfernt."
+      unland_started: "Rollback %{rollback} gestartet."
       epic_not_found: "Epic nicht gefunden."
       epic_dependency_added: "Epic-Abhängigkeit hinzugefügt."
       epic_dependency_not_found: "Epic-Abhängigkeit nicht gefunden."
