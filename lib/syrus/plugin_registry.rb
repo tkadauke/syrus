@@ -358,6 +358,13 @@ module Syrus
         manifest_providers + direct
       end
 
+      # Returns every definition a tool set can advertise, independent of a
+      # particular chat tier or workflow context. Tool-set providers must treat
+      # a nil tier/context as an inventory request.
+      def all_tool_definitions(tool_set)
+        safe_tool_definitions(tool_set)
+      end
+
       def credential_types
         plugins = @mutex.synchronize { @plugins.dup }
 

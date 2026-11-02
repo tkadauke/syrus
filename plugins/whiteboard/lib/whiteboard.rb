@@ -2,6 +2,7 @@ module Whiteboard
   extend Syrus::PluginApi
 
   syrus_plugin "whiteboard" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "a6a099506651a3717bc7d98f887387f93b8ff9b82aad8866699cfcaf25534bbb"
     display_name "Whiteboard"
     description "Excalidraw-based chat whiteboard: workspace sidebar tab plus draw/move/delete/read/" \
       "save/clear/load MCP tools so agents and operators can sketch together on a shared " \

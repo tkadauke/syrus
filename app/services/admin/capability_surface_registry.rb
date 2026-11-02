@@ -218,6 +218,14 @@ module Admin
       def descriptor_gaps(**kwargs)
         new(**kwargs).descriptor_gaps
       end
+
+      def descriptor_coverage
+        Permissions::CapabilityRegistryValidator.for_application.coverage
+      end
+
+      def validate_descriptors!
+        Permissions::CapabilityRegistryValidator.for_application.validate!
+      end
     end
 
     def initialize(mcp_entries: McpToolRegistry.entries, pending_action_classes: nil, explicit_decisions: EXPLICIT_SURFACE_DECISIONS)

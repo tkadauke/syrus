@@ -976,6 +976,21 @@ and implement:
 | `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
 | `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
 
+Every agent-callable definition is normalized to a
+`Permissions::CapabilityDescriptor` and audited in CI. New definitions must
+provide `capability_descriptor:` explicitly, with stable versioned capability
+and operation identifiers, effects, eligible-role defaults, autonomy/duration
+ceilings, resource scope, classification, fingerprint normalization, and
+redaction hooks. A renamed identifier remains listed in `capability_aliases`
+or `operation_aliases`; aliases are versioned, cannot repeat the canonical
+identifier, and may resolve to only one canonical identifier registry-wide.
+Diagnostics identify the plugin provider, surface, and tool when mappings or
+descriptor contracts conflict. A plugin with pre-contract definitions may
+temporarily declare frozen `capability_descriptor_compatibility` digests in its
+own manifest, keyed by `mcp_tool_set` or `chat_mcp_tool_set`. Changing that
+inventory requires migrating the affected definitions explicitly; core never
+names plugin providers or carries their compatibility inventories.
+
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
 (e.g. only the `implement` step), not just the repository — see

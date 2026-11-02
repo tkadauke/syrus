@@ -10,6 +10,7 @@ module MysqlDbBrowser
   end
 
   syrus_plugin "mysql_db_browser" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "15e9374fd401bfb37dda7a83bc8f5168c4124539c8ed67af103347c71a81ac9b", mcp_tool_set: "15e9374fd401bfb37dda7a83bc8f5168c4124539c8ed67af103347c71a81ac9b"
     experimental true
     display_name "MySQL DB Browser"
     description "Register and manage connections to external MySQL databases with credential-store-backed secret storage."

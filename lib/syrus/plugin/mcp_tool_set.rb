@@ -9,8 +9,9 @@ module Syrus
     #   .available_for?(repo)   → bool
     #   #handle(tool_name, params, context) → result hash
     #
-    # Definitions may provide +capability_descriptor:+. Legacy definitions are
-    # adapted to the canonical descriptor without changing dispatch behavior.
+    # Definitions may provide +capability_descriptor:+. A plugin may
+    # temporarily ratchet legacy definitions through manifest-owned
+    # +capability_descriptor_compatibility+ digests while it migrates.
     #
     # Workflow MCP tool sets may optionally implement:
     #

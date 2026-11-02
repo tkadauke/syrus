@@ -4,6 +4,7 @@ module Mockups
   extend Syrus::PluginApi
 
   syrus_plugin "mockups" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "92db3b69c34a3f1bde5500df3c50245b36aef5b9447d1fd9002768bb147d53c7"
     display_name "Mockups"
     description "Scratch-directory-scoped write/edit tools plus show_preview/close_preview " \
       "so planning-mode chat agents can build and show an HTML/CSS/JS mockup " \
