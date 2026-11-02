@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import { createPermissionRule, fetchPermissions, revokePermissionRule, type InheritedPermission } from "../api/permissions"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { Input } from "../components/Input"
@@ -47,9 +48,9 @@ export function PermissionsSettingsRoute() {
       <header>
         <PageHeading>{t("permissions.title")}</PageHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("permissions.description")}</p>
-        <a className="mt-2 inline-block text-sm font-medium text-brand hover:underline" href="/permissions/inbox">
+        <Link className="mt-2 inline-block text-sm font-medium text-brand hover:underline" to="/dashboard">
           {t("permissions.approvals_link")}
-        </a>
+        </Link>
       </header>
 
       {query.isError ? <PanelMessage tone="error">{t("permissions.load_error")}</PanelMessage> : null}

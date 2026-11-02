@@ -17,7 +17,7 @@
   "permissions": {
     "title": "Berechtigungen",
     "description": "Verwalte dauerhafte Befugnisse, die du Agenten übertragen hast.",
-    "approvals_link": "Operative Freigaben öffnen",
+    "approvals_link": "Operatives Dashboard öffnen",
     "load_error": "Berechtigungen konnten nicht geladen werden.",
     "your_rules": "Deine Regeln",
     "your_rules_help": "Diese eigenen Regeln kannst du bearbeiten. Beim Widerruf bleibt der Auditverlauf erhalten.",
