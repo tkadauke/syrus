@@ -180,6 +180,10 @@
     "save_constraints": "Einschränkungen speichern",
     "unavailable": {
       "confinement_unavailable": "Nicht verfügbar, bis ein aktiver Worker die abgeschirmte Coworker-Ausführung bestätigt.",
+      "confinement_worker_unavailable": "Nicht verfügbar, weil kein aktiver Worker einen abgeschirmten Coworker-Turn annehmen kann.",
+      "confinement_configuration_missing": "Nicht verfügbar, weil einem aktiven Worker Laufzeitkonfiguration für die Abschirmung fehlt. Die fehlenden Einstellungen stehen in seinen Capability-Diagnosen.",
+      "confinement_probe_missing": "Nicht verfügbar, weil aktive Worker die Prüfsonde für die Abschirmung nicht bereitstellen.",
+      "confinement_probe_failed": "Nicht verfügbar, weil die Prüfung des Containers pro Turn oder des standardmäßig gesperrten ausgehenden Verkehrs fehlgeschlagen ist.",
       "broker_authorization_unavailable": "Nicht verfügbar, bis der Credential Broker und seine Autorisierungsprüfungen aktiviert sind."
     },
     "integrations": { "gmail": "Gmail", "calendar": "Kalender" },

@@ -20,13 +20,13 @@ class WorkerCapabilities
     "macos" => "arm64"
   }.freeze
 
-  ToolProbe = Data.define(:dimension, :token, :diagnostic_key, :command, :available_value)
+  ToolProbe = Data.define(:dimension, :token, :diagnostic_key, :command, :available_value, :diagnostics, :timeout)
   CommandResult = Data.define(:success, :output, :status)
 
   TOOL_PROBES = [
-    ToolProbe.new(dimension: "toolchain", token: "xcode", diagnostic_key: "xcode", command: [ "xcodebuild", "-version" ], available_value: true),
-    ToolProbe.new(dimension: "runtime", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true),
-    ToolProbe.new(dimension: "feature", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true)
+    ToolProbe.new(dimension: "toolchain", token: "xcode", diagnostic_key: "xcode", command: [ "xcodebuild", "-version" ], available_value: true, diagnostics: nil, timeout: nil),
+    ToolProbe.new(dimension: "runtime", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true, diagnostics: nil, timeout: nil),
+    ToolProbe.new(dimension: "feature", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true, diagnostics: nil, timeout: nil)
   ].freeze
   # Plugins contribute probes for toolchains core knows nothing about: where a
   # toolchain lives and how it is laid out belongs to the plugin that needs it,
@@ -195,11 +195,11 @@ class WorkerCapabilities
       }
 
       (TOOL_PROBES + plugin_tool_probes).each do |probe|
-        result = command_result(probe.command)
+        result = command_result(probe.command, timeout: probe.timeout || PROBE_TIMEOUT_SECONDS)
         probe_diagnostics = probe_diagnostics(probe, result)
         diagnostics[probe.diagnostic_key] = result.success
         diagnostics["#{probe.diagnostic_key}_probe_status"] = result.status
-        diagnostics.merge!(probe_diagnostics)
+        diagnostics.merge!(probe.diagnostics || {}).merge!(probe_diagnostics)
         next unless capability_available?(probe, result, probe_diagnostics) && TargetGraph::ExecutionCapabilities::DIMENSIONS.include?(probe.dimension)
 
         capabilities[probe.dimension] = Array(capabilities[probe.dimension]) | [ probe.token ]
@@ -240,7 +240,9 @@ class WorkerCapabilities
         token: attrs[:token].to_s,
         diagnostic_key: (attrs[:diagnostic_key] || attrs[:token]).to_s,
         command: command,
-        available_value: attrs.fetch(:available_value, true)
+        available_value: attrs.fetch(:available_value, true),
+        diagnostics: attrs[:diagnostics]&.to_h&.transform_keys(&:to_s),
+        timeout: attrs[:timeout]&.to_f
       )
     end
 
@@ -288,8 +290,8 @@ class WorkerCapabilities
       command_result(command).success
     end
 
-    def command_result(command)
-      capture = capability_probe(command)
+    def command_result(command, timeout: PROBE_TIMEOUT_SECONDS)
+      capture = capability_probe(command, timeout: timeout)
       CommandResult.new(
         success: capture.success?,
         output: "#{capture.stdout}#{capture.stderr}",
@@ -476,12 +478,12 @@ class WorkerCapabilities
       present_value?(value) ? value : nil
     end
 
-    def capability_probe(command)
+    def capability_probe(command, timeout: PROBE_TIMEOUT_SECONDS)
       capture = ProcessRunner.new(
         # Keep the probe environment scrubbed while exposing tools installed by
         # the worker image in directories outside the sandbox's default PATH.
         env: { "PATH" => ENV.fetch("PATH", "") }, command: command, mounts: ProcessRunner.probe_mounts,
-        network: "grader", timeout: PROBE_TIMEOUT_SECONDS, kind: "runtime_probe"
+        network: "grader", timeout: timeout, kind: "runtime_probe"
       ).capture
       debug_log { "[WorkerCapabilities] probe timed out #{command.first}" } if capture.result.timed_out?
       capture
