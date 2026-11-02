@@ -109,6 +109,26 @@ describe("PermissionsSettingsRoute", () => {
 
     expect(await screen.findByText("Varies by resource")).toBeInTheDocument()
   })
+
+  it("shows active lease lifecycle and redacted authorization history", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).endsWith("/history")) {
+        return Promise.resolve(jsonResponse(historyPayload()))
+      }
+      return Promise.resolve(jsonResponse(payload()))
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Active leases" }))
+    expect(await screen.findByRole("heading", { name: "Active permission leases" })).toBeInTheDocument()
+    expect(await screen.findByText("1 / 3")).toBeInTheDocument()
+    expect(screen.getByText("Fix stuck job")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }))
+    expect(await screen.findByText("Authorization request")).toBeInTheDocument()
+    expect(screen.getByText("Repeated requests were escalated into this decision.")).toBeInTheDocument()
+    expect(screen.getByText(/\[redacted\]/)).toBeInTheDocument()
+  })
 })
 
 function renderRoute() {
@@ -168,6 +188,52 @@ function payload() {
         owner: { kind: "provider", name: "syrus" },
         editable: false,
         explanation: "role_default"
+      }
+    ]
+  }
+}
+
+function historyPayload() {
+  return {
+    active_leases: [
+      {
+        id: 9,
+        capability: "syrus.jobs@v1",
+        operation: "cancel@v1",
+        subject: "workflow_role",
+        duration: "job",
+        resource_type: "job",
+        resource_scope: { job_id: 12 },
+        used_count: 1,
+        max_uses: 3,
+        expires_at: null,
+        revoked_at: null,
+        issued_at: "2026-11-02T10:00:00Z",
+        issued_by: { type: "User", id: 1, label: "Thomas" },
+        revoked_by: null,
+        origin: { type: "Job", id: 12, label: "Fix stuck job" }
+      }
+    ],
+    history: [
+      {
+        type: "request",
+        id: 8,
+        occurred_at: "2026-11-02T10:00:00Z",
+        state: "confirmed",
+        escalated: true,
+        non_actionable_reason: null,
+        origins: [{ label: "Fix stuck job" }],
+        items: [
+          {
+            id: 2,
+            capability: "syrus.jobs@v1",
+            operation: "cancel@v1",
+            state: "approved",
+            selected_duration: "job",
+            decision_reason: "Operator approved",
+            evidence: { api_token: "[redacted]" }
+          }
+        ]
       }
     ]
   }
