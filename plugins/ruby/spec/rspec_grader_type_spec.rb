@@ -528,11 +528,13 @@ RSpec.describe Ruby::RspecGraderType do
       expect(trace).to include("--tag ~ci_only")
     end
 
-    it "uses the CI-only tag policy for the CI-mode gate" do
+    it "runs both normal and CI-only examples in the CI-mode gate" do
       _exitstatus, trace = run_gate(ci_gate_command, previous_specs: "spec/a_spec.rb")
+      gate_trace = trace.lines.find { |line| line.include?("previous-failures-gate.json") }
 
-      expect(trace).to include("RUN_CI_ONLY_SPECS=true")
-      expect(trace).to include("--tag ci_only")
+      expect(gate_trace).to include("RUN_CI_ONLY_SPECS=true")
+      expect(gate_trace).not_to include("--tag ci_only")
+      expect(gate_trace).not_to include("--tag ~ci_only")
     end
 
     it "does not let a passing gate hide a failing suite" do
