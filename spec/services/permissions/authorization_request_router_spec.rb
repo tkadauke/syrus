@@ -55,10 +55,13 @@ RSpec.describe Permissions::AuthorizationRequestRouter, :ci_only do
   end
 
   it "keeps the authorization request durable when external delivery routing fails" do
-    allow(ActiveRecord).to receive(:after_all_transactions_commit).and_yield
+    callback = nil
+    allow(ActiveRecord).to receive(:after_all_transactions_commit) { |&block| callback = block }
     allow(ApprovalNotifications::Router).to receive(:route!).and_raise(RuntimeError, "delivery unavailable")
 
-    expect { @result = route }.not_to raise_error
+    @result = route
+
+    expect { callback.call }.not_to raise_error
 
     expect(@result).to be_created
     expect(@result.request.reload).to have_attributes(state: "pending", delivery_state: "failed")
