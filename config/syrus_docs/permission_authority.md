@@ -85,6 +85,21 @@ ceilings from the effective policy chain before calling the provider. Missing
 providers, invalid output, confidence below `0.8`, and provider-owned cost or
 rate outcomes escalate the existing request to a human.
 
+The classifier envelope orders core non-overridable guidance, the provider's
+default guidance, and one optional repository block:
+
+```yaml
+ai_approval:
+  instructions: Prefer escalation for production operations when intent is ambiguous.
+```
+
+Transcript entries retain their explicit roles. The envelope labels transcript,
+tool-call, and repository content as untrusted evidence; only the effective
+policy chain is authoritative. Providers must disclose where this evidence is
+processed and retained. The provider receives the complete evidence needed for
+the decision, while the durable audit artifact redacts secrets from the
+transcript, tool arguments, repository guidance, provider evidence, and decision.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with

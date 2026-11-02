@@ -3,7 +3,7 @@ module Permissions
     HUMAN_ONLY_CAPABILITY = "syrus.permissions@v1"
     MINIMUM_ALLOW_CONFIDENCE = 0.8
 
-    Result = Data.define(:decision, :delegation, :provider, :request) do
+    Result = Data.define(:decision, :delegation, :provider, :request, :audit_artifact) do
       def allowed? = decision.allow?
       def denied? = decision.deny?
       def escalated? = decision.escalate?
@@ -34,15 +34,19 @@ module Permissions
       return escalated(:provider_unavailable, "The delegated approval provider is unavailable", delegation:) unless provider
       return escalated(:ceiling, "A core, plugin, instance, or resource ceiling requires human review", delegation:, provider:) if ceiling_blocks?
 
-      decision = ApprovalProviderDecision.coerce(provider.decide(@request))
+      evidence = ApprovalProviderEvidence.new(request: @request, provider:)
+      decision = ApprovalProviderDecision.coerce(provider.decide(evidence.provider_payload))
       if !decision.escalate? && decision.confidence < MINIMUM_ALLOW_CONFIDENCE
-        return escalated(:uncertain, "The approval provider was not confident enough to decide", delegation:, provider:)
+        return escalated(:uncertain, "The approval provider was not confident enough to decide", delegation:, provider:,
+          audit_artifact: evidence.audit_artifact(decision:))
       end
       if !decision.escalate? && decision.provider_outcome.present?
-        return escalated(decision.provider_outcome, "The approval provider requires human review", delegation:, provider:)
+        return escalated(decision.provider_outcome, "The approval provider requires human review", delegation:, provider:,
+          audit_artifact: evidence.audit_artifact(decision:))
       end
 
-      Result.new(decision:, delegation:, provider:, request: @request)
+      Result.new(decision:, delegation:, provider:, request: @request,
+        audit_artifact: evidence.audit_artifact(decision:))
     rescue StandardError => error
       Rails.logger.warn("[ApprovalProviderAuthorizer] #{error.class}: #{error.message}")
       escalated(:invalid_provider_output, "The approval provider could not return a valid decision", delegation:, provider:)
@@ -68,10 +72,10 @@ module Permissions
       end
     end
 
-    def escalated(code, rationale, delegation: nil, provider: nil)
+    def escalated(code, rationale, delegation: nil, provider: nil, audit_artifact: nil)
       decision = ApprovalProviderDecision.new(outcome: :escalate, rationale:,
         policy_factors: [ code ], confidence: 1.0, evidence: {}, provider_outcome: code)
-      Result.new(decision:, delegation:, provider:, request: @request)
+      Result.new(decision:, delegation:, provider:, request: @request, audit_artifact:)
     end
   end
 end
