@@ -4,6 +4,7 @@ import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_DEFAULT_WIDTH, 
 import { buildAdminNavItems, filterAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
+import { PermissionInboxDrawer } from "../components/PermissionInboxDrawer"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -1447,6 +1448,7 @@ function SidebarContent({
           </nav>
         </div>
         {collapsed ? null : <RecentChatsSidebar featureFlags={featureFlags} onCloseDrawer={onCloseDrawer} onNotice={onNotice} onStartChat={onStartChat} prefix={prefix} startingChat={startingChat} userPresent={Boolean(user)} />}
+        {user ? <PermissionInboxDrawer /> : null}
       </div>
       {collapsed ? null : <ShellNotices />}
       <div className={`shrink-0 border-t border-gray-200 dark:border-gray-800 ${collapsed ? "p-2" : "p-3"}`}>

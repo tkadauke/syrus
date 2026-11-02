@@ -189,6 +189,9 @@ la:
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
   api:
+    permission_requests:
+      not_dismissible: "Haec petitio potestatis iam dimitti non potest."
+
     job_source_diff:
       preview_fixture: "Exemplar praevium"
 

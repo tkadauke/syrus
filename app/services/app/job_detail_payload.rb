@@ -105,20 +105,9 @@ module App
 
     def authorization_requests_json
       @job.related_authorization_requests
-        .includes(:authorization_items)
+        .includes(:authorization_items, :origin, :subject, :repository)
         .order(created_at: :desc)
-        .map do |request|
-          {
-            id: request.id,
-            state: request.state,
-            checkpoint_state: request.checkpoint_state,
-            purpose: request.purpose,
-            created_at: request.created_at.iso8601,
-            items: request.authorization_items.map do |item|
-              { capability: item.capability, operation: item.operation, state: item.state }
-            end
-          }
-        end
+        .map { |request| Permissions::RequestPresenter.new(request).as_json }
     end
 
     def workflows_payload

@@ -189,6 +189,9 @@ de:
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
 
   api:
+    permission_requests:
+      not_dismissible: "Diese Berechtigungsanfrage kann nicht mehr ausgeblendet werden."
+
     job_source_diff:
       preview_fixture: "Vorschau-Testdaten"
 

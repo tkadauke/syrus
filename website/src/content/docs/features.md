@@ -30,6 +30,14 @@ lifecycle, origins and use counts, requests and decisions, escalations,
 dismissals, policy changes, revocations, and execution outcomes. Stored
 evidence is redacted before display.
 
+The approval inbox at `/permissions/inbox` collects operational requests from
+chats and background work. A compact global drawer and inline Job cards show
+the same durable request, including its subject, origin, normalized resource,
+redacted arguments, effects, purpose, duration choices, and policy explanation.
+Operators can filter the inbox, decide compatible request items together,
+dismiss obsolete requests without denying future work, and review completed
+history.
+
 ## Jobs
 
 A Job is the unit operators track in the UI. It represents one thread of

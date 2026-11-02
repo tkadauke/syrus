@@ -223,6 +223,9 @@ en:
 
   # API messages
   api:
+    permission_requests:
+      not_dismissible: "This permission request can no longer be dismissed."
+
     job_source_diff:
       preview_fixture: "Preview fixture"
 

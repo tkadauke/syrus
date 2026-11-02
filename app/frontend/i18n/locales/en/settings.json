@@ -14,6 +14,11 @@
     "connected_platforms": "Connected Platforms",
     "permissions": "Permissions"
   },
+  "approval_inbox": {
+    "title": "Approval inbox", "description": "Review operational permission requests from every agent and origin.", "drawer_title": "Needs your attention", "approvals": "Approvals", "open_drawer": "Open approval inbox", "close": "Close", "view_all": "View all requests", "empty": "No requests match these filters.", "empty_pending": "No permission requests need attention.", "load_error": "Approval requests could not be loaded.", "request_badge": "Permission request", "fallback_purpose": "Agent requested permission", "unknown_subject": "Unknown agent", "open_origin": "Open origin", "resource": "Resource", "effects": "Effects", "arguments": "Arguments", "policy": "Policy explanation", "duration": "Authority duration", "approve": "Approve", "deny": "Deny", "dismiss": "Dismiss", "action_error": "The permission decision could not be saved.",
+    "states": { "pending": "Pending", "confirmed": "Approved", "rejected": "Denied", "dismissed": "Dismissed", "non_actionable": "Unavailable" },
+    "durations": { "invocation": "This invocation", "chat_session": "This chat", "job": "This Job", "permanent": "Permanent" }
+  },
   "permissions": {
     "title": "Permissions",
     "description": "Manage durable authority you have delegated to agents.",

@@ -8,6 +8,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
+import { PermissionRequestCard } from "../components/PermissionRequestCard"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
@@ -1566,12 +1567,7 @@ function AuthorizationRequestsPanel({ requests }: { requests: NonNullable<JobDet
       <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("authorization_requests_description")}</p>
       <ul className="mt-3 space-y-2">
         {requests.map((request) => (
-          <li className="rounded border border-amber-200 bg-white/70 p-3 text-sm dark:border-amber-800 dark:bg-gray-900/40" key={request.id}>
-            <div className="font-medium text-gray-900 dark:text-gray-100">{request.purpose || t("authorization_request_fallback")}</div>
-            <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-              {request.items.map((item) => item.operation || item.capability).join(", ")} · {request.checkpoint_state || request.state}
-            </div>
-          </li>
+          <li key={request.id}><PermissionRequestCard request={request} /></li>
         ))}
       </ul>
     </section>

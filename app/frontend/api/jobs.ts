@@ -1,6 +1,7 @@
 import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
+import type { PermissionRequest } from "./permissionRequests"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
 import type {
   ProviderRoutingCandidate,
@@ -270,14 +271,7 @@ export type JobClassificationAttempt = {
   spawned_process_outcome: string | null
 }
 
-export type JobAuthorizationRequest = {
-  id: number
-  state: string
-  checkpoint_state: string | null
-  purpose: string | null
-  created_at: string
-  items: Array<{ capability: string; operation: string | null; state: string }>
-}
+export type JobAuthorizationRequest = PermissionRequest
 
 export type JobPrChecks = {
   state: "passing" | "pending" | "failing" | "unknown" | string
