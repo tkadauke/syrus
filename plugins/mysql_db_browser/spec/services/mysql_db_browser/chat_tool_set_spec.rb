@@ -82,13 +82,13 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
       )
 
     query_tool = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "mysql_db_browser_execute_query" }
-    confirmed = query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1", server_context: { chat_session: chat })
-    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "queue")
-    expect(chat.pending_actions.last.payload).to include("tool_name" => "mysql_db_browser_execute_query")
+    expect(JSON.parse(query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1",
+      server_context: { chat_session: chat }).content.first[:text])).to include("error" => "not_authorized")
+    expect(chat.pending_actions).to be_empty
 
     grant.update!(approval_policy: "auto")
     expect(JSON.parse(query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1",
-      server_context: { chat_session: chat }).content.first[:text])).to include("approval_policy" => "queue")
+      server_context: { chat_session: chat }).content.first[:text])).to include("error" => "not_authorized")
   end
 
   it "dispatches string-keyed params without revealing an unusable legacy connection" do

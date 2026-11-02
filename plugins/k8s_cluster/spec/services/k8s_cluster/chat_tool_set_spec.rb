@@ -130,13 +130,13 @@ RSpec.describe K8sCluster::ChatToolSet do
     expect(names).to match_array(described_class::COWORKER_READ_TOOLS.map(&:tool_name))
 
     namespaces = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "k8s_cluster_namespaces" }
-    confirmed = namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat })
-    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "queue")
-    expect(chat.pending_actions.last.payload).to include("tool_name" => "k8s_cluster_namespaces")
+    expect(JSON.parse(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat }).content.first[:text]))
+      .to include("error" => "not_authorized")
+    expect(chat.pending_actions).to be_empty
 
     grant.update!(approval_policy: "auto")
     expect(JSON.parse(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat }).content.first[:text]))
-      .to include("approval_policy" => "queue")
+      .to include("error" => "not_authorized")
   end
 
   it "dispatches to the matching tool class, passing string-keyed params through" do
