@@ -450,11 +450,21 @@ describe("RepositoriesIndex data table", () => {
   })
 
   it("hides Unarchive from members without repository admin access", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
-      active_repositories: [],
-      archived_repositories: [repositoryRow({ archived: true, can_edit: false })]
-    })))
-    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={["/app-shell/repositories"]}><RepositoriesIndex /></MemoryRouter></QueryClientProvider>)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [],
+          archived_repositories: [repositoryRow({ archived: true, can_edit: false })]
+        })
+      )
+    )
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
 
     expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Unarchive" })).not.toBeInTheDocument()
