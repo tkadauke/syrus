@@ -54,6 +54,26 @@ RSpec.describe PlannedExecutionOverrides::Operation do
     expect { operation.apply! }.to raise_error(described_class::Unsafe, /already has Workflow or Run history/)
   end
 
+  it "refuses a blocked-by-Epic Job with a mutable workspace using an actionable error" do
+    workflow
+    job.update!(state: "blocked_by_epic")
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.mktmpdir))
+
+    expect(operation.inspect.reason).to include("mutable workspace or worker assignment")
+    expect { operation.apply! }.to raise_error(described_class::Unsafe, /host-affine execution state/)
+  end
+
+  it "refuses a blocked-by-Epic Job with WorkUnit execution history" do
+    job.workflows.destroy_all
+    job.update!(state: "blocked_by_epic")
+    intent = WorkIntent.create!(kind: "initial", state: "requested", repository: repository, scope_type: "job", scope_id: job.id)
+    unit = WorkUnit.create!(work_intent: intent, kind: "initial", state: "queued", repository: repository, scope_type: "job", scope_id: job.id)
+    unit.work_unit_members.create!(job: job, role: "primary")
+
+    expect(operation.inspect.reason).to include("WorkUnit execution history")
+    expect { operation.apply! }.to raise_error(described_class::Unsafe, /host-affine execution state/)
+  end
+
   it "starts a queued initial Workflow with no Run after changing its lane" do
     empty_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     allow(WorkUnits::Launcher).to receive(:start!).with(empty_workflow).and_return(double(run: nil))

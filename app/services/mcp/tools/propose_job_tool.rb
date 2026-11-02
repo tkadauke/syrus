@@ -124,7 +124,11 @@ module Mcp::Tools
           properties: {
             project_label: { type: "string", description: "Optional operator-facing project or placement label, such as iOS App." },
             target_label: { type: "string", description: "Optional target graph label, such as //ios:app." },
-            capabilities: { type: "object", properties: { os: { description: "One canonical OS value (linux or macos), as a string or single-item array." } }, description: "Execution capabilities. The only permitted dimension is os; any other key is rejected." },
+            capabilities: {
+              type: "object",
+              properties: { os: { description: "One canonical OS value (linux or macos), as a string or single-item array." } },
+              description: "Execution capabilities. The only permitted dimension is os; any other key is rejected."
+            },
             source: { type: "string", description: "Decision provenance. Defaults to operator for this explicit override." }
           },
           description: "Optional explicit primary implementation placement. Use {\"os\":[\"macos\"]} for macOS-hosted work or {\"os\":[\"linux\"]} for Linux-hosted work. No other capability key is permitted."

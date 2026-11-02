@@ -53,6 +53,16 @@ RSpec.describe PlannedExecutionRequirement do
     }.to raise_error(ArgumentError, /os: values must be one of linux, macos/)
   end
 
+  it "allows an unrelated transition on a legacy started record but rejects capability mutation" do
+    job = Factories.job_record(state: "running")
+    job.update_columns(planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ "ruby" ] })
+
+    expect { job.update!(priority: "high") }.not_to raise_error
+    expect {
+      job.update!(planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ "node" ] })
+    }.to raise_error(ActiveRecord::RecordInvalid, /forbidden keys: runtime/)
+  end
+
   it "prevents unsupported capability labels from being persisted on Jobs" do
     user = Factories.user
     repository = Factories.repository(user: user)

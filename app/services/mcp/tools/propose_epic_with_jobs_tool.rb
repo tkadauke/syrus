@@ -142,7 +142,11 @@ module Mcp::Tools
                 properties: {
                   project_label: { type: "string" },
                   target_label: { type: "string" },
-                  capabilities: { type: "object", properties: { os: { description: "One canonical OS value (linux or macos), as a string or single-item array." } }, description: "The only permitted capability dimension is os; any other key is rejected." },
+                  capabilities: {
+                    type: "object",
+                    properties: { os: { description: "One canonical OS value (linux or macos), as a string or single-item array." } },
+                    description: "The only permitted capability dimension is os; any other key is rejected."
+                  },
                   source: { type: "string" }
                 },
                 description: "Optional explicit primary implementation placement. Use {\"os\":[\"macos\"]} or {\"os\":[\"linux\"]}; no other capability key is permitted."

@@ -41,12 +41,11 @@ module Maintenance
     def repair_job!(job)
       previous = placement_for(job)
       replacement = previous.merge("capabilities" => repaired_capabilities(job.planned_execution_capabilities))
-      workflow = job.workflows.where(state: "queued").order(:created_at, :id).first
 
       Job.transaction do
         job.update_columns(planned_execution_capabilities: replacement.fetch("capabilities"), updated_at: Time.current)
         PlannedExecutionOverride.create!(
-          job: job, workflow: workflow, user: job.user, profile: "os_only_data_repair",
+          job: job, workflow: nil, user: job.user, profile: "os_only_data_repair",
           reason: "Removed forbidden non-OS worker admission capabilities from not-yet-started work.",
           provenance: "data_migration", previous_placement: previous, replacement_placement: replacement
         )
@@ -61,13 +60,11 @@ module Maintenance
           planned_execution_capabilities: replacement.fetch("capabilities"),
           updated_at: Time.current
         )
-        unless PlannedExecutionOverride.exists?(job: workflow.job, workflow: workflow, provenance: "data_migration")
-          PlannedExecutionOverride.create!(
-            job: workflow.job, workflow: workflow, user: workflow.user, profile: "os_only_data_repair",
-            reason: "Removed forbidden non-OS worker admission capabilities from queued work.",
-            provenance: "data_migration", previous_placement: previous, replacement_placement: replacement
-          )
-        end
+        PlannedExecutionOverride.create!(
+          job: workflow.job, workflow: workflow, user: workflow.user, profile: "os_only_data_repair",
+          reason: "Removed forbidden non-OS worker admission capabilities from queued work.",
+          provenance: "data_migration", previous_placement: previous, replacement_placement: replacement
+        )
       end
     end
 
