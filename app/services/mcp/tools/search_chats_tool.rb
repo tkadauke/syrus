@@ -47,7 +47,8 @@ module Mcp::Tools
           diagnostics: {
             exception: error.class.name,
             cause: error.cause&.class&.name,
-            category: "full_text_backend"
+            category: "full_text_backend",
+            database_message: database_error_message(error)
           }.compact
         )
       end
@@ -87,6 +88,10 @@ module Mcp::Tools
         payload = { error: { code: code, message: message, retryable: retryable } }
         payload[:error][:diagnostics] = diagnostics if diagnostics.present?
         MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ], error: true)
+      end
+
+      def database_error_message(error)
+        (error.cause&.message.presence || error.message).to_s.truncate(500)
       end
 
       # The full-text database is local to the home/search worker. A scheduled
