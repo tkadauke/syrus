@@ -28,6 +28,11 @@
 #       enabled: "ON"
 
 en:
+  notifications:
+    approval_request:
+      one: "Approval needed: %{purpose}"
+      other: "%{count} approval requests need your attention."
+      fallback: "An agent is waiting for permission"
   coworkers:
     confinement_unavailable: "No capable worker is available: verified coworker confinement is unavailable."
   hello: "Hello world"

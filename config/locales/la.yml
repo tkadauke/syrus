@@ -1,4 +1,9 @@
 la:
+  notifications:
+    approval_request:
+      one: "Approbatio necessaria: %{purpose}"
+      other: "%{count} petitiones approbationis attentionem tuam postulant."
+      fallback: "Agens potestatem exspectat"
   coworkers:
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:

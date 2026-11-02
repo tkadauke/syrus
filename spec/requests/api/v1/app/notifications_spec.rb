@@ -217,4 +217,22 @@ RSpec.describe "API: /api/v1/app/notification_preferences", type: :request do
     )
     expect(user.reload.notification_preference_for("pr_merged")).to be(true)
   end
+
+  it "updates approval batching and quiet hours independently of event toggles" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/notification_preferences", params: {
+      approval_delivery_preferences: {
+        enabled: false, batch_minutes: 25, quiet_hours_enabled: true,
+        quiet_hours_start: "21:30", quiet_hours_end: "06:15", time_zone: "Eastern Time (US & Canada)"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["approval_delivery_preferences"]).to include(
+      "enabled" => false, "batch_minutes" => 25, "quiet_hours_enabled" => true,
+      "quiet_hours_start" => "21:30", "quiet_hours_end" => "06:15", "time_zone" => "Eastern Time (US & Canada)"
+    )
+    expect(user.reload.notification_preference_for("job_failed")).to be(false)
+  end
 end

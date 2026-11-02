@@ -347,6 +347,14 @@
     "semantics_label": "Semantica"
   },
   "notifications": {
+    "approval_delivery": "Traditio approbationum",
+    "approval_delivery_help": "Insignia approbationum et indicia agentium exspectantium semper visibilia manent. Hae optiones tantum notificationes externas regunt.",
+    "approval_external": "Notificationes externas approbationis mitte",
+    "approval_batch": "Mora gregis (minuta; 0 statim mittit)",
+    "approval_quiet": "Notificationes per horas quietas retine",
+    "quiet_start": "Initium horarum quietarum",
+    "quiet_end": "Finis horarum quietarum",
+    "time_zone": "Zona temporis",
     "load_error": "Praeferentiae notificationum onerari non potuerunt.",
     "update_error": "Praeferentiae notificationum renovari non potuerunt.",
     "heading": "Notificationes",

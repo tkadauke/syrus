@@ -165,7 +165,16 @@ class User < ApplicationRecord
     "main_recovered" => true,
     "external_pr_feedback" => true,
     "investigation_escalated" => true,
-    "chat_mention" => true
+    "chat_mention" => true,
+    "approval_request" => true
+  }.freeze
+  APPROVAL_DELIVERY_DEFAULTS = {
+    "enabled" => true,
+    "batch_minutes" => 10,
+    "quiet_hours_enabled" => false,
+    "quiet_hours_start" => "22:00",
+    "quiet_hours_end" => "07:00",
+    "time_zone" => "UTC"
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban dependencies].freeze
   # Deliberately not an `enum :global_role` — that macro validates the
@@ -470,6 +479,14 @@ class User < ApplicationRecord
     raise ArgumentError, "Unknown notification kind: #{kind}" unless NOTIFICATION_PREFERENCES_DEFAULTS.key?(kind)
 
     notification_preferences.fetch(kind)
+  end
+
+  def approval_delivery_preferences
+    APPROVAL_DELIVERY_DEFAULTS.merge(normalized_approval_delivery_preferences(read_attribute(:approval_delivery_preferences)))
+  end
+
+  def approval_delivery_preferences=(value)
+    write_attribute(:approval_delivery_preferences, normalized_approval_delivery_preferences(value))
   end
 
   def update_dashboard_sort!(subject:, column:, direction:)
@@ -859,6 +876,21 @@ class User < ApplicationRecord
 
       hash[normalized_key] = ActiveModel::Type::Boolean.new.cast(preference)
     end
+  end
+
+  def normalized_approval_delivery_preferences(value)
+    return {} unless value.is_a?(Hash)
+
+    source = value.stringify_keys.slice(*APPROVAL_DELIVERY_DEFAULTS.keys)
+    normalized = {}
+    normalized["enabled"] = ActiveModel::Type::Boolean.new.cast(source["enabled"]) if source.key?("enabled")
+    normalized["quiet_hours_enabled"] = ActiveModel::Type::Boolean.new.cast(source["quiet_hours_enabled"]) if source.key?("quiet_hours_enabled")
+    normalized["batch_minutes"] = source["batch_minutes"].to_i.clamp(0, 60) if source.key?("batch_minutes")
+    %w[quiet_hours_start quiet_hours_end].each do |key|
+      normalized[key] = source[key] if source[key].to_s.match?(/\A(?:[01]\d|2[0-3]):[0-5]\d\z/)
+    end
+    normalized["time_zone"] = source["time_zone"] if ActiveSupport::TimeZone[source["time_zone"].to_s]
+    normalized
   end
 
   def normalized_dashboard_preferences(value)

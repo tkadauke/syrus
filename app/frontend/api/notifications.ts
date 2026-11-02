@@ -31,13 +31,31 @@ export type NotificationPayload = {
 }
 
 export type NotificationPreferenceKind =
-  "job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed" | "main_inconclusive" | "investigation_escalated" | "chat_mention"
+  | "job_failed"
+  | "job_implemented"
+  | "pr_comment_addressed"
+  | "pr_merged"
+  | "epic_completed"
+  | "main_inconclusive"
+  | "investigation_escalated"
+  | "chat_mention"
+  | "approval_request"
 
 export type NotificationPreferences = Record<NotificationPreferenceKind, boolean>
 
 export type NotificationPreferencesPayload = {
   notification_preferences: NotificationPreferences
+  approval_delivery_preferences?: ApprovalDeliveryPreferences
   message?: string
+}
+
+export type ApprovalDeliveryPreferences = {
+  enabled: boolean
+  batch_minutes: number
+  quiet_hours_enabled: boolean
+  quiet_hours_start: string
+  quiet_hours_end: string
+  time_zone: string
 }
 
 export function fetchNotifications(options: { page?: number; unread?: boolean } = {}) {
@@ -65,5 +83,11 @@ export function fetchNotificationPreferences() {
 export function updateNotificationPreferences(preferences: Partial<NotificationPreferences>) {
   return patchJson<NotificationPreferencesPayload>("/api/v1/app/notification_preferences", {
     notification_preferences: preferences
+  })
+}
+
+export function updateApprovalDeliveryPreferences(preferences: Partial<ApprovalDeliveryPreferences>) {
+  return patchJson<NotificationPreferencesPayload>("/api/v1/app/notification_preferences", {
+    approval_delivery_preferences: preferences
   })
 }

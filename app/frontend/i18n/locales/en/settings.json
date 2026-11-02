@@ -347,6 +347,14 @@
     "semantics_label": "Semantics"
   },
   "notifications": {
+    "approval_delivery": "Approval delivery",
+    "approval_delivery_help": "Approval badges and blocked-agent indicators always remain visible. These settings only control external notifications.",
+    "approval_external": "Send external approval notifications",
+    "approval_batch": "Batch window (minutes; 0 sends immediately)",
+    "approval_quiet": "Hold notifications during quiet hours",
+    "quiet_start": "Quiet hours start",
+    "quiet_end": "Quiet hours end",
+    "time_zone": "Time zone",
     "load_error": "Unable to load notification preferences.",
     "update_error": "Unable to update notification preferences.",
     "heading": "Notifications",

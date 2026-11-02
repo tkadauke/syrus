@@ -1,4 +1,9 @@
 de:
+  notifications:
+    approval_request:
+      one: "Genehmigung erforderlich: %{purpose}"
+      other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
+      fallback: "Ein Agent wartet auf eine Berechtigung"
   coworkers:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
