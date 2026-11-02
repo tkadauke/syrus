@@ -35,6 +35,7 @@ class ImmutableSourceCheckout
   end
 
   def setup
+    @setup_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     raise_infrastructure!("immutable source checkout is disabled for #{@repository.slug}") unless enabled_for_step?
 
     snapshot = source_snapshot
@@ -833,6 +834,7 @@ class ImmutableSourceCheckout
   end
 
   def copy_tree!(source, destination)
+    materialization_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     materialization_details = {
       "strategy" => "copy",
       "fallback_reason" => overlay_restore_enabled? ? "overlay disabled after support check failed" : "grader_fanout_overlay feature disabled",
@@ -847,7 +849,7 @@ class ImmutableSourceCheckout
         log: ->(message) { log(message) }
       )
       if overlay.mounted
-        record_workspace_materialization!(overlay)
+        record_workspace_materialization!(overlay, started_at: materialization_started_at)
         return
       end
 
@@ -873,7 +875,8 @@ class ImmutableSourceCheckout
         materialization_details.merge(
           "strategy" => linked.strategy,
           "unshared_paths" => linked.unshared_paths
-        )
+        ),
+        started_at: materialization_started_at
       )
       return
     end
@@ -887,7 +890,7 @@ class ImmutableSourceCheckout
       preserve: true,
       dereference_root: false
     )
-    record_workspace_materialization!(materialization_details)
+    record_workspace_materialization!(materialization_details, started_at: materialization_started_at)
   end
 
   # A cached layer carries the dependency closure for a prepare fingerprint;
@@ -933,7 +936,7 @@ class ImmutableSourceCheckout
     @step.kind.in?(%w[grader preflight_grader]) && Feature.grader_fanout_overlay_enabled?
   end
 
-  def record_workspace_materialization!(result)
+  def record_workspace_materialization!(result, started_at:)
     details = if result.is_a?(ImmutableSourceCheckoutOverlay::Result)
       result.to_h.stringify_keys.merge("strategy" => result.strategy).tap do |payload|
         payload["fallback_reason"] = result.reason if result.reason.present?
@@ -943,6 +946,19 @@ class ImmutableSourceCheckout
     end
     @step.update!(details: @step.details.to_h.merge("immutable_source_workspace" => details.compact))
     record_run_workspace_materialization!(details)
+    current_run = @run || Thread.current[:syrus_current_run] || @step.latest_run
+    WorkspaceReuseOutcomes::Recorder.record(
+      run: current_run,
+      kind: "grader_fanout",
+      outcome: details.fetch("strategy"),
+      prepare_fingerprint: @step.details.to_h.dig("prepare_cache", "prepare_fingerprint") ||
+        PreparedWorkspaceArchive.prepare_fingerprint_for(RepoPrepPlan.for(path), path: path),
+      storage_key: details["lower_path"],
+      materialization_method: details.fetch("strategy"),
+      fallback_reason: details["fallback_reason"] || details["link_fallback_reason"],
+      grader_count: @workflow.steps.where(kind: @step.kind, iteration: @step.iteration).count,
+      duration_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+    )
   end
 
   def record_run_workspace_materialization!(details)
@@ -968,6 +984,20 @@ class ImmutableSourceCheckout
     @step.update!(details: @step.details.to_h.merge(
       "prepare_cache" => prepare_cache.details(status)
     ))
+    return if @prepare_outcome_recorded
+
+    @prepare_outcome_recorded = true
+    current_run = @run || Thread.current[:syrus_current_run] || @step.latest_run
+    WorkspaceReuseOutcomes::Recorder.record(
+      run: current_run,
+      kind: "prepare",
+      outcome: status == "miss" ? "rebuilt" : "reused_from_archive",
+      prepare_fingerprint: prepare_cache.prepare_fingerprint,
+      storage_key: prepare_cache.cache_key,
+      bytes: status == "archive_hit" && prepare_cache.snapshot.prepared_workspace_archive.attached? ?
+        prepare_cache.snapshot.prepared_workspace_archive.blob.byte_size : nil,
+      duration_seconds: @setup_started_at && Process.clock_gettime(Process::CLOCK_MONOTONIC) - @setup_started_at
+    )
   end
 
   def record_checkout_details!(snapshot)
