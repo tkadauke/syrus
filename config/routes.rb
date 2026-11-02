@@ -235,6 +235,10 @@ Rails.application.routes.draw do
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"
+        get "permission_requests", to: "permission_requests#index"
+        post "permission_requests/batch_decide", to: "permission_requests#batch_decide"
+        post "permission_requests/:id/decide", to: "permission_requests#decide", constraints: { id: /\d+/ }
+        delete "permission_requests/:id", to: "permission_requests#dismiss", constraints: { id: /\d+/ }
         patch "dashboard/preferences", to: "dashboard#preferences"
         post "dashboard/landing_pause", to: "dashboard#landing_pause"
         post "dashboard/jobs/bulk", to: "dashboard#bulk_jobs"
