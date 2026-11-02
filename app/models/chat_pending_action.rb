@@ -732,6 +732,7 @@ class ChatPendingAction < ApplicationRecord
       content["source"] == ChatPendingActionOutcomeNotification::SOURCE &&
         content["outcome"] == state &&
         content["text"].to_s.include?(action_key.to_s)
+    end
   end
 
   def legacy_outcome_record?
