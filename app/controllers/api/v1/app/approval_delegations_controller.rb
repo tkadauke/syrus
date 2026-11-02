@@ -42,8 +42,7 @@ module Api
         end
 
         def payload_for(delegation)
-          Permissions::ApprovalDelegationPayload.new(Current.user).as_json.fetch(:delegations)
-            .find { |entry| entry["id"] == delegation.id }
+          Permissions::ApprovalDelegationPayload.new(Current.user).serialize_delegation(delegation)
         end
 
         def reject_invocation_context
