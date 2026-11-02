@@ -349,25 +349,31 @@ class ChatPendingAction < ApplicationRecord
 
     message = nil
     with_lock do
-      return outcome_message if outcome_message_id.present?
+      message = outcome_message || legacy_outcome_message
 
-      text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
-      message = chat_session.messages.create!(
-        role: "system",
-        content: {
-          "text" => text,
-          "source" => ChatPendingActionOutcomeNotification::SOURCE,
-          "outcome" => state,
-          "pending_action_id" => id,
-          "action_kind" => action_key,
-          "execution_status" => execution_status
-        }
-      )
-      update_columns(outcome_message_id: message.id, updated_at: Time.current)
-      chat_session.update!(last_message_at: Time.current)
-      chat_session.pin_chat_provider!
+      unless message
+        text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
+        message = chat_session.messages.create!(
+          role: "system",
+          content: {
+            "text" => text,
+            "source" => ChatPendingActionOutcomeNotification::SOURCE,
+            "outcome" => state,
+            "pending_action_id" => id,
+            "action_kind" => action_key,
+            "execution_status" => execution_status
+          }
+        )
+        chat_session.update!(last_message_at: Time.current)
+        chat_session.pin_chat_provider!
+      end
+      update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
+
+      if !legacy_outcome? && outcome_wake_enqueued_at.blank?
+        ChatTurnJob.perform_later(chat_session_id, message.id)
+        update_columns(outcome_wake_enqueued_at: Time.current, updated_at: Time.current)
+      end
     end
-    ChatTurnJob.perform_later(chat_session_id, message.id) if message
     message || outcome_message
   end
 
@@ -585,6 +591,17 @@ class ChatPendingAction < ApplicationRecord
     return unless terminal?
 
     ensure_outcome_notification!
+  end
+
+  def legacy_outcome_message
+    return unless legacy_outcome?
+
+    chat_session.messages.where(role: "system").order(id: :desc).limit(200).detect do |candidate|
+      content = candidate.content.to_h
+      content["source"] == ChatPendingActionOutcomeNotification::SOURCE &&
+        content["outcome"] == state &&
+        content["text"].to_s.include?(action_key.to_s)
+    end
   end
 
   def broadcastable_state_change?

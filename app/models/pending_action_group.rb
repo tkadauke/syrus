@@ -164,18 +164,33 @@ class PendingActionGroup < ApplicationRecord
   def notify_chat_of_outcome(text, outcome:)
     message = nil
     with_lock do
-      return outcome_message if outcome_message_id.present?
+      message = outcome_message || legacy_outcome_message(outcome)
 
-      message = chat_session.messages.create!(
-        role: "system",
-        content: { "text" => text, "source" => "pending_action_group_notification", "outcome" => outcome, "pending_action_group_id" => id }
-      )
-      update_columns(outcome_message_id: message.id, updated_at: Time.current)
-      chat_session.update!(last_message_at: Time.current)
-      chat_session.pin_chat_provider!
+      unless message
+        message = chat_session.messages.create!(
+          role: "system",
+          content: { "text" => text, "source" => "pending_action_group_notification", "outcome" => outcome, "pending_action_group_id" => id }
+        )
+        chat_session.update!(last_message_at: Time.current)
+        chat_session.pin_chat_provider!
+      end
+      update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
+
+      if !legacy_outcome? && outcome_wake_enqueued_at.blank?
+        ChatTurnJob.perform_later(chat_session_id, message.id)
+        update_columns(outcome_wake_enqueued_at: Time.current, updated_at: Time.current)
+      end
     end
-    ChatTurnJob.perform_later(chat_session_id, message.id) if message
     message || outcome_message
+  end
+
+  def legacy_outcome_message(outcome)
+    return unless legacy_outcome?
+
+    chat_session.messages.where(role: "system").order(id: :desc).limit(200).detect do |candidate|
+      content = candidate.content.to_h
+      content["source"] == "pending_action_group_notification" && content["outcome"] == outcome
+    end
   end
 
   def derive_owner_from_chat_session

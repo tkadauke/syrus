@@ -126,7 +126,12 @@ creates one durable system outcome message and wakes the chat once. The message
 records the action id and kind, execution status, application result, error,
 and available resource result. Its id is stored on the action so callback
 retries and legacy-outcome recovery cannot duplicate the message or agent
-turn. Hiding a terminal card only stamps its presentation dismissal time; it
+turn. A control-plane recovery job retries fresh terminal outcomes whose wake
+could not be enqueued. Pre-existing terminal records are archived during the
+schema migration; explicitly recovering one associates its original message
+when possible, or backfills the actual outcome without waking the agent again.
+Chat payload reads do not create messages or enqueue turns. Hiding a terminal
+card only stamps its presentation dismissal time; it
 does not change the terminal state, audit fields, result, or outcome message.
 Queued and pending actions retain their existing cancellation/rejection
 semantics.
