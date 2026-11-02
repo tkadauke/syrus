@@ -108,6 +108,19 @@ RSpec.describe McpToolRegistry do
 
       expect(surfaces).to contain_exactly(:chat, :coworker, :workflow, :agent_insight)
     end
+
+    it "registers permission management with explicit descriptors outside the frozen compatibility inventory" do
+      entries = described_class.entries(surface: :chat).select do |entry|
+        entry.descriptor.capability == "syrus.permissions@v1"
+      end
+
+      expect(entries.map(&:tool_name)).to contain_exactly(
+        "list_permissions", "explain_permission", "grant_permission", "deny_permission",
+        "revoke_permission", "create_permission_lease", "revoke_permission_lease",
+        "apply_permission_preset", "cancel_authorization_request"
+      )
+      expect(entries).to all(have_attributes(explicit_descriptor: true, compatibility_descriptor: false, tier: :deferred))
+    end
   end
 
   describe ".tools_for_context" do

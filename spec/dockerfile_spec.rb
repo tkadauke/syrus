@@ -187,7 +187,7 @@ RSpec.describe "Dockerfile" do
     expect(worker_dev).to include("RUN go version")
   end
 
-  it "installs version-matched Mull mutation testing tools in the worker image" do
+  it "installs version-matched Mull tools when available without blocking the worker image" do
     stage = worker_deps_stage
     worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
@@ -201,7 +201,10 @@ RSpec.describe "Dockerfile" do
     expect(stage).to include("mull-${MULL_LLVM_VERSION}")
     expect(stage).to include('ln -sf "/usr/bin/mull-runner-${MULL_LLVM_VERSION}" /usr/local/bin/mull-runner')
     expect(stage).to include('clang|clang++) real="/usr/bin/${name}-18"')
-    expect(worker_dev).to include('RUN clang++-18 --version && clang++ --version | grep -q "version 18" && mull-runner-18 --version && mull-runner --version')
+    expect(worker_dev).to include('RUN clang++-18 --version && clang++ --version | grep -q "version 18"')
+    expect(worker_dev).to include("RUN if [ -x /usr/local/bin/mull-runner ]; then")
+    expect(worker_dev).to include("mull-runner-18 --version && mull-runner --version")
+    expect(worker_dev).to include("mull-runner absent; mutation testing unavailable in this image")
 
     expect(app_stage).not_to include("mull-runner")
     expect(app_stage).not_to include("mull-project")

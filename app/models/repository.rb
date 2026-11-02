@@ -120,7 +120,7 @@ class Repository < ApplicationRecord
   has_many :chat_sessions, through: :chat_attachments
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :repository_documents, as: :attachable, class_name: "Document", dependent: :destroy
-  has_many :chat_pending_actions, dependent: :destroy
+  has_many :chat_pending_actions, dependent: :nullify
   has_many :main_branch_health_checks, dependent: :destroy
   has_many :preview_environments, dependent: :destroy
   has_many :repository_execution_probes, dependent: :destroy
@@ -154,6 +154,7 @@ class Repository < ApplicationRecord
   after_create :create_github_input_source
   after_save :sync_input_source_attrs, if: -> { saved_change_to_polling_enabled? || saved_change_to_trigger_label? }
   before_destroy :destroy_chat_sessions, prepend: true
+  before_destroy :destroy_legacy_pending_actions, prepend: true
 
   scope :active,   -> { where(archived_at: nil) }
   scope :git,      -> { where(vcs: "git") }
@@ -575,6 +576,10 @@ class Repository < ApplicationRecord
   end
 
   private
+
+  def destroy_legacy_pending_actions
+    chat_pending_actions.where(request_kind: "legacy_action").destroy_all
+  end
 
   def explicit_agent_provider_for?(effective_user)
     return true if agent_provider.present?
