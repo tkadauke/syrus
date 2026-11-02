@@ -2438,6 +2438,9 @@ describe("JobDetailView", () => {
   })
 
   it("clamps issue and agent summary prose on mobile with accessible expand controls", () => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(80)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(160)
+
     renderJobDetail(
       jobPayload({
         job: {
@@ -2470,6 +2473,24 @@ describe("JobDetailView", () => {
     expect(issueContent).not.toHaveClass("line-clamp-5")
     expect(within(issuePanel).getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true")
     expect(summaryContent).toHaveClass("line-clamp-5")
+  })
+
+  it("omits mobile expand controls when issue and summary prose fit within the clamp", () => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(80)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(80)
+
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), issue_body: "The complete issue description fits." },
+        summary: { run_id: 1, text: "The complete agent summary fits.", finished_at: "2026-08-01T12:00:00Z" }
+      })
+    )
+
+    const issuePanel = screen.getByRole("heading", { name: "Issue" }).closest("section") as HTMLElement
+    const summaryPanel = screen.getByRole("heading", { name: "Agent summary" }).closest("section") as HTMLElement
+
+    expect(within(issuePanel).queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+    expect(within(summaryPanel).queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
   })
 
   it("constrains the Summary tab grid columns so a wide code block scrolls instead of widening the page", () => {
