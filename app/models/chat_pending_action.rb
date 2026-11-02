@@ -653,16 +653,16 @@ class ChatPendingAction < ApplicationRecord
 
   def valid_authorization_checkpoint
     if checkpoint_state.present? && !authorization_request?
-      errors.add(:checkpoint_state, "is only available for authorization requests")
+      errors.add(:checkpoint_state, :authorization_requests_only)
     end
     if checkpoint_state.present? && !CHECKPOINT_STATES.include?(checkpoint_state)
-      errors.add(:checkpoint_state, "is not supported")
+      errors.add(:checkpoint_state, :unsupported_checkpoint_state)
     end
     if checkpoint_state.present? && !origin.is_a?(AuthorizationCheckpointOrigin)
-      errors.add(:origin, "does not support authorization checkpoints")
+      errors.add(:origin, :unsupported_authorization_checkpoint)
     end
-    errors.add(:checkpoint_payload, "must be a JSON object") unless checkpoint_payload.is_a?(Hash)
-    errors.add(:checkpointed_at, "is required") if checkpoint_state.present? && checkpointed_at.blank?
+    errors.add(:checkpoint_payload, :must_be_json_object) unless checkpoint_payload.is_a?(Hash)
+    errors.add(:checkpointed_at, :required_for_authorization_checkpoint) if checkpoint_state.present? && checkpointed_at.blank?
   end
 
   def capture_transition_changes

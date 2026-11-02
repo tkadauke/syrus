@@ -4,6 +4,10 @@ la:
   server:
     permissions:
       coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
+      authorization_required_tool_interrupted: "Conversatio agentis ad auctoritatem exspectandam substitit antequam hoc instrumentum respondit."
+      scheduled_authorization:
+        waiting: "Auctoritas exspectatur."
+        skipped: "Operatio auctoritate munita omissa est; opus utile auctoritate non egens pergere potest."
       conflicting_coworker_defaults: "%{operation} normas collegae inter se repugnantes declarat"
       capability_registry:
         conflicting_tool_mapping: "instrumentum %{surface} %{tool_name} ad facultates/operationes inter se repugnantes %{mappings} refert; una relatio stabilis adhibenda est"
@@ -118,6 +122,12 @@ la:
       unknown_pending_action: "actio pendens ignota est"
       job_id_required: "job_id requiritur"
       chat_session_mismatch: "cum sessione colloquii congruere debet"
+      authorization_requests_only: "petitionibus auctoritatis tantum praesto est"
+      unsupported_checkpoint_state: "sustentatum non est"
+      unsupported_authorization_checkpoint: "puncta auctoritatis resumenda non sustinet"
+      must_be_json_object: "obiectum JSON esse debet"
+      required_for_authorization_checkpoint: "requiritur"
+      authorization_request_required: "petitio auctoritatis esse debet"
 
   passwords_mailer:
     reset:

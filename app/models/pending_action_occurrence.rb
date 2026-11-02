@@ -12,6 +12,6 @@ class PendingActionOccurrence < ApplicationRecord
   def authorization_request
     return if chat_pending_action&.authorization_request?
 
-    errors.add(:chat_pending_action, "must be an authorization request")
+    errors.add(:chat_pending_action, :authorization_request_required)
   end
 end

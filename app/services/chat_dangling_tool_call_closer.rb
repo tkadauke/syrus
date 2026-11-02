@@ -21,7 +21,7 @@ class ChatDanglingToolCallCloser
 
   REASONS = [
     Reason.new(key: "turn_ended", message: "Agent turn ended before this tool returned.", benign: true),
-    Reason.new(key: "authorization_required", message: "Agent turn paused for authorization before this tool returned.", benign: true),
+    Reason.new(key: "authorization_required", message: :"server.permissions.authorization_required_tool_interrupted", benign: true),
     Reason.new(key: "operator_cancelled", message: "Cancelled by operator before this tool returned.", benign: true),
     Reason.new(key: "turn_failed", message: "Agent turn failed before this tool returned.", benign: false)
   ].index_by(&:key).freeze
@@ -65,7 +65,7 @@ class ChatDanglingToolCallCloser
         content: {
           "type" => "tool_result",
           "tool_use_id" => tool_use.tool_use_id.to_s,
-          "content" => [ { "type" => "text", "text" => @reason.message } ],
+          "content" => [ { "type" => "text", "text" => localized_reason_message } ],
           # is_error stays true even for a benign close: the agent has to see
           # that the tool never returned, or a resumed turn would read the
           # cleanup as a real result. benign_cleanup is a separate,
@@ -82,6 +82,10 @@ class ChatDanglingToolCallCloser
   end
 
   private
+
+  def localized_reason_message
+    @reason.message.is_a?(Symbol) ? I18n.t(@reason.message) : @reason.message
+  end
 
   def tool_uses_after_latest_user
     messages_after_latest_user.where(role: "tool_use").order(:created_at, :id)

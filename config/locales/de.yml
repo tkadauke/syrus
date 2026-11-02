@@ -4,6 +4,10 @@ de:
   server:
     permissions:
       coworker_request_waiting: "Warten auf die Entscheidung des Eigentümers über die erforderlichen Berechtigungen."
+      authorization_required_tool_interrupted: "Die Agentenrunde wurde zur Autorisierung angehalten, bevor dieses Tool antwortete."
+      scheduled_authorization:
+        waiting: "Warten auf Autorisierung."
+        skipped: "Der geschützte Vorgang wurde übersprungen; nützliche ungeschützte Arbeit kann fortgesetzt werden."
       conflicting_coworker_defaults: "%{operation} deklariert widersprüchliche Coworker-Standardeinstellungen"
       capability_registry:
         conflicting_tool_mapping: "%{surface}-Tool %{tool_name} verweist auf widersprüchliche Capability-/Operationszuordnungen %{mappings}; verwende eine stabile Zuordnung"
@@ -118,6 +122,12 @@ de:
       unknown_pending_action: "unbekannte ausstehende Aktion"
       job_id_required: "job_id ist erforderlich"
       chat_session_mismatch: "muss zur Chat-Sitzung passen"
+      authorization_requests_only: "ist nur für Autorisierungsanfragen verfügbar"
+      unsupported_checkpoint_state: "wird nicht unterstützt"
+      unsupported_authorization_checkpoint: "unterstützt keine Autorisierungsprüfpunkte"
+      must_be_json_object: "muss ein JSON-Objekt sein"
+      required_for_authorization_checkpoint: "ist erforderlich"
+      authorization_request_required: "muss eine Autorisierungsanfrage sein"
 
   passwords_mailer:
     reset:

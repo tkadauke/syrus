@@ -144,7 +144,7 @@ module Mcp::Tools
           authorization_request_id: result.request&.id,
           authorization_status: result.status,
           gated_operation_skipped: !result.created?,
-          message: result.created? ? "Waiting for authorization." : "The gated operation was skipped; useful ungated work may continue."
+          message: I18n.t("server.permissions.scheduled_authorization.#{result.created? ? 'waiting' : 'skipped'}")
         )
       end
 
