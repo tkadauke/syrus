@@ -260,6 +260,9 @@ RSpec.describe McpToolRegistry do
           read_preview_log search_jobs list_jobs list_open_prs read_pr list_open_issues
           submit_visual_review submit_visual_artifact
           list_artifacts read_artifact
+          runtime_inspect runtime_wait runtime_acquire_control
+          runtime_release_control runtime_input runtime_snapshot
+          runtime_capture_artifact
         ]
       )
     end
