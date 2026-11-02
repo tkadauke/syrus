@@ -8,6 +8,23 @@ module ContainerExecution
     RUNTIME_TOKEN = "confined_coworker".freeze
     PROVIDERS = %w[CODEX CLAUDE MUSE AGY].freeze
     PROBE_TIMEOUT_SECONDS = 30
+    PROBE_SCRIPT = <<~'BASH'.freeze
+      set -euo pipefail
+      test "$(id -u)" != "0"
+      if touch /syrus-confinement-root-write; then
+        exit 1
+      fi
+      while [ "$#" -gt 0 ]; do
+        timeout 3 bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$1" "$2"
+        shift 2
+      done
+      if timeout 3 bash -c 'exec 3<>/dev/tcp/1.1.1.1/443'; then
+        exit 1
+      fi
+      if timeout 3 bash -c 'exec 3<>/dev/tcp/169.254.169.254/80'; then
+        exit 1
+      fi
+    BASH
 
     def self.capability_probes(env: ENV)
       [ {
@@ -52,18 +69,6 @@ module ContainerExecution
         uri = URI.parse(env.fetch("SYRUS_CONTAINER_EXECUTION_#{provider}_PROXY"))
         [ uri.hostname, uri.port ]
       end
-      script = <<~'BASH'
-        set -euo pipefail
-        test "$(id -u)" != "0"
-        ! touch /syrus-confinement-root-write
-        while [ "$#" -gt 0 ]; do
-          timeout 3 bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$1" "$2"
-          shift 2
-        done
-        ! timeout 3 bash -c 'exec 3<>/dev/tcp/1.1.1.1/443'
-        ! timeout 3 bash -c 'exec 3<>/dev/tcp/169.254.169.254/80'
-      BASH
-
       [
         Configuration.docker_command_path, "run", "--rm",
         "--network", Configuration.chat_agent_network,
@@ -75,7 +80,7 @@ module ContainerExecution
         "--memory", Configuration.chat_agent_memory,
         "--cpus", Configuration.chat_agent_cpus,
         "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=#{Configuration.chat_agent_tmpfs_size}",
-        Configuration.image, "bash", "-c", script, "probe",
+        Configuration.image, "bash", "-c", PROBE_SCRIPT, "probe",
         *proxy_endpoints.flatten.map(&:to_s)
       ]
     end

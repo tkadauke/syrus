@@ -1,4 +1,5 @@
 require "rails_helper"
+require "open3"
 
 RSpec.describe ContainerExecution::CoworkerCapabilityProbe do
   around do |example|
@@ -37,5 +38,39 @@ RSpec.describe ContainerExecution::CoworkerCapabilityProbe do
     expect(probe.dig(:diagnostics, "confined_coworker_configuration")).to eq("missing")
     expect(probe.dig(:diagnostics, "confined_coworker_missing_settings")).to include("codex_proxy")
     expect(probe.fetch(:command).first).to eq(RbConfig.ruby)
+  end
+
+  it "fails verification when the root is writable or direct egress succeeds" do
+    harness = <<~BASH
+      id() { echo 1000; }
+      touch() { [ "${ROOT_WRITABLE:-false}" = true ]; }
+      timeout() {
+        case "${6:-}:${4:-}" in
+          proxy:*) return 0 ;;
+          *1.1.1.1/443*) [ "${PUBLIC_EGRESS:-false}" = true ] ;;
+          *169.254.169.254/80*) return 1 ;;
+          *) return 1 ;;
+        esac
+      }
+      #{described_class::PROBE_SCRIPT}
+    BASH
+    proxy_arguments = [ "proxy", "8080" ] * described_class::PROVIDERS.length
+
+    writable_root = Open3.capture3(
+      { "ROOT_WRITABLE" => "true", "PUBLIC_EGRESS" => "false" },
+      "bash", "-c", harness, "probe", *proxy_arguments
+    ).last
+    open_egress = Open3.capture3(
+      { "ROOT_WRITABLE" => "false", "PUBLIC_EGRESS" => "true" },
+      "bash", "-c", harness, "probe", *proxy_arguments
+    ).last
+    confined = Open3.capture3(
+      { "ROOT_WRITABLE" => "false", "PUBLIC_EGRESS" => "false" },
+      "bash", "-c", harness, "probe", *proxy_arguments
+    ).last
+
+    expect(writable_root).not_to be_success
+    expect(open_egress).not_to be_success
+    expect(confined).to be_success
   end
 end
