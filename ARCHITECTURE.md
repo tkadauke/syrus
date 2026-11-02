@@ -1171,19 +1171,24 @@ disable the feature instance-wide.
 **Execution capability routing** — Workflows record planned execution
 requirements (`planned_execution_project_label`,
 `planned_execution_target_label`, `planned_execution_capabilities`, and
-source) at creation time. Capability maps are normalized through
-`TargetGraph::ExecutionCapabilities`, but worker admission deliberately accepts
-only `os`, limited to `linux` or `macos`. Architecture, language runtimes,
-toolchains, simulators, browsers, and similar dependencies belong in image or
-prepare/target configuration rather than placement capabilities. Chat
-proposal tools must provide explicit `planned_execution.capabilities`
-for every proposed Job, instead of inferring placement from prose.
+source) at creation time. Job and Workflow planned-execution capability maps
+deliberately accept only `os`, limited to `linux` or `macos`; architecture,
+language runtimes, toolchains, simulators, browsers, and similar dependencies
+belong in image or prepare/target configuration for that mutable-workspace
+placement. Chat proposal tools must provide explicit
+`planned_execution.capabilities` for every proposed Job, instead of inferring
+placement from prose. Target-level `required_capabilities` are a separate
+worker-admission contract for distributed immutable-source graders. They are
+normalized through `TargetGraph::ExecutionCapabilities` across `os`, `arch`,
+`toolchain`, and `runtime`; platform targets such as iOS use toolchain/runtime
+requirements layered on ordinary Linux or macOS workers rather than inventing
+another operating-system value.
 `RunQueueResolver` maps each Run to a Solid Queue lane from those
 requirements plus the Step placement policy: mutable workflow-workspace
 Steps prefer the Workflow's planned requirements and sticky resume queue,
 while distributed immutable-source grader Steps use their target-level
 `required_capabilities`. Default work routes to Linux `runs` / `merges`;
-macOS work routes to the corresponding macOS lane. If no
+constrained target work can route to lanes such as `runs-macos-arm64`. If no
 live worker advertises the required capabilities, the WorkUnit is
 blocked with the no-capable-worker vocabulary instead of queueing work
 that cannot be claimed. Worker capability maps come from heartbeat
