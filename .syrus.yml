@@ -114,6 +114,7 @@ visual_review:
     - "app/views/**/*"
     - "plugins/**/app/frontend/**/*"
     - "plugins/**/app/views/**/*"
+    - "cli/**/*.go"
   seed_notes: |
     Log in as demo@syrus.local / password. Dashboard, Job/Epic detail,
     and chat are seeded; chat is available for browsing the message stream.
@@ -129,6 +130,39 @@ visual_review:
     credentials — exercise the diff-review workspace there. The Source
     tab on that same Job still shows the "GitHub token not configured"
     empty state; that surface has no fixture yet.
+  targets:
+    - name: Browser UI
+      provider: browser
+      launch:
+        path: /
+      when_files_changed:
+        - "app/frontend/**/*"
+        - "app/views/**/*"
+        - "plugins/**/app/frontend/**/*"
+        - "plugins/**/app/views/**/*"
+      captures:
+        - affected UI state
+    - name: CLI TUI
+      provider: cli_tui
+      build:
+        command: mise exec go@1.26.5 -- go build -o tmp/syrus-visual-review ./cli
+      launch:
+        command: tmp/syrus-visual-review inbox --watch
+      dimensions:
+        columns: 100
+        rows: 32
+      when_files_changed:
+        - "cli/**/*.go"
+      review_notes: |
+        Wait at most 15 seconds for the inbox screen, then require one second
+        without a screen-generation change before capturing it. Use the arrow
+        keys to select a representative Job, Enter to open its details, and ?
+        to inspect the help state. Re-inspect after each input with a bounded
+        runtime wait; do not replace those waits with fixed sleeps.
+      captures:
+        - inbox list loaded
+        - job details opened
+        - keyboard help shown
 
 hooks:
   post_checkout:
