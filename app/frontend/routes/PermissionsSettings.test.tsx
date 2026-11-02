@@ -19,7 +19,7 @@ describe("PermissionsSettingsRoute", () => {
     const inherited = screen.getByRole("heading", { name: "Inherited policy" }).parentElement!
     expect(within(inherited).getAllByText("Read only")).toHaveLength(2)
     expect(within(inherited).getAllByText(/are decisive/)).toHaveLength(2)
-    expect(screen.getByRole("link", { name: "Open operational dashboard" })).toHaveAttribute("href", "/dashboard")
+    expect(screen.getByRole("link", { name: "Open approval inbox" })).toHaveAttribute("href", "/permissions/inbox")
   })
 
   it("creates a scoped user rule", async () => {

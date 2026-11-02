@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
 import { useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import {
   applyPermissionBulk,
   applyPermissionPreset,
@@ -27,6 +27,7 @@ import { Checkbox, DataTable } from "../components/ui"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 const queryKey = ["permission_rules"] as const
 const subjects = ["interactive_chat", "coding_chat", "local_chat"] as const
@@ -37,6 +38,7 @@ type Translate = TFunction<"settings">
 
 export function PermissionsSettingsRoute() {
   const { t } = useT("settings")
+  const prefix = routePrefix(useLocation().pathname)
   usePageTitle(t("permissions.title"))
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey, queryFn: fetchPermissions })
@@ -134,7 +136,7 @@ export function PermissionsSettingsRoute() {
       <header>
         <PageHeading>{t("permissions.title")}</PageHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("permissions.description")}</p>
-        <Link className="mt-2 inline-block text-sm font-medium text-brand hover:underline" to="/dashboard">
+        <Link className="mt-2 inline-block text-sm font-medium text-brand hover:underline" to={withRoutePrefix("/permissions/inbox", prefix)}>
           {t("permissions.approvals_link")}
         </Link>
       </header>

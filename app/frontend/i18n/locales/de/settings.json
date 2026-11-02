@@ -107,7 +107,7 @@
     "confirm_bulk_help": "Prüfe alle {{count}} Änderungen. Sie werden gemeinsam oder gar nicht angewendet.",
     "confirm_bulk": "Änderungen bestätigen",
     "cancel_bulk": "Abbrechen",
-    "approvals_link": "Operatives Dashboard öffnen",
+    "approvals_link": "Genehmigungseingang öffnen",
     "load_error": "Berechtigungen konnten nicht geladen werden.",
     "create_error": "Die Berechtigungsregel konnte nicht hinzugefügt werden.",
     "revoke_error": "Die Berechtigungsregel konnte nicht widerrufen werden.",

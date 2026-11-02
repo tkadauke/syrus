@@ -10,10 +10,12 @@ import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 export function PermissionInboxRoute() {
   const { t } = useT("settings")
   const location = useLocation()
+  const inboxPath = withRoutePrefix("/permissions/inbox", routePrefix(location.pathname))
   const page = Math.max(1, Number(new URLSearchParams(location.search).get("page")) || 1)
   const fields: FilterSchemaField[] = useMemo(
     () => [
@@ -56,7 +58,7 @@ export function PermissionInboxRoute() {
         <PageHeading>{t("approval_inbox.title")}</PageHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("approval_inbox.description")}</p>
       </header>
-      <FilterBar filter={filterTree} filterSchema={fields} pathname="/permissions/inbox" search={location.search} />
+      <FilterBar filter={filterTree} filterSchema={fields} pathname={inboxPath} search={location.search} />
       {query.isError ? <PanelMessage tone="error">{t("approval_inbox.load_error")}</PanelMessage> : null}
       <RequestSection requests={pending} title={t("approval_inbox.pending_title")} />
       <RequestSection requests={completed} title={t("approval_inbox.history_title")} />
@@ -64,7 +66,7 @@ export function PermissionInboxRoute() {
       {query.data && query.data.pagination.total_pages > 1 ? (
         <nav aria-label={t("approval_inbox.pagination")} className="flex items-center justify-between text-sm">
           {page > 1 ? (
-            <Link className="font-medium text-brand" to={pagePath(location.search, page - 1)}>
+            <Link className="font-medium text-brand" to={pagePath(inboxPath, location.search, page - 1)}>
               {t("approval_inbox.previous")}
             </Link>
           ) : (
@@ -72,7 +74,7 @@ export function PermissionInboxRoute() {
           )}
           <span>{t("approval_inbox.page_of", { page, total: query.data.pagination.total_pages })}</span>
           {page < query.data.pagination.total_pages ? (
-            <Link className="font-medium text-brand" to={pagePath(location.search, page + 1)}>
+            <Link className="font-medium text-brand" to={pagePath(inboxPath, location.search, page + 1)}>
               {t("approval_inbox.next")}
             </Link>
           ) : (
@@ -175,8 +177,8 @@ function compatibleDurations(requests: PermissionRequest[]) {
   )
 }
 
-function pagePath(search: string, page: number) {
+function pagePath(pathname: string, search: string, page: number) {
   const params = new URLSearchParams(search)
   params.set("page", String(page))
-  return `/permissions/inbox?${params}`
+  return `${pathname}?${params}`
 }

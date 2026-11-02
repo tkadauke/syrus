@@ -117,4 +117,22 @@ describe("PermissionInboxRoute", () => {
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Select request: Publish the release note")).not.toBeInTheDocument()
   })
+
+  it("preserves the app-shell prefix in pagination links", async () => {
+    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
+      requests: [request],
+      summary: { pending_count: 1, blocked_agent_count: 1 },
+      pagination: { page: 1, per_page: 50, total: 51, total_pages: 2 }
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/permissions/inbox"]}>
+          <PermissionInboxRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/permissions/inbox?page=2")
+  })
 })

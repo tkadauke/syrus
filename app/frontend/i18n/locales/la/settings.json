@@ -107,7 +107,7 @@
     "confirm_bulk_help": "Omnes {{count}} mutationes considera. Simul omnes aut nullae applicantur.",
     "confirm_bulk": "Mutationes confirma",
     "cancel_bulk": "Abroga",
-    "approvals_link": "Tabulam operativam aperi",
+    "approvals_link": "Capsam approbationum aperi",
     "load_error": "Permissiones onerari non potuerunt.",
     "create_error": "Regula permissionis addi non potuit.",
     "revoke_error": "Regula permissionis revocari non potuit.",
