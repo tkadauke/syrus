@@ -59,15 +59,21 @@ export type PermissionHistoryEntry = Record<string, unknown> & {
 }
 export type PermissionHistoryPayload = { active_leases: PermissionLease[]; history: PermissionHistoryEntry[] }
 
-export const fetchPermissions = () => getJson<PermissionsPayload>("/api/v1/app/permission_rules")
-export const fetchPermissionHistory = () => getJson<PermissionHistoryPayload>("/api/v1/app/permission_rules/history")
+export const fetchPermissions = () => {
+  return getJson<PermissionsPayload>("/api/v1/app/permission_rules")
+}
+export const fetchPermissionHistory = () => {
+  return getJson<PermissionHistoryPayload>("/api/v1/app/permission_rules/history")
+}
 export const createPermissionRule = (permission_rule: Record<string, unknown>) =>
   postJson<{ rule: PermissionRule }>("/api/v1/app/permission_rules", { permission_rule })
 export const updatePermissionRule = (id: number, permission_rule: Record<string, unknown>) =>
   patchJson<{ rule: PermissionRule }>(`/api/v1/app/permission_rules/${id}`, { permission_rule })
 export const applyPermissionPreset = (permission_rule: Record<string, unknown>) =>
   postJson<{ rule: PermissionRule }>("/api/v1/app/permission_rules/apply_preset", { permission_rule })
-export const revokePermissionRule = (id: number) => postJson<{ rule: PermissionRule }>(`/api/v1/app/permission_rules/${id}/revoke`)
+export const revokePermissionRule = (id: number) => {
+  return postJson<{ rule: PermissionRule }>(`/api/v1/app/permission_rules/${id}/revoke`)
+}
 export type PermissionBulkOperation = Record<string, unknown> & { action: "grant" | "revoke" }
 export type PermissionPreview = { action: string; policy: string; subject: string; capability: string; operation: string; resource_scope_label: string }
 export const previewPermissionBulk = (operations: PermissionBulkOperation[]) =>

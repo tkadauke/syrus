@@ -240,6 +240,8 @@ en:
 
   # API messages
   api:
+    permission_rules:
+      stale_preview: "Preview these permission changes again before confirming."
     permission_requests:
       not_dismissible: "This permission request can no longer be dismissed."
 

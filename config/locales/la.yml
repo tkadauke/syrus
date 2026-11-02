@@ -206,6 +206,8 @@ la:
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
   api:
+    permission_rules:
+      stale_preview: "Has mutationes permissionum ante confirmationem iterum considera."
     permission_requests:
       not_dismissible: "Haec petitio potestatis iam dimitti non potest."
 

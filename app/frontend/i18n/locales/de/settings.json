@@ -104,7 +104,7 @@
     "presets_available": "Anbieter-Voreinstellungen: {{presets}}",
     "apply_preset": "{{preset}} anwenden",
     "confirm_bulk_title": "Berechtigungsänderungen bestätigen",
-    "confirm_bulk_help": "Prüfe alle {{count}} Änderungen. Sie werden gemeinsam oder gar nicht angewendet.",
+    "confirm_bulk_help": "Prüfe alle {{count}} Änderungen. Alle werden gemeinsam oder gar nicht angewendet.",
     "confirm_bulk": "Änderungen bestätigen",
     "cancel_bulk": "Abbrechen",
     "approvals_link": "Genehmigungseingang öffnen",
