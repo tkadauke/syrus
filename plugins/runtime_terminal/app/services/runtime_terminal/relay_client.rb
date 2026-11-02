@@ -38,18 +38,23 @@ module RuntimeTerminal
     end
 
     def inspect_screen(after_generation: nil, wait_for_change: false, wait_for_text: nil, quiet_seconds: 0, timeout_seconds: 0, include_styles: false)
-      @lock.synchronize do
+      timeout_seconds = bounded_wait_seconds(timeout_seconds)
+      deadline = monotonic_now + timeout_seconds
+      snapshot = @lock.synchronize do
         screen_locked!
         drain_locked
         baseline = after_generation.nil? && wait_for_change ? @screen.generation : after_generation
-        settled = wait_for_screen_locked(
-          after_generation: baseline,
-          wait_for_text: wait_for_text,
-          quiet_seconds: quiet_seconds,
-          timeout_seconds: timeout_seconds
-        )
-        screen_payload(include_styles: include_styles).merge(settled: settled)
+        @screen.snapshot.then { |current| [ current, baseline ] }
       end
+      snapshot, baseline = snapshot
+      settled, snapshot = wait_for_screen(
+        after_generation: baseline,
+        wait_for_text: wait_for_text,
+        quiet_seconds: quiet_seconds,
+        deadline: deadline,
+        initial_snapshot: snapshot
+      )
+      screen_payload(snapshot, include_styles: include_styles).merge(settled: settled)
     end
 
     def closed?
@@ -123,16 +128,13 @@ module RuntimeTerminal
       end
     end
 
-    def wait_for_screen_locked(after_generation:, wait_for_text:, quiet_seconds:, timeout_seconds:)
-      timeout_seconds = [[ Float(timeout_seconds), 0 ].max, MAX_WAIT_SECONDS].min
-      quiet_seconds = [[ Float(quiet_seconds), 0 ].max, timeout_seconds ].min
-      deadline = monotonic_now + timeout_seconds
+    def wait_for_screen(after_generation:, wait_for_text:, quiet_seconds:, deadline:, initial_snapshot:)
+      quiet_seconds = [[ Float(quiet_seconds), 0 ].max, [ deadline - monotonic_now, 0 ].max ].min
       settled_at = nil
       settled_generation = nil
+      snapshot = initial_snapshot
 
       loop do
-        drain_locked(timeout: [ DRAIN_TIMEOUT_SECONDS, [ deadline - monotonic_now, 0 ].max ].min)
-        snapshot = @screen.snapshot
         generation_ready = after_generation.nil? || snapshot.fetch(:generation) > Integer(after_generation)
         text_ready = wait_for_text.blank? || snapshot.fetch(:lines).any? { |line| line.fetch(:text).include?(wait_for_text.to_s) }
 
@@ -141,19 +143,43 @@ module RuntimeTerminal
             settled_generation = snapshot.fetch(:generation)
             settled_at = monotonic_now
           end
-          return true if monotonic_now - settled_at >= quiet_seconds
+          return [ true, snapshot ] if monotonic_now - settled_at >= quiet_seconds
         else
           settled_at = nil
           settled_generation = nil
         end
 
         break if monotonic_now >= deadline
+        snapshot = drain_screen_until(deadline) || snapshot
       end
-      false
+      [ false, snapshot ]
     end
 
-    def screen_payload(include_styles:)
-      snapshot = @screen.snapshot
+    def drain_screen_until(deadline)
+      loop do
+        if @lock.try_lock
+          snapshot = nil
+          begin
+            screen_locked!
+            drain_locked(timeout: [ DRAIN_TIMEOUT_SECONDS, [ deadline - monotonic_now, 0 ].max ].min)
+            snapshot = @screen.snapshot
+          ensure
+            @lock.unlock
+          end
+          Thread.pass
+          return snapshot
+        end
+        return nil if monotonic_now >= deadline
+
+        Thread.pass
+      end
+    end
+
+    def bounded_wait_seconds(seconds)
+      [[ Float(seconds), 0 ].max, MAX_WAIT_SECONDS].min
+    end
+
+    def screen_payload(snapshot, include_styles:)
       payload = {
         kind: "terminal_screen",
         generation: snapshot.fetch(:generation),

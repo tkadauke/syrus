@@ -147,6 +147,29 @@ RSpec.describe RuntimeTerminal::RelayClient do
       relay&.stop
     end
 
+    it "keeps concurrent input and inspection within their own timeout budgets" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "prompt")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+      long_wait = Thread.new { client.inspect_screen(wait_for_text: "missing", timeout_seconds: 0.3) }
+      Timeout.timeout(1) { Thread.pass until long_wait.status == "sleep" }
+
+      input_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      expect(client.input(type: "stdin", data: "x")).to be(true)
+      input_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - input_started_at
+
+      inspect_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = client.inspect_screen(wait_for_text: "also missing", timeout_seconds: 0.02)
+      inspect_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - inspect_started_at
+
+      expect(input_elapsed).to be < 0.15
+      expect(inspect_elapsed).to be < 0.15
+      expect(result).to include(settled: false)
+    ensure
+      long_wait&.join
+      client&.close
+      relay&.stop
+    end
+
     it "returns compact styled runs only when requested" do
       relay = RuntimeTerminalFakeRelay.new(replay: "\e[31mred\e[0m plain")
       client = described_class.new(terminal_session(relay_address: relay.address))
