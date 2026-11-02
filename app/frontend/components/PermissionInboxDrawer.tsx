@@ -35,7 +35,7 @@ export function PermissionInboxDrawer() {
           </header>
           <div className="space-y-3">
             {pending.slice(0, 5).map((request) => (
-              <PermissionRequestCard compact key={request.id} request={request} />
+              <PermissionRequestCard key={request.id} request={request} />
             ))}
           </div>
           {!pending.length ? <p className="text-sm text-text-muted">{t("approval_inbox.empty_pending")}</p> : null}
