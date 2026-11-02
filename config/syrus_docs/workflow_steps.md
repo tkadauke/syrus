@@ -1214,6 +1214,24 @@ recover. The restore is opportunistic: if it cannot run, the step behaves as it
 did before and `close_empty_new_publication_branch!` still refuses to publish an
 empty branch or file the Job as `no_changes`.
 
+**Stacked-parent freshness barrier.** For any Job whose PR base is another open
+Job's branch (Epic or not), a parent that was rebased and force-pushed while the
+child was running does not cancel the child. Instead, immediately before
+publishing, `pr_open` fetches the live parent head and checks that the completed
+branch descends from it (`StackBaseFreshness`). The parent head the workspace was
+prepared from is recorded in `workflow.artifacts["stack_base_prepared"]`. If the
+parent moved, the child's own commits are rebased with `git rebase --onto
+<live> <prepared>`, the required graders run again on the rebased tree, and the
+check repeats, up to three rebases. A branch that was rewritten is pushed with
+`--force-with-lease` pinned to the observed remote tip, and after the push the
+head is checked against the live parent once more before the Job becomes
+`implemented` (which is what releases dependents). If the parent never settles,
+the rebase conflicts, or post-rebase validation fails, `pr_open` fails with the
+`awaiting_stable_base` problem, keeps the completed work, writes
+`workflow.artifacts["awaiting_stable_base"]` with the observed parent heads, and
+publishes nothing. Whole-stack restacking remains the recovery path for stacks
+that were already published stale.
+
 For `coding_handoff` workflows, `pr_open` also verifies that the branch about to
 be pushed still contains the latest recorded `coding_handoff_fix` patch-id. A
 missing latest fix is a hard failure before any push or PR creation, because

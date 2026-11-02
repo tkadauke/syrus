@@ -312,6 +312,7 @@ class WorkflowWorkspace
       sweep_sibling_workspaces!
       clone_and_checkout
       ensure_exclude_entry
+      record_stack_base_preparation!
     end
     configure_git_author
     verify_required_branch!
@@ -579,6 +580,18 @@ class WorkflowWorkspace
     end
 
     checkout_main_sha!
+  end
+
+  # Pins the exact parent head a stacked Job's workspace was prepared from, so
+  # StackBaseFreshness can later tell whether the parent moved mid-run and
+  # rebase only the child's own commits. Best-effort and first-write-wins.
+  def record_stack_base_preparation!
+    return unless StackBaseFreshness.applicable?(@job, base_branch)
+
+    sha = @git.run("rev-parse", "origin/#{base_branch}", chdir: path.to_s).strip
+    StackBaseFreshness.record_prepared!(@workflow, ref: base_branch, sha: sha)
+  rescue StandardError => e
+    notify("could not record stack base preparation: #{e.class}: #{e.message}")
   end
 
   def validate_clone_checkout_branch!

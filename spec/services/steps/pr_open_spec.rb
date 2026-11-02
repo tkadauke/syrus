@@ -219,6 +219,9 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
+    # Freshness is covered by the "stacked-parent freshness barrier" examples.
+    allow(handler).to receive(:ensure_stack_base_fresh!)
+    allow(handler).to receive(:confirm_published_stack_base!)
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "Stack child", "Body" ])
     allow(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(opener_client)
@@ -1484,6 +1487,126 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
       expect(handler.send(:pr_title_and_body_from_summarizer))
         .to eq([ "Fallback title", "Fallback body" ])
+    end
+  end
+
+  describe "stacked-parent freshness barrier" do
+    let(:run) do
+      pr_open_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind,
+                                state: "running", iteration: pr_open_step.iteration)
+    end
+    let(:handler) { described_class.new(run) }
+    let(:git) { instance_double(GitRunner) }
+    let(:parent) do
+      Factories.job(repository: repository, issue_number: 41).tap do |p|
+        p.update!(branch_name: "syrus/issue-41", pr_number: 41)
+      end
+    end
+
+    before do
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(handler).to receive(:workspace).and_return(double(path: Pathname.new("/tmp/ws"), branch_name: "syrus/issue-42"))
+    end
+
+    context "with an ordinary main-based Job" do
+      it "never builds the barrier" do
+        allow(handler).to receive(:pr_base_branch).and_return("main")
+        expect(StackBaseFreshness).not_to receive(:new)
+
+        handler.send(:ensure_stack_base_fresh!)
+        handler.send(:confirm_published_stack_base!)
+      end
+    end
+
+    context "with a Job stacked on another Job's branch" do
+      before do
+        job.update!(parent_job: parent)
+        allow(handler).to receive(:pr_base_branch).and_return(parent.branch_name)
+      end
+
+      it "records the proven base and remembers a rebase happened" do
+        barrier = instance_double(StackBaseFreshness, ensure_fresh!: StackBaseFreshness::Result.new(:rebased, parent.branch_name, "a" * 40, "b" * 40, 1))
+        allow(StackBaseFreshness).to receive(:new).and_return(barrier)
+
+        handler.send(:ensure_stack_base_fresh!)
+
+        expect(handler.instance_variable_get(:@stack_base_rebased)).to be(true)
+        expect(workflow.reload.artifact("stack_base_freshness")).to include("status" => "rebased", "live_sha" => "b" * 40)
+      end
+
+      it "refuses to publish and records an awaiting-stable-base condition when the parent keeps moving" do
+        barrier = instance_double(StackBaseFreshness)
+        allow(barrier).to receive(:ensure_fresh!).and_raise(
+          StackBaseFreshness::AwaitingStableBase.new("never settled", evidence: { "live_sha" => "c" * 40 })
+        )
+        allow(StackBaseFreshness).to receive(:new).and_return(barrier)
+
+        expect { handler.send(:ensure_stack_base_fresh!) }
+          .to raise_error(described_class::AwaitingStableBase, "never settled") { |e|
+            expect(e.problem.code).to eq("awaiting_stable_base")
+          }
+        expect(workflow.reload.artifact("awaiting_stable_base")).to include("live_sha" => "c" * 40, "reason" => "awaiting_stable_base")
+      end
+
+      it "surfaces post-rebase validation failure as awaiting-stable-base" do
+        barrier = instance_double(StackBaseFreshness)
+        allow(barrier).to receive(:ensure_fresh!).and_raise(StackBaseFreshness::ValidationFailed.new("graders red"))
+        allow(StackBaseFreshness).to receive(:new).and_return(barrier)
+
+        expect { handler.send(:ensure_stack_base_fresh!) }.to raise_error(described_class::AwaitingStableBase, "graders red")
+        expect(workflow.reload.artifact("awaiting_stable_base")["reason"]).to eq("validation_failed")
+      end
+
+      it "does not release dependents when the published head no longer descends from the live parent" do
+        allow(handler).to receive(:live_stack_parent_sha).and_return("d" * 40)
+        allow(handler).to receive(:ancestor?).with(git, "d" * 40, "HEAD").and_return(false)
+        allow(handler).to receive(:current_head_sha).and_return("e" * 40)
+
+        expect { handler.send(:confirm_published_stack_base!) }.to raise_error(described_class::AwaitingStableBase, /dependents were not released/)
+      end
+
+      it "passes confirmation when the published head descends from the live parent" do
+        allow(handler).to receive(:live_stack_parent_sha).and_return("d" * 40)
+        allow(handler).to receive(:ancestor?).with(git, "d" * 40, "HEAD").and_return(true)
+
+        expect { handler.send(:confirm_published_stack_base!) }.not_to raise_error
+      end
+
+      it "publishes a rebased branch under a lease on the observed remote tip" do
+        allow(handler).to receive(:fetch_remote_branch!).and_return("f" * 40)
+        allow(handler).to receive(:ancestor?).and_return(false)
+        allow(handler).to receive(:remote_patches_preserved?).and_return(true)
+
+        expect(git).to receive(:run).with(
+          "push", "--force-with-lease=refs/heads/syrus/issue-42:#{"f" * 40}", "https://x/y",
+          "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/ws"
+        )
+
+        handler.send(:push_stack_rebased_branch, git, "https://x/y")
+      end
+
+      it "reports divergence instead of silently succeeding when the push lease is rejected" do
+        allow(handler).to receive(:fetch_remote_branch!).and_return("f" * 40)
+        allow(handler).to receive(:ancestor?).and_return(false)
+        allow(handler).to receive(:remote_patches_preserved?).and_return(true)
+        allow(handler).to receive(:record_branch_divergence!)
+        allow(handler).to receive(:branch_divergence_message).and_return("diverged")
+        allow(git).to receive(:run).and_raise(GitRunner::GitError.new([ "push" ], 1, "! [rejected] (stale info)"))
+
+        expect { handler.send(:push_stack_rebased_branch, git, "https://x/y") }.to raise_error(described_class::BranchDiverged)
+        expect(handler).to have_received(:record_branch_divergence!)
+      end
+
+      it "refuses to overwrite remote work the rebase did not preserve" do
+        allow(handler).to receive(:fetch_remote_branch!).and_return("f" * 40)
+        allow(handler).to receive(:ancestor?).and_return(false)
+        allow(handler).to receive(:remote_patches_preserved?).and_return(false)
+        allow(handler).to receive(:record_branch_divergence!)
+        allow(handler).to receive(:branch_divergence_message).and_return("diverged")
+        expect(git).not_to receive(:run)
+
+        expect { handler.send(:push_stack_rebased_branch, git, "https://x/y") }.to raise_error(described_class::BranchDiverged)
+      end
     end
   end
 end

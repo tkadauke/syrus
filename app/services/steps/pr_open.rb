@@ -29,6 +29,13 @@ module Steps
       problem_code :branch_diverged
     end
 
+    # The stack parent never held still (or the rebased work could not be
+    # proven current): the completed work is retained, nothing stale is
+    # published, and dependents stay blocked.
+    class AwaitingStableBase < StepFailed
+      problem_code :awaiting_stable_base
+    end
+
     def call
       workspace.setup
       verify_coding_handoff_snapshot!
@@ -36,9 +43,12 @@ module Steps
       verify_latest_coding_handoff_fix!
       workflow.set_artifact!("publication_branch", workspace.branch_name)
       log("pr_open: checking PR open preconditions (#{workflow.slug})")
+      ensure_stack_base_fresh!
 
       log("pr_open: pushing branch and opening PR (#{workflow.slug})")
       return if push_branch == :superseded
+
+      confirm_published_stack_base!
 
       if job.pr_number.present?  # idempotent: upstream PR already open (non-fork or post-approval)
         log("pr_open: branch pushed for existing PR ##{job.pr_number}")
@@ -71,6 +81,118 @@ module Steps
     end
 
     private
+
+    # Finalization barrier for stacked Jobs: the parent may have been rebased
+    # while this Job ran. Prove the completed branch descends from the live
+    # parent head before anything is published, rebasing (and re-validating)
+    # when it does not.
+    def ensure_stack_base_fresh!
+      @stack_base_rebased = false
+      base = pr_base_branch
+      return unless StackBaseFreshness.applicable?(job, base)
+
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      result = stack_base_freshness(git, base).ensure_fresh!
+      @stack_base_rebased = result.rebased?
+      workflow.set_artifact!("stack_base_freshness", {
+        "status" => result.status.to_s, "parent_ref" => result.parent_ref,
+        "prepared_sha" => result.prepared_sha, "live_sha" => result.live_sha,
+        "rebases" => result.rebases, "checked_at" => Time.current.iso8601
+      }.compact)
+      log("pr_open: stack base #{base} confirmed at #{result.live_sha} (#{result.status})")
+    rescue StackBaseFreshness::Error => e
+      raise_awaiting_stable_base!(e)
+    end
+
+    def stack_base_freshness(git, base)
+      StackBaseFreshness.new(
+        workflow: workflow, git: git, path: workspace.path, parent_ref: base,
+        fetch_live: -> { live_stack_parent_sha(git, base) },
+        validator: -> { post_rebase_validation_passed? },
+        log: method(:log)
+      )
+    end
+
+    def live_stack_parent_sha(git, base)
+      ref = fetch_pr_base_ref!(git, base)
+      git.run("rev-parse", ref, chdir: workspace.path.to_s).strip
+    end
+
+    # After the push and before the Job becomes dependency-satisfying: the
+    # published head must still descend from the current parent head.
+    def confirm_published_stack_base!
+      base = pr_base_branch
+      return unless StackBaseFreshness.applicable?(job, base)
+
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      live = live_stack_parent_sha(git, base)
+      return if ancestor?(git, live, "HEAD")
+
+      raise_awaiting_stable_base!(
+        StackBaseFreshness::AwaitingStableBase.new(
+          "#{base} moved to #{live} after publication; published head does not descend from it, so dependents were not released",
+          evidence: { "parent_ref" => base, "live_sha" => live, "published_sha" => current_head_sha(git), "phase" => "post_publish" }
+        )
+      )
+    end
+
+    def raise_awaiting_stable_base!(error)
+      workflow.set_artifact!(StackBaseFreshness::AWAITING_ARTIFACT, error.evidence.merge(
+        "reason" => error.class.name.demodulize.underscore,
+        "message" => error.message,
+        "detected_at" => Time.current.iso8601
+      ))
+      log("pr_open: awaiting stable base for #{job.slug}: #{error.message}")
+      raise AwaitingStableBase.new(error.message, evidence: error.evidence)
+    end
+
+    # Runs the repository's required graders against the rebased tree.
+    # No configured graders means nothing to run.
+    def post_rebase_validation_passed?
+      plan = RepoGradePlan.for(workspace.path)
+      plan.graders.select(&:required).all? do |grader|
+        log("pr_open: post-rebase validation $ #{grader.command}")
+        result = ProcessRunner.new(
+          env: ProcessRunner.forwarded_env(Prepare.prep_env_forward, extra: workspace_dependency_env),
+          command: [ "bash", "-c", grader.command ],
+          mounts: ProcessRunner.mounts(workspace.path),
+          network: "grader",
+          timeout: grader.timeout_minutes.minutes,
+          kind: "grader",
+          run: run,
+          workflow: workflow,
+          on_output_chunk: ->(chunk) { log(chunk, kind: "grade_log") }
+        ).run
+        !result.timed_out && result.exit_status.to_i.zero?
+      end
+    end
+
+    # Publishes work that was just rebased onto a moved parent. The branch's
+    # history was rewritten, so a plain push cannot work for an already
+    # published branch; the lease pins the remote tip we observed so anything
+    # pushed in between is rejected instead of overwritten.
+    def push_stack_rebased_branch(git, push_url)
+      branch = workspace.branch_name
+      remote_sha = fetch_remote_branch!(git, push_url)
+      if remote_sha.present? && !ancestor?(git, remote_sha, "HEAD") && !remote_patches_preserved?(git, branch)
+        record_branch_divergence!(git, "remote branch holds work the stack rebase did not preserve", remote_sha: remote_sha)
+        raise BranchDiverged, branch_divergence_message
+      end
+
+      git.run("push", "--force-with-lease=refs/heads/#{branch}:#{remote_sha}", push_url,
+              "HEAD:refs/heads/#{branch}", chdir: workspace.path.to_s)
+    rescue GitRunner::GitError => e
+      raise unless push_rejected?(e)
+
+      record_branch_divergence!(git, "push lease rejected: remote branch moved during stack rebase publication")
+      raise BranchDiverged, branch_divergence_message
+    end
+
+    def remote_patches_preserved?(git, branch)
+      remote_only = git.run("cherry", "HEAD", "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
+        .lines.map(&:strip).reject(&:blank?)
+      remote_only.all? { |line| line.start_with?("-") }
+    end
 
     def verify_coding_handoff_snapshot!
       return unless workflow.trigger_kind == "coding_handoff"
@@ -250,6 +372,8 @@ module Steps
     def push_branch
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       authenticated_git("git_pr_open_push", git: git) do |push_url|
+        next push_stack_rebased_branch(git, push_url) if @stack_base_rebased
+
         return :superseded if published_review_branch? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
         push_branch_to_remote(git, push_url)
       end
