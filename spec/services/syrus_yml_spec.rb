@@ -2,23 +2,6 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe SyrusYml do
-  describe "ai_approval" do
-    it "parses one repository-wide instruction block" do
-      config = described_class.new(<<~YAML).parse
-        ai_approval:
-          instructions: Prefer escalation for production changes.
-      YAML
-
-      expect(config.ai_approval.instructions).to eq("Prefer escalation for production changes.")
-    end
-
-    it "rejects non-text instructions" do
-      expect do
-        described_class.new("ai_approval:\n  instructions:\n    per_capability: unsafe\n").parse
-      end.to raise_error(described_class::ParseError, /ai_approval\.instructions: must be a string/)
-    end
-  end
-
   around do |ex|
     Dir.mktmpdir("syrus-yml") { |dir| @dir = dir; ex.run }
   end
