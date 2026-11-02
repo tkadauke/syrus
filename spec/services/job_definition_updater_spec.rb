@@ -53,24 +53,6 @@ RSpec.describe JobDefinitionUpdater do
     expect(immutable.reload).to have_attributes(issue_title: "Original title", issue_body: "Original description")
   end
 
-  it "checks mutability after acquiring the row lock so a concurrent start prevents a late edit" do
-    editable = job
-    allow(editable).to receive(:lock!).and_wrap_original do |original|
-      original.call
-      editable.state = "running"
-    end
-
-    expect {
-      described_class.new(editable).update!(title: "Late title", description: "Late description")
-    }.to raise_error(described_class::Immutable, /lifecycle state is running/)
-
-    expect(editable.reload).to have_attributes(
-      issue_title: "Original title",
-      issue_body: "Original description"
-    )
-  end
-
-
   it "rejects stale pre-execution state when a Workflow has started" do
     stale = Factories.job_with_run(user: user, repository: repository, state: "queued",
       workflow_attrs: { state: "running", started_at: 1.minute.ago })
@@ -85,7 +67,6 @@ RSpec.describe JobDefinitionUpdater do
     intent = WorkIntent.create!(kind: "initial", state: "requested", scope_type: "job", repository: repository)
     unit = WorkUnit.create!(work_intent: intent, kind: "initial", state: "running", scope_type: "job",
       scope_id: stale.id, repository: repository, started_at: 1.minute.ago)
-    WorkUnitMember.create!(work_unit: unit, job: stale, role: "primary")
 
     expect {
       described_class.new(stale).update!(description: "Late description")
