@@ -117,6 +117,59 @@ RSpec.describe App::ChatMessagePayload do
     expect(retired_payload.fetch(:pending_action)).to be_nil
   end
 
+  it "retires an anchored group member once the durable group outcome exists" do
+    job = Factories.job_record(repository: repository, state: "closed")
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [ { action: "reopen_job", payload: { "job_id" => job.id } } ]
+    )
+    member = group.chat_pending_actions.sole
+    message = chat.messages.create!(role: "tool_use", tool_name: "reopen_job", pending_action: member, content: { "text" => "Reopen it?" })
+
+    expect(described_class.messages([ message ], repository: repository).sole.fetch(:pending_action)).to include(id: member.id)
+
+    group.confirm_all!(user: user)
+
+    expect(group.reload.outcome_message).to be_present
+    expect(described_class.messages([ message.reload ], repository: repository).sole.fetch(:pending_action)).to be_nil
+  end
+
+  it "retires an anchored partial-result group after its failure details are durable" do
+    succeeding_job = Factories.job_record(repository: repository, state: "closed")
+    failing_job = Factories.job_record(repository: repository, issue_number: 43, state: "queued")
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [
+        { action: "reopen_job", payload: { "job_id" => succeeding_job.id } },
+        { action: "reopen_job", payload: { "job_id" => failing_job.id } }
+      ]
+    )
+    member = group.chat_pending_actions.order(:id).first
+    message = chat.messages.create!(role: "tool_use", tool_name: "reopen_job", pending_action: member, content: { "text" => "Reopen both?" })
+
+    group.confirm_all!(user: user)
+
+    expect(group.reload.outcome_message.content.fetch("text")).to include("1 failed", failing_job.slug, "isn't closed")
+    expect(described_class.messages([ message.reload ], repository: repository).sole.fetch(:pending_action)).to be_nil
+  end
+
+  it "keeps a manually dismissed group member out of its anchored message" do
+    job = Factories.job_record(repository: repository, state: "closed")
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [ { action: "reopen_job", payload: { "job_id" => job.id } } ]
+    )
+    member = group.chat_pending_actions.sole
+    message = chat.messages.create!(role: "tool_use", tool_name: "reopen_job", pending_action: member, content: { "text" => "Reopen it?" })
+    group.update!(state: "confirmed", confirmed_at: Time.current)
+
+    expect(described_class.messages([ message ], repository: repository).sole.fetch(:pending_action)).to include(id: member.id)
+
+    expect(group.dismiss!).to be true
+
+    expect(described_class.messages([ message.reload ], repository: repository).sole.fetch(:pending_action)).to be_nil
+  end
+
   it "includes spawned chat ids in a confirmed spawn-chats action outcome" do
     group = PendingActionGroup.create_with_members!(
       chat_session: chat,
@@ -260,7 +313,7 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
-  it "includes state transitions when every bulk unapproval succeeds" do
+  it "retires a successful bulk unapproval after recording its durable outcome" do
     jobs = 2.times.map do |index|
       job = Factories.job_record(user: user, repository: repository, issue_number: 50 + index, state: "implemented")
       job.approve!(via: "operator", by_user: user)
@@ -276,14 +329,8 @@ RSpec.describe App::ChatMessagePayload do
     expect(group.confirm_all!(user: user)).to be_all_succeeded
     payload = described_class.messages([ message.reload ], repository: repository).sole
 
-    expect(payload.dig(:pending_action, :outcome)).to eq(
-      status: "confirmed",
-      succeeded_job_ids: jobs.map(&:id),
-      failed_job_ids: [],
-      previous_state: "approved",
-      new_state: "implemented",
-      message: "Unapproved 2 Jobs."
-    )
+    expect(payload.fetch(:pending_action)).to be_nil
+    expect(group.reload.outcome_message.content.fetch("text")).to eq("Batch result: 2 applied, 0 skipped/ineligible, 0 failed.")
   end
 
   it "batch-loads spawned chat outcomes without querying each pending-action group" do
