@@ -598,6 +598,8 @@
   "visual_review_verdict_needs_work": "Needs work",
   "visual_review_verdict_skipped": "Skipped",
   "visual_review_screenshot_alt": "Visual review screenshot",
+  "visual_review_evidence_target": "{{target}} · screen generation {{generation}}",
+  "visual_review_evidence_generation_unknown": "unknown",
   "source_loading": "Loading source browser...",
   "source_error": "Unable to load source browser.",
   "source_diff_loading": "Loading diff...",

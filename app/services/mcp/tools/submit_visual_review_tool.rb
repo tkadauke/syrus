@@ -103,6 +103,10 @@ module Mcp::Tools
             "viewport" => payload["viewport"],
             "source" => payload["source"],
             "captured_at" => payload["captured_at"],
+            "provider_key" => payload["provider_key"],
+            "target_name" => payload["target_name"],
+            "screen_generation" => payload["screen_generation"],
+            "checkpoint_label" => payload["checkpoint_label"],
             "text" => payload["text"] || payload["dom_text"] || payload["body_text"],
             "created_at" => entry["created_at"]
           }.compact

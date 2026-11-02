@@ -223,7 +223,11 @@ module Steps
     def runtime_session_prompt_targets
       run.runtime_sessions.order(:id).map do |session|
         target = session.metadata["visual_review_target"].to_h
-        target.merge("session_id" => session.id, "state" => session.state)
+        target.merge(
+          "session_id" => session.id,
+          "state" => session.state,
+          "capabilities" => session.capabilities
+        )
       end
     end
 

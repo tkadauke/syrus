@@ -592,6 +592,8 @@
   "visual_review_verdict_needs_work": "Nachbesserung nötig",
   "visual_review_verdict_skipped": "Übersprungen",
   "visual_review_screenshot_alt": "Screenshot der visuellen Überprüfung",
+  "visual_review_evidence_target": "{{target}} · Bildschirmgeneration {{generation}}",
+  "visual_review_evidence_generation_unknown": "unbekannt",
   "source_loading": "Quellbrowser wird geladen...",
   "source_error": "Quellbrowser konnte nicht geladen werden.",
   "source_diff_loading": "Diff wird geladen...",

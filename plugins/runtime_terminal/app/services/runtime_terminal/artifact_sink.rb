@@ -9,8 +9,8 @@ module RuntimeTerminal
       @runtime_session = runtime_session
     end
 
-    def capture(bytes:, title:)
-      return capture_for_workflow(bytes: bytes, title: title) if runtime_session.workflow
+    def capture(bytes:, title:, metadata: {})
+      return capture_for_workflow(bytes: bytes, title: title, metadata: metadata) if runtime_session.workflow
 
       document = ChatMediaLibrary.materialize_captured_image!(
         runtime_session.chat_session,
@@ -30,7 +30,7 @@ module RuntimeTerminal
 
     attr_reader :runtime_session
 
-    def capture_for_workflow(bytes:, title:)
+    def capture_for_workflow(bytes:, title:, metadata:)
       workflow = runtime_session.workflow
       run = runtime_session.run
       original_type = "visual_review_terminal_screenshot"
@@ -53,7 +53,7 @@ module RuntimeTerminal
           "source" => "runtime_session",
           "captured_at" => Time.current.iso8601(3),
           "runtime_session_id" => runtime_session.id
-        },
+        }.merge(metadata.to_h.stringify_keys),
         **TypedArtifactProvenance.for_run(run)
       )
       runtime_session.update!(
