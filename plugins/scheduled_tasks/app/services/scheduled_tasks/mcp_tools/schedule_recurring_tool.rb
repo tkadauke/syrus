@@ -7,10 +7,15 @@ module ScheduledTasks
 
       tool_name "schedule_recurring"
 
+      CHAT_DIRECTED_PROMPT = /\b(?:wake\s+(?:this\s+)?chat|remind\s+me\s+here|(?:set|schedule)\s+(?:a\s+)?(?:new\s+)?reminder\s+here)\b/i
+
       description <<~DESC
-        Request creation of a recurring task for this repository. The task is
-        not created immediately; Syrus returns a pending_confirmation_id and
-        waits for the operator to confirm the pending action.
+        Request background repository automation that creates a new cron Job
+        and Workflow whenever it fires. It does not resume or wake the current
+        chat and must not be used for conversational reminders. Use
+        `schedule_wakeup` when the operator wants a future turn in this chat.
+        The recurring task is not created immediately; Syrus returns a
+        pending_confirmation_id and waits for the operator to confirm it.
       DESC
 
       input_schema(
@@ -37,6 +42,9 @@ module ScheduledTasks
           return Mcp::Tools.invalid("schedule_input is required") if schedule_input.empty?
           return Mcp::Tools.invalid("label is required") if label.empty?
           return Mcp::Tools.invalid("prompt is required") if prompt.empty?
+          if prompt.match?(CHAT_DIRECTED_PROMPT)
+            return Mcp::Tools.invalid("This prompt asks to wake or remind the current chat. Use schedule_wakeup for chat continuation; schedule_recurring creates background repository Jobs and Workflows and cannot wake this chat.")
+          end
 
           preview = ScheduledTasks::Task.new(
             user: chat_session.user,

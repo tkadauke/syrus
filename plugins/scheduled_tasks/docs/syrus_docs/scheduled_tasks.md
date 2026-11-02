@@ -175,6 +175,15 @@ Cron task prompts support these interpolation variables, rendered at fire time:
 
 ## How tasks fire
 
+Scheduled tasks are repository automation, not chat reminders. The chat
+`schedule_recurring` tool first creates a pending action for operator
+confirmation. Confirming creates the task; every later fire creates a new
+background `cron` Job and Workflow. It does not wake or resume the chat that
+requested it. Use `schedule_wakeup` instead when the desired result is a future
+turn in the same chat, including “remind me here,” conditional follow-ups, and
+chained rechecks. Wakeups are one-shot, require no confirmation, and do not
+create repository Jobs.
+
 `PollScheduledTasksJob` runs every minute. For each due task it:
 
 1. Creates a `Job` with `kind=cron`, linked via `scheduled_task_id`.

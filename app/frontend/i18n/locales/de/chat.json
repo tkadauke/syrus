@@ -543,6 +543,7 @@
   "confirm": "Bestätigen",
   "confirmed": "Bestätigt",
   "pending_action_emergency_land_warning": "Dies überspringt Syrus-Prüfer, die adversariale Überprüfung und die visuelle Überprüfung und führt den Pull Request dann direkt über GitHub zusammen.",
+  "pending_action_schedule_recurring_warning": "Beim Bestätigen werden Repository-Jobs und -Workflows im Hintergrund erstellt. Dieser Chat wird nicht geweckt.",
   "edit_proposal": "Vorschlag bearbeiten",
   "aria_close_proposal_editor": "Vorschlags-Editor schließen",
   "attached_scope": "Angehängter Geltungsbereich",
