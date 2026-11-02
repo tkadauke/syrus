@@ -217,15 +217,15 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::ListProposalsTool),
         legacy_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
         legacy_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true),
-        chat(Mcp::Tools::ListPermissionsTool, tier: :deferred),
-        chat(Mcp::Tools::ExplainPermissionTool, tier: :deferred),
-        chat(Mcp::Tools::GrantPermissionTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::DenyPermissionTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::RevokePermissionTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::CreatePermissionLeaseTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::RevokePermissionLeaseTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::ApplyPermissionPresetTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::CancelAuthorizationRequestTool, tier: :deferred, mutation: true),
+        permission_management_chat(Mcp::Tools::ListPermissionsTool),
+        permission_management_chat(Mcp::Tools::ExplainPermissionTool),
+        permission_management_chat(Mcp::Tools::GrantPermissionTool, mutation: true),
+        permission_management_chat(Mcp::Tools::DenyPermissionTool, mutation: true),
+        permission_management_chat(Mcp::Tools::RevokePermissionTool, mutation: true),
+        permission_management_chat(Mcp::Tools::CreatePermissionLeaseTool, mutation: true),
+        permission_management_chat(Mcp::Tools::RevokePermissionLeaseTool, mutation: true),
+        permission_management_chat(Mcp::Tools::ApplyPermissionPresetTool, mutation: true),
+        permission_management_chat(Mcp::Tools::CancelAuthorizationRequestTool, mutation: true),
         legacy_chat(Mcp::Tools::SetBookmarkTool, mutation: true),
         legacy_chat(Mcp::Tools::ListJobsTool),
         legacy_chat(Mcp::Tools::SearchJobsTool),
@@ -554,6 +554,16 @@ class McpToolRegistry
     def legacy_workflow(tool, **metadata) = workflow(tool, **metadata, compatibility_descriptor: true)
     def legacy_coworker(tool, **metadata) = coworker(tool, **metadata, compatibility_descriptor: true)
     def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
+
+    def permission_management_chat(tool, mutation: false)
+      descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: tool_name_for(tool),
+        capability: "syrus.permissions",
+        mutation: mutation,
+        required_roles: AgentRole::CHAT_ROLES
+      )
+      chat(tool, tier: :deferred, mutation:, descriptor:)
+    end
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
               required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false, ungated: false,
