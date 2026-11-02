@@ -416,6 +416,12 @@ describe("PendingActionCard", () => {
     expect(screen.queryByRole("button", { name: "Dismiss failed action" })).not.toBeInTheDocument()
   })
 
+  it("warns that confirming recurring automation creates background work without waking chat", () => {
+    renderCard(pendingAction({ action: "schedule_recurring", action_type: "schedule_recurring", state: "pending", execution_error: undefined }))
+
+    expect(screen.getByText("Confirming creates background repository Jobs and Workflows. It will not wake this chat.")).toBeInTheDocument()
+  })
+
   it("shows the agent's reason alongside the argument detail and target link", () => {
     renderCard(
       pendingAction({

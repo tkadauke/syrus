@@ -35,6 +35,16 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool do
     clear_enqueued_jobs
   end
 
+  it "describes chat continuation semantics without repository Jobs" do
+    description = described_class.description_value
+
+    expect(description).to include("future agent turn in this same chat")
+    expect(description).to include('"remind me here"')
+    expect(description).to include("conditional follow-ups")
+    expect(description).to match(/chained\s+rechecks/)
+    expect(description).to include("does not create a repository Job")
+  end
+
   it "creates a relative wakeup for the current chat session and user" do
     travel_to Time.zone.parse("2026-06-24 12:00:00 UTC") do
       response = call_tool(prompt: "Check JOB-123 and reschedule if needed.", delay_minutes: 30)

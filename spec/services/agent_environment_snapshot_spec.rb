@@ -338,6 +338,9 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).not_to include("chat memory directory")
       expect(snapshot).to include('checkout=not cloned; call `attach_repository("rome/forums")`')
       expect(snapshot).to include("live Syrus state: list_chats, list_jobs, read_job, explain_stuck_job, read_pr")
+      expect(snapshot).to include("chat coordination and reminders: schedule_wakeup, list_wakeups, cancel_wakeup")
+      expect(snapshot).to include("repository automation: schedule_recurring")
+      expect(snapshot).not_to match(/proposals: .*schedule_recurring/)
       # Plugin-provided groups are rendered only when their plugin is
       # installed, so assert the mechanism rather than a specific plugin's
       # group -- see agent_environment_snapshot_chat_tools_spec.rb.

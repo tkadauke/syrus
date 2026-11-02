@@ -1068,6 +1068,7 @@ export function PendingActionCard({
       body={
         resourceTitle ||
         isEmergencyLand ||
+        actionKey === "schedule_recurring" ||
         pendingAction.detail ||
         pendingAction.reason ||
         (pendingAction.execution_step && !isConfirming) ||
@@ -1082,6 +1083,9 @@ export function PendingActionCard({
             ) : null}
             {isEmergencyLand && !terminalLabel ? (
               <p className="mt-2 break-words text-sm font-semibold text-warning-text">{t("pending_action_emergency_land_warning")}</p>
+            ) : null}
+            {actionKey === "schedule_recurring" && !terminalLabel ? (
+              <p className="mt-2 break-words text-sm font-semibold text-warning-text">{t("pending_action_schedule_recurring_warning")}</p>
             ) : null}
             {coworkerReview ? (
               <ToolApprovalDetails
