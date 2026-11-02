@@ -9,13 +9,14 @@ module ProviderRouting
   #   repository_rows: [{ id:, owner:, name:, user_id:, agent_provider: }]
   #   membership_rows: [{ repository_id:, user_id:, role:, agent_provider: }]
   #
+  # - Membership pin  -> repository-scoped default rule limited to that member
+  #   (conditions.user.ids). Only write-tier-or-better memberships ever counted.
   # - Repository pin  -> repository-scoped default rule (fallback_order, one
-  #   candidate), appended after any existing repository rules. Skipped when the
-  #   repository already has its own default rule.
-  # - Membership pin  -> the user's own default rule limited to that repository
-  #   (conditions.repository.ids), placed first among the user's rules. Repository
-  #   rules are owner-scoped, so a per-member rule has to live at user scope.
-  #   Only write-tier-or-better memberships ever counted.
+  #   candidate) with no user condition. Skipped when the repository already has
+  #   its own default rule.
+  # Member rules are appended first, so the member rule sits ahead of the
+  # repository default and keeps the old precedence (membership > repository
+  # pin), while existing repository rules still outrank both, as before.
   # - Idempotent: a re-run finds the rules it created and skips them.
   # - SKIPPED_PINS lists pins that must not be turned into a rule because the
   #   rule would just recreate the problem this change fixes (a codex pin that
@@ -37,8 +38,8 @@ module ProviderRouting
 
     def call
       repositories = @repository_rows.index_by { |row| row.fetch(:id) }
+      @membership_rows.each { |row| convert_membership(row, repositories[row.fetch(:repository_id)] || repository_row_for(row.fetch(:repository_id))) }
       repositories.each_value { |row| convert_repository(row) }
-      @membership_rows.each { |row| convert_membership(row, repositories[row.fetch(:repository_id)]) }
       @result
     end
 
@@ -53,7 +54,7 @@ module ProviderRouting
         return skip("repository #{slug}: legacy pin #{provider} not converted (deliberately skipped; routing rules decide)")
       end
       return skip("repository #{slug}: no owner user, cannot create a rule") if row[:user_id].blank?
-      if ProviderRoutingRule.where(scope_type: "repository", scope_id: row.fetch(:id)).any? { |rule| default_trigger?(rule) }
+      if ProviderRoutingRule.where(scope_type: "repository", scope_id: row.fetch(:id)).any? { |rule| default_trigger?(rule) && user_ids(rule).empty? }
         return skip("repository #{slug}: already has a default routing rule, pin #{provider} dropped")
       end
 
@@ -72,30 +73,22 @@ module ProviderRouting
       user_id = row.fetch(:user_id)
       slug = repository_row ? "#{repository_row[:owner]}/#{repository_row[:name]}" : "repository #{repository_id}"
       label = "membership user=#{user_id} on #{slug}"
-      if ProviderRoutingRule.where(scope_type: "user", scope_id: user_id).any? { |rule| default_trigger?(rule) && repository_ids(rule) == [ repository_id ] }
-        return skip("#{label}: already has a repository-limited default rule, pin #{provider} dropped")
-      end
-      if ProviderRoutingRule.where(scope_type: "repository", scope_id: repository_id).exists?
-        @result.warnings << "#{label}: repository routing rules outrank user rules, so this member override of #{provider} may be shadowed"
-        log(@result.warnings.last)
+      return skip("#{label}: repository has no owner user, cannot create a rule") if repository_row.nil? || repository_row[:user_id].blank?
+      if ProviderRoutingRule.where(scope_type: "repository", scope_id: repository_id).any? { |rule| default_trigger?(rule) && user_ids(rule) == [ user_id ] }
+        return skip("#{label}: already has a member-limited default rule, pin #{provider} dropped")
       end
 
-      rule = ProviderRoutingRule.new(scope_type: "user", scope_id: user_id, user_id: user_id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY,
-        trigger: { "type" => "default" }, conditions: { "repository" => { "ids" => [ repository_id ] } },
-        action: action_for(provider), candidates: [ candidate_for(provider) ])
-      ProviderRoutingRule.transaction do
-        shift_user_rules(user_id)
-        rule.position = 1
-        save_rule("#{label}: pin #{provider} -> user default rule limited to the repository", rule)
-        raise ActiveRecord::Rollback unless rule.persisted?
-      end
+      save_rule("#{label}: pin #{provider} -> repository default rule limited to the member",
+        ProviderRoutingRule.new(scope_type: "repository", scope_id: repository_id, repository_id: repository_id,
+          user_id: repository_row.fetch(:user_id), task_key: ProviderRoutingRule::DEFAULT_TASK_KEY,
+          trigger: { "type" => "default" }, conditions: { "user" => { "ids" => [ user_id ] } },
+          action: action_for(provider), candidates: [ candidate_for(provider) ]))
     end
 
-    # Make room at position 1 (unique per scope), highest position first.
-    def shift_user_rules(user_id)
-      ProviderRoutingRule.where(scope_type: "user", scope_id: user_id).order(position: :desc).each do |existing|
-        existing.update_column(:position, existing.position + 1)
-      end
+    # Memberships can pin repositories that carry no repository-level pin.
+    def repository_row_for(repository_id)
+      repository = Repository.find_by(id: repository_id)
+      repository && { id: repository.id, owner: repository.owner, name: repository.name, user_id: repository.user_id }
     end
 
     def save_rule(description, rule)
@@ -117,7 +110,7 @@ module ProviderRouting
     end
 
     def default_trigger?(rule) = rule.trigger.to_h["type"] == "default"
-    def repository_ids(rule) = Array(rule.conditions.to_h.dig("repository", "ids")).map(&:to_i)
+    def user_ids(rule) = Array(rule.conditions.to_h.dig("user", "ids")).map(&:to_i)
     def candidate_for(provider) = { "provider" => provider }
     def action_for(provider) = { "strategy" => "fallback_order", "candidates" => [ candidate_for(provider) ] }
   end

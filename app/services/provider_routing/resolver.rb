@@ -108,6 +108,15 @@ module ProviderRouting
       new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind, released_hold_rule_ids: released_hold_rule_ids).resolve
     end
 
+    # The provider an `implement` step on this repository would try first for
+    # `user` (default: the repository owner), through the same resolution a real
+    # Job gets. For display and health checks where no Job exists yet.
+    def self.preview_provider(repository:, user: nil, task_key: "implement")
+      acting_user = user || repository.user
+      job = Job.new(repository: repository, user: acting_user, owner_user: acting_user)
+      resolve(job: job, task_key: task_key).candidates.first&.provider.presence || acting_user&.agent_provider
+    end
+
     def self.rule_configured?(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, include_default: true)
       new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).send(:rule_configured?, include_default: include_default)
     end

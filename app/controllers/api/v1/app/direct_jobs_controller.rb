@@ -245,12 +245,13 @@ module Api
         end
 
         def repository_json(repository)
+          default_provider = ProviderRouting::Resolver.preview_provider(repository: repository, user: Current.user)
           {
             id: repository.id,
             slug: repository.slug,
             repository_path: repository_path(repository),
-            default_agent_provider: repository.user&.agent_provider,
-            default_agent_provider_label: agent_provider_label(repository.user&.agent_provider)
+            default_agent_provider: default_provider,
+            default_agent_provider_label: agent_provider_label(default_provider)
           }
         end
 

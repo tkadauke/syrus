@@ -88,6 +88,8 @@ de:
       repository_names_must_be_array: "repository names muss ein Array sein"
       repository_owners_must_be_array: "repository owners muss ein Array sein"
       job_metadata_must_be_object: "job_metadata muss ein Objekt sein"
+      user_must_be_object: "user muss ein Objekt sein"
+      user_ids_must_be_array: "user ids muss ein Array sein"
       job_metadata_kinds_must_be_array: "job_metadata kinds muss ein Array sein"
       job_metadata_priorities_must_be_array: "job_metadata priorities muss ein Array sein"
       must_be_candidate_array: "muss ein Array aus Kandidatenobjekten sein"
