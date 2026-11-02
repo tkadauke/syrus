@@ -81,6 +81,62 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "edits a rule by preserving the superseded rule and creating its replacement" do
+    original = permission_rule(owner: user)
+    descriptor = Permissions::Catalog.descriptors.find do |candidate|
+      candidate.authority_durations.include?(:permanent) && candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER)
+    end
+
+    patch "/api/v1/app/permission_rules/#{original.id}", params: { permission_rule: {
+      policy: "allow", role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation,
+      resource_scope: {}, constraints: {}, rationale: "Revised authority"
+    } }
+
+    expect(response).to have_http_status(:ok)
+    expect(original.reload.revoked_at).to be_present
+    replacement = PermissionRule.find(JSON.parse(response.body).dig("rule", "id"))
+    expect(replacement).to have_attributes(rationale: "Revised authority", revoked_at: nil)
+  end
+
+  it "previews and atomically applies confirmed bulk changes" do
+    descriptor = Permissions::Catalog.descriptors.find do |candidate|
+      candidate.authority_durations.include?(:permanent) && candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER)
+    end
+    operations = [ {
+      action: "grant", policy: "allow", role: AgentRole::CHAT_PLANNER,
+      subject_selector_type: "interactive_chat", capability: descriptor.capability,
+      operation: descriptor.operation, resource_scope: {}, constraints: {}
+    } ]
+
+    post "/api/v1/app/permission_rules/preview_bulk", params: { operations: }
+
+    expect(response).to have_http_status(:ok)
+    preview = JSON.parse(response.body)
+    expect(preview.fetch("preview")).to contain_exactly(include(
+      "action" => "grant", "capability" => descriptor.capability,
+      "resource_scope_label" => a_kind_of(String)
+    ))
+
+    expect {
+      post "/api/v1/app/permission_rules/bulk", params: {
+        operations:, confirmation_digest: preview.fetch("confirmation_digest")
+      }
+    }.to change(PermissionRule, :count).by(1)
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "rejects a bulk change when the confirmed preview does not match" do
+    rule = permission_rule(owner: user)
+    post "/api/v1/app/permission_rules/bulk", params: {
+      operations: [ { action: "revoke", id: rule.id } ], confirmation_digest: "stale"
+    }
+
+    expect(response).to have_http_status(:conflict)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("stale_permission_preview")
+    expect(rule.reload.revoked_at).to be_nil
+  end
+
   def permission_rule(owner:)
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,

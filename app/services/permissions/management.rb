@@ -30,7 +30,7 @@ module Permissions
         subject_selector_type: payload.fetch("subject_selector_type"),
         subject_selector_id: payload["subject_selector_id"], subject_repository: repository(payload),
         resource_scope: payload.fetch("resource_scope", {}), constraints: payload.fetch("constraints", {}),
-        rules: policy_rules
+        rules: policy_rules, rationale: payload["rationale"]
       )
     end
 
@@ -57,6 +57,13 @@ module Permissions
 
     def revoke_rule!(id, actor:)
       rules(active: false).find(id).revoke!(actor:)
+    end
+
+    def replace_rule!(id, payload, actor:)
+      PermissionRule.transaction do
+        revoke_rule!(id, actor:)
+        payload.fetch("policy") == "deny" ? deny!(payload, actor:) : grant!(payload, actor:)
+      end
     end
 
     def revoke_lease!(id, actor:)
