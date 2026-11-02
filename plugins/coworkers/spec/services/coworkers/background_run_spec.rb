@@ -223,6 +223,11 @@ RSpec.describe "Coworker background runs" do
     expect(list_response).not_to be_error
     expect(listed_ids).to contain_exactly(main_chat.id, own_side_chat.id, shared_chat.id)
 
+    # Workflow Runs may execute on compute workers that intentionally do not
+    # mount the home worker's local SQLite search index. Reproduce that topology
+    # instead of creating a small FTS query that already passes on the old path.
+    SearchRecord.connection.execute("DROP TABLE chat_message_fts")
+
     search_tool = PersistentMcpDaemon::WorkflowToolDispatch.wrap(Mcp::Tools::SearchChatsTool)
     query_only_response = search_tool.call(server_context: raw_context, query: "needle")
     expect(query_only_response).not_to be_error

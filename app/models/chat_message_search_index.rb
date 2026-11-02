@@ -71,12 +71,8 @@ class ChatMessageSearchIndex < SearchRecord
         bind(parse_fts_query(query))
       ]
 
-      # Keep the authorization scope in one bind. Expanding one placeholder per
-      # visible chat eventually crosses SQLite's variable limit for owners with
-      # a long chat history, which made otherwise valid FTS queries fail only
-      # after they were dispatched to the search database.
-      predicates << "chat_session_id IN (SELECT value FROM json_each(?))"
-      binds << bind(JSON.generate(scoped_chat_session_ids))
+      predicates << "chat_session_id IN (#{([ '?' ] * scoped_chat_session_ids.size).join(', ')})"
+      binds.concat(scoped_chat_session_ids.map { |id| bind(id) })
 
       limit_sql = ""
       if limit.present?

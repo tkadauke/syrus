@@ -25,14 +25,8 @@ module Mcp::Tools
         query = query.to_s.strip
         return search_error("validation_error", "query is required", retryable: false) if query.blank?
 
-        results = ChatMessageSearchIndex.search(
-          query,
-          chat_session_ids: searchable_chat_session_ids(coworker_id: coworker_id),
-          limit: normalize_limit(limit),
-          snippet_start: "<b>",
-          snippet_end: "</b>",
-          snippet_tokens: 50
-        )
+        chat_session_ids = searchable_chat_session_ids(coworker_id: coworker_id)
+        results = search_results(query, chat_session_ids:, limit: normalize_limit(limit))
         results = admin? ? results : reject_deleted(results)
 
         sessions_by_id = preload_sessions(results)
@@ -48,11 +42,12 @@ module Mcp::Tools
         )
         search_error(
           "backend_error",
-          "Chat search could not query the full-text index. Retry after the search database has been checked.",
+          "Chat search could not query its search backend. Retry after database health has been checked.",
           retryable: true,
           diagnostics: {
             exception: error.class.name,
-            cause: error.cause&.class&.name
+            cause: error.cause&.class&.name,
+            category: "full_text_backend"
           }.compact
         )
       end
@@ -92,6 +87,71 @@ module Mcp::Tools
         payload = { error: { code: code, message: message, retryable: retryable } }
         payload[:error][:diagnostics] = diagnostics if diagnostics.present?
         MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ], error: true)
+      end
+
+      # The full-text database is local to the home/search worker. A scheduled
+      # coworker Run can execute on a search-free compute worker, whose local
+      # SQLite file intentionally has no chat_message_fts table. Keep the
+      # normal ranked FTS path everywhere it is available and fall back to the
+      # durable primary database only for that exact topology signal.
+      def search_results(query, chat_session_ids:, limit:)
+        ChatMessageSearchIndex.search(
+          query,
+          chat_session_ids: chat_session_ids,
+          limit: limit,
+          snippet_start: "<b>",
+          snippet_end: "</b>",
+          snippet_tokens: 50
+        )
+      rescue ActiveRecord::StatementInvalid => error
+        raise unless missing_chat_search_table?(error)
+
+        Rails.logger.info("[search_chats] local full-text index unavailable; using primary database fallback")
+        primary_database_results(query, chat_session_ids:, limit:)
+      end
+
+      def missing_chat_search_table?(error)
+        [ error.message, error.cause&.message ].compact.any? do |message|
+          message.match?(/no such table:\s*(?:\w+\.)?chat_message_fts\b/i)
+        end
+      end
+
+      def primary_database_results(query, chat_session_ids:, limit:)
+        return [] if chat_session_ids.empty?
+
+        terms = primary_search_terms(query)
+        return [] if terms.empty?
+
+        scope = ChatMessage.active
+          .where(chat_session_id: chat_session_ids, role: %w[user assistant])
+        terms.each do |term|
+          escaped = ActiveRecord::Base.sanitize_sql_like(term.downcase)
+          scope = scope.where("LOWER(CAST(chat_messages.content AS CHAR)) LIKE ?", "%#{escaped}%")
+        end
+
+        scope.order(created_at: :desc, id: :desc).limit(limit).map do |message|
+          {
+            chat_message_id: message.id,
+            chat_session_id: message.chat_session_id,
+            role: message.role,
+            created_at: message.created_at&.iso8601,
+            snippet: primary_search_snippet(message.extract_text_from_content, terms)
+          }
+        end
+      end
+
+      def primary_search_terms(query)
+        query.scan(/"([^"]+)"|(\S+)/).filter_map { |phrase, token| (phrase || token).presence }
+      end
+
+      def primary_search_snippet(content, terms)
+        text = content.to_s
+        first_match = terms.filter_map { |term| text.downcase.index(term.downcase) }.min || 0
+        start = [ first_match - 120, 0 ].max
+        excerpt = text[start, 400].to_s
+        escaped_terms = terms.sort_by { |term| -term.length }.map { |term| Regexp.escape(term) }
+        highlighted = excerpt.gsub(/#{escaped_terms.join('|')}/i) { |match| "<b>#{match}</b>" }
+        "#{start.positive? ? '...' : ''}#{highlighted}#{start + excerpt.length < text.length ? '...' : ''}"
       end
 
       def searchable_chat_session_ids(coworker_id: nil)

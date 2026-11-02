@@ -315,6 +315,15 @@ message's `id`, `role`, `content`, and `created_at`; callers should treat
 `has_more` as a neutral "another page is available" signal because page
 direction is defined by the tool's ordering contract, not by the field name.
 
+`search_chats` normally uses the home worker's ranked SQLite FTS index. A
+scheduled workflow may run on a compute worker that deliberately has no local
+search index; when SQLite reports that `chat_message_fts` is absent, the tool
+falls back to a bounded primary-database text search over the same authorized
+chat IDs. Other database failures remain structured `backend_error` responses
+with `full_text_backend` diagnostics. Blank queries are distinct
+`validation_error` responses, and authorization failures continue to use the
+shared `not_authorized` response.
+
 For `list_chats`, `list_repositories`, `read_chat_messages`, and
 `read_run_transcript`, one-based page numbers are capped at 10,000 before SQL
 offset calculation. A normal page beyond the result set still returns an empty
