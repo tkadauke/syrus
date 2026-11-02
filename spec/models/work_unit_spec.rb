@@ -269,6 +269,22 @@ RSpec.describe WorkUnit do
 
       expect(landing.reload).to be_active
     end
+
+    it "reacquires a surrendered landing slot before unblocking queued work" do
+      repository = Factories.repository
+      job = Factories.job_record(user: repository.user, repository: repository, state: "landing")
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+      unit = workflow.work_unit
+      original_landing_lock = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:%")
+      unit.block!(reason: "urgent_job_active")
+
+      unit.resume_for_workflow!
+
+      expect(unit.reload).to be_queued
+      expect(original_landing_lock.reload).not_to be_active
+      expect(unit.work_unit_locks.active.where(lock_key: original_landing_lock.lock_key)).to exist
+      expect(workflow.first_step.runs).to be_empty
+    end
   end
 
   describe "blocked_at" do

@@ -2057,8 +2057,7 @@ module WorkEngine
         next unless unit.blocked? && unit.blocked_reason == "urgent_job_active"
 
         workflow = unit.workflow
-        next unless workflow&.queued? && workflow.landing_workflow?
-        next if workflow.first_step&.runs&.exists?
+        next unless workflow&.queued_landing_before_first_run?
 
         lock_keys = unit.work_unit_locks.active
                         .where("lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%")

@@ -794,6 +794,10 @@ class Workflow < ApplicationRecord
     WorkDefinitions.landing_workflow_kinds.include?(trigger_kind)
   end
 
+  def queued_landing_before_first_run?
+    queued? && landing_workflow? && !first_step&.runs&.exists?
+  end
+
   def coding_handoff_workflow?
     trigger_kind == "coding_handoff"
   end
