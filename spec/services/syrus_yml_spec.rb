@@ -41,8 +41,14 @@ RSpec.describe SyrusYml do
   end
 
   it "rejects malformed AI approval instructions" do
-    expect { parse("ai_approval:\n  instructions: []\n") }
-      .to raise_error(described_class::ParseError, /ai_approval\.instructions/)
+    [
+      "ai_approval: enabled\n",
+      "ai_approval: {}\n",
+      "ai_approval:\n  instructions: ''\n",
+      "ai_approval:\n  instructions: []\n"
+    ].each do |yaml|
+      expect { parse(yaml) }.to raise_error(described_class::ParseError, /ai_approval/)
+    end
   end
 
   it "clamps security review rounds" do

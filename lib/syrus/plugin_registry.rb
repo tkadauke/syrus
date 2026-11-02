@@ -762,6 +762,7 @@ module Syrus
         unless EXTENSION_POINTS.include?(ep)
           raise ArgumentError, "Unknown extension point: #{extension_point.inspect}. Valid: #{EXTENSION_POINTS.inspect}"
         end
+        validate_approval_providers!([ provider ]) if ep == :approval_provider
         @mutex.synchronize { @direct_providers[ep] << provider }
       end
 
@@ -942,6 +943,20 @@ module Syrus
                 "#{k} must include #{interface} to register as #{key}"
             end
           end
+          validate_approval_providers!(Array(klass)) if key.to_sym == :approval_provider
+        end
+      end
+
+      def validate_approval_providers!(providers)
+        providers.each do |provider|
+          disclosure = provider.data_sharing_disclosure.to_h.deep_stringify_keys
+          next if disclosure["recipient"].present? && disclosure["purpose"].present?
+
+          raise RegistrationError,
+            "#{provider} must provide approval data sharing disclosure recipient and purpose"
+        rescue NotImplementedError, NoMethodError
+          raise RegistrationError,
+            "#{provider} must provide approval data sharing disclosure recipient and purpose"
         end
       end
 

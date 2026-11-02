@@ -12,6 +12,23 @@ supported. Repeat shared values explicitly. YAML values that would create Ruby
 objects, such as unquoted dates, timestamps, or symbols, are rejected as
 configuration errors; quote them when they are intended to be strings.
 
+## AI approval guidance
+
+The optional root-level `ai_approval.instructions` value supplies one
+repository-authored guidance layer to delegated AI approval providers. It must
+be a non-empty string:
+
+```yaml
+ai_approval:
+  instructions: >-
+    Escalate production restarts without a matching incident.
+```
+
+Core safety rules and provider ceilings remain higher priority. Repository
+instructions cannot widen authority, and repository content supplied as
+evidence remains untrusted. Syrus reads this value from the default branch when
+it constructs the exact-invocation approval request.
+
 ## Project-aware configuration model
 
 Syrus always reads the root `.syrus.yml` when one exists. It also automatically

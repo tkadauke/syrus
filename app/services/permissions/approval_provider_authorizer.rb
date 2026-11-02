@@ -37,10 +37,12 @@ module Permissions
       evidence = ApprovalProviderEvidence.new(request: @request, provider:)
       decision = ApprovalProviderDecision.coerce(provider.decide(evidence))
       if !decision.escalate? && decision.confidence < MINIMUM_ALLOW_CONFIDENCE
-        return escalated(:uncertain, "The approval provider was not confident enough to decide", delegation:, provider:)
+        return escalated(:uncertain, "The approval provider was not confident enough to decide",
+          delegation:, provider:, evidence:, provider_decision: decision)
       end
       if !decision.escalate? && decision.provider_outcome.present?
-        return escalated(decision.provider_outcome, "The approval provider requires human review", delegation:, provider:)
+        return escalated(decision.provider_outcome, "The approval provider requires human review",
+          delegation:, provider:, evidence:, provider_decision: decision)
       end
 
       Result.new(decision:, delegation:, provider:, request: @request, evidence:)
@@ -69,10 +71,11 @@ module Permissions
       end
     end
 
-    def escalated(code, rationale, delegation: nil, provider: nil)
+    def escalated(code, rationale, delegation: nil, provider: nil, evidence: nil, provider_decision: nil)
       decision = ApprovalProviderDecision.new(outcome: :escalate, rationale:,
-        policy_factors: [ code ], confidence: 1.0, evidence: {}, provider_outcome: code)
-      Result.new(decision:, delegation:, provider:, request: @request, evidence: nil)
+        policy_factors: [ code ], confidence: 1.0,
+        evidence: provider_decision ? { provider_decision: provider_decision.to_h } : {}, provider_outcome: code)
+      Result.new(decision:, delegation:, provider:, request: @request, evidence:)
     end
   end
 end

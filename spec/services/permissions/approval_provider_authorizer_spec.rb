@@ -83,12 +83,15 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
       policy_factors: [], confidence: 0.79, evidence: {})
     uncertain = described_class.call(request:, delegations: [ delegation ], providers: [ provider ])
     expect(uncertain.decision.provider_outcome).to eq("uncertain")
+    expect(uncertain.evidence).to be_a(Permissions::ApprovalProviderEvidence)
+    expect(uncertain.decision.evidence.dig("provider_decision", "rationale")).to eq("Uncertain")
 
     allow(provider).to receive(:decide).and_return(outcome: :allow, rationale: "Quota exhausted",
       policy_factors: [ "rate" ], confidence: 1, evidence: {}, provider_outcome: "rate_limited")
     limited = described_class.call(request:, delegations: [ delegation ], providers: [ provider ])
     expect(limited).to be_escalated
     expect(limited.decision.provider_outcome).to eq("rate_limited")
+    expect(limited.evidence).to be_a(Permissions::ApprovalProviderEvidence)
   end
 
   it "redacts provider evidence before returning it" do
@@ -107,6 +110,8 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
       expect(evidence.tool_call).to eq("name" => "restart", "arguments" => { "id" => 7 })
       expect(evidence.guidance.map { |entry| entry["layer"] })
         .to eq(%w[core provider repository policy_chain])
+      expect(evidence.guidance.pluck("content")).to all(be_a(String))
+      expect(JSON.parse(evidence.guidance.last.fetch("content"))).to eq(request.policy_chain)
       expect(evidence.provider_payload.dig("trust_boundary", "transcript")).to eq("untrusted_evidence")
       { outcome: :allow, rationale: "Bounded", policy_factors: [], confidence: 1, evidence: {} }
     end
@@ -124,10 +129,22 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
     }.to raise_error(ArgumentError, /explicit role/)
   end
 
+  it "loads repository guidance from the default branch configuration" do
+    repository = instance_double(Repository)
+    loaded = double(config: double(ai_approval: double(instructions: "Escalate production restarts.")))
+    expect(RepoDefaultBranchSyrusYml).to receive(:new).with(repository:, user: owner)
+      .and_return(double(resolve: loaded))
+
+    configured_request = request_with(repository:, repository_guidance: Permissions::ApprovalProviderRequest::REPOSITORY_GUIDANCE_UNSET)
+
+    expect(configured_request.repository_guidance).to eq("Escalate production restarts.")
+  end
+
   it "redacts durable audit evidence without changing the exact provider payload" do
     secret_request = request_with(
       transcript: [ { role: "user", content: "token=ghp_abcdefghijklmnopqrstuvwxyz123456" } ],
-      tool_call: { name: "restart", arguments: { api_token: "secret-value" } }
+      tool_call: { name: "restart", arguments: { api_token: "secret-value" } },
+      policy_chain: [ { layer: "resource", rule: { credential: { password: "nested-secret" } } } ]
     )
     result = described_class.call(request: secret_request, delegations: [ delegation ], providers: [ provider ])
 
@@ -135,6 +152,7 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
     artifact = result.evidence.audit_artifact(decision: result.decision)
     expect(artifact.dig("tool_call", "arguments", "api_token")).to eq("[redacted]")
     expect(artifact.dig("transcript", 0, "content")).to include("[redacted]")
+    expect(artifact.dig("invocation", "policy_chain", 0, "rule", "credential", "password")).to eq("[redacted]")
   end
 
   it "escalates unavailable, invalid, and plugin-managed rate outcomes" do

@@ -15,8 +15,8 @@ module Permissions
       @source = source.to_s.freeze
       @capability = capability&.to_s&.freeze
       @operation = operation&.to_s&.freeze
-      @resource_scope = deep_freeze(resource_scope)
-      @selectors = deep_freeze(selectors.to_h.transform_keys(&:to_sym))
+      @resource_scope = ImmutableValue.deep_freeze(resource_scope)
+      @selectors = ImmutableValue.deep_freeze(selectors.to_h.transform_keys(&:to_sym))
       @delegable = !!delegable
       @rationale = rationale&.to_s&.freeze
       validate!
@@ -53,19 +53,6 @@ module Permissions
     end
 
     private
-
-    def deep_freeze(value)
-      case value
-      when Hash
-        value.to_h { |key, item| [ deep_freeze(key), deep_freeze(item) ] }.freeze
-      when Array
-        value.map { |item| deep_freeze(item) }.freeze
-      when String
-        value.dup.freeze
-      else
-        value.freeze
-      end
-    end
 
     def validate!
       raise ArgumentError, "policy rule id is required" if id.empty?

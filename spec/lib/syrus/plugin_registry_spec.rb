@@ -1173,6 +1173,36 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::ChatProvider/)
     end
 
+    it "rejects approval providers without registration-time data sharing disclosure" do
+      provider = Class.new do
+        include Syrus::Plugin::ApprovalProvider
+        def self.data_sharing_disclosure = {}
+      end
+
+      expect {
+        described_class.register(
+          name: "unsafe_approval", version: "1.0.0", provides: { approval_provider: provider }
+        )
+      }.to raise_error(described_class::RegistrationError, /disclosure recipient and purpose/)
+
+      expect {
+        described_class.register(:approval_provider, provider)
+      }.to raise_error(described_class::RegistrationError, /disclosure recipient and purpose/)
+    end
+
+    it "registers an approval provider with recipient and purpose disclosure" do
+      provider = Class.new do
+        include Syrus::Plugin::ApprovalProvider
+        def self.data_sharing_disclosure = { recipient: "Reviewer API", purpose: "approval classification" }
+      end
+
+      described_class.register(
+        name: "safe_approval", version: "1.0.0", provides: { approval_provider: provider }
+      )
+
+      expect(described_class.providers_for(:approval_provider)).to include(provider)
+    end
+
     it "raises RegistrationError when input_source class lacks the interface module" do
       plain_class = Class.new
 

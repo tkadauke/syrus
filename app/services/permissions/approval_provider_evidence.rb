@@ -1,3 +1,4 @@
+require "json"
 require_dependency "tool_payload_redactor"
 
 module Permissions
@@ -16,9 +17,9 @@ module Permissions
         guidance_entry("core", CORE_GUIDANCE),
         guidance_entry("provider", provider.approval_guidelines),
         guidance_entry("repository", request.repository_guidance),
-        guidance_entry("policy_chain", request.policy_chain)
+        guidance_entry("policy_chain", JSON.generate(request.policy_chain))
       ].freeze
-      @data_sharing = deep_freeze(provider.data_sharing_disclosure.to_h.deep_stringify_keys)
+      @data_sharing = ImmutableValue.deep_freeze(provider.data_sharing_disclosure.to_h.deep_stringify_keys)
       raise ArgumentError, "approval provider data sharing disclosure is required" if @data_sharing.empty?
       freeze
     end
@@ -29,7 +30,7 @@ module Permissions
     def invocation_fingerprint = request.invocation_fingerprint
 
     def provider_payload
-      deep_freeze(
+      ImmutableValue.deep_freeze(
         "invocation" => request.to_h,
         "transcript" => transcript,
         "tool_call" => tool_call,
@@ -44,24 +45,13 @@ module Permissions
     end
 
     def audit_artifact(decision:)
-      deep_freeze(ToolPayloadRedactor.redact(provider_payload.merge("decision" => decision.to_h)))
+      ImmutableValue.deep_freeze(ToolPayloadRedactor.redact(provider_payload.merge("decision" => decision.to_h)))
     end
 
     private
 
     def guidance_entry(layer, content)
-      deep_freeze("layer" => layer, "content" => content)
-    end
-
-    def deep_freeze(value)
-      case value
-      when Hash
-        value.to_h { |key, item| [ key.freeze, deep_freeze(item) ] }.freeze
-      when Array
-        value.map { |item| deep_freeze(item) }.freeze
-      else
-        value.freeze
-      end
+      ImmutableValue.deep_freeze("layer" => layer, "content" => content.to_s)
     end
   end
 end
