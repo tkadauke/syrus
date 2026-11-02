@@ -615,7 +615,9 @@ class McpToolRegistry
     end
 
     def runtime_tools_available?(context)
-      context.run&.runtime_sessions&.active&.where&.not(provider_key: "browser")&.exists? == true
+      return false unless context.run&.respond_to?(:runtime_sessions)
+
+      context.run.runtime_sessions.active.where.not(provider_key: "browser").exists?
     end
 
     def normalize_feature_flags_by_role(feature_flags_by_role)

@@ -69,6 +69,7 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
   it "returns the same capped, redacted, action-free admission shape across authorized surfaces" do
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
     allow_coworker_diagnostics!
+    allow(Time).to receive(:current).and_return(Time.current)
     payload = {
       generated_at: Time.current.iso8601, active_consumers: [], recent_top_consumers: [], delayed_work: [],
       low_confidence_profiles: [], admission_overrides: [], secret: "token=hidden", actions: [ "retry" ]

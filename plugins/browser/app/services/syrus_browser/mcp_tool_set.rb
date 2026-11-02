@@ -35,6 +35,7 @@ module SyrusBrowser
     def self.available_for_context?(context)
       run = context.run
       return true unless run&.step&.kind == "visual_review"
+      return true unless run.respond_to?(:runtime_sessions)
 
       sessions = run.runtime_sessions.active
       return true if sessions.for_provider(RuntimeSessionProvider.provider_key).exists?
