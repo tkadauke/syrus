@@ -288,6 +288,9 @@ module Prompts
           "session_id=#{target['session_id']}",
           "provider=#{target['provider']}",
           "name=#{target['name']}",
+          "capabilities=#{target['capabilities'].to_h.to_json}",
+          target["launch"].present? ? "launch=#{target['launch'].to_json}" : nil,
+          target["build"].present? ? "build=#{target['build'].to_json}" : nil,
           target["dimensions"].present? ? "dimensions=#{target['dimensions'].to_json}" : nil,
           target["review_notes"].present? ? "notes=#{target['review_notes']}" : nil,
           Array(target["captures"]).any? ? "capture expectations=#{Array(target['captures']).join('; ')}" : nil
@@ -299,12 +302,17 @@ module Prompts
         Runtime targets for this review:
         #{targets.join("\n")}
 
-        Use the generic runtime_inspect, runtime_wait, runtime_acquire_control,
-        runtime_input, runtime_release_control, runtime_snapshot, and
-        runtime_capture_artifact tools with the listed session_id. Acquire an
-        input lease before interaction. Capture labeled evidence at the
-        configured checkpoints. Browser targets retain the existing browser
-        tools and submit_visual_artifact flow for compatibility.
+        Use only tools supported by each target's advertised capabilities.
+        Browser targets retain the existing browser tools and
+        submit_visual_artifact flow for compatibility. For cli_tui targets:
+        acquire input control, inspect the semantic screen state, and use
+        runtime_wait with a later generation or expected visible text instead
+        of fixed sleeps. Drive meaningful states with runtime_input text, key,
+        chord, mouse, and resize events as supported. Re-inspect after every
+        interaction, capture labeled full-color screenshots with
+        runtime_capture_artifact at the configured checkpoints, then release
+        control. Your final submit_visual_review critique must identify the
+        exercised states and evidence labels.
       TEXT
     end
 

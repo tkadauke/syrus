@@ -71,6 +71,7 @@ RSpec.describe RuntimeTerminal::Provider do
         columns: 80,
         viewport: { width: 80, height: 24 },
         checkpoint_label: "menu open",
+        provider_key: "cli_tui",
         latest_frame_url: "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{runtime_session.id}/frame"
       )
       expect(document).to have_attributes(title: "Terminal — menu open", content_type: "image/png")

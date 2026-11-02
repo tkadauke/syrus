@@ -1189,6 +1189,12 @@ whose file rules do not match the branch-wide change set are not started. When
 `targets` is omitted, affected `preview:` projects become backward-compatible
 `browser` targets.
 
+At startup Syrus validates the selected provider's advertised visual-review
+capabilities. `cli_tui` must provide keyboard/stdin/pointer/resize input,
+semantic screen inspection, and screenshot artifacts. Missing capabilities
+produce a configuration error naming the missing capability tokens before a
+reviewer is invoked.
+
 For `cli_tui`, `build.command` and `launch.command` are written to the owned
 terminal after its relay is ready. They run from the target workspace before
 the reviewer receives control; interactive reviewer input still requires the

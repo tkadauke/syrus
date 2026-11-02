@@ -281,6 +281,14 @@ expectations. The workflow owns and reliably tears down these sessions while
 the reviewer uses provider-neutral inspect, wait, input, snapshot, and capture
 tools. Existing browser `preview` configuration is translated into a browser
 runtime target automatically.
+The reviewer receives each selected target's provider key, advertised
+capabilities, launch/build options, dimensions, review notes, and evidence
+checkpoints. Terminal-only reviews expose the provider-neutral runtime tools
+instead of browser DOM tools; mixed reviews expose both tool families. A
+`cli_tui` provider that cannot inspect semantic screen state, accept terminal
+input and resize events, or capture screenshots is rejected before the agent
+starts. Terminal screenshots remain attached to the reviewed target and screen
+generation in the Review UI.
 After each action, `runtime_inspect` can wait for a later screen generation,
 specific visible text, and a quiet period. Calling
 `runtime_capture_artifact(checkpoint_label: "settings saved")` then retains a
