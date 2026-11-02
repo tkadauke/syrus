@@ -950,15 +950,18 @@ class ImmutableSourceCheckout
     WorkspaceReuseOutcomes::Recorder.record(
       run: current_run,
       kind: "grader_fanout",
-      outcome: details.fetch("strategy"),
-      prepare_fingerprint: @step.details.to_h.dig("prepare_cache", "prepare_fingerprint") ||
-        PreparedWorkspaceArchive.prepare_fingerprint_for(RepoPrepPlan.for(path), path: path),
-      storage_key: details["lower_path"],
-      materialization_method: details.fetch("strategy"),
-      fallback_reason: details["fallback_reason"] || details["link_fallback_reason"],
-      grader_count: @workflow.steps.where(kind: @step.kind, iteration: @step.iteration).count,
-      duration_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
-    )
+      outcome: details.fetch("strategy")
+    ) do
+      {
+        prepare_fingerprint: @step.details.to_h.dig("prepare_cache", "prepare_fingerprint") ||
+          PreparedWorkspaceArchive.prepare_fingerprint_for(RepoPrepPlan.for(path), path: path),
+        storage_key: details["lower_path"],
+        materialization_method: details.fetch("strategy"),
+        fallback_reason: details["fallback_reason"] || details["link_fallback_reason"],
+        grader_count: @step.details.to_h["fanout_grader_count"],
+        duration_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      }
+    end
   end
 
   def record_run_workspace_materialization!(details)
@@ -991,13 +994,16 @@ class ImmutableSourceCheckout
     WorkspaceReuseOutcomes::Recorder.record(
       run: current_run,
       kind: "prepare",
-      outcome: status == "miss" ? "rebuilt" : "reused_from_archive",
-      prepare_fingerprint: prepare_cache.prepare_fingerprint,
-      storage_key: prepare_cache.cache_key,
-      bytes: status == "archive_hit" && prepare_cache.snapshot.prepared_workspace_archive.attached? ?
-        prepare_cache.snapshot.prepared_workspace_archive.blob.byte_size : nil,
-      duration_seconds: @setup_started_at && Process.clock_gettime(Process::CLOCK_MONOTONIC) - @setup_started_at
-    )
+      outcome: status == "miss" ? "rebuilt" : "reused_from_archive"
+    ) do
+      archive = prepare_cache.snapshot.prepared_workspace_archive
+      {
+        prepare_fingerprint: prepare_cache.prepare_fingerprint,
+        storage_key: prepare_cache.cache_key,
+        bytes: status == "archive_hit" && archive.attached? ? archive.blob.byte_size : nil,
+        duration_seconds: @setup_started_at && Process.clock_gettime(Process::CLOCK_MONOTONIC) - @setup_started_at
+      }
+    end
   end
 
   def record_checkout_details!(snapshot)

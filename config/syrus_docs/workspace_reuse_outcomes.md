@@ -15,16 +15,23 @@ for multi-week comparisons without adding an AppSetting column.
 
 ## Read-only analysis
 
-Use the query service from a Rails console or an investigation agent's
-read-only console:
+Syrus-repository implementation and investigation agents can call the
+read-only `read_workspace_reuse_outcomes` MCP tool with optional inclusive
+ISO 8601 `since` and `until_time` bounds. The tool defaults to the last 30
+days and scopes results to the current repository.
+
+The underlying query service remains available from a Rails console:
 
 ```ruby
 WorkspaceReuseOutcomes::Summary.call(
   since: 30.days.ago,
+  until_time: Time.current,
   repository: Repository.find_by!(owner: "example", name: "project")
 )
 ```
 
 The result is grouped by repository, prepare fingerprint, backend, and event
 kind. Each entry includes outcome counts, a total, and (for prepare entries) a
-`reuse_rate`. The query does not mutate cache or workflow state.
+`reuse_rate`. Skipped preparations are reported in the total but excluded from
+the reuse-rate denominator because no reusable layer was requested. The query
+does not mutate cache or workflow state.
