@@ -708,6 +708,8 @@
   "runtime_snapshot_example_page_title": "Settings",
   "runtime_snapshot_example_stale": "Android stale frame",
   "runtime_snapshot_example_stale_description": "The latest available frame is clearly marked stale when a fresh device capture fails.",
+  "runtime_capture_example_terminal": "Full-color terminal screenshot",
+  "runtime_capture_example_terminal_description": "A real terminal-renderer PNG covering ANSI, indexed and RGB colors, Unicode glyphs, cursor state, and viewport sizing.",
   "runtime_input_type": "Type",
   "runtime_input_target": "Target",
   "runtime_input_value": "Value",
