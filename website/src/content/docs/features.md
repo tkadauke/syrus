@@ -34,7 +34,7 @@ The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
 the same durable request, including its subject, origin, normalized resource,
 redacted arguments, effects, purpose, duration choices, and policy explanation.
-Operators can filter the inbox, decide compatible request items together,
+Operators can filter the inbox, select requests with a shared duration and decide them atomically,
 dismiss obsolete requests without denying future work, and review completed
 history.
 
