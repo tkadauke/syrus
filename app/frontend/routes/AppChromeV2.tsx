@@ -816,6 +816,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                 <div className="flex items-center gap-1">
                   <BugReportTriggerButton onClick={() => openBugReport()} />
                   {user ? <ConnectionStatusButton prefix={prefix} /> : null}
+                  {user ? <PermissionInboxDrawer prefix={prefix} /> : null}
                   {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
                 </div>
               </div>
@@ -1507,6 +1508,7 @@ function SidebarContent({
           <div className={`items-center gap-1 ${collapsed ? "hidden" : "flex"}`}>
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
             {user ? <ConnectionStatusButton onNavigate={onCloseDrawer} prefix={prefix} /> : null}
+            {user ? <PermissionInboxDrawer onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}
@@ -1603,7 +1605,6 @@ function SidebarContent({
             userPresent={Boolean(user)}
           />
         )}
-        {user ? <PermissionInboxDrawer /> : null}
       </div>
       {collapsed ? null : <ShellNotices />}
       <div className={`shrink-0 border-t border-gray-200 dark:border-gray-800 ${collapsed ? "p-2" : "p-3"}`}>
