@@ -1041,5 +1041,8 @@
   "unland_status_in_progress": "Unland in progress. The original Job remains closed.",
   "unland_status_failed": "Unland failed. Review or retry the linked rollback Job.",
   "unland_status_reverted": "Landed, then reverted through the linked rollback Job.",
-  "none": "none"
+  "none": "none",
+  "authorization_requests_title": "Authorization requests",
+  "authorization_requests_description": "Permission decisions related to this Job also appear in the central approval inbox.",
+  "authorization_request_fallback": "Scheduled operation requires permission"
 }

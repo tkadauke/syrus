@@ -142,6 +142,9 @@ class ChatPendingAction < ApplicationRecord
     resume_landing_queue
   ].freeze
   STATES = %w[ queued pending confirming confirmed rejected cancelled failed dismissed non_actionable ].freeze
+  CHECKPOINT_STATES = %w[waiting resuming resumed resume_failed cancelled non_resumable].freeze
+  NONTERMINAL_CHECKPOINT_STATES = %w[waiting resuming resume_failed].freeze
+  TERMINAL_REQUEST_STATES = %w[confirmed rejected cancelled failed dismissed non_actionable].freeze
   REQUEST_KINDS = %w[ legacy_action authorization_request ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
   CONFIRMED_VISIBLE_FOR = 1.second
@@ -150,6 +153,7 @@ class ChatPendingAction < ApplicationRecord
   attribute :before_snapshot, :json, default: -> { {} }
   attribute :after_snapshot, :json, default: -> { {} }
   attribute :delivery_metadata, :json, default: -> { {} }
+  attribute :checkpoint_payload, :json, default: -> { {} }
 
   belongs_to :chat_session, optional: true
   belongs_to :repository, optional: true
@@ -161,6 +165,7 @@ class ChatPendingAction < ApplicationRecord
   belongs_to :pending_action_group, optional: true, inverse_of: :chat_pending_actions
   has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
   has_many :authorization_items, class_name: "PendingActionItem", dependent: :destroy, inverse_of: :chat_pending_action
+  has_many :occurrences, class_name: "PendingActionOccurrence", dependent: :destroy, inverse_of: :chat_pending_action
   has_many :transitions, class_name: "PendingActionTransition", dependent: :delete_all, inverse_of: :chat_pending_action
 
   enum :state, STATES.index_with(&:itself), validate: true
@@ -169,10 +174,12 @@ class ChatPendingAction < ApplicationRecord
   before_validation :derive_origin_from_chat_session
   before_validation :activate_authorization_deduplication
   before_update :release_terminal_deduplication, if: :will_save_change_to_state?
+  before_update :cancel_obsolete_checkpoint, if: :will_save_change_to_state?
+  before_update :capture_transition_changes
   after_create :record_creation_transition!
   after_update :capture_outcome_transition, if: :saved_change_to_state?
   after_update :remember_outcome_transition, if: :saved_change_to_state?
-  after_update :record_state_transition!, if: :saved_change_to_state?
+  after_update :record_captured_transitions!
   after_rollback :clear_outcome_transition
   after_create_commit :broadcast_pending_action_created
   after_update_commit :broadcast_pending_action_state_updated, if: :broadcastable_state_change?
@@ -189,8 +196,10 @@ class ChatPendingAction < ApplicationRecord
   validate :queued_actions_are_job_scoped, if: :legacy_action?
   validate :repository_matches_chat_session
   validate :user_matches_chat_session
+  validate :valid_authorization_checkpoint
 
   scope :actionable, -> { where(deduplication_active: true, non_actionable_at: nil) }
+  scope :waiting_for_permission, -> { where(request_kind: "authorization_request", checkpoint_state: "waiting") }
 
   def self.find_equivalent(deduplication_key)
     return if deduplication_key.blank?
@@ -256,6 +265,37 @@ class ChatPendingAction < ApplicationRecord
       last_delivery_error: "#{error.class}: #{error.message}",
       delivery_metadata: delivery_metadata.to_h.merge(metadata.to_h.stringify_keys)
     )
+  end
+
+  def checkpoint_authorization!(payload: {}, at: Time.current)
+    with_lock do
+      return false unless authorization_request? && actionable? && checkpoint_state.blank?
+
+      update!(
+        checkpoint_state: "waiting",
+        checkpoint_payload: payload.to_h.deep_stringify_keys,
+        checkpointed_at: at,
+        last_resume_error: nil
+      )
+    end
+    true
+  end
+
+  def begin_authorization_resume!(at: Time.current)
+    transition_checkpoint!(from: %w[waiting resume_failed], to: "resuming",
+      resume_started_at: at, resume_attempts: resume_attempts.to_i + 1, last_resume_error: nil)
+  end
+
+  def complete_authorization_resume!(at: Time.current)
+    transition_checkpoint!(from: %w[resuming], to: "resumed", resumed_at: at, last_resume_error: nil)
+  end
+
+  def fail_authorization_resume!(error)
+    transition_checkpoint!(from: %w[resuming], to: "resume_failed", last_resume_error: "#{error.class}: #{error.message}")
+  end
+
+  def mark_checkpoint_non_resumable!(reason)
+    transition_checkpoint!(from: %w[waiting resume_failed], to: "non_resumable", last_resume_error: reason.to_s)
   end
 
   def confirm!(user: nil)
@@ -593,6 +633,59 @@ class ChatPendingAction < ApplicationRecord
     self.deduplication_active = nil if state.in?(%w[confirmed rejected cancelled failed dismissed non_actionable])
   end
 
+  def cancel_obsolete_checkpoint
+    return unless checkpoint_state.in?(NONTERMINAL_CHECKPOINT_STATES)
+    return unless state.in?(TERMINAL_REQUEST_STATES)
+
+    self.checkpoint_state = "cancelled"
+  end
+
+  def transition_checkpoint!(from:, to:, **attributes)
+    changed = false
+    with_lock do
+      return false unless checkpoint_state.in?(from)
+
+      update!(attributes.merge(checkpoint_state: to))
+      changed = true
+    end
+    changed
+  end
+
+  def valid_authorization_checkpoint
+    if checkpoint_state.present? && !authorization_request?
+      errors.add(:checkpoint_state, :authorization_requests_only)
+    end
+    if checkpoint_state.present? && !CHECKPOINT_STATES.include?(checkpoint_state)
+      errors.add(:checkpoint_state, :unsupported_checkpoint_state)
+    end
+    if checkpoint_state.present? && !origin.is_a?(AuthorizationCheckpointOrigin)
+      errors.add(:origin, :unsupported_authorization_checkpoint)
+    end
+    errors.add(:checkpoint_payload, :must_be_json_object) unless checkpoint_payload.is_a?(Hash)
+    errors.add(:checkpointed_at, :required_for_authorization_checkpoint) if checkpoint_state.present? && checkpointed_at.blank?
+  end
+
+  def capture_transition_changes
+    @pending_action_state_change = state_change_to_be_saved
+    @checkpoint_state_change = checkpoint_state_change_to_be_saved
+  end
+
+  def record_captured_transitions!
+    record_checkpoint_transition!(*@checkpoint_state_change) if @checkpoint_state_change
+    record_state_transition!(*@pending_action_state_change) if @pending_action_state_change
+  ensure
+    @checkpoint_state_change = @pending_action_state_change = nil
+  end
+
+  def record_checkpoint_transition!(from, to)
+    transitions.create!(
+      event_type: "checkpoint_state_changed",
+      from_state: from,
+      to_state: to,
+      metadata: { "resume_attempts" => resume_attempts.to_i }
+    )
+  end
+
   def note_action?
     action.present?
   end
@@ -742,8 +835,7 @@ class ChatPendingAction < ApplicationRecord
     self.outcome_transition_pending = true if confirmed? || rejected? || cancelled?
   end
 
-  def record_state_transition!
-    from, to = saved_change_to_state
+  def record_state_transition!(from, to)
     @state_changed_in_transaction = true
     transitions.create!(event_type: "state_changed", from_state: from, to_state: to, metadata: {})
   end

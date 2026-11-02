@@ -638,6 +638,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.datetime "delivered_at"
     t.text "last_delivery_error"
     t.json "delivery_metadata", null: false
+    t.string "checkpoint_state"
+    t.json "checkpoint_payload", null: false
+    t.datetime "checkpointed_at"
+    t.datetime "resume_started_at"
+    t.datetime "resumed_at"
+    t.integer "resume_attempts", default: 0, null: false
+    t.text "last_resume_error"
     t.index ["chat_message_id"], name: "index_chat_pending_actions_on_chat_message_id"
     t.index ["chat_session_id", "state", "confirmed_at"], name: "idx_chat_pending_actions_payload_confirmed"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
@@ -647,6 +654,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.index ["deduplication_key", "deduplication_active"], name: "idx_pending_actions_active_deduplication", unique: true
     t.index ["delivery_state", "created_at"], name: "idx_pending_actions_delivery"
     t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
+    t.index ["origin_type", "origin_id", "checkpoint_state"], name: "idx_pending_actions_origin_checkpoint"
     t.index ["pending_action_group_id"], name: "index_chat_pending_actions_on_pending_action_group_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
     t.index ["result_type", "result_id"], name: "index_chat_pending_actions_on_result_type_and_result_id"
@@ -2746,6 +2754,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.index ["decision_principal_type", "decision_principal_id"], name: "index_pending_action_items_on_decision_principal"
     t.index ["invocation_fingerprint"], name: "index_pending_action_items_on_invocation_fingerprint"
     t.index ["resulting_authority_type", "resulting_authority_id"], name: "index_pending_action_items_on_resulting_authority"
+  end
+
+  create_table "pending_action_occurrences", force: :cascade do |t|
+    t.integer "chat_pending_action_id", null: false
+    t.string "origin_type", null: false
+    t.integer "origin_id", null: false
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_pending_action_id", "origin_type", "origin_id"], name: "idx_pending_action_occurrences_unique_origin", unique: true
+    t.index ["origin_type", "origin_id", "created_at"], name: "idx_pending_action_occurrences_origin_time"
+    t.index ["origin_type", "origin_id"], name: "index_pending_action_occurrences_on_origin"
   end
 
   create_table "pending_action_transitions", force: :cascade do |t|

@@ -35,6 +35,10 @@ en:
   server:
     permissions:
       coworker_request_waiting: "Waiting for the owner to decide the required permissions."
+      authorization_required_tool_interrupted: "Agent turn paused for authorization before this tool returned."
+      scheduled_authorization:
+        waiting: "Waiting for authorization."
+        skipped: "The gated operation was skipped; useful ungated work may continue."
       conflicting_coworker_defaults: "%{operation} declares conflicting coworker defaults"
       capability_registry:
         conflicting_tool_mapping: "%{surface} tool %{tool_name} maps to conflicting capability/operations %{mappings}; use one stable mapping"
@@ -148,6 +152,12 @@ en:
       unknown_pending_action: "unknown pending action"
       job_id_required: "job_id is required"
       chat_session_mismatch: "must match chat session"
+      authorization_requests_only: "is only available for authorization requests"
+      unsupported_checkpoint_state: "is not supported"
+      unsupported_authorization_checkpoint: "does not support authorization checkpoints"
+      must_be_json_object: "must be a JSON object"
+      required_for_authorization_checkpoint: "is required"
+      authorization_request_required: "must be an authorization request"
 
   # Mailer content — subject uses Rails auto-lookup (<mailer_name>.<action>.subject)
   # view body content uses ERB lazy-lookup (same scope as subject)

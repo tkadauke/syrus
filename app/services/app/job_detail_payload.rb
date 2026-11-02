@@ -82,6 +82,7 @@ module App
           feedback_history: PerformanceLogging.phase("job_detail.feedback_history", job_id: @job.id) { feedback_history_json },
           classification_attempts: PerformanceLogging.phase("job_detail.classification_attempts", job_id: @job.id) { classification_attempts_json },
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
+          authorization_requests: PerformanceLogging.phase("job_detail.authorization_requests", job_id: @job.id) { authorization_requests_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
           preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
           preview_projects: PerformanceLogging.phase("job_detail.preview_projects", job_id: @job.id) { preview_project_selection.to_a },
@@ -100,6 +101,24 @@ module App
         result[:deployment_stages] = stages if @job.landed_sha.present? && stages
         result
       end
+    end
+
+    def authorization_requests_json
+      @job.related_authorization_requests
+        .includes(:authorization_items)
+        .order(created_at: :desc)
+        .map do |request|
+          {
+            id: request.id,
+            state: request.state,
+            checkpoint_state: request.checkpoint_state,
+            purpose: request.purpose,
+            created_at: request.created_at.iso8601,
+            items: request.authorization_items.map do |item|
+              { capability: item.capability, operation: item.operation, state: item.state }
+            end
+          }
+        end
     end
 
     def workflows_payload

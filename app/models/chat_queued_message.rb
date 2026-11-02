@@ -28,7 +28,7 @@ class ChatQueuedMessage < ApplicationRecord
   end
 
   def promoted_role
-    return "system" if goal_continuation?
+    return "system" if goal_continuation? || authorization_continuation?
 
     role = content.is_a?(Hash) ? content[INTERNAL_ROLE_KEY].to_s : ""
     PROMOTABLE_ROLES.include?(role) ? role : "user"
@@ -48,6 +48,10 @@ class ChatQueuedMessage < ApplicationRecord
 
   def visible_queued_draft?
     promoted_role == "user"
+  end
+
+  def authorization_continuation?
+    content.is_a?(Hash) && content["authorization_continuation"] == true
   end
 
   private

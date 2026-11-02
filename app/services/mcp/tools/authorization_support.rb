@@ -18,6 +18,8 @@ module Mcp::Tools
     module ToolDispatch
       def call(*args, server_context: nil, **kwargs, &block)
         Mcp::Tools::AuthorizationSupport.with_server_context(server_context) do
+          scheduled = Mcp::Tools::AuthorizationSupport.pending_scheduled_authorization(self, server_context, kwargs)
+          return scheduled if scheduled
           pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, server_context, kwargs)
           return pending if pending
 
@@ -130,6 +132,19 @@ module Mcp::Tools
           pending_action_id: action.id,
           approval_policy: "queue",
           message: I18n.t("server.permissions.coworker_request_waiting")
+        )
+      end
+
+      def pending_scheduled_authorization(tool, server_context, arguments)
+        context = McpToolContext.from_server_context(server_context)
+        result = Permissions::ScheduledAuthorization.route(tool:, context:, arguments:)
+        return unless result
+
+        Mcp::Tools.success(
+          authorization_request_id: result.request&.id,
+          authorization_status: result.status,
+          gated_operation_skipped: !result.created?,
+          message: I18n.t("server.permissions.scheduled_authorization.#{result.created? ? 'waiting' : 'skipped'}")
         )
       end
 
