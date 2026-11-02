@@ -108,9 +108,11 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
 the complete current viewport to PNG. The renderer supports ANSI 16-color,
 256-color, and RGB foregrounds/backgrounds; terminal text styles; primary and
 alternate buffers; wide/combining Unicode and box-drawing glyphs; and
-visible/hidden cursor state. It uses the plugin-bundled DejaVu Sans Mono font
-and fixed cell metrics, so output size is exactly `columns × 10` by `rows ×
-20` pixels and does not depend on fonts installed on the worker.
+visible/hidden cursor state. It uses plugin-bundled DejaVu Sans Mono and a
+bundled Xiaolai CJK subset, disables system-font fallback, and clips every
+glyph to its cell rectangle. Fixed cell metrics make output size exactly
+`columns × 10` by `rows × 20` pixels without depending on fonts installed on
+the worker.
 
 The PNG is materialized through `ChatMediaLibrary`, attached to the Coding
 Mode chat, and exposed through the Runtime Session's access-controlled
