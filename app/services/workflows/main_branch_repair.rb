@@ -52,7 +52,7 @@ module Workflows
       artifacts = workflow.class.where(id: workflow.id).pick(:artifacts) || workflow.artifacts || {}
       return unless artifacts["preflight_passed"]
 
-      repository = workflow.job.repository
+      repository = workflow.job.repository.reload
       previous_health = repository.main_health
       was_landing_paused = repository.landing_paused?
       sha = repository.last_health_checked_sha.to_s.presence

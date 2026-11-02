@@ -15,7 +15,7 @@ RSpec.describe RepositoryReadiness do
     allow(RunQueueResolver).to receive(:resolve_candidate).and_return(worker_decision)
   end
 
-  it "reports exact configured commands and advisory static hints without executing repository code" do
+  it "reports exact configured commands without executing repository code" do
     stub_repository_content(repository, files: {
       ".syrus.yml" => <<~YAML,
         prepare:
@@ -26,7 +26,6 @@ RSpec.describe RepositoryReadiness do
         project:
           capabilities:
             os: [linux]
-            runtime: [docker]
       YAML
       "Gemfile" => "source 'https://rubygems.org'\n",
       "docker-compose.yml" => "services: {}\n",
@@ -35,12 +34,11 @@ RSpec.describe RepositoryReadiness do
 
     result = described_class.call(repository:, user:)
 
-    expect(result.status).to eq("ready_with_warnings")
+    expect(result.status).to eq("ready")
     expect(result.prepare_commands).to eq([ "bundle install" ])
     expect(result.grader_commands).to eq([ "bin/rspec" ])
-    expect(result.required_capabilities).to include("runtime" => [ "docker" ])
+    expect(result.required_capabilities).to eq("os" => [ "linux" ])
     expect(result.checks).to include(include(key: "access", level: "pass"))
-    expect(result.checks).to include(include(key: "environment", level: "warning", message: /Docker/))
   end
 
   it "hard-blocks invalid configuration as needs configuration" do
@@ -89,7 +87,6 @@ RSpec.describe RepositoryReadiness do
             run: bin/macos-specs
             capabilities:
               os: [macos]
-              arch: [arm64]
       YAML
     })
 
@@ -98,7 +95,7 @@ RSpec.describe RepositoryReadiness do
     expect(result.status).to eq("ready")
     expect(result.execution_scopes).to include(
       include(key: "grader:linux", capabilities: { "os" => [ "linux" ] }, worker_available: true),
-      include(key: "grader:macos", capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] }, worker_available: true)
+      include(key: "grader:macos", capabilities: { "os" => [ "macos" ] }, worker_available: true)
     )
   end
 

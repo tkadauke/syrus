@@ -49,11 +49,15 @@ module Mockups
     end
 
     def self.note_omitted!(job, omitted_attachments)
+      return unless job.definition_editable?
+
       names = omitted_attachments.map { |attachment| attachment.blob.filename.to_s }
       note = "\n\n_Note: #{names.size} preview panel mockup file(s) were not attached because this Job " \
              "already has #{Document::MAX_ATTACHMENTS_PER_JOB} attachments (the per-Job limit): " \
              "#{names.join(', ')}._"
-      job.update!(issue_body: "#{job.issue_body}#{note}")
+      JobDefinitionUpdater.new(job).update!(description: "#{job.issue_body}#{note}")
+    rescue JobDefinitionUpdater::Immutable
+      # The Job started after the preliminary check; its definition is now frozen.
     end
   end
 end

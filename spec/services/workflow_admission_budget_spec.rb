@@ -705,7 +705,7 @@ RSpec.describe WorkflowAdmissionBudget do
       }
     )
     workflow = workflow_for
-    workflow.update!(planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] })
+    workflow.update!(planned_execution_capabilities: { "os" => [ "macos" ] })
 
     decision = described_class.call(workflow: workflow)
 

@@ -112,6 +112,7 @@ RSpec.describe ChatMediaAttacher do
 
     it "caps at Document::MAX_ATTACHMENTS_PER_JOB and notes omitted files on the Job instead of failing" do
       stub_const("Document::MAX_ATTACHMENTS_PER_JOB", 1)
+      job.update!(state: "queued")
       version = preview_panel_version(files: { "index.html" => "<h1>hi</h1>", "css/app.css" => "body {}" })
 
       result = described_class.new(chat_session: chat_session, job: job).attach!([ "preview_panel_version:#{version.id}" ])
@@ -122,6 +123,17 @@ RSpec.describe ChatMediaAttacher do
       job.reload
       expect(job.issue_body).to include("1 preview panel mockup file(s) were not attached")
       expect(job.issue_body).to include("css-app.css")
+    end
+
+    it "attaches files without rewriting an immutable Job definition when files are omitted" do
+      stub_const("Document::MAX_ATTACHMENTS_PER_JOB", 1)
+      original_body = job.issue_body
+      version = preview_panel_version(files: { "index.html" => "<h1>hi</h1>", "css/app.css" => "body {}" })
+
+      result = described_class.new(chat_session: chat_session, job: job).attach!([ "preview_panel_version:#{version.id}" ])
+
+      expect(result.attached.size).to eq(1)
+      expect(job.reload.issue_body).to eq(original_body)
     end
 
     it "skips a preview_panel_version ref that does not resolve" do
