@@ -65,11 +65,13 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
   around do |example|
     # These scenarios intentionally exercise thousands of real persistence
-    # operations. SQL performance logging is orthogonal to the state-machine
-    # behavior under test, and fingerprinting every statement substantially
-    # slows the suite when an operator has enabled the feature globally.
-    PerformanceLogging.suppress do
-      WorkEngine::Simulation::ScenarioExecution.wrap { example.run }
+    # operations. SQL and application logging are orthogonal to the
+    # state-machine behavior under test; formatting every statement, callback
+    # broadcast, and queued-job event substantially slows the suite.
+    Rails.logger.silence do
+      PerformanceLogging.suppress do
+        WorkEngine::Simulation::ScenarioExecution.wrap { example.run }
+      end
     end
   end
 
