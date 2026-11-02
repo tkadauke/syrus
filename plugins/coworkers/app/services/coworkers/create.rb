@@ -141,12 +141,14 @@ class Coworkers::Create
       return existing
     end
 
-    Repository.create!(
+    repository = Repository.create!(
       user: @owner, owner: @remote.repository.owner, name: @remote.repository.name,
       polling_enabled: false, auto_merge_enabled: false, external_pr_ingestion_enabled: false,
       main_branch_health_enabled: false, main_branch_repair_enabled: false,
       fork_auto_sync_enabled: false, pr_cost_footer_enabled: false
     )
+    Coworkers::WorkspaceRepository.create!(repository: repository)
+    repository
   end
 
   def create_records!(repository)

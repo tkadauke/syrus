@@ -159,11 +159,16 @@ RSpec.describe "Coworkers plugin" do
     scope = Syrus::EffectScope.new(label: "spec")
     Coworkers::DataCleanup.install_into(scope)
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "git@example.com:workspaces.git")
+    repository = Factories.repository(user: owner)
+    Coworkers::WorkspaceRepository.create!(repository: repository)
     chat = ChatSession.create!(user: owner, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
 
     chat.destroy!
     expect(Coworkers::Chat.where(coworker: coworker)).to be_empty
+
+    repository.destroy!
+    expect(Coworkers::WorkspaceRepository.where(repository_id: repository.id)).to be_empty
 
     owner.destroy!
     expect(Coworkers::Coworker.where(id: coworker.id)).to be_empty

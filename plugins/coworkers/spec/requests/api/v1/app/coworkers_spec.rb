@@ -8,7 +8,7 @@ RSpec.describe "API: coworkers", type: :request do
   it "hides coworker workspace repositories from the repository list" do
     visible = Factories.repository(user: owner, owner: "acme", name: "application")
     workspace = Factories.repository(user: owner, owner: "acme", name: "coworker-home")
-    workspace.update!(Coworkers::RepositoryIndexFilter::WORKSPACE_ONLY_SETTINGS)
+    Coworkers::WorkspaceRepository.create!(repository: workspace)
     Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-repository-list",
       workspace_repo: workspace.remote_url
@@ -21,8 +21,13 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.fetch("active_repositories").pluck("id")).to contain_exactly(visible.id)
   end
 
-  it "keeps a normal repository listed when a coworker also uses it" do
-    repository = Factories.repository(user: owner, owner: "acme", name: "shared-application")
+  it "keeps a reused normal repository listed even when all workspace automation settings are disabled" do
+    repository = Factories.repository(
+      user: owner, owner: "acme", name: "shared-application",
+      polling_enabled: false, auto_merge_enabled: false, external_pr_ingestion_enabled: false,
+      main_branch_health_enabled: false, main_branch_repair_enabled: false,
+      fork_auto_sync_enabled: false, pr_cost_footer_enabled: false
+    )
     Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-shared-repository-list",
       workspace_repo: repository.remote_url

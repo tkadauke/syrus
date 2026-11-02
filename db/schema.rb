@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_192033) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1114,6 +1114,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.index ["owner_user_id", "idempotency_key"], name: "idx_coworker_provisioning_attempts_idempotency", unique: true
     t.index ["owner_user_id"], name: "index_coworker_provisioning_attempts_on_owner_user_id"
     t.index ["state", "updated_at"], name: "idx_coworker_provisioning_attempts_reconciliation"
+  end
+
+  create_table "coworker_workspace_repositories", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_coworker_workspace_repositories_on_repository_id", unique: true
   end
 
   create_table "coworkers", force: :cascade do |t|
