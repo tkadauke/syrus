@@ -3,7 +3,7 @@ import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { subscribeToJobResourceEvents } from "../lib/actionCable"
 import type { FormEvent, ReactNode } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -1098,25 +1098,46 @@ function SummaryTab({
 function CollapsibleMarkdownSection({ title, text, emptyText }: { title: string; text: string | null | undefined; emptyText: string }) {
   const { t } = useT("common")
   const [expanded, setExpanded] = useState(false)
+  const [overflows, setOverflows] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
   const contentId = useMemo(() => `job-prose-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, [title])
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!content || expanded) return
+
+    const measure = () => setOverflows(content.scrollHeight > content.clientHeight + 1)
+    measure()
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measure)
+      observer.observe(content)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [expanded, text])
 
   return (
     <Section.Root className="min-w-0 overflow-x-auto">
       <SectionHeading>{title}</SectionHeading>
       {text ? (
         <>
-          <div className={`mt-2 ${expanded ? "" : "line-clamp-5 sm:line-clamp-none"}`} id={contentId}>
+          <div className={`mt-2 ${expanded ? "" : "line-clamp-5 sm:line-clamp-none"}`} id={contentId} ref={contentRef}>
             <Markdown className="chat-prose text-sm text-gray-700 dark:text-gray-300" text={text} />
           </div>
-          <button
-            aria-controls={contentId}
-            aria-expanded={expanded}
-            className="mt-3 text-sm font-medium text-brand hover:underline sm:hidden"
-            onClick={() => setExpanded((current) => !current)}
-            type="button"
-          >
-            {expanded ? t("show_less") : t("show_more")}
-          </button>
+          {overflows ? (
+            <button
+              aria-controls={contentId}
+              aria-expanded={expanded}
+              className="mt-3 text-sm font-medium text-brand hover:underline sm:hidden"
+              onClick={() => setExpanded((current) => !current)}
+              type="button"
+            >
+              {expanded ? t("show_less") : t("show_more")}
+            </button>
+          ) : null}
         </>
       ) : (
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{emptyText}</p>
