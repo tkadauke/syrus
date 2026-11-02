@@ -2,6 +2,7 @@ module Syrus
   class PluginRegistry
     EXTENSION_POINTS = %i[
       agent_provider
+      approval_provider
       chat_provider
       mcp_tool_set
       mcp_run_context_contributor
@@ -71,6 +72,7 @@ module Syrus
     # Lambdas defer constant resolution until call time (autoload-friendly).
     INTERFACE_FOR = {
       agent_provider:          -> { Syrus::Plugin::AgentProvider },
+      approval_provider:       -> { Syrus::Plugin::ApprovalProvider },
       chat_provider:           -> { Syrus::Plugin::ChatProvider },
       mcp_tool_set:            -> { Syrus::Plugin::McpToolSet },
       mcp_run_context_contributor: -> { Syrus::Plugin::McpRunContextContributor },
