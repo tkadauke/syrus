@@ -24,6 +24,52 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     )))
   end
 
+  it "shows current leases and a redacted, user-scoped authorization history" do
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    other_user = Factories.user
+    lease = PermissionLease.create!(
+      owner_user: user, subject_selector_type: "workflow_role", subject_selector_id: "implementer",
+      subject_repository: repository, capability: "syrus.jobs@v1", operation: "cancel@v1",
+      resource_type: "job", resource_scope: { job_id: job.id }, constraints: {}, effects: [],
+      duration_kind: "job", job:, issued_by_user: user, max_uses: 3, used_count: 1
+    )
+    PermissionLease.create!(
+      owner_user: other_user, subject_selector_type: "interactive_chat", capability: "hidden@v1",
+      resource_type: "none", resource_scope: {}, constraints: {}, effects: [],
+      duration_kind: "invocation", invocation_fingerprint: "other", issued_by_user: other_user, max_uses: 1
+    )
+    request = ChatPendingAction.create!(
+      request_kind: "authorization_request", user:, repository:, origin: job, subject: user,
+      deduplication_key: "history-request", purpose: "Cancel a stuck job"
+    )
+    item = request.authorization_items.create!(
+      kind: "operation", capability: "syrus.jobs@v1", operation: "cancel@v1", operation_version: 1,
+      resource_type: "job", resource_scope: { job_id: job.id },
+      normalized_arguments: { "api_token" => "secret-value", "job_id" => job.id },
+      invocation_fingerprint: "history-fingerprint", effects: [ "internal_write" ], policy_chain: [],
+      decisive_rule: {}, requested_durations: [ "job" ]
+    )
+    item.decide!("approved", principal: user, duration: "job", resulting_authority: lease)
+    request.occurrences.create!(origin: user, metadata: {})
+    permission_rule(owner: user, descriptor: Permissions::Catalog.descriptors.first)
+
+    get "/api/v1/app/permission_rules/history"
+
+    expect(response).to have_http_status(:ok)
+    payload = JSON.parse(response.body)
+    expect(payload.fetch("active_leases")).to contain_exactly(include(
+      "id" => lease.id, "used_count" => 1, "max_uses" => 3,
+      "origin" => include("type" => "Job", "id" => job.id)
+    ))
+    request_entry = payload.fetch("history").find { |entry| entry["type"] == "request" }
+    expect(request_entry).to include("state" => "pending", "escalated" => true)
+    expect(request_entry.dig("items", 0, "state")).to eq("approved")
+    expect(request_entry.dig("items", 0, "evidence")).to eq("api_token" => "[redacted]", "job_id" => job.id)
+    expect(payload.fetch("history")).to include(include("type" => "policy_change", "state" => "created"))
+    expect(payload.to_json).not_to include("hidden@v1", "secret-value")
+  end
+
   it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do
     descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.resource_scope.type == :none }
     permission_rule(owner: user, descriptor:, policy: "deny")
