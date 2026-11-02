@@ -54,7 +54,7 @@ module Api
         def bulk
           operations = bulk_operations
           unless ActiveSupport::SecurityUtils.secure_compare(params[:confirmation_digest].to_s, bulk_digest(operations))
-            return render_error("stale_permission_preview", "Preview these permission changes again before confirming.", status: :conflict)
+            return render_error("stale_permission_preview", I18n.t("api.permission_rules.stale_preview"), status: :conflict)
           end
 
           management = Permissions::Management.new(Current.user)

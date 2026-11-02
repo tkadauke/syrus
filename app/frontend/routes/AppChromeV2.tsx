@@ -2251,7 +2251,9 @@ export function useSidebarNavBadges(pages: SidebarPluginPage[], enabled: boolean
   const results = useQueries({
     queries: badged.map((page) => ({
       queryKey: ["sidebar_badge", page.id],
-      queryFn: ({ signal }: { signal?: AbortSignal }) => getJson<{ count?: number }>(page.badge_api_path as string, { signal }),
+      queryFn: ({ signal }: { signal?: AbortSignal }) => {
+        return getJson<{ count?: number }>(page.badge_api_path as string, { signal })
+      },
       enabled,
       refetchInterval: enabled ? 10000 : (false as const)
     }))
