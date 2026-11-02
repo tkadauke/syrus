@@ -123,6 +123,17 @@ describe("AdminToolCards", () => {
     expect(within(region).queryByText("JOB-101")).not.toBeInTheDocument()
   })
 
+  it("renders the terminal screenshot artifact fixture through the real card path", () => {
+    renderRoute("/admin/tool_cards?tool_name=runtime_capture_artifact")
+
+    const region = screen.getByRole("region", { name: "Runtime capture artifact" })
+    expect(within(region).queryByText("No example fixtures registered for this tool yet.")).not.toBeInTheDocument()
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("img", { name: "Terminal screenshot" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/png;base64,/))
+    expect(within(region).getByRole("link", { name: "/api/v1/app/chats/12/runtime_sessions/23/frame" })).toBeInTheDocument()
+  })
+
   it("passes catalog presentation data through to chat feedback media and pending-action links", () => {
     renderRoute("/admin/tool_cards?tool_name=submit_chat_feedback")
 

@@ -33,6 +33,15 @@ RSpec.describe RuntimeTerminal::RelayClient do
       expect { described_class.new(session) }.to raise_error(described_class::ConnectionError)
     end
 
+    it "bounds relay connection setup" do
+      session = terminal_session(relay_address: "127.0.0.1:1234")
+      expect(Socket).to receive(:tcp)
+        .with("127.0.0.1", 1234, connect_timeout: described_class::CONNECT_TIMEOUT_SECONDS)
+        .and_raise(Errno::ETIMEDOUT)
+
+      expect { described_class.new(session) }.to raise_error(described_class::ConnectionError)
+    end
+
     it "authenticates with the terminal session's auth token and drains the initial replay" do
       relay = RuntimeTerminalFakeRelay.new(replay: "welcome\n")
       session = terminal_session(relay_address: relay.address)
@@ -56,6 +65,132 @@ RSpec.describe RuntimeTerminal::RelayClient do
       relay.write_output("more output")
 
       expect(client.inspect_scrollback).to eq("boot\nmore output")
+    ensure
+      client&.close
+      relay&.stop
+    end
+  end
+
+  describe "#inspect_screen" do
+    it "applies replay and subsequent output to one authoritative screen" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "old\rNEW")
+      session = terminal_session(relay_address: relay.address)
+      client = described_class.new(session)
+      relay.write_output("\e[2;1H\e[38;2;10;20;30mcolor")
+
+      snapshot = client.inspect_screen
+
+      expect(snapshot).to include(kind: "terminal_screen", generation: 2, cols: 80, rows: 24)
+      expect(snapshot.fetch(:lines).first).to eq("NEW")
+      expect(snapshot.fetch(:lines).second).to eq("color")
+    ensure
+      client&.close
+      relay&.stop
+    end
+
+    it "continues generation from a replaced relay client" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "restored")
+      session = terminal_session(relay_address: relay.address)
+      client = described_class.new(session, generation: 7)
+
+      expect(client.inspect_screen.fetch(:generation)).to eq(8)
+    ensure
+      client&.close
+      relay&.stop
+    end
+
+    it "bounds retained raw output" do
+      stub_const("RuntimeTerminal::RelayClient::MAX_SCROLLBACK_BYTES", 8)
+      relay = RuntimeTerminalFakeRelay.new(replay: "0123456789")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+
+      expect(client.inspect_scrollback).to eq("23456789")
+    ensure
+      client&.close
+      relay&.stop
+    end
+
+    it "raises a connection error after close while preserving its generation" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "ready")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+      generation = client.screen_generation
+
+      client.close
+
+      expect { client.inspect_screen }.to raise_error(described_class::ConnectionError)
+      expect(client.screen_generation).to eq(generation)
+    ensure
+      client&.close
+      relay&.stop
+    end
+  end
+
+
+  describe "screen synchronization" do
+    it "waits for a later generation and visible text without sleeping" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "prompt")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+      generation = client.screen_generation
+      writer = Thread.new { relay.write_output(" ready") }
+
+      result = client.inspect_screen(after_generation: generation, wait_for_text: "ready", timeout_seconds: 1)
+
+      expect(result).to include(settled: true, generation: generation + 1)
+      expect(result.fetch(:lines).first).to eq("prompt ready")
+      writer.join
+    ensure
+      writer&.join
+      client&.close
+      relay&.stop
+    end
+
+    it "returns the latest screen with settled false at the bounded timeout" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "prompt")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+
+      result = client.inspect_screen(wait_for_text: "missing", timeout_seconds: 0.01)
+
+      expect(result).to include(settled: false)
+    ensure
+      client&.close
+      relay&.stop
+    end
+
+    it "keeps concurrent input and inspection within their own timeout budgets" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "prompt")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+      long_wait = Thread.new { client.inspect_screen(wait_for_text: "missing", timeout_seconds: 0.3) }
+      Timeout.timeout(1) { Thread.pass until long_wait.status == "sleep" }
+
+      input_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      expect(client.input(type: "stdin", data: "x")).to be(true)
+      input_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - input_started_at
+
+      inspect_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = client.inspect_screen(wait_for_text: "also missing", timeout_seconds: 0.02)
+      inspect_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - inspect_started_at
+
+      expect(input_elapsed).to be < 0.15
+      expect(inspect_elapsed).to be < 0.15
+      expect(result).to include(settled: false)
+    ensure
+      long_wait&.join
+      client&.close
+      relay&.stop
+    end
+
+    it "returns compact styled runs only when requested" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "\e[31mred\e[0m plain")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+
+      plain = client.inspect_screen
+      styled = client.inspect_screen(include_styles: true)
+
+      expect(plain).not_to have_key(:styled_runs)
+      expect(styled.fetch(:styled_runs).first).to include(
+        include(text: "red", foreground: { mode: "ansi", value: 1 }),
+        include(text: " plain", foreground: nil)
+      )
     ensure
       client&.close
       relay&.stop
@@ -109,6 +244,14 @@ RSpec.describe RuntimeTerminal::RelayClient do
       expect(relay.next_control).to eq("type" => "input", "data" => "hello")
     end
 
+    it "rejects input payloads above the bounded maximum" do
+      oversized = "x" * (described_class::MAX_INPUT_BYTES + 1)
+
+      expect { client.input(type: "stdin", data: oversized) }
+        .to raise_error(described_class::UnsupportedInput, /exceeds maximum/)
+      expect(relay.next_control(timeout: 0.05)).to be_nil
+    end
+
     it "maps named keys to their terminal escape sequences" do
       {
         "Enter" => "\r",
@@ -121,11 +264,47 @@ RSpec.describe RuntimeTerminal::RelayClient do
         "Home" => "\e[H",
         "End" => "\e[F",
         "PageUp" => "\e[5~",
-        "PageDown" => "\e[6~"
+        "PageDown" => "\e[6~",
+        "Shift+Tab" => "\e[Z",
+        "F1" => "\eOP",
+        "F4" => "\eOS",
+        "F5" => "\e[15~",
+        "F12" => "\e[24~"
       }.each do |key, sequence|
         client.input(type: "key", key: key)
 
         expect(relay.next_control).to eq("type" => "input", "data" => sequence)
+      end
+    end
+
+    it "maps Ctrl chords and structured modifiers to control bytes" do
+      [
+        [ { type: "key", key: "Ctrl+C" }, "\x03" ],
+        [ { type: "key", key: "d", modifiers: [ "ctrl" ] }, "\x04" ],
+        [ { type: "key", key: "L", ctrl: true }, "\x0c" ],
+        [ { type: "key", key: "Tab", shift: true }, "\e[Z" ],
+        [ { type: "key", key: "Ctrl+[" }, "\e" ],
+        [ { type: "key", key: "Ctrl+Space" }, "\x00" ]
+      ].each do |event, sequence|
+        client.input(event)
+
+        expect(relay.next_control).to eq("type" => "input", "data" => sequence)
+      end
+    end
+
+    it "raises UnsupportedInput for an unsupported Ctrl chord" do
+      expect { client.input(type: "key", key: "Ctrl+F1") }
+        .to raise_error(described_class::UnsupportedInput, /unsupported Ctrl combination/)
+    end
+
+    it "rejects modifiers that would otherwise be silently discarded" do
+      [
+        { type: "key", key: "Alt+Enter" },
+        { type: "key", key: "F1", modifiers: [ "meta" ] },
+        { type: "key", key: "ArrowUp", shift: true }
+      ].each do |event|
+        expect { client.input(event) }
+          .to raise_error(described_class::UnsupportedInput, /unsupported keyboard modifiers/)
       end
     end
 
@@ -137,6 +316,7 @@ RSpec.describe RuntimeTerminal::RelayClient do
       client.input(type: "resize", cols: 120, rows: 40)
 
       expect(relay.next_control).to eq("type" => "resize", "cols" => 120, "rows" => 40)
+      expect(client.inspect_screen).to include(cols: 120, rows: 40, generation: 1)
     end
 
     it "accepts 'columns' as an alias for cols" do
@@ -145,8 +325,36 @@ RSpec.describe RuntimeTerminal::RelayClient do
       expect(relay.next_control).to eq("type" => "resize", "cols" => 80, "rows" => 24)
     end
 
+    it "does not resize the emulator when the relay write fails" do
+      socket = client.instance_variable_get(:@socket)
+      allow(socket).to receive(:write_nonblock).and_raise(Errno::EPIPE)
+
+      expect { client.input(type: "resize", cols: 120, rows: 40) }
+        .to raise_error(described_class::ConnectionError)
+      screen = client.instance_variable_get(:@screen)
+      expect(screen.snapshot).to include(cols: 80, rows: 24, generation: 0)
+    end
+
+    it "bounds a stalled relay write" do
+      socket = client.instance_variable_get(:@socket)
+      stub_const("RuntimeTerminal::RelayClient::WRITE_TIMEOUT_SECONDS", 0.01)
+      allow(socket).to receive(:write_nonblock).and_return(:wait_writable)
+      allow(IO).to receive(:select).and_return(nil)
+
+      expect { client.input(type: "stdin", data: "x") }
+        .to raise_error(described_class::ConnectionError, /write timed out/)
+      expect(client.closed?).to be(true)
+    end
+
     it "raises UnsupportedInput for non-positive resize dimensions" do
       expect { client.input(type: "resize", cols: 0, rows: 24) }.to raise_error(described_class::UnsupportedInput)
+    end
+
+    it "rejects resize dimensions above the bounded screen maximum" do
+      expect { client.input(type: "resize", cols: described_class::MAX_COLS + 1, rows: 24) }
+        .to raise_error(described_class::UnsupportedInput, /exceeds maximum/)
+      expect { client.input(type: "resize", cols: 80, rows: described_class::MAX_ROWS + 1) }
+        .to raise_error(described_class::UnsupportedInput, /exceeds maximum/)
     end
 
     it "raises UnsupportedInput when resize is missing rows entirely" do

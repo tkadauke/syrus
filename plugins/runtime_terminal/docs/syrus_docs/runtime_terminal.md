@@ -41,9 +41,9 @@ independently deletable.
 {
   stream: "none",
   input: %w[keyboard stdin pointer resize],
-  inspect: [ "scrollback" ],
+  inspect: %w[screen scrollback],
   build: [ "none" ],
-  artifacts: [ "logs" ]
+  artifacts: %w[screenshots logs]
 }
 ```
 
@@ -56,6 +56,12 @@ than polling `runtime_logs`.
 `.detect` always returns `false` — there is no auto-detection signal for
 "this repository wants a CLI/TUI runtime session"; it is only ever chosen
 explicitly (e.g. by `runtime_start(provider: "cli_tui")`).
+
+Pass `options: { columns: 100, rows: 30 }` (or `cols` in place of
+`columns`) to start at deterministic dimensions. Both values are required,
+must be positive, and are bounded by the emulator's 1,000-by-1,000-cell
+limit. The first authenticated relay connection applies the size before it
+returns a screen to the caller; reconnects restore it as well.
 
 ## Relay protocol (`RuntimeTerminal::RelayClient`)
 
@@ -70,18 +76,33 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
 - **Authenticate** — writes `{"token": "<terminal_session.auth_token>"}` as
   the first line.
 - **Scrollback** (`#inspect_scrollback`) — accumulates `replay`/`output`
-  frame payloads (base64-decoded) into an in-memory buffer as they arrive;
+  frame payloads (base64-decoded) into a tail buffer bounded to 1 MiB;
   `#inspect_scrollback` drains any newly-available bytes before returning
   the buffer.
+- **Authoritative screen** (`#inspect_screen`) — applies those exact decoded
+  replay/output bytes, in order, to one bounded VT-compatible emulator. The
+  snapshot exposes dimensions, cursor, and plain visible viewport lines.
+  `include_styles: true` adds compact per-row runs with Unicode cell widths,
+  text styles, and ANSI/indexed/RGB colors. `generation` increases for every
+  applied relay output frame and resize, so callers can wait for a newer
+  rendered state without comparing screen contents. `Provider#inspect`
+  returns this structured `terminal_screen` snapshot. `mode: "scrollback"`
+  instead returns a distinct `terminal_scrollback` result with raw bounded
+  relay output for diagnostics; it is not a second source of rendered truth.
 - **Input** (`#input`) — translates a generic input event into one or more
-  relay control frames:
+  relay control frames. Text input is limited to 64 KiB per event, and relay
+  connection and write deadlines prevent unavailable terminals from blocking
+  operator takeover indefinitely:
   - `stdin` → the raw text, verbatim.
   - `keyboard`/`key` → either literal `data`/`text`, or a lookup table for
-    named keys (`Enter`, `Tab`, `Backspace`, `Escape`, arrow keys, `Delete`,
-    `Home`/`End`, `PageUp`/`PageDown`) mapped to their terminal escape
-    sequences. An unrecognized key raises `RelayClient::UnsupportedInput`.
-  - `resize` → a `{type: "resize", cols:, rows:}` frame; non-positive
-    `cols`/`rows` raises `UnsupportedInput`.
+    named keys (`Enter`, `Tab`, `Shift+Tab`, `Backspace`, `Escape`, arrow
+    keys, `Insert`/`Delete`, `Home`/`End`, `PageUp`/`PageDown`, and
+    `F1`–`F12`) mapped to their terminal escape sequences. Ctrl chords can be
+    written as `Ctrl+C`, or as a key plus `modifiers: ["ctrl"]`/`ctrl: true`.
+    An unrecognized key or chord raises `RelayClient::UnsupportedInput`.
+  - `resize` → a `{type: "resize", cols:, rows:}` frame; dimensions must
+    be positive and no larger than 1,000 columns by 1,000 rows, otherwise
+    `UnsupportedInput` is raised.
   - `pointer`/`mouse`/`click`/`mousedown`/`mouseup`/`mousemove`/`wheel` →
     SGR mouse-tracking escape sequences (`\e[<code;x;y M/m`), covering
     click (press + release), down/up, move (drag), and wheel up/down.
@@ -93,10 +114,51 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
   the underlying `Terminal::Session#relay_address` changed (e.g. the worker
   hosting the PTY restarted).
 
+`#snapshot` drains that same emulator under its relay-client lock and renders
+the complete current viewport to PNG. The renderer supports ANSI 16-color,
+256-color, and RGB foregrounds/backgrounds; terminal text styles; primary and
+alternate buffers; wide/combining Unicode and box-drawing glyphs; and
+visible/hidden cursor state. It uses plugin-bundled DejaVu Sans Mono and a
+bundled Xiaolai CJK subset, disables system-font fallback, and clips every
+glyph to its cell rectangle. Fixed cell metrics make output size exactly
+`columns × 10` by `rows × 20` pixels without depending on fonts installed on
+the worker.
+
+The PNG is materialized through `ChatMediaLibrary`, attached to the Coding
+Mode chat, and exposed through the Runtime Session's access-controlled
+`/frame` endpoint. Captures update `latest_frame_url`/`latest_frame_at` and
+return the runtime session id, screen generation, rows, columns, capture time,
+Document id, and an optional `checkpoint_label`. Both `runtime_snapshot` and
+`runtime_capture_artifact` use this path, so Runtime tool cards, chat media,
+and the Runtime panel all see the same retained artifact.
+
 `#inspect` (the `RuntimeSessionProvider` interface method) blocks up to
 `RELAY_ADDRESS_TIMEOUT` (10s), polling every `RELAY_ADDRESS_POLL_INTERVAL`
 (0.2s), for `TerminalSessionJob` to publish a `relay_address` onto the
 mapped `Terminal::Session` before attempting to connect.
+
+Screen inspection accepts deterministic synchronization options:
+`after_generation` waits for a strictly newer screen, `wait_for_change: true`
+uses the generation at call time as its baseline, and `wait_for_text` matches
+plain visible viewport text. `quiet_ms` can additionally require the matched
+screen to remain unchanged before returning. `timeout_ms` bounds the call and
+is capped at 30 seconds; waits default to five seconds and return the latest
+snapshot with `settled: false` on timeout. The relay socket drives these waits,
+so callers need no arbitrary sleeps. Inspection is observational and requires
+no control lease; only input does.
+
+The emulator is process-local and deliberately bounded to 1,000 scrollback
+rows, 1 MiB each of raw diagnostic output and incomplete relay framing, 4 KiB
+for an incomplete control sequence, four bytes for an incomplete UTF-8 glyph,
+and a 1,000-by-1,000-cell maximum viewport. CSI insert/delete repeat counts are
+limited to the remaining visible rows or columns. It lives exactly as long as
+its pooled relay client: stopping a Runtime Session, resetting provider clients,
+or observing a disconnected socket closes and releases it. A reconnect
+constructs a fresh emulator from the relay's bounded, gap-free replay before
+consuming live output, carrying the previous generation forward so a session's
+generation never moves backward. Resize input updates the emulator and sends
+the same dimensions to the PTY; both primary and alternate buffers are resized
+consistently.
 
 ## Input lease enforcement
 
@@ -113,10 +175,9 @@ contract `runtime_input` expects.
 `#stop_session` closes the pooled relay client and, if the mapped
 `Terminal::Session` is still running, marks it `finished_at: Time.current,
 outcome: "killed"` — an already-finished session (e.g. the shell exited on
-its own) is left untouched. `build_or_reload`, `launch`, and `snapshot` are
-not supported by this provider and return `{error: "not_yet_supported", ...}`
-rather than raising, since a bare shell has no separate build/launch step
-and no visual snapshot to capture.
+its own) is left untouched. `build_or_reload` and `launch` are not supported
+by this provider and return `{error: "not_yet_supported", ...}` rather than
+raising, since a bare shell has no separate build/launch step.
 
 ## Cleanup
 

@@ -382,7 +382,16 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
 function parseInspectCard(context: ToolCardContext): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
-  const details = firstDisplayValue(parsed.summary, parsed.message, contentText(parsed.content), parsed.xml, parsed.tree, parsed.scrollback)
+  const screenLines = stringList(parsed.lines)
+  const details = firstDisplayValue(
+    parsed.summary,
+    parsed.message,
+    contentText(parsed.content),
+    parsed.xml,
+    parsed.tree,
+    parsed.scrollback,
+    screenLines.length > 0 ? screenLines.join("\n") : null
+  )
   const failed = context.resultError || parsed.error === true
 
   return {
@@ -530,6 +539,7 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
       viewport: viewportLabel(
         parsed.viewport,
         metadata.viewport,
+        parsed.columns && parsed.rows ? { width: parsed.columns, height: parsed.rows } : null,
         parsed.viewport_width && parsed.viewport_height ? { width: parsed.viewport_width, height: parsed.viewport_height } : null,
         metadata.frame_width && metadata.frame_height ? { width: metadata.frame_width, height: metadata.frame_height } : null
       ),
@@ -753,7 +763,9 @@ function collapsedSummary(context: ToolCardContext) {
   }
   if (card.kind === "inspect") {
     if (card.error) return "Runtime inspect failed"
-    const detail = [card.inspectKind, card.bytes ? `${card.bytes} bytes` : null].filter(Boolean).join(", ")
+    const dimensions = isPlainObject(card.raw) && card.raw.cols && card.raw.rows ? `${card.raw.cols}×${card.raw.rows}` : null
+    const generation = isPlainObject(card.raw) && card.raw.generation != null ? `generation ${card.raw.generation}` : null
+    const detail = [card.inspectKind, dimensions, generation, card.bytes ? `${card.bytes} bytes` : null].filter(Boolean).join(", ")
     return detail ? `Runtime inspect: ${detail}` : "Runtime inspect complete"
   }
   if (card.kind === "logs") {

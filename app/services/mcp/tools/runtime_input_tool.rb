@@ -20,7 +20,8 @@ module Mcp::Tools
         session_id: { description: "Runtime Session id. Defaults to the chat's primary active session." },
         event: {
           type: "object",
-          description: "Provider-specific input event payload (e.g. { \"type\": \"click\", \"target\": \"e3\" })."
+          description: "Provider-specific input event payload (e.g. { \"type\": \"click\", \"target\": \"e3\" } " \
+                       "or terminal { \"type\": \"key\", \"key\": \"Ctrl+C\" })."
         }
       },
       required: %w[event]

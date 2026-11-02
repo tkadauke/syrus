@@ -6,7 +6,7 @@ import { ToolGroup } from "../MessageCards"
 import { redactToolCardText, redactToolCardValue } from "../../../toolCardSecurity"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
 import runtimeBuildOrReloadToolCard from "./runtime_build_or_reload"
-import runtimeCaptureArtifactToolCard from "./runtime_capture_artifact"
+import runtimeCaptureArtifactToolCard, { examples as runtimeCaptureArtifactExamples } from "./runtime_capture_artifact"
 import runtimeInspectToolCard from "./runtime_inspect"
 import runtimeInputToolCard from "./runtime_input"
 import runtimeLaunchToolCard from "./runtime_launch"
@@ -694,6 +694,25 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 
+  it("presents semantic terminal screen dimensions, generation, and visible lines", () => {
+    const parsedResult = {
+      kind: "terminal_screen",
+      cols: 80,
+      rows: 24,
+      generation: 7,
+      cursor: { row: 1, col: 4, visible: true },
+      lines: ["menu", "quit"]
+    }
+
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe(
+      "Runtime inspect: terminal_screen, 80×24, generation 7"
+    )
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    const preview = screen.getByTestId("text-preview-content")
+    expect(within(preview).getByText(/menu/)).toBeInTheDocument()
+    expect(within(preview).getByText(/quit/)).toBeInTheDocument()
+  })
+
   it.each([
     ["structured_content", (payload: unknown) => ({ structured_content: payload, content: [] })],
     ["content text JSON", (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })]
@@ -1338,6 +1357,14 @@ describe("Runtime tool cards", () => {
     expect(runtimeSnapshotExamples.map((example) => example.id)).toEqual(["browser_capture", "android_stale_frame"])
   })
 
+  it("publishes a full-color terminal artifact catalog fixture", () => {
+    expect(runtimeCaptureArtifactExamples.map((example) => example.id)).toEqual(["terminal_screenshot"])
+    expect(runtimeCaptureArtifactExamples[0].parsedResult).toMatchObject({
+      kind: "terminal_screenshot",
+      metadata: { rows: 3, columns: 14, checkpoint_label: "unicode palette" }
+    })
+  })
+
   it("renders Latest-frame snapshots with provider metadata", () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-09-10T12:12:00Z"))
@@ -1371,6 +1398,28 @@ describe("Runtime tool cards", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it("renders terminal screenshots from the protected latest-frame endpoint with cell dimensions", () => {
+    const parsedResult = {
+      kind: "terminal_screenshot",
+      artifact_type: "screenshot",
+      document_id: 52,
+      rows: 24,
+      columns: 80,
+      screen_generation: 9,
+      checkpoint_label: "menu open",
+      captured_at: "2026-09-10T12:11:00Z",
+      latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
+      latest_frame_at: "2026-09-10T12:11:00Z"
+    }
+
+    render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
+
+    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", parsedResult.latest_frame_url)
+    expect(screen.getAllByText("80x24").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("terminal_screenshot").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("2026-09-10T12:11:00Z").length).toBeGreaterThan(0)
   })
 
   it("shows missing Runtime artifacts as an explicit empty state", () => {

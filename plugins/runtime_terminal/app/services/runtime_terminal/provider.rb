@@ -17,9 +17,9 @@ module RuntimeTerminal
         {
           stream: "none",
           input: %w[keyboard stdin pointer resize],
-          inspect: [ "scrollback" ],
+          inspect: %w[screen scrollback],
           build: [ "none" ],
-          artifacts: [ "logs" ]
+          artifacts: %w[screenshots logs]
         }
       end
 
@@ -34,15 +34,23 @@ module RuntimeTerminal
         relay_clients_lock.synchronize { relay_clients.delete(runtime_session_id.to_i) }&.close
       end
 
-      def relay_client_for(runtime_session_id, terminal_session)
+      def relay_client_for(runtime_session_id, terminal_session, initial_dimensions: nil)
         relay_clients_lock.synchronize do
-          relay_clients[runtime_session_id.to_i] ||= RelayClient.new(terminal_session)
+          relay_clients[runtime_session_id.to_i] ||= RelayClient.new(terminal_session, initial_dimensions: initial_dimensions)
         end
       end
 
-      def replace_relay_client!(runtime_session_id, terminal_session)
-        relay_clients_lock.synchronize { relay_clients.delete(runtime_session_id.to_i) }&.close
-        relay_client_for(runtime_session_id, terminal_session)
+      def replace_relay_client!(runtime_session_id, terminal_session, initial_dimensions: nil)
+        relay_clients_lock.synchronize do
+          previous = relay_clients.delete(runtime_session_id.to_i)
+          generation = previous&.screen_generation.to_i
+          previous&.close
+          relay_clients[runtime_session_id.to_i] = RelayClient.new(
+            terminal_session,
+            generation: generation,
+            initial_dimensions: initial_dimensions
+          )
+        end
       end
 
       private
@@ -60,6 +68,7 @@ module RuntimeTerminal
       config = config.to_h.symbolize_keys
       runtime_session = config.fetch(:runtime_session)
       chat_session = config.fetch(:chat_session)
+      initial_dimensions = normalized_dimensions(config)
 
       terminal_session = Terminal::Session.create!(
         user: chat_session.user,
@@ -74,7 +83,7 @@ module RuntimeTerminal
       )
       TerminalSessionJob.perform_later(terminal_session.id)
 
-      { terminal_session_id: terminal_session.id }
+      { terminal_session_id: terminal_session.id, initial_dimensions: initial_dimensions }.compact
     end
 
     def build_or_reload(_session_id, _options)
@@ -85,40 +94,70 @@ module RuntimeTerminal
       not_supported("launch")
     end
 
-    def snapshot(_session_id, _options)
-      not_supported("snapshot")
+    def snapshot(session_id, options = {})
+      runtime_session = runtime_session_for(session_id)
+      terminal_session = relay_ready_terminal_session_for(runtime_session)
+      options = options.to_h.symbolize_keys
+      screen = with_fresh_relay_client(runtime_session, terminal_session, &:capture_screen)
+      captured_at = Time.current
+      bytes = Renderer.new(screen).png
+      checkpoint = options[:checkpoint_label].presence
+      title = checkpoint ? "Terminal — #{checkpoint}" : "Terminal screenshot"
+      document = ArtifactSink.new(runtime_session).capture(bytes: bytes, title: title)
+
+      metadata = {
+        runtime_session_id: runtime_session.id,
+        screen_generation: screen.fetch(:generation),
+        rows: screen.fetch(:rows),
+        columns: screen.fetch(:cols),
+        captured_at: captured_at.iso8601,
+        checkpoint_label: checkpoint
+      }.compact
+      {
+        kind: "terminal_screenshot",
+        artifact_type: "screenshot",
+        title: title,
+        content_type: "image/png",
+        viewport: { width: screen.fetch(:cols), height: screen.fetch(:rows) },
+        document_id: document.id,
+        metadata: metadata,
+        latest_frame_url: runtime_session.latest_frame_url,
+        latest_frame_at: runtime_session.latest_frame_at&.iso8601
+      }.merge(metadata)
     end
 
-    def inspect(session_id = nil, _options = nil)
+    def inspect(session_id = nil, options = nil)
       raise NotImplementedError, "#{self.class}#inspect requires a session_id" if session_id.nil?
 
       runtime_session = runtime_session_for(session_id)
       terminal_session = relay_ready_terminal_session_for(runtime_session)
-      scrollback = with_fresh_relay_client(runtime_session, terminal_session) do |client|
-        client.inspect_scrollback
+      options = options.to_h.symbolize_keys
+      mode = options.fetch(:mode, "screen").to_s
+      result = with_fresh_relay_client(runtime_session, terminal_session) do |client|
+        inspect_client(client, mode, options)
       end
-
-      { kind: "terminal_scrollback", scrollback: scrollback, bytes: scrollback.bytesize }
+      result
     end
 
     def input(session_id, event)
       runtime_session = runtime_session_for(session_id)
       event = event.to_h.symbolize_keys
-      lease = runtime_session.active_agent_input_lease
+      delivered = RuntimeControlLease.with_agent_input_control(runtime_session) do |lease|
+        terminal_session = relay_ready_terminal_session_for(runtime_session)
+        with_fresh_relay_client(runtime_session, terminal_session) do |client|
+          client.input(event)
+        end
+        lease.record_input!(event)
+        true
+      end
 
-      unless lease
+      unless delivered
         RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
         return {
           error: "lease_required",
           message: "the agent must hold an active input lease before sending input events"
         }
       end
-
-      terminal_session = relay_ready_terminal_session_for(runtime_session)
-      with_fresh_relay_client(runtime_session, terminal_session) do |client|
-        client.input(event)
-      end
-      lease.record_input!(event)
 
       { delivered: true }
     rescue RelayClient::ConnectionError, RelayClient::UnsupportedInput => e
@@ -139,6 +178,34 @@ module RuntimeTerminal
     end
 
     private
+
+    def inspect_client(client, mode, options)
+      if mode == "scrollback"
+        scrollback = client.inspect_scrollback
+        return { kind: "terminal_scrollback", scrollback: scrollback, bytes: scrollback.bytesize }
+      end
+      raise ArgumentError, "unsupported terminal inspection mode #{mode.inspect}" unless mode == "screen"
+
+      client.inspect_screen(
+        after_generation: options[:after_generation],
+        wait_for_change: ActiveModel::Type::Boolean.new.cast(options[:wait_for_change]),
+        wait_for_text: options[:wait_for_text],
+        quiet_seconds: duration_seconds(options, :quiet_ms),
+        timeout_seconds: duration_seconds(options, :timeout_ms, default: wait_requested?(options) ? 5_000 : 0),
+        include_styles: ActiveModel::Type::Boolean.new.cast(options[:include_styles])
+      )
+    end
+
+    def duration_seconds(options, key, default: 0)
+      Float(options.fetch(key, default)) / 1_000
+    rescue ArgumentError, TypeError
+      raise ArgumentError, "#{key} must be a number of milliseconds"
+    end
+
+    def wait_requested?(options)
+      options[:after_generation].present? || options[:wait_for_text].present? ||
+        ActiveModel::Type::Boolean.new.cast(options[:wait_for_change]) || options[:quiet_ms].present?
+    end
 
     def runtime_session_for(session_id)
       return session_id if session_id.is_a?(RuntimeSession)
@@ -163,7 +230,11 @@ module RuntimeTerminal
     end
 
     def relay_client_for(runtime_session, terminal_session)
-      self.class.relay_client_for(runtime_session.id, terminal_session)
+      self.class.relay_client_for(
+        runtime_session.id,
+        terminal_session,
+        initial_dimensions: initial_dimensions_for(runtime_session)
+      )
     end
 
     def with_fresh_relay_client(runtime_session, terminal_session)
@@ -171,9 +242,37 @@ module RuntimeTerminal
       result = yield(client)
       return result unless client.closed?
 
-      yield(self.class.replace_relay_client!(runtime_session.id, terminal_session))
+      yield(self.class.replace_relay_client!(
+        runtime_session.id,
+        terminal_session,
+        initial_dimensions: initial_dimensions_for(runtime_session)
+      ))
     rescue RelayClient::ConnectionError
-      yield(self.class.replace_relay_client!(runtime_session.id, terminal_session))
+      yield(self.class.replace_relay_client!(
+        runtime_session.id,
+        terminal_session,
+        initial_dimensions: initial_dimensions_for(runtime_session)
+      ))
+    end
+
+    def normalized_dimensions(config)
+      columns = config[:columns] || config[:cols]
+      rows = config[:rows]
+      return if columns.nil? && rows.nil?
+
+      columns = Integer(columns)
+      rows = Integer(rows)
+      unless columns.positive? && rows.positive? && columns <= RelayClient::MAX_COLS && rows <= RelayClient::MAX_ROWS
+        raise ArgumentError, "terminal dimensions must be positive and no larger than #{RelayClient::MAX_COLS}x#{RelayClient::MAX_ROWS}"
+      end
+
+      { cols: columns, rows: rows }
+    rescue ArgumentError, TypeError
+      raise ArgumentError, "terminal dimensions must be positive and no larger than #{RelayClient::MAX_COLS}x#{RelayClient::MAX_ROWS}"
+    end
+
+    def initial_dimensions_for(runtime_session)
+      runtime_session.metadata["initial_dimensions"]&.symbolize_keys
     end
 
     def not_supported(operation)

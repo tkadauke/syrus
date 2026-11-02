@@ -34,14 +34,70 @@ RSpec.describe RuntimeTerminal::Provider do
   end
 
   describe ".capabilities" do
-    it "advertises terminal input and scrollback inspection capabilities" do
+    it "advertises terminal input and authoritative screen inspection capabilities" do
       expect(described_class.capabilities(repository, {})).to eq(
         stream: "none",
         input: %w[keyboard stdin pointer resize],
-        inspect: [ "scrollback" ],
+        inspect: %w[screen scrollback],
         build: [ "none" ],
-        artifacts: [ "logs" ]
+        artifacts: %w[screenshots logs]
       )
+    end
+  end
+
+  describe "#snapshot" do
+    it "renders the authoritative screen and files it as the Runtime Session's latest chat frame" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "\e[?1049h\e[48;2;1;2;3m┌─┐\n│界│")
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      result = provider.snapshot(runtime_session.id, checkpoint_label: "menu open")
+
+      runtime_session.reload
+      document = Document.find(result.fetch(:document_id))
+      expect(result).to include(
+        kind: "terminal_screenshot",
+        artifact_type: "screenshot",
+        runtime_session_id: runtime_session.id,
+        screen_generation: 1,
+        rows: 24,
+        columns: 80,
+        viewport: { width: 80, height: 24 },
+        checkpoint_label: "menu open",
+        latest_frame_url: "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{runtime_session.id}/frame"
+      )
+      expect(document).to have_attributes(title: "Terminal — menu open", content_type: "image/png")
+      expect(document.file.download).to start_with("\x89PNG\r\n\x1a\n".b)
+      expect(chat_session.chat_attachments.find_by(attachable: document)).to be_present
+      expect(runtime_session.metadata["latest_frame_document_id"]).to eq(document.id)
+      expect(runtime_session.latest_frame_at).to be_present
+    ensure
+      relay&.stop
+    end
+
+    it "fails a capture after the bounded relay-ready timeout" do
+      stub_const("RuntimeTerminal::Provider::RELAY_ADDRESS_TIMEOUT", 0.seconds)
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      expect do
+        expect { provider.snapshot(runtime_session.id) }
+          .to raise_error(RuntimeTerminal::RelayClient::ConnectionError, /not ready/)
+      end.not_to change(chat_session.chat_attachments, :count)
+      expect(runtime_session.reload.latest_frame_url).to be_nil
     end
   end
 
@@ -68,10 +124,54 @@ RSpec.describe RuntimeTerminal::Provider do
         .to eq(terminal_session)
       expect(TerminalSessionJob).to have_received(:perform_later).with(terminal_session.id)
     end
+
+    it "records validated explicit startup dimensions for the first relay connection" do
+      allow(TerminalSessionJob).to receive(:perform_later)
+
+      metadata = provider.start_session(
+        runtime_session.workspace_ref,
+        runtime_session: runtime_session,
+        chat_session: chat_session,
+        columns: 100,
+        rows: 32
+      )
+
+      expect(metadata.fetch(:initial_dimensions)).to eq(cols: 100, rows: 32)
+    end
+
+    it "rejects incomplete or unsafe startup dimensions" do
+      expect do
+        provider.start_session(
+          runtime_session.workspace_ref,
+          runtime_session: runtime_session,
+          chat_session: chat_session,
+          columns: 100
+        )
+      end.to raise_error(ArgumentError, /terminal dimensions/)
+    end
   end
 
   describe "#inspect" do
-    it "returns the relay replay buffer and output received after connection" do
+    it "applies explicit startup dimensions before exposing the first screen" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "sized\n")
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      runtime_session.update!(metadata: { "initial_dimensions" => { "cols" => 100, "rows" => 32 } })
+
+      expect(provider.inspect(runtime_session.id)).to include(cols: 100, rows: 32, generation: 2)
+      expect(relay.next_control).to eq("type" => "resize", "cols" => 100, "rows" => 32)
+    ensure
+      relay&.stop
+    end
+
+    it "returns authoritative screen state for replay and output received after connection" do
       relay = RuntimeTerminalFakeRelay.new(replay: "booted\n")
       terminal_session = Terminal::Session.create!(
         user: user,
@@ -88,8 +188,10 @@ RSpec.describe RuntimeTerminal::Provider do
       second = provider.inspect(runtime_session.id)
 
       expect(relay.auth_payload).to eq("token" => terminal_session.auth_token)
-      expect(first).to include(kind: "terminal_scrollback", scrollback: "booted\n", bytes: 7)
-      expect(second).to include(scrollback: "booted\nprompt> ", bytes: 15)
+      expect(first).to include(kind: "terminal_screen", generation: 1)
+      expect(first.fetch(:lines).first).to eq("booted")
+      expect(second).to include(kind: "terminal_screen", generation: 2)
+      expect(second.fetch(:lines)[1]).to eq("      prompt>")
     ensure
       relay&.stop
     end
@@ -113,7 +215,7 @@ RSpec.describe RuntimeTerminal::Provider do
       end
       allow(provider).to receive(:terminal_session_for).with(runtime_session).and_return(terminal_session)
 
-      expect(provider.inspect(runtime_session.id)).to include(scrollback: "ready after reload\n")
+      expect(provider.inspect(runtime_session.id).fetch(:lines).first).to eq("ready after reload")
       expect(provider).to have_received(:sleep).with(described_class::RELAY_ADDRESS_POLL_INTERVAL)
     ensure
       relay&.stop
@@ -132,17 +234,30 @@ RSpec.describe RuntimeTerminal::Provider do
       )
       RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
 
-      expect(provider.inspect(runtime_session.id)).to include(scrollback: "before restart\n")
+      expect(provider.inspect(runtime_session.id).fetch(:lines).first).to eq("before restart")
 
       first_relay.stop
       second_relay = RuntimeTerminalFakeRelay.new(replay: "after restart\n")
       terminal_session.update!(relay_address: second_relay.address)
 
-      expect(provider.inspect(runtime_session.id)).to include(scrollback: "after restart\n")
+      expect(provider.inspect(runtime_session.id).fetch(:lines).first).to eq("after restart")
       expect(second_relay.auth_payload).to eq("token" => terminal_session.auth_token)
     ensure
       first_relay&.stop
       second_relay&.stop
+    end
+
+
+    it "preserves raw scrollback as a distinct inspection mode" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "\e[31mraw\e[0m\n")
+      terminal_session = Terminal::Session.create!(user: user, workflow: nil, name: "Runtime Terminal", working_directory: runtime_session.workspace_ref, relay_address: relay.address, started_at: 1.minute.ago)
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      expect(provider.inspect(runtime_session.id, mode: "scrollback")).to eq(
+        kind: "terminal_scrollback", scrollback: "\e[31mraw\e[0m\n", bytes: 13
+      )
+    ensure
+      relay&.stop
     end
   end
 
@@ -194,6 +309,87 @@ RSpec.describe RuntimeTerminal::Provider do
       expect(relay.next_control).to eq("type" => "input", "data" => "\e[<0;12;5M")
       expect(relay.next_control).to eq("type" => "input", "data" => "\e[<3;12;5m")
     ensure
+      relay&.stop
+    end
+
+    it "serializes relay delivery with operator takeover" do
+      relay = RuntimeTerminalFakeRelay.new
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input")
+      delivery_started = Queue.new
+      finish_delivery = Queue.new
+      takeover_started = Queue.new
+      takeover_finished = Queue.new
+      allow_any_instance_of(RuntimeTerminal::RelayClient).to receive(:input).and_wrap_original do |original, event|
+        delivery_started << true
+        finish_delivery.pop
+        original.call(event)
+      end
+
+      delivery = Thread.new { provider.input(runtime_session.id, type: "key", key: "Enter") }
+      delivery_started.pop
+      takeover = Thread.new do
+        takeover_started << true
+        RuntimeControlLease.abort_agent_control!(runtime_session: runtime_session, reason: "operator takeover")
+        takeover_finished << true
+      end
+      takeover_started.pop
+
+      expect { Timeout.timeout(0.05) { takeover_finished.pop } }.to raise_error(Timeout::Error)
+      finish_delivery << true
+      expect(delivery.value).to eq(delivered: true)
+      takeover.value
+      expect(takeover_finished.pop).to be(true)
+      expect(runtime_session.active_agent_input_lease).to be_nil
+      expect(provider.input(runtime_session.id, type: "key", key: "Enter")).to include(error: "lease_required")
+      expect(relay.next_control).to eq("type" => "input", "data" => "\r")
+      expect(relay.next_control(timeout: 0.05)).to be_nil
+    ensure
+      finish_delivery << true if finish_delivery && finish_delivery.empty?
+      delivery&.join
+      takeover&.join
+      relay&.stop
+    end
+
+    it "releases the takeover lock when a stalled relay write times out" do
+      relay = RuntimeTerminalFakeRelay.new
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input")
+      write_started = Queue.new
+      allow_any_instance_of(RuntimeTerminal::RelayClient).to receive(:input) do
+        write_started << true
+        sleep 0.05
+        raise RuntimeTerminal::RelayClient::ConnectionError, "terminal relay write timed out"
+      end
+
+      delivery = Thread.new { provider.input(runtime_session.id, type: "key", key: "Enter") }
+      write_started.pop
+      takeover = Thread.new do
+        RuntimeControlLease.abort_agent_control!(runtime_session: runtime_session, reason: "operator takeover")
+      end
+
+      expect(delivery.value).to include(error: "connection_error", message: "terminal relay write timed out")
+      expect { Timeout.timeout(0.5) { takeover.value } }.not_to raise_error
+      expect(runtime_session.active_agent_input_lease).to be_nil
+    ensure
+      delivery&.join
+      takeover&.join
       relay&.stop
     end
   end

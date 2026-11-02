@@ -245,8 +245,14 @@ chat tool cards show input delivery errors and provider event details, while
 typed text is masked by default and can only be revealed with an explicit
 control;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
-and `runtime_stop` tears the session down. Runtime providers include browser
-dev-server sessions, which navigate and inspect a running web app. They are
+and `runtime_stop` tears the session down. Terminal sessions expose semantic
+screen inspection with viewport text, cursor and generation state, optional
+style runs, separate raw scrollback, and bounded generation/text/quiet waits;
+inspection itself requires no control lease. Terminal captures render that
+same emulator state as full-color PNG artifacts, including alternate-screen
+TUIs, ANSI and RGB colors, Unicode, styles, and cursor state; an optional
+checkpoint label identifies the captured moment in chat. Runtime providers also include
+browser dev-server sessions, which navigate and inspect a running web app. They are
 watchable from
 Coding Mode's right sidebar in a Runtime tab (once the chat has started a
 session): session state, a generic visual frame viewer for providers that
@@ -259,6 +265,22 @@ includes a button to capture a fresh screenshot on demand. Control leases are
 short-lived by design, but the panel renews an active operator lease
 automatically in the background, so staying on the tab keeps control without it
 silently expiring mid-task.
+
+For visually verifiable CLI/TUI evidence, an agent can start a terminal at a
+known size with `runtime_start(provider: "cli_tui", options: { columns: 100,
+rows: 30 })`, acquire an `input` lease, and send text plus named keys with
+`runtime_input`. Terminal input supports Escape, Shift+Tab, F1–F12, and Ctrl
+chords such as `Ctrl+C`, in addition to navigation keys and resize events.
+Text input is limited to 64 KiB per event, and bounded relay I/O keeps operator
+takeover available if a terminal stops responding.
+After each action, `runtime_inspect` can wait for a later screen generation,
+specific visible text, and a quiet period. Calling
+`runtime_capture_artifact(checkpoint_label: "settings saved")` then retains a
+full-color PNG from that exact emulator state in chat and updates the Runtime
+panel's latest frame. Capturing and inspecting are observational, so they do
+not need or consume control; the agent should release its lease and stop the
+session when finished. Operator takeover always revokes agent input
+immediately.
 
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same

@@ -936,14 +936,12 @@ payloads.
 The tab only appears once the chat has at least one `RuntimeSession`
 (`runtimeTabVisible` in `app/frontend/routes/chat/utils.ts`, backed by
 `chat.runtime_session_count` in the chat payload). A dedicated `frame` action
-streams the session's `latest_frame_url` -- `SyrusBrowser::ArtifactSinks::ChatMedia`
-now accepts an optional `runtime_session:` and, when a capture is attributed
-to one (an operator's `capture` click, or the agent's `runtime_snapshot`/
-`runtime_capture_artifact`/`browser_screenshot`), stamps
+streams the session's `latest_frame_url` -- browser and terminal runtime
+artifact sinks both use `ChatMediaLibrary` and, when a capture is attributed
+to a session (an operator's `capture` click, or the agent's `runtime_snapshot`/
+`runtime_capture_artifact`/`browser_screenshot`), stamp
 `latest_frame_url`/`latest_frame_at` on that session pointing at the `frame`
-endpoint so the panel's periodic-screenshot polling has something to show for
-browser-like providers -- those two columns existed on `RuntimeSession` from
-the start but were never written until this wiring landed.
+endpoint so the panel's periodic-screenshot polling has something to show.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
@@ -3866,10 +3864,23 @@ Bundled plugins:
   `RuntimeSession`/`Terminal::Session` pairing in
   `runtime_terminal_session_links`; `runtime_stop` marks the mapped terminal
   session `outcome: "killed"` with `finished_at`. `runtime_inspect` connects
-  to the mapped relay socket and returns terminal scrollback, while
+  to the mapped relay socket and returns either an authoritative semantic
+  viewport (`mode: "screen"`, the default) or distinct raw output
+  (`mode: "scrollback"`). Screen results include dimensions, plain visible
+  lines, cursor state, generation, and optional compact style runs.
+  Generation/text/change predicates, a quiet period, and a bounded timeout
+  provide deterministic settling without sleeps or an input lease, while
   `runtime_input` sends stdin/keyboard/pointer/resize control frames through
   the same authenticated wire protocol the browser terminal uses, after the
   shared `RuntimeControlLease` input gate passes.
+
+  `runtime_snapshot` and `runtime_capture_artifact` render that same locked
+  screen state to a deterministic PNG using a bundled terminal font, including
+  ANSI/indexed/RGB colors, styles, alternate-screen content, Unicode cell
+  widths, and cursor visibility. The capture is attached through the shared
+  chat-media sink, updates the Runtime Session's protected latest-frame URL,
+  and carries session/generation/viewport/time plus an optional checkpoint
+  label. Capabilities advertise both screenshot and log artifacts.
 
   The adapter intentionally does not modify `terminal_sessions` or
   `Terminal::Session`/`Terminal::Relay`/`TerminalSessionJob`. The link table is
@@ -3878,7 +3889,8 @@ Bundled plugins:
   add a database foreign key back into the terminal plugin's table, preserving
   the terminal plugin's own schema boundary. Capabilities advertise
   `stream: "none"`, `input: ["keyboard", "stdin", "pointer", "resize"]`,
-  `inspect: ["scrollback"]`, and `build: ["none"]`; live streaming still uses
+  `inspect: ["screen", "scrollback"]`, `build: ["none"]`, and
+  `artifacts: ["screenshots", "logs"]`; live streaming still uses
   the terminal plugin's existing UI path, with the Coding Mode Runtime panel
   reusing its shared xterm/`TerminalChannel` renderer against the mapped
   `Terminal::Session#id`. Because this is still a genuine shell on the worker,
