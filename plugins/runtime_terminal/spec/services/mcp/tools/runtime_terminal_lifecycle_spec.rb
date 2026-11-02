@@ -80,7 +80,17 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
         "cols" => 80,
         "rows" => 24
       )
-      expect(parse_tool_response(inspect_response).fetch("lines").first.fetch("text")).to eq("ready")
+      expect(parse_tool_response(inspect_response).fetch("lines").first).to eq("ready")
+
+      scrollback_response = Mcp::Tools::RuntimeInspectTool.call(
+        session_id: runtime_session.id,
+        options: { mode: "scrollback" },
+        server_context: { chat_session: chat_session }
+      )
+      expect(parse_tool_response(scrollback_response)).to include(
+        "kind" => "terminal_scrollback",
+        "scrollback" => "ready\n"
+      )
 
       rejected_input = Mcp::Tools::RuntimeInputTool.call(
         session_id: runtime_session.id,

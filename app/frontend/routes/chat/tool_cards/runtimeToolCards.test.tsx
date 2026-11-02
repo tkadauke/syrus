@@ -694,6 +694,25 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 
+  it("presents semantic terminal screen dimensions, generation, and visible lines", () => {
+    const parsedResult = {
+      kind: "terminal_screen",
+      cols: 80,
+      rows: 24,
+      generation: 7,
+      cursor: { row: 1, col: 4, visible: true },
+      lines: ["menu", "quit"]
+    }
+
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe(
+      "Runtime inspect: terminal_screen, 80×24, generation 7"
+    )
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    const preview = screen.getByTestId("text-preview-content")
+    expect(within(preview).getByText(/menu/)).toBeInTheDocument()
+    expect(within(preview).getByText(/quit/)).toBeInTheDocument()
+  })
+
   it.each([
     ["structured_content", (payload: unknown) => ({ structured_content: payload, content: [] })],
     ["content text JSON", (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })]

@@ -11,6 +11,7 @@ module RuntimeTerminal
     MAX_READ_BUFFER_BYTES = 1_048_576
     MAX_COLS = Screen::MAX_COLS
     MAX_ROWS = Screen::MAX_ROWS
+    MAX_WAIT_SECONDS = 30.0
 
     class ConnectionError < StandardError; end
     class UnsupportedInput < StandardError; end
@@ -36,11 +37,18 @@ module RuntimeTerminal
       end
     end
 
-    def inspect_screen
+    def inspect_screen(after_generation: nil, wait_for_change: false, wait_for_text: nil, quiet_seconds: 0, timeout_seconds: 0, include_styles: false)
       @lock.synchronize do
         screen_locked!
         drain_locked
-        @screen.snapshot.merge(scrollback: @scrollback.dup, bytes: @scrollback.bytesize)
+        baseline = after_generation.nil? && wait_for_change ? @screen.generation : after_generation
+        settled = wait_for_screen_locked(
+          after_generation: baseline,
+          wait_for_text: wait_for_text,
+          quiet_seconds: quiet_seconds,
+          timeout_seconds: timeout_seconds
+        )
+        screen_payload(include_styles: include_styles).merge(settled: settled)
       end
     end
 
@@ -113,6 +121,69 @@ module RuntimeTerminal
         @closed = true
         break
       end
+    end
+
+    def wait_for_screen_locked(after_generation:, wait_for_text:, quiet_seconds:, timeout_seconds:)
+      timeout_seconds = [[ Float(timeout_seconds), 0 ].max, MAX_WAIT_SECONDS].min
+      quiet_seconds = [[ Float(quiet_seconds), 0 ].max, timeout_seconds ].min
+      deadline = monotonic_now + timeout_seconds
+      settled_at = nil
+      settled_generation = nil
+
+      loop do
+        drain_locked(timeout: [ DRAIN_TIMEOUT_SECONDS, [ deadline - monotonic_now, 0 ].max ].min)
+        snapshot = @screen.snapshot
+        generation_ready = after_generation.nil? || snapshot.fetch(:generation) > Integer(after_generation)
+        text_ready = wait_for_text.blank? || snapshot.fetch(:lines).any? { |line| line.fetch(:text).include?(wait_for_text.to_s) }
+
+        if generation_ready && text_ready
+          if settled_generation != snapshot.fetch(:generation)
+            settled_generation = snapshot.fetch(:generation)
+            settled_at = monotonic_now
+          end
+          return true if monotonic_now - settled_at >= quiet_seconds
+        else
+          settled_at = nil
+          settled_generation = nil
+        end
+
+        break if monotonic_now >= deadline
+      end
+      false
+    end
+
+    def screen_payload(include_styles:)
+      snapshot = @screen.snapshot
+      payload = {
+        kind: "terminal_screen",
+        generation: snapshot.fetch(:generation),
+        cols: snapshot.fetch(:cols),
+        rows: snapshot.fetch(:rows),
+        alternate: snapshot.fetch(:alternate),
+        cursor: snapshot.fetch(:cursor),
+        lines: snapshot.fetch(:lines).map { |line| line.fetch(:text) }
+      }
+      payload[:styled_runs] = snapshot.fetch(:lines).map { |line| compact_runs(line.fetch(:cells)) } if include_styles
+      payload
+    end
+
+    def compact_runs(cells)
+      visible_cells = cells.dup
+      visible_cells.pop while visible_cells.last&.fetch(:text) == " " && visible_cells.last&.fetch(:width) == 1
+      visible_cells.each_with_object([]) do |cell, runs|
+        next if cell.fetch(:width).zero?
+
+        attributes = cell.slice(:foreground, :background, :styles)
+        if runs.last&.slice(:foreground, :background, :styles) == attributes
+          runs.last[:text] << cell.fetch(:text)
+        else
+          runs << attributes.merge(text: cell.fetch(:text))
+        end
+      end
+    end
+
+    def monotonic_now
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
 
     def append_frames(chunk)
