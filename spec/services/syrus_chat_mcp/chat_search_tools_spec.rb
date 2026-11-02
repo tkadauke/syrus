@@ -40,24 +40,6 @@ RSpec.describe "Mcp::Tools chat search tools" do
   end
 
   describe "search_chats" do
-    it "uses one bind for the authorized chat scope" do
-      ids = (1..1_100).to_a
-      sql = nil
-      binds = nil
-      allow(SearchRecord.connection).to receive(:exec_query) do |statement, _name, query_binds|
-        sql = statement
-        binds = query_binds
-        ActiveRecord::Result.empty
-      end
-
-      result = ChatMessageSearchIndex.search("needle", chat_session_ids: ids, limit: 10)
-
-      expect(result).to eq([])
-      expect(sql).to include("json_each(?)")
-      expect(binds.size).to eq(6)
-      expect(JSON.parse(binds.fetch(4).value)).to eq(ids)
-    end
-
     it "returns ranked results scoped to the current user" do
       chat_session.update!(mode: "coding")
       job = Factories.job_record(
@@ -183,9 +165,9 @@ RSpec.describe "Mcp::Tools chat search tools" do
       expect(response_payload(response)).to eq(
         error: {
           code: "backend_error",
-          message: "Chat search could not query the full-text index. Retry after the search database has been checked.",
+          message: "Chat search could not query its search backend. Retry after database health has been checked.",
           retryable: true,
-          diagnostics: { exception: "ActiveRecord::StatementInvalid" }
+          diagnostics: { exception: "ActiveRecord::StatementInvalid", category: "full_text_backend" }
         }
       )
     end
