@@ -236,7 +236,7 @@ RSpec.describe McpToolRegistry do
       )
     end
 
-    it "exposes read-only lookup tools to visual reviewers" do
+    it "exposes review tools but no session controls without a runtime target" do
       run = Factories.job.initial_run
       run.step.update_columns(kind: "visual_review")
       context = McpToolContext.from_run(run.reload)
@@ -248,9 +248,6 @@ RSpec.describe McpToolRegistry do
           read_preview_log search_jobs list_jobs list_open_prs read_pr list_open_issues
           submit_visual_review submit_visual_artifact
           list_artifacts read_artifact
-          runtime_inspect runtime_wait runtime_acquire_control
-          runtime_release_control runtime_input runtime_snapshot
-          runtime_capture_artifact
         ]
       )
     end

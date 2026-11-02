@@ -141,6 +141,10 @@ function parseVisualReviewArtifact(raw: unknown): JobVisualReviewArtifact[] {
       viewport: isRecord(obj.viewport) ? obj.viewport : null,
       source: typeof obj.source === "string" ? obj.source : null,
       captured_at: typeof obj.captured_at === "string" ? obj.captured_at : null,
+      provider_key: typeof obj.provider_key === "string" ? obj.provider_key : null,
+      target_name: typeof obj.target_name === "string" ? obj.target_name : null,
+      screen_generation: typeof obj.screen_generation === "number" ? obj.screen_generation : null,
+      checkpoint_label: typeof obj.checkpoint_label === "string" ? obj.checkpoint_label : null,
       created_at: typeof obj.created_at === "string" ? obj.created_at : null
     }
   ]

@@ -94,6 +94,10 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
           "byte_size" => 1234,
           "source" => "current_browser",
           "captured_at" => "2026-10-10T12:00:00.000Z",
+          "provider_key" => "cli_tui",
+          "target_name" => "Queue console",
+          "screen_generation" => 17,
+          "checkpoint_label" => "jobs loaded",
           "page" => {
             "path" => "/dashboard",
             "title" => "Dashboard"
@@ -145,6 +149,10 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
         },
         "source" => "current_browser",
         "captured_at" => "2026-10-10T12:00:00.000Z",
+        "provider_key" => "cli_tui",
+        "target_name" => "Queue console",
+        "screen_generation" => 17,
+        "checkpoint_label" => "jobs loaded",
         "created_at" => "2026-08-22T12:00:00Z"
       }
     ])

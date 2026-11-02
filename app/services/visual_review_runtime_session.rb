@@ -1,4 +1,34 @@
 class VisualReviewRuntimeSession
+  class Protocol
+    def self.for(provider_key)
+      { "cli_tui" => CliTui }.fetch(provider_key.to_s, self)
+    end
+
+    def validate!(_capabilities, provider_key:)
+      true
+    end
+  end
+
+  class CliTui < Protocol
+    REQUIRED = {
+      "input" => %w[keyboard stdin pointer resize],
+      "inspect" => %w[screen],
+      "artifacts" => %w[screenshots]
+    }.freeze
+
+    def validate!(capabilities, provider_key:)
+      missing = REQUIRED.flat_map do |dimension, values|
+        advertised = Array(capabilities[dimension] || capabilities[dimension.to_sym]).map(&:to_s)
+        values.reject { |value| advertised.include?(value) }.map { |value| "#{dimension}:#{value}" }
+      end
+      return true if missing.empty?
+
+      raise RuntimeSessionProviders::ConfigurationError,
+            "visual_review target provider #{provider_key.inspect} is missing required capabilities: #{missing.join(', ')}; " \
+            "enable a provider that advertises semantic screen inspection, terminal input, resize, and screenshot evidence"
+    end
+  end
+
   attr_reader :runtime_session
 
   def initialize(run:, target:)
@@ -9,6 +39,8 @@ class VisualReviewRuntimeSession
   def start!
     provider_class = RuntimeSessionProviders.for(target.provider)
     options = start_options
+    capabilities = provider_class.capabilities(run.job.repository, options).to_h
+    Protocol.for(provider_class.provider_key).new.validate!(capabilities, provider_key: provider_class.provider_key)
     @runtime_session = RuntimeSession.create!(
       repository: run.job.repository,
       job: run.job,
@@ -17,7 +49,7 @@ class VisualReviewRuntimeSession
       workspace_ref: target.workspace_path,
       provider_key: provider_class.provider_key,
       display_name: target.name.presence || provider_class.display_name,
-      capabilities: provider_class.capabilities(run.job.repository, options),
+      capabilities: capabilities,
       primary: !run.runtime_sessions.active.exists?,
       state: "starting",
       metadata: { "visual_review_target" => target.to_h }

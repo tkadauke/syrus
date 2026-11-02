@@ -643,6 +643,10 @@ export type JobVisualReviewArtifact = {
   viewport?: Record<string, unknown> | null
   source?: string | null
   captured_at?: string | null
+  provider_key?: string | null
+  target_name?: string | null
+  screen_generation?: number | null
+  checkpoint_label?: string | null
   created_at: string | null
 }
 
