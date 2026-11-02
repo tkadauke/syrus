@@ -15,7 +15,15 @@
     "drop": "Deponere",
     "file_upload": "Fasciculum imponere"
   },
-  "targets": { "target": "Scopus", "device": "Machina", "viewport": "Prospectus", "condition": "Condicio", "path": "Iter", "files": "Fasciculi", "page": "pagina" },
+  "targets": {
+    "target": "Scopus",
+    "device": "Machina",
+    "viewport": "Prospectus",
+    "condition": "Condicio",
+    "path": "Iter",
+    "files": "Fasciculi",
+    "page": "pagina"
+  },
   "status": { "success": "successus", "error": "error", "failed": "defecit" },
   "rows": { "title": "Titulus", "current_url": "URL praesens", "viewport": "Prospectus", "snapshot": "Snapshot", "text": "Textus" },
   "disclosures": { "browser_details": "Singula navigatri" },

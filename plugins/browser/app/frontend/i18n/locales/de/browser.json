@@ -15,7 +15,15 @@
     "drop": "Ablegen",
     "file_upload": "Datei hochladen"
   },
-  "targets": { "target": "Ziel", "device": "Gerät", "viewport": "Ansichtsbereich", "condition": "Bedingung", "path": "Pfad", "files": "Dateien", "page": "Seite" },
+  "targets": {
+    "target": "Ziel",
+    "device": "Gerät",
+    "viewport": "Ansichtsbereich",
+    "condition": "Bedingung",
+    "path": "Pfad",
+    "files": "Dateien",
+    "page": "Seite"
+  },
   "status": { "success": "erfolgreich", "error": "Fehler", "failed": "fehlgeschlagen" },
   "rows": { "title": "Titel", "current_url": "Aktuelle URL", "viewport": "Ansichtsbereich", "snapshot": "Snapshot", "text": "Text" },
   "disclosures": { "browser_details": "Browserdetails" },
