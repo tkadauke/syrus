@@ -634,7 +634,7 @@ module Api
         end
 
         def provider_retry_status_json(repository)
-          provider = repository.user&.agent_provider
+          provider = ProviderRouting::Resolver.preview_provider(repository: repository)
           circuit = ProviderCircuitBreaker.call(provider, include_logs: false)
           {
             agent_provider: provider,
