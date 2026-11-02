@@ -67,11 +67,15 @@ module Permissions
 
     def route_approval_notification_after_commit(request)
       ActiveRecord.after_all_transactions_commit do
-        ApprovalNotifications::Router.route!(request)
-      rescue => error
-        Rails.logger.error("Approval notification routing failed for authorization request #{request.id}: #{error.class}: #{error.message}")
-        record_notification_failure(request, error)
+        route_approval_notification(request)
       end
+    end
+
+    def route_approval_notification(request)
+      ApprovalNotifications::Router.route!(request)
+    rescue => error
+      Rails.logger.error("Approval notification routing failed for authorization request #{request.id}: #{error.class}: #{error.message}")
+      record_notification_failure(request, error)
     end
 
     def record_notification_failure(request, error)
