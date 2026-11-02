@@ -235,6 +235,7 @@ class Workflow < ApplicationRecord
     end
 
     if self.class.where(id: id).pick(:cleaned_up_at).present?
+      release_landing_validation_prefetch_source!
       purge_prepared_source_snapshot_archives!
       log_workspace_event("[workspace] cleanup complete")
     else
@@ -883,6 +884,12 @@ class Workflow < ApplicationRecord
     source_snapshots.includes(prepared_workspace_archive_attachment: :blob).find_each(&:purge_prepared_workspace_archive!)
   rescue StandardError => e
     Rails.logger.warn("[Workflow] purge prepared source snapshot archives failed for Workflow ##{id}: #{e.class}: #{e.message}")
+  end
+
+  def release_landing_validation_prefetch_source!
+    LandingValidationPrefetchSource.release!(self)
+  rescue StandardError => e
+    Rails.logger.warn("[Workflow] release landing validation prefetch source failed for Workflow ##{id}: #{e.class}: #{e.message}")
   end
 
 

@@ -1,19 +1,17 @@
 module Steps
   class SpeculativeMergeTrainBuild < Base
     def call
-      @source_path = Pathname.new(required_artifact!("prefetch_source_workspace_path"))
-      @source_workflow = source_workflow!
       @source_head = required_artifact!("prefetch_source_head_sha")
+      @source_tree = required_artifact!("prefetch_source_tree_sha")
+      @source_snapshot_id = required_artifact!("prefetch_source_snapshot_id")
       @members = member_jobs
       raise StepFailed, "speculative_merge_train: no members to build" if @members.empty?
-      raise StepFailed, "speculative_merge_train: source workspace is missing" unless @source_path.exist?
 
       workspace.setup
       @chdir = workspace.path.to_s
       @git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0", "GIT_EDITOR" => "true" })
       @integration = "__syrus_speculative_merge_train_#{workflow.id}"
 
-      verify_source!
       fetch_predicted_base!
       @git.run("checkout", "-B", @integration, "FETCH_HEAD", chdir: @chdir)
       log("speculative_merge_train: integration #{@integration} started at predicted base #{@source_head.first(9)}")
@@ -46,25 +44,18 @@ module Steps
       ids.filter_map { |id| jobs[id] }
     end
 
-    def source_workflow!
-      workflow_id = required_artifact!("prefetch_source_workflow_id").to_i
-      Workflow.find_by(id: workflow_id) ||
-        raise(StepFailed, "speculative_merge_train: source workflow #{workflow_id} is missing")
-    end
-
-    def verify_source!
-      actual = @git.run("rev-parse", "HEAD", chdir: @source_path.to_s, workflow: @source_workflow).strip
-      return if actual == @source_head
-
-      raise StepFailed, "speculative_merge_train: source workflow moved from #{@source_head.first(7)} to #{actual.first(7)}"
-    end
-
     def fetch_predicted_base!
-      @git.run("fetch", "--no-tags", @source_path.to_s, "HEAD", chdir: @chdir)
+      LandingValidationPrefetchSource.with_bundle(workflow, @source_snapshot_id) do |snapshot, bundle_path|
+        unless snapshot.source_sha == @source_head && snapshot.tree_sha == @source_tree
+          raise StepFailed, "speculative_merge_train: source snapshot does not match the recorded predicted base"
+        end
+        @git.run("fetch", "--no-tags", bundle_path, "HEAD", chdir: @chdir)
+      end
       fetched = @git.run("rev-parse", "FETCH_HEAD", chdir: @chdir).strip
-      return if fetched == @source_head
+      fetched_tree = @git.run("rev-parse", "FETCH_HEAD^{tree}", chdir: @chdir).strip
+      return if fetched == @source_head && fetched_tree == @source_tree
 
-      raise StepFailed, "speculative_merge_train: predicted base moved from #{@source_head.first(7)} to #{fetched.first(7)}"
+      raise StepFailed, "speculative_merge_train: predicted base snapshot mismatch"
     end
 
     def integrate!(member)

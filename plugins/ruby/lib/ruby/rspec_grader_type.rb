@@ -535,7 +535,10 @@ module Ruby
     def previous_failure_gate(mode)
       ci_mode = mode.to_s == "ci"
       gate_env = ci_mode ? "RUN_CI_ONLY_SPECS=true " : "RUN_CI_ONLY_SPECS=false "
-      gate_tags = Shellwords.join(tag_args_for(mode))
+      # A CI grader has two passes: the parallel pass excludes ci_only and the
+      # serial pass includes it. Previous failures can therefore come from
+      # either pass, so a focused file gate must not filter to only one tag.
+      gate_tags = ci_mode ? "" : Shellwords.join(tag_args_for(mode))
       <<~BASH.squish
         if [ -n "${SYRUS_PREVIOUS_FAILED_SPECS:-}" ]; then
           echo "[rspec] gate: re-running $(echo $SYRUS_PREVIOUS_FAILED_SPECS | wc -w) previously failing file(s) before the full suite";

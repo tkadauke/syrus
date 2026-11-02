@@ -2,6 +2,7 @@ class WorkflowSourceSnapshot < ApplicationRecord
   belongs_to :workflow
   belongs_to :creator_step, class_name: "Step"
   has_one_attached :prepared_workspace_archive
+  has_one_attached :source_bundle
 
   validates :source_sha, :source_ref, :published_at, presence: true
   validate :has_tree_identity
