@@ -57,6 +57,12 @@ than polling `runtime_logs`.
 "this repository wants a CLI/TUI runtime session"; it is only ever chosen
 explicitly (e.g. by `runtime_start(provider: "cli_tui")`).
 
+Pass `options: { columns: 100, rows: 30 }` (or `cols` in place of
+`columns`) to start at deterministic dimensions. Both values are required,
+must be positive, and are bounded by the emulator's 1,000-by-1,000-cell
+limit. The first authenticated relay connection applies the size before it
+returns a screen to the caller; reconnects restore it as well.
+
 ## Relay protocol (`RuntimeTerminal::RelayClient`)
 
 Each provider instance keeps a small pool of `RelayClient` sockets (one per
@@ -87,9 +93,11 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
   relay control frames:
   - `stdin` → the raw text, verbatim.
   - `keyboard`/`key` → either literal `data`/`text`, or a lookup table for
-    named keys (`Enter`, `Tab`, `Backspace`, `Escape`, arrow keys, `Delete`,
-    `Home`/`End`, `PageUp`/`PageDown`) mapped to their terminal escape
-    sequences. An unrecognized key raises `RelayClient::UnsupportedInput`.
+    named keys (`Enter`, `Tab`, `Shift+Tab`, `Backspace`, `Escape`, arrow
+    keys, `Insert`/`Delete`, `Home`/`End`, `PageUp`/`PageDown`, and
+    `F1`–`F12`) mapped to their terminal escape sequences. Ctrl chords can be
+    written as `Ctrl+C`, or as a key plus `modifiers: ["ctrl"]`/`ctrl: true`.
+    An unrecognized key or chord raises `RelayClient::UnsupportedInput`.
   - `resize` → a `{type: "resize", cols:, rows:}` frame; dimensions must
     be positive and no larger than 1,000 columns by 1,000 rows, otherwise
     `UnsupportedInput` is raised.

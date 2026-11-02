@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../../fixtures/terminal_app_transcripts"
 
 RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
   let(:user) { Factories.user }
@@ -108,6 +109,102 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
 
       expect(parse_tool_response(accepted_input)).to eq("delivered" => true)
       expect(relay.next_control).to eq("type" => "input", "data" => "whoami\n")
+    end
+  ensure
+    RuntimeTerminal::Provider.reset_relay_clients!
+    relay&.stop
+  end
+
+
+  it "drives plain and alternate-screen checkpoints through the complete visual evidence loop" do
+    relay = RuntimeTerminalFakeRelay.new(replay: TerminalAppTranscripts::PLAIN_INITIAL)
+
+    Dir.mktmpdir do |workspace|
+      allow(ChatWorkspace).to receive(:repo_path_for).with(chat_session, repository).and_return(Pathname.new(workspace))
+      started = Mcp::Tools::RuntimeStartTool.call(
+        provider: "cli_tui", options: { columns: 96, rows: 30 }, server_context: { chat_session: chat_session }
+      )
+      runtime_session = RuntimeSession.find(parse_tool_response(started).fetch("id"))
+      terminal_session = RuntimeTerminal::SessionLink.find_by!(runtime_session: runtime_session).terminal_session
+      terminal_session.update!(relay_address: relay.address)
+
+      acquired = Mcp::Tools::RuntimeAcquireControlTool.call(
+        session_id: runtime_session.id, mode: "input", reason: "terminal checkpoint workflow",
+        server_context: { chat_session: chat_session }
+      )
+      expect(parse_tool_response(acquired)).to include("owner" => "agent", "state" => "active")
+
+      first = parse_tool_response(Mcp::Tools::RuntimeInspectTool.call(
+        session_id: runtime_session.id, server_context: { chat_session: chat_session }
+      ))
+      expect(first).to include("cols" => 96, "rows" => 30, "alternate" => false)
+      expect(first.fetch("lines").first).to eq("Name:")
+      expect(relay.next_control).to eq("type" => "resize", "cols" => 96, "rows" => 30)
+
+      [
+        { type: "stdin", data: "Ada" }, { type: "key", key: "Enter" },
+        { type: "key", key: "Shift+Tab" }, { type: "key", key: "F1" },
+        { type: "key", key: "Escape" }, { type: "key", key: "Ctrl+L" },
+        { type: "resize", cols: 110, rows: 36 }
+      ].each do |event|
+        response = Mcp::Tools::RuntimeInputTool.call(
+          session_id: runtime_session.id, event: event, server_context: { chat_session: chat_session }
+        )
+        expect(parse_tool_response(response)).to eq("delivered" => true)
+      end
+      7.times { expect(relay.next_control).to be_present }
+
+      relay.write_output(TerminalAppTranscripts::PLAIN_COMPLETE)
+      plain = parse_tool_response(Mcp::Tools::RuntimeInspectTool.call(
+        session_id: runtime_session.id,
+        options: { after_generation: first.fetch("generation"), wait_for_text: "Hello, Ada!", quiet_ms: 5, timeout_ms: 500 },
+        server_context: { chat_session: chat_session }
+      ))
+      expect(plain).to include("settled" => true, "cols" => 110, "rows" => 36)
+
+      relay.write_output(TerminalAppTranscripts::ALTERNATE_SCREEN)
+      tui = parse_tool_response(Mcp::Tools::RuntimeInspectTool.call(
+        session_id: runtime_session.id,
+        options: { after_generation: plain.fetch("generation"), wait_for_text: "verify visual evidence", timeout_ms: 500 },
+        server_context: { chat_session: chat_session }
+      ))
+      expect(tui).to include("settled" => true, "alternate" => true)
+
+      capture = parse_tool_response(Mcp::Tools::RuntimeCaptureArtifactTool.call(
+        session_id: runtime_session.id, checkpoint_label: "task selected",
+        server_context: { chat_session: chat_session }
+      ))
+      runtime_session.reload
+      expect(capture).to include(
+        "screen_generation" => tui.fetch("generation"), "checkpoint_label" => "task selected",
+        "latest_frame_url" => runtime_session.latest_frame_url
+      )
+      document = Document.find(capture.fetch("document_id"))
+      png = document.file.download
+      expect(png).to start_with("\x89PNG\r\n\x1a\n".b)
+      expect(png.byteslice(16, 8).unpack("N2")).to eq([ 1_100, 720 ])
+      expect(chat_session.chat_attachments.find_by(attachable: document)).to be_present
+      expect(runtime_session.active_agent_input_lease).to be_present
+
+      released = parse_tool_response(Mcp::Tools::RuntimeReleaseControlTool.call(
+        session_id: runtime_session.id, server_context: { chat_session: chat_session }
+      ))
+      expect(released.fetch("released").sole.fetch("state")).to eq("released")
+
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input")
+      RuntimeControlLease.abort_agent_control!(runtime_session: runtime_session, reason: "operator takeover")
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "user", mode: "input")
+      preempted = parse_tool_response(Mcp::Tools::RuntimeInputTool.call(
+        session_id: runtime_session.id, event: { type: "key", key: "Enter" },
+        server_context: { chat_session: chat_session }
+      ))
+      expect(preempted).to include("error" => "lease_required")
+
+      stopped = Mcp::Tools::RuntimeStopTool.call(
+        session_id: runtime_session.id, server_context: { chat_session: chat_session }
+      )
+      expect(parse_tool_response(stopped)).to include("state" => "stopped")
+      expect(terminal_session.reload).to have_attributes(outcome: "killed")
     end
   ensure
     RuntimeTerminal::Provider.reset_relay_clients!

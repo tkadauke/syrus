@@ -247,12 +247,37 @@ RSpec.describe RuntimeTerminal::RelayClient do
         "Home" => "\e[H",
         "End" => "\e[F",
         "PageUp" => "\e[5~",
-        "PageDown" => "\e[6~"
+        "PageDown" => "\e[6~",
+        "Shift+Tab" => "\e[Z",
+        "F1" => "\eOP",
+        "F4" => "\eOS",
+        "F5" => "\e[15~",
+        "F12" => "\e[24~"
       }.each do |key, sequence|
         client.input(type: "key", key: key)
 
         expect(relay.next_control).to eq("type" => "input", "data" => sequence)
       end
+    end
+
+    it "maps Ctrl chords and structured modifiers to control bytes" do
+      [
+        [ { type: "key", key: "Ctrl+C" }, "\x03" ],
+        [ { type: "key", key: "d", modifiers: [ "ctrl" ] }, "\x04" ],
+        [ { type: "key", key: "L", ctrl: true }, "\x0c" ],
+        [ { type: "key", key: "Tab", shift: true }, "\e[Z" ],
+        [ { type: "key", key: "Ctrl+[" }, "\e" ],
+        [ { type: "key", key: "Ctrl+Space" }, "\x00" ]
+      ].each do |event, sequence|
+        client.input(event)
+
+        expect(relay.next_control).to eq("type" => "input", "data" => sequence)
+      end
+    end
+
+    it "raises UnsupportedInput for an unsupported Ctrl chord" do
+      expect { client.input(type: "key", key: "Ctrl+F1") }
+        .to raise_error(described_class::UnsupportedInput, /unsupported Ctrl combination/)
     end
 
     it "raises UnsupportedInput for an unrecognized key with no text/data" do

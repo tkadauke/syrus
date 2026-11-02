@@ -34,18 +34,22 @@ module RuntimeTerminal
         relay_clients_lock.synchronize { relay_clients.delete(runtime_session_id.to_i) }&.close
       end
 
-      def relay_client_for(runtime_session_id, terminal_session)
+      def relay_client_for(runtime_session_id, terminal_session, initial_dimensions: nil)
         relay_clients_lock.synchronize do
-          relay_clients[runtime_session_id.to_i] ||= RelayClient.new(terminal_session)
+          relay_clients[runtime_session_id.to_i] ||= RelayClient.new(terminal_session, initial_dimensions: initial_dimensions)
         end
       end
 
-      def replace_relay_client!(runtime_session_id, terminal_session)
+      def replace_relay_client!(runtime_session_id, terminal_session, initial_dimensions: nil)
         relay_clients_lock.synchronize do
           previous = relay_clients.delete(runtime_session_id.to_i)
           generation = previous&.screen_generation.to_i
           previous&.close
-          relay_clients[runtime_session_id.to_i] = RelayClient.new(terminal_session, generation: generation)
+          relay_clients[runtime_session_id.to_i] = RelayClient.new(
+            terminal_session,
+            generation: generation,
+            initial_dimensions: initial_dimensions
+          )
         end
       end
 
@@ -64,6 +68,7 @@ module RuntimeTerminal
       config = config.to_h.symbolize_keys
       runtime_session = config.fetch(:runtime_session)
       chat_session = config.fetch(:chat_session)
+      initial_dimensions = normalized_dimensions(config)
 
       terminal_session = Terminal::Session.create!(
         user: chat_session.user,
@@ -78,7 +83,7 @@ module RuntimeTerminal
       )
       TerminalSessionJob.perform_later(terminal_session.id)
 
-      { terminal_session_id: terminal_session.id }
+      { terminal_session_id: terminal_session.id, initial_dimensions: initial_dimensions }.compact
     end
 
     def build_or_reload(_session_id, _options)
@@ -224,7 +229,11 @@ module RuntimeTerminal
     end
 
     def relay_client_for(runtime_session, terminal_session)
-      self.class.relay_client_for(runtime_session.id, terminal_session)
+      self.class.relay_client_for(
+        runtime_session.id,
+        terminal_session,
+        initial_dimensions: initial_dimensions_for(runtime_session)
+      )
     end
 
     def with_fresh_relay_client(runtime_session, terminal_session)
@@ -232,9 +241,37 @@ module RuntimeTerminal
       result = yield(client)
       return result unless client.closed?
 
-      yield(self.class.replace_relay_client!(runtime_session.id, terminal_session))
+      yield(self.class.replace_relay_client!(
+        runtime_session.id,
+        terminal_session,
+        initial_dimensions: initial_dimensions_for(runtime_session)
+      ))
     rescue RelayClient::ConnectionError
-      yield(self.class.replace_relay_client!(runtime_session.id, terminal_session))
+      yield(self.class.replace_relay_client!(
+        runtime_session.id,
+        terminal_session,
+        initial_dimensions: initial_dimensions_for(runtime_session)
+      ))
+    end
+
+    def normalized_dimensions(config)
+      columns = config[:columns] || config[:cols]
+      rows = config[:rows]
+      return if columns.nil? && rows.nil?
+
+      columns = Integer(columns)
+      rows = Integer(rows)
+      unless columns.positive? && rows.positive? && columns <= RelayClient::MAX_COLS && rows <= RelayClient::MAX_ROWS
+        raise ArgumentError, "terminal dimensions must be positive and no larger than #{RelayClient::MAX_COLS}x#{RelayClient::MAX_ROWS}"
+      end
+
+      { cols: columns, rows: rows }
+    rescue ArgumentError, TypeError
+      raise ArgumentError, "terminal dimensions must be positive and no larger than #{RelayClient::MAX_COLS}x#{RelayClient::MAX_ROWS}"
+    end
+
+    def initial_dimensions_for(runtime_session)
+      runtime_session.metadata["initial_dimensions"]&.symbolize_keys
     end
 
     def not_supported(operation)
