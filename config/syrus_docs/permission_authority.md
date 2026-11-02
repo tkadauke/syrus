@@ -30,11 +30,12 @@ durable delegation separate from operational approvals: the hub lists editable
 user-owned rules and read-only inherited capability defaults, identifies policy
 ownership, and explains which default is decisive when no more specific
 permitted rule applies. Revoking a rule preserves its audit history.
-The agent matrix compares effective allow, ask, and deny states by subject and
-capability; the resource view groups active rules by provider-supplied typed
-scope labels. Editing creates an audited replacement. Bulk changes require a
-complete server-normalized preview with a signed digest, then apply the exact
-previewed set in one transaction or fail as stale.
+The agent matrix compares evaluator-derived allow, ask, and deny states by
+subject and capability, and marks states that vary by resource instead of
+collapsing them into one policy. The resource view groups active rules by
+provider-supplied typed scope labels. Editing creates an audited replacement.
+Bulk changes require a complete server-normalized preview with a signed digest,
+then apply the exact previewed set in one transaction or fail as stale.
 
 ## Agent-facing management APIs
 

@@ -24,6 +24,7 @@ export type InheritedPermission = {
   defaults: Record<string, string>
   requestable_roles: string[]
   authority_durations: string[]
+  matrix_states: Record<string, "allow" | "ask" | "deny" | "scoped">
   presets: Array<{ name: string; policy?: string; [key: string]: unknown }>
   owner: { kind: string; name: string }
   editable: false

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { TFunction } from "i18next"
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import {
@@ -28,6 +29,8 @@ const queryKey = ["permission_rules"] as const
 const subjects = ["interactive_chat", "coding_chat", "local_chat"] as const
 type Subject = (typeof subjects)[number]
 type View = "matrix" | "resources" | "rules"
+type PolicyState = "allow" | "ask" | "deny" | "scoped"
+type Translate = TFunction<"settings">
 
 export function PermissionsSettingsRoute() {
   const { t } = useT("settings")
@@ -193,7 +196,7 @@ export function PermissionsSettingsRoute() {
                   </DataTable.Cell>
                   {subjects.map((cellSubject) => (
                     <DataTable.Cell key={cellSubject}>
-                      <PolicyPill policy={effectivePolicy(item, cellSubject, rules)} />
+                      <PolicyPill policy={item.matrix_states[cellSubject] ?? "deny"} t={t} />
                     </DataTable.Cell>
                   ))}
                 </DataTable.Row>
@@ -286,6 +289,23 @@ export function PermissionsSettingsRoute() {
   )
 }
 
+type RuleFormProps = {
+  descriptors: InheritedPermission[]
+  editing: PermissionRule | null
+  policy: "allow" | "deny"
+  rationale: string
+  selected: InheritedPermission
+  subject: Subject
+  t: Translate
+  onCancel: () => void
+  onDescriptor: (value: string) => void
+  onPolicy: (value: "allow" | "deny") => void
+  onRationale: (value: string) => void
+  onSubject: (value: Subject) => void
+  onSubmit: () => void
+  pending: boolean
+}
+
 function RuleForm({
   descriptors,
   editing,
@@ -301,7 +321,7 @@ function RuleForm({
   onSubject,
   onSubmit,
   pending
-}: any) {
+}: RuleFormProps) {
   return (
     <form
       className="mt-5 grid gap-3 border-t border-border pt-5 md:grid-cols-2"
@@ -312,7 +332,7 @@ function RuleForm({
     >
       <label className="text-sm font-medium">
         {t("permissions.subject")}
-        <Select className="mt-1" onChange={(event) => onSubject(event.target.value)} value={subject}>
+        <Select className="mt-1" onChange={(event) => onSubject(event.target.value as Subject)} value={subject}>
           {subjects.map((item) => (
             <option key={item} value={item}>
               {t(`permissions.subjects.${item}`)}
@@ -323,7 +343,7 @@ function RuleForm({
       <label className="text-sm font-medium">
         {t("permissions.capability")}
         <Select className="mt-1" onChange={(event) => onDescriptor(event.target.value)} value={keyFor(selected)}>
-          {descriptors.map((item: InheritedPermission) => (
+          {descriptors.map((item) => (
             <option key={keyFor(item)} value={keyFor(item)}>
               {item.capability} · {item.operation}
             </option>
@@ -332,7 +352,7 @@ function RuleForm({
       </label>
       <label className="text-sm font-medium">
         {t("permissions.policy")}
-        <Select className="mt-1" onChange={(event) => onPolicy(event.target.value)} value={policy}>
+        <Select className="mt-1" onChange={(event) => onPolicy(event.target.value as "allow" | "deny")} value={policy}>
           <option value="allow">{t("permissions.allow")}</option>
           <option value="deny">{t("permissions.deny")}</option>
         </Select>
@@ -354,7 +374,7 @@ function RuleForm({
     </form>
   )
 }
-function ResourceView({ rules, t }: { rules: PermissionRule[]; t: any }) {
+function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
   const groups = rules.reduce<Record<string, PermissionRule[]>>((result, rule) => {
     const key = `${rule.resource_type}:${rule.resource_scope_label}`
     ;(result[key] ||= []).push(rule)
@@ -372,7 +392,7 @@ function ResourceView({ rules, t }: { rules: PermissionRule[]; t: any }) {
             <ul className="mt-2 space-y-1 text-sm">
               {items.map((rule) => (
                 <li key={rule.id}>
-                  <PolicyPill policy={rule.policy} />{" "}
+                  <PolicyPill policy={rule.policy} t={t} />{" "}
                   <span className="ml-2">
                     {rule.capability} · {rule.operation}
                   </span>
@@ -386,7 +406,17 @@ function ResourceView({ rules, t }: { rules: PermissionRule[]; t: any }) {
     </section>
   )
 }
-function BulkPreviewModal({ applying, onClose, onConfirm, preview, t }: any) {
+type BulkPreview = { rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] }
+
+type BulkPreviewModalProps = {
+  applying: boolean
+  onClose: () => void
+  onConfirm: () => void
+  preview: BulkPreview | null
+  t: Translate
+}
+
+function BulkPreviewModal({ applying, onClose, onConfirm, preview, t }: BulkPreviewModalProps) {
   return (
     <Modal label={t("permissions.confirm_bulk_title")} onClose={onClose} open={Boolean(preview)}>
       {preview ? (
@@ -417,11 +447,11 @@ function BulkPreviewModal({ applying, onClose, onConfirm, preview, t }: any) {
     </Modal>
   )
 }
-function PolicyPill({ policy }: { policy: string }) {
+function PolicyPill({ policy, t }: { policy: PolicyState; t: Translate }) {
   const tone = policy === "allow" ? "bg-success/10 text-success" : policy === "deny" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{policy}</span>
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{t(`permissions.states.${policy}`)}</span>
 }
-function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPreset: (name: string) => void; t: any }) {
+function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPreset: (name: string) => void; t: Translate }) {
   const defaults = Object.entries(item.defaults)
     .map(([role, policy]) => `${role}: ${policy}`)
     .join(", ")
@@ -448,13 +478,6 @@ function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPres
         </div>
       ) : null}
     </div>
-  )
-}
-function effectivePolicy(item: InheritedPermission, subject: Subject, rules: PermissionRule[]) {
-  return (
-    rules.find((rule) => rule.subject_selector_type === subject && rule.capability === item.capability && rule.operation === item.operation)?.policy ??
-    item.defaults[roleFor(subject)] ??
-    "deny"
   )
 }
 function keyFor(item: Pick<InheritedPermission, "capability" | "operation">) {
