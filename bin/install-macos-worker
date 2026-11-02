@@ -14,8 +14,8 @@ SKIP_DEPENDENCIES=0
 SKIP_SERVICES=0
 
 BREW_FORMULAE=(ruby@3.4 node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go)
-CLAUDE_CODE_VERSION="2.1.296"
-CODEX_CLI_VERSION="0.162.1"
+CLAUDE_CODE_VERSION="2.1.316"
+CODEX_CLI_VERSION="0.166.0"
 
 usage() {
   cat <<'USAGE'

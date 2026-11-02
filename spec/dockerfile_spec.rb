@@ -68,7 +68,7 @@ RSpec.describe "Dockerfile" do
   end
 
   it "pins a Codex CLI version with current model metadata support" do
-    expect(dockerfile).to include("ARG CODEX_CLI_VERSION=0.162.1")
+    expect(dockerfile).to include("ARG CODEX_CLI_VERSION=0.166.0")
     expect(dockerfile).to include("@openai/codex@${CODEX_CLI_VERSION}")
   end
 
@@ -237,9 +237,12 @@ RSpec.describe "Dockerfile" do
   it "installs headless Chromium via Playwright, only in the worker image" do
     stage = worker_deps_stage
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+    browser_container = Rails.root.join("plugins/browser/container/Dockerfile").read
 
-    expect(stage).to include("ARG PLAYWRIGHT_VERSION=")
-    expect(stage).to include("ARG PLAYWRIGHT_MCP_VERSION=")
+    expect(stage).to include("ARG PLAYWRIGHT_VERSION=1.64.1")
+    expect(stage).to include("ARG PLAYWRIGHT_MCP_VERSION=0.0.84")
+    expect(browser_container).to include("ARG PLAYWRIGHT_VERSION=1.64.1")
+    expect(browser_container).to include("ARG PLAYWRIGHT_MCP_VERSION=0.0.84")
     expect(stage).to include('ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright')
     expect(stage).to include('npm install -g "playwright@${PLAYWRIGHT_VERSION}" "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}"')
     expect(stage).to include('npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium')
@@ -287,7 +290,7 @@ RSpec.describe "Dockerfile" do
     stage = worker_deps_stage
 
     expect(stage).to include("ARG YARN_VERSION=1.22.22")
-    expect(stage).to include("ARG PNPM_VERSION=12.11.2")
+    expect(stage).to include("ARG PNPM_VERSION=12.16.1")
     expect(stage).to include("ARG PIP_VERSION=26.2.1")
     expect(stage).to include('npm install -g "yarn@${YARN_VERSION}" "pnpm@${PNPM_VERSION}"')
     expect(stage).to include('/opt/python-tools/bin/pip install --no-cache-dir "pip==${PIP_VERSION}"')
