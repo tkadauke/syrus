@@ -200,8 +200,7 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       <span>{payload.credential_status.label}</span>
       <span className="text-gray-300 dark:text-gray-600">·</span>
       <span>
-        {t("repository.agent_prefix")}{" "}
-        {repository.agent_provider_label || t("repository.user_default_agent", { provider: repository.effective_agent_provider_label })}
+        {t("repository.agent_prefix")} {repository.effective_agent_provider_label}
       </span>
       {nonzeroCounts.map((count) => (
         <TonePill key={count.label} tone={count.tone}>

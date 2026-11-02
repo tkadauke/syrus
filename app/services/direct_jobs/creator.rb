@@ -42,7 +42,6 @@ module DirectJobs
           issue_title: title.presence || GenerateJobTitleJob::PENDING_TITLE,
           title_pending: title.blank?,
           issue_body: prompt_text,
-          agent_provider: repository.effective_agent_provider,
           priority: priority
         )
 

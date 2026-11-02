@@ -94,8 +94,8 @@ module Api
             id: repository.id,
             slug: repository.slug,
             repository_path: repository_path(repository),
-            default_agent_provider: repository.effective_agent_provider,
-            default_agent_provider_label: agent_provider_label(repository.effective_agent_provider)
+            default_agent_provider: repository.user&.agent_provider,
+            default_agent_provider_label: agent_provider_label(repository.user&.agent_provider)
           }
         end
 

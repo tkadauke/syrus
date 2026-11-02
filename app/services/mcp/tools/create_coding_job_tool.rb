@@ -60,7 +60,6 @@ module Mcp::Tools
           kind: "direct",
           issue_title: title.strip,
           issue_body: body.strip,
-          agent_provider: repository.effective_agent_provider,
           state: "coding",
           linked_chat_id: chat_session.id
         )

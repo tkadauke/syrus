@@ -5,12 +5,11 @@ RSpec.describe Repositories::Filter do
 
   describe ".build_tree_from_url_params" do
     it "translates legacy dropdown params into a flat AND-of-chips tree" do
-      tree = described_class.build_tree_from_url_params({ github_owner: "acme", health: "broken", agent_provider: "codex" })
+      tree = described_class.build_tree_from_url_params({ github_owner: "acme", health: "broken" })
 
       expect(tree["and"]).to contain_exactly(
         { "field" => "github_owner", "op" => "is", "value" => "acme" },
-        { "field" => "health", "op" => "is", "value" => "broken" },
-        { "field" => "agent_provider", "op" => "is", "value" => "codex" }
+        { "field" => "health", "op" => "is", "value" => "broken" }
       )
     end
 
@@ -64,11 +63,11 @@ RSpec.describe Repositories::Filter do
 
   describe ".from_params" do
     it "ANDs a given smart folder's tree in unconditionally" do
-      folder_tree = { "and" => [ { "field" => "agent_provider", "op" => "is", "value" => "codex" } ] }
+      folder_tree = { "and" => [ { "field" => "github_owner", "op" => "is", "value" => "acme" } ] }
       smart_folder = instance_double(SmartFolder, filter: folder_tree)
 
       combined = described_class.from_params({}, smart_folder: smart_folder, user: user).to_h
-      expect(combined["and"]).to contain_exactly(a_hash_including("field" => "agent_provider", "value" => "codex"))
+      expect(combined["and"]).to contain_exactly(a_hash_including("field" => "github_owner", "value" => "acme"))
     end
 
     # Callers must resolve `smart_folder:` through .smart_folder_floor first
@@ -78,10 +77,10 @@ RSpec.describe Repositories::Filter do
       folder_tree = { "and" => [ { "field" => "archived", "op" => "is", "value" => true } ] }
       smart_folder = instance_double(SmartFolder, filter: folder_tree)
 
-      combined = described_class.from_params({ agent_provider: "claude" }, smart_folder: smart_folder, user: user).to_h
+      combined = described_class.from_params({ github_owner: "bob" }, smart_folder: smart_folder, user: user).to_h
       expect(combined["and"]).to contain_exactly(
         a_hash_including("field" => "archived", "value" => true),
-        a_hash_including("field" => "agent_provider", "value" => "claude")
+        a_hash_including("field" => "github_owner", "value" => "bob")
       )
     end
   end
@@ -105,12 +104,11 @@ RSpec.describe Repositories::Filter do
   end
 
   describe "#apply" do
-    let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex") }
-    let(:other) { Factories.repository(user: user, owner: "acme", name: "api", agent_provider: "claude") }
+    let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+    let(:other) { Factories.repository(user: user, owner: "bob", name: "api") }
 
-    it "filters by slug, owner, agent_provider, and archived" do
-      other.archive!
-      filter = described_class.from_params({ agent_provider: "codex" }, user: user)
+    it "filters by owner" do
+      filter = described_class.from_params({ github_owner: "acme" }, user: user)
 
       expect(filter.apply([ repository, other ])).to contain_exactly(repository)
     end
@@ -134,7 +132,7 @@ RSpec.describe Repositories::Filter do
     end
 
     it "supports is_not/is_none_of as the negation of is/is_one_of" do
-      filter = described_class.from_tree({ "and" => [ { "field" => "agent_provider", "op" => "is_not", "value" => "codex" } ] }, user: user)
+      filter = described_class.from_tree({ "and" => [ { "field" => "github_owner", "op" => "is_not", "value" => "acme" } ] }, user: user)
 
       expect(filter.apply([ repository, other ])).to contain_exactly(other)
     end

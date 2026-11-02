@@ -323,11 +323,11 @@ RSpec.describe Workflows::Initial do
     expect(workflow.reload.agent_provider).to eq("claude")
   end
 
-  it "selects the repository's explicit agent_provider over a user-scoped default routing rule" do
-    # Regression: the repo was pinned to a provider, the user
+  it "selects a repository-scoped default routing rule over a user-scoped default routing rule" do
+    # Regression: the repo routed to a provider, the user
     # had a default-routing rule favoring Claude, and the workflow was
     # incorrectly created with Claude instead of the repo's provider.
-    repository.update!(agent_provider: "codex")
+    ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
     user.update!(agent_provider: "claude")
     ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "claude" } ])
     job.update_columns(job_provider_setting: "default")
@@ -336,7 +336,6 @@ RSpec.describe Workflows::Initial do
 
     expect(workflow.agent_provider).to eq("codex")
     expect(workflow.artifacts["agent_provider_routing_decision"]["selected_provider"]).to eq("codex")
-    expect(workflow.artifacts["agent_provider_routing_decision"]["original_provider"]).to eq("codex")
   end
 
   # End to end through the real RepoGradeLoopPlan: what the workflow's steps

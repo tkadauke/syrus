@@ -45,7 +45,7 @@ module InvestigationJobs
         title_pending: false,
         issue_body: @prompt,
         epic: @epic,
-        agent_provider: @agent_provider || @repository.effective_agent_provider,
+        agent_provider: @agent_provider || @repository.user&.agent_provider,
         job_provider_setting: @agent_provider || "default",
         priority: Job::PRIORITIES.include?(@priority) ? @priority : "medium",
         delivery_track: @delivery_track,

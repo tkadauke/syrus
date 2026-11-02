@@ -27,7 +27,6 @@ module RepositoryMembersSerialization
     {
       id: membership.id,
       role: membership.role,
-      agent_provider: membership.agent_provider,
       created_at: membership.created_at.iso8601,
       github_permission_mismatch_reason: membership.github_permission_mismatch_reason,
       github_permission_mismatch_checked_at: membership.github_permission_mismatch_checked_at&.iso8601,

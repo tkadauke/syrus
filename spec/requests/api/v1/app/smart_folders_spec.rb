@@ -61,21 +61,21 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect {
       post "/api/v1/app/smart_folders", params: {
         subject_type: "repository",
-        agent_provider: "codex",
-        smart_folder: { name: "Codex repos" }
+        github_owner: "acme",
+        smart_folder: { name: "Acme repos" }
       }
     }.to change { user.smart_folders.count }.by(1)
 
-    folder = user.smart_folders.find_by!(name: "Codex repos")
+    folder = user.smart_folders.find_by!(name: "Acme repos")
     expect(response).to have_http_status(:created)
     expect(folder).to have_attributes(subject_type: "repository", position: 0)
-    expect(folder.filter).to eq("and" => [ { "field" => "agent_provider", "op" => "is", "value" => "codex" } ])
+    expect(folder.filter).to eq("and" => [ { "field" => "github_owner", "op" => "is", "value" => "acme" } ])
     expect(parse_body).to include(
       "message" => "Smart folder saved.",
       "redirect_to" => repositories_path(smart_folder_id: folder.id),
       "subject_type" => "repository"
     )
-    expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Codex repos")
+    expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Acme repos")
   end
 
   it "rejects smart folder creation without filters" do
