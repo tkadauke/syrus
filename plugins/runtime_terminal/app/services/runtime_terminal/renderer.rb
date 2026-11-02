@@ -9,7 +9,7 @@ module RuntimeTerminal
     CELL_HEIGHT = 20
     FONT_SIZE = 16
     FONT_PATH = File.expand_path("../../../assets/DejaVuSansMono.ttf", __dir__)
-    CJK_FONT_PATH = File.expand_path("../../../assets/XiaolaiCjkSubset.woff2", __dir__)
+    CJK_FONT_PATH = File.expand_path("../../../assets/XiaolaiCjkSubset.ttf", __dir__)
     DEFAULT_FOREGROUND = "#d8dee9"
     DEFAULT_BACKGROUND = "#1e222a"
     ANSI = %w[
