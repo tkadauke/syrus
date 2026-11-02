@@ -241,6 +241,7 @@ PATH
   specs:
     runtime_terminal (0.1.0)
       rails (>= 8.1)
+      unicode-display_width (~> 3.3)
 
 PATH
   remote: plugins/scheduled_tasks
