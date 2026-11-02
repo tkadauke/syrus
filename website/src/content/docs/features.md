@@ -56,7 +56,9 @@ Financial effects, privilege changes, and permission management always remain
 human decisions. Non-delegable policy ceilings are checked before the provider
 runs, and core redacts its evidence. Unavailable, low-confidence, rate-limited,
 or invalid provider responses return the same request to the human approval
-inbox.
+inbox without creating a duplicate. An AI denial rejects only the current
+attempt, and an identical resubmission is reconsidered when it carries new
+transcript evidence.
 
 Each approval provider declares an operator-facing disclosure of where evidence
 is processed and how it is retained. A provider receives the complete role-labelled

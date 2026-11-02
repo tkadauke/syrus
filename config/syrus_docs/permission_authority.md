@@ -96,6 +96,20 @@ processed and retained. The provider receives the complete evidence needed for
 the decision, while the durable audit artifact redacts secrets from the
 transcript, tool arguments, repository guidance, provider evidence, and decision.
 
+### AI decision lifecycle
+
+An AI decision attaches to the request that is already pending; it never opens
+a second one. Only a request with a single operation item is delegable.
+`allow` approves that item for the invocation duration and issues the
+exact-invocation authority in one transaction, so a failure leaves the request
+pending for a human. `deny` rejects only the current attempt: it creates no
+rule or lease and does not start the denial cooldown, so a later identical
+resubmission is evaluated again. Escalation, provider failure, and low
+confidence leave the request in the human inbox without a new notification.
+Each evaluation is recorded on the request's transition history with the
+redacted audit artifact. An identical resubmission is re-evaluated only when
+its transcript evidence differs from the last evaluation.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with
