@@ -31,7 +31,7 @@ class Operation
     raise ArgumentError, "audit reason is required" if @reason.blank?
   end
 
-  PLACEMENT_STATES = %w[triaging backlog queued].freeze
+  PLACEMENT_STATES = %w[triaging backlog blocked_by_epic queued].freeze
   LIGHTWEIGHT_WORKFLOW_COLUMNS = %i[id job_id trigger_kind state worker_hostname worker_storage_key created_at].freeze
   LIGHTWEIGHT_RUN_COLUMNS = %i[id job_id state started_at created_at].freeze
 
@@ -122,7 +122,7 @@ class Operation
 
   def refusal_reason(workflows, runs)
     return "Placement cannot be changed once #{job.slug} is #{job.state}; cancel or finish the active work, then create a fresh attempt." unless job.state.in?(PLACEMENT_STATES)
-    if job.state.in?(%w[triaging backlog])
+    if job.state.in?(%w[triaging backlog blocked_by_epic])
       return nil if workflows.empty? && runs.empty?
 
       return "#{job.slug} is #{job.state} but already has Workflow or Run history; use a fresh attempt rather than changing placement on inconsistent execution records."

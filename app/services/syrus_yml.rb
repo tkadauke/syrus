@@ -829,16 +829,13 @@ class SyrusYml
     raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
 
     raw = raw.deep_stringify_keys
-    unknown_keys = raw.keys - TargetGraph::ExecutionCapabilities::DIMENSIONS
-    if unknown_keys.any?
-      raise ParseError, "#{label}: unknown keys #{unknown_keys.join(', ')}; expected #{TargetGraph::ExecutionCapabilities::DIMENSIONS.join(', ')}"
-    end
+    PlannedExecutionRequirement.validate_capability_keys!(raw)
 
     capabilities = TargetGraph::ExecutionCapabilities.new(
       os: parse_capability_values(raw["os"], "#{label}.os"),
-      arch: parse_capability_values(raw["arch"], "#{label}.arch"),
-      toolchain: parse_capability_values(raw["toolchain"], "#{label}.toolchain"),
-      runtime: parse_capability_values(raw["runtime"], "#{label}.runtime")
+      arch: [],
+      toolchain: [],
+      runtime: []
     )
     capabilities.empty? ? nil : capabilities
   rescue ArgumentError => e

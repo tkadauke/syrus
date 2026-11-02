@@ -407,9 +407,6 @@ RSpec.describe SyrusYml do
           run: xcodebuild test
           capabilities:
             os: [macos]
-            arch: arm64
-            toolchain: xcode
-            runtime: ios_simulator
       grade:
         - name: backend
           run: bin/rspec
@@ -418,12 +415,7 @@ RSpec.describe SyrusYml do
     YAML
 
     expect(config.project.capabilities.to_h).to eq("os" => [ "macos" ])
-    expect(config.targets.first.capabilities.to_h).to eq(
-      "os" => [ "macos" ],
-      "arch" => [ "arm64" ],
-      "toolchain" => [ "xcode" ],
-      "runtime" => [ "ios_simulator" ]
-    )
+    expect(config.targets.first.capabilities.to_h).to eq("os" => [ "macos" ])
     expect(config.grade.steps.first.capabilities.to_h).to eq("os" => [ "linux" ])
   end
 
@@ -491,9 +483,6 @@ RSpec.describe SyrusYml do
           timeout_minutes: 45
           capabilities:
             os: macos
-            arch: arm64
-            toolchain: xcode
-            runtime: ios_simulator
     YAML
 
     expect(config.project.kind).to eq("ios_app")
@@ -501,12 +490,7 @@ RSpec.describe SyrusYml do
     expect(config.targets.second.command).to include("xcodebuild test")
     expect(config.targets.second.command).to include("-destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'")
     expect(config.targets.second.deps).to eq([ ":app-sources" ])
-    expect(config.targets.second.capabilities.to_h).to eq(
-      "os" => [ "macos" ],
-      "arch" => [ "arm64" ],
-      "toolchain" => [ "xcode" ],
-      "runtime" => [ "ios_simulator" ]
-    )
+    expect(config.targets.second.capabilities.to_h).to eq("os" => [ "macos" ])
   end
 
   it "rejects unsupported OS values with the owning field path" do
@@ -529,7 +513,7 @@ RSpec.describe SyrusYml do
           capabilities:
             gpu: metal
       YAML
-    }.to raise_error(described_class::ParseError, /project\.capabilities: unknown keys gpu/)
+    }.to raise_error(described_class::ParseError, /project\.capabilities.*forbidden keys: gpu.*Only os is permitted/)
   end
 
   it "rejects non-positive explicit target timeouts" do

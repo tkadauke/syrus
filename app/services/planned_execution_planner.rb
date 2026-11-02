@@ -28,6 +28,8 @@ class PlannedExecutionPlanner
     return existing unless existing.source == "defaulted"
 
     declared_repository_requirement || existing
+  rescue ArgumentError, SyrusYml::ParseError
+    raise
   rescue StandardError => e
     Rails.logger.warn("[PlannedExecutionPlanner] defaulting #{job.slug || "Job##{job.id}"}: #{e.class}: #{e.message}")
     PlannedExecutionRequirement.from_record(job)

@@ -6,14 +6,11 @@ class ExecutionPlacementProfile
     },
     "macos_desktop" => {
       "label" => "macOS desktop",
-      "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] }
+      "capabilities" => { "os" => [ "macos" ] }
     },
     "ios_xcode" => {
       "label" => "iOS / Xcode",
-      "capabilities" => {
-        "os" => [ "macos" ], "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ], "runtime" => [ "ios_simulator" ]
-      }
+      "capabilities" => { "os" => [ "macos" ] }
     }
   }.freeze
 
