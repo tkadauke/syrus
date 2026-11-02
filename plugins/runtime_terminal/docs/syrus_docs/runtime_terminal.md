@@ -70,7 +70,7 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
 - **Authenticate** — writes `{"token": "<terminal_session.auth_token>"}` as
   the first line.
 - **Scrollback** (`#inspect_scrollback`) — accumulates `replay`/`output`
-  frame payloads (base64-decoded) into an in-memory buffer as they arrive;
+  frame payloads (base64-decoded) into a tail buffer bounded to 1 MiB;
   `#inspect_scrollback` drains any newly-available bytes before returning
   the buffer.
 - **Authoritative screen** (`#inspect_screen`) — applies those exact decoded
@@ -110,7 +110,9 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
 mapped `Terminal::Session` before attempting to connect.
 
 The emulator is process-local and deliberately bounded to 1,000 scrollback
-rows. It lives exactly as long as its pooled relay client: stopping a Runtime
+rows, 1 MiB each of raw diagnostic output and incomplete relay framing, 4 KiB
+for an incomplete control sequence, and four bytes for an incomplete UTF-8
+glyph. It lives exactly as long as its pooled relay client: stopping a Runtime
 Session, resetting provider clients, or observing a disconnected socket closes
 and releases it. A reconnect constructs a fresh emulator from the relay's
 bounded, gap-free replay before consuming live output, carrying the previous

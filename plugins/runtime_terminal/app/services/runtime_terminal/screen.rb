@@ -8,6 +8,8 @@ module RuntimeTerminal
     DEFAULT_COLS = 80
     DEFAULT_ROWS = 24
     MAX_SCROLLBACK_ROWS = 1_000
+    MAX_PARSER_PENDING_BYTES = 4_096
+    MAX_UTF8_PENDING_BYTES = 4
 
     Cell = Data.define(:text, :width, :foreground, :background, :styles) do
       def as_json(*)
@@ -22,6 +24,7 @@ module RuntimeTerminal
       @generation = generation
       @utf8_pending = +"".b
       @parser_pending = +""
+      @wrap_pending = false
       @saved_cursor = {}
       resize(cols, rows, increment: false)
       reset_attributes
@@ -43,7 +46,9 @@ module RuntimeTerminal
       @rows = rows
       @primary ||= new_buffer
       @alternate ||= new_buffer
-      [ @primary, @alternate ].each { |buffer| resize_buffer(buffer) }
+      primary_shift = resize_buffer(@primary, scrollback: true)
+      alternate_shift = resize_buffer(@alternate, scrollback: false)
+      @cursor_row = @cursor_row.to_i + (@alternate_active ? alternate_shift : primary_shift)
       clamp_cursor
       self
     end
@@ -76,16 +81,37 @@ module RuntimeTerminal
       Array.new(@cols) { blank_cell }
     end
 
-    def resize_buffer(buffer)
-      buffer[:lines].each do |line|
-        line.slice!(@cols..) if line.length > @cols
-        line.concat(Array.new(@cols - line.length) { blank_cell }) if line.length < @cols
-      end
+    def resize_buffer(buffer, scrollback:)
+      cursor_shift = 0
+      buffer[:lines].each { |line| resize_line(line) }
       while buffer[:lines].length > @rows
-        buffer[:scrollback] << buffer[:lines].shift
+        removed = buffer[:lines].shift
+        buffer[:scrollback] << removed if scrollback
+        cursor_shift -= 1
       end
-      buffer[:lines].unshift(blank_line) while buffer[:lines].length < @rows
+      while scrollback && buffer[:lines].length < @rows && buffer[:scrollback].any?
+        buffer[:lines].unshift(resize_line(buffer[:scrollback].pop))
+        cursor_shift += 1
+      end
+      buffer[:lines] << blank_line while buffer[:lines].length < @rows
+      buffer[:scrollback].clear unless scrollback
       trim_scrollback(buffer)
+      cursor_shift
+    end
+
+    def resize_line(line)
+      line.slice!(@cols..) if line.length > @cols
+      line.concat(Array.new(@cols - line.length) { blank_cell }) if line.length < @cols
+      normalize_wide_cells(line)
+      line
+    end
+
+    def normalize_wide_cells(line)
+      line.each_index do |col|
+        cell = line[col]
+        line[col] = blank_cell if cell.width == 2 && line[col + 1]&.width != 0
+        line[col] = blank_cell if cell.width.zero? && (col.zero? || line[col - 1].width != 2)
+      end
     end
 
     def decode(bytes)
@@ -94,6 +120,11 @@ module RuntimeTerminal
       if decoded.valid_encoding?
         @utf8_pending.clear
         return decoded
+      end
+
+      if @utf8_pending.bytesize > MAX_UTF8_PENDING_BYTES
+        @utf8_pending.clear
+        return decoded.scrub
       end
 
       valid_end = @utf8_pending.length
@@ -114,6 +145,7 @@ module RuntimeTerminal
           consumed = parse_escape(data, index)
           unless consumed
             @parser_pending = data[index..]
+            @parser_pending = +"" if @parser_pending.bytesize > MAX_PARSER_PENDING_BYTES
             break
           end
           index += consumed
@@ -128,16 +160,16 @@ module RuntimeTerminal
       return nil unless data[index + 1]
       case data[index + 1]
       when "["
-        match = /\A\e\[([?=>!]?[0-9:;<=>?]*[ -\/]*)?([@-~])/.match(data[index..])
+        match = /\G\e\[([?=>!]?[0-9:;<=>?]*[ -\/]*)?([@-~])/.match(data, index)
         return nil unless match
         apply_csi(match[1].to_s, match[2])
         match[0].length
       when "]"
-        tail = data[index + 2..]
-        ending = tail.index("\a")
-        ending ||= tail.index("\e\\")
+        bell_ending = data.index("\a", index + 2)
+        string_ending = data.index("\e\\", index + 2)
+        ending = [ bell_ending, string_ending ].compact.min
         return nil unless ending
-        index + 2 + ending + (tail[ending, 2] == "\e\\" ? 2 : 1) - index
+        ending - index + (ending == string_ending ? 2 : 1)
       when "7"
         save_cursor
         2
@@ -154,16 +186,20 @@ module RuntimeTerminal
         reset
         2
       else
+        if data[index + 1].ord.between?(0x20, 0x2f)
+          return nil unless data[index + 2]
+          return 3
+        end
         2
       end
     end
 
     def consume_character(char)
       case char
-      when "\n", "\v", "\f" then line_feed
-      when "\r" then @cursor_col = 0
-      when "\b" then @cursor_col = [ @cursor_col - 1, 0 ].max
-      when "\t" then @cursor_col = [ ((@cursor_col / 8) + 1) * 8, cols - 1 ].min
+      when "\n", "\v", "\f" then @wrap_pending = false; line_feed
+      when "\r" then @wrap_pending = false; @cursor_col = 0
+      when "\b" then @wrap_pending = false; @cursor_col = [ @cursor_col - 1, 0 ].max
+      when "\t" then @wrap_pending = false; @cursor_col = [ ((@cursor_col / 8) + 1) * 8, cols - 1 ].min
       else
         return if char.ord < 32 || char.ord == 127
         put_character(char)
@@ -173,18 +209,43 @@ module RuntimeTerminal
     def put_character(char)
       width = Unicode::DisplayWidth.of(char, ambiguous: 1)
       if width.zero?
-        col = [ @cursor_col - 1, 0 ].max
+        col = @wrap_pending ? @cursor_col : [ @cursor_col - 1, 0 ].max
         cell = active_buffer[:lines][@cursor_row][col]
         active_buffer[:lines][@cursor_row][col] = cell.with(text: "#{cell.text}#{char}")
         return
       end
-      line_feed if @cursor_col >= cols
+      wrap_to_next_line if @wrap_pending
       width = 1 if width > cols
-      line_feed if width == 2 && @cursor_col == cols - 1
+      wrap_to_next_line if width == 2 && @cursor_col == cols - 1
       line = active_buffer[:lines][@cursor_row]
+      clear_wide_cell(line, @cursor_col)
+      clear_wide_cell(line, @cursor_col + 1) if width == 2
       line[@cursor_col] = styled_cell(char, width)
       line[@cursor_col + 1] = Cell.new("", 0, @foreground, @background, @styles.dup.freeze) if width == 2
-      @cursor_col += width
+      if @cursor_col + width >= cols
+        @cursor_col = cols - 1
+        @wrap_pending = true
+      else
+        @cursor_col += width
+      end
+    end
+
+    def wrap_to_next_line
+      line_feed
+      @cursor_col = 0
+      @wrap_pending = false
+    end
+
+    def clear_wide_cell(line, col)
+      return unless col.between?(0, cols - 1)
+
+      if line[col].width.zero? && col.positive? && line[col - 1].width == 2
+        line[col - 1] = blank_cell
+        line[col] = blank_cell
+      elsif line[col].width == 2
+        line[col] = blank_cell
+        line[col + 1] = blank_cell if col + 1 < cols
+      end
     end
 
     def styled_cell(text, width)
@@ -195,6 +256,7 @@ module RuntimeTerminal
       private_mode = raw.start_with?("?")
       values = raw.sub(/\A[?=>!]/, "").split(";", -1).map { |value| value.empty? ? nil : value.to_i }
       first = values[0] || 0
+      @wrap_pending = false unless final == "m"
       case final
       when "A" then @cursor_row = [ @cursor_row - nonzero(first), 0 ].max
       when "B" then @cursor_row = [ @cursor_row + nonzero(first), rows - 1 ].min
@@ -268,6 +330,7 @@ module RuntimeTerminal
       else @cursor_col...cols
       end
       range.each { |col| line[col] = blank_cell }
+      normalize_wide_cells(line)
     end
 
     def set_mode(values, enabled)
@@ -358,11 +421,13 @@ module RuntimeTerminal
     def delete_characters(count)
       line = active_buffer[:lines][@cursor_row]
       count.times { line.delete_at(@cursor_col); line << blank_cell }
+      normalize_wide_cells(line)
     end
 
     def insert_characters(count)
       line = active_buffer[:lines][@cursor_row]
       count.times { line.insert(@cursor_col, blank_cell); line.pop }
+      normalize_wide_cells(line)
     end
 
     def save_cursor
@@ -380,6 +445,7 @@ module RuntimeTerminal
       @alternate_active = false
       @cursor_row = @cursor_col = 0
       @cursor_visible = true
+      @wrap_pending = false
       reset_attributes
     end
 
@@ -390,6 +456,7 @@ module RuntimeTerminal
       @cursor_col = [[ @cursor_col.to_i, 0 ].max, cols - 1].min
       @cursor_visible = true if @cursor_visible.nil?
       @alternate_active = false if @alternate_active.nil?
+      @wrap_pending = false
     end
 
     def trim_scrollback(buffer)

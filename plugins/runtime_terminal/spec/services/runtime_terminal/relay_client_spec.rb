@@ -89,6 +89,31 @@ RSpec.describe RuntimeTerminal::RelayClient do
       client&.close
       relay&.stop
     end
+
+    it "bounds retained raw output" do
+      stub_const("RuntimeTerminal::RelayClient::MAX_SCROLLBACK_BYTES", 8)
+      relay = RuntimeTerminalFakeRelay.new(replay: "0123456789")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+
+      expect(client.inspect_screen).to include(scrollback: "23456789", bytes: 8)
+    ensure
+      client&.close
+      relay&.stop
+    end
+
+    it "raises a connection error after close while preserving its generation" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "ready")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+      generation = client.screen_generation
+
+      client.close
+
+      expect { client.inspect_screen }.to raise_error(described_class::ConnectionError)
+      expect(client.screen_generation).to eq(generation)
+    ensure
+      client&.close
+      relay&.stop
+    end
   end
 
   describe "#closed?" do
@@ -173,6 +198,16 @@ RSpec.describe RuntimeTerminal::RelayClient do
       client.input(type: "resize", columns: 80, rows: 24)
 
       expect(relay.next_control).to eq("type" => "resize", "cols" => 80, "rows" => 24)
+    end
+
+    it "does not resize the emulator when the relay write fails" do
+      socket = client.instance_variable_get(:@socket)
+      allow(socket).to receive(:write).and_raise(Errno::EPIPE)
+
+      expect { client.input(type: "resize", cols: 120, rows: 40) }
+        .to raise_error(described_class::ConnectionError)
+      screen = client.instance_variable_get(:@screen)
+      expect(screen.snapshot).to include(cols: 80, rows: 24, generation: 0)
     end
 
     it "raises UnsupportedInput for non-positive resize dimensions" do

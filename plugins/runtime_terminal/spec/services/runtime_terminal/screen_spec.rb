@@ -62,4 +62,64 @@ RSpec.describe RuntimeTerminal::Screen do
 
     expect(row(screen.snapshot).fetch(:text)).to eq("界")
   end
+
+  it "wraps narrow and wide characters without extending rows past the viewport" do
+    screen = described_class.new(cols: 4, rows: 3)
+
+    screen.apply("abcdXYZ界")
+
+    snapshot = screen.snapshot
+    expect(row(snapshot).fetch(:text)).to eq("abcd")
+    expect(row(snapshot, 1).fetch(:text)).to eq("XYZ")
+    expect(row(snapshot, 2).fetch(:text)).to eq("界")
+    expect(snapshot.fetch(:lines).map { |line| line.fetch(:cells).length }).to eq([ 4, 4, 4 ])
+    expect(snapshot.fetch(:cursor)).to include(row: 2, col: 2)
+  end
+
+  it "clears both halves of a wide cell when either half is overwritten" do
+    screen = described_class.new(cols: 5, rows: 2)
+    screen.apply("界\e[1;2HX")
+
+    cells = row(screen.snapshot).fetch(:cells)
+    expect(cells.first).to include(text: " ", width: 1)
+    expect(cells.second).to include(text: "X", width: 1)
+
+    screen.apply("\e[2;1H界\e[2;1HY")
+    cells = row(screen.snapshot, 1).fetch(:cells)
+    expect(cells.first).to include(text: "Y", width: 1)
+    expect(cells.second).to include(text: " ", width: 1)
+  end
+
+  it "consumes charset designators and bounds unterminated parser state" do
+    stub_const("RuntimeTerminal::Screen::MAX_PARSER_PENDING_BYTES", 8)
+    screen = described_class.new(cols: 8, rows: 1)
+
+    screen.apply("\e(Bbox")
+    screen.apply("\e]123456789")
+    screen.apply("X")
+
+    expect(row(screen.snapshot).fetch(:text)).to eq("boxX")
+  end
+
+  it "never retains scrollback for the alternate buffer during resize" do
+    screen = described_class.new(cols: 4, rows: 3)
+    screen.apply("\e[?1049h1\n2\n3")
+
+    screen.resize(4, 1)
+
+    expect(screen.snapshot.fetch(:alternate)).to be true
+    expect(screen.snapshot.fetch(:scrollback)).to be_empty
+  end
+
+  it "keeps the cursor attached to content restored from primary scrollback" do
+    screen = described_class.new(cols: 4, rows: 3)
+    screen.apply("1\n2\n3")
+
+    screen.resize(4, 1)
+    expect(screen.snapshot.fetch(:cursor)).to include(row: 0)
+
+    screen.resize(4, 3)
+    expect(screen.snapshot.fetch(:cursor)).to include(row: 2)
+    expect(row(screen.snapshot, 2).fetch(:text)).to eq("  3")
+  end
 end

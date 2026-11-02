@@ -7,6 +7,8 @@ module RuntimeTerminal
     READ_CHUNK_BYTES = 4096
     DRAIN_TIMEOUT_SECONDS = 0.05
     INITIAL_REPLAY_TIMEOUT_SECONDS = 0.1
+    MAX_SCROLLBACK_BYTES = 1_048_576
+    MAX_READ_BUFFER_BYTES = 1_048_576
 
     class ConnectionError < StandardError; end
     class UnsupportedInput < StandardError; end
@@ -26,6 +28,7 @@ module RuntimeTerminal
 
     def inspect_scrollback
       @lock.synchronize do
+        screen_locked!
         drain_locked
         @scrollback.dup
       end
@@ -33,6 +36,7 @@ module RuntimeTerminal
 
     def inspect_screen
       @lock.synchronize do
+        screen_locked!
         drain_locked
         @screen.snapshot.merge(scrollback: @scrollback.dup, bytes: @scrollback.bytesize)
       end
@@ -43,16 +47,23 @@ module RuntimeTerminal
     end
 
     def screen_generation
-      @lock.synchronize { @screen&.generation.to_i }
+      @lock.synchronize { @screen&.generation || @last_screen_generation.to_i }
     end
 
     def input(event)
-      frames_for(event).each { |frame| write_frame(frame) }
+      @lock.synchronize do
+        screen_locked!
+        frames = frames_for(event)
+        frames.each { |frame| write_frame_locked(frame) }
+        resize = frames.find { |frame| frame[:type] == "resize" }
+        @screen.resize(resize.fetch(:cols), resize.fetch(:rows)) if resize
+      end
       true
     end
 
     def close
       @lock.synchronize do
+        @last_screen_generation = @screen&.generation.to_i
         @closed = true
         @socket&.close unless @socket&.closed?
         @screen = nil
@@ -104,6 +115,7 @@ module RuntimeTerminal
 
     def append_frames(chunk)
       @read_buffer << chunk
+      @read_buffer = @read_buffer.byteslice(-MAX_READ_BUFFER_BYTES, MAX_READ_BUFFER_BYTES) if @read_buffer.bytesize > MAX_READ_BUFFER_BYTES
 
       while (idx = @read_buffer.index("\n"))
         line = @read_buffer.slice!(0, idx + 1).chomp
@@ -119,20 +131,24 @@ module RuntimeTerminal
 
       decoded = Base64.decode64(payload["data"].to_s)
       @scrollback << decoded
+      trim_scrollback
       @screen.apply(decoded)
     rescue JSON::ParserError, ArgumentError
       nil
     end
 
-    def write_frame(frame)
-      @lock.synchronize do
-        raise ConnectionError, "terminal relay connection is closed" if @closed
+    def write_frame_locked(frame)
+      @socket.write("#{JSON.generate(frame)}\n")
+    rescue IOError, Errno::EPIPE, SystemCallError => e
+      @closed = true
+      raise ConnectionError, e.message
+    end
 
-        @socket.write("#{JSON.generate(frame)}\n")
-      rescue IOError, Errno::EPIPE, SystemCallError => e
-        @closed = true
-        raise ConnectionError, e.message
-      end
+    def trim_scrollback
+      return unless @scrollback.bytesize > MAX_SCROLLBACK_BYTES
+
+      @scrollback = @scrollback.byteslice(-MAX_SCROLLBACK_BYTES, MAX_SCROLLBACK_BYTES)
+        .dup.force_encoding(Encoding::UTF_8).scrub
     end
 
     def frames_for(raw_event)
@@ -161,11 +177,15 @@ module RuntimeTerminal
       rows = Integer(event["rows"])
       raise UnsupportedInput, "resize requires positive cols and rows" unless cols.positive? && rows.positive?
 
-      @screen.resize(cols, rows)
-
       { type: "resize", cols: cols, rows: rows }
     rescue KeyError, ArgumentError, TypeError
       raise UnsupportedInput, "resize requires positive cols and rows"
+    end
+
+    def screen_locked!
+      raise ConnectionError, "terminal relay connection is closed" if @closed || @screen.nil?
+
+      @screen
     end
 
     def keyboard_sequence(event)
