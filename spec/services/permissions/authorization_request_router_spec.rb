@@ -37,6 +37,36 @@ RSpec.describe Permissions::AuthorizationRequestRouter, :ci_only do
     expect(ChatPendingAction.where(deduplication_key: "scheduled:mysql.data/write:fingerprint").count).to eq(1)
   end
 
+  it "routes external delivery only after the authorization request transaction commits" do
+    callback = nil
+    allow(ActiveRecord).to receive(:after_all_transactions_commit) { |&block| callback = block }
+    allow(ApprovalNotifications::Router).to receive(:route!)
+
+    result = route
+
+    expect(result).to be_created
+    expect(ApprovalNotifications::Router).not_to have_received(:route!)
+
+    callback.call
+
+    expect(ApprovalNotifications::Router).to have_received(:route!).with(result.request)
+    expect(result.request.reload.authorization_items).to be_present
+    expect(result.request.occurrences).to be_present
+  end
+
+  it "keeps the authorization request durable when external delivery routing fails" do
+    allow(ActiveRecord).to receive(:after_all_transactions_commit).and_yield
+    allow(ApprovalNotifications::Router).to receive(:route!).and_raise(RuntimeError, "delivery unavailable")
+
+    expect { @result = route }.not_to raise_error
+
+    expect(@result).to be_created
+    expect(@result.request.reload).to have_attributes(state: "pending", delivery_state: "failed")
+    expect(@result.request.authorization_items).to be_present
+    expect(@result.request.occurrences).to be_present
+    expect(@result.request.last_delivery_error).to include("delivery unavailable")
+  end
+
   it "suppresses an equivalent request during the short denial cooldown" do
     denied_at = Time.current
     first = route(now: denied_at)

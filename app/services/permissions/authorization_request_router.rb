@@ -31,7 +31,7 @@ module Permissions
     end
 
     def route!
-      subject.with_lock do
+      result = subject.with_lock do
         if (request = recent_denied_request)
           associate!(request)
           return Result.new(request:, status: :denial_cooldown)
@@ -49,9 +49,11 @@ module Permissions
           request.authorization_items.create!(@item_attributes.merge(capability:, operation:))
         end
         associate!(request)
-        ApprovalNotifications::Router.route!(request) if request.delivery_state.blank?
         Result.new(request:, status: request.origin == origin ? :created : :reused)
       end
+
+      route_approval_notification_after_commit(result.request) if result.created? && result.request.delivery_state.blank?
+      result
     end
 
     private
@@ -62,6 +64,22 @@ module Permissions
     def subject = @request_attributes.fetch(:subject)
     def origin = @request_attributes.fetch(:origin)
     def deduplication_key = @request_attributes.fetch(:deduplication_key)
+
+    def route_approval_notification_after_commit(request)
+      ActiveRecord.after_all_transactions_commit do
+        ApprovalNotifications::Router.route!(request)
+      rescue => error
+        Rails.logger.error("Approval notification routing failed for authorization request #{request.id}: #{error.class}: #{error.message}")
+        record_notification_failure(request, error)
+      end
+    end
+
+    def record_notification_failure(request, error)
+      request.reload
+      request.record_delivery_failure!(error, metadata: { "channel" => "external" }) unless request.delivery_state == "failed"
+    rescue => persistence_error
+      Rails.logger.error("Could not record approval notification failure for authorization request #{request.id}: #{persistence_error.class}: #{persistence_error.message}")
+    end
 
     def associate!(request)
       request.occurrences.create_or_find_by!(origin: @occurrence_origin) do |occurrence|
