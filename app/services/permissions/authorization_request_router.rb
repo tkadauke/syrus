@@ -18,7 +18,7 @@ module Permissions
 
     def initialize(user:, repository:, origin:, subject:, runtime_role:, deduplication_key:, purpose:,
       occurrence_origin: origin,
-      capability:, operation:, item_attributes:, occurrence_metadata: {}, now: Time.current)
+      capability:, operation:, item_attributes:, occurrence_metadata: {}, ai_approval: nil, now: Time.current)
       @request_attributes = {
         user:, repository:, origin:, subject:, runtime_role:, deduplication_key:, purpose:
       }
@@ -26,6 +26,8 @@ module Permissions
       @operation = operation.to_s
       @item_attributes = item_attributes
       @occurrence_metadata = occurrence_metadata
+      # Optional { tool_name:, transcript:, repository_guidance: } enabling delegated AI approval.
+      @ai_approval = ai_approval
       @occurrence_origin = occurrence_origin
       @now = now
     end
@@ -52,6 +54,9 @@ module Permissions
         Result.new(request:, status: request.origin == origin ? :created : :reused)
       end
 
+      if result.request && (result.created? || result.reused?)
+        ActiveRecord.after_all_transactions_commit { evaluate_ai_approval(result.request) }
+      end
       route_approval_notification_after_commit(result.request) if result.created? && result.request.delivery_state.blank?
       result
     end
@@ -71,7 +76,17 @@ module Permissions
       end
     end
 
+    def evaluate_ai_approval(request)
+      return unless @ai_approval
+
+      ApprovalProviderLifecycle.call(request:, **@ai_approval)
+    rescue => error
+      Rails.logger.error("AI approval evaluation failed for authorization request #{request.id}: #{error.class}: #{error.message}")
+    end
+
     def route_approval_notification(request)
+      return unless request.reload.pending?
+
       ApprovalNotifications::Router.route!(request)
     rescue => error
       Rails.logger.error("Approval notification routing failed for authorization request #{request.id}: #{error.class}: #{error.message}")

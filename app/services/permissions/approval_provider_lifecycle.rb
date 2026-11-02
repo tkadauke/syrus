@@ -116,10 +116,21 @@ module Permissions
       item.transitions.where(event_type: EVALUATED_EVENT).order(:sequence).last&.metadata
     end
 
+    # Keyed digest over the complete (unredacted) evidence, so secret-bearing
+    # changes still trigger reconsideration while only the digest is persisted.
     def evidence_digest(item)
-      redacted = ToolPayloadRedactor.redact(@transcript.map { |entry| entry.to_h.deep_stringify_keys })
-      payload = [ item.invocation_fingerprint, redacted, @repository_guidance.to_s ].to_json
-      "sha256:#{Digest::SHA256.hexdigest(payload)}"
+      canonical = canonicalize([ item.invocation_fingerprint, @transcript, @repository_guidance.to_s ])
+      key = Rails.application.key_generator.generate_key("approval-provider-evidence-digest")
+      "hmac-sha256:#{OpenSSL::HMAC.hexdigest("SHA256", key, canonical.to_json)}"
+    end
+
+    def canonicalize(value)
+      case value
+      when Hash then value.to_h { |key, item| [ key.to_s, canonicalize(item) ] }.sort.to_h
+      when Array then value.map { |item| canonicalize(item) }
+      when Symbol then value.to_s
+      else value
+      end
     end
 
     def skipped(item) = Result.new(status: :skipped, request: @request, item:, invocation: nil, authorization: nil)
