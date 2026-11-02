@@ -129,10 +129,27 @@ describe("JobDetailView", () => {
             origin: { type: "Job", id: 1, label: "JOB-1" },
             subject: { type: "User", id: 1, label: "Agent" },
             repository: null,
-            items: [{ id: 1, kind: "operation", capability: "records.write@v1", operation: "records.write/publish@v1", state: "pending",
-              resource_type: "job", resource_scope: { job_id: 1 }, arguments: {}, effects: ["external_write"], risk: "medium",
-              purpose: "Publish scheduled update", policy_chain: [], decisive_rule: { policy: "ask" }, requested_durations: ["job"],
-              selected_duration: null, decision_reason: null, decided_at: null }]
+            items: [
+              {
+                id: 1,
+                kind: "operation",
+                capability: "records.write@v1",
+                operation: "records.write/publish@v1",
+                state: "pending",
+                resource_type: "job",
+                resource_scope: { job_id: 1 },
+                arguments: {},
+                effects: ["external_write"],
+                risk: "medium",
+                purpose: "Publish scheduled update",
+                policy_chain: [],
+                decisive_rule: { policy: "ask" },
+                requested_durations: ["job"],
+                selected_duration: null,
+                decision_reason: null,
+                decided_at: null
+              }
+            ]
           }
         ]
       })
