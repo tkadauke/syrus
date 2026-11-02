@@ -515,7 +515,11 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def visible_in_chat_payload?
-    dismissed_at.blank?
+    return false if dismissed_at?
+    return true if failed?
+    return true unless terminal?
+
+    outcome_message_id.blank?
   end
 
   def group_outcome
@@ -805,7 +809,7 @@ class ChatPendingAction < ApplicationRecord
   # audit callback and consume it exactly once after commit instead.
   def capture_outcome_transition
     new_state = saved_change_to_state&.last
-    return unless new_state.in?(%w[confirmed rejected cancelled])
+    return unless new_state.in?(%w[confirmed rejected cancelled failed])
 
     @outcome_state_to_notify = new_state
     @outcome_state_to_broadcast = new_state
@@ -875,7 +879,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def remember_outcome_transition
-    self.outcome_transition_pending = true if confirmed? || rejected? || cancelled?
+    self.outcome_transition_pending = true if terminal?
   end
   def record_state_transition!(from, to)
     @state_changed_in_transaction = true

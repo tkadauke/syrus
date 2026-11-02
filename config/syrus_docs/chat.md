@@ -152,11 +152,13 @@ turn. A control-plane recovery job retries fresh terminal outcomes whose wake
 could not be enqueued. Pre-existing terminal records are archived during the
 schema migration; explicitly recovering one associates its original message
 when possible, or backfills the actual outcome without waking the agent again.
-Chat payload reads do not create messages or enqueue turns. Hiding a terminal
-card only stamps its presentation dismissal time; it
-does not change the terminal state, audit fields, result, or outcome message.
-Queued and pending actions retain their existing cancellation/rejection
-semantics.
+Chat payload reads do not create messages or enqueue turns. Once a confirmed,
+rejected, or cancelled action has its durable outcome message, its card retires
+from the stream automatically and stays retired after reload. Failed actions
+remain visible for operator attention until explicitly hidden. Manual hiding
+only stamps the presentation dismissal time; it does not change the terminal
+state, audit fields, result, or outcome message. Queued and pending actions
+retain their existing cancellation/rejection semantics.
 
 A `PendingActionGroup` links several `ChatPendingAction` rows created
 together as one batch (e.g. reopening every Job a bad merge-train landing
@@ -165,11 +167,11 @@ per action. The card shows the shared action name plus member count (e.g.
 "Reopen job (11)"), an expandable list of the affected targets, and one
 Confirm all/Reject all control backed by
 `POST /api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/confirm`
-and `.../reject`. Once the group is confirmed or rejected, the terminal card
-shows a compact dismiss control backed by
-`DELETE /api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id`;
-dismissing hides the group from future chat payloads without reusing reject
-semantics. A member of a group never renders its own standalone pending-action
+and `.../reject`. Confirmed and rejected groups retire automatically once their
+durable group outcome is present. Partial outcomes include each failed target
+and its error in that durable message before the card retires. The same delete
+endpoint remains available to hide a resolved card already present in a stale
+client without reusing reject semantics. A member of a group never renders its own standalone pending-action
 card — `pending_actions_json` filters out any
 `ChatPendingAction` with a `pending_action_group_id` — and the group card
 itself anchors to the chat message that created it the same way an individual
