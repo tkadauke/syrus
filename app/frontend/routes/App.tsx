@@ -65,6 +65,7 @@ import { RepositoryTargetGraphRoute } from "./RepositoryTargetGraph"
 import { Tags } from "./Tags"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { ThemesSettingsRoute } from "./ThemesSettings"
+import { PermissionsSettingsRoute } from "./PermissionsSettings"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarPages"
@@ -192,6 +193,14 @@ const appRouteDefinitions: AppRouteDefinition[] = [
     element: (
       <SettingsSectionRoute>
         <ThemesSettingsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/permissions",
+    element: (
+      <SettingsSectionRoute>
+        <PermissionsSettingsRoute />
       </SettingsSectionRoute>
     )
   },
@@ -589,6 +598,7 @@ function settingsNavigationItems(t: (key: string) => string, pluginItems: Settin
       groupId: "product"
     },
     { key: "themes", label: t("nav.themes"), path: "/settings/themes", active: (path) => path === "/settings/themes", groupId: "product" },
+    { key: "permissions", label: t("nav.permissions"), path: "/settings/permissions", active: (path) => path === "/settings/permissions", groupId: "account" },
     {
       key: "hidden_chats",
       label: t("nav.hidden_chats"),
