@@ -62,6 +62,35 @@ RSpec.describe RuntimeTerminal::RelayClient do
     end
   end
 
+  describe "#inspect_screen" do
+    it "applies replay and subsequent output to one authoritative screen" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "old\rNEW")
+      session = terminal_session(relay_address: relay.address)
+      client = described_class.new(session)
+      relay.write_output("\e[2;1H\e[38;2;10;20;30mcolor")
+
+      snapshot = client.inspect_screen
+
+      expect(snapshot).to include(kind: "terminal_screen", generation: 2, cols: 80, rows: 24)
+      expect(snapshot.fetch(:lines).first.fetch(:text)).to eq("NEW")
+      expect(snapshot.fetch(:lines).second.fetch(:text)).to eq("color")
+    ensure
+      client&.close
+      relay&.stop
+    end
+
+    it "continues generation from a replaced relay client" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "restored")
+      session = terminal_session(relay_address: relay.address)
+      client = described_class.new(session, generation: 7)
+
+      expect(client.inspect_screen.fetch(:generation)).to eq(8)
+    ensure
+      client&.close
+      relay&.stop
+    end
+  end
+
   describe "#closed?" do
     it "is false for a freshly connected client" do
       relay = RuntimeTerminalFakeRelay.new
@@ -137,6 +166,7 @@ RSpec.describe RuntimeTerminal::RelayClient do
       client.input(type: "resize", cols: 120, rows: 40)
 
       expect(relay.next_control).to eq("type" => "resize", "cols" => 120, "rows" => 40)
+      expect(client.inspect_screen).to include(cols: 120, rows: 40, generation: 1)
     end
 
     it "accepts 'columns' as an alias for cols" do

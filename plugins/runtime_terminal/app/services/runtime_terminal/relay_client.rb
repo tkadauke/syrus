@@ -11,11 +11,12 @@ module RuntimeTerminal
     class ConnectionError < StandardError; end
     class UnsupportedInput < StandardError; end
 
-    def initialize(terminal_session)
+    def initialize(terminal_session, generation: 0)
       @terminal_session = terminal_session
       @socket = connect_socket(terminal_session)
       @read_buffer = +""
       @scrollback = +""
+      @screen = Screen.new(generation: generation)
       @closed = false
       @lock = Mutex.new
 
@@ -30,8 +31,19 @@ module RuntimeTerminal
       end
     end
 
+    def inspect_screen
+      @lock.synchronize do
+        drain_locked
+        @screen.snapshot.merge(scrollback: @scrollback.dup, bytes: @scrollback.bytesize)
+      end
+    end
+
     def closed?
       @lock.synchronize { @closed || @socket&.closed? }
+    end
+
+    def screen_generation
+      @lock.synchronize { @screen&.generation.to_i }
     end
 
     def input(event)
@@ -43,6 +55,7 @@ module RuntimeTerminal
       @lock.synchronize do
         @closed = true
         @socket&.close unless @socket&.closed?
+        @screen = nil
       rescue IOError, SystemCallError
         nil
       end
@@ -104,7 +117,9 @@ module RuntimeTerminal
       payload = JSON.parse(line)
       return unless %w[replay output].include?(payload["type"])
 
-      @scrollback << Base64.decode64(payload["data"].to_s)
+      decoded = Base64.decode64(payload["data"].to_s)
+      @scrollback << decoded
+      @screen.apply(decoded)
     rescue JSON::ParserError, ArgumentError
       nil
     end
@@ -145,6 +160,8 @@ module RuntimeTerminal
       cols = Integer(event.fetch("cols", event["columns"]))
       rows = Integer(event["rows"])
       raise UnsupportedInput, "resize requires positive cols and rows" unless cols.positive? && rows.positive?
+
+      @screen.resize(cols, rows)
 
       { type: "resize", cols: cols, rows: rows }
     rescue KeyError, ArgumentError, TypeError

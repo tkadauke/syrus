@@ -17,7 +17,7 @@ module RuntimeTerminal
         {
           stream: "none",
           input: %w[keyboard stdin pointer resize],
-          inspect: [ "scrollback" ],
+          inspect: %w[screen scrollback],
           build: [ "none" ],
           artifacts: [ "logs" ]
         }
@@ -41,8 +41,12 @@ module RuntimeTerminal
       end
 
       def replace_relay_client!(runtime_session_id, terminal_session)
-        relay_clients_lock.synchronize { relay_clients.delete(runtime_session_id.to_i) }&.close
-        relay_client_for(runtime_session_id, terminal_session)
+        relay_clients_lock.synchronize do
+          previous = relay_clients.delete(runtime_session_id.to_i)
+          generation = previous&.screen_generation.to_i
+          previous&.close
+          relay_clients[runtime_session_id.to_i] = RelayClient.new(terminal_session, generation: generation)
+        end
       end
 
       private
@@ -94,11 +98,10 @@ module RuntimeTerminal
 
       runtime_session = runtime_session_for(session_id)
       terminal_session = relay_ready_terminal_session_for(runtime_session)
-      scrollback = with_fresh_relay_client(runtime_session, terminal_session) do |client|
-        client.inspect_scrollback
+      result = with_fresh_relay_client(runtime_session, terminal_session) do |client|
+        client.inspect_screen
       end
-
-      { kind: "terminal_scrollback", scrollback: scrollback, bytes: scrollback.bytesize }
+      result
     end
 
     def input(session_id, event)

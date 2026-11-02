@@ -34,11 +34,11 @@ RSpec.describe RuntimeTerminal::Provider do
   end
 
   describe ".capabilities" do
-    it "advertises terminal input and scrollback inspection capabilities" do
+    it "advertises terminal input and authoritative screen inspection capabilities" do
       expect(described_class.capabilities(repository, {})).to eq(
         stream: "none",
         input: %w[keyboard stdin pointer resize],
-        inspect: [ "scrollback" ],
+        inspect: %w[screen scrollback],
         build: [ "none" ],
         artifacts: [ "logs" ]
       )
@@ -71,7 +71,7 @@ RSpec.describe RuntimeTerminal::Provider do
   end
 
   describe "#inspect" do
-    it "returns the relay replay buffer and output received after connection" do
+    it "returns authoritative screen state for replay and output received after connection" do
       relay = RuntimeTerminalFakeRelay.new(replay: "booted\n")
       terminal_session = Terminal::Session.create!(
         user: user,
@@ -88,8 +88,10 @@ RSpec.describe RuntimeTerminal::Provider do
       second = provider.inspect(runtime_session.id)
 
       expect(relay.auth_payload).to eq("token" => terminal_session.auth_token)
-      expect(first).to include(kind: "terminal_scrollback", scrollback: "booted\n", bytes: 7)
-      expect(second).to include(scrollback: "booted\nprompt> ", bytes: 15)
+      expect(first).to include(kind: "terminal_screen", generation: 1)
+      expect(first.fetch(:lines).first.fetch(:text)).to eq("booted")
+      expect(second).to include(kind: "terminal_screen", generation: 2)
+      expect(second.fetch(:lines)[1].fetch(:text)).to eq("      prompt>")
     ensure
       relay&.stop
     end
@@ -113,7 +115,7 @@ RSpec.describe RuntimeTerminal::Provider do
       end
       allow(provider).to receive(:terminal_session_for).with(runtime_session).and_return(terminal_session)
 
-      expect(provider.inspect(runtime_session.id)).to include(scrollback: "ready after reload\n")
+      expect(provider.inspect(runtime_session.id).fetch(:lines).first.fetch(:text)).to eq("ready after reload")
       expect(provider).to have_received(:sleep).with(described_class::RELAY_ADDRESS_POLL_INTERVAL)
     ensure
       relay&.stop
@@ -132,13 +134,13 @@ RSpec.describe RuntimeTerminal::Provider do
       )
       RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
 
-      expect(provider.inspect(runtime_session.id)).to include(scrollback: "before restart\n")
+      expect(provider.inspect(runtime_session.id).fetch(:lines).first.fetch(:text)).to eq("before restart")
 
       first_relay.stop
       second_relay = RuntimeTerminalFakeRelay.new(replay: "after restart\n")
       terminal_session.update!(relay_address: second_relay.address)
 
-      expect(provider.inspect(runtime_session.id)).to include(scrollback: "after restart\n")
+      expect(provider.inspect(runtime_session.id).fetch(:lines).first.fetch(:text)).to eq("after restart")
       expect(second_relay.auth_payload).to eq("token" => terminal_session.auth_token)
     ensure
       first_relay&.stop
