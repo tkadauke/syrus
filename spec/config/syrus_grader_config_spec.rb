@@ -171,6 +171,50 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
+  it "selects independent browser and terminal visual-review targets from the root config" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    targets = config.visual_review.targets
+
+    expect(targets.map(&:provider)).to eq(%w[browser cli_tui])
+    expect(RepositoryContent::Glob.match?(config.visual_review.when_files_changed, "cli/cmd/inbox.go")).to be(true)
+    expect(RepositoryContent::Glob.match?(config.visual_review.when_files_changed, "app/frontend/routes/JobDetail.tsx")).to be(true)
+    expect(RepositoryContent::Glob.match?(config.visual_review.when_files_changed, "README.md")).to be(false)
+    expect(targets.find { |target| target.provider == "cli_tui" }).to have_attributes(
+      build: { "command" => "mise exec go@1.26.5 -- go build -o tmp/syrus-visual-review ./cli" },
+      launch: { "command" => "tmp/syrus-visual-review inbox --watch" },
+      dimensions: { "columns" => 100, "rows" => 32 },
+      when_files_changed: [ "cli/**/*.go" ]
+    )
+
+    unavailable_previews = App::VisualReviewProjects::Result.new(choices: [], unavailable_reason: "not_needed")
+    selected_for = lambda do |changed_file|
+      App::VisualReviewRuntimeTargets.call(
+        workspace_path: Rails.root,
+        changed_files: [ changed_file ],
+        preview_projects: unavailable_previews
+      ).map(&:provider)
+    end
+
+    expect(selected_for.call("cli/cmd/inbox.go")).to eq([ "cli_tui" ])
+    expect(selected_for.call("app/frontend/routes/JobDetail.tsx")).to eq([ "browser" ])
+    expect(selected_for.call("README.md")).to be_empty
+  end
+
+  it "fails clearly for malformed or unavailable terminal visual-review configuration" do
+    expect do
+      SyrusYml.new(<<~YAML).parse
+        visual_review:
+          targets:
+            - name: CLI TUI
+              provider: cli_tui
+              dimensions: { columns: 0, rows: 32 }
+      YAML
+    end.to raise_error(SyrusYml::ParseError, /visual_review\.targets\[0\]\.dimensions: values must be positive integers/)
+
+    expect { RuntimeSessionProviders.for("missing_cli_tui") }
+      .to raise_error(RuntimeSessionProviders::ConfigurationError, /Unknown runtime session provider: "missing_cli_tui"/)
+  end
+
   it "declares the desktop project and scoped desktop validation targets in desktop/.syrus.yml" do
     config = SyrusYml.new(Rails.root.join("desktop/.syrus.yml").read).parse
 
