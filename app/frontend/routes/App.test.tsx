@@ -12033,7 +12033,7 @@ describe("App", () => {
     ["concurrency_blocked", { queue_name: "runs" }, "concurrency lock", "bg-warning-surface", "pending"],
     ["scheduled", { queue_name: "runs", scheduled_at: "2026-05-30T12:00:00Z" }, "scheduled to become ready", "bg-info-surface", "pending"],
     ["claimed_not_started", { queue_name: "runs" }, "claimed the RunJob", "bg-info-surface", "workers"],
-    ["no_run_job", {}, "No RunJob exists", "bg-warning-surface", "pending"],
+    ["no_run_job", {}, "Syrus will recover it automatically", "bg-info-surface", null],
     ["no_live_workers", { queue_name: "runs" }, "No live worker heartbeat", "bg-warning-surface", "workers"],
     ["start_blocked", { reason: "no_capable_worker" }, "Waiting on worker capability", "bg-warning-surface", null],
     [
@@ -12105,6 +12105,11 @@ describe("App", () => {
       const label = link === "repair" ? /Stuck Jobs bulk repair/i : new RegExp(`Queue.*${link}`, "i")
       const href = link === "repair" ? "/app-shell/admin/stuck" : `/app-shell/admin/queue/${link}`
       expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href)
+    }
+    if (kind === "no_run_job") {
+      expect(screen.queryByText(/RunJob/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Retry the Job/)).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: /Queue.*Pending/i })).not.toBeInTheDocument()
     }
   })
 

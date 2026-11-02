@@ -489,7 +489,7 @@
     "concurrency_blocked": "RunJob post clavem concurrentiae huius Job exspectat. Job denuo tenta si opus prius iam non agit.",
     "scheduled": "RunJob ad {{time}} paratus fiet; non haeret.",
     "claimed_not_started": "Operator RunJob sibi vindicavit, sed exsecutio nondum coepit.",
-    "no_run_job": "Nullus RunJob huic exsecutioni in ordine adest. Job denuo tenta ut recreetur.",
+    "no_run_job": "Haec exsecutio nondum ordinata est. Syrus eam automatice restituet.",
     "no_live_workers": "Nullus pulsus operatoris vivi adest. Operatorem restitue, deinde Job denuo tenta.",
     "start_blocked": "Initium cursus impeditur: {{reason}}.",
     "host_admission_deferred": "Admissio hospitis cursum propter {{reason}} distulit ({{deferralCount}} dilationes, ab {{deferred}}). {{binding}}",
