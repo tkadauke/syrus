@@ -8,6 +8,63 @@ import { RepositoryPipelineRoute } from "./RepositoryPipeline"
 describe("RepositoryPipelineRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it.each([1280, 390])("keeps the %ipx embedded view focused on filters, canvas, and history", async (width) => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width })
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository: { id: 1, slug: "acme/widgets" },
+        generated_at: "2026-10-31T12:00:00Z",
+        evidence: { status: "partial", incomplete_count: 2 },
+        tabs: [{ key: "sdlc_pipeline.repository", label: "Pipeline", path: "/repositories/1/plugin/sdlc-pipeline" }],
+        groups: [],
+        stages: [
+          {
+            key: "review",
+            label: "Review",
+            kind: "lifecycle",
+            total: 0,
+            attention_count: 0,
+            aging_count: 0,
+            oldest_age_seconds: null,
+            highlighted_items: []
+          }
+        ],
+        filter: { and: [{ field: "associated_chat_id", op: "is", value: 8 }] },
+        filter_schema: [{ field: "associated_chat_id", label: "Chat", bucket: "number", operators: ["is"] }],
+        active_smart_folder_id: 7,
+        smart_folders: [{ id: 7, name: "Saved cohort", active: true }],
+        history: {
+          from: "2026-10-30T12:00:00Z",
+          to: "2026-10-31T12:00:00Z",
+          checkpoint: { at: "2026-10-30T12:00:00Z", placements: [] },
+          deltas: [],
+          ticks: ["2026-10-31T10:00:00Z"],
+          traces: [],
+          accuracy: { status: "partial", truncated: true, message: "More history exists." }
+        }
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=chat-filter&syrus_presentation=embedded"]}>
+          <RepositoryPipelineRoute repositoryId="1" prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByRole("region", { name: "Pipeline stages" })
+    const embedded = screen.getByTestId("embedded-pipeline-view")
+    expect(within(embedded).getByRole("button", { name: "Chat is 8" })).toBeVisible()
+    expect(within(embedded).getByRole("region", { name: "Pipeline stages" })).toBeVisible()
+    expect(within(embedded).getByTestId("compact-pipeline-time-rail")).toBeVisible()
+    expect(within(embedded).queryByText("Saved cohort")).not.toBeInTheDocument()
+    expect(within(embedded).queryByLabelText("Pipeline summary")).not.toBeInTheDocument()
+    expect(within(embedded).queryByText(/Delivery evidence is partial/)).not.toBeInTheDocument()
+    expect(within(embedded).queryByText("More history exists.")).not.toBeInTheDocument()
+    expect(within(embedded).queryByText("SDLC Pipeline")).not.toBeInTheDocument()
+  })
+
   it("renders bounded stage summaries, evidence, and attention highlights", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse({

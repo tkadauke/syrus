@@ -101,7 +101,9 @@ The same filtered view is available from a chat's Jobs workspace and through
 the read-only `show_pipeline` chat tool. Multi-repository chats ask the operator
 to choose a repository; live tool calls may present the view once, while saved
 tool cards retain explicit open and copy-link actions without reopening on
-transcript replay.
+transcript replay. The popup is a focused presentation of the editable
+FilterBar, pipeline canvas, and compact history rail; saved views, summaries,
+diagnostics, and repository navigation remain on the full Pipeline page.
 The dedicated history rail reconstructs the filtered cohort at meaningful
 lifecycle and delivery ticks from a bounded checkpoint-plus-delta response, so
 scrubbing does not fetch a full board repeatedly. Historical mode is clearly
