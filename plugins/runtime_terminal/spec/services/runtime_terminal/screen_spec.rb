@@ -53,6 +53,26 @@ RSpec.describe RuntimeTerminal::Screen do
     expect(snapshot.fetch(:lines).all? { |line| line.fetch(:cells).length == 6 }).to be true
   end
 
+  it "rejects dimensions above the bounded viewport maximum" do
+    expect { described_class.new(cols: described_class::MAX_COLS + 1, rows: 24) }
+      .to raise_error(ArgumentError, /exceed maximum/)
+
+    screen = described_class.new
+    expect { screen.resize(80, described_class::MAX_ROWS + 1) }
+      .to raise_error(ArgumentError, /exceed maximum/)
+  end
+
+  it "bounds CSI line and character repeat counts to the viewport" do
+    [ "L", "M", "P", "@" ].each do |command|
+      screen = described_class.new(cols: 4, rows: 2)
+      screen.apply("abcd\nWXYZ\e[1;2H\e[999999999#{command}")
+
+      snapshot = screen.snapshot
+      expect(snapshot.fetch(:lines).length).to eq(2)
+      expect(snapshot.fetch(:lines).map { |line| line.fetch(:cells).length }).to eq([ 4, 4 ])
+    end
+  end
+
   it "accepts a UTF-8 glyph split across output frames" do
     screen = described_class.new(cols: 4, rows: 1)
     bytes = "界".b
