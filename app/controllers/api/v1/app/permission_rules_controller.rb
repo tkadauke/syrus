@@ -6,9 +6,10 @@ module Api
 
         def index
           management = Permissions::Management.new(Current.user)
+          active_rules = management.rules.to_a
           render json: {
             rules: management.rules(active: false).map { |rule| serialize_rule(rule) },
-            inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor) },
+            inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor, management:, active_rules:) },
             ownership: { editable_layer: "agent", owner_user_id: Current.user.id }
           }
         end
@@ -101,19 +102,21 @@ module Api
           serialized.merge("resource_scope_label" => rule.resource_scope.to_json)
         end
 
-        def serialize_descriptor(descriptor)
+        def serialize_descriptor(descriptor, management:, active_rules:)
           Permissions::Catalog.as_json(descriptor).slice(
             :capability, :operation, :effects, :risk, :defaults, :resource_scope,
             :requestable_roles, :authority_durations, :presets
           ).merge(
             owner: { kind: "provider", name: descriptor.capability.split(".").first },
-            editable: false, explanation: "role_default"
+            editable: false, explanation: "role_default",
+            matrix_states: matrix_states(descriptor, management:, active_rules:)
           )
         end
 
-
         def bulk_operations
           params.require(:operations).map do |operation|
+            raise ArgumentError, "each bulk operation must be an object" unless operation.is_a?(ActionController::Parameters)
+
             operation.to_unsafe_h.slice(
               "action", "id", "policy", "role", "subject_selector_type", "subject_selector_id",
               "subject_repository_id", "capability", "operation", "rationale", "dynamic_future_roles",
@@ -123,6 +126,15 @@ module Api
             raise ArgumentError, "bulk changes must contain between 1 and 100 operations" unless operations.length.between?(1, 100)
             raise ArgumentError, "bulk actions must be grant or revoke" unless operations.all? { |item| %w[grant revoke].include?(item["action"]) }
           end
+        end
+
+        def matrix_states(descriptor, management:, active_rules:)
+          PermissionRule::SUBJECT_SELECTORS.filter_map do |subject, definition|
+            next unless definition[:role]
+
+            [ subject, management.matrix_state(descriptor:, role: definition[:role],
+              subject_selector_type: subject, active_rules:) ]
+          end.to_h
         end
 
         def serialize_preview(operations)

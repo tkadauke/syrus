@@ -19,6 +19,32 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("inherited")).not_to be_empty
     expect(payload.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
     expect(payload.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
+    expect(payload.fetch("inherited")).to all(include("matrix_states" => include(
+      "interactive_chat", "coding_chat", "local_chat"
+    )))
+  end
+
+  it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do
+    descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.resource_scope.type == :none }
+    permission_rule(owner: user, descriptor:, policy: "deny")
+    permission_rule(owner: user, descriptor:, policy: "allow")
+
+    get "/api/v1/app/permission_rules"
+
+    inherited = JSON.parse(response.body).fetch("inherited").find do |candidate|
+      candidate["capability"] == descriptor.capability && candidate["operation"] == descriptor.operation
+    end
+    expect(inherited.dig("matrix_states", "interactive_chat")).to eq("deny")
+
+    PermissionRule.where(owner_user: user).find_each { |rule| rule.revoke!(actor: user) }
+    permission_rule(owner: user, descriptor:, policy: "allow", resource_scope: { resource_id: "one" })
+
+    get "/api/v1/app/permission_rules"
+
+    inherited = JSON.parse(response.body).fetch("inherited").find do |candidate|
+      candidate["capability"] == descriptor.capability && candidate["operation"] == descriptor.operation
+    end
+    expect(inherited.dig("matrix_states", "interactive_chat")).to eq("scoped")
   end
 
   it "creates a permanent allow rule for an eligible capability" do
@@ -137,11 +163,19 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(rule.reload.revoked_at).to be_nil
   end
 
-  def permission_rule(owner:)
+  it "rejects bulk operation members that are not objects" do
+    post "/api/v1/app/permission_rules/preview_bulk", params: { operations: [ nil ] }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("invalid_permission_bulk")
+  end
+
+  def permission_rule(owner:, descriptor: nil, policy: "allow", resource_scope: {})
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
-      subject_selector_type: "interactive_chat", capability: "test.read@v1", operation: "read@v1",
-      resource_type: "none", resource_scope: {}, constraints: {}, policy: "allow",
+      subject_selector_type: "interactive_chat", capability: descriptor&.capability || "test.read@v1",
+      operation: descriptor&.operation || "read@v1", resource_type: descriptor&.resource_scope&.type&.to_s || "none",
+      resource_scope:, constraints: {}, policy:,
       policy_layer: "agent", source: "operator", provenance: {}, subject_role_keys: []
     )
   end

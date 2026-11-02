@@ -21,6 +21,7 @@
     "views": { "matrix": "Agent-Matrix", "resources": "Ressourcen", "rules": "Regeln" },
     "matrix_title": "Agent-Berechtigungsmatrix",
     "matrix_help": "Vergleiche den effektiven Zustand für jede Agent-Oberfläche und Fähigkeit.",
+    "states": { "allow": "Erlauben", "ask": "Nachfragen", "deny": "Verweigern", "scoped": "Je nach Ressource" },
     "select_capability": "{{capability}} {{operation}} auswählen",
     "bulk_allow": "Ausgewählte erlauben ({{count}})",
     "bulk_deny": "Ausgewählte verweigern ({{count}})",

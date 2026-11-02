@@ -21,6 +21,7 @@
     "views": { "matrix": "Agent matrix", "resources": "Resources", "rules": "Rules" },
     "matrix_title": "Agent permissions matrix",
     "matrix_help": "Compare the effective state for every agent surface and capability.",
+    "states": { "allow": "Allow", "ask": "Ask", "deny": "Deny", "scoped": "Varies by resource" },
     "select_capability": "Select {{capability}} {{operation}}",
     "bulk_allow": "Allow selected ({{count}})",
     "bulk_deny": "Deny selected ({{count}})",
