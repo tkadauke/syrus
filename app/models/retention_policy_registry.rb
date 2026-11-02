@@ -140,6 +140,20 @@ class RetentionPolicyRegistry
       archivable: false
     ),
     Definition.new(
+      key: :workspace_reuse_outcome,
+      model: "WorkspaceReuseOutcome",
+      table_name: "workspace_reuse_outcomes",
+      age_column: :occurred_at,
+      scope_name: :prunable,
+      setting_key: :workspace_reuse_outcome_retention_days,
+      default_value: 90,
+      unit: :days,
+      executor_class: nil,
+      description: "Prepare reuse and grader workspace materialization outcomes used for multi-week cache effectiveness analysis.",
+      category: "Diagnostics",
+      archivable: false
+    ),
+    Definition.new(
       key: :worker_host_health_sample,
       model: "WorkerHostHealthSample",
       table_name: "worker_host_health_samples",
