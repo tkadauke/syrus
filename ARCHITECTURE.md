@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-10-26._
+_Last reviewed: 2026-11-02._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -161,6 +161,13 @@ source links for work created from chat. `App::JobSourceChat` uses the
 direct Job proposal when present, or falls back to the Epic proposal for
 bundled child Jobs, so dashboard and Job detail payloads can link back
 to the originating chat message.
+
+A Job's title and description are its approved execution definition, not
+mutable display metadata. They may change only while the Job is in a
+pre-execution state (`backlog`, `needs_triage`, `triaging`,
+`blocked_by_epic`, or `queued`). Once execution starts, model validation and
+`JobDefinitionUpdater` reject definition edits; automated title generation,
+metadata refresh, MCP updates, and agent Steps all use that same boundary.
 
 Plugins can contribute additional Job kinds through the `:workflow_kinds`
 extension point. For example, `operator_briefing` adds the issueless
@@ -1164,11 +1171,11 @@ disable the feature instance-wide.
 **Execution capability routing** — Workflows record planned execution
 requirements (`planned_execution_project_label`,
 `planned_execution_target_label`, `planned_execution_capabilities`, and
-source) at creation time. Capability dimensions are normalized through
-`TargetGraph::ExecutionCapabilities` (`os`, `arch`, `toolchain`,
-`runtime`); today `os` is intentionally limited to `linux` or `macos`,
-so platform targets such as iOS are modeled as toolchain/runtime requirements
-layered on ordinary Linux or macOS workers rather than as operating systems. Chat
+source) at creation time. Capability maps are normalized through
+`TargetGraph::ExecutionCapabilities`, but worker admission deliberately accepts
+only `os`, limited to `linux` or `macos`. Architecture, language runtimes,
+toolchains, simulators, browsers, and similar dependencies belong in image or
+prepare/target configuration rather than placement capabilities. Chat
 proposal tools must provide explicit `planned_execution.capabilities`
 for every proposed Job, instead of inferring placement from prose.
 `RunQueueResolver` maps each Run to a Solid Queue lane from those
@@ -1176,7 +1183,7 @@ requirements plus the Step placement policy: mutable workflow-workspace
 Steps prefer the Workflow's planned requirements and sticky resume queue,
 while distributed immutable-source grader Steps use their target-level
 `required_capabilities`. Default work routes to Linux `runs` / `merges`;
-constrained work can route to queues such as `runs-macos-arm64`. If no
+macOS work routes to the corresponding macOS lane. If no
 live worker advertises the required capabilities, the WorkUnit is
 blocked with the no-capable-worker vocabulary instead of queueing work
 that cannot be claimed. Worker capability maps come from heartbeat
@@ -1582,6 +1589,7 @@ called out only where they explain an architectural dependency.
 | `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
 | `cognitive_review` | `plugins/cognitive_review` | `:post_implementation_review_provider`, `:diff_review_annotation_provider`, `:mcp_tool_set` | disabled by default |
 | `credential_store` | `plugins/credential_store` | `:admin_page`, `:sidebar_page`, `:mcp_tool_set`, `:chat_mcp_tool_set`, credential type declarations | enabled |
+| `coworkers` | `plugins/coworkers` | coworker identities, isolated chats/workspaces, capability grants, background workflows, schedules | disabled by default, experimental |
 | `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set`, `:domain_subscriber`, `"global_search:source"` | enabled |
 | `discord` | `plugins/discord` | `:platform_delivery` | disabled by default |
 | `django` | `plugins/django` | `:preview_provider` | enabled |
@@ -1608,6 +1616,7 @@ called out only where they explain an architectural dependency.
 | `rails` / `syrus-rails` | `plugins/rails` | `:mcp_tool_set`, `:artifact_renderer`, `:prompt_injector`, `:preview_provider` | enabled |
 | `runtime_terminal` | `plugins/runtime_terminal` | `:runtime_session_provider` | disabled by default |
 | `scheduled_tasks` | `plugins/scheduled_tasks` | `:sidebar_page`, `:repo_page_tab`, `:chat_mcp_tool_set`, `:job_origin`, `:domain_subscriber`, `:callbacks`, `:repository_recommendation`, CLI schedule commands | enabled |
+| `sdlc_pipeline` | `plugins/sdlc_pipeline` | `:repo_page_tab`; read-only lifecycle/deployment projection | enabled |
 | `spending_insights` | `plugins/spending_insights` | `:sidebar_page` | enabled |
 | `syrus_dev` | `plugins/syrus_dev` | `:admin_page`, `:mcp_tool_set` | disabled by default |
 | `tailscale` | `plugins/tailscale` | `:admin_page`, `:callbacks`, `"plugin_runtime:privileged_service"` | disabled by default |
@@ -2138,6 +2147,11 @@ Several layers, each catching different failure modes:
    and atomically moves only still-eligible deliveries away from dead
    worker-specific queues. Incident fan-out actions use the same grouped
    pending-action mechanism so one confirmation has one coherent outcome.
+   A queued Run stranded on a dead worker-specific affinity queue is also an
+   automatic repair: immediately before deleting the ready queue row, the
+   executor revalidates the exact delivery and worker liveness, then clears
+   stale affinity and re-enqueues on a general lane. A revived worker, claimed
+   row, or concurrent repair turns the action into a no-op.
 5. **`RunJob` execution guards** — two distinct safety rails inside
    `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
    is already `terminal?` (idempotent retry), or calls `fail!` and skips
