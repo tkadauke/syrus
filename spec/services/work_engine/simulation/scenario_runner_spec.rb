@@ -193,7 +193,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect([ tip, urgent ]).to all(be_closed)
     expect(result.events.join("\n")).to include("urgent_blocked_landing_slot")
     expect(urgent.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
-    expect(tip.workflows.where(trigger_kind: "merge_train").count).to eq(2)
+    expect(tip.workflows.where(trigger_kind: "merge_train").count).to eq(1)
     scenario_locks = WorkUnitLock.active.joins(work_unit: :work_unit_members)
       .where(work_unit_members: { job_id: result.job_ids })
     expect(scenario_locks.where("lock_key LIKE ?", "landing:repository:%")).to be_empty

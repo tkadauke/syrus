@@ -1837,8 +1837,7 @@ module WorkEngine
             unit.reload
             workflow = unit.workflow&.reload
             return skipped("WorkUnit ##{unit.id} is not blocked by urgent_job_active") unless unit.blocked? && unit.blocked_reason == "urgent_job_active"
-            return skipped("Blocked Workflow is no longer queued landing work") unless workflow&.queued? && workflow.landing_workflow?
-            return skipped("Blocked Workflow first Step already has a Run") if workflow.first_step&.runs&.exists?
+            return skipped("Blocked Workflow is no longer queued landing work before its first Run") unless workflow&.queued_landing_before_first_run?
 
             released = unit.work_unit_locks.active
                            .where("lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%")

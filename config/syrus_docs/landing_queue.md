@@ -341,6 +341,19 @@ reconciler raises `externally_blocked_landing_slot` and the
 `release_externally_blocked_landing_slot` repair frees the slot and wakes the
 landing queue.
 
+Urgent work uses the same lock-surrender rule without discarding the displaced
+landing attempt. A queued landing Workflow blocked by `urgent_job_active`
+before its first Run releases only `landing:repository:<id>`; its job- and
+Epic-scoped locks remain active, preventing a duplicate attempt. If an older
+blocked WorkUnit still owns the repository slot, the reconciler reports
+`urgent_blocked_landing_slot`, naming the lock owner, blocked Workflow, and
+unrelated urgent blocker Jobs. Its automatic
+`release_urgent_blocked_landing_slot` repair revalidates those conditions,
+releases only the repository landing slot, and wakes the landing queue. After
+the urgent Job finishes, normal queue processing wakes the original Workflow,
+which must reacquire the repository slot through ordinary lock-conflict
+handling before its first Run is created.
+
 When the capability does arrive, the unit re-acquires the slot through
 `ensure_active_locks!` on its next start; if another landing holds it by then
 it waits its turn, which is ordinary contention rather than starvation.
