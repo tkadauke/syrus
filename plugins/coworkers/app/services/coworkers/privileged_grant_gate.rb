@@ -16,7 +16,7 @@ module Coworkers
 
       def availability(descriptor)
         return Availability.new(available?: true, reason: nil) unless descriptor.privileged
-        return Availability.new(available?: false, reason: "confinement_unavailable") unless confined_worker_available?
+        return Availability.new(available?: false, reason: confinement_unavailability_reason) unless confined_worker_available?
         return Availability.new(available?: false, reason: "broker_authorization_unavailable") unless broker_authorization_available?
 
         Availability.new(available?: true, reason: nil)
@@ -57,6 +57,18 @@ module Coworkers
         end
       rescue ActiveRecord::StatementInvalid
         []
+      end
+
+      def confinement_unavailability_reason
+        workers = InstanceVersion.fresh.where(role: "worker").to_a
+        return "confinement_worker_unavailable" if workers.empty?
+        diagnostics = workers.map { |worker| worker.capability_diagnostics || {} }
+        return "confinement_configuration_missing" if diagnostics.any? { |entry| entry["confined_coworker_configuration"] == "missing" }
+        return "confinement_probe_failed" if diagnostics.any? { |entry| entry.key?("confined_coworker") }
+
+        "confinement_probe_missing"
+      rescue ActiveRecord::StatementInvalid
+        "confinement_worker_unavailable"
       end
 
       def broker_authorization_available?
