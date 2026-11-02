@@ -996,6 +996,21 @@ RSpec.describe Run, :ci_only do
       )
     end
 
+    it "rejects dependency metadata as worker admission capabilities" do
+      requirements = {
+        "os" => [ "macos" ],
+        "arch" => [ "arm64" ],
+        "toolchain" => [ "xcode" ],
+        "runtime" => [ "ios_simulator" ]
+      }
+      expect {
+        workflow.update!(
+          planned_execution_capabilities: requirements,
+          planned_execution_source: "explicit"
+        )
+      }.to raise_error(ActiveRecord::RecordInvalid, /forbidden keys: arch, runtime, toolchain/)
+    end
+
     it "does not route new macOS work to a draining worker" do
       workflow.update!(
         planned_execution_capabilities: { "os" => [ "macos" ] },

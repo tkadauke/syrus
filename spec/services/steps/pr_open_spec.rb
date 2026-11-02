@@ -314,7 +314,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
   it "recovers a stale unpublished local-mode handoff branch before opening the first PR" do
     chat_session = ChatSession.create!(user: user, repository: repository, mode: "local")
     branch = "syrus/local-handoff-#{job.id}"
-    job.update!(issue_title: "Local handoff")
+    job.update_columns(issue_title: "Local handoff")
     job.update!(
       state: "running",
       kind: "direct",
@@ -459,7 +459,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "does not call GitHub PR creation after force-pushing an unpublished retry branch that is empty against base" do
-    job.update!(issue_title: "Retry task")
+    job.update_columns(issue_title: "Retry task")
     job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil, fork_review_pr_number: nil)
     pr_open_run = Run.create!(
       job: job,
@@ -539,7 +539,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "opens a PR for a non-empty direct retry publication branch" do
-    job.update!(issue_title: "Retry task")
+    job.update_columns(issue_title: "Retry task")
     job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
     Run.create!(
       job: job,
@@ -699,7 +699,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "fails with the validated and publication heads when an empty branch no longer contains the implementation head" do
-    job.update!(issue_title: "Retry task")
+    job.update_columns(issue_title: "Retry task")
     job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
     Run.create!(
       job: job,
