@@ -97,6 +97,7 @@ module Permissions
         .joins(:authorization_items)
         .where(pending_action_items: { capability:, operation:, state: "denied" })
         .where(pending_action_items: { decided_at: (now - DENIAL_COOLDOWN)..now })
+        .where.not(pending_action_items: { decision_principal_type: "ApprovalProviderDelegation" })
         .order("pending_action_items.decided_at DESC")
         .first
     end
