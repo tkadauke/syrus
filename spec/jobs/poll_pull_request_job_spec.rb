@@ -36,13 +36,14 @@ RSpec.describe PollPullRequestJob, :ci_only do
     WorkUnits::TerminalWorkflowSync.for_job(target)
   end
 
-  def stub_pr(state: "open", merged: false, labels: [], head_sha: "deadbeef0000000000000000000000000000beef", base_sha: "base000000000000000000000000000000000000")
+  def stub_pr(state: "open", merged: false, labels: [], head_sha: "deadbeef0000000000000000000000000000beef", base_sha: "base000000000000000000000000000000000000", merge_commit_sha: nil)
     stub_request(:get, pr_url).with(query: hash_including({})).to_return(
       status: 200, headers: { "Content-Type" => "application/json" },
       body: {
         number: 7,
         state: state,
         merged: merged,
+        merge_commit_sha: merge_commit_sha,
         labels: labels.map { |n| { name: n } },
         head: { sha: head_sha, ref: "syrus/issue-42-#{job.id}" },
         base: { sha: base_sha, ref: repository.default_branch }
@@ -117,9 +118,10 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "closes the Job with reason=pr_merged when the PR is merged" do
-      stub_pr(state: "closed", merged: true)
+      stub_pr(state: "closed", merged: true, merge_commit_sha: "landed123")
       expect { described_class.perform_now(job.id) }.to change { job.reload.state }.to("closed")
       expect(job.closure_reason).to eq("pr_merged")
+      expect(job.landed_sha).to eq("landed123")
     end
 
     it "starts a grace period and sets needs_attention when the upstream PR is closed but not merged" do
