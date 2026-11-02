@@ -255,7 +255,11 @@ class Job < ApplicationRecord
     end
 
     work_units = WorkUnit.left_joins(:workflow, :work_unit_members)
-      .where("workflows.job_id = :job_id OR work_unit_members.job_id = :job_id", job_id: id)
+      .where(
+        "workflows.job_id = :job_id OR work_unit_members.job_id = :job_id " \
+          "OR (work_units.scope_type = 'job' AND work_units.scope_id = :job_id)",
+        job_id: id
+      )
       .where("work_units.started_at IS NOT NULL OR work_units.state IN (?)", %w[running succeeded])
       .distinct
     if (work_unit = work_units.order(:id).first)
