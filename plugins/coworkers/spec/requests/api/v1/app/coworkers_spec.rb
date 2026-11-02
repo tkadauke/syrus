@@ -5,6 +5,35 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "hides coworker workspace repositories from the repository list" do
+    visible = Factories.repository(user: owner, owner: "acme", name: "application")
+    workspace = Factories.repository(user: owner, owner: "acme", name: "coworker-home")
+    workspace.update!(Coworkers::RepositoryIndexFilter::WORKSPACE_ONLY_SETTINGS)
+    Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-repository-list",
+      workspace_repo: workspace.remote_url
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/repositories"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("active_repositories").pluck("id")).to contain_exactly(visible.id)
+  end
+
+  it "keeps a normal repository listed when a coworker also uses it" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "shared-application")
+    Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-shared-repository-list",
+      workspace_repo: repository.remote_url
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/repositories"
+
+    expect(response.parsed_body.fetch("active_repositories").pluck("id")).to include(repository.id)
+  end
+
   it "includes the permission cutover report in coworker details" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-report", workspace_repo: "https://github.com/acme/workspace.git")
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
