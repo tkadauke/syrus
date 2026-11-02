@@ -1397,9 +1397,12 @@ pause, not the page, and would otherwise swamp real jank.
 Beyond those passive observers, `app/frontend/lib/performanceMarkers.ts` is a
 generic frontend performance marker API frontend code can use to place
 explicit timing markers, similar in spirit to the backend's `PerformanceLogging.phase`.
-Coworkers may be granted read-only operational observability through
-`ops.read_logs`; results use the same caps and redaction as the admin surfaces
-and do not expose operational write or process-control actions.
+Admins in regular chat and coworkers granted `ops.read_logs` can use the same
+read-only operational diagnostics tools for historical metrics, live worker
+occupancy, Workflow timelines, admission evidence, and per-Run queue waits.
+The tools reuse the existing dashboard and diagnostic queries, apply repository
+visibility where records belong to repositories, return freshness and cap
+metadata, redact secrets, and expose no write or process-control actions.
 It offers `measureSync`/`measureAsync` for timing a block of work,
 `startMarker`/`endMarker` for spans that don't fit one function call (e.g. a
 UI menu's open-to-render latency), `recordCount` for count-based context

@@ -29,10 +29,12 @@ RSpec.describe "Coworker observability tools" do
     JSON.parse(response.content.first.fetch(:text))
   end
 
-  it "advertises exactly the five read-only tools only with the grant" do
+  it "advertises the shared read-only observability tools only with the grant" do
     expected = %w[
       admin_read_operational_logs read_worker_health read_backend_exception_events
-      read_browser_error_events read_performance_log_events
+      read_browser_error_events read_performance_log_events read_metrics_diagnostics
+      read_worker_occupancy read_workflow_timeline read_workflow_waterfall
+      read_admission_diagnostics diagnose_run_queue
     ]
 
     expect(family.map(&:tool_name)).to contain_exactly(*expected)

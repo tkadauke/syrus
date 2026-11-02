@@ -200,11 +200,19 @@ stored exception entry.
 
 ## Existing Streams
 
-Coworkers with the `ops.read_logs` grant can use the same read-only,
-size-capped and redacted operational-log, worker-health, backend-exception,
-browser-error, and performance-event queries exposed by the admin views. The
+Admins in regular chat and coworkers with the `ops.read_logs` grant share one
+read-only diagnostics tool family. In addition to the operational-log,
+worker-health, backend-exception, browser-error, and performance-event queries,
+it composes the existing Metrics Dashboard history, Worker Timeline occupancy
+and Workflow queries, resource-admission diagnostics, and per-Run queue
+diagnosis. Timeline and admission results are restricted to Jobs and
+repositories visible to the caller; global fleet results require the same
+operational authority. Responses identify their source and freshness, enforce
+fixed result caps, redact secrets, and never include mutation actions. The
 grant defaults to confirmation and may be raised to automatic access; it never
-adds repair, retry, pause, process-control, or event-filing actions.
+adds repair, retry, pause, process-control, or event-filing actions. Metrics and
+timeline tools report a disabled-plugin error instead of creating a parallel
+data path when their owning plugin is off.
 
 `performance_log_events` contain slow request, slow SQL, slow phase, and browser
 trace diagnostics. They retain 24 hours and are surfaced by Admin -> Performance
