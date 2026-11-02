@@ -66,6 +66,7 @@ import { Tags } from "./Tags"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { ThemesSettingsRoute } from "./ThemesSettings"
 import { PermissionsSettingsRoute } from "./PermissionsSettings"
+import { PermissionInboxRoute } from "./PermissionInbox"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarPages"
@@ -89,6 +90,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
+  { path: "/permissions/inbox", element: <PermissionInboxRoute /> },
   { path: "/connection", element: <ConnectionStatusRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
   { path: "/admin", element: <AdminOverview /> },
