@@ -5,7 +5,13 @@ require "open3"
 RSpec.describe Steps::SummarizeAmend, :ci_only do
   let(:user)     { Factories.user(name: "Ada Lovelace", email_address: "ada@example.com") }
   let(:repository) { Factories.repository(user: user) }
-  let(:job)      { Factories.job(repository: repository) }
+  let(:job) do
+    Factories.job(
+      repository: repository,
+      issue_title: "Fix failing CI",
+      issue_body: "The eager-load grader fails after the prior change."
+    )
+  end
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "pr_comment") }
   let(:step)     { Step.create!(workflow: workflow, kind: "summarize_amend", position: 0) }
   let(:run)      do
@@ -319,7 +325,6 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
 
     it "retries ci_failure summarize_amend without provider resume when Codex rejects restored rollout state" do
       workflow.update!(trigger_kind: "ci_failure")
-      job.update!(issue_title: "Fix failing CI", issue_body: "The eager-load grader fails after the prior change.")
       analyze_step = Step.create!(workflow: workflow, kind: "analyze_and_fix", position: 0, next_step_id: step.id)
       upstream_sha = head_sha
       Run.create!(

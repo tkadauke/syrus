@@ -15,7 +15,14 @@ RSpec.describe RunJob, :ci_only do
     Factories.repository(user: user, owner: "acme", name: "widgets",
                          default_branch: "main", trigger_label: "syrus", polling_enabled: true)
   end
-  let(:job) { Factories.job(repository: repository, issue_number: 42) }
+  let(:job) do
+    Factories.job(
+      repository: repository,
+      issue_number: 42,
+      issue_title: "Add greeting helper",
+      issue_body: "We need a greeting helper."
+    )
+  end
 
   before(:context) do
     @seed_bare_remote_dir = Pathname.new(Dir.mktmpdir("syrus-bare-seed"))
