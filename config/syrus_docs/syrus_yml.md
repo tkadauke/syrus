@@ -1141,7 +1141,8 @@ and returns `needs_work` still triggers the normal repair loop.
 
 ## visual_review
 
-Configures the visual_review Labs feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects and capture screenshot artifacts.
+Configures provider-neutral visual review through workflow-owned RuntimeSession
+targets. Existing browser preview configuration remains supported.
 
 ```yaml
 visual_review:
@@ -1152,6 +1153,15 @@ visual_review:
     - "app/frontend/**/*"
     - "app/views/**/*"
   seed_notes: "Log in as demo@example.com / password to reach the dashboard."
+  targets:
+    - name: CLI dashboard
+      provider: cli_tui
+      launch: { command: "bin/dashboard" }
+      build: { command: "bin/build-dashboard" }
+      dimensions: { columns: 100, rows: 32 }
+      review_notes: "Open the queue view and select a running Job."
+      when_files_changed: ["cli/**", "app/tui/**"]
+      captures: ["queue loaded", "job selected"]
 ```
 
 `enabled` explicitly turns visual review on (`true`) or off (`false`) for this repository, overriding the always-on instance-wide default. When the block (or the `enabled` key within it) is omitted, no repository-level override is recorded and the always-on default applies instead — so a repository can set `rounds`, `when_files_changed`, or `seed_notes` without an omitted `enabled` forcing the feature off. See [`visual_review.md`](visual_review.md) for the full feature reference.
@@ -1168,6 +1178,21 @@ repair loop.
 `when_files_changed` is an optional array of glob patterns; when present, visual review only runs when at least one changed file (relative to the default branch) matches one of the patterns. Uses the same glob semantics as a grader's `when_files_changed`. Omitting it runs visual review regardless of which files changed.
 
 `seed_notes` is optional free text describing how to reach an authenticated or otherwise populated state in the preview app (e.g. demo credentials, a seed record to look for). It is read by the visual_review agent as a hint, not executed.
+
+`targets` is an optional array. Each target requires a registered RuntimeSession
+`provider` key and may set a display `name`, provider-specific `launch` and
+`build` option maps, initial `dimensions`, reviewer-facing `review_notes`,
+`when_files_changed` globs, and labeled `captures` expected as durable visual
+evidence. `cli_tui` uses `columns` and `rows`; future Android, iOS, and macOS
+providers use the same contract without new visual-review step kinds. Targets
+whose file rules do not match the branch-wide change set are not started. When
+`targets` is omitted, affected `preview:` projects become backward-compatible
+`browser` targets.
+
+For `cli_tui`, `build.command` and `launch.command` are written to the owned
+terminal after its relay is ready. They run from the target workspace before
+the reviewer receives control; interactive reviewer input still requires the
+normal short-lived input lease.
 
 Nested `.syrus.yml` files may declare `visual_review:` alongside `preview:`.
 For project-aware visual review, Syrus first selects affected preview-capable

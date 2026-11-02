@@ -35,4 +35,33 @@ RSpec.describe Mcp::Tools::RuntimeCaptureArtifactTool do
 
     expect(response).to be_error
   end
+
+  it "persists workflow provider images as visual-review artifacts" do
+    job = Factories.job(repository: repository)
+    workflow = job.workflows.last
+    step = Step.create!(workflow: workflow, kind: "visual_review", position: 90)
+    review_run = Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind)
+    RuntimeSession.create!(
+      repository: repository, job: job, workflow: workflow, run: review_run,
+      workspace_ref: "workspace", provider_key: "stub", display_name: "Review", state: "running", primary: true
+    )
+    allow_any_instance_of(stub_runtime_provider_class).to receive(:snapshot).and_return(
+      content: [ { type: "image", data: Base64.strict_encode64("png-bytes"), mimeType: "image/png" } ]
+    )
+
+    response = call(
+      server_context: { run_id: review_run.id },
+      artifact_type: "visual_review_cli_menu",
+      checkpoint_label: "menu open"
+    )
+
+    expect(response).not_to be_error
+    artifact = workflow.reload.artifact("typed_artifacts").sole
+    expect(artifact).to include(
+      "title" => "menu open",
+      "original_type" => "visual_review_cli_menu",
+      "renderer_type" => "image_diff",
+      "run_id" => review_run.id
+    )
+  end
 end

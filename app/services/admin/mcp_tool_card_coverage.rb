@@ -31,7 +31,8 @@ module Admin
       "read_syrus_logs" => "generic",
       "list_repository_files" => "generic",
       "read_repository_file" => "generic",
-      "search_repository_code" => "generic"
+      "search_repository_code" => "generic",
+      "runtime_wait" => "generic"
     }.freeze
 
     class << self

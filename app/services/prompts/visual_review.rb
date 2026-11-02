@@ -35,7 +35,7 @@ module Prompts
 
     def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil,
                    test_plan_recommended: nil, test_plan_reason: nil, seed_notes: nil,
-                   manual_review_instructions: nil, preview_projects: [])
+                   manual_review_instructions: nil, preview_projects: [], runtime_targets: [])
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
@@ -46,6 +46,7 @@ module Prompts
       @seed_notes = seed_notes.to_s
       @manual_review_instructions = manual_review_instructions.to_s
       @preview_projects = Array(preview_projects)
+      @runtime_targets = Array(runtime_targets)
     end
 
     def to_s
@@ -59,6 +60,7 @@ module Prompts
         current_diff,
         implementer_test_plan_hint,
         preview_projects_section,
+        runtime_targets_section,
         seed_notes_section,
         manual_review_instructions_section,
         workflow_instructions,
@@ -278,6 +280,34 @@ module Prompts
       ].join("\n")
     end
 
+    def runtime_targets_section
+      return nil if @runtime_targets.empty?
+
+      targets = @runtime_targets.map do |target|
+        details = [
+          "session_id=#{target['session_id']}",
+          "provider=#{target['provider']}",
+          "name=#{target['name']}",
+          target["dimensions"].present? ? "dimensions=#{target['dimensions'].to_json}" : nil,
+          target["review_notes"].present? ? "notes=#{target['review_notes']}" : nil,
+          Array(target["captures"]).any? ? "capture expectations=#{Array(target['captures']).join('; ')}" : nil
+        ].compact
+        "- #{details.join(', ')}"
+      end
+
+      <<~TEXT.strip
+        Runtime targets for this review:
+        #{targets.join("\n")}
+
+        Use the generic runtime_inspect, runtime_wait, runtime_acquire_control,
+        runtime_input, runtime_release_control, runtime_snapshot, and
+        runtime_capture_artifact tools with the listed session_id. Acquire an
+        input lease before interaction. Capture labeled evidence at the
+        configured checkpoints. Browser targets retain the existing browser
+        tools and submit_visual_artifact flow for compatibility.
+      TEXT
+    end
+
     def preview_project_selection_instruction
       if @preview_projects.one?
         "Call `start_preview` without project_id to use this single affected project, or pass its project_id explicitly."
@@ -287,6 +317,8 @@ module Prompts
     end
 
     def workflow_instructions
+      return runtime_workflow_instructions if @runtime_targets.any? { |target| target["provider"] != "browser" }
+
       <<~TEXT.strip
         Work through these steps in order:
 
@@ -366,6 +398,20 @@ module Prompts
            allowed viewport exception above.
         6. Call `submit_visual_review` with your verdict and critique.
         7. Always call `stop_preview` before you finish, whether or not you started one.
+      TEXT
+    end
+
+    def runtime_workflow_instructions
+      <<~TEXT.strip
+        Work through these steps in order:
+
+        1. Decide whether the changed behavior is observable in one of the configured runtime targets. If it is not, call `submit_visual_review` with verdict `skipped` and explain why.
+        2. Inspect the target with `runtime_inspect`. Use `runtime_wait` for startup, changed-screen, visible-text, and quiet-period synchronization instead of arbitrary sleeps.
+        3. Before sending keyboard, pointer, touch, or stdin events, call `runtime_acquire_control` with mode `input`. Exercise the changed behavior with `runtime_input`, renew the short lease when necessary, and call `runtime_release_control` when interaction is complete.
+        4. At each configured capture expectation, call `runtime_capture_artifact` with a concise `checkpoint_label`. Use `runtime_snapshot` for intermediate views that do not need to become labeled review evidence.
+        5. Review every relevant target and configured dimension. Report concrete visible defects with verdict `needs_work`, or call `submit_visual_review` with verdict `approved` after the expected evidence has been captured. Use `skipped` only when the behavior cannot be exercised or the runtime is genuinely blocked.
+
+        Do not edit implementation files or substitute builds, tests, lint, or code-only review for runtime inspection. Syrus owns session teardown on success, failure, retry, cancellation, and missing submission.
       TEXT
     end
 
