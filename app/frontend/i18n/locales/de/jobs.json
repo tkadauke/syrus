@@ -644,7 +644,7 @@
   "review_settings_line_numbers": "Zeilennummern",
   "review_settings_file_list": "Dateiliste",
   "review_settings_renderable_files": "Darstellbare Dateien",
-  "review_settings_code": "Code",
+  "review_settings_code": "Quelltext",
   "review_settings_preview": "Vorschau",
   "review_settings_save_error": "Review-Einstellungen konnten nicht gespeichert werden.",
   "review_metric_gutter_label": "Metrik-Leiste",

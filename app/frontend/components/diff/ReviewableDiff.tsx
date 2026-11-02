@@ -2969,7 +2969,7 @@ function DiffFileHeader({
       {typeof file.additions === "number" ? <span>+{file.additions}</span> : null}
       {typeof file.deletions === "number" ? <span>-{file.deletions}</span> : null}
       {onRenderModeChange && renderMode ? (
-        <span className="inline-flex overflow-hidden rounded border border-gray-200 font-sans text-2xs dark:border-gray-700">
+        <span className="inline-flex overflow-hidden rounded border border-border font-sans text-2xs">
           {(["code", "preview"] as const).map((mode) => (
             <button
               className={`px-2 py-1 ${renderMode === mode ? "bg-brand text-white" : "bg-surface text-text-secondary"}`}
