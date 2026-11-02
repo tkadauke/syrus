@@ -79,27 +79,33 @@ They run from a recorded `WorkflowSourceSnapshot` in a detached immutable
 checkout, and may reuse a worker-local prepared dependency layer keyed by the
 repository's prepare plan and worker capabilities. Treat the snapshot as the
 grader's source of truth; do not assume a grader reads the live mutable
-workflow checkout.
+workflow checkout. Commands run through `Execution::Router`: enabled
+`:execution_backend` providers may claim a request, otherwise core uses
+`Execution::Local` unless the workload policy is fail-closed. Keep alternate
+execution and confinement in that provider contract rather than branching in
+grader or chat call sites.
 
 `Job#kind` is registered through `Job::Kind`: built-ins include `issue`
 (labeled work item), `cron` (scheduled fire), `direct` (operator prompt),
 `main_grader` and `deploy` (infrastructure), and `external_pr` (an ingested
 outside PR). Investigation-only Jobs are a flag on investigable kinds, not a
 separate kind. Plugins may contribute additional kinds through
-`:workflow_kinds`; do not hard-code kind lists.
+`:workflow_kinds` (for example, Coworkers contributes its background task
+kind); do not hard-code kind lists.
 
 **WorkUnit / WorkIntent / WorkDefinition** (`app/models/work_unit.rb`,
-`app/models/work_intent.rb`, `app/services/work_definitions/`) is a newer
-ownership/scheduling layer being rolled out alongside the AASM machines
-above, not a replacement for them: `WorkUnits::Launcher.start!` still always
+`app/models/work_intent.rb`, `app/services/work_definitions/`) is the
+ownership/scheduling layer above the AASM machines, not a replacement for
+them: `WorkUnits::Launcher.start!` still always
 falls through to `StepDispatcher.start_workflow`, which remains the actual
 execution engine. `WorkIntent` is the durable "we want this work done"
 record; `WorkUnit` is one runtime attempt at it, holding `WorkUnitLock`s
-(mutex per job/epic/repo/landing-slot) and `WorkUnitMember`s. `WorkDefinitions::Base`
-subclasses (~28 built-ins — `Initial`, `Rebase`, `AutoMerge`, `MergeTrain`,
-`JobBundle`, etc., auto-registered by kind) centralize the retry/lock/landing
-policy that used to be scattered across `StepDispatcher` and landing-queue
-services. `WorkUnits::PathOwnership` maps each concrete path
+(mutex per job/epic/repo/landing-slot) and `WorkUnitMember`s.
+`WorkDefinitions::Base` subclasses (built-ins plus plugin contributions —
+`Initial`, `Rebase`, `AutoMerge`, `MergeTrain`, `JobBundle`, etc., registered
+by kind) centralize retry/lock/landing policy that used to be scattered across
+`StepDispatcher` and landing-queue services. `WorkUnits::PathOwnership` maps
+each concrete path
 (retry/resume/pause, auto_merge/merge_train/stack_rebase, reconciler repairs)
 to WorkUnit ownership directly. The old shadow-mode and ownership-cutover
 feature flags have been removed; compatibility now lives in
@@ -187,6 +193,11 @@ High-frequency reminders:
   `plugins/<name>/app/frontend/tool_cards/`, or register an explicit
   `generic`/`hidden`/`deferred` status in
   `Admin::McpToolCardCoverage::EXPLICIT_CARD_STATUSES`.
+- Searchable/filterable product surfaces use the shared Filters AST and
+  `FilterBar`; deliberately decide whether the surface also needs
+  `SmartFolder` persistence. SmartFolder-backed endpoints must return and
+  apply the same effective filter and include the shared contract examples in
+  `spec/support/shared_examples/smart_folder_filter_bar_contract.rb`.
 - When drafting work for chat, keep proposals finishable inside one bounded
   implementation attempt. Do not ask a Job to dogfood, burn in, monitor
   production, or wait for future operator action; avoid brand-new Epics with
