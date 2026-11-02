@@ -1,3 +1,5 @@
+require_dependency "tool_payload_redactor"
+
 module Permissions
   class ApprovalProviderDecision
     OUTCOMES = %i[allow deny escalate].freeze
@@ -9,7 +11,7 @@ module Permissions
       @rationale = rationale.to_s
       @policy_factors = Array(policy_factors).map(&:to_s).freeze
       @confidence = Float(confidence)
-      @evidence = evidence.to_h.deep_stringify_keys.freeze
+      @evidence = ToolPayloadRedactor.redact(evidence.to_h.deep_stringify_keys).freeze
       @provider_outcome = provider_outcome&.to_s
       validate!
       freeze

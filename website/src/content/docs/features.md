@@ -53,8 +53,10 @@ default: each user must explicitly delegate a provider for a bounded capability
 and resource scope. AI approval can decide only the exact fingerprinted tool
 invocation presented to it and cannot grant durable or temporary authority.
 Financial effects, privilege changes, and permission management always remain
-human decisions. Unavailable, uncertain, rate-limited, or invalid provider
-responses return the same request to the human approval inbox.
+human decisions. Non-delegable policy ceilings are checked before the provider
+runs, and core redacts its evidence. Unavailable, low-confidence, rate-limited,
+or invalid provider responses return the same request to the human approval
+inbox.
 
 ## Jobs
 

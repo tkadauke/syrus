@@ -50,8 +50,14 @@ class ApprovalProviderDelegation < ApplicationRecord
 
   def scope_covers?(ceiling, requested)
     ceiling.all? do |key, expected|
+      next false unless requested.key?(key)
+
       actual = requested[key]
-      expected.is_a?(Array) ? Array(actual).all? { |item| expected.include?(item) } : actual == expected
+      if expected.is_a?(Array)
+        actual.is_a?(Array) && actual.any? && actual.all? { |item| expected.include?(item) }
+      else
+        actual == expected
+      end
     end
   end
 

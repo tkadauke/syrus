@@ -1,6 +1,7 @@
 module Permissions
   class ApprovalProviderAuthorizer
     HUMAN_ONLY_CAPABILITY = "syrus.permissions@v1"
+    MINIMUM_ALLOW_CONFIDENCE = 0.8
 
     Result = Data.define(:decision, :delegation, :provider, :request) do
       def allowed? = decision.allow?
@@ -34,6 +35,13 @@ module Permissions
       return escalated(:ceiling, "A core, plugin, instance, or resource ceiling requires human review", delegation:, provider:) if ceiling_blocks?
 
       decision = ApprovalProviderDecision.coerce(provider.decide(@request))
+      if !decision.escalate? && decision.confidence < MINIMUM_ALLOW_CONFIDENCE
+        return escalated(:uncertain, "The approval provider was not confident enough to decide", delegation:, provider:)
+      end
+      if !decision.escalate? && decision.provider_outcome.present?
+        return escalated(decision.provider_outcome, "The approval provider requires human review", delegation:, provider:)
+      end
+
       Result.new(decision:, delegation:, provider:, request: @request)
     rescue StandardError => error
       Rails.logger.warn("[ApprovalProviderAuthorizer] #{error.class}: #{error.message}")
@@ -48,7 +56,16 @@ module Permissions
     end
 
     def ceiling_blocks?
-      @ceiling_rules.any? { |rule| !rule.call(@request) }
+      policy_ceiling_blocks? || @ceiling_rules.any? { |rule| !rule.call(@request) }
+    end
+
+    def policy_ceiling_blocks?
+      @request.policy_chain.any? do |entry|
+        rule = entry["rule"]
+        next false unless rule.is_a?(Hash) && rule["delegable"] == false
+
+        (entry["policy"] || rule["policy"]).to_s != "allow"
+      end
     end
 
     def escalated(code, rationale, delegation: nil, provider: nil)

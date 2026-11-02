@@ -27,10 +27,25 @@ RSpec.describe ApprovalProviderDelegation do
     expect(delegation.excluded_effects).to include("financial", "privilege_change", "destructive")
   end
 
+  it "does not treat a missing or empty array scope as bounded" do
+    missing = invocation_with_scope(cluster_id: 7)
+    empty = invocation_with_scope(cluster_id: 7, namespaces: [])
+
+    expect(delegation).not_to be_covers(missing)
+    expect(delegation).not_to be_covers(empty)
+  end
+
   it "revokes with human attribution" do
     delegation.revoke!(actor: owner)
     expect(delegation).to have_attributes(revoked_by_user: owner)
     expect(delegation.revoked_at).to be_present
     expect(delegation).not_to be_covers(invocation)
+  end
+
+  def invocation_with_scope(scope)
+    Permissions::ApprovalProviderRequest.new(owner:, capability: invocation.capability,
+      operation: invocation.operation, resource_type: invocation.resource_type, resource_scope: scope,
+      effects: invocation.effects, invocation_fingerprint: "sha256:scope", transcript: [],
+      tool_call: {}, policy_chain: [])
   end
 end
