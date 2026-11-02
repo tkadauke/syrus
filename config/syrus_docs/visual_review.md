@@ -1,12 +1,24 @@
 # Visual Review
 
-Visual review gives the worker agent a headless browser it can drive
-against its own in-step preview to catch visible defects — broken layout,
+Visual review gives the worker agent a configured RuntimeSession target it can
+drive against its own workflow workspace to catch visible defects — broken layout,
 missing content, console errors, incorrect rendering, broken interactions —
 before graders run. An independent reviewer agent forms its own go/no-go
 judgment, exercises the running app, captures "after" screenshots as
 Workflow artifacts, and records a verdict that can send the change back
 for another implementation pass.
+
+Execution is provider-neutral: every configured target is a workflow-owned
+`RuntimeSession`. The reviewer gets generic inspect, wait, input, snapshot,
+and capture tools, while Syrus owns lifecycle, control leases, and teardown
+on success, failure, retry, cancellation, and missing submission. Existing
+`preview:` configuration is translated into a `browser` target automatically,
+so current browser reviews do not require a configuration migration. The
+reviewer prompt carries the selected provider key, advertised capabilities,
+launch/build options, dimensions, review notes, and required evidence labels.
+Terminal-only reviews receive generic runtime controls without browser DOM
+tools; mixed browser/terminal reviews receive both. Terminal evidence is
+attributed to its target and semantic screen generation in the Review UI.
 
 ## On by default
 

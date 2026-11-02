@@ -28,11 +28,10 @@ module Mcp::Tools
 
     class << self
       def call(mode:, reason:, session_id: nil, duration_seconds: nil, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        guard = require_coding_mode(chat_session)
+        owner, guard = runtime_owner_from(server_context)
         return guard if guard
 
-        session, error = resolve_runtime_session(chat_session, session_id)
+        session, error = resolve_runtime_session(owner, session_id)
         return error if error
 
         unless RuntimeControlLease::MODES.include?(mode) && mode != "observe_only"
@@ -42,7 +41,7 @@ module Mcp::Tools
         lease = RuntimeControlLease.acquire!(
           runtime_session: session,
           owner: "agent",
-          owner_ref: "coding_mode_chat:#{chat_session.id}",
+          owner_ref: runtime_owner_ref(owner),
           mode: mode,
           reason: reason,
           duration_seconds: duration_seconds

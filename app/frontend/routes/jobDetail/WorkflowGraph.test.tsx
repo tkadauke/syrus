@@ -982,6 +982,7 @@ describe("WorkflowsTab", () => {
       "src",
       "/api/v1/app/workflows/10/visual_artifact?type=visual_review_desktop_bulk_progress_run_53_1"
     )
+    expect(screen.getByText("Queue console · screen generation 17")).toBeInTheDocument()
     expect(screen.queryByText("First visual pass")).not.toBeInTheDocument()
     expect(screen.queryByText("Second visual pass")).not.toBeInTheDocument()
   })
@@ -2230,6 +2231,10 @@ function workflowWithVisualReviews() {
               viewport: { width: 1280, height: 800 },
               source: "current_browser",
               captured_at: "2026-10-22T12:00:00Z",
+              provider_key: "cli_tui",
+              target_name: "Queue console",
+              screen_generation: 17,
+              checkpoint_label: "jobs loaded",
               created_at: "2026-10-22T12:00:01Z"
             }
           ]

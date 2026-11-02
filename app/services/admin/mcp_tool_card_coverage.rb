@@ -49,7 +49,8 @@ module Admin
       "read_repository_file" => "generic",
       "search_repository_code" => "generic",
       "unland_job" => "generic",
-      "unland_epic" => "generic"
+      "unland_epic" => "generic",
+      "runtime_wait" => "generic"
     }.freeze
 
     class << self

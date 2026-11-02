@@ -36,11 +36,10 @@ module Mcp::Tools
 
     class << self
       def call(session_id: nil, options: nil, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        guard = require_coding_mode(chat_session)
+        owner, guard = runtime_owner_from(server_context)
         return guard if guard
 
-        session, error = resolve_runtime_session(chat_session, session_id)
+        session, error = resolve_runtime_session(owner, session_id)
         return error if error
 
         with_provider_call(session) { |provider| provider.inspect(session.id, normalize_options(options)) }

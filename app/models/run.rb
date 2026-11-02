@@ -28,6 +28,7 @@ class Run < ApplicationRecord
   has_many :auto_retry_attempts, dependent: :nullify
   has_many :spawned_processes, dependent: :nullify
   has_many :command_spans, -> { order(:sequence, :id) }, dependent: :destroy
+  has_many :runtime_sessions, dependent: :nullify
   has_many :diff_review_comments, dependent: :nullify
   has_many :diff_review_versions, dependent: :nullify
   has_one :agent, as: :resumable, dependent: :destroy

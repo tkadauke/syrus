@@ -125,6 +125,25 @@ RSpec.describe McpToolPolicy do
       expect(tools.size).to eq(15)
     end
 
+    it "advertises generic runtime tools for a non-browser visual-review session" do
+      job = Factories.job
+      step = Step.create!(workflow: job.latest_workflow, kind: "visual_review", position: 99)
+      visual_run = step.runs.create!(job: job, trigger_kind: job.latest_workflow.trigger_kind)
+      RuntimeSession.create!(
+        repository: job.repository, job: job, workflow: visual_run.workflow, run: visual_run,
+        workspace_ref: "/workspace", provider_key: "cli_tui", display_name: "Terminal", state: "running"
+      )
+
+      tools = described_class.for(McpToolContext.from_run(visual_run))
+
+      expect(tools).to include(
+        Mcp::Tools::RuntimeInspectTool,
+        Mcp::Tools::RuntimeWaitTool,
+        Mcp::Tools::RuntimeInputTool,
+        Mcp::Tools::RuntimeCaptureArtifactTool
+      )
+    end
+
     it "excludes report_main_concern from the visual_reviewer role" do
       context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
       tools   = described_class.for(context)

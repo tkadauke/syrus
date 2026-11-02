@@ -588,6 +588,8 @@
   "visual_review_verdict_needs_work": "Opus amplius",
   "visual_review_verdict_skipped": "Praetermissum",
   "visual_review_screenshot_alt": "Captura recensionis visualis",
+  "visual_review_evidence_target": "{{target}} · generatio screen {{generation}}",
+  "visual_review_evidence_generation_unknown": "ignota",
   "source_loading": "Inspector fontis oneratur...",
   "source_error": "Inspector fontis onerari non potuit.",
   "source_diff_loading": "Diff oneratur...",

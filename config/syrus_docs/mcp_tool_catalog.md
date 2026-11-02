@@ -183,6 +183,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `runtime_start` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
 | `runtime_status` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` |
 | `runtime_stop` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
+| `runtime_wait` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` |
 | `search_jobs` | chat | essential | read | no | - | - | - | - |
 | `set_bookmark` | chat | essential | write | no | - | - | - | - |
 | `set_job_priority` | chat | essential | write | no | - | - | - | - |
@@ -239,6 +240,13 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `report_cannot_proceed` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `report_cannot_proceed` | - |
 | `report_main_concern` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - |
 | `run_target_prepare` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:manual` | - | `run_target_prepare` | - |
+| `runtime_acquire_control` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
+| `runtime_capture_artifact` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
+| `runtime_input` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
+| `runtime_inspect` | workflow | - | read | no | `workflow:visual_reviewer` | - | - | - |
+| `runtime_release_control` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
+| `runtime_snapshot` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
+| `runtime_wait` | workflow | - | read | no | `workflow:visual_reviewer` | - | - | - |
 | `search_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `start_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `stop_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |

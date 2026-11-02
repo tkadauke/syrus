@@ -10,48 +10,58 @@ module Steps
         return
       end
 
-      if !visual_review_projects.available?
-        skip_unavailable_preview_project!
+      if visual_review_runtime_targets.empty?
+        skip_unavailable_runtime_target!
         return
       end
 
       workflow.set_artifact!("visual_review_preview_projects", visual_review_projects.to_a)
-      return unless prepare_previews!
+      workflow.set_artifact!("visual_review_runtime_targets", visual_review_runtime_targets.map(&:to_h))
+      return unless prepare_previews! if visual_review_runtime_targets.any?(&:legacy_browser)
 
-      run.update!(prompt: reviewer_prompt) if run.prompt.blank?
+      begin
+        start_runtime_sessions!
 
-      before_count = review_iterations.size
-      log("invoking agent for visual_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
+        run.update!(prompt: reviewer_prompt) if run.prompt.blank?
 
-      run_agent(prompt: run.prompt,
-                required_mcp_tools: %w[submit_visual_review],
-                disallowed_tools: REVIEW_COLLIDING_TOOLS)
-      discard_reviewer_workspace_changes
+        before_count = review_iterations.size
+        log("invoking agent for visual_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
 
-      workflow.reload
-      if review_iterations.size <= before_count
-        capture_mcp_sidecar_stderr
+        run_agent(prompt: run.prompt,
+                  required_mcp_tools: %w[submit_visual_review],
+                  disallowed_tools: REVIEW_COLLIDING_TOOLS)
 
-        # Deliberately does not mirror Steps::AdversarialReview's swallow-and-approve
-        # behavior after repeated missing-tool-call failures. That behavior is itself
-        # under separate reconsideration for being too broad (it rescues any
-        # StandardError, not just the missing-tool-call shape, once one prior Run on
-        # the step has failed for any reason). Even a correctly-narrowed version would
-        # still fake an "approved" verdict for visual QA, which is a worse failure mode
-        # here than for text review: a stuck/retried Job is visible and recoverable, a
-        # silently-approved-but-never-actually-reviewed UI regression is not. Raising
-        # unconditionally also isn't a loss of resilience — RunFailureClassifier already
-        # classifies this exact "agent didn't call submit_visual_review" shape as
-        # `missing_required_tool_call` (retryable), so WorkEngine::RepairExecutor's
-        # normal 5m/20m/1h auto-retry backoff already covers a transient reviewer miss
-        # without this step needing to swallow it.
-        fail_with!(:missing_required_tool_call, "agent didn't call submit_visual_review",
-                   evidence: { tool: "submit_visual_review" })
+        workflow.reload
+        if review_iterations.size <= before_count
+          capture_mcp_sidecar_stderr
+
+          # Deliberately does not mirror Steps::AdversarialReview's swallow-and-approve
+          # behavior after repeated missing-tool-call failures. That behavior is itself
+          # under separate reconsideration for being too broad (it rescues any
+          # StandardError, not just the missing-tool-call shape, once one prior Run on
+          # the step has failed for any reason). Even a correctly-narrowed version would
+          # still fake an "approved" verdict for visual QA, which is a worse failure mode
+          # here than for text review: a stuck/retried Job is visible and recoverable, a
+          # silently-approved-but-never-actually-reviewed UI regression is not. Raising
+          # unconditionally also isn't a loss of resilience — RunFailureClassifier already
+          # classifies this exact "agent didn't call submit_visual_review" shape as
+          # `missing_required_tool_call` (retryable), so WorkEngine::RepairExecutor's
+          # normal 5m/20m/1h auto-retry backoff already covers a transient reviewer miss
+          # without this step needing to swallow it.
+          fail_with!(:missing_required_tool_call, "agent didn't call submit_visual_review",
+                     evidence: { tool: "submit_visual_review" })
+        end
+
+        record_blocked_evidence_warning!(review_iterations.last)
+
+        VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
+      ensure
+        begin
+          discard_reviewer_workspace_changes
+        ensure
+          stop_runtime_sessions!
+        end
       end
-
-      record_blocked_evidence_warning!(review_iterations.last)
-
-      VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
     end
 
     private
@@ -144,7 +154,8 @@ module Steps
         test_plan_reason: test_plan_artifact["visual_review_reason"],
         seed_notes: visual_review_seed_notes,
         manual_review_instructions: manual_review_instructions,
-        preview_projects: visual_review_projects.to_a
+        preview_projects: visual_review_projects.to_a,
+        runtime_targets: runtime_session_prompt_targets
       ).to_s
     end
 
@@ -171,6 +182,53 @@ module Steps
         workspace_path: workspace.path,
         changed_files: changed_files
       )
+    end
+
+    def visual_review_runtime_targets
+      @visual_review_runtime_targets ||= App::VisualReviewRuntimeTargets.call(
+        workspace_path: workspace.path,
+        changed_files: changed_files,
+        preview_projects: visual_review_projects
+      )
+    end
+
+    def start_runtime_sessions!
+      @runtime_session_lifecycles = []
+      visual_review_runtime_targets.reject(&:legacy_browser).each do |target|
+        lifecycle = VisualReviewRuntimeSession.new(run: run, target: target)
+        @runtime_session_lifecycles << lifecycle
+        lifecycle.start!
+      end
+      workflow.set_artifact!("visual_review_runtime_sessions", @runtime_session_lifecycles.map do |lifecycle|
+        session = lifecycle.runtime_session
+        { "id" => session.id, "provider" => session.provider_key, "name" => session.display_name }
+      end)
+    rescue StandardError => e
+      stop_runtime_sessions!
+      failure = { "reason" => "runtime_session_start_failed", "message" => e.message, "run_id" => run.id }
+      workflow.set_artifact!("visual_review_runtime_failure", failure)
+      record_skip!("Visual review runtime could not start: #{e.message}", skip_reason: failure["reason"])
+      skip_or_fail_unavailable_review!(
+        review_kind: "visual_review",
+        reason: failure["reason"],
+        message: failure["message"],
+        config_required: visual_review_config&.required == true
+      )
+    end
+
+    def stop_runtime_sessions!
+      Array(@runtime_session_lifecycles).reverse_each(&:stop!)
+    end
+
+    def runtime_session_prompt_targets
+      run.runtime_sessions.order(:id).map do |session|
+        target = session.metadata["visual_review_target"].to_h
+        target.merge(
+          "session_id" => session.id,
+          "state" => session.state,
+          "capabilities" => session.capabilities
+        )
+      end
     end
 
     def visual_review_seed_notes
@@ -211,8 +269,12 @@ module Steps
       )
     end
 
-    def skip_unavailable_preview_project!
-      reason = visual_review_projects.unavailable_reason
+    def skip_unavailable_runtime_target!
+      reason = if Array(visual_review_config&.targets).any?
+        "no_matching_visual_review_runtime_target"
+      else
+        visual_review_projects.unavailable_reason || "no_visual_review_runtime_target"
+      end
       message = skip_message_for(reason)
       log("[visual_review] skipped: #{message}")
       workflow.set_artifact!("visual_review_preview_projects_unavailable_reason", reason)
@@ -224,6 +286,7 @@ module Steps
         "no_preview_configured" => "No preview is configured for this repository.",
         "no_affected_preview_project" => "No affected project has a preview configured.",
         "no_affected_visual_review_project" => "No affected preview project has visual_review enabled.",
+        "no_matching_visual_review_runtime_target" => "No visual-review runtime target matched the changed files.",
         "visual_review_project_resolution_failed" => "Could not resolve affected preview projects for visual review."
       }.fetch(reason.to_s, "Affected preview projects are unavailable for visual review.")
     end

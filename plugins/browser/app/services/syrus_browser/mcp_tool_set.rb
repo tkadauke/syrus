@@ -32,6 +32,19 @@ module SyrusBrowser
       true
     end
 
+    def self.available_for_context?(context)
+      run = context.run
+      return true unless run&.step&.kind == "visual_review"
+      return true unless run.respond_to?(:runtime_sessions)
+
+      sessions = run.runtime_sessions.active
+      return true if sessions.for_provider(RuntimeSessionProvider.provider_key).exists?
+
+      # Legacy preview-backed browser reviews do not create RuntimeSession
+      # records, so an empty session set keeps the established browser tools.
+      sessions.none?
+    end
+
     def self.tool_definitions
       TOOL_CLASSES.map do |klass|
         {

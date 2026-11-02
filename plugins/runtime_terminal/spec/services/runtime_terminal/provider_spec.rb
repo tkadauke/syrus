@@ -71,6 +71,7 @@ RSpec.describe RuntimeTerminal::Provider do
         columns: 80,
         viewport: { width: 80, height: 24 },
         checkpoint_label: "menu open",
+        provider_key: "cli_tui",
         latest_frame_url: "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{runtime_session.id}/frame"
       )
       expect(document).to have_attributes(title: "Terminal — menu open", content_type: "image/png")
@@ -123,6 +124,29 @@ RSpec.describe RuntimeTerminal::Provider do
       expect(RuntimeTerminal::SessionLink.find_by!(runtime_session: runtime_session).terminal_session)
         .to eq(terminal_session)
       expect(TerminalSessionJob).to have_received(:perform_later).with(terminal_session.id)
+    end
+
+    it "uses the Run user for a workflow-owned visual-review session" do
+      job = Factories.job(repository: repository, user: user)
+      run = job.runs.last
+      workflow_session = RuntimeSession.create!(
+        repository: repository, job: job, workflow: run.workflow, run: run,
+        workspace_ref: "/workspace/review", provider_key: "cli_tui",
+        display_name: "Terminal review", state: "starting"
+      )
+      allow(TerminalSessionJob).to receive(:perform_later)
+
+      metadata = provider.start_session(
+        workflow_session.workspace_ref,
+        runtime_session: workflow_session,
+        run: run,
+        user: user
+      )
+
+      expect(Terminal::Session.find(metadata.fetch(:terminal_session_id))).to have_attributes(
+        user: user,
+        working_directory: "/workspace/review"
+      )
     end
 
     it "records validated explicit startup dimensions for the first relay connection" do
@@ -390,6 +414,26 @@ RSpec.describe RuntimeTerminal::Provider do
     ensure
       delivery&.join
       takeover&.join
+      relay&.stop
+    end
+  end
+
+  describe "#launch and #build_or_reload" do
+    it "runs configured lifecycle commands without consuming the reviewer's input lease" do
+      relay = RuntimeTerminalFakeRelay.new
+      terminal_session = Terminal::Session.create!(
+        user: user, workflow: nil, name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address, started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      expect(provider.build_or_reload(runtime_session.id, command: "bin/build")).to include(delivered: true, operation: "build")
+      expect(relay.next_control).to eq("type" => "input", "data" => "bin/build\n")
+      expect(provider.launch(runtime_session.id, command: "bin/tui")).to include(delivered: true, operation: "launch")
+      expect(relay.next_control).to eq("type" => "input", "data" => "bin/tui\n")
+      expect(runtime_session.active_agent_input_lease).to be_nil
+    ensure
       relay&.stop
     end
   end

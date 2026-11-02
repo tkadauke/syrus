@@ -9,6 +9,7 @@ class McpToolRegistry
     :required_roles,
     :step_kinds,
     :capability,
+    :available_if,
     :interactive_only,
     :mutation,
     :ungated,
@@ -16,6 +17,10 @@ class McpToolRegistry
     :explicit_descriptor,
     :compatibility_descriptor
   ) do
+    def initialize(available_if: nil, **attributes)
+      super(available_if: available_if, **attributes)
+    end
+
     def tool_name
       McpToolRegistry.tool_name_for(tool)
     end
@@ -178,6 +183,7 @@ class McpToolRegistry
       return false unless surface_allowed?(entry, context)
       return false if entry.admin_only && !context.user.admin?
       return false if entry.interactive_only && !context.interactive
+      return false if entry.available_if && !entry.available_if.call(context)
       return false unless feature_allowed?(entry, context)
       return false if entry.required_roles.any? && !entry.required_roles.include?(context.role)
       return false if entry.step_kinds.any? && !entry.step_kinds.include?(context.run&.step&.kind.to_s)
@@ -271,6 +277,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::RuntimeLaunchTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::RuntimeSnapshotTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::RuntimeInspectTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
+        legacy_chat(Mcp::Tools::RuntimeWaitTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
         legacy_chat(Mcp::Tools::RuntimeLogsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
         legacy_chat(Mcp::Tools::RuntimeAcquireControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::RuntimeReleaseControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
@@ -514,6 +521,13 @@ class McpToolRegistry
         legacy_workflow(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
         legacy_workflow(SyrusMcp::ListArtifactsTool, required_roles: visual_artifact_roles),
         legacy_workflow(SyrusMcp::ReadArtifactTool, required_roles: visual_artifact_roles),
+        legacy_workflow(Mcp::Tools::RuntimeInspectTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
+        legacy_workflow(Mcp::Tools::RuntimeWaitTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
+        legacy_workflow(Mcp::Tools::RuntimeAcquireControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        legacy_workflow(Mcp::Tools::RuntimeReleaseControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        legacy_workflow(Mcp::Tools::RuntimeInputTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        legacy_workflow(Mcp::Tools::RuntimeSnapshotTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        legacy_workflow(Mcp::Tools::RuntimeCaptureArtifactTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
         legacy_workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, step_kinds: %w[refresh_job_metadata], mutation: true),
         legacy_workflow(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
@@ -568,7 +582,7 @@ class McpToolRegistry
     end
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
-              required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false, ungated: false,
+              required_roles: [], step_kinds: [], capability: nil, available_if: nil, interactive_only: false, mutation: false, ungated: false,
               descriptor: nil, compatibility_descriptor: false, default_policy: nil)
       tool_name = tool_name_for(tool)
       explicit_descriptor = descriptor.present?
@@ -582,6 +596,7 @@ class McpToolRegistry
         required_roles: Array(required_roles).freeze,
         step_kinds: Array(step_kinds).map(&:to_s).freeze,
         capability: capability&.to_sym,
+        available_if: available_if,
         interactive_only: interactive_only,
         mutation: mutation,
         ungated: ungated,
@@ -597,6 +612,12 @@ class McpToolRegistry
         explicit_descriptor: explicit_descriptor,
         compatibility_descriptor: compatibility_descriptor
       )
+    end
+
+    def runtime_tools_available?(context)
+      return false unless context.run&.respond_to?(:runtime_sessions)
+
+      context.run.runtime_sessions.active.where.not(provider_key: "browser").exists?
     end
 
     def normalize_feature_flags_by_role(feature_flags_by_role)

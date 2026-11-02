@@ -50,6 +50,46 @@ RSpec.describe SyrusBrowser::McpToolSet do
     end
   end
 
+  describe ".available_for_context?" do
+    let(:job) { Factories.job }
+    let(:visual_run) do
+      step = Step.create!(workflow: job.latest_workflow, kind: "visual_review", position: 99)
+      step.runs.create!(job: job, trigger_kind: job.latest_workflow.trigger_kind)
+    end
+
+    it "keeps browser tools for legacy and browser runtime reviews" do
+      context = McpToolContext.from_run(visual_run)
+      expect(described_class.available_for_context?(context)).to be true
+
+      RuntimeSession.create!(
+        repository: job.repository, job: job, workflow: visual_run.workflow, run: visual_run,
+        workspace_ref: "/workspace", provider_key: "browser", display_name: "Browser", state: "running"
+      )
+      expect(described_class.available_for_context?(context)).to be true
+    end
+
+    it "hides browser DOM tools from terminal-only reviews" do
+      RuntimeSession.create!(
+        repository: job.repository, job: job, workflow: visual_run.workflow, run: visual_run,
+        workspace_ref: "/workspace", provider_key: "cli_tui", display_name: "Terminal", state: "running"
+      )
+
+      expect(described_class.available_for_context?(McpToolContext.from_run(visual_run))).to be false
+    end
+
+    it "keeps browser tools when a mixed-target review also has a browser session" do
+      %w[cli_tui browser].each do |provider_key|
+        RuntimeSession.create!(
+          repository: job.repository, job: job, workflow: visual_run.workflow, run: visual_run,
+          workspace_ref: "/workspace/#{provider_key}", provider_key: provider_key,
+          display_name: provider_key, state: "running"
+        )
+      end
+
+      expect(described_class.available_for_context?(McpToolContext.from_run(visual_run))).to be true
+    end
+  end
+
   describe "#handle browser_navigate" do
     it "blocks navigation to a non-loopback URL without touching the browser session" do
       response = tool_set.handle("browser_navigate", { "url" => "http://evil.example.com" }, ctx)
