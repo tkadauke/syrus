@@ -99,6 +99,16 @@ describe("PermissionsSettingsRoute", () => {
     const call = fetchSpy.mock.calls.find(([path]) => path === "/api/v1/app/permission_rules/bulk")!
     expect(JSON.parse(String(call[1]?.body))).toMatchObject({ confirmation_digest: "signed-preview" })
   })
+
+  it("shows when an effective matrix state varies by resource", async () => {
+    const response = payload()
+    response.inherited[0].matrix_states.interactive_chat = "scoped"
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(response))
+
+    renderRoute()
+
+    expect(await screen.findByText("Varies by resource")).toBeInTheDocument()
+  })
 })
 
 function renderRoute() {
@@ -139,6 +149,7 @@ function payload() {
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
         authority_durations: ["invocation"],
+        matrix_states: { interactive_chat: "ask", coding_chat: "deny", local_chat: "deny" },
         presets: [],
         owner: { kind: "provider", name: "attach_repository@v1" },
         editable: false,
@@ -152,6 +163,7 @@ function payload() {
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
         authority_durations: ["invocation", "permanent"],
+        matrix_states: { interactive_chat: "ask", coding_chat: "deny", local_chat: "deny" },
         presets: [],
         owner: { kind: "provider", name: "syrus" },
         editable: false,

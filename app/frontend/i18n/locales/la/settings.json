@@ -21,6 +21,7 @@
     "views": { "matrix": "Tabula agentium", "resources": "Res", "rules": "Regulae" },
     "matrix_title": "Tabula permissionum agentium",
     "matrix_help": "Statum effectivum cuiusque agentis et facultatis compara.",
+    "states": { "allow": "Permitte", "ask": "Interroga", "deny": "Nega", "scoped": "Secundum rem variat" },
     "select_capability": "Elige {{capability}} {{operation}}",
     "bulk_allow": "Electa permitte ({{count}})",
     "bulk_deny": "Electa nega ({{count}})",
