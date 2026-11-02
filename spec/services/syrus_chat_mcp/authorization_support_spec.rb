@@ -226,7 +226,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
     end
 
     it "creates and anchors one compound request through the production dispatch helper" do
-      current_message = instance_double(Mcp::Tools::CurrentMessage)
+      current_message = instance_double(Mcp::Tools::CurrentMessage, id: nil)
       expect(current_message).to receive(:update_columns).with(pending_action_id: kind_of(Integer))
 
       response = described_class.pending_coworker_approval(

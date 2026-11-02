@@ -546,6 +546,7 @@ class McpToolRegistry
     end
 
     def coworker(tool, tier: :essential, **metadata)
+      metadata[:required_roles] ||= [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 

@@ -109,5 +109,28 @@ module PendingActions
 
       { run: run, chat_session: chat_session }
     end
+
+    def origin_resumable?
+      action.confirming? && action.origin.present? && action.subject.present?
+    end
+
+    def revalidate_authority(context)
+      authorization = Permissions::Management.new(context.user).authorize(
+        descriptor: permission_descriptor,
+        role: context.role,
+        resource_scope: action.authorization_items.find_by!(kind: "operation").resource_scope,
+        arguments: payload.fetch("arguments"),
+        context: {
+          role: context.role,
+          agent_id: context.agent_actor&.id,
+          subject_selector_type: "agent",
+          subject_selector_id: context.agent_actor&.id&.to_s,
+          subject_repository_id: context.repository&.id,
+          chat_session_id: context.chat_session&.id,
+          job_id: context.job&.id
+        }.compact
+      )
+      authorization.authorized? || authorization.decision.decisive_rule&.id || "permission_revalidation_failed"
+    end
   end
 end

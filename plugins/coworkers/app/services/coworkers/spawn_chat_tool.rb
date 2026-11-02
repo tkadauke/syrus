@@ -21,7 +21,6 @@ module Coworkers
         context = McpToolContext.from_server_context(server_context)
         coworker = context.agent_actor
         return Mcp::Tools.invalid("spawn_coworker_chat is only available to a coworker") unless coworker.is_a?(Coworkers::Coworker)
-        return Mcp::Tools.invalid("coworker.spawn_chat grant is required") unless context.granted_capabilities.include?("coworker.spawn_chat")
 
         requested_handle = HandleRegistry.normalize(handle.to_s.delete_prefix("@")) if handle.present?
         return Mcp::Tools.invalid("a coworker can only spawn a side chat of itself") if requested_handle && requested_handle != coworker.handle

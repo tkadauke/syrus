@@ -264,30 +264,29 @@ RSpec.describe "Coworker chat surface" do
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("message_coworker")
   end
 
-  it "advertises and runs workspace tools only with a file grant" do
+  it "advertises workspace tools without treating legacy grants as authority" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
     allow(Coworkers::WorkspaceFileTools::Write).to receive(:call)
       .and_return(Mcp::Tools.success(path: "notes.txt"))
     arguments = { path: "notes.txt", content: "Remember this" }
 
-    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).not_to include("write_coworker_file")
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include("write_coworker_file")
     grant = coworker.grants.create!(capability: "workspace.files", approval_policy: "confirm")
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include(
       "write_coworker_file", "edit_coworker_file", "move_coworker_file", "delete_coworker_file"
     )
     expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
-      .to include("approval_policy" => "confirm")
+      .to include("approval_policy" => "queue")
     grant.update!(approval_policy: "queue")
     expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
       .to include("approval_policy" => "queue")
     grant.update!(approval_policy: "auto")
-    expect(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })).not_to be_error
-
-    expect(Coworkers::WorkspaceFileTools::Write).to have_received(:call)
-      .with(**arguments, server_context: include(chat_session: chat)).once
+    expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
+      .to include("approval_policy" => "queue")
+    expect(Coworkers::WorkspaceFileTools::Write).not_to have_received(:call)
     grant.destroy!
-    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).not_to include("write_coworker_file")
+    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("write_coworker_file")
   end
 
   it "requires confirmation for protected workspace paths even with automatic file access" do
@@ -300,9 +299,9 @@ RSpec.describe "Coworker chat surface" do
       path: "memory/../SOUL.md", content: "changed", server_context: { chat_session: chat }
     )
 
-    expect(response_payload(response)).to include("approval_policy" => "confirm")
+    expect(response_payload(response)).to include("approval_policy" => "queue")
     expect(chat.pending_actions.last).to have_attributes(action: "coworker_tool_call", state: "pending")
-    expect(chat.pending_actions.last.payload).to include("approval_policy" => "confirm")
+    expect(chat.pending_actions.last.payload).to include("approval_policy" => "queue")
   end
 
   it "offers interactive-only tools only for an interactive turn" do
@@ -451,7 +450,7 @@ RSpec.describe "Coworker chat surface" do
     Syrus::PluginRegistry.clear_plugin_record_cache!
     tool_names = %w[write_coworker_file edit_coworker_file move_coworker_file delete_coworker_file]
 
-    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).not_to include(*tool_names)
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include(*tool_names)
     coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
 
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include(*tool_names)

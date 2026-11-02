@@ -90,7 +90,6 @@ module Mcp::Tools
       def pending_coworker_plugin_approval(tool_name, capability, server_context, arguments, always_pending: false)
         context = McpToolContext.from_server_context(server_context)
         return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
-        raise AuthorizationError unless context.granted_capabilities.include?(capability.to_s)
 
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool_name, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor&.capability.to_s == capability.to_s
@@ -109,7 +108,7 @@ module Mcp::Tools
 
         result = Permissions::CoworkerAuthorizationRequest.new(
           context:, descriptor: capability_descriptor, arguments:,
-          purpose: "Invoke #{descriptor.tool_name}", invocation_policy: ("queue" if always_pending),
+          purpose: "Invoke #{descriptor.tool_name}",
           action: "coworker_tool_call",
           payload: {
             "tool_name" => descriptor.tool_name,

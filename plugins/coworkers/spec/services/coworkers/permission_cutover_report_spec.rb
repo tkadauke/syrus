@@ -23,7 +23,8 @@ RSpec.describe Coworkers::PermissionCutoverReport do
   def registration(permission_descriptor, explicit: true)
     Permissions::CapabilityRegistryValidator::Registration.new(
       tool_name: "list_jobs", surface: :coworker, source: "core",
-      descriptor: permission_descriptor, explicit_descriptor: explicit
+      descriptor: permission_descriptor, explicit_descriptor: explicit,
+      compatibility_descriptor: false
     )
   end
 

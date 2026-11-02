@@ -13,6 +13,10 @@ module Mcp
         message&.update_columns(attributes)
       end
 
+      def id
+        message&.id
+      end
+
       private
 
       def message
