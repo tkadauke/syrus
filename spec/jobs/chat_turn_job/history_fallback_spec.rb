@@ -294,8 +294,8 @@ RSpec.describe ChatHistoryTranscriptRenderer do
       expect(check("anything", source: "grader_report")).to be(true)
     end
 
-    it "returns false for source=pending_action_notification alone" do
-      expect(check("anything", source: ChatPendingActionOutcomeNotification::SOURCE)).to be(false)
+    it "returns true for source=pending_action_notification" do
+      expect(check("anything", source: ChatPendingActionOutcomeNotification::SOURCE)).to be(true)
     end
 
     it "returns true for scoped_event content" do
