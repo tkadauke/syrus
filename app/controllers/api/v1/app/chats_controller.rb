@@ -909,10 +909,27 @@ module Api
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
           rejection = pending_action.pending? && pending_action.action_type != "schedule_recurring"
-          result = rejection ? pending_action.reject!(user: Current.user) : pending_action.cancel!(user: Current.user)
+          dismissal = pending_action.terminal?
+          result = if rejection
+            pending_action.reject!(user: Current.user)
+          elsif dismissal
+            pending_action.dismiss!(user: Current.user)
+          else
+            pending_action.cancel!(user: Current.user)
+          end
 
           if result
-            render json: chat_payload(chat_session.reload, message: rejection ? "Pending action rejected." : "Pending action cancelled.")
+            message = rejection ? "Pending action rejected." : dismissal ? "Pending action hidden." : "Pending action cancelled."
+            render json: chat_payload(chat_session.reload, message: message).merge(
+              pending_action_outcome: {
+                id: pending_action.id,
+                action: pending_action.action.presence || pending_action.action_type,
+                state: pending_action.state,
+                execution_status: pending_action.execution_status,
+                execution_error: pending_action.execution_error,
+                dismissed_at: pending_action.dismissed_at&.iso8601
+              }
+            )
           else
             render_error("validation_failed", t("api.chats.errors.pending_action_inactive"), status: :unprocessable_content)
           end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_101450) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -592,12 +592,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.datetime "execution_started_at"
     t.datetime "execution_finished_at"
     t.bigint "pending_action_group_id"
+    t.datetime "dismissed_at"
+    t.integer "outcome_message_id"
     t.index ["chat_message_id"], name: "index_chat_pending_actions_on_chat_message_id"
     t.index ["chat_session_id", "state", "confirmed_at"], name: "idx_chat_pending_actions_payload_confirmed"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
     t.index ["chat_session_id", "state"], name: "index_chat_pending_actions_on_chat_session_id_and_state"
     t.index ["chat_session_id", "tool_use_id"], name: "index_chat_pending_actions_on_session_and_tool_use_id"
     t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
+    t.index ["outcome_message_id"], name: "index_chat_pending_actions_on_outcome_message_id"
     t.index ["pending_action_group_id"], name: "index_chat_pending_actions_on_pending_action_group_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
     t.index ["result_type", "result_id"], name: "index_chat_pending_actions_on_result_type_and_result_id"
@@ -2646,8 +2649,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.datetime "rejected_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "dismissed_at"
+    t.integer "outcome_message_id"
     t.index ["chat_session_id", "state"], name: "index_pending_action_groups_on_chat_session_id_and_state"
     t.index ["chat_session_id"], name: "index_pending_action_groups_on_chat_session_id"
+    t.index ["outcome_message_id"], name: "index_pending_action_groups_on_outcome_message_id"
     t.index ["repository_id"], name: "index_pending_action_groups_on_repository_id"
     t.index ["user_id"], name: "index_pending_action_groups_on_user_id"
   end

@@ -49,8 +49,35 @@ RSpec.describe ChatPendingActionOutcomeNotification do
     action = build_action(action: "rebase_job", payload: { "job_id" => 5 }, reason: "Refresh mergeability.")
 
     expect(described_class.new(action).acknowledgment(outcome: :cancelled)).to eq(
-      "Pending action dismissed: rebase_job (job_id: 5, reason: Refresh mergeability.). The action was not applied."
+      "Pending action cancelled: rebase_job (job_id: 5, reason: Refresh mergeability.). The action was not applied."
     )
+  end
+
+  it "builds a failed message with the execution status and original error" do
+    action = build_action(
+      action: "cancel_job",
+      payload: { "job_id" => 42 },
+      execution_status: "failed",
+      execution_error: "Octokit::Conflict: state changed"
+    )
+
+    expect(described_class.new(action).acknowledgment(outcome: :failed)).to include(
+      "Pending action failed: cancel_job",
+      "execution_status: failed",
+      "failed before application",
+      "Octokit::Conflict: state changed"
+    )
+  end
+
+  it "describes a revalidation failure as rejected without application" do
+    action = build_action(
+      action: "cancel_job",
+      payload: { "job_id" => 42 },
+      execution_status: "rejected",
+      execution_error: "RepairEligibility::Ineligible: already terminal"
+    )
+
+    expect(described_class.new(action).acknowledgment(outcome: :failed)).to include("rejected during revalidation")
   end
 
   it "includes both epic_id and job_id for reopen_epic_and_attach_job" do

@@ -1564,6 +1564,7 @@
   "waiting": "Wartet…",
   "needs_confirmation": "Bestätigung erforderlich",
   "pending_action_failed": "Ausstehende Aktion fehlgeschlagen.",
+  "pending_action_hide_terminal": "Abgeschlossene Aktion ausblenden",
   "batch_action_failed": "Stapelaktion fehlgeschlagen.",
   "scratchpad_add_error": "Eintrag konnte nicht hinzugefügt werden.",
   "scratchpad_load_error": "Eintrag konnte nicht geladen werden.",
