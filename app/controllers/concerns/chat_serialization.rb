@@ -374,13 +374,11 @@ module ChatSerialization
     # (pending_action_groups_json below), never as their own standalone card.
     base_scope = chat_session.pending_actions.where(pending_action_group_id: nil)
       .includes(:tool_call_message, :message, authorization_items: :prerequisites)
-    base_scope.where(dismissed_at: nil).order(:created_at, :id)
+    base_scope.where(dismissed_at: nil).order(:created_at, :id).select(&:visible_in_chat_payload?)
   end
 
-  # Group cards remain visible until cosmetic dismissal, just like individual
-  # terminal cards, and retain the per-member partial-failure breakdown.
   def pending_action_groups_json(chat_session)
-    chat_session.pending_action_groups.where(dismissed_at: nil).where.not(state: "dismissed").includes(chat_pending_actions: [ :tool_call_message, :message ]).order(:created_at, :id).map do |group|
+    chat_session.pending_action_groups.where(dismissed_at: nil).where.not(state: "dismissed").includes(chat_pending_actions: [ :tool_call_message, :message ]).order(:created_at, :id).select(&:visible_in_chat_payload?).map do |group|
       pending_action_group_json(group)
     end
   end

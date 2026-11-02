@@ -281,7 +281,7 @@ module App
     end
 
     def pending_action_json(action, chat_session:)
-      return nil unless action
+      return nil unless action&.visible_in_chat_payload?
 
       payload = action.payload || {}
       base = {
@@ -294,7 +294,8 @@ module App
         execution_step: action.execution_step,
         execution_error: action.execution_error,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
-        app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject"
+        app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject",
+        app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
       }
       if action.action == "create_coworker" && action.pending?
         base[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
