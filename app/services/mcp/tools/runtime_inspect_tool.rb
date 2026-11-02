@@ -10,7 +10,7 @@ module Mcp::Tools
       Return a structural inspection of a Runtime Session's target (DOC-17)
       using the selected provider's supported inspection mode, such as an
       accessibility tree, native UI hierarchy, or authoritative terminal
-      screen. Terminal inspection supports screen/scrollback modes and bounded
+      screen. Screen-oriented providers support screen/scrollback modes and bounded
       generation, visible-text, screen-change, and quiet-period waits. Defaults
       to the chat's primary active session when `session_id` is omitted.
     DESC
@@ -20,7 +20,7 @@ module Mcp::Tools
         session_id: { description: "Runtime Session id. Defaults to the chat's primary active session." },
         options: {
           type: "object",
-          description: "Provider-specific inspect options. Terminal sessions support mode, include_styles, after_generation, wait_for_change, wait_for_text, quiet_ms, and timeout_ms.",
+          description: "Provider-specific inspect options. Screen-oriented sessions support mode, include_styles, after_generation, wait_for_change, wait_for_text, quiet_ms, and timeout_ms.",
           properties: {
             mode: { type: "string", enum: %w[screen scrollback] },
             include_styles: { type: "boolean" },
