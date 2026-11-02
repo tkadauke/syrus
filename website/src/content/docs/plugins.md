@@ -209,22 +209,6 @@ roles, defaults, autonomy, duration, or risk under an existing identity. A
 renamed key must remain an alias; an intentionally removed key stays reserved
 through an explicit retirement declaration.
 
-Typed resource scopes are provider-defined through a shared schema contract.
-Providers apply the caller's normal resource visibility during lookup; hidden
-and unknown identifiers receive the same result. Syrus canonicalizes and
-validates normalized scopes and treats any lookup or normalization failure as
-a closed authorization outcome.
-
-Plugin authors can expose reusable permission metadata through a
-`permission_provider`. The provider registers typed resource scopes and
-complete capability operations, including effects, classifiers, redactors,
-stable fingerprints, eligible-role recommendations, requestability defaults,
-autonomy ceilings, and supported authority durations. Tool definitions reuse
-the registered immutable descriptor instead of copying policy. Conflicting
-operation or resource-type registrations fail closed, and a disabled plugin's
-permission metadata is absent from the active catalog. Registration describes
-what may be requested; it does not grant authority when a plugin is installed
-or enabled.
 Permission-provider authors can run `Permissions::ProviderTestKit` in their
 RSpec suite. A small adapter supplies real provider probes for normalization,
 redaction, hidden and unknown resources, uncertain classification, provider or
@@ -240,19 +224,6 @@ constraint-specific drafts. Syrus shows every rendered rule for operator
 confirmation and creates the rules only after that confirmation. Role defaults
 and presets are recommendations only: installing, enabling, configuring, or
 migrating a plugin never applies them automatically.
-
-Permission providers declare deterministic scope migrations when a new
-operation version changes the normalized resource shape. Upgrade validation
-rejects silent key removal, reuse of a retired identifier, and broader effects,
-roles, defaults, autonomy, duration, or risk under an existing identity. A
-renamed key must remain an alias; an intentionally removed key stays reserved
-through an explicit retirement declaration.
-
-Typed resource scopes are provider-defined through a shared schema contract.
-Providers apply the caller's normal resource visibility during lookup; hidden
-and unknown identifiers receive the same result. Syrus canonicalizes and
-validates normalized scopes and treats any lookup or normalization failure as
-a closed authorization outcome.
 
 Tool usage is logged so operators can see which tools are active, failing, or
 worth consolidating.

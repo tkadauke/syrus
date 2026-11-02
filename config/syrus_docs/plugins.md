@@ -1040,29 +1040,6 @@ Failures name the operation or resource scope that violated the contract.
 Visibility and installation probes must cross the plugin's real lookup and
 lifecycle boundaries; returning fabricated results does not prove conformance.
 
-Resource scopes use `Permissions::ResourceScopeSchema`. Providers own the
-resource-specific lookup and scope hooks, while core canonicalizes normalized
-JSON, runs validation, and exposes uniform label and comparison results. Every
-hook returns an explicit result: normalization or provider failures fail closed,
-and lookup deliberately reports the same `not_found` result for an unknown id
-and an id the current principal cannot see. Provider lookups must therefore
-apply ordinary application visibility before returning a resource.
-
-Plugins register reusable authorization contracts through the
-`permission_provider` extension point. Its class includes
-`Syrus::Plugin::PermissionProvider`, calls `register_resource_scope(type, ...)`
-for each plugin-owned resource schema, and calls `register_capability(...)` for
-each operation. The capability declaration accepts the full descriptor
-contract: versioned family and operation identifiers, effects, risk,
-requestable-role recommendations and defaults, autonomy and authority-duration
-ceilings, classifier, fingerprint normalizer, redactor, and aliases.
-It may reference a local resource schema by type. `capability_descriptor(key)`
-returns the immutable descriptor for reuse in MCP tool definitions, avoiding a
-second copy of authorization policy. Duplicate operation keys within a provider
-and duplicate resource-type ownership across enabled providers fail closed.
-Disabled providers contribute neither capabilities nor scopes to
-`Permissions::Catalog`; enabling a plugin registers metadata, never authority.
-
 `CapabilityDescriptor#role_recommendations` exposes the provider's role-specific
 defaults as recommendations. Providers may also call
 `register_permission_preset(name:, label:, description:, rules:)`. Each rule
@@ -1074,14 +1051,6 @@ for `apply_permission_preset` displays every draft before one transaction
 creates the rules. Registration, plugin installation or enablement, resource
 configuration, and migrations only expose this metadata and never apply a
 recommendation or preset automatically.
-
-Resource scopes use `Permissions::ResourceScopeSchema`. Providers own the
-resource-specific lookup and scope hooks, while core canonicalizes normalized
-JSON, runs validation, and exposes uniform label and comparison results. Every
-hook returns an explicit result: normalization or provider failures fail closed,
-and lookup deliberately reports the same `not_found` result for an unknown id
-and an id the current principal cannot see. Provider lookups must therefore
-apply ordinary application visibility before returning a resource.
 
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role
