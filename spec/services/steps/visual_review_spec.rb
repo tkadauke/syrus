@@ -104,6 +104,55 @@ RSpec.describe Steps::VisualReview do
     expect(run.reload.prompt).to include("Show a banner on the dashboard.")
   end
 
+  it "keeps translated legacy browser previews on the existing preview path" do
+    allow(handler).to receive(:start_runtime_sessions!).and_call_original
+    expect(VisualReviewRuntimeSession).not_to receive(:new)
+    expect(handler).to receive(:run_agent) do
+      workflow.set_artifact!("visual_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Looks correct.", "verdict" => "approved" }
+      ])
+    end
+
+    handler.call
+
+    expect(run.reload.runtime_sessions).to be_empty
+    expect(workflow.reload.artifact("visual_review_runtime_sessions")).to eq([])
+  end
+
+  it "stops already-started sessions when a later runtime target fails to start" do
+    targets = [ double(legacy_browser: false), double(legacy_browser: false) ]
+    first_lifecycle = instance_double(VisualReviewRuntimeSession, start!: true, stop!: true)
+    second_lifecycle = instance_double(VisualReviewRuntimeSession, stop!: true)
+    allow(second_lifecycle).to receive(:start!).and_raise("runtime unavailable")
+    allow(handler).to receive(:visual_review_runtime_targets).and_return(targets)
+    allow(handler).to receive(:start_runtime_sessions!).and_call_original
+    allow(handler).to receive(:stop_runtime_sessions!).and_call_original
+    allow(VisualReviewRuntimeSession).to receive(:new).and_return(first_lifecycle, second_lifecycle)
+
+    expect(first_lifecycle).to receive(:stop!).once
+    expect(second_lifecycle).to receive(:stop!).once
+    expect { handler.send(:start_runtime_sessions!) }
+      .to raise_error(Steps::Base::StepSkipped, /runtime unavailable/)
+  end
+
+  it "stops runtime sessions when prompt construction fails after startup" do
+    target = App::VisualReviewRuntimeTargets::Target.new(
+      name: "CLI", provider: "cli_tui", workspace_path: "/tmp/workspace",
+      launch: {}, build: {}, dimensions: nil, review_notes: nil,
+      when_files_changed: [], captures: [], legacy_browser: false
+    )
+    lifecycle = instance_double(VisualReviewRuntimeSession, start!: true, stop!: true)
+    allow(handler).to receive(:visual_review_runtime_targets).and_return([ target ])
+    allow(handler).to receive(:start_runtime_sessions!) do
+      handler.instance_variable_set(:@runtime_session_lifecycles, [ lifecycle ])
+    end
+    allow(handler).to receive(:stop_runtime_sessions!).and_call_original
+    allow(handler).to receive(:reviewer_prompt).and_raise("prompt failed")
+
+    expect(lifecycle).to receive(:stop!).once
+    expect { handler.call }.to raise_error("prompt failed")
+  end
+
   it "adds durable manual instructions to the generated Run prompt without granting edit authority" do
     instructions = "Scroll until the file title is stuck directly below the visible app header."
     workflow.update!(trigger_kind: "manual_visual_review")

@@ -19,46 +19,49 @@ module Steps
       workflow.set_artifact!("visual_review_runtime_targets", visual_review_runtime_targets.map(&:to_h))
       return unless prepare_previews! if visual_review_runtime_targets.any?(&:legacy_browser)
 
-      start_runtime_sessions!
-
-      run.update!(prompt: reviewer_prompt) if run.prompt.blank?
-
-      before_count = review_iterations.size
-      log("invoking agent for visual_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
-
       begin
+        start_runtime_sessions!
+
+        run.update!(prompt: reviewer_prompt) if run.prompt.blank?
+
+        before_count = review_iterations.size
+        log("invoking agent for visual_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
+
         run_agent(prompt: run.prompt,
                   required_mcp_tools: %w[submit_visual_review],
                   disallowed_tools: REVIEW_COLLIDING_TOOLS)
+
+        workflow.reload
+        if review_iterations.size <= before_count
+          capture_mcp_sidecar_stderr
+
+          # Deliberately does not mirror Steps::AdversarialReview's swallow-and-approve
+          # behavior after repeated missing-tool-call failures. That behavior is itself
+          # under separate reconsideration for being too broad (it rescues any
+          # StandardError, not just the missing-tool-call shape, once one prior Run on
+          # the step has failed for any reason). Even a correctly-narrowed version would
+          # still fake an "approved" verdict for visual QA, which is a worse failure mode
+          # here than for text review: a stuck/retried Job is visible and recoverable, a
+          # silently-approved-but-never-actually-reviewed UI regression is not. Raising
+          # unconditionally also isn't a loss of resilience — RunFailureClassifier already
+          # classifies this exact "agent didn't call submit_visual_review" shape as
+          # `missing_required_tool_call` (retryable), so WorkEngine::RepairExecutor's
+          # normal 5m/20m/1h auto-retry backoff already covers a transient reviewer miss
+          # without this step needing to swallow it.
+          fail_with!(:missing_required_tool_call, "agent didn't call submit_visual_review",
+                     evidence: { tool: "submit_visual_review" })
+        end
+
+        record_blocked_evidence_warning!(review_iterations.last)
+
+        VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
       ensure
-        discard_reviewer_workspace_changes
-        stop_runtime_sessions!
+        begin
+          discard_reviewer_workspace_changes
+        ensure
+          stop_runtime_sessions!
+        end
       end
-
-      workflow.reload
-      if review_iterations.size <= before_count
-        capture_mcp_sidecar_stderr
-
-        # Deliberately does not mirror Steps::AdversarialReview's swallow-and-approve
-        # behavior after repeated missing-tool-call failures. That behavior is itself
-        # under separate reconsideration for being too broad (it rescues any
-        # StandardError, not just the missing-tool-call shape, once one prior Run on
-        # the step has failed for any reason). Even a correctly-narrowed version would
-        # still fake an "approved" verdict for visual QA, which is a worse failure mode
-        # here than for text review: a stuck/retried Job is visible and recoverable, a
-        # silently-approved-but-never-actually-reviewed UI regression is not. Raising
-        # unconditionally also isn't a loss of resilience — RunFailureClassifier already
-        # classifies this exact "agent didn't call submit_visual_review" shape as
-        # `missing_required_tool_call` (retryable), so WorkEngine::RepairExecutor's
-        # normal 5m/20m/1h auto-retry backoff already covers a transient reviewer miss
-        # without this step needing to swallow it.
-        fail_with!(:missing_required_tool_call, "agent didn't call submit_visual_review",
-                   evidence: { tool: "submit_visual_review" })
-      end
-
-      record_blocked_evidence_warning!(review_iterations.last)
-
-      VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
     end
 
     private
@@ -190,8 +193,11 @@ module Steps
     end
 
     def start_runtime_sessions!
-      @runtime_session_lifecycles = visual_review_runtime_targets.map do |target|
-        VisualReviewRuntimeSession.new(run: run, target: target).tap(&:start!)
+      @runtime_session_lifecycles = []
+      visual_review_runtime_targets.reject(&:legacy_browser).each do |target|
+        lifecycle = VisualReviewRuntimeSession.new(run: run, target: target)
+        @runtime_session_lifecycles << lifecycle
+        lifecycle.start!
       end
       workflow.set_artifact!("visual_review_runtime_sessions", @runtime_session_lifecycles.map do |lifecycle|
         session = lifecycle.runtime_session
