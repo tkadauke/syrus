@@ -76,6 +76,28 @@ RSpec.describe ScheduledTasks::McpTools::ScheduleRecurringTool do
     expect(prompt_description).not_to include("ad hoc")
   end
 
+  it "describes background repository automation and directs chat reminders to schedule_wakeup" do
+    description = described_class.description_value
+
+    expect(description).to include("background repository automation")
+    expect(description).to include("new cron Job")
+    expect(description).to match(/does not resume or wake the current\s+chat/)
+    expect(description).to include("must not be used for conversational reminders")
+    expect(description).to include("schedule_wakeup")
+  end
+
+  it "rejects an obviously chat-directed chained reminder" do
+    response = call_tool(
+      schedule_input: "Every other day",
+      label: "Blocked check",
+      prompt: "Check the work; if blocked, set a new reminder here."
+    )
+
+    expect(response[:result][:isError]).to be true
+    expect(response[:result][:content].first[:text]).to include("Use schedule_wakeup")
+    expect(ChatPendingAction.count).to eq(0)
+  end
+
   it "describes cron minutes as honored" do
     schema = described_class.input_schema.instance_variable_get(:@schema)
     cron_description = schema.fetch(:properties).fetch(:schedule_input).fetch(:description)

@@ -634,6 +634,12 @@ task if that access has been removed.
 When a task fires, Syrus creates a normal `cron` Job and runs the standard
 issue-to-PR pipeline on a scheduled branch.
 
+This repository automation is distinct from a chat wakeup. Creating a
+recurring task requires operator confirmation, and each fire creates a
+background `cron` Job and Workflow; it does not resume the chat where it was
+requested. Use it for unattended work such as “run the dependency audit every
+Monday and open a PR.”
+
 Supported schedule kinds:
 
 | Kind       | Meaning                                                                      |
@@ -1132,6 +1138,12 @@ cancel any that are no longer needed. Wakeup results use dedicated transcript
 cards: cancelled wakeups link back to their chat and retain the original prompt
 and fire time for context, while missing or already-completed wakeups appear as
 clear cancellation errors.
+
+Wakeups do not create repository Jobs and do not require confirmation. Use
+them for “remind me here,” “wake this chat,” conditional follow-ups, and
+chained rechecks. Cadence alone does not make a request repository automation:
+“check every other day; if blocked, set a new reminder here” should use a
+one-shot wakeup whose future chat turn schedules another one only if needed.
 
 The chat agent can also send a message to another one of the same operator's
 chat sessions, opening a bounded, visibly-marked message thread and waking the
