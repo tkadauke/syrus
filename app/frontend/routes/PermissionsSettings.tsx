@@ -8,6 +8,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["permission_rules"] as const
 const subjects = ["interactive_chat", "coding_chat", "local_chat"] as const
@@ -22,13 +23,21 @@ export function PermissionsSettingsRoute() {
   const [descriptorKey, setDescriptorKey] = useState("")
   const [policy, setPolicy] = useState<"allow" | "deny">("allow")
   const [rationale, setRationale] = useState("")
-  const selected = useMemo(() => descriptors.find((item) => keyFor(item) === descriptorKey) ?? descriptors[0], [descriptorKey, descriptors])
+  const role = roleFor(subject)
+  const editableDescriptors = useMemo(
+    () => descriptors.filter((item) => item.requestable_roles.includes(role) && (policy === "deny" || item.authority_durations.includes("permanent"))),
+    [descriptors, policy, role]
+  )
+  const selected = useMemo(
+    () => editableDescriptors.find((item) => keyFor(item) === descriptorKey) ?? editableDescriptors[0],
+    [descriptorKey, editableDescriptors]
+  )
   const refresh = () => queryClient.invalidateQueries({ queryKey })
   const create = useMutation({
     mutationFn: () =>
       createPermissionRule({
         policy,
-        role: roleFor(subject),
+        role,
         subject_selector_type: subject,
         capability: selected.capability,
         operation: selected.operation,
@@ -54,6 +63,8 @@ export function PermissionsSettingsRoute() {
       </header>
 
       {query.isError ? <PanelMessage tone="error">{t("permissions.load_error")}</PanelMessage> : null}
+      {create.isError ? <PanelMessage tone="error">{errorMessage(create.error, t("permissions.create_error"))}</PanelMessage> : null}
+      {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("permissions.revoke_error"))}</PanelMessage> : null}
 
       <section className="rounded-xl border border-border bg-surface-raised p-5">
         <SectionHeading>{t("permissions.your_rules")}</SectionHeading>
@@ -109,8 +120,8 @@ export function PermissionsSettingsRoute() {
             </label>
             <label className="text-sm font-medium text-text-primary">
               {t("permissions.capability")}
-              <Select className="mt-1" onChange={(event) => setDescriptorKey(event.target.value)} value={descriptorKey || keyFor(selected)}>
-                {descriptors.map((item) => (
+              <Select className="mt-1" onChange={(event) => setDescriptorKey(event.target.value)} value={keyFor(selected)}>
+                {editableDescriptors.map((item) => (
                   <option key={keyFor(item)} value={keyFor(item)}>
                     {item.capability} · {item.operation}
                   </option>
