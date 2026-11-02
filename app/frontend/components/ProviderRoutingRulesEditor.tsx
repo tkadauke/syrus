@@ -6,9 +6,10 @@ import { ChevronIcon } from "./ChevronIcon"
 import { Modal } from "./Modal"
 import { PanelMessage } from "./PanelMessage"
 import { Select } from "./Select"
-import { Checkbox, DataTable, Form, Pill, Surface } from "./ui"
+import { Checkbox, Form, Pill, Surface } from "./ui"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
+import { activeConditionTypes, availableConditionTypes, conditionSummaries, pruneEmptyConditions } from "./providerRoutingConditions"
 import {
   createProviderRoutingRule,
   deleteProviderRoutingRule,
@@ -29,7 +30,7 @@ type DraftRule = {
   id?: number
   name: string
   triggerKey: string
-  workflowTriggerKinds: string[]
+  conditions: ProviderRoutingConditions
   actionType: "route" | "hold"
   actionStrategy: string
   panelConsensus: "unanimous" | "majority" | "at_least"
@@ -330,123 +331,97 @@ function RulesTable({
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const table = (
-    <DataTable.Root
-      aria-label={inheritedLabel || t("provider_routing.rules_table")}
-      density="compact"
-      wrapperClassName={inheritedLabel ? "rounded-t-none border-x-0 border-b-0" : ""}
-    >
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell className="w-20">{t("provider_routing.order")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("provider_routing.rule")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("provider_routing.match")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("provider_routing.action")}</DataTable.HeadCell>
-          <DataTable.HeadCell align="right">{t("provider_routing.actions")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body className="divide-y divide-border">
-        {rules.map((rule, index) => (
-          <DataTable.Row className={`${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`} key={rule.id}>
-            <DataTable.Cell className="whitespace-nowrap align-top">
-              <div className="flex items-center gap-1">
-                <span className="w-6 text-xs font-medium text-text-secondary">{index + 1}</span>
-                {!readOnly ? (
-                  <div className="flex gap-1">
-                    <Button
-                      aria-label={t("provider_routing.move_up_aria", { name: ruleName(rule, t) })}
-                      className="h-7 w-7"
-                      disabled={index === 0 || reorderPending}
-                      onClick={() => onMove?.(rule, -1)}
-                      size="icon"
-                      variant="secondary"
-                    >
-                      <ChevronIcon className="h-4 w-4 -rotate-90" />
-                    </Button>
-                    <Button
-                      aria-label={t("provider_routing.move_down_aria", { name: ruleName(rule, t) })}
-                      className="h-7 w-7"
-                      disabled={index === rules.length - 1 || reorderPending}
-                      onClick={() => onMove?.(rule, 1)}
-                      size="icon"
-                      variant="secondary"
-                    >
-                      <ChevronIcon className="h-4 w-4 rotate-90" />
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            </DataTable.Cell>
-            <DataTable.Cell className="min-w-44 align-top">
-              <div className="flex items-center gap-2">
-                {!readOnly ? (
-                  <Checkbox
-                    aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
-                    checked={rule.enabled !== false}
-                    className="h-4 w-4 accent-brand"
-                    onChange={(event) => {
-                      void onToggle?.(rule, event.target.checked)
-                    }}
-                  />
-                ) : null}
-                <div className="font-medium text-text-primary">{ruleName(rule, t)}</div>
-                {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
-              </div>
-              <div className="mt-1 text-xs text-text-secondary">{taskKeyLabel(rule.task_key, t)}</div>
-            </DataTable.Cell>
-            <DataTable.Cell className="min-w-56 align-top">
-              <div className="flex flex-wrap gap-1.5">
-                <Pill tone="info" wrap>
-                  {triggerLabel(rule.trigger, options, t)}
-                </Pill>
-                {conditionPills(rule, options, t).map((label) => (
-                  <Pill key={label} tone="neutral" wrap>
-                    {label}
-                  </Pill>
+    <ul aria-label={inheritedLabel || t("provider_routing.rules_table")} className="divide-y divide-border">
+      {rules.map((rule, index) => (
+        <li
+          className={`space-y-1.5 px-3 py-2.5 ${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`}
+          data-testid="routing-rule-row"
+          key={rule.id}
+        >
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="w-5 text-xs font-medium text-text-secondary">{index + 1}</span>
+            {!readOnly ? (
+              <Checkbox
+                aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
+                checked={rule.enabled !== false}
+                className="h-4 w-4 accent-brand"
+                onChange={(event) => {
+                  void onToggle?.(rule, event.target.checked)
+                }}
+              />
+            ) : null}
+            <span className="min-w-0 break-words font-medium text-text-primary">{ruleName(rule, t)}</span>
+            {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <Pill tone="info" wrap>
+              {triggerLabel(rule.trigger, options, t)}
+            </Pill>
+            {conditionSummaries(rule.conditions, options, t).map((label) => (
+              <Pill key={label} tone="neutral" wrap>
+                {label}
+              </Pill>
+            ))}
+          </div>
+          <div className="text-xs text-text-secondary">
+            <div className="font-medium text-text-primary">{actionLabel(rule, options, t)}</div>
+            {rule.action?.type === "hold" ? (
+              <div className="mt-1">{holdSummary(rule.action, t)}</div>
+            ) : (
+              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                {ruleCandidates(rule).map((candidate, candidateIndex) => (
+                  <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
                 ))}
-              </div>
-            </DataTable.Cell>
-            <DataTable.Cell className="min-w-64 align-top text-xs text-text-secondary">
-              <div className="font-medium text-text-primary">{actionLabel(rule, options, t)}</div>
-              {rule.action?.type === "hold" ? (
-                <div className="mt-1">{holdSummary(rule.action, t)}</div>
-              ) : (
-                <ol className="mt-1 list-decimal space-y-1 pl-4">
-                  {ruleCandidates(rule).map((candidate, candidateIndex) => (
-                    <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
-                  ))}
-                </ol>
-              )}
-            </DataTable.Cell>
-            <DataTable.Cell align="right" className="align-top">
-              <div className="flex justify-end gap-2">
-                {readOnly ? (
-                  <Pill tone="neutral">{t("provider_routing.read_only")}</Pill>
-                ) : (
-                  <>
-                    <Button onClick={() => onEdit?.(rule)} size="sm" variant="secondary">
-                      {t("provider_routing.edit")}
-                    </Button>
-                    <Button onClick={() => onDuplicate?.(rule)} size="sm" variant="secondary">
-                      {t("provider_routing.duplicate")}
-                    </Button>
-                    <Button
-                      disabled={destroyPending}
-                      onClick={() => {
-                        void onDelete?.(rule)
-                      }}
-                      size="sm"
-                      variant="danger"
-                    >
-                      {t("provider_routing.delete")}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </DataTable.Cell>
-          </DataTable.Row>
-        ))}
-      </DataTable.Body>
-    </DataTable.Root>
+              </ol>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {readOnly ? (
+              <Pill tone="neutral">{t("provider_routing.read_only")}</Pill>
+            ) : (
+              <>
+                <Button
+                  aria-label={t("provider_routing.move_up_aria", { name: ruleName(rule, t) })}
+                  className="h-7 w-7"
+                  disabled={index === 0 || reorderPending}
+                  onClick={() => onMove?.(rule, -1)}
+                  size="icon"
+                  variant="secondary"
+                >
+                  <ChevronIcon className="h-4 w-4 -rotate-90" />
+                </Button>
+                <Button
+                  aria-label={t("provider_routing.move_down_aria", { name: ruleName(rule, t) })}
+                  className="h-7 w-7"
+                  disabled={index === rules.length - 1 || reorderPending}
+                  onClick={() => onMove?.(rule, 1)}
+                  size="icon"
+                  variant="secondary"
+                >
+                  <ChevronIcon className="h-4 w-4 rotate-90" />
+                </Button>
+                <Button onClick={() => onEdit?.(rule)} size="sm" variant="secondary">
+                  {t("provider_routing.edit")}
+                </Button>
+                <Button onClick={() => onDuplicate?.(rule)} size="sm" variant="secondary">
+                  {t("provider_routing.duplicate")}
+                </Button>
+                <Button
+                  disabled={destroyPending}
+                  onClick={() => {
+                    void onDelete?.(rule)
+                  }}
+                  size="sm"
+                  variant="danger"
+                >
+                  {t("provider_routing.delete")}
+                </Button>
+              </>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 
   if (!inheritedLabel) return table
@@ -551,24 +526,7 @@ function RuleEditorModal({
           </Form.Field>
         </div>
 
-        <Form.Field>
-          <Form.Label>{t("provider_routing.workflow_conditions")}</Form.Label>
-          <Form.Select
-            multiple
-            onChange={(event) => {
-              const selected = Array.from(event.currentTarget.selectedOptions).map((option) => option.value)
-              onUpdate({ ...currentDraft, workflowTriggerKinds: selected })
-            }}
-            value={currentDraft.workflowTriggerKinds}
-          >
-            {(options.conditions?.workflow_trigger_kinds || []).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Form.Select>
-          <Form.HelpText>{t("provider_routing.workflow_conditions_help")}</Form.HelpText>
-        </Form.Field>
+        <ConditionsSection conditions={currentDraft.conditions} onChange={(conditions) => onUpdate({ ...currentDraft, conditions })} options={options} t={t} />
 
         {currentDraft.actionType === "route" ? (
           <div className="space-y-3">
@@ -760,6 +718,74 @@ function RoutingCandidateRow({
   )
 }
 
+function ConditionsSection({
+  conditions,
+  onChange,
+  options,
+  t
+}: {
+  conditions: ProviderRoutingConditions
+  onChange: (conditions: ProviderRoutingConditions) => void
+  options: ProviderRoutingOptions
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const active = activeConditionTypes(conditions)
+  const available = availableConditionTypes(conditions)
+
+  return (
+    <section aria-label={t("provider_routing.conditions.title")} className="space-y-2">
+      <h3 className="text-sm font-medium text-text-primary">{t("provider_routing.conditions.title")}</h3>
+      {active.length === 0 ? <p className="text-xs text-text-secondary">{t("provider_routing.conditions.empty")}</p> : null}
+      {active.map((type) => (
+        <div className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border p-3" key={type.key}>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-text-primary">{t(type.labelKey)}</span>
+            <Button
+              aria-label={t("provider_routing.conditions.remove_aria", { label: t(type.labelKey) })}
+              onClick={() => {
+                const next = { ...conditions }
+                delete next[type.key]
+                onChange(next)
+              }}
+              size="sm"
+              variant="secondary"
+            >
+              {t("provider_routing.conditions.remove")}
+            </Button>
+          </div>
+          <type.Card onChange={(value) => onChange({ ...conditions, [type.key]: value })} options={options} t={t} value={conditions[type.key]} />
+        </div>
+      ))}
+      {available.length > 0 ? (
+        <div>
+          <Button aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)} size="sm" variant="secondary">
+            {t("provider_routing.conditions.add")}
+          </Button>
+          {menuOpen ? (
+            <ul aria-label={t("provider_routing.conditions.add")} className="mt-1 divide-y divide-border rounded border border-border bg-surface">
+              {available.map((type) => (
+                <li key={type.key}>
+                  <button
+                    className="min-h-10 w-full px-3 text-left text-sm text-text-primary hover:bg-surface-subtle"
+                    onClick={() => {
+                      onChange({ ...conditions, [type.key]: type.defaultValue() })
+                      setMenuOpen(false)
+                    }}
+                    type="button"
+                  >
+                    {t(type.labelKey)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOptions {
   return {
     agent_providers: options?.agent_providers || EMPTY_OPTIONS.agent_providers,
@@ -784,7 +810,7 @@ function emptyDraft(options: ProviderRoutingOptions): DraftRule {
   return {
     name: "",
     triggerKey: "default",
-    workflowTriggerKinds: [],
+    conditions: {},
     actionType: "route",
     actionStrategy: actionStrategyOptions(options)[0]?.value || "fallback_order",
     panelConsensus: "majority",
@@ -803,7 +829,7 @@ function draftFromRule(rule: ProviderRoutingRule, options: ProviderRoutingOption
     id: rule.id,
     name: ruleName(rule, () => "Default routing"),
     triggerKey: triggerToKey(rule.trigger),
-    workflowTriggerKinds: stringList(rule.conditions?.workflow_trigger_kind),
+    conditions: pruneEmptyConditions(rule.conditions || {}),
     actionType: rule.action?.type === "hold" ? "hold" : "route",
     actionStrategy: actionStrategy(rule),
     panelConsensus: panelConsensusMode(rule.action),
@@ -846,8 +872,7 @@ function validateDraft(draft: DraftRule, options: ProviderRoutingOptions, t: (ke
 function draftToInput(draft: DraftRule): ProviderRoutingRuleInput {
   const candidates = draft.candidates.filter((candidate) => candidate.provider)
   const trigger = keyToTrigger(draft.triggerKey)
-  const conditions: ProviderRoutingConditions = {}
-  if (draft.workflowTriggerKinds.length > 0) conditions.workflow_trigger_kind = draft.workflowTriggerKinds
+  const conditions = pruneEmptyConditions(draft.conditions)
   const action: ProviderRoutingAction =
     draft.actionType === "hold"
       ? {
@@ -989,22 +1014,6 @@ function triggerLabel(
     return t("provider_routing.trigger_chat_role", { label: optionLabel(options.triggers?.chat_roles, trigger.role) || trigger.role })
   if (trigger?.type === "legacy_task") return t("provider_routing.trigger_legacy_task", { taskKey: trigger.task_key })
   return t("provider_routing.trigger_default")
-}
-
-function conditionPills(rule: ProviderRoutingRule, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
-  const labels: string[] = []
-  const workflowKinds = stringList(rule.conditions?.workflow_trigger_kind)
-  workflowKinds.forEach((kind) =>
-    labels.push(t("provider_routing.workflow_condition_pill", { label: optionLabel(options.conditions?.workflow_trigger_kinds, String(kind)) || String(kind) }))
-  )
-  Object.keys(rule.conditions || {})
-    .filter((key) => key !== "workflow_trigger_kind")
-    .forEach((key) => labels.push(key))
-  return labels
-}
-
-function stringList(value: unknown) {
-  return (Array.isArray(value) ? value : value == null ? [] : [value]).map((entry) => String(entry).trim()).filter(Boolean)
 }
 
 function optionLabel(options: Array<{ value: string; label: string }> | undefined, value: string) {

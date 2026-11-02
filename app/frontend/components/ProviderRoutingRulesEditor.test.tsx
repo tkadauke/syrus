@@ -231,6 +231,75 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(screen.queryByText(/^Workflow:/)).not.toBeInTheDocument()
   })
 
+  it("preserves usage, budget, and unknown conditions when saving through the form", async () => {
+    const onUpdateRule = vi.fn()
+    const rich: ProviderRoutingRule = {
+      ...rules[0],
+      conditions: { workflow_trigger_kind: ["initial"], usage: { provider: "codex", remaining_percent: { lt: 25 } }, budget: { max: 5 }, mystery: true }
+    }
+    renderPanel({ onUpdateRule, rules: [rich] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.click(within(dialog).getByLabelText("CI failure"))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        rich,
+        expect.objectContaining({
+          conditions: {
+            workflow_trigger_kind: ["initial", "ci_failure"],
+            usage: { provider: "codex", remaining_percent: { lt: 25 } },
+            budget: { max: 5 },
+            mystery: true
+          }
+        })
+      )
+    )
+  })
+
+  it("adds and removes the workflow trigger condition and searches kinds", async () => {
+    const onCreateRule = vi.fn()
+    renderPanel({ onCreateRule, rules: [] })
+
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    expect(within(dialog).getByText("Always applies.")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
+    expect(within(dialog).queryByText(/budget/i)).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Workflow trigger" }))
+    expect(within(dialog).queryByRole("button", { name: "Add condition" })).not.toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText("Search triggers"), { target: { value: "ci" } })
+    expect(within(dialog).queryByLabelText("Initial")).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByLabelText("CI failure"))
+
+    fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "R" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create rule" }))
+    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({ conditions: { workflow_trigger_kind: ["ci_failure"] } })))
+
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const again = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.click(within(again).getByRole("button", { name: "Add condition" }))
+    fireEvent.click(within(again).getByRole("button", { name: "Workflow trigger" }))
+    fireEvent.click(within(again).getByRole("button", { name: "Remove condition: Workflow trigger" }))
+    expect(within(again).getByText("Always applies.")).toBeInTheDocument()
+  })
+
+  it("summarizes conditions tersely and collapses unknown ones", () => {
+    const withUnknown: ProviderRoutingRule = {
+      ...rules[0],
+      conditions: { workflow_trigger_kind: ["initial", "ci_failure"], usage: { x: 1 }, mystery: 1, budget: { max: 1 } }
+    }
+    renderPanel({ rules: [withUnknown] })
+
+    expect(screen.getByText("Workflow: Initial, CI failure")).toBeInTheDocument()
+    expect(screen.getByText("+2 other")).toBeInTheDocument()
+    expect(screen.queryByText("usage")).not.toBeInTheDocument()
+    expect(screen.queryByText("budget")).not.toBeInTheDocument()
+  })
+
   it("edits, duplicates, deletes, and reorders rules through panel callbacks", async () => {
     const onCreateRule = vi.fn()
     const onUpdateRule = vi.fn()
@@ -428,10 +497,7 @@ function renderEditor({ inheritedContext, rules }: { inheritedContext?: Provider
 }
 
 function ruleRowNames() {
-  return screen
-    .getAllByRole("row")
-    .slice(1)
-    .map((row) => (row.textContent?.includes("CI fast path") ? "CI fast path" : "General fallback"))
+  return screen.getAllByTestId("routing-rule-row").map((row) => (row.textContent?.includes("CI fast path") ? "CI fast path" : "General fallback"))
 }
 
 function renderPanel({
