@@ -18,9 +18,25 @@ module Permissions
       Catalog.find!(capability: payload.fetch("capability"), operation: payload["operation"])
     end
 
-    def explain(descriptor:, role:, resource_scope:, arguments:, context:)
+    def explain(descriptor:, role:, resource_scope:, arguments:, context:, rules: policy_rules)
       LeaseAuthorizer.explain(descriptor:, owner: @user, role:, resource_scope:, arguments:,
-        context:, rules: policy_rules).decision
+        context:, rules:).decision
+    end
+
+    def matrix_state(descriptor:, role:, subject_selector_type:, active_rules: rules.to_a)
+      matching_rules = active_rules.select do |rule|
+        rule.subject_selector_type == subject_selector_type &&
+          rule.capability == descriptor.capability &&
+          [ nil, descriptor.operation ].include?(rule.operation)
+      end
+      resource_scopes = [ {}, *matching_rules.map(&:resource_scope) ].uniq
+      evaluator_rules = active_rules.map(&:to_policy_rule)
+      policies = resource_scopes.map do |resource_scope|
+        explain(descriptor:, role:, resource_scope:, arguments: {},
+          context: { user: @user, subject_selector_type: }, rules: evaluator_rules).policy.to_s
+      end.uniq
+
+      policies.one? ? policies.first : "scoped"
     end
 
     def grant!(payload, actor:)
@@ -30,7 +46,7 @@ module Permissions
         subject_selector_type: payload.fetch("subject_selector_type"),
         subject_selector_id: payload["subject_selector_id"], subject_repository: repository(payload),
         resource_scope: payload.fetch("resource_scope", {}), constraints: payload.fetch("constraints", {}),
-        rules: policy_rules
+        rules: policy_rules, rationale: payload["rationale"]
       )
     end
 
@@ -57,6 +73,13 @@ module Permissions
 
     def revoke_rule!(id, actor:)
       rules(active: false).find(id).revoke!(actor:)
+    end
+
+    def replace_rule!(id, payload, actor:)
+      PermissionRule.transaction do
+        revoke_rule!(id, actor:)
+        payload.fetch("policy") == "deny" ? deny!(payload, actor:) : grant!(payload, actor:)
+      end
     end
 
     def revoke_lease!(id, actor:)

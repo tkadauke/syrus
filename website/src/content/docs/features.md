@@ -19,6 +19,12 @@ user has delegated to agents. User-owned rules can be added or revoked, while
 inherited core and provider policy remains visible and read-only with ownership
 and decisive-default explanations. Operational requests needing an immediate
 decision remain a separate approvals workflow rather than durable settings.
+Matrix and resource views make it possible to compare evaluator-derived
+agent-by-capability states or inspect access by typed resource scope. The
+matrix marks authority that varies by resource rather than presenting it as a
+single global policy. Operators can edit rules, see provider presets, and
+preview every item in a bulk grant or denial before confirming an atomic
+change.
 
 ## Jobs
 

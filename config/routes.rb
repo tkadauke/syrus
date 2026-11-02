@@ -399,7 +399,15 @@ Rails.application.routes.draw do
         post "repositories/:repository_id/skills", to: "skills#create"
         get "maintenance_tasks/sidebar", to: "maintenance_tasks#sidebar"
         resources :permission_rules, only: %i[ index create ] do
-          member { post :revoke }
+          collection do
+            post :apply_preset
+            post :preview_bulk
+            post :bulk
+          end
+          member do
+            patch :update
+            post :revoke
+          end
         end
 
         namespace :admin do

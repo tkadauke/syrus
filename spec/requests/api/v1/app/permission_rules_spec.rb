@@ -19,6 +19,32 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("inherited")).not_to be_empty
     expect(payload.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
     expect(payload.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
+    expect(payload.fetch("inherited")).to all(include("matrix_states" => include(
+      "interactive_chat", "coding_chat", "local_chat"
+    )))
+  end
+
+  it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do
+    descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.resource_scope.type == :none }
+    permission_rule(owner: user, descriptor:, policy: "deny")
+    permission_rule(owner: user, descriptor:, policy: "allow")
+
+    get "/api/v1/app/permission_rules"
+
+    inherited = JSON.parse(response.body).fetch("inherited").find do |candidate|
+      candidate["capability"] == descriptor.capability && candidate["operation"] == descriptor.operation
+    end
+    expect(inherited.dig("matrix_states", "interactive_chat")).to eq("deny")
+
+    PermissionRule.where(owner_user: user).find_each { |rule| rule.revoke!(actor: user) }
+    permission_rule(owner: user, descriptor:, policy: "allow", resource_scope: { resource_id: "one" })
+
+    get "/api/v1/app/permission_rules"
+
+    inherited = JSON.parse(response.body).fetch("inherited").find do |candidate|
+      candidate["capability"] == descriptor.capability && candidate["operation"] == descriptor.operation
+    end
+    expect(inherited.dig("matrix_states", "interactive_chat")).to eq("scoped")
   end
 
   it "creates a permanent allow rule for an eligible capability" do
@@ -81,11 +107,75 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  def permission_rule(owner:)
+  it "edits a rule by preserving the superseded rule and creating its replacement" do
+    original = permission_rule(owner: user)
+    descriptor = Permissions::Catalog.descriptors.find do |candidate|
+      candidate.authority_durations.include?(:permanent) && candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER)
+    end
+
+    patch "/api/v1/app/permission_rules/#{original.id}", params: { permission_rule: {
+      policy: "allow", role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation,
+      resource_scope: {}, constraints: {}, rationale: "Revised authority"
+    } }
+
+    expect(response).to have_http_status(:ok)
+    expect(original.reload.revoked_at).to be_present
+    replacement = PermissionRule.find(JSON.parse(response.body).dig("rule", "id"))
+    expect(replacement).to have_attributes(rationale: "Revised authority", revoked_at: nil)
+  end
+
+  it "previews and atomically applies confirmed bulk changes" do
+    descriptor = Permissions::Catalog.descriptors.find do |candidate|
+      candidate.authority_durations.include?(:permanent) && candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER)
+    end
+    operations = [ {
+      action: "grant", policy: "allow", role: AgentRole::CHAT_PLANNER,
+      subject_selector_type: "interactive_chat", capability: descriptor.capability,
+      operation: descriptor.operation, resource_scope: {}, constraints: {}
+    } ]
+
+    post "/api/v1/app/permission_rules/preview_bulk", params: { operations: }
+
+    expect(response).to have_http_status(:ok)
+    preview = JSON.parse(response.body)
+    expect(preview.fetch("preview")).to contain_exactly(include(
+      "action" => "grant", "capability" => descriptor.capability,
+      "resource_scope_label" => a_kind_of(String)
+    ))
+
+    expect {
+      post "/api/v1/app/permission_rules/bulk", params: {
+        operations:, confirmation_digest: preview.fetch("confirmation_digest")
+      }
+    }.to change(PermissionRule, :count).by(1)
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "rejects a bulk change when the confirmed preview does not match" do
+    rule = permission_rule(owner: user)
+    post "/api/v1/app/permission_rules/bulk", params: {
+      operations: [ { action: "revoke", id: rule.id } ], confirmation_digest: "stale"
+    }
+
+    expect(response).to have_http_status(:conflict)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("stale_permission_preview")
+    expect(rule.reload.revoked_at).to be_nil
+  end
+
+  it "rejects bulk operation members that are not objects" do
+    post "/api/v1/app/permission_rules/preview_bulk", params: { operations: [ nil ] }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("invalid_permission_bulk")
+  end
+
+  def permission_rule(owner:, descriptor: nil, policy: "allow", resource_scope: {})
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
-      subject_selector_type: "interactive_chat", capability: "test.read@v1", operation: "read@v1",
-      resource_type: "none", resource_scope: {}, constraints: {}, policy: "allow",
+      subject_selector_type: "interactive_chat", capability: descriptor&.capability || "test.read@v1",
+      operation: descriptor&.operation || "read@v1", resource_type: descriptor&.resource_scope&.type&.to_s || "none",
+      resource_scope:, constraints: {}, policy:,
       policy_layer: "agent", source: "operator", provenance: {}, subject_role_keys: []
     )
   end

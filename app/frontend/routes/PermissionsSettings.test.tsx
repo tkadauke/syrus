@@ -12,6 +12,8 @@ describe("PermissionsSettingsRoute", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(payload()))
     renderRoute()
 
+    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
+
     expect((await screen.findAllByText("syrus.jobs@v1 · cancel@v1")).length).toBeGreaterThanOrEqual(2)
     expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument()
     const inherited = screen.getByRole("heading", { name: "Inherited policy" }).parentElement!
@@ -27,6 +29,7 @@ describe("PermissionsSettingsRoute", () => {
       .mockResolvedValueOnce(jsonResponse({ rule: payload().rules[0] }, 201))
       .mockResolvedValue(jsonResponse(payload()))
     renderRoute()
+    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
     await screen.findByRole("combobox", { name: "Policy" })
     fireEvent.click(screen.getByRole("button", { name: "Add rule" }))
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules", expect.objectContaining({ method: "POST" })))
@@ -44,6 +47,8 @@ describe("PermissionsSettingsRoute", () => {
       .mockResolvedValueOnce(jsonResponse({ error: { code: "invalid_permission_rule", message: "authority exceeds the effective policy ceiling" } }, 422))
     renderRoute()
 
+    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
+
     fireEvent.click(await screen.findByRole("button", { name: "Add rule" }))
 
     expect(await screen.findByText("authority exceeds the effective policy ceiling")).toBeInTheDocument()
@@ -55,9 +60,54 @@ describe("PermissionsSettingsRoute", () => {
       .mockResolvedValueOnce(jsonResponse({ error: { code: "invalid_permission_rule", message: "rule could not be revoked" } }, 422))
     renderRoute()
 
+    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
+
     fireEvent.click(await screen.findByRole("button", { name: "Revoke" }))
 
     expect(await screen.findByText("rule could not be revoked")).toBeInTheDocument()
+  })
+
+  it("previews every selected matrix grant before applying it", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(payload()))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          preview: [
+            {
+              action: "grant",
+              policy: "allow",
+              subject: "interactive_chat",
+              capability: "syrus.jobs@v1",
+              operation: "cancel@v1",
+              resource_scope_label: "All resources"
+            }
+          ],
+          confirmation_digest: "signed-preview"
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ rules: [] }))
+      .mockResolvedValue(jsonResponse(payload()))
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" }))
+    fireEvent.click(screen.getByRole("button", { name: "Allow selected (1)" }))
+    expect(await screen.findByRole("dialog", { name: "Confirm permission changes" })).toHaveTextContent("syrus.jobs@v1")
+    fireEvent.click(screen.getByRole("button", { name: "Confirm changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules/bulk", expect.objectContaining({ method: "POST" })))
+    const call = fetchSpy.mock.calls.find(([path]) => path === "/api/v1/app/permission_rules/bulk")!
+    expect(JSON.parse(String(call[1]?.body))).toMatchObject({ confirmation_digest: "signed-preview" })
+  })
+
+  it("shows when an effective matrix state varies by resource", async () => {
+    const response = payload()
+    response.inherited[0].matrix_states.interactive_chat = "scoped"
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(response))
+
+    renderRoute()
+
+    expect(await screen.findByText("Varies by resource")).toBeInTheDocument()
   })
 })
 
@@ -82,6 +132,8 @@ function payload() {
         subject_selector_type: "interactive_chat",
         subject_selector_id: null,
         resource_scope: {},
+        resource_scope_label: "All resources",
+        resource_type: "none",
         rationale: null,
         revoked_at: null,
         editable: true,
@@ -97,6 +149,8 @@ function payload() {
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
         authority_durations: ["invocation"],
+        matrix_states: { interactive_chat: "ask", coding_chat: "deny", local_chat: "deny" },
+        presets: [],
         owner: { kind: "provider", name: "attach_repository@v1" },
         editable: false,
         explanation: "role_default"
@@ -109,6 +163,8 @@ function payload() {
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
         authority_durations: ["invocation", "permanent"],
+        matrix_states: { interactive_chat: "ask", coding_chat: "deny", local_chat: "deny" },
+        presets: [],
         owner: { kind: "provider", name: "syrus" },
         editable: false,
         explanation: "role_default"
