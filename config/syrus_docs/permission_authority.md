@@ -86,12 +86,8 @@ providers, invalid output, confidence below `0.8`, and provider-owned cost or
 rate outcomes escalate the existing request to a human.
 
 The classifier envelope orders core non-overridable guidance, the provider's
-default guidance, and one optional repository block:
-
-```yaml
-ai_approval:
-  instructions: Prefer escalation for production operations when intent is ambiguous.
-```
+default guidance, and repository guidance supplied by the authorization
+context.
 
 Transcript entries retain their explicit roles. The envelope labels transcript,
 tool-call, and repository content as untrusted evidence; only the effective

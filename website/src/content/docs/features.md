@@ -63,8 +63,8 @@ is processed and how it is retained. A provider receives the complete role-label
 transcript, exact tool call, effective policy chain, and fingerprint for the
 decision. Syrus labels transcript, tool-call, and repository content as
 untrusted evidence, applies core guidance before provider defaults and the
-repository's optional `ai_approval.instructions` block, and redacts secrets from
-the durable decision artifact.
+repository guidance supplied by the authorization context, and redacts secrets
+from the durable decision artifact.
 
 ## Jobs
 
