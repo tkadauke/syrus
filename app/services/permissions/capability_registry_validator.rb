@@ -38,7 +38,8 @@ module Permissions
           Registration.new(
             tool_name: descriptor.operation, surface: :permission_provider,
             source: provider.name.presence || provider.to_s,
-            descriptor: descriptor, explicit_descriptor: true
+            descriptor: descriptor, explicit_descriptor: true,
+            compatibility_descriptor: nil
           )
         end
       end

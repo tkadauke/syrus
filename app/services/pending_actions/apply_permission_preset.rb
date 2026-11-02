@@ -8,7 +8,7 @@ module PendingActions
     def presentation_label = "Apply permission preset"
 
     def presentation_detail
-      payload.fetch("drafts").map do |draft|
+      Array(payload["drafts"]).map do |draft|
         "#{draft.fetch('policy').upcase} #{draft.fetch('operation')} for #{draft.fetch('role')} (#{draft.fetch('subject_selector_type')})"
       end.join("\n")
     end
