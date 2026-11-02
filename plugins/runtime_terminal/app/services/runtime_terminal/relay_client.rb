@@ -9,6 +9,8 @@ module RuntimeTerminal
     INITIAL_REPLAY_TIMEOUT_SECONDS = 0.1
     MAX_SCROLLBACK_BYTES = 1_048_576
     MAX_READ_BUFFER_BYTES = 1_048_576
+    MAX_COLS = Screen::MAX_COLS
+    MAX_ROWS = Screen::MAX_ROWS
 
     class ConnectionError < StandardError; end
     class UnsupportedInput < StandardError; end
@@ -176,6 +178,9 @@ module RuntimeTerminal
       cols = Integer(event.fetch("cols", event["columns"]))
       rows = Integer(event["rows"])
       raise UnsupportedInput, "resize requires positive cols and rows" unless cols.positive? && rows.positive?
+      if cols > MAX_COLS || rows > MAX_ROWS
+        raise UnsupportedInput, "resize exceeds maximum #{MAX_COLS}x#{MAX_ROWS}"
+      end
 
       { type: "resize", cols: cols, rows: rows }
     rescue KeyError, ArgumentError, TypeError
