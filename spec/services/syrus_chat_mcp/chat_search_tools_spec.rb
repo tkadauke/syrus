@@ -167,7 +167,11 @@ RSpec.describe "Mcp::Tools chat search tools" do
           code: "backend_error",
           message: "Chat search could not query its search backend. Retry after database health has been checked.",
           retryable: true,
-          diagnostics: { exception: "ActiveRecord::StatementInvalid", category: "full_text_backend" }
+          diagnostics: {
+            exception: "ActiveRecord::StatementInvalid",
+            category: "full_text_backend",
+            database_message: "invalid FTS statement"
+          }
         }
       )
     end
