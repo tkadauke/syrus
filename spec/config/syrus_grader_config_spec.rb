@@ -211,8 +211,20 @@ RSpec.describe "Syrus grader configuration" do
       YAML
     end.to raise_error(SyrusYml::ParseError, /visual_review\.targets\[0\]\.dimensions: values must be positive integers/)
 
-    expect { RuntimeSessionProviders.for("missing_cli_tui") }
-      .to raise_error(RuntimeSessionProviders::ConfigurationError, /Unknown runtime session provider: "missing_cli_tui"/)
+    target = App::VisualReviewRuntimeTargets.call(
+      workspace_path: Rails.root,
+      changed_files: [ "cli/cmd/inbox.go" ],
+      preview_projects: App::VisualReviewProjects::Result.new(choices: [], unavailable_reason: "not_needed")
+    ).sole
+    run = Factories.job.runs.last
+    allow(RuntimeSessionProviders).to receive(:for).with("cli_tui").and_raise(
+      RuntimeSessionProviders::ConfigurationError,
+      'Unknown runtime session provider: "cli_tui"'
+    )
+
+    expect { VisualReviewRuntimeSession.new(run: run, target: target).start! }
+      .to raise_error(RuntimeSessionProviders::ConfigurationError, /Unknown runtime session provider: "cli_tui"/)
+    expect(run.runtime_sessions).to be_empty
   end
 
   it "declares the desktop project and scoped desktop validation targets in desktop/.syrus.yml" do
