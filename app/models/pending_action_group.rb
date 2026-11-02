@@ -176,7 +176,7 @@ class PendingActionGroup < ApplicationRecord
       end
       update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
 
-      if !legacy_outcome? && outcome_wake_enqueued_at.blank?
+      if !legacy_outcome_record? && outcome_wake_enqueued_at.blank?
         ChatTurnJob.perform_later(chat_session_id, message.id)
         update_columns(outcome_wake_enqueued_at: Time.current, updated_at: Time.current)
       end
@@ -185,12 +185,16 @@ class PendingActionGroup < ApplicationRecord
   end
 
   def legacy_outcome_message(outcome)
-    return unless legacy_outcome?
+    return unless legacy_outcome_record?
 
     chat_session.messages.where(role: "system").order(id: :desc).limit(200).detect do |candidate|
       content = candidate.content.to_h
       content["source"] == "pending_action_group_notification" && content["outcome"] == outcome
     end
+  end
+
+  def legacy_outcome_record?
+    self[:legacy_outcome] == true
   end
 
   def derive_owner_from_chat_session
