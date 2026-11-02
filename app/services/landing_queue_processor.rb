@@ -1249,6 +1249,7 @@ class LandingQueueProcessor
 
   def dependency_wait_reason(dependency, waiting)
     slug = dependency_label(waiting)
+    return { key: "waiting_for_landing", params: { slug: slug } } if dependency.satisfaction_mode == "landed"
     return { key: "waiting_to_merge", params: { slug: slug } } unless dependency.satisfaction_mode == "deployment_stage"
 
     params = {

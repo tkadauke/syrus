@@ -103,7 +103,7 @@ module Mcp::Tools
             properties: {
               job_id: { type: "integer", description: "Existing Job ID this proposal depends on." },
               proposal_slug: { type: "string", description: "Job proposal slug from this chat session. Deployment-stage gates require this proposal to already be confirmed to a Job." },
-              satisfaction_mode: { type: "string", enum: JobDependency::SATISFACTION_MODES, description: "Defaults to success. Use deployment_stage with required_deployment_stage_name for deploy-stage-gated dependencies." },
+              satisfaction_mode: { type: "string", enum: JobDependency::SATISFACTION_MODES, description: "Defaults to success. Use landed to wait for durable repository landing, or deployment_stage with required_deployment_stage_name for rollout-gated dependencies." },
               required_deployment_stage_name: { type: "string", description: "Configured deployment stage name required when satisfaction_mode is deployment_stage." }
             }
           },

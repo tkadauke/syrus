@@ -9,6 +9,7 @@ module Mcp::Tools
                 "depends_on_epic_id (a prerequisite Epic). By default the target must " \
                 "finish successfully; use satisfaction_mode='closed' only for cleanup " \
                 "or teardown gates where any terminal close is acceptable. Use " \
+                "satisfaction_mode='landed' to require durable evidence that a prerequisite Job landed. Use " \
                 "satisfaction_mode='deployment_stage' with required_deployment_stage_name " \
                 "to wait for a configured deployment stage on a prerequisite Job."
 
@@ -20,7 +21,7 @@ module Mcp::Tools
         satisfaction_mode: {
           type: "string",
           enum: JobDependency::SATISFACTION_MODES,
-          description: "success waits for a successful close; closed waits for any terminal close; deployment_stage waits for a configured deployment stage. Defaults to success."
+          description: "success may release execution from an implemented PR; landed requires a successfully closed Job with durable landing evidence (or a genuine no_changes close); closed waits for any terminal close; deployment_stage waits for a configured deployment stage. Defaults to success."
         },
         required_deployment_stage_name: { type: "string", description: "Deployment stage name required when satisfaction_mode is deployment_stage." }
       },
