@@ -1355,7 +1355,9 @@ module App
 
     def unland_audit
       @unland_audit ||= begin
-        attempts = @job.rollback_jobs.order(created_at: :desc, id: :desc).to_a
+        attempts = @job.rollback_jobs.to_a
+        attempts.concat(@job.epic.rollback_jobs.to_a) if @job.epic_id.present?
+        attempts.sort_by! { |attempt| [ attempt.created_at, attempt.id ] }.reverse!
         {
           latest: attempts.first,
           successful: attempts.find { |attempt| attempt.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(attempt.closure_reason) }
