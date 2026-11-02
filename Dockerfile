@@ -620,7 +620,17 @@ USER 1000:1000
 
 RUN go version
 RUN cd "$(mktemp -d)" && ruby -rmkmf -e 'abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'
-RUN clang++-18 --version && clang++ --version | grep -q "version 18" && mull-runner-18 --version && mull-runner --version
+# clang is required and checked strictly. Mull is optional (see the install
+# layer above), so it is verified only when it is actually present -- a smoke
+# check that hard-requires it would undo the whole point of letting the install
+# fail, which is exactly what happened: the install degraded gracefully and
+# then this line failed the build with exit 127.
+RUN clang++-18 --version && clang++ --version | grep -q "version 18"
+RUN if [ -x /usr/local/bin/mull-runner ]; then \
+      mull-runner-18 --version && mull-runner --version; \
+    else \
+      echo "mull-runner absent; mutation testing unavailable in this image ($(cat /opt/syrus/mull-status 2>/dev/null || echo 'no status recorded'))"; \
+    fi
 
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails

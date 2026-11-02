@@ -49,6 +49,32 @@ RSpec.describe "worker-dev optional toolchain" do
     expect(optional_layer).to include("rm -f /etc/apt/sources.list.d/mull-project-mull-stable.list")
   end
 
+  # The install layer degrading gracefully is worthless if a later layer
+  # asserts the tool is there. A smoke check did exactly that and failed the
+  # next build with exit 127, after the install had correctly warned and
+  # carried on. So the rule is about the whole file, not one layer.
+  # The install layer degrading gracefully is worthless if a later layer
+  # asserts the tool is there. A smoke check did exactly that and failed the
+  # next build with exit 127, after the install had correctly warned and
+  # carried on. So the rule covers every RUN in the file, not one layer: any
+  # instruction that touches mull must either be the tolerant installer or be
+  # guarded by mull-runner actually existing.
+  it "has no RUN instruction that hard-requires mull" do
+    runs = dockerfile.scan(/^RUN(?:.*?\\\n)*.*$/)
+    touching_mull = runs.select { |run| run.include?("mull-runner") || run.include?("mull-${MULL_LLVM_VERSION}") || run.include?("mull-18") }
+    expect(touching_mull).not_to be_empty, "expected to find the mull instructions this guards"
+
+    offenders = touching_mull.reject do |run|
+      run.include?("|| return 1") || run.include?("-x /usr/local/bin/mull-runner")
+    end
+
+    expect(offenders).to be_empty, -> { "unguarded mull requirement:\n#{offenders.map { |run| run.lines.first.strip[0, 90] }.join("\n")}" }
+  end
+
+  it "still checks clang strictly, since that half is not optional" do
+    expect(dockerfile).to match(/RUN clang\+\+-18 --version && clang\+\+ --version \| grep -q "version 18"\s*$/)
+  end
+
   it "still verifies the signing key fingerprint before trusting the repository" do
     expect(optional_layer).to include("MULL_APT_GPG_FINGERPRINT")
     expect(optional_layer).to include("gpg --show-keys")
