@@ -315,7 +315,6 @@ RSpec.describe Steps::PrOpen, :ci_only do
     chat_session = ChatSession.create!(user: user, repository: repository, mode: "local")
     branch = "syrus/local-handoff-#{job.id}"
     job.update!(
-      state: "running",
       kind: "direct",
       issue_number: nil,
       issue_title: "Local handoff",
@@ -324,6 +323,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       pr_number: nil,
       fork_review_pr_number: nil
     )
+    job.update!(state: "running")
     handoff_workflow = Workflow.create!(job: job, trigger_kind: "local_mode_handoff", agent_provider: workflow.agent_provider)
     grader_step = Step.create!(workflow: handoff_workflow, kind: "grader_collect", position: 0, state: "succeeded")
     handoff_pr_open_step = Step.create!(workflow: handoff_workflow, kind: "pr_open", position: 1)
@@ -459,7 +459,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "does not call GitHub PR creation after force-pushing an unpublished retry branch that is empty against base" do
-    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil, fork_review_pr_number: nil)
+    job.update!(kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil, fork_review_pr_number: nil)
+    job.update!(state: "running")
     pr_open_run = Run.create!(
       job: job,
       step: pr_open_step,
@@ -538,7 +539,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "opens a PR for a non-empty direct retry publication branch" do
-    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    job.update!(kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    job.update!(state: "running")
     Run.create!(
       job: job,
       step: implement_step,
@@ -697,7 +699,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "fails with the validated and publication heads when an empty branch no longer contains the implementation head" do
-    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    job.update!(kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    job.update!(state: "running")
     Run.create!(
       job: job,
       step: implement_step,
