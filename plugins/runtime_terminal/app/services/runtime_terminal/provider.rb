@@ -19,7 +19,7 @@ module RuntimeTerminal
           input: %w[keyboard stdin pointer resize],
           inspect: %w[screen scrollback],
           build: [ "none" ],
-          artifacts: [ "logs" ]
+          artifacts: %w[screenshots logs]
         }
       end
 
@@ -89,8 +89,36 @@ module RuntimeTerminal
       not_supported("launch")
     end
 
-    def snapshot(_session_id, _options)
-      not_supported("snapshot")
+    def snapshot(session_id, options = {})
+      runtime_session = runtime_session_for(session_id)
+      terminal_session = relay_ready_terminal_session_for(runtime_session)
+      options = options.to_h.symbolize_keys
+      screen = with_fresh_relay_client(runtime_session, terminal_session, &:capture_screen)
+      captured_at = Time.current
+      bytes = Renderer.new(screen).png
+      checkpoint = options[:checkpoint_label].presence
+      title = checkpoint ? "Terminal — #{checkpoint}" : "Terminal screenshot"
+      document = ArtifactSink.new(runtime_session).capture(bytes: bytes, title: title)
+
+      metadata = {
+        runtime_session_id: runtime_session.id,
+        screen_generation: screen.fetch(:generation),
+        rows: screen.fetch(:rows),
+        columns: screen.fetch(:cols),
+        captured_at: captured_at.iso8601,
+        checkpoint_label: checkpoint
+      }.compact
+      {
+        kind: "terminal_screenshot",
+        artifact_type: "screenshot",
+        title: title,
+        content_type: "image/png",
+        viewport: { width: screen.fetch(:cols), height: screen.fetch(:rows) },
+        document_id: document.id,
+        metadata: metadata,
+        latest_frame_url: runtime_session.latest_frame_url,
+        latest_frame_at: runtime_session.latest_frame_at&.iso8601
+      }.merge(metadata)
     end
 
     def inspect(session_id = nil, options = nil)

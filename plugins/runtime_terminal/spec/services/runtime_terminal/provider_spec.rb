@@ -40,8 +40,46 @@ RSpec.describe RuntimeTerminal::Provider do
         input: %w[keyboard stdin pointer resize],
         inspect: %w[screen scrollback],
         build: [ "none" ],
-        artifacts: [ "logs" ]
+        artifacts: %w[screenshots logs]
       )
+    end
+  end
+
+  describe "#snapshot" do
+    it "renders the authoritative screen and files it as the Runtime Session's latest chat frame" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "\e[?1049h\e[48;2;1;2;3m┌─┐\n│界│")
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      result = provider.snapshot(runtime_session.id, checkpoint_label: "menu open")
+
+      runtime_session.reload
+      document = Document.find(result.fetch(:document_id))
+      expect(result).to include(
+        kind: "terminal_screenshot",
+        artifact_type: "screenshot",
+        runtime_session_id: runtime_session.id,
+        screen_generation: 1,
+        rows: 24,
+        columns: 80,
+        viewport: { width: 80, height: 24 },
+        checkpoint_label: "menu open",
+        latest_frame_url: "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{runtime_session.id}/frame"
+      )
+      expect(document).to have_attributes(title: "Terminal — menu open", content_type: "image/png")
+      expect(document.file.download).to start_with("\x89PNG\r\n\x1a\n".b)
+      expect(chat_session.chat_attachments.find_by(attachable: document)).to be_present
+      expect(runtime_session.metadata["latest_frame_document_id"]).to eq(document.id)
+      expect(runtime_session.latest_frame_at).to be_present
+    ensure
+      relay&.stop
     end
   end
 

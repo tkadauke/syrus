@@ -539,6 +539,7 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
       viewport: viewportLabel(
         parsed.viewport,
         metadata.viewport,
+        parsed.columns && parsed.rows ? { width: parsed.columns, height: parsed.rows } : null,
         parsed.viewport_width && parsed.viewport_height ? { width: parsed.viewport_width, height: parsed.viewport_height } : null,
         metadata.frame_width && metadata.frame_height ? { width: metadata.frame_width, height: metadata.frame_height } : null
       ),

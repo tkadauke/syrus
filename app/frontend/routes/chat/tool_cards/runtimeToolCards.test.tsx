@@ -1392,6 +1392,28 @@ describe("Runtime tool cards", () => {
     }
   })
 
+  it("renders terminal screenshots from the protected latest-frame endpoint with cell dimensions", () => {
+    const parsedResult = {
+      kind: "terminal_screenshot",
+      artifact_type: "screenshot",
+      document_id: 52,
+      rows: 24,
+      columns: 80,
+      screen_generation: 9,
+      checkpoint_label: "menu open",
+      captured_at: "2026-09-10T12:11:00Z",
+      latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
+      latest_frame_at: "2026-09-10T12:11:00Z"
+    }
+
+    render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
+
+    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", parsedResult.latest_frame_url)
+    expect(screen.getAllByText("80x24").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("terminal_screenshot").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("2026-09-10T12:11:00Z").length).toBeGreaterThan(0)
+  })
+
   it("shows missing Runtime artifacts as an explicit empty state", () => {
     const parsedResult = { found: false }
 

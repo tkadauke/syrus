@@ -936,14 +936,12 @@ payloads.
 The tab only appears once the chat has at least one `RuntimeSession`
 (`runtimeTabVisible` in `app/frontend/routes/chat/utils.ts`, backed by
 `chat.runtime_session_count` in the chat payload). A dedicated `frame` action
-streams the session's `latest_frame_url` -- `SyrusBrowser::ArtifactSinks::ChatMedia`
-now accepts an optional `runtime_session:` and, when a capture is attributed
-to one (an operator's `capture` click, or the agent's `runtime_snapshot`/
-`runtime_capture_artifact`/`browser_screenshot`), stamps
+streams the session's `latest_frame_url` -- browser and terminal runtime
+artifact sinks both use `ChatMediaLibrary` and, when a capture is attributed
+to a session (an operator's `capture` click, or the agent's `runtime_snapshot`/
+`runtime_capture_artifact`/`browser_screenshot`), stamp
 `latest_frame_url`/`latest_frame_at` on that session pointing at the `frame`
-endpoint so the panel's periodic-screenshot polling has something to show for
-browser-like providers -- those two columns existed on `RuntimeSession` from
-the start but were never written until this wiring landed.
+endpoint so the panel's periodic-screenshot polling has something to show.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
@@ -3876,6 +3874,14 @@ Bundled plugins:
   the same authenticated wire protocol the browser terminal uses, after the
   shared `RuntimeControlLease` input gate passes.
 
+  `runtime_snapshot` and `runtime_capture_artifact` render that same locked
+  screen state to a deterministic PNG using a bundled terminal font, including
+  ANSI/indexed/RGB colors, styles, alternate-screen content, Unicode cell
+  widths, and cursor visibility. The capture is attached through the shared
+  chat-media sink, updates the Runtime Session's protected latest-frame URL,
+  and carries session/generation/viewport/time plus an optional checkpoint
+  label. Capabilities advertise both screenshot and log artifacts.
+
   The adapter intentionally does not modify `terminal_sessions` or
   `Terminal::Session`/`Terminal::Relay`/`TerminalSessionJob`. The link table is
   owned by `runtime_terminal`; an always-installed plugin data cleanup removes
@@ -3883,7 +3889,8 @@ Bundled plugins:
   add a database foreign key back into the terminal plugin's table, preserving
   the terminal plugin's own schema boundary. Capabilities advertise
   `stream: "none"`, `input: ["keyboard", "stdin", "pointer", "resize"]`,
-  `inspect: ["screen", "scrollback"]`, and `build: ["none"]`; live streaming still uses
+  `inspect: ["screen", "scrollback"]`, `build: ["none"]`, and
+  `artifacts: ["screenshots", "logs"]`; live streaming still uses
   the terminal plugin's existing UI path, with the Coding Mode Runtime panel
   reusing its shared xterm/`TerminalChannel` renderer against the mapped
   `Terminal::Session#id`. Because this is still a genuine shell on the worker,
