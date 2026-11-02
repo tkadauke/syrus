@@ -1,0 +1,94 @@
+name: urgent landing preempts blocked epic train without circular lock wait
+repository:
+  owner: simulation
+  name: urgent-landing-preempts-blocked-epic-train
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Non-urgent feature stack
+jobs:
+  tip:
+    title: Feature tip
+    epic: feature
+    state: landing
+    priority: medium
+    branch_name: syrus/direct-feature-tip
+    pr_number: 6702
+    pr_checks_state: passing
+    pr_checks_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    pr_checks_base_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    mergeability_head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    mergeability_base_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    mergeability_checked_at: "2099-01-01 00:00:00"
+    github_mergeable_state: clean
+    github_mergeable: true
+    local_mergeable: true
+    local_mergeable_state: clean
+    commits_behind_base: 0
+    approved_at: "2026-10-31 10:01:00"
+    approved_via: operator
+    workflow:
+      kind: merge_train
+      state: queued
+      created_at: "2026-10-31 10:02:00"
+      artifacts:
+        start_blocked_reason: urgent_job_active
+        start_blocked_next_check_at: "2099-01-01T00:00:00Z"
+      work_unit:
+        state: blocked
+        blocked_reason: urgent_job_active
+        blocked_details:
+          start_blocked_reason: urgent_job_active
+        from_definition: true
+      steps:
+        - kind: merge_train_build
+          state: queued
+  urgent:
+    title: Unrelated urgent fix
+    state: approved
+    priority: urgent
+    branch_name: syrus/direct-urgent-fix
+    pr_number: 6703
+    pr_checks_state: passing
+    pr_checks_sha: cccccccccccccccccccccccccccccccccccccccc
+    pr_checks_base_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    mergeability_head_sha: cccccccccccccccccccccccccccccccccccccccc
+    mergeability_base_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    mergeability_checked_at: "2099-01-01 00:00:00"
+    github_mergeable_state: clean
+    github_mergeable: true
+    local_mergeable: true
+    local_mergeable_state: clean
+    commits_behind_base: 0
+    approved_at: "2026-10-31 10:03:00"
+    approved_via: auto_rule
+merge_trains:
+  blocked:
+    epic: feature
+    state: building
+    workflow_job: tip
+    integration_branch: syrus/merge-train-feature-blocked
+    members:
+      - job: tip
+        state: included
+outcomes:
+  default: success
+expect:
+  jobs:
+    tip:
+      - closed
+    urgent:
+      - closed
+  epics:
+    feature:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - urgent_blocked_landing_slot
+  events_ordered:
+    - "auto_merge for Unrelated urgent fix"
+    - "merge_train for Feature tip"
+    - merge_train_land

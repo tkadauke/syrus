@@ -137,6 +137,7 @@ class WorkUnit < ApplicationRecord
         blocked_by_user: user
       )
       release_landing_locks! if EXTERNALLY_CLEARED_BLOCKED_REASONS.include?(reason.to_s)
+      release_landing_locks! if urgent_prestart_landing_block?(reason)
     end
   end
 
@@ -252,6 +253,13 @@ class WorkUnit < ApplicationRecord
   end
 
   private
+
+  def urgent_prestart_landing_block?(reason)
+    return false unless reason.to_s == "urgent_job_active"
+    return false unless workflow&.queued? && workflow.landing_workflow?
+
+    !workflow.first_step&.runs&.exists?
+  end
 
   def ensure_active_locks!
     lock_keys_for_runtime.each do |lock_key|

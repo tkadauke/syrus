@@ -2337,6 +2337,7 @@ class Job < ApplicationRecord
   def saved_change_needs_landing_queue_processor?
     return true if state_changed_in_transaction? && approved?
     return true if state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
+    return true if saved_change_to_priority? && priority == "urgent" && (approved? || landing?)
 
     false
   end
