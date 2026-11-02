@@ -87,7 +87,7 @@ class McpToolRegistry
         {
           name: "ops.read_logs",
           label: "Read operational observability",
-          description: "Read redacted operational logs, worker health, exception events, browser errors, and performance traces.",
+          description: "Read redacted operational logs, worker and queue diagnostics, admission evidence, exception events, browser errors, and performance traces.",
           default_policy: "confirm",
           maximum_policy: "auto",
           tools: entries(surface: :coworker).select { |entry| entry.capability == :"ops.read_logs" }.map(&:tool_name),
@@ -260,6 +260,12 @@ class McpToolRegistry
         chat(Mcp::Tools::AdminListUsersTool, admin_only: true),
         chat(Mcp::Tools::AdminVersionTool, admin_only: true),
         chat(Mcp::Tools::ReadWorkerHealthTool, admin_only: true),
+        chat(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, admin_only: true),
+        chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, admin_only: true),
+        chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, admin_only: true),
+        chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, admin_only: true),
+        chat(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, admin_only: true),
+        chat(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, admin_only: true),
         chat(Mcp::Tools::AdminReadOperationalLogsTool, admin_only: true),
         chat(Mcp::Tools::AdminMcpToolUsageTool, admin_only: true),
         chat(Mcp::Tools::AdminMaintenanceTasksTool, admin_only: true, mutation: true),
@@ -398,7 +404,13 @@ class McpToolRegistry
         coworker(Mcp::Tools::ReadWorkerHealthTool, capability: "ops.read_logs"),
         coworker(Mcp::Tools::ReadBackendExceptionEventsTool, capability: "ops.read_logs"),
         coworker(Mcp::Tools::ReadBrowserErrorEventsTool, capability: "ops.read_logs"),
-        coworker(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs")
+        coworker(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, capability: "ops.read_logs"),
+        coworker(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, capability: "ops.read_logs")
       ]
     end
 
