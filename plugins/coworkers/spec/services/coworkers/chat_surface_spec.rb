@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Coworker chat surface" do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user: owner) }
   let(:coworker) do
@@ -39,10 +41,21 @@ RSpec.describe "Coworker chat surface" do
     JSON.parse(response.content.first.fetch(:text))
   end
 
+  def allow_tool(tool_class)
+    descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool_class }.descriptor
+    PermissionRule.create!(
+      owner_user: owner, created_by_user: owner, updated_by_user: owner,
+      subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+      subject_role_keys: [], capability: descriptor.capability, operation: descriptor.operation,
+      resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+      policy: "allow", policy_layer: "agent", source: "operator", provenance: {}
+    )
+  end
+
   it "never gives an admin-owned coworker admin, repair, coding, local, or runtime tools" do
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
 
-    expect(names).to contain_exactly("list_jobs", "search_jobs", "read_job")
+    expect(names).to include("list_jobs", "search_jobs", "read_job", "propose_job", "propose_epic_with_jobs")
     expect(names).not_to include("admin_overview", "force_fail_job", "run_command", "runtime_start")
   end
 
@@ -70,23 +83,26 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.reload).to be_turn_in_flight
   end
 
-  it "advertises every tool only when its named grant exists" do
+  it "advertises eligible tools independently of legacy grants and keeps discovery ungated" do
     entries = McpToolRegistry.entries(surface: :coworker)
     expect(entries).to all(have_attributes(capability: be_present))
 
-    entries.reject(&:interactive_only).each do |entry|
+    entries.reject { |entry| entry.interactive_only || entry.ungated }.each do |entry|
       coworker.grants.delete_all
-      expect(names(tier: entry.tier)).not_to include(entry.tool_name)
+      expect(names(tier: entry.tier)).to include(entry.tool_name)
 
       attributes = { capability: entry.capability.to_s, approval_policy: "auto" }
       attributes[:scope] = [ repository.id ] if entry.capability.to_s == "code.read"
       coworker.grants.create!(attributes)
       expect(names(tier: entry.tier)).to include(entry.tool_name)
     end
+
+    coworker.grants.delete_all
+    expect(names(tier: :deferred)).to include("discover_coworker_capabilities")
   end
 
-  it "exposes both proposal tools with the proposal grant and keeps them absent without it" do
-    expect(names).not_to include("propose_job", "propose_epic_with_jobs")
+  it "exposes both proposal tools without treating a legacy grant as authority" do
+    expect(names).to include("propose_job", "propose_epic_with_jobs")
 
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
 
@@ -95,7 +111,7 @@ RSpec.describe "Coworker chat surface" do
   end
 
   it "creates ordinary pending Job proposal cards with coworker provenance" do
-    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
+    allow_tool(Mcp::Tools::ProposeJobTool)
 
     response = coworker_tool("propose_job").call(
       repo: repository.slug,
@@ -119,7 +135,7 @@ RSpec.describe "Coworker chat surface" do
   end
 
   it "creates an ordinary pending Epic card and child cards with coworker provenance" do
-    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
+    allow_tool(Mcp::Tools::ProposeEpicWithJobsTool)
 
     response = coworker_tool("propose_epic_with_jobs").call(
       epic: {
@@ -150,7 +166,7 @@ RSpec.describe "Coworker chat surface" do
   end
 
   it "preserves proposal validation and repository visibility for coworkers" do
-    coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
+    allow_tool(Mcp::Tools::ProposeJobTool)
     inaccessible = Factories.repository(user: Factories.user, owner: "private", name: "repo")
 
     missing_placement = coworker_tool("propose_job").call(
@@ -172,7 +188,7 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.proposals).to be_empty
   end
 
-  it "requires separate grant-policy approval before drafting when configured for confirmation" do
+  it "ignores legacy grant policy and uses the unified ask default" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
 
     response = coworker_tool("propose_job").call(
@@ -184,49 +200,50 @@ RSpec.describe "Coworker chat surface" do
     )
 
     expect(response).not_to be_error
-    expect(response_payload(response)).to include("approval_policy" => "confirm")
+    expect(response_payload(response)).to include("approval_policy" => "queue")
     expect(chat.proposals).to be_empty
     expect(chat.pending_actions.last).to have_attributes(action: "coworker_tool_call", state: "pending")
     expect(chat.pending_actions.last.payload.fetch("actor")).to include("name" => coworker.name, "handle" => coworker.handle)
   end
 
-  it "applies every policy to read-only core tools" do
+  it "uses descriptor defaults for read-only core tools despite legacy policy changes" do
     grant = coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
 
     confirmed = coworker_tool("list_jobs").call(server_context: { chat_session: chat })
-    expect(response_payload(confirmed)).to include("approval_policy" => "confirm")
-    expect(chat.pending_actions.last.payload).to include("tool_name" => "list_jobs", "arguments" => {})
+    expect(response_payload(confirmed)).to have_key("jobs")
 
     grant.update!(approval_policy: "queue")
     queued = coworker_tool("list_jobs").call(server_context: { chat_session: chat })
-    expect(response_payload(queued)).to include("approval_policy" => "queue")
-    expect(chat.pending_actions.last.payload).to include("approval_inbox" => true)
+    expect(response_payload(queued)).to have_key("jobs")
 
     grant.update!(approval_policy: "auto")
     expect(coworker_tool("list_jobs").call(server_context: { chat_session: chat })).not_to be_error
 
     grant.destroy!
-    expect(names).not_to include("list_jobs")
+    expect(names).to include("list_jobs")
   end
 
   it "applies every policy and replays confirmed plugin calls exactly once" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    Coworkers::ChatExtension.install_into(scope)
-    message_grant = coworker.grants.create!(capability: "coworker.message", approval_policy: "confirm")
-    schedule_grant = coworker.grants.create!(capability: "schedule.manage_self", approval_policy: "confirm")
     allow(Coworkers::MessageCoworkerTool).to receive(:call)
       .and_return(Mcp::Tools.success(delivered: true, receipt: "stored result"))
 
     arguments = { handle: "gilfoyle", text: "Hello from the stored call" }
     message = coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })
     schedule = coworker_tool("manage_coworker_schedule").call(action: "list", server_context: { chat_session: chat })
-    expect(response_payload(message)).to include("approval_policy" => "confirm")
-    expect(response_payload(schedule)).to include("approval_policy" => "confirm")
+    expect(response_payload(message)).to include("approval_policy" => "queue")
+    expect(response_payload(schedule)).to include("approval_policy" => "queue")
     expect(Coworkers::MessageCoworkerTool).not_to have_received(:call)
 
     action = chat.pending_actions.find(response_payload(message).fetch("pending_action_id"))
-    expect { action.confirm!(user: owner) }
+    expect(action.subject).to eq(coworker)
+    operation = action.authorization_items.find_by!(kind: "operation")
+    decision = Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+      .call(decision: "approved")
+    expect(decision.execution_enqueued).to be(true)
+    clear_enqueued_jobs
+    expect { action.execute_confirmation!(raise_on_error: true) }
       .to change { chat.messages.where(role: "system").count }.by(1)
       .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
     expect(Coworkers::MessageCoworkerTool).to have_received(:call)
@@ -234,49 +251,42 @@ RSpec.describe "Coworker chat surface" do
     expect(action.reload.payload.fetch("tool_result")).to include("stored result")
     expect(chat.messages.where(role: "system").order(:id).last.content.fetch("text"))
       .to include("Coworker tool approved and executed", "stored result")
-    expect(action.confirm!(user: owner)).to be(false)
+    repeated = Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+      .call(decision: "approved")
+    expect(repeated.execution_enqueued).to be(false)
     expect(Coworkers::MessageCoworkerTool).to have_received(:call).once
 
-    message_grant.update!(approval_policy: "queue")
     queued = coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })
     expect(response_payload(queued)).to include("approval_policy" => "queue")
     expect(chat.pending_actions.last.payload).to include("approval_inbox" => true, "arguments" => arguments.stringify_keys)
     expect(Coworkers::MessageCoworkerTool).to have_received(:call).once
 
-    message_grant.update!(approval_policy: "auto")
-    schedule_grant.update!(approval_policy: "auto")
-    expect(coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })).not_to be_error
-    expect(Coworkers::MessageCoworkerTool).to have_received(:call).twice
-    expect(coworker_tool("manage_coworker_schedule").call(action: "list", server_context: { chat_session: chat })).not_to be_error
-
-    message_grant.destroy!
-    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).not_to include("message_coworker")
+    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("message_coworker")
   end
 
-  it "advertises and runs workspace tools only with a file grant" do
+  it "advertises workspace tools without treating legacy grants as authority" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
     allow(Coworkers::WorkspaceFileTools::Write).to receive(:call)
       .and_return(Mcp::Tools.success(path: "notes.txt"))
     arguments = { path: "notes.txt", content: "Remember this" }
 
-    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).not_to include("write_coworker_file")
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include("write_coworker_file")
     grant = coworker.grants.create!(capability: "workspace.files", approval_policy: "confirm")
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include(
       "write_coworker_file", "edit_coworker_file", "move_coworker_file", "delete_coworker_file"
     )
     expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
-      .to include("approval_policy" => "confirm")
+      .to include("path" => "notes.txt")
     grant.update!(approval_policy: "queue")
     expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
-      .to include("approval_policy" => "queue")
+      .to include("path" => "notes.txt")
     grant.update!(approval_policy: "auto")
-    expect(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })).not_to be_error
-
-    expect(Coworkers::WorkspaceFileTools::Write).to have_received(:call)
-      .with(**arguments, server_context: include(chat_session: chat)).once
+    expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
+      .to include("path" => "notes.txt")
+    expect(Coworkers::WorkspaceFileTools::Write).to have_received(:call).exactly(3).times
     grant.destroy!
-    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).not_to include("write_coworker_file")
+    expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("write_coworker_file")
   end
 
   it "requires confirmation for protected workspace paths even with automatic file access" do
@@ -289,9 +299,9 @@ RSpec.describe "Coworker chat surface" do
       path: "memory/../SOUL.md", content: "changed", server_context: { chat_session: chat }
     )
 
-    expect(response_payload(response)).to include("approval_policy" => "confirm")
+    expect(response_payload(response)).to include("approval_policy" => "queue")
     expect(chat.pending_actions.last).to have_attributes(action: "coworker_tool_call", state: "pending")
-    expect(chat.pending_actions.last.payload).to include("approval_policy" => "confirm")
+    expect(chat.pending_actions.last.payload).to include("approval_policy" => "queue")
   end
 
   it "offers interactive-only tools only for an interactive turn" do
@@ -424,11 +434,11 @@ RSpec.describe "Coworker chat surface" do
     expect(AgentMemory::Tools::ReadMemoryTool.call(id: inaccessible_published.id, server_context: context)).to be_error
   end
 
-  it "offers coworker messaging only with its named grant" do
+  it "offers coworker messaging for unified dispatch without a legacy grant" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
 
-    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).not_to include("message_coworker")
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include("message_coworker")
 
     coworker.grants.create!(capability: "coworker.message", approval_policy: "auto")
 
@@ -440,7 +450,7 @@ RSpec.describe "Coworker chat surface" do
     Syrus::PluginRegistry.clear_plugin_record_cache!
     tool_names = %w[write_coworker_file edit_coworker_file move_coworker_file delete_coworker_file]
 
-    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).not_to include(*tool_names)
+    expect(Mcp::Sidecar.chat_tool_names(chat, tier: :essential)).to include(*tool_names)
     coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
 
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include(*tool_names)

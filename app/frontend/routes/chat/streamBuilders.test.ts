@@ -49,6 +49,18 @@ describe("pendingActionCardData", () => {
         arguments: { sql: "SELECT 1", api_token: "secret-token-value" },
         actor: { name: "Gilfoyle", handle: "gilfoyle", avatar_key: "comet" }
       },
+      request_kind: "authorization_request",
+      authorization_items: [
+        {
+          id: 41,
+          kind: "capability_possession",
+          state: "pending",
+          capability: "database.read",
+          effects: [],
+          prerequisite_ids: [],
+          app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/41/decision"
+        }
+      ],
       resource_title: "acme/widgets",
       resource_url: "/repositories/9",
       document: {
@@ -71,6 +83,8 @@ describe("pendingActionCardData", () => {
       resource_title: "acme/widgets",
       resource_url: "/repositories/9",
       review: action.review,
+      request_kind: "authorization_request",
+      authorization_items: action.authorization_items,
       document: action.document,
       app_cancel_path: "/api/v1/app/chats/122/pending_actions/501"
     })

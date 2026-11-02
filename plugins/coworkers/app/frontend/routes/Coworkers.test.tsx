@@ -77,6 +77,15 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
+    permission_cutover_report: {
+      ready: false,
+      legacy_grants: [{ capability: "workspace.files", approval_policy: "auto", effective_policy: "allow", scope: null, constraints: {} }],
+      recommended_defaults: [],
+      lost_authority: [],
+      requestable_replacements: [],
+      descriptor_gaps: [{ legacy_capability: "workspace.files", tools: [], reasons: ["missing explicit descriptors"] }],
+      migration_errors: []
+    },
     grant_catalog: grantCatalog,
     schedules: [
       {
@@ -336,6 +345,9 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   expect(screen.getByText("gpt-6.1-sol")).toBeInTheDocument()
   expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+  expect(screen.getByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
+  expect(screen.getByText("Blocked")).toBeInTheDocument()
+  expect(screen.getByText(/workspace.files: missing explicit descriptors/)).toBeInTheDocument()
   expect(screen.getByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
   expect(screen.getByText("Gmail")).toBeInTheDocument()
   expect(screen.getAllByText("Coming later")).toHaveLength(2)

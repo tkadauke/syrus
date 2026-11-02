@@ -39,3 +39,21 @@ duration and delegation ceilings. A management request can therefore never
 use the permission it is attempting to create to authorize itself. Durable
 rules keep append-only audit events, and revoking either a rule or lease also
 invalidates its unclaimed authorized invocations.
+
+## Coworker enforcement
+
+A gated coworker invocation runs through the common evaluator. Descriptor
+defaults are active authority; legacy coworker grants neither advertise a tool
+nor bypass its decision. An `allow` decision dispatches immediately, `deny`
+fails closed, and `ask` creates one exact-operation request containing a
+redacted argument snapshot and stable invocation fingerprint. Equivalent active
+requests deduplicate.
+
+Approval creates an invocation-only lease and an `AuthorizedInvocation` before
+enqueueing execution. The worker atomically claims that record, re-evaluates the
+current rule and lease chain under the claim lock, and dispatches only for a new
+claim with an exact fingerprint. A revoked or newly denied authority therefore
+invalidates queued work, and retries cannot replay an already claimed call.
+Only tools explicitly classified as safe, ungated local operations bypass this
+flow. Other runtime roles continue to use shadow comparison rather than this
+enforcement cutover.

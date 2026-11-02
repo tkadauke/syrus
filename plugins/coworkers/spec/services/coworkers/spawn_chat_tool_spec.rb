@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe Coworkers::SpawnChatTool do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:coworker) do
@@ -24,28 +26,31 @@ RSpec.describe Coworkers::SpawnChatTool do
   def payload(response) = JSON.parse(response.content.first.fetch(:text))
   def error_text(response) = response.content.first.fetch(:text)
 
-  it "is absent and refuses calls without the grant" do
+  it "is requestable without a legacy grant" do
     definitions = Coworkers::ChatToolSet.tool_definitions(tier: :essential)
     expect(definitions.find { |definition| definition[:name] == "spawn_coworker_chat" }).to include(
       capability: "coworker.spawn_chat", mutation: true
     )
 
     response = described_class.call(prompt: "Investigate", server_context: context)
-    expect(response).to be_error
-    expect(error_text(response)).to include("grant is required")
+    expect(response).not_to be_error
+    expect(payload(response)).to include("approval_policy" => "queue")
+    expect(chat.pending_actions.last).to be_authorization_request
   end
 
-  it "creates a confirm pending action and then a side chat of the same coworker" do
-    coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm")
-
+  it "executes an approved unified request as a side chat of the same coworker" do
     response = described_class.call(prompt: "Investigate the flaky test", title: "Flake", server_context: context)
     action = chat.pending_actions.find(payload(response).fetch("pending_action_id"))
 
-    expect(action.payload).to include("tool_name" => "spawn_coworker_chat", "approval_policy" => "confirm")
-    expect { action.confirm!(user: owner) }.to change(Coworkers::Chat.where(coworker:, role: "side"), :count).by(1)
+    expect(action.payload).to include("tool_name" => "spawn_coworker_chat", "approval_policy" => "queue")
+    operation = action.authorization_items.find_by!(kind: "operation")
+    Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+      .call(decision: "approved")
+    clear_enqueued_jobs
+    expect { action.execute_confirmation!(raise_on_error: true) }
+      .to change(Coworkers::Chat.where(coworker:, role: "side"), :count).by(1)
     spawned = coworker.coworker_chats.find_by!(role: "side").chat_session
     expect(spawned.messages.first.content.fetch("text")).to eq("Investigate the flaky test")
-    expect(McpToolContext.from_chat_session(spawned).granted_capabilities).to include("coworker.spawn_chat")
     expect(ChatSessions::Creator).to have_received(:enqueue_turn).with(spawned, spawned.messages.first)
   end
 
@@ -59,7 +64,7 @@ RSpec.describe Coworkers::SpawnChatTool do
 
   it "queues the pending action from an unattended run" do
     coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm")
-    run = instance_double(Run, id: 123)
+    run = Factories.run(user: owner, repository: repository)
     run_context = McpToolContext.new(surface: :run, role: AgentRole::COWORKER, user: owner, run:, chat_session: chat,
       granted_capabilities: [ "coworker.spawn_chat" ], capability_approval_policies: { "coworker.spawn_chat" => "queue" },
       agent_actor: coworker)

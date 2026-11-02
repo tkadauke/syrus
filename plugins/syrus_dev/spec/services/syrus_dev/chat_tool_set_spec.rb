@@ -37,8 +37,8 @@ RSpec.describe SyrusDev::ChatToolSet do
     )
   end
 
-  it "advertises both tools to a granted coworker and none without the grant" do
-    expect(advertised_plugin_tools(coworker_chat)).to be_empty
+  it "advertises both tools as requestable without treating legacy grants as authority" do
+    expect(advertised_plugin_tools(coworker_chat)).to contain_exactly(*tool_names)
 
     coworker.grants.create!(capability: "syrus_dev.read_diagnostics", approval_policy: "confirm")
 

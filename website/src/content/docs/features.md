@@ -1607,14 +1607,28 @@ applied only after confirmation and is checked independently against the
 capability's delegation and duration ceilings, so a requested grant cannot
 authorize its own confirmation.
 
+Coworker prompts can discover the full eligible tool surface. Their deferred
+tool search includes a read-only capability discovery tool for locked families;
+results include the required scope, effective policy, and lock reason.
+Available, requestable, prohibited, plugin-disabled, resource-unconfigured, and
+unavailable states remain distinct, and discovery itself never grants access.
+
+Coworker dispatch enforces the unified evaluator: descriptor defaults and
+current rules decide whether an operation runs, asks, or fails closed. Legacy
+coworker grants are no longer runtime authority. An ask decision creates one
+fingerprinted operation request, and equivalent active requests are reused.
+Approval issues a single-use invocation lease. The worker atomically claims it,
+re-evaluates current policy, verifies the exact arguments, and refuses duplicate
+or revoked execution. Explicitly safe local operations remain ungated.
+
 ## Permission parity diagnostics
 
-Syrus runs its capability policy evaluator in shadow mode alongside existing
-agent-tool dispatch. Existing role, feature, grant, and workflow filters remain
-authoritative while Syrus records differences between current behavior and the
-north-star policy. Admin diagnostics summarize recent mismatches and evaluator
-failures by capability and agent role. Safe local reads, isolated workspace
-writes, and isolated execution remain available if shadow infrastructure fails.
+Coworker roles enforce the evaluator directly. Other agent roles remain in
+shadow mode alongside their existing dispatch filters while Syrus records
+differences from the unified policy. Admin diagnostics summarize recent
+mismatches and evaluator failures by capability and agent role. Safe local
+reads, isolated workspace writes, and isolated execution remain available if
+shadow infrastructure fails.
 
 ## Skills
 
@@ -1855,7 +1869,12 @@ own voice, summarizes its understanding of the role, and asks a few concrete
 questions about anything unclear or missing—or asks what to work on first when
 nothing needs clarification. The identity files and first conversation include
 the coworker's configured name and its owner's display name. Each coworker's
-Memory tab is a read-only, searchable browser for the daily, people, repository,
+Capabilities tab also shows a read-only unified-permission cutover report. It
+compares legacy grants with recommended defaults, calls out removed authority
+and requestable replacements, and blocks migration when capability descriptors
+or registry validation are incomplete. Viewing the report never converts a
+legacy grant into active authority.
+The Memory tab is a read-only, searchable browser for the daily, people, repository,
 and bank Markdown files on its home branch. It shows recent daily files first, links to
 the owner's existing Syrus memories, and reports empty and unreachable remotes
 separately. Large or provider-truncated trees remain browseable with an explicit

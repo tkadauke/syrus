@@ -3,6 +3,8 @@ de:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
     permissions:
+      coworker_request_waiting: "Warten auf die Entscheidung des Eigentümers über die erforderlichen Berechtigungen."
+      conflicting_coworker_defaults: "%{operation} deklariert widersprüchliche Coworker-Standardeinstellungen"
       capability_registry:
         conflicting_tool_mapping: "%{surface}-Tool %{tool_name} verweist auf widersprüchliche Capability-/Operationszuordnungen %{mappings}; verwende eine stabile Zuordnung"
         conflicting_descriptor: "Operation %{operation} hat widersprüchliche Deskriptorverträge für Richtlinien/Effekte aus %{sources}"
@@ -390,6 +392,7 @@ de:
         shared_with_me: "Mit mir geteilt"
       messages:
         coworker_about_updated: "Coworker-Infotext aktualisiert."
+        authorization_item_decided: "Berechtigungsentscheidung gespeichert."
       errors:
         shared_read_only: "Geteilte Chats sind schreibgeschützt."
         unknown_user_id: "Unbekannte Benutzer-ID."

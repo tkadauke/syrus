@@ -31,7 +31,7 @@ RSpec.describe "Coworker repository code access" do
 
   def payload(response) = JSON.parse(response.content.first.fetch(:text))
 
-  it "advertises repository tools only while the grant is held, including background read parity" do
+  it "advertises requestable repository tools independently of legacy grants, including background parity" do
     chat_names = McpToolPolicy.for(McpToolContext.from_chat_session(chat)).map { |tool| McpToolRegistry.tool_name_for(tool) }
     expect(chat_names).to include("attach_repository", "detach_repository", "list_repository_files", "read_repository_file", "search_repository_code", "read_pr", "get_job_diff")
 
@@ -45,7 +45,7 @@ RSpec.describe "Coworker repository code access" do
 
     coworker.grants.delete_all
     expect(McpToolPolicy.for(McpToolContext.from_chat_session(chat)).map { |tool| McpToolRegistry.tool_name_for(tool) })
-      .not_to include("attach_repository", "read_repository_file")
+      .to include("attach_repository", "read_repository_file")
   end
 
   it "reads, redacts, searches, and refuses repositories outside the grant scope" do
@@ -93,6 +93,16 @@ RSpec.describe "Coworker repository code access" do
 
     expect(McpToolContext.from_chat_session(chat).role).to eq(AgentRole::COWORKER_CHAT)
     expect(repository.id).not_to eq(chat.repository_id)
+    [ Mcp::Tools::AttachRepositoryTool, Mcp::Tools::DetachRepositoryTool ].each do |tool|
+      descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool }.descriptor
+      PermissionRule.create!(
+        owner_user: owner, created_by_user: owner, updated_by_user: owner,
+        subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+        subject_role_keys: [], capability: descriptor.capability, operation: descriptor.operation,
+        resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+        policy: "allow", policy_layer: "agent", source: "operator", provenance: {}
+      )
+    end
 
     response = Mcp::Tools::AttachRepositoryTool.call(slug: repository.slug, server_context: { chat_session: chat })
 

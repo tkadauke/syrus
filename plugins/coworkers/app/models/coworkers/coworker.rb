@@ -60,6 +60,16 @@ class Coworkers::Coworker < ApplicationRecord
     shared_ids = ChatShare.where(target_type: self.class.polymorphic_name, target_id: id).select(:chat_session_id)
     ChatSession.where(id: own_ids).or(ChatSession.where(id: shared_ids)).active.distinct.ids
   end
+
+  def grant_capability_possession!(capability:, resource_scope:)
+    descriptor = Coworkers::GrantCatalog.fetch(capability)
+    scope = descriptor.scopeable? ? resource_scope : nil
+    grants.find_or_create_by!(capability:) do |grant|
+      grant.approval_policy = "confirm"
+      grant.scope = scope
+    end
+  end
+
   private
 
   def assign_default_color

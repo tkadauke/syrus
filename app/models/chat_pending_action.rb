@@ -4,7 +4,7 @@ class ChatPendingAction < ApplicationRecord
   TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
   TOOL_CALL_ANCHOR_REPAIR_MAX_AGE = 1.day
 
-  attr_accessor :suppress_outcome_notification
+  attr_accessor :suppress_outcome_notification, :outcome_transition_pending
 
   ACTIONS = %w[
     cancel_job
@@ -171,6 +171,7 @@ class ChatPendingAction < ApplicationRecord
   before_update :release_terminal_deduplication, if: :will_save_change_to_state?
   after_create :record_creation_transition!
   after_update :capture_outcome_transition, if: :saved_change_to_state?
+  after_update :remember_outcome_transition, if: :saved_change_to_state?
   after_update :record_state_transition!, if: :saved_change_to_state?
   after_rollback :clear_outcome_transition
   after_create_commit :broadcast_pending_action_created
@@ -283,6 +284,11 @@ class ChatPendingAction < ApplicationRecord
 
     with_lock do
       return false unless pending?
+
+      if authorization_request? && !ready_for_authorized_invocation?
+        errors.add(:base, "authorization request prerequisites must be approved before execution")
+        raise ActiveRecord::RecordInvalid, self
+      end
 
       raise ActiveRecord::RecordInvalid, self unless valid?
       update!(
@@ -651,6 +657,9 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def notify_chat_of_outcome
+    return unless outcome_transition_pending
+
+    self.outcome_transition_pending = false
     return unless chat_session
     return if suppress_outcome_notification
     return unless @outcome_state_to_notify
@@ -682,6 +691,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def clear_outcome_transition
+    self.outcome_transition_pending = false
     @outcome_state_to_notify = nil
     @outcome_state_to_broadcast = nil
   end
@@ -726,6 +736,10 @@ class ChatPendingAction < ApplicationRecord
 
   def record_creation_transition!
     transitions.create!(event_type: "created", to_state: state, metadata: {})
+  end
+
+  def remember_outcome_transition
+    self.outcome_transition_pending = true if confirmed? || rejected? || cancelled?
   end
 
   def record_state_transition!

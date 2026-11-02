@@ -177,7 +177,6 @@ class McpToolRegistry
     def allowed_entry?(entry, context)
       return false unless surface_allowed?(entry, context)
       return false if entry.admin_only && !context.user.admin?
-      return false if entry.surface == :coworker && !context.granted_capabilities.include?(entry.capability.to_s)
       return false if entry.interactive_only && !context.interactive
       return false unless feature_allowed?(entry, context)
       return false if entry.required_roles.any? && !entry.required_roles.include?(context.role)
@@ -418,6 +417,8 @@ class McpToolRegistry
         legacy_coworker(Mcp::Tools::ReadPrTool, capability: "code.read"),
         legacy_coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
         legacy_coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
+        coworker(Mcp::Tools::DiscoverCoworkerCapabilitiesTool,
+          tier: :deferred, capability: "chat.message_owner", ungated: true),
         legacy_coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         legacy_coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         legacy_coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
@@ -426,17 +427,17 @@ class McpToolRegistry
         legacy_coworker(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
         legacy_coworker(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
         legacy_coworker(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared"),
-        legacy_coworker(Mcp::Tools::AdminReadOperationalLogsTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::ReadWorkerHealthTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::ReadBackendExceptionEventsTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::ReadBrowserErrorEventsTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, capability: "ops.read_logs"),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, capability: "ops.read_logs")
+        legacy_coworker(Mcp::Tools::AdminReadOperationalLogsTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::ReadWorkerHealthTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::ReadBackendExceptionEventsTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::ReadBrowserErrorEventsTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, capability: "ops.read_logs", default_policy: :ask),
+        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, capability: "ops.read_logs", default_policy: :ask)
       ]
     end
 
@@ -545,6 +546,7 @@ class McpToolRegistry
     end
 
     def coworker(tool, tier: :essential, **metadata)
+      metadata[:required_roles] ||= [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 
@@ -567,7 +569,7 @@ class McpToolRegistry
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
               required_roles: [], step_kinds: [], capability: nil, interactive_only: false, mutation: false, ungated: false,
-              descriptor: nil, compatibility_descriptor: false)
+              descriptor: nil, compatibility_descriptor: false, default_policy: nil)
       tool_name = tool_name_for(tool)
       explicit_descriptor = descriptor.present?
       Entry.new(
@@ -589,7 +591,8 @@ class McpToolRegistry
           mutation: mutation,
           required_roles: required_roles,
           admin_only: admin_only,
-          descriptor: descriptor
+          descriptor: descriptor,
+          default_policy: default_policy
         ),
         explicit_descriptor: explicit_descriptor,
         compatibility_descriptor: compatibility_descriptor

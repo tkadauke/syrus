@@ -23,6 +23,18 @@ module Permissions
         context:, rules: policy_rules).decision
     end
 
+    def authorize(descriptor:, role:, resource_scope:, arguments:, context:)
+      LeaseAuthorizer.call(descriptor:, owner: @user, role:, resource_scope:, arguments:,
+        context:, rules: policy_rules)
+    end
+
+    def grant_authority!(duration:, descriptor:, actor:, role:, subject_selector_type:,
+      subject_selector_id:, subject_repository:, resource_scope:, arguments:, context:, source: nil)
+      AuthorityGrant.issue!(duration:, descriptor:, owner: @user, actor:, role:,
+        subject_selector_type:, subject_selector_id:, subject_repository:, resource_scope:,
+        arguments:, context:, source:, rules: policy_rules)
+    end
+
     def grant!(payload, actor:)
       descriptor = descriptor!(payload)
       AuthorityGrant.issue!(

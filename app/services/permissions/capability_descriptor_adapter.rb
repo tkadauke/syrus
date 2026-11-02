@@ -3,7 +3,8 @@ module Permissions
     REDACTED_KEYS = /(?:token|secret|password|credential|authorization|api[_-]?key)/i
 
     class << self
-      def for_registry_entry(tool_name:, capability:, mutation:, required_roles: [], admin_only: false, descriptor: nil)
+      def for_registry_entry(tool_name:, capability:, mutation:, required_roles: [], admin_only: false, descriptor: nil,
+        default_policy: nil)
         return coerce(descriptor) if descriptor
 
         roles = Array(required_roles).presence || default_roles(admin_only: admin_only)
@@ -11,7 +12,8 @@ module Permissions
           tool_name: tool_name,
           capability: capability,
           mutation: mutation,
-          roles: roles
+          roles: roles,
+          policy: default_policy&.to_sym
         )
       end
 
@@ -19,11 +21,15 @@ module Permissions
         definition = definition.symbolize_keys
         return coerce(definition[:capability_descriptor]) if definition[:capability_descriptor]
 
+        roles = Array(definition[:requestable_roles])
+        roles |= [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ] if definition[:coworker_safe]
+
         build_legacy(
           tool_name: definition.fetch(:name),
           capability: definition[:capability],
           mutation: definition.fetch(:mutation, false),
-          roles: Array(definition[:requestable_roles]).presence || default_roles
+          roles: roles.presence || default_roles,
+          policy: coworker_default_policy(definition[:coworker_default_policy])
         )
       end
 
@@ -33,10 +39,10 @@ module Permissions
         descriptor.is_a?(CapabilityDescriptor) ? descriptor : CapabilityDescriptor.new(**descriptor.symbolize_keys)
       end
 
-      def build_legacy(tool_name:, capability:, mutation:, roles:)
+      def build_legacy(tool_name:, capability:, mutation:, roles:, policy: nil)
         family = identifier_component(capability.presence || tool_name)
         operation = identifier_component(tool_name)
-        policy = mutation ? :ask : :allow
+        policy ||= mutation ? :ask : :allow
         effects = mutation ? [ :internal_write ] : [ :local_read ]
 
         CapabilityDescriptor.new(
@@ -53,6 +59,12 @@ module Permissions
           fingerprint_normalizer: ->(arguments) { deep_normalize(arguments) },
           redactor: ->(arguments) { deep_redact(arguments) }
         )
+      end
+
+      def coworker_default_policy(value)
+        return if value.blank?
+
+        { "auto" => :allow, "confirm" => :ask, "queue" => :ask }.fetch(value.to_s)
       end
 
       def default_roles(admin_only: false)
