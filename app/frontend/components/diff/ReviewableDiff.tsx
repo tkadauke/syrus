@@ -2938,73 +2938,80 @@ function DiffFileHeader({
   // pinned -- it scrolls away with the rest of the page like any other row.
   const stickyClass = collapsed ? "" : "sticky top-0 z-10 max-lg:top-[var(--mobile-chrome-visible-top-inset,0px)] "
   const densityClasses = diffDensityClasses(reviewSettings)
-  const className = `${stickyClass}flex w-full items-center border-b border-gray-100 bg-gray-50 text-left font-mono text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${densityClasses.fileHeader} ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
+  const hasHeaderActions = Boolean((onRenderModeChange && renderMode) || onLoadWholeFile || showFilesPopupTrigger)
+  const className = `${stickyClass}flex w-full flex-wrap items-center border-b border-gray-100 bg-gray-50 text-left font-mono text-gray-600 md:flex-nowrap dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${densityClasses.fileHeader} ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
 
   return (
     <div className={className} title={file.path}>
-      {onToggleCollapsed ? (
-        // Collapsing frees up review space on wide diffs (e.g. large generated
-        // files); the viewport is too narrow on mobile to spare the control.
+      <div className="flex min-w-0 w-full flex-1 items-center [gap:inherit] md:w-auto" data-testid="diff-file-header-summary">
+        {onToggleCollapsed ? (
+          // Collapsing frees up review space on wide diffs (e.g. large generated
+          // files); the viewport is too narrow on mobile to spare the control.
+          <button
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? t("diff_review.expand_file") : t("diff_review.collapse_file")}
+            className="flex h-4 w-4 shrink-0 items-center justify-center text-text-muted hover:text-text-primary max-md:hidden"
+            onClick={onToggleCollapsed}
+            type="button"
+          >
+            <ChevronIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} />
+          </button>
+        ) : null}
         <button
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? t("diff_review.expand_file") : t("diff_review.collapse_file")}
-          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-muted hover:text-text-primary max-md:hidden"
-          onClick={onToggleCollapsed}
+          aria-label={t("diff_review.copy_file_path_to_clipboard", { path: file.path })}
+          className={`group flex min-w-0 flex-1 items-center rounded text-left hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand ${densityClasses.filePathCopy}`}
+          onClick={() => copy(file.path)}
+          title={copied ? t("copy.copied") : t("diff_review.copy_file_path", { path: file.path })}
           type="button"
         >
-          <ChevronIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} />
+          <span className="min-w-0 flex-1 truncate">{file.path}</span>
+          <CopyIcon className={`h-3.5 w-3.5 shrink-0 ${copied ? "text-success-text" : "text-text-secondary group-hover:text-text-primary"}`} />
         </button>
-      ) : null}
-      <button
-        aria-label={t("diff_review.copy_file_path_to_clipboard", { path: file.path })}
-        className={`group flex min-w-0 flex-1 items-center rounded text-left hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand ${densityClasses.filePathCopy}`}
-        onClick={() => copy(file.path)}
-        title={copied ? t("copy.copied") : t("diff_review.copy_file_path", { path: file.path })}
-        type="button"
-      >
-        <span className="min-w-0 flex-1 truncate">{file.path}</span>
-        <CopyIcon className={`h-3.5 w-3.5 shrink-0 ${copied ? "text-success-text" : "text-text-secondary group-hover:text-text-primary"}`} />
-      </button>
-      <GeneratedFileBadge file={file} />
-      {typeof file.additions === "number" ? <span>+{file.additions}</span> : null}
-      {typeof file.deletions === "number" ? <span>-{file.deletions}</span> : null}
-      {onRenderModeChange && renderMode ? (
-        <span className="inline-flex overflow-hidden rounded border border-border font-sans text-2xs">
-          {(["code", "preview"] as const).map((mode) => (
+        <GeneratedFileBadge file={file} />
+        {typeof file.additions === "number" ? <span className="shrink-0">+{file.additions}</span> : null}
+        {typeof file.deletions === "number" ? <span className="shrink-0">-{file.deletions}</span> : null}
+      </div>
+      {hasHeaderActions ? (
+        <div className="flex w-full items-center justify-end [gap:inherit] md:w-auto" data-testid="diff-file-header-actions">
+          {onRenderModeChange && renderMode ? (
+            <span className="inline-flex overflow-hidden rounded border border-border font-sans text-2xs">
+              {(["code", "preview"] as const).map((mode) => (
+                <button
+                  className={`px-2 py-1 ${renderMode === mode ? "bg-brand text-white" : "bg-surface text-text-secondary"}`}
+                  key={mode}
+                  onClick={() => onRenderModeChange(mode)}
+                  type="button"
+                >
+                  {t(`diff_review.${mode}`)}
+                </button>
+              ))}
+            </span>
+          ) : null}
+          {onLoadWholeFile ? (
             <button
-              className={`px-2 py-1 ${renderMode === mode ? "bg-brand text-white" : "bg-surface text-text-secondary"}`}
-              key={mode}
-              onClick={() => onRenderModeChange(mode)}
+              className={`${DIFF_FILE_HEADER_CONTROL_BASE_CLASS} ${densityClasses.fileHeaderControl}`}
+              disabled={loadWholeFileState !== "idle" && loadWholeFileState !== "error"}
+              onClick={onLoadWholeFile}
               type="button"
             >
-              {t(`diff_review.${mode}`)}
+              {loadWholeFileState === "loaded"
+                ? t("diff_review.whole_file_loaded")
+                : loadWholeFileState === "loading"
+                  ? t("loading")
+                  : t("diff_review.load_whole_file")}
             </button>
-          ))}
-        </span>
-      ) : null}
-      {onLoadWholeFile ? (
-        <button
-          className={`${DIFF_FILE_HEADER_CONTROL_BASE_CLASS} ${densityClasses.fileHeaderControl}`}
-          disabled={loadWholeFileState !== "idle" && loadWholeFileState !== "error"}
-          onClick={onLoadWholeFile}
-          type="button"
-        >
-          {loadWholeFileState === "loaded"
-            ? t("diff_review.whole_file_loaded")
-            : loadWholeFileState === "loading"
-              ? t("loading")
-              : t("diff_review.load_whole_file")}
-        </button>
-      ) : null}
-      {showFilesPopupTrigger ? (
-        <button
-          aria-label={t("diff_review.browse_changed_files")}
-          className={`${DIFF_FILE_HEADER_CONTROL_BASE_CLASS} ${densityClasses.fileHeaderControl}`}
-          onClick={onToggleFilesPopup}
-          type="button"
-        >
-          {t("diff_review.files")}
-        </button>
+          ) : null}
+          {showFilesPopupTrigger ? (
+            <button
+              aria-label={t("diff_review.browse_changed_files")}
+              className={`${DIFF_FILE_HEADER_CONTROL_BASE_CLASS} ${densityClasses.fileHeaderControl}`}
+              onClick={onToggleFilesPopup}
+              type="button"
+            >
+              {t("diff_review.files")}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )
