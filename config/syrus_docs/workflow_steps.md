@@ -507,10 +507,11 @@ capabilities. Direct Job APIs accept them, and a Job created without them runs
 on the repository's `.syrus.yml` project capabilities when it declares any and
 the Linux default otherwise.
 
-Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`. Use
-`{"os":["linux"]}` for ordinary Linux/backend work, and add
-`{"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}`
-for iOS/Xcode work.
+The only supported dimension is `os`, with `linux` and `macos` as its canonical
+values. Ruby, Node, Chromium, Xcode, architecture, toolchains, simulators, and
+other dependencies belong in repository preparation or target commands, not
+worker admission capabilities. Any non-OS key is rejected before work is
+persisted or dispatched.
 
 Syrus does not read a Job's title or body to choose a host. It did once, by
 matching platform keywords, and that could not be made to work: a bug report

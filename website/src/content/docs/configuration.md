@@ -91,7 +91,7 @@ Schema:
 | grade step `resources` | Mapping | What a grader can productively use: `cpu` (core count or `all`), `cpu_min`, and `memory` |
 | `merge_train.failure_policy` | Array of strings | Ordered merge-train failure ladder; supports `restart`, `keep_assembly`, and `keep_fixes` |
 | `merge_train.failure_rungs` | Array of strings | Repository-local merge-train failure rungs; currently supports the visible prepare/evaluate/collect `multisect` rung |
-| `project.capabilities` / target `capabilities` | Mapping | Execution worker constraints: `os`, `arch`, `toolchain`, and `runtime` |
+| `project.capabilities` / target `capabilities` | Mapping | Execution worker constraint; only `os` is permitted |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `adversarial_review.required` | Boolean | Fail the workflow when adversarial review cannot execute instead of recording a skipped warning |
 | `security_review.rounds` | Integer | Number of security review rounds to run after adversarial review; omit to use the instance default or set `0` to disable for this repository |
@@ -124,12 +124,11 @@ confirms the suggested capabilities or chooses Linux. The macOS desktop
 profile does not imply Xcode or an iOS simulator; those capabilities belong
 only to the distinct iOS/Xcode profile. Dashboard bulk acceptance skips Jobs
 that require this individual placement decision.
-Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`. `os` accepts
-`linux` or `macos`; the other dimensions accept normalized tokens such as
-`arm64`, `xcode`, and `ios_simulator`.
+`os` is the only supported dimension and accepts `linux` or `macos`. Non-OS
+keys are rejected; architecture, Ruby, Node, Chromium, Xcode, toolchains, and
+simulators belong in preparation or executable commands.
 
-For iOS repositories, model the app as a project with `capabilities.os: macos`
-plus `arch: arm64`, `toolchain: xcode`, and `runtime: ios_simulator`, then put
+For iOS repositories, model the app as a project with `capabilities.os: macos`, then put
 `xcodebuild` details in the target or grader command: explicit workspace or
 project, scheme, simulator destination, isolated DerivedData, result bundle and
 optional JUnit paths, plus no-signing settings for simulator tests.
@@ -158,7 +157,8 @@ grade:
 
 When proposing an iOS-only Job or mixed iOS/backend Job whose implementation
 needs Xcode feedback, set primary planned execution to
-`{"capabilities":{"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}}`;
+`{"capabilities":{"os":["macos"]}}`; Xcode, architecture, and simulator
+requirements belong in repository preparation and executable commands;
 backend graders can still declare `capabilities.os: linux` and run on Linux
 workers later.
 

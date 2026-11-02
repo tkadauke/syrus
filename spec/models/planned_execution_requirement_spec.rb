@@ -27,31 +27,26 @@ RSpec.describe PlannedExecutionRequirement do
     }.to raise_error(ArgumentError, "planned execution capabilities must be a Hash or TargetGraph::ExecutionCapabilities")
   end
 
-  it "normalizes explicit execution capabilities" do
+  it "normalizes explicit OS execution capabilities" do
     requirement = described_class.new(
       project_label: " iOS ",
       target_label: "//app:grade/tests",
-      capabilities: { "os" => "macOS", "arch" => "ARM64", "toolchain" => "Xcode", "runtime" => "iOS_Simulator" },
+      capabilities: { "os" => "macOS" },
       source: "explicit"
     )
 
     expect(requirement.to_h).to eq(
       "project_label" => "iOS",
       "target_label" => "//app:grade/tests",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ],
-        "runtime" => [ "ios_simulator" ]
-      },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "explicit"
     )
   end
 
-  it "rejects unsupported capability dimensions and OS values" do
+  it "rejects every non-OS capability dimension with actionable guidance" do
     expect {
-      described_class.new(capabilities: { "os" => [ "linux" ], "feature" => [ "docker" ] })
-    }.to raise_error(ArgumentError, /unsupported keys feature/)
+      described_class.new(capabilities: { "os" => [ "linux" ], "runtime" => %w[node ruby], "arch" => [ "arm64" ], "feature" => [ "docker" ] })
+    }.to raise_error(ArgumentError, /forbidden keys: arch, feature, runtime.*Only os is permitted.*Ruby, Node, Chromium, Xcode, architecture, toolchains, and simulators/)
 
     expect {
       described_class.new(capabilities: { "os" => [ "windows" ] })
@@ -72,7 +67,7 @@ RSpec.describe PlannedExecutionRequirement do
     )
 
     expect(job).not_to be_valid
-    expect(job.errors[:planned_execution_capabilities].join).to include("unsupported keys feature")
+    expect(job.errors[:planned_execution_capabilities].join).to include("forbidden keys: feature")
   end
 
   it "defaults new jobs and manually created workflows" do

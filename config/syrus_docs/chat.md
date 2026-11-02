@@ -926,11 +926,10 @@ state transition, so admission and the first queued Run use that priority.
 `propose_job` requires `planned_execution.capabilities`, and
 `propose_epic_with_jobs` requires `jobs[].planned_execution.capabilities` on
 every child Job. Callers must choose explicit execution capabilities before the
-proposal card is created, for example `{"os":["linux"]}` for normal
-Linux/backend/web work or
-`{"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}`
-for iOS/Xcode work. Supported dimensions are `os`, `arch`, `toolchain`, and
-`runtime`; Windows, feature, and free-form dimensions are rejected. Missing or
+proposal card is created: `{"os":["linux"]}` or `{"os":["macos"]}`. `os` is
+the only permitted dimension; architecture, runtime, toolchain, feature, and
+free-form dimensions are rejected with guidance to put dependencies in
+repository preparation. Missing or
 empty capabilities are rejected instead of being inferred from proposal
 title/body text.
 

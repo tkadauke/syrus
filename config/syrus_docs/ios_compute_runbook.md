@@ -1,5 +1,9 @@
 # iOS compute readiness runbook
 
+Planned execution admits workers by `os` only. Architecture, Xcode, toolchains,
+and simulator runtimes belong in preparation and commands, not worker admission
+capabilities.
+
 This runbook is for operators preparing Syrus to compile or execute iOS work on
 native macOS compute workers. This release supports iOS compilation, SwiftPM
 validation, `xcodebuild` simulator runs, and target graders through compute

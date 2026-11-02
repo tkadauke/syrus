@@ -61,11 +61,10 @@ They are constraints for worker/backend placement, not source materialization
 policy: `placement_policy` still describes how a workspace is checked out,
 while capabilities describe what worker traits can run the work.
 
-The capability vocabulary is deliberately small: `os`, `arch`, `toolchain`,
-and `runtime`. `os` is limited to `linux` and `macos`; the other dimensions
-accept normalized tokens such as `arm64`, `xcode`, and `ios_simulator`.
-Feature, Windows, and free-form dimensions are rejected so generated placement
-facts cannot strand work behind worker requirements that no worker advertises.
+The capability vocabulary contains exactly one dimension: `os`, limited to
+`linux` and `macos`. All other keys are rejected. Architecture, language and
+browser runtimes, Xcode, toolchains, and simulators are repository dependencies
+or commands, not worker admission constraints.
 
 Project-level capabilities are implementation hints. For example, an iOS
 project can ask the initial implementation workflow to land on a Mac-capable
@@ -77,9 +76,6 @@ project:
   label: iOS App
   capabilities:
     os: macos
-    arch: arm64
-    toolchain: xcode
-    runtime: ios_simulator
 ```
 
 Before a Job's first Workflow is launched, Syrus persists the planned primary
@@ -116,9 +112,6 @@ targets:
     run: xcodebuild build -scheme MobileApp
     capabilities:
       os: macos
-      arch: arm64
-      toolchain: xcode
-      runtime: ios_simulator
 
 grade:
   - name: backend
@@ -257,7 +250,7 @@ Explicit target fields:
 | `phases` | no | `[]` | Optional phase metadata for executable validation targets. Values use the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
 | `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
 | `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
-| `capabilities` | no | — | Execution requirements for this target: `os`, `arch`, `toolchain`, and `runtime`. |
+| `capabilities` | no | — | Execution requirement for this target; only `os` is permitted. |
 | `ci_checks` | no | `[]` | String or array of external CI check-run names that prove this target's health when the check completes. |
 | `ci_check_names` | no | `[]` | Alias for `ci_checks`. |
 | `github_checks` | no | `[]` | Alias for `ci_checks`. |

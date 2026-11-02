@@ -87,7 +87,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
       planned_execution: {
         project_label: "iOS App",
         target_label: "//ios:app",
-        capabilities: { os: [ "macos" ], arch: [ "arm64" ], toolchain: [ "xcode" ], runtime: [ "ios_simulator" ] }
+        capabilities: { os: [ "macos" ] }
       }
     }
 
@@ -95,12 +95,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(Job.order(:created_at).last.planned_execution_json).to include(
       "project_label" => "iOS App",
       "target_label" => "//ios:app",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ],
-        "runtime" => [ "ios_simulator" ]
-      },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "operator"
     )
   end
@@ -121,6 +116,22 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to include("planned execution capabilities must be a Hash")
+  end
+
+  it "rejects non-OS planned execution capabilities before persisting a Job" do
+    sign_in_as(user)
+    before = Job.count
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Install ordinary dependencies",
+      prompt: "Use repository preparation for Ruby and Node.",
+      planned_execution: { capabilities: { os: [ "linux" ], runtime: [ "node", "ruby" ] } }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to match(/forbidden keys: runtime.*Only os is permitted.*Ruby, Node, Chromium, Xcode, architecture, toolchains, and simulators/)
+    expect(Job.count).to eq(before)
   end
 
   # This used to be rejected as "mutually incompatible", because placement was

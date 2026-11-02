@@ -5,6 +5,10 @@ description: Plan, route, and operate Syrus Jobs that compile or test iOS code o
 
 # iOS Compute Runbook
 
+The only permitted planned-execution capability dimension is `os`.
+Architecture, Xcode, toolchains, and simulator runtimes belong in preparation
+and commands, not worker admission capabilities.
+
 Syrus supports iOS compilation and execution through native macOS compute
 workers. Use this runbook when a repository needs Xcode, SwiftPM, or iOS
 simulator validation. Coding Mode iOS/editor integration is deferred: iOS work
