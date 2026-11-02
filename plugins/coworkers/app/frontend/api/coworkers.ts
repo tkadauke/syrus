@@ -35,7 +35,7 @@ export type CoworkerDetail = CoworkerSummary & {
     default_enabled: boolean
     privileged?: boolean
     available?: boolean
-    unavailable_reason?: "confinement_unavailable" | "broker_authorization_unavailable" | null
+    unavailable_reason?: "confinement_unavailable" | "confinement_worker_unavailable" | "confinement_configuration_missing" | "confinement_probe_missing" | "confinement_probe_failed" | "broker_authorization_unavailable" | null
   }[]
   schedules: CoworkerSchedule[]
   available_chats: { id: number; title: string; rostered: boolean; implicit: boolean }[]

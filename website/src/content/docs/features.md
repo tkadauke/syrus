@@ -1914,7 +1914,8 @@ before the operator confirms or declines the action.
 
 Credential-backed database, Kubernetes, log, and third-party capabilities
 have an additional hard gate. Syrus offers them only when a live worker has
-verified hardened coworker confinement and the credential broker's
+verified a non-root, read-only per-turn container and default-deny direct
+egress, and the credential broker's
 authorization path is enabled. If either prerequisite disappears, existing
 grant records remain visible for audit but their tools are withdrawn until the
 gate recovers. Credential material stays in the broker and never enters the
