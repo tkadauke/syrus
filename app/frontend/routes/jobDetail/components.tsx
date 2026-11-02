@@ -81,7 +81,7 @@ const queueWaitPresentation: Record<NonNullable<JobRun["queue_wait"]>["kind"], {
   concurrency_blocked: { tone: "warning", link: "pending" },
   scheduled: { tone: "info", link: "pending" },
   claimed_not_started: { tone: "info", link: "workers" },
-  no_run_job: { tone: "warning", link: "pending" },
+  no_run_job: { tone: "info" },
   no_live_workers: { tone: "warning", link: "workers" },
   start_blocked: { tone: "warning" },
   host_admission_deferred: { tone: "warning", link: "workers" },

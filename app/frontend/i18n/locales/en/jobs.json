@@ -499,7 +499,7 @@
     "concurrency_blocked": "The RunJob is waiting behind this Job's concurrency lock. Retry the Job if the earlier work is no longer active.",
     "scheduled": "The RunJob is scheduled to become ready {{time}}; it is not stuck.",
     "claimed_not_started": "A worker claimed the RunJob, but the Run has not started yet.",
-    "no_run_job": "No RunJob exists for this queued Run. Retry the Job to recreate it.",
+    "no_run_job": "This run has not been scheduled yet. Syrus will recover it automatically.",
     "no_live_workers": "No live worker heartbeat is available. Restore a worker, then retry the Job.",
     "start_blocked": "Workflow start is blocked: {{reason}}.",
     "host_admission_deferred": "Host admission deferred this run for {{reason}} ({{deferralCount}} deferrals, since {{deferred}}). {{binding}}",
