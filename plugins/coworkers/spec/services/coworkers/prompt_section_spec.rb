@@ -87,10 +87,10 @@ RSpec.describe Coworkers::PromptSection do
     expect(section).not_to include("memory/people/#{participant.handle}.md")
   end
 
-  it "returns no section when every context file is missing" do
+  it "still describes requestable tool grants when every context file is missing" do
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 
-    expect(section).to be_nil
+    expect(section).to include("### Tool grants", "not held")
   end
 
   it "lists held policy and scope alongside missing catalog grants" do
@@ -105,7 +105,7 @@ RSpec.describe Coworkers::PromptSection do
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 
     expect(section).to include("`database.read` — held (confirm; scope: Connection #{owner.id})")
-    expect(section).not_to include("list_database_tables")
+    expect(section).to include("unlocks: list_database_tables")
     expect(section).not_to include("not held")
   end
 

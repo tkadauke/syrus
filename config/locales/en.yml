@@ -34,6 +34,8 @@ en:
 
   server:
     permissions:
+      coworker_request_waiting: "Waiting for the owner to decide the required permissions."
+      conflicting_coworker_defaults: "%{operation} declares conflicting coworker defaults"
       capability_registry:
         conflicting_tool_mapping: "%{surface} tool %{tool_name} maps to conflicting capability/operations %{mappings}; use one stable mapping"
         conflicting_descriptor: "operation %{operation} has conflicting descriptor policy/effect contracts from %{sources}"

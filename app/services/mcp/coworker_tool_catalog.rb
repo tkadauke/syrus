@@ -28,7 +28,8 @@ module Mcp
         plugin_providers.flat_map do |provider, plugin_state|
           definitions = definitions_for(provider, chat_session: chat_session)
           by_name = definitions.index_by { |definition| value(definition, :name).to_s }
-          grants = grant_tools(provider)
+          grant_definitions = grants_for(provider)
+          grants = grant_definitions.transform_values { |grant| grant.fetch("tools") }
           granted_names = grants.values.flatten.to_set
           unclassified = definitions.select do |definition|
             value(definition, :coworker_safe) == true && value(definition, :ungated) != true &&
@@ -42,6 +43,7 @@ module Mcp
           granted = grants.flat_map do |capability, names|
             names.map do |name|
               definition = by_name[name]
+              definition = definition&.merge(coworker_default_policy: grant_definitions.fetch(capability)["default_policy"])
               Descriptor.new(tool_name: name, capability: capability, ungated: false,
                 tier: definition ? definition_tier(provider, name, chat_session: chat_session) : :essential,
                 tool: nil, provider: provider,
@@ -108,10 +110,11 @@ module Mcp
         end || :essential
       end
 
-      def grant_tools(provider)
-        Array(provider.respond_to?(:coworker_grants) ? provider.coworker_grants : []).each_with_object({}) do |grant, tools|
+      def grants_for(provider)
+        Array(provider.respond_to?(:coworker_grants) ? provider.coworker_grants : []).each_with_object({}) do |grant, grants|
           attributes = grant.to_h.stringify_keys
-          tools[attributes.fetch("name").to_s] = Array(attributes["tools"]).map(&:to_s)
+          attributes["tools"] = Array(attributes["tools"]).map(&:to_s)
+          grants[attributes.fetch("name").to_s] = attributes
         end
       end
 

@@ -196,6 +196,16 @@ module Mcp
       end
 
       definitions = filter_by_policy(definitions, policy)
+      if policy == :coworker && tool_set_class.respond_to?(:coworker_grants)
+        defaults_by_tool = Array(tool_set_class.coworker_grants).each_with_object({}) do |grant, defaults|
+          attributes = grant.to_h.with_indifferent_access
+          Array(attributes[:tools]).each { |name| defaults[name.to_s] = attributes[:default_policy] }
+        end
+        definitions = definitions.map do |definition|
+          name = definition[:name] || definition["name"]
+          definition.merge(coworker_default_policy: defaults_by_tool[name.to_s])
+        end
+      end
       definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
       definitions.map do |defn|
         tool = MCP::Tool.define(

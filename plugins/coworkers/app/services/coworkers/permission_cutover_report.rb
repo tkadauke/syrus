@@ -118,7 +118,9 @@ module Coworkers
       recommendations.group_by { |item| item[:operation] }.filter_map do |operation, items|
         next if items.map { |item| item[:roles] }.uniq.one?
 
-        { code: "conflicting_coworker_defaults", message: "#{operation} declares conflicting coworker defaults", tools: items.flat_map { |item| item[:tools] }.uniq.sort }
+        { code: "conflicting_coworker_defaults",
+          message: I18n.t("server.permissions.conflicting_coworker_defaults", operation:),
+          tools: items.flat_map { |item| item[:tools] }.uniq.sort }
       end
     end
 

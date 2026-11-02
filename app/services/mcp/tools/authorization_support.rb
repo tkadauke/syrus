@@ -109,6 +109,7 @@ module Mcp::Tools
         result = Permissions::CoworkerAuthorizationRequest.new(
           context:, descriptor: capability_descriptor, arguments:,
           purpose: "Invoke #{descriptor.tool_name}",
+          force_request: always_pending,
           action: "coworker_tool_call",
           payload: {
             "tool_name" => descriptor.tool_name,
@@ -128,7 +129,7 @@ module Mcp::Tools
           pending_confirmation_id: action.id,
           pending_action_id: action.id,
           approval_policy: "queue",
-          message: "Waiting for the owner to decide the required permissions."
+          message: I18n.t("server.permissions.coworker_request_waiting")
         )
       end
 

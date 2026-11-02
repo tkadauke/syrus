@@ -107,7 +107,7 @@ RSpec.describe K8sCluster::ChatToolSet do
     end
   end
 
-  it "advertises nothing to a coworker without k8s.read and only read tools with a scoped grant" do
+  it "advertises requestable read tools to a coworker without treating legacy grants as authority" do
     owner = Factories.user(admin: true)
     cluster = Factories.kubernetes_cluster(agentic_access_enabled: true)
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Gilfoyle", handle: "gilfoyle-k8s",
@@ -117,7 +117,9 @@ RSpec.describe K8sCluster::ChatToolSet do
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
 
-    expect(Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)).to be_empty
+    requestable = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
+    expect(requestable.map { |tool| McpToolRegistry.tool_name_for(tool) })
+      .to match_array(described_class::COWORKER_READ_TOOLS.map(&:tool_name))
 
     grant = coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
     tools = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
@@ -126,11 +128,12 @@ RSpec.describe K8sCluster::ChatToolSet do
 
     namespaces = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "k8s_cluster_namespaces" }
     confirmed = namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat })
-    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "confirm")
+    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "queue")
     expect(chat.pending_actions.last.payload).to include("tool_name" => "k8s_cluster_namespaces")
 
     grant.update!(approval_policy: "auto")
-    expect(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat })).not_to be_nil
+    expect(JSON.parse(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat }).content.first[:text]))
+      .to include("approval_policy" => "queue")
   end
 
   it "dispatches to the matching tool class, passing string-keyed params through" do

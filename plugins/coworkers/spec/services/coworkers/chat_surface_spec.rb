@@ -277,14 +277,14 @@ RSpec.describe "Coworker chat surface" do
       "write_coworker_file", "edit_coworker_file", "move_coworker_file", "delete_coworker_file"
     )
     expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
-      .to include("approval_policy" => "queue")
+      .to include("path" => "notes.txt")
     grant.update!(approval_policy: "queue")
     expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
-      .to include("approval_policy" => "queue")
+      .to include("path" => "notes.txt")
     grant.update!(approval_policy: "auto")
     expect(response_payload(coworker_tool("write_coworker_file").call(**arguments, server_context: { chat_session: chat })))
-      .to include("approval_policy" => "queue")
-    expect(Coworkers::WorkspaceFileTools::Write).not_to have_received(:call)
+      .to include("path" => "notes.txt")
+    expect(Coworkers::WorkspaceFileTools::Write).to have_received(:call).exactly(3).times
     grant.destroy!
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("write_coworker_file")
   end

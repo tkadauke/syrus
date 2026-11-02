@@ -54,7 +54,7 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     expect(described_class.coworker_grants.first).to include(default_policy: "confirm", maximum_policy: "auto")
   end
 
-  it "advertises no MySQL tools to a coworker until mysql.read is granted" do
+  it "advertises requestable MySQL tools without treating legacy grants as authority" do
     owner = Factories.user(admin: true)
     connection = Factories.mysql_connection(agentic_access_enabled: true)
     MysqlDbBrowser::CredentialMaterial.store!(connection, "secret", user: owner, scope_type: "user", scope_id: owner.id)
@@ -65,7 +65,11 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
 
-    expect(Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)).to be_empty
+    requestable = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
+    expect(requestable.map { |tool| McpToolRegistry.tool_name_for(tool) }).to contain_exactly(
+      "mysql_db_browser_list_connections", "mysql_db_browser_list_databases",
+      "mysql_db_browser_list_tables", "mysql_db_browser_describe_table", "mysql_db_browser_execute_query"
+    )
 
     grant = coworker.grants.create!(capability: "mysql.read", approval_policy: "confirm", scope: connection.id)
     tools = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
@@ -76,12 +80,12 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
 
     query_tool = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "mysql_db_browser_execute_query" }
     confirmed = query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1", server_context: { chat_session: chat })
-    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "confirm")
+    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "queue")
     expect(chat.pending_actions.last.payload).to include("tool_name" => "mysql_db_browser_execute_query")
 
     grant.update!(approval_policy: "auto")
-    expect(query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1", server_context: { chat_session: chat }))
-      .not_to be_nil
+    expect(JSON.parse(query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1",
+      server_context: { chat_session: chat }).content.first[:text])).to include("approval_policy" => "queue")
   end
 
   it "dispatches string-keyed params without revealing an unusable legacy connection" do

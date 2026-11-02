@@ -3,6 +3,8 @@ la:
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
     permissions:
+      coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
+      conflicting_coworker_defaults: "%{operation} normas collegae inter se repugnantes declarat"
       capability_registry:
         conflicting_tool_mapping: "instrumentum %{surface} %{tool_name} ad facultates/operationes inter se repugnantes %{mappings} refert; una relatio stabilis adhibenda est"
         conflicting_descriptor: "operatio %{operation} pacta descriptoris de consilio/effectibus inter se repugnantia ex %{sources} habet"

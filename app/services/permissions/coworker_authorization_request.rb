@@ -4,13 +4,14 @@ module Permissions
   class CoworkerAuthorizationRequest
     Result = Data.define(:request, :decision)
 
-    def initialize(context:, descriptor:, arguments:, purpose: nil, action: nil, payload: {})
+    def initialize(context:, descriptor:, arguments:, purpose: nil, action: nil, payload: {}, force_request: false)
       @context = context
       @descriptor = descriptor
       @arguments = arguments.to_h
       @purpose = purpose
       @action = action
       @payload = payload
+      @force_request = force_request
     end
 
     def call
@@ -20,7 +21,7 @@ module Permissions
       )
       decision = authorization.decision
       raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "permission policy denies this operation" if denied?(decision)
-      return Result.new(request: nil, decision:) if authorization.authorized?
+      return Result.new(request: nil, decision:) if authorization.authorized? && !force_request
 
       request = create_request(decision)
       Result.new(request:, decision:)
@@ -28,7 +29,7 @@ module Permissions
 
     private
 
-    attr_reader :context, :descriptor, :arguments, :purpose, :action, :payload
+    attr_reader :context, :descriptor, :arguments, :purpose, :action, :payload, :force_request
 
     def create_request(decision)
       fingerprint = InvocationFingerprint.call(descriptor:, arguments:)

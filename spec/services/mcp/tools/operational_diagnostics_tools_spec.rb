@@ -34,6 +34,18 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
     JSON.parse(response.content.first.fetch(:text))
   end
 
+  def allow_coworker_diagnostics!
+    McpToolRegistry.entries(surface: :coworker).select { |entry| tool_names.include?(entry.tool_name) }.each do |entry|
+      PermissionRule.create!(
+        owner_user: admin, created_by_user: admin, updated_by_user: admin,
+        subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+        subject_role_keys: [], capability: entry.descriptor.capability, operation: entry.descriptor.operation,
+        resource_type: entry.descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+        policy: "allow", policy_layer: "agent", source: "operator", provenance: {}
+      )
+    end
+  end
+
   it "uses the same canonical implementations and schemas on regular and coworker surfaces" do
     chat_entries = McpToolRegistry.entries(surface: :chat).select { |entry| tool_names.include?(entry.tool_name) }
     coworker_entries = McpToolRegistry.entries(surface: :coworker).select { |entry| tool_names.include?(entry.tool_name) }
@@ -45,10 +57,10 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
     expect(coworker_entries).to all(have_attributes(capability: :"ops.read_logs", mutation: false))
   end
 
-  it "advertises the family to admins and granted coworkers but not unauthorized chats" do
+  it "advertises requestable diagnostics to coworkers but not ordinary unauthorized chats" do
     expect(names_for(admin_chat)).to include(*tool_names)
     expect(names_for(member_chat)).not_to include(*tool_names)
-    expect(names_for(coworker_chat)).not_to include(*tool_names)
+    expect(names_for(coworker_chat)).to include(*tool_names)
 
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
     expect(names_for(coworker_chat)).to include(*tool_names)
@@ -56,6 +68,7 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
 
   it "returns the same capped, redacted, action-free admission shape across authorized surfaces" do
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow_coworker_diagnostics!
     payload = {
       generated_at: Time.current.iso8601, active_consumers: [], recent_top_consumers: [], delayed_work: [],
       low_confidence_profiles: [], admission_overrides: [], secret: "token=hidden", actions: [ "retry" ]
@@ -79,7 +92,10 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
 
     expect(tool.call(server_context: { chat_session: member_chat })).to be_error
     coworker_response = tool.call(server_context: { chat_session: coworker_chat })
-    expect(parsed(coworker_response)).to include("approval_policy" => "queue", "message" => "Queued for owner approval.")
+    expect(parsed(coworker_response)).to include(
+      "approval_policy" => "queue",
+      "message" => I18n.t("server.permissions.coworker_request_waiting")
+    )
   end
 
   it "does not expose a Run outside the granted coworker's repository visibility" do
@@ -87,6 +103,7 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
     hidden_job = Factories.job(repository: hidden_repository)
     hidden_run = Factories.run(job: hidden_job)
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow_coworker_diagnostics!
 
     response = described_class::DiagnoseRunQueueTool.call(
       server_context: { chat_session: coworker_chat }, run_id: hidden_run.id
@@ -128,6 +145,7 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
     visible_job = Factories.job(repository: repository)
     hidden_job = Factories.job(repository: Factories.repository)
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow_coworker_diagnostics!
     allow(WorkerTimeline).to receive(:enabled?).and_return(true)
     allow(WorkerTimeline::LiveWorkersQuery).to receive(:call).and_return(
       summary: { busy: 1, used_slots: 2, total_slots: 2 },
@@ -195,6 +213,7 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
     hidden_workflow = hidden_job.workflows.first
     hidden_run = Factories.run(job: hidden_job)
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow_coworker_diagnostics!
     allow(WorkerTimeline).to receive(:enabled?).and_return(true)
     allow(Timeline::MacroQuery).to receive(:call).and_return(lanes: [], pending: [])
     allow(Admin::ResourceAdmissionDiagnosticsPayload).to receive(:new).and_return(
