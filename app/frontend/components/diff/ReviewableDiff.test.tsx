@@ -522,6 +522,42 @@ describe("ReviewableDiff", () => {
     expect(firstFileSection).toHaveStyle({ marginBottom: "-37px", paddingBottom: "37px" })
   })
 
+  it("reserves both mobile header rows for sticky containment when controls are present", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+      const firstFileSection = screen.getByTitle("app/models/job.rb").closest("[data-diff-file]") as HTMLElement
+      expect(firstFileSection).toHaveStyle({ marginBottom: "-74px", paddingBottom: "74px" })
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("keeps the single-row sticky allowance on mobile when the header has no controls", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+      const firstFileSection = screen.getByTitle("app/models/job.rb").closest("[data-diff-file]") as HTMLElement
+      expect(firstFileSection).toHaveStyle({ marginBottom: "-37px", paddingBottom: "37px" })
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
   it("keeps coverage annotations attached to new-line coordinates", () => {
     render(<ReviewableDiff annotations={{ "app/models/job.rb": { "1": "uncovered" } }} files={files} mode="single-file" selectedPath="app/models/job.rb" />)
 
