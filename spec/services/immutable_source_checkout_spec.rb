@@ -27,6 +27,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     )
   end
   let(:run) { step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running") }
+  let(:second_run) { second_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running") }
   let(:snapshot) do
     WorkflowSourceSnapshots.record!(
       workflow: workflow,
@@ -209,7 +210,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     described_class.new(step).setup
     first_cache_details = step.reload.details.fetch("prepare_cache")
 
-    second_checkout = described_class.new(second_step)
+    second_checkout = described_class.new(second_step, run: second_run)
     allow(ProcessRunner).to receive(:new).and_call_original
 
     second_checkout.setup
@@ -252,7 +253,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(Dir.glob(cache_parent.join("*", described_class::PREPARED_MARKER).to_s).first)
       .to start_with(published.to_s)
 
-    second_checkout = described_class.new(second_step)
+    second_checkout = described_class.new(second_step, run: second_run)
     allow(ProcessRunner).to receive(:new).and_call_original
     second_checkout.setup
 
@@ -272,7 +273,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     described_class.new(step).setup
     first_cache_details = step.reload.details.fetch("prepare_cache")
 
-    second_checkout = described_class.new(second_step)
+    second_checkout = described_class.new(second_step, run: second_run)
     allow(ImmutableSourceCheckoutOverlay).to receive(:mount) do |lower_path:, mount_path:, log:|
       copy_tree(lower_path, mount_path)
       log.call("[immutable_source_checkout] overlay workspace mounted in spec")
@@ -313,6 +314,10 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     )
     expect(second_step.reload.details.fetch("prepare_cache")).to include("status" => "hit")
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+    expect(WorkspaceReuseOutcome.where(run: second_run, kind: "grader_fanout").last).to have_attributes(
+      outcome: "overlay",
+      materialization_method: "overlay"
+    )
   end
 
   it "falls back to a byte-identical hardlinked tree and records the overlay reason when mounting is unavailable" do
@@ -347,7 +352,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       )
     )
 
-    fallback_checkout = described_class.new(second_step)
+    fallback_checkout = described_class.new(second_step, run: second_run)
     fallback_checkout.setup
 
     expect(fallback_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
@@ -363,6 +368,29 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     )
     expect(File.stat(fallback_checkout.path.join("README.md")).ino)
       .to eq(File.stat(cache_path.join("README.md")).ino)
+    expect(WorkspaceReuseOutcome.where(step: second_step, kind: "grader_fanout").last).to have_attributes(
+      outcome: "hardlink",
+      fallback_reason: "overlayfs is not listed in /proc/filesystems"
+    )
+  end
+
+  it "records a copy fallback when overlay and hardlinks are unavailable" do
+    described_class.new(step).setup
+    enable_grader_fanout_overlay!
+    allow(ImmutableSourceCheckoutOverlay).to receive(:mount).and_return(
+      ImmutableSourceCheckoutOverlay::Result.new(false, "overlay unavailable", nil, nil, nil, nil)
+    )
+    allow(ImmutableSourceCheckoutLinkTree).to receive(:link).and_return(
+      ImmutableSourceCheckoutLinkTree::Result.new(false, "cross-device link", [])
+    )
+
+    described_class.new(second_step, run: second_run).setup
+
+    expect(WorkspaceReuseOutcome.where(step: second_step, kind: "grader_fanout").last).to have_attributes(
+      outcome: "copy",
+      materialization_method: "copy",
+      fallback_reason: "overlay unavailable"
+    )
   end
 
   it "keeps overlay materialization diagnostics scoped to each grader Run across retries" do
@@ -550,7 +578,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     first_checkout.setup
     FileUtils.rm_rf(first_checkout.path)
 
-    second_checkout = described_class.new(second_step)
+    second_checkout = described_class.new(second_step, run: second_run)
     second_checkout.setup
 
     link = second_checkout.path.join("AGENTS.md")
@@ -725,7 +753,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
     allow(GithubAuthenticatedGit).to receive(:run).and_raise("unexpected remote fetch")
 
-    second_checkout = described_class.new(second_step)
+    second_checkout = described_class.new(second_step, run: second_run)
     second_checkout.setup
 
     expect(sh("git -C #{second_checkout.path} rev-parse HEAD").strip).to eq(main_sha)
@@ -734,6 +762,9 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       "status" => "archive_hit",
       "worker_storage_key" => "storage-b",
       "source_snapshot_sha" => main_sha
+    )
+    expect(WorkspaceReuseOutcome.where(step: second_step, kind: "prepare").last).to have_attributes(
+      outcome: "reused_from_archive"
     )
   end
 

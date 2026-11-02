@@ -84,6 +84,7 @@ module Steps
     end
 
     def call
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       clear_stale_failure_details!
       workspace.setup
       # Fork base handling is no longer per-Job: fork Jobs branch off the
@@ -102,6 +103,7 @@ module Steps
       if plan.commands.empty?
         log("[prepare] no commands to run; skipping")
         record_prepared_workspace!(plan)
+        record_reuse_outcome!(plan, "skipped", started_at)
         return
       end
 
@@ -121,9 +123,20 @@ module Steps
 
       log("[prepare] all commands completed successfully")
       record_prepared_workspace!(plan)
+      record_reuse_outcome!(plan, "rebuilt", started_at)
     end
 
     private
+
+    def record_reuse_outcome!(plan, outcome, started_at)
+      WorkspaceReuseOutcomes::Recorder.record(
+        run: run,
+        kind: "prepare",
+        outcome: outcome,
+        prepare_fingerprint: PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: workspace.path),
+        duration_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      )
+    end
 
     STALE_FAILURE_KEYS = %w[prepare_failure mise_install_failure].freeze
 
