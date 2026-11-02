@@ -316,12 +316,22 @@ function estimateFileSectionHeight(
     collapsed,
     density,
     forceLoaded,
+    headerActions,
+    mobile,
     largeFileRowThreshold,
     showHeader
-  }: { collapsed: boolean; density: ReviewDiffSettings["density"]; forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }
+  }: {
+    collapsed: boolean
+    density: ReviewDiffSettings["density"]
+    forceLoaded: boolean
+    headerActions: boolean
+    mobile: boolean
+    largeFileRowThreshold: number
+    showHeader: boolean
+  }
 ): number {
   const estimates = DIFF_DENSITY_ESTIMATES[density]
-  const header = showHeader ? estimates.header : 0
+  const header = showHeader ? fileHeaderHeightEstimate(density, mobile && headerActions) : 0
   if (collapsed) return header
   if (file.generated && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
   if (file.patch === null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
@@ -388,7 +398,7 @@ export function ReviewableDiff({
   // click handler's own (near-zero) synchronous cost.
   const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
-  const isMobileFilesMenu = useIsMobileViewport()
+  const isMobileViewport = useIsMobileViewport()
   const effectiveReviewSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, ...reviewSettings }
   const wordHighlightingEnabled = wordHighlighting ?? effectiveReviewSettings.intraline_highlighting === "word"
   const { t } = useT("common")
@@ -440,6 +450,8 @@ export function ReviewableDiff({
       collapsed: cacheEntry?.collapsed ?? false,
       density: effectiveReviewSettings.density,
       forceLoaded: cacheEntry?.forceLoaded ?? false,
+      headerActions: fileHasHeaderActions(file, cacheEntry, changedFilesPopup, onLoadFileContext, largeFileRowThreshold),
+      mobile: isMobileViewport,
       largeFileRowThreshold,
       showHeader
     })
@@ -614,7 +626,7 @@ export function ReviewableDiff({
       </div>
       {changedFilesPopup && filesPopupOpen
         ? renderChangedFilesOverlay(
-            isMobileFilesMenu ? (
+            isMobileViewport ? (
               <MobileChangedFilesModal
                 commentCounts={fileCommentCounts}
                 files={sortedFiles}
@@ -643,12 +655,14 @@ export function ReviewableDiff({
   )
 
   function renderFileSection(file: ReviewableDiffFile, index: number) {
+    const cacheEntry = fileCache.current.get(file.path)
+    const headerActions = fileHasHeaderActions(file, cacheEntry, changedFilesPopup, onLoadFileContext, largeFileRowThreshold)
     return (
       <section
         className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""}
         data-diff-file={file.path}
         key={file.path}
-        style={stickyFileHeaderBoundaryStyle(showHeader, effectiveReviewSettings.density)}
+        style={stickyFileHeaderBoundaryStyle(showHeader, effectiveReviewSettings.density, isMobileViewport && headerActions)}
       >
         <DiffFileSection
           annotations={annotationsForFile(annotations, file.path)}
@@ -711,14 +725,37 @@ function virtualFileSectionStyle(offsetTop: number) {
   return { left: 0, position: "absolute" as const, top: offsetTop, width: "100%" }
 }
 
-function stickyFileHeaderBoundaryStyle(showHeader: boolean, density: ReviewDiffSettings["density"]) {
+function fileHeaderHeightEstimate(density: ReviewDiffSettings["density"], twoRows: boolean) {
+  const singleRowHeight = DIFF_DENSITY_ESTIMATES[density].header
+  return twoRows ? singleRowHeight * 2 : singleRowHeight
+}
+
+function fileHasHeaderActions(
+  file: ReviewableDiffFile,
+  cacheEntry: FileCacheEntry | undefined,
+  changedFilesPopup: boolean,
+  onLoadFileContext: ReviewableDiffProps["onLoadFileContext"],
+  largeFileRowThreshold: number
+) {
+  if (changedFilesPopup) return true
+  if (cacheEntry?.collapsed) return false
+  if (file.generated && !cacheEntry?.forceLoaded) return false
+  if (file.patch && countDiffRows(file.patch) > largeFileRowThreshold && !cacheEntry?.forceLoaded) return false
+
+  const contextExpansionEnabled = file.patch !== null && Boolean(onLoadFileContext) && file.status !== "removed"
+  const renderKind = renderedFileKind(file)
+  const renderModeControls = renderKind === "markdown" || renderKind === "svg"
+  return contextExpansionEnabled || renderModeControls
+}
+
+function stickyFileHeaderBoundaryStyle(showHeader: boolean, density: ReviewDiffSettings["density"], twoRows: boolean) {
   if (!showHeader) return undefined
 
   // A sticky child is constrained by the bottom edge of its containing block.
   // Without this extra boundary room, the header releases during the final
   // header-height of its file section, leaving trailing rows visible at the
   // top of the review pane without their file label.
-  const headerHeight = DIFF_DENSITY_ESTIMATES[density].header
+  const headerHeight = fileHeaderHeightEstimate(density, twoRows)
   return { marginBottom: -headerHeight, paddingBottom: headerHeight }
 }
 
