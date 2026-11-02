@@ -994,7 +994,7 @@ export function PendingActionCard({
   const resourceTitle = pendingActionResourceTitle(pendingAction)
   const resourceUrl = pendingActionResourceUrl(pendingAction)
   const dismissPath = "app_cancel_path" in pendingAction ? pendingAction.app_cancel_path : null
-  const canDismiss = pendingAction.state === "failed" && Boolean(dismissPath)
+  const canDismiss = Boolean(terminalLabel && dismissPath)
   const isEmergencyLand = actionKey === "emergency_land"
   const coworkerReview = actionKey === "coworker_tool_call" ? pendingAction.review : null
   const statusClass =
@@ -1035,7 +1035,8 @@ export function PendingActionCard({
             </div>
             {canDismiss ? (
               <button
-                aria-label="Dismiss failed action"
+                aria-label={t("pending_action_hide_terminal")}
+                title={t("pending_action_hide_terminal")}
                 className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                 disabled={action.isPending}
                 onClick={() => dismissPath && action.mutate({ action: "dismiss", path: dismissPath })}

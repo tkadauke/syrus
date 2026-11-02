@@ -302,6 +302,10 @@ look at the result.
 The handoff tools create a pending action that the operator must confirm before
 Syrus dispatches any automation. `reset_workspace` runs immediately, but only
 performs destructive cleanup when the call explicitly confirms discard.
+When a pending action finishes, Syrus immediately records its confirmed,
+failed, rejected, or cancelled outcome in chat. Terminal cards can be hidden,
+but hiding is cosmetic: it preserves the execution state, status, error,
+result, and audit history and does not wake the agent a second time.
 
 When the `emergency_land` feature flag is enabled, a Coding Mode chat linked to
 an active coding Job can request an emergency land. This is a repository-admin

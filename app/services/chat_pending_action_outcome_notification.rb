@@ -7,24 +7,33 @@ class ChatPendingActionOutcomeNotification
 
   def acknowledgment(outcome:)
     kind = pending_action.action.presence || pending_action.action_type
-    detail = [ action_detail, reason_detail ].compact.join(", ")
+    detail = [ ("pending_action_id: #{pending_action.id}" if pending_action.id), action_detail, reason_detail ].compact.join(", ")
 
     case outcome.to_sym
     when :confirmed
       if kind == "coworker_tool_call"
         result = pending_action.payload.to_h["tool_result"].to_s
-        return "Coworker tool approved and executed: #{action_detail}. Result: #{result}"
+        return "Coworker tool approved and executed: #{detail}. Result: #{result}"
       end
-      return "Pending action confirmed: #{kind} (#{detail}). #{no_op_message}" if no_op?
+      return "Pending action confirmed: #{kind} (#{detail}). #{no_op_message}" if no_op? || pending_action.execution_status == "noop"
+
+      if pending_action.execution_status == "partial"
+        return "Pending action confirmed: #{kind} (#{detail}). The action was partially applied. #{pending_action.execution_step}".strip
+      end
 
       [
         "Pending action confirmed: #{kind} (#{detail}). The action has been applied.",
+        result_notice,
         github_result_notice
       ].compact.join(" ")
     when :rejected
       "Pending action rejected: #{kind} (#{detail}). The action was not applied."
     when :cancelled
-      "Pending action dismissed: #{kind} (#{detail}). The action was not applied."
+      "Pending action cancelled: #{kind} (#{detail}). The action was not applied."
+    when :failed
+      application = pending_action.execution_status == "rejected" ? "The action was rejected during revalidation and was not applied." : "The action failed before application."
+      error = pending_action.execution_error.presence || "No execution error was recorded."
+      "Pending action failed: #{kind} (#{detail}, execution_status: #{pending_action.execution_status || 'failed'}). #{application} Error: #{error}"
     else
       raise ArgumentError, "unknown pending action outcome: #{outcome}"
     end
@@ -61,6 +70,14 @@ class ChatPendingActionOutcomeNotification
     when "not_applicable"
       "No tracked PR needed cleanup."
     end
+  end
+
+  def result_notice
+    result = pending_action.result
+    return unless result
+
+    state = result.respond_to?(:state) ? result.state : nil
+    [ "Result: #{result.class.name} ##{result.id}", ("state: #{state}" if state.present?) ].compact.join(", ") + "."
   end
 
   def no_op?

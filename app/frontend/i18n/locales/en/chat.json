@@ -214,6 +214,7 @@
   "waiting": "Waiting…",
   "needs_confirmation": "Needs confirmation",
   "pending_action_failed": "Pending action failed.",
+  "pending_action_hide_terminal": "Hide completed action",
   "batch_action_failed": "Batch action failed.",
   "scratchpad_add_error": "Could not add item.",
   "scratchpad_load_error": "Could not load item.",

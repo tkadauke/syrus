@@ -134,6 +134,17 @@ turning that outcome into a deny decision. Request and item state changes are
 recorded as append-only transitions so dismissal and delivery never erase the
 authorization history.
 
+Pending actions keep execution outcome and presentation visibility separate.
+Every terminal outcome (`confirmed`, `failed`, `rejected`, or `cancelled`)
+creates one durable system outcome message and wakes the chat once. The message
+records the action id and kind, execution status, application result, error,
+and available resource result. Its id is stored on the action so callback
+retries and legacy-outcome recovery cannot duplicate the message or agent
+turn. Hiding a terminal card only stamps its presentation dismissal time; it
+does not change the terminal state, audit fields, result, or outcome message.
+Queued and pending actions retain their existing cancellation/rejection
+semantics.
+
 A `PendingActionGroup` links several `ChatPendingAction` rows created
 together as one batch (e.g. reopening every Job a bad merge-train landing
 incorrectly closed) so the chat renders them as a single card instead of one
@@ -158,12 +169,9 @@ Confirming applies every still-pending member independently, in its own
 transaction, so one member failing (e.g. a Job that no longer meets the
 action's precondition) does not block the rest from applying. Each member's
 resulting state (`confirmed`/`failed`, with `execution_error` when failed) is
-what the card's expandable list renders per target, and unlike a lone
-pending action (which drops out of the payload shortly after it confirms —
-a separate per-action chat notification already announces that outcome) the
-group's card stays in the payload after confirmation or rejection until the
-operator dismisses it, since it is the only place that per-item breakdown is
-visible. Confirming or rejecting the group emits one group outcome chat
+what the card's expandable list renders per target. Lone and grouped terminal
+cards stay in the payload until the operator hides them. Confirming or
+rejecting the group emits one group outcome chat
 message and one follow-up turn, rather than one per successful member.
 Rejecting discards every still-pending member without applying any.
 
