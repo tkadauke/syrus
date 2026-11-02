@@ -29,6 +29,18 @@ RSpec.describe "Coworker observability tools" do
     JSON.parse(response.content.first.fetch(:text))
   end
 
+  def allow_observability_tools!
+    family.each do |entry|
+      PermissionRule.create!(
+        owner_user: owner, created_by_user: owner, updated_by_user: owner,
+        subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+        subject_role_keys: [], capability: entry.descriptor.capability, operation: entry.descriptor.operation,
+        resource_type: entry.descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+        policy: "allow", policy_layer: "agent", source: "operator", provenance: {}
+      )
+    end
+  end
+
   it "advertises the shared read-only observability tools independently of legacy grants" do
     expected = %w[
       admin_read_operational_logs read_worker_health read_backend_exception_events
@@ -51,6 +63,7 @@ RSpec.describe "Coworker observability tools" do
 
   it "allows every family tool and keeps event output capped, redacted, and action-free" do
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow_observability_tools!
     context = { chat_session: chat }
     allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(true)
     allow(OperationalLogSearch).to receive(:search_response).and_return(Mcp::Tools.success(logs: []))
@@ -89,6 +102,7 @@ RSpec.describe "Coworker observability tools" do
 
   it "filters the retained performance window before applying the result limit" do
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow_observability_tools!
     newer_events = 2.times.map do |index|
       {
         "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
