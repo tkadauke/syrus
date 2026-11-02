@@ -43,6 +43,8 @@ jobs:
       steps:
         - kind: merge_train_build
           state: queued
+        - kind: merge_train_land
+          state: queued
   urgent:
     title: Unrelated urgent fix
     state: approved
