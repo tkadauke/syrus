@@ -651,7 +651,7 @@ class ChatPendingAction < ApplicationRecord
   def notify_chat_of_outcome
     return unless chat_session
     return if suppress_outcome_notification
-    return unless saved_change_to_state?
+    return unless state_changed_in_transaction?
     return unless confirmed? || rejected? || cancelled?
 
     text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
@@ -665,7 +665,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def broadcastable_state_change?
-    return true if saved_change_to_state? && state.in?(%w[confirming confirmed rejected cancelled failed])
+    return true if state_changed_in_transaction? && state.in?(%w[confirming confirmed rejected cancelled failed])
 
     saved_change_to_execution_status? || saved_change_to_execution_step? || saved_change_to_execution_error?
   end
@@ -705,6 +705,25 @@ class ChatPendingAction < ApplicationRecord
 
   def record_state_transition!
     from, to = saved_change_to_state
+    @state_changed_in_transaction = true
     transitions.create!(event_type: "state_changed", from_state: from, to_state: to, metadata: {})
+  end
+
+  def state_changed_in_transaction?
+    saved_change_to_state? || @state_changed_in_transaction
+  end
+
+  public
+
+  def committed!(...)
+    super
+  ensure
+    @state_changed_in_transaction = false
+  end
+
+  def rolledback!(...)
+    super
+  ensure
+    @state_changed_in_transaction = false
   end
 end
