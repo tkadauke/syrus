@@ -324,7 +324,6 @@ module ChatSerialization
 
   def pending_actions_json(chat_session)
     ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
-    chat_session.pending_actions.where(pending_action_group_id: nil, outcome_message_id: nil, state: %w[confirmed rejected cancelled failed]).find_each(&:ensure_outcome_notification!)
 
     pending_actions_for_payload(chat_session).map do |action|
       {
@@ -381,7 +380,6 @@ module ChatSerialization
   # Group cards remain visible until cosmetic dismissal, just like individual
   # terminal cards, and retain the per-member partial-failure breakdown.
   def pending_action_groups_json(chat_session)
-    chat_session.pending_action_groups.where(outcome_message_id: nil, state: %w[confirmed rejected]).find_each(&:ensure_outcome_notification!)
     chat_session.pending_action_groups.where(dismissed_at: nil).where.not(state: "dismissed").includes(chat_pending_actions: [ :tool_call_message, :message ]).order(:created_at, :id).map do |group|
       pending_action_group_json(group)
     end
