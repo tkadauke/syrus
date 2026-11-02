@@ -443,6 +443,7 @@ Rails.application.routes.draw do
           end
           get "runs/:run_id/transcript", to: "transcripts#show"
           get "mcp_tool_usage", to: "mcp_tool_usage#show"
+          get "permission_parity", to: "permission_parity#show"
           resources :users, only: %i[ index show update ] do
             member do
               post :pause_scheduling
@@ -518,6 +519,7 @@ Rails.application.routes.draw do
         get "runs/:run_id/transcript",     to: "transcripts#show"
         get "runs/:run_id/transcript/raw", to: "transcripts#raw"
         get "mcp_tool_usage",              to: "mcp_tool_usage#show"
+        get "permission_parity",           to: "permission_parity#show"
 
         # Queue introspection for external admin API clients.
         get  "queue/active",              to: "queue#active"
