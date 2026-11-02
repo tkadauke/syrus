@@ -1487,6 +1487,12 @@ When the creator is a `product_owner`, Syrus holds the Job in
 open the repository overview, review Jobs waiting under **Needs triage**,
 and release each one into the normal triage flow.
 
+A Job's title and prompt can be corrected while it is still in backlog,
+triage, Epic-blocked, or queued. They become immutable as soon as execution
+starts, so every Workflow retains the definition it actually ran. Later
+changes belong in feedback or a new Job rather than a rewrite of running or
+completed work.
+
 Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be
 visible in the repository's ordinary planning flow.

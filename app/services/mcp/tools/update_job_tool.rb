@@ -22,14 +22,7 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         job, error = find_repository_job(chat_session, job_id)
         return error if error
-        return Mcp::Tools.invalid("#{job.slug} is closed and cannot be updated.") if job.closed?
-
-        attrs = {}
-        attrs[:issue_title] = title if title.present?
-        attrs[:issue_body] = description if description.present?
-        return Mcp::Tools.invalid("title or description is required") if attrs.empty?
-
-        job.update!(attrs)
+        JobDefinitionUpdater.new(job).update!(title: title, description: description)
 
         Mcp::Tools.success(
           job_id: job.id,
@@ -39,6 +32,8 @@ module Mcp::Tools
         )
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)
+      rescue JobDefinitionUpdater::Immutable, ArgumentError => e
+        Mcp::Tools.invalid(e.message)
       end
     end
   end

@@ -538,10 +538,10 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.reload).to have_attributes(issue_title: "Old title", issue_body: "Old description")
   end
 
-  it "rejects updating a closed job" do
+  it "rejects updating a running job without partially changing its definition" do
     job = Factories.job_record(
       repository: repository,
-      state: "closed",
+      state: "running",
       issue_title: "Old title",
       issue_body: "Old description"
     )
@@ -549,7 +549,7 @@ RSpec.describe "Mcp::Tools job control tools" do
     response = call_tool("update_job", job_id: job.id, title: "New title", description: "New description")
 
     expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("#{job.slug} is closed and cannot be updated.")
+    expect(response.dig(:result, :content, 0, :text)).to include("immutable once work starts", "currently running")
     expect(job.reload).to have_attributes(issue_title: "Old title", issue_body: "Old description")
   end
 

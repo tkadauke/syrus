@@ -852,6 +852,14 @@ It defaults to false. Set it true only when the proposed work directly advances
 the chat's active goal; unrelated or opportunistic follow-up proposals should
 remain unlinked so their later Job state changes do not wake the goal loop.
 
+The chat `update_job` tool may change a Job's title or description only before
+execution begins. The editable states are `backlog`, `needs_triage`,
+`triaging`, `blocked_by_epic`, and `queued`. Once the Job enters `running` (or
+any later execution state), its source prompt is immutable; use feedback or a
+new Job instead of rewriting the definition that an existing attempt consumed.
+The state check and definition update hold the Job row lock together, so a
+concurrent start cannot race a late edit.
+
 `propose_job` also accepts `route_to_backlog` for a single direct Job proposal
 card. It defaults to false, preserving the current confirmation path: the Job
 starts normally after dependency wiring and triage advancement when it is not
