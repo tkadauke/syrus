@@ -6,6 +6,8 @@ RSpec.describe Syrus::Plugin::ApprovalProvider do
   it "requires provider identity and a structured decision entry point" do
     expect { provider.provider_key }.to raise_error(NotImplementedError)
     expect { provider.display_name }.to raise_error(NotImplementedError)
+    expect { provider.data_sharing }.to raise_error(NotImplementedError)
+    expect { provider.default_guidance }.to raise_error(NotImplementedError)
     expect { provider.decide(:request) }.to raise_error(NotImplementedError)
   end
 

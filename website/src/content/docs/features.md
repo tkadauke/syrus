@@ -58,6 +58,14 @@ runs, and core redacts its evidence. Unavailable, low-confidence, rate-limited,
 or invalid provider responses return the same request to the human approval
 inbox.
 
+Each approval provider declares an operator-facing disclosure of where evidence
+is processed and how it is retained. A provider receives the complete role-labelled
+transcript, exact tool call, effective policy chain, and fingerprint for the
+decision. Syrus labels transcript, tool-call, and repository content as
+untrusted evidence, applies core guidance before provider defaults and the
+repository's optional `ai_approval.instructions` block, and redacts secrets from
+the durable decision artifact.
+
 ## Jobs
 
 A Job is the unit operators track in the UI. It represents one thread of
