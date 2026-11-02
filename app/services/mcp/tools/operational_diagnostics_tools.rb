@@ -6,8 +6,10 @@ module Mcp::Tools::OperationalDiagnosticsTools
     MAX_SPANS_PER_LANE = 100
     MAX_PENDING = 100
     MAX_WORKERS = 50
+    MAX_SLOTS_PER_POOL = 100
     MAX_STEPS = 100
     MAX_RUNS_PER_STEP = 20
+    MAX_TIMELINE_WINDOW = 7.days
 
     private
 
@@ -29,9 +31,27 @@ module Mcp::Tools::OperationalDiagnosticsTools
       Mcp::Tools.success(generated_at: Time.current.iso8601, source: source, read_only: true, caps: caps, data: safe_data)
     end
 
-    def visible_job_ids(context) = Job.visible_to(context.user).select(:id)
-    def visible_job?(context, job_id) = Job.visible_to(context.user).where(id: job_id).exists?
+    def visible_jobs(context)
+      scope = Job.visible_to(context.user)
+      if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        scope = scope.where(repository_id: context.allowed_repository_ids)
+      end
+      scope
+    end
+
+    def visible_job_ids(context) = visible_jobs(context).select(:id)
+    def visible_job?(context, job_id) = visible_jobs(context).where(id: job_id).exists?
     def plugin_disabled(name) = Mcp::Tools.invalid("#{name} plugin is disabled")
+
+    def bounded_range(from:, to:)
+      range_end = Time.zone.parse(to.to_s.presence || Time.current.iso8601)
+      range_start = Time.zone.parse(from.to_s.presence || (range_end - 1.hour).iso8601)
+      raise ArgumentError, "from and to must be valid timestamps" unless range_start && range_end
+      raise ArgumentError, "from must be before to" unless range_start < range_end
+      raise ArgumentError, "time range cannot exceed 7 days" if range_end - range_start > MAX_TIMELINE_WINDOW
+
+      [ range_start, range_end ]
+    end
 
     def strip_mutation_actions(value)
       value.except(:actions, "actions")
@@ -49,6 +69,18 @@ module Mcp::Tools::OperationalDiagnosticsTools
         step.merge(runs: Array(step[:runs]).first(MAX_RUNS_PER_STEP))
       end
       payload.merge(steps: steps)
+    end
+
+    def restrict_worker_occupancy(payload, context)
+      ids = visible_jobs(context).pluck(:id).to_set
+      workers = Array(payload[:workers]).first(MAX_WORKERS).map do |worker|
+        pools = Array(worker[:pools]).map do |pool|
+          slots = Array(pool[:slots]).select { |slot| slot[:job_id].nil? || ids.include?(slot[:job_id]) }
+          pool.merge(slots: slots.first(MAX_SLOTS_PER_POOL))
+        end
+        worker.merge(pools: pools)
+      end
+      payload.merge(workers: workers)
     end
   end
 
@@ -93,11 +125,13 @@ module Mcp::Tools::OperationalDiagnosticsTools
         query = "WorkerTimeline::LiveWorkersQuery".safe_constantize
         return plugin_disabled("worker_timeline") unless plugin&.enabled? && query
 
-        range_end = Time.zone.parse(to.to_s.presence || Time.current.iso8601)
-        range_start = Time.zone.parse(from.to_s.presence || (range_end - 1.hour).iso8601)
+        range_start, range_end = bounded_range(from:, to:)
         data = query.call(from: range_start, to: range_end, hostname: hostname, status: status)
-        data = data.merge(workers: Array(data[:workers]).first(MAX_WORKERS))
-        diagnostics_success(source: "WorkerTimeline::LiveWorkersQuery", data: data, caps: { workers: MAX_WORKERS })
+        data = restrict_worker_occupancy(data, context)
+        diagnostics_success(
+          source: "WorkerTimeline::LiveWorkersQuery", data: data,
+          caps: { workers: MAX_WORKERS, slots_per_pool: MAX_SLOTS_PER_POOL }
+        )
       rescue ArgumentError => e
         Mcp::Tools.invalid(e.message)
       end
@@ -125,7 +159,9 @@ module Mcp::Tools::OperationalDiagnosticsTools
         plugin = "WorkerTimeline".safe_constantize
         return plugin_disabled("worker_timeline") unless plugin&.enabled?
 
-        data = Timeline::MacroQuery.call(**arguments.slice(:from, :to, :repository_id, :hostname, :job_id, :status), allowed_job_ids: visible_job_ids(context))
+        range_start, range_end = bounded_range(from: arguments[:from], to: arguments[:to])
+        filters = arguments.slice(:repository_id, :hostname, :job_id, :status)
+        data = Timeline::MacroQuery.call(**filters, from: range_start, to: range_end, allowed_job_ids: visible_job_ids(context))
         diagnostics_success(
           source: "Timeline::MacroQuery", data: cap_timeline(data),
           caps: { lanes: MAX_LANES, spans_per_lane: MAX_SPANS_PER_LANE, pending: MAX_PENDING }
@@ -183,8 +219,9 @@ module Mcp::Tools::OperationalDiagnosticsTools
       private
 
       def restrict_admission_payload(payload, context)
-        ids = Job.visible_to(context.user).pluck(:id).to_set
-        repository_slugs = Repository.where(id: Repository.accessible_repository_ids_for(context.user)).pluck(:owner, :name).map { |owner, name| "#{owner}/#{name}" }.to_set
+        scoped_jobs = visible_jobs(context)
+        ids = scoped_jobs.pluck(:id).to_set
+        repository_slugs = Repository.where(id: scoped_jobs.select(:repository_id)).pluck(:owner, :name).map { |owner, name| "#{owner}/#{name}" }.to_set
         payload.merge(
           active_consumers: visible_rows(payload[:active_consumers], ids),
           recent_top_consumers: visible_rows(payload[:recent_top_consumers], ids),

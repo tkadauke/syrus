@@ -206,8 +206,10 @@ worker-health, backend-exception, browser-error, and performance-event queries,
 it composes the existing Metrics Dashboard history, Worker Timeline occupancy
 and Workflow queries, resource-admission diagnostics, and per-Run queue
 diagnosis. Timeline and admission results are restricted to Jobs and
-repositories visible to the caller; global fleet results require the same
-operational authority. Responses identify their source and freshness, enforce
+repositories visible to the caller, including a coworker chat's attached
+repository scope; live worker slots outside that scope are omitted. Global
+fleet results require the same operational authority. Timeline ranges are
+limited to seven days. Responses identify their source and freshness, enforce
 fixed result caps, redact secrets, and never include mutation actions. The
 grant defaults to confirmation and may be raised to automatic access; it never
 adds repair, retry, pause, process-control, or event-filing actions. Metrics and

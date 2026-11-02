@@ -1401,7 +1401,8 @@ Admins in regular chat and coworkers granted `ops.read_logs` can use the same
 read-only operational diagnostics tools for historical metrics, live worker
 occupancy, Workflow timelines, admission evidence, and per-Run queue waits.
 The tools reuse the existing dashboard and diagnostic queries, apply repository
-visibility where records belong to repositories, return freshness and cap
+visibility where records belong to repositories (including coworker chat
+attachments), bound timeline reads to seven days, return freshness and cap
 metadata, redact secrets, and expose no write or process-control actions.
 It offers `measureSync`/`measureAsync` for timing a block of work,
 `startMarker`/`endMarker` for spans that don't fit one function call (e.g. a

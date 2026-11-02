@@ -124,6 +124,41 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
     expect(parsed(response).dig("data", "workers").size).to eq(50)
   end
 
+  it "removes occupancy slots outside a granted coworker's attached repositories" do
+    visible_job = Factories.job(repository: repository)
+    hidden_job = Factories.job(repository: Factories.repository)
+    coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow(WorkerTimeline).to receive(:enabled?).and_return(true)
+    allow(WorkerTimeline::LiveWorkersQuery).to receive(:call).and_return(
+      workers: [ { pools: [ { slots: [
+        { job_id: visible_job.id, job_title: "Visible" },
+        { job_id: hidden_job.id, job_title: "Hidden", command: "secret command" }
+      ] } ] } ]
+    )
+
+    response = described_class::ReadWorkerOccupancyTool.call(server_context: { chat_session: coworker_chat })
+
+    slots = parsed(response).dig("data", "workers", 0, "pools", 0, "slots")
+    expect(slots).to contain_exactly(include("job_id" => visible_job.id, "job_title" => "Visible"))
+    expect(response.content.first.fetch(:text)).not_to include("Hidden", "secret command")
+  end
+
+  it "rejects inverted and oversized timeline ranges before querying" do
+    allow(WorkerTimeline).to receive(:enabled?).and_return(true)
+    allow(WorkerTimeline::LiveWorkersQuery).to receive(:call)
+
+    inverted = described_class::ReadWorkerOccupancyTool.call(
+      server_context: { chat_session: admin_chat }, from: "2026-10-31T11:00:00Z", to: "2026-10-31T10:00:00Z"
+    )
+    oversized = described_class::ReadWorkflowTimelineTool.call(
+      server_context: { chat_session: admin_chat }, from: "2026-10-01T10:00:00Z", to: "2026-10-31T10:00:00Z"
+    )
+
+    expect(inverted.content.first.fetch(:text)).to include("from must be before to")
+    expect(oversized.content.first.fetch(:text)).to include("time range cannot exceed 7 days")
+    expect(WorkerTimeline::LiveWorkersQuery).not_to have_received(:call)
+  end
+
   it "passes repository and Job filters plus the caller's visibility scope to the macro query" do
     allow(WorkerTimeline).to receive(:enabled?).and_return(true)
     allow(Timeline::MacroQuery).to receive(:call).and_return(lanes: [], pending: [])
@@ -136,6 +171,32 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
       expect(arguments).to include(repository_id: repository.id, job_id: 123, hostname: "worker-a")
       expect(arguments.fetch(:allowed_job_ids)).to be_an(ActiveRecord::Relation)
     end
+  end
+
+  it "limits coworker timelines, waterfalls, Runs, and admission rows to attached repositories" do
+    visible_job = Factories.job(repository: repository)
+    hidden_job = Factories.job(repository: Factories.repository)
+    hidden_workflow = hidden_job.workflows.first
+    hidden_run = Factories.run(job: hidden_job)
+    coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
+    allow(WorkerTimeline).to receive(:enabled?).and_return(true)
+    allow(Timeline::MacroQuery).to receive(:call).and_return(lanes: [], pending: [])
+    allow(Admin::ResourceAdmissionDiagnosticsPayload).to receive(:new).and_return(
+      instance_double(Admin::ResourceAdmissionDiagnosticsPayload, as_json: {
+        active_consumers: [ { job_id: visible_job.id }, { job_id: hidden_job.id } ],
+        recent_top_consumers: [], delayed_work: [], low_confidence_profiles: [], admission_overrides: []
+      })
+    )
+
+    described_class::ReadWorkflowTimelineTool.call(server_context: { chat_session: coworker_chat })
+    allowed_ids = nil
+    expect(Timeline::MacroQuery).to have_received(:call) { |args| allowed_ids = args.fetch(:allowed_job_ids).pluck(:id) }
+    expect(allowed_ids).to contain_exactly(visible_job.id)
+    expect(described_class::ReadWorkflowWaterfallTool.call(server_context: { chat_session: coworker_chat }, workflow_id: hidden_workflow.id)).to be_error
+    expect(described_class::DiagnoseRunQueueTool.call(server_context: { chat_session: coworker_chat }, run_id: hidden_run.id)).to be_error
+
+    admission = parsed(described_class::ReadAdmissionDiagnosticsTool.call(server_context: { chat_session: coworker_chat }))
+    expect(admission.dig("data", "active_consumers")).to eq([ { "job_id" => visible_job.id } ])
   end
 
   it "delegates a visible queued Run to the existing queue diagnosis" do
