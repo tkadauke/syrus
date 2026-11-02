@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
   let(:user) { Factories.user }
 
-  before { sign_in_as(user) }
+  before { sign_in_as(user) unless RSpec.current_example.metadata[:skip_sign_in] }
 
   it "lists only the signed-in user's rules alongside read-only inherited descriptors" do
     mine = permission_rule(owner: user)
@@ -68,6 +68,37 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(request_entry.dig("items", 0, "evidence")).to eq("api_token" => "[redacted]", "job_id" => job.id)
     expect(payload.fetch("history")).to include(include("type" => "policy_change", "state" => "created"))
     expect(payload.to_json).not_to include("hidden@v1", "secret-value")
+  end
+
+  it "rejects workflow invocation credentials before exposing user-wide history", :skip_sign_in do
+    repository = Factories.repository(user: user)
+    job = Factories.job_with_run(repository:, user:, run_attrs: { state: "running" })
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    get "/api/v1/app/permission_rules/history", headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("forbidden")
+  end
+
+  it "bounds active leases in the history payload" do
+    now = Time.current
+    PermissionLease.insert_all!(Array.new(Permissions::HistoryPayload::LIMIT + 1) do |index|
+      {
+        owner_user_id: user.id, subject_selector_type: "interactive_chat",
+        capability: "test.read@v1", operation: "read@v1", resource_type: "none",
+        resource_scope: {}, constraints: {}, effects: [], duration_kind: "invocation",
+        invocation_fingerprint: "history-lease-#{index}", issued_by_user_id: user.id,
+        max_uses: 1, used_count: 0, created_at: now + index.seconds, updated_at: now
+      }
+    end)
+
+    get "/api/v1/app/permission_rules/history"
+
+    expect(response).to have_http_status(:ok)
+    active_leases = JSON.parse(response.body).fetch("active_leases")
+    expect(active_leases.size).to eq(Permissions::HistoryPayload::LIMIT)
+    expect(active_leases.first.fetch("origin")).to be_nil
   end
 
   it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do

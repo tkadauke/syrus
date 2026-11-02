@@ -4,6 +4,8 @@ module Api
       class PermissionRulesController < BaseController
         POLICY_ACTIONS = { "allow" => :grant!, "deny" => :deny! }.freeze
 
+        before_action :reject_invocation_context, only: :history
+
         def index
           management = Permissions::Management.new(Current.user)
           active_rules = management.rules.to_a
@@ -78,6 +80,12 @@ module Api
         end
 
         private
+
+        def reject_invocation_context
+          return unless current_invocation_context
+
+          render_error("forbidden", I18n.t("api.base.invocation_scope_forbidden"), status: :forbidden)
+        end
 
         def permission_rule_params
           params.require(:permission_rule).permit(
