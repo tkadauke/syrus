@@ -1567,7 +1567,9 @@ function AuthorizationRequestsPanel({ requests, jobId }: { requests: NonNullable
       <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("authorization_requests_description")}</p>
       <ul className="mt-3 space-y-2">
         {requests.map((request) => (
-          <li key={request.id}><PermissionRequestCard jobId={jobId} request={request} /></li>
+          <li key={request.id}>
+            <PermissionRequestCard jobId={jobId} request={request} />
+          </li>
         ))}
       </ul>
     </section>
