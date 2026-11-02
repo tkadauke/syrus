@@ -76,10 +76,9 @@ module Mcp::Tools
       child's first scheduling decision. Each child defaults to medium.
       Set jobs[].planned_execution to declare where each child has to run.
       Nothing reads the child Job text to guess this, so if a child needs a
-      host other than Linux you must say so here. Supported dimensions are os,
-      arch, toolchain, and runtime: {"os":["linux"]} for normal backend/web/frontend
-      work, {"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}
-      for work that genuinely needs Xcode builds or iOS simulators. Mentioning
+      host other than Linux you must say so here. The only supported dimension
+      is os: {"os":["linux"]} or {"os":["macos"]}. Dependencies and
+      toolchains are installed during repository preparation. Mentioning
       a platform in a description does nothing -- including saying a platform is out of scope.
       jobs[].planned_execution.capabilities is REQUIRED on every child. A batch
       where any child omits it, or passes empty capabilities, is rejected
@@ -143,10 +142,14 @@ module Mcp::Tools
                 properties: {
                   project_label: { type: "string" },
                   target_label: { type: "string" },
-                  capabilities: { type: "object" },
+                  capabilities: {
+                    type: "object",
+                    properties: { os: { description: "One canonical OS value (linux or macos), as a string or single-item array." } },
+                    description: "The only permitted capability dimension is os; any other key is rejected."
+                  },
                   source: { type: "string" }
                 },
-                description: "Optional explicit primary implementation placement override. Use {\"os\":[\"macos\"],\"arch\":[\"arm64\"],\"toolchain\":[\"xcode\"],\"runtime\":[\"ios_simulator\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
+                description: "Optional explicit primary implementation placement. Use {\"os\":[\"macos\"]} or {\"os\":[\"linux\"]}; no other capability key is permitted."
               },
               media: {
                 type: "array",

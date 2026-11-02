@@ -243,12 +243,7 @@ RSpec.describe ChatProposalFiler do
         title: "iOS simulator job",
         planned_execution_project_label: "iOS App",
         planned_execution_target_label: "//ios:app",
-        planned_execution_capabilities: {
-          os: [ "macos" ],
-          arch: [ "arm64" ],
-          toolchain: [ "xcode" ],
-          runtime: [ "ios_simulator" ]
-        },
+        planned_execution_capabilities: { os: [ "macos" ] },
         planned_execution_source: "explicit"
       )
 
@@ -257,12 +252,7 @@ RSpec.describe ChatProposalFiler do
       expected = {
         "project_label" => "iOS App",
         "target_label" => "//ios:app",
-        "capabilities" => {
-          "os" => [ "macos" ],
-          "arch" => [ "arm64" ],
-          "toolchain" => [ "xcode" ],
-          "runtime" => [ "ios_simulator" ]
-        },
+        "capabilities" => { "os" => [ "macos" ] },
         "source" => "explicit"
       }
       job = job_proposal.reload.job

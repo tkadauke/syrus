@@ -179,6 +179,23 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.proposals.find_by(slug: "blank-child")).to be_nil
   end
 
+  it "rejects a nested child with forbidden capabilities before creating any proposal" do
+    response = call_tool_without_defaults(
+      epic: { slug: "strict-placement", title: "Strict placement", description: "Validate every child.", target_repo: repository.slug },
+      jobs: [
+        {
+          slug: "invalid-runtime-child", target_repo: repository.slug,
+          title: "Invalid runtime child", description: "Use repository preparation.",
+          planned_execution: { capabilities: { os: [ "linux" ], runtime: [ "node", "ruby" ] } }
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to match(/forbidden keys: runtime.*Only os is permitted.*Ruby, Node/)
+    expect(chat_session.proposals.where(slug: %w[strict-placement invalid-runtime-child])).to be_empty
+  end
+
   it "rejects a child that declares labels but omits capabilities" do
     response = call_tool_without_defaults(
       epic: {
@@ -605,7 +622,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
           planned_execution: {
             project_label: "iOS App",
             target_label: "//ios:app",
-            capabilities: { os: [ "macos" ], arch: [ "arm64" ], toolchain: [ "xcode" ], runtime: [ "ios_simulator" ] }
+            capabilities: { os: [ "macos" ] }
           }
         }
       ]
@@ -617,12 +634,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(child.planned_execution_json).to include(
       "project_label" => "iOS App",
       "target_label" => "//ios:app",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ],
-        "runtime" => [ "ios_simulator" ]
-      },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "operator"
     )
   end

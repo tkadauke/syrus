@@ -27,35 +27,40 @@ RSpec.describe PlannedExecutionRequirement do
     }.to raise_error(ArgumentError, "planned execution capabilities must be a Hash or TargetGraph::ExecutionCapabilities")
   end
 
-  it "normalizes explicit execution capabilities" do
+  it "normalizes explicit OS execution capabilities" do
     requirement = described_class.new(
       project_label: " iOS ",
       target_label: "//app:grade/tests",
-      capabilities: { "os" => "macOS", "arch" => "ARM64", "toolchain" => "Xcode", "runtime" => "iOS_Simulator" },
+      capabilities: { "os" => "macOS" },
       source: "explicit"
     )
 
     expect(requirement.to_h).to eq(
       "project_label" => "iOS",
       "target_label" => "//app:grade/tests",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ],
-        "runtime" => [ "ios_simulator" ]
-      },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "explicit"
     )
   end
 
-  it "rejects unsupported capability dimensions and OS values" do
+  it "rejects every non-OS capability dimension with actionable guidance" do
     expect {
-      described_class.new(capabilities: { "os" => [ "linux" ], "feature" => [ "docker" ] })
-    }.to raise_error(ArgumentError, /unsupported keys feature/)
+      described_class.new(capabilities: { "os" => [ "linux" ], "runtime" => %w[node ruby], "arch" => [ "arm64" ], "feature" => [ "docker" ] })
+    }.to raise_error(ArgumentError, /forbidden keys: arch, feature, runtime.*Only os is permitted.*Ruby, Node, Chromium, Xcode, architecture, toolchains, and simulators/)
 
     expect {
       described_class.new(capabilities: { "os" => [ "windows" ] })
     }.to raise_error(ArgumentError, /os: values must be one of linux, macos/)
+  end
+
+  it "allows an unrelated transition on a legacy started record but rejects capability mutation" do
+    job = Factories.job_record(state: "running")
+    job.update_columns(planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ "ruby" ] })
+
+    expect { job.update!(priority: "high") }.not_to raise_error
+    expect {
+      job.update!(planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ "node" ] })
+    }.to raise_error(ActiveRecord::RecordInvalid, /forbidden keys: runtime/)
   end
 
   it "prevents unsupported capability labels from being persisted on Jobs" do
@@ -72,7 +77,7 @@ RSpec.describe PlannedExecutionRequirement do
     )
 
     expect(job).not_to be_valid
-    expect(job.errors[:planned_execution_capabilities].join).to include("unsupported keys feature")
+    expect(job.errors[:planned_execution_capabilities].join).to include("forbidden keys: feature")
   end
 
   it "defaults new jobs and manually created workflows" do

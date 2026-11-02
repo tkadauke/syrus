@@ -177,12 +177,11 @@ work or an executable target. It is separate from workspace placement policy:
 capabilities choose an eligible worker/backend; placement policy describes how
 source is materialized.
 
-Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`. `os` accepts
-`linux` or `macos` and must name exactly one host OS when present. The other
-dimensions accept normalized token strings or arrays, such as `arm64`, `xcode`,
-and `ios_simulator`. Syrus intentionally rejects feature, Windows, and
-free-form capability dimensions so hallucinated placement constraints cannot
-strand work behind impossible worker-admission gates.
+`os` is the only supported dimension. It accepts `linux` or `macos` and must
+name exactly one host OS when present. Every other key is rejected. Ruby,
+Node, Chromium, Xcode, architecture, toolchains, simulators, and other
+dependencies belong in preparation or executable commands, never in worker
+admission capabilities.
 
 Use project-level capabilities as implementation hints:
 
@@ -220,9 +219,8 @@ graph structure.
 
 ### iOS projects and Xcode targets
 
-iOS work is modeled as a macOS/arm64 project plus executable targets that
-require Xcode and an iOS simulator runtime. Use `os: macos`, `arch: arm64`,
-`toolchain: xcode`, and `runtime: ios_simulator` for placement, then express
+iOS work is modeled as a macOS project plus executable targets that run Xcode
+and simulator commands. Use only `os: macos` for placement, then express
 scheme, workspace/project, destination, signing, and output details in the
 target command, target name, wrapper script, and worker readiness checks.
 
@@ -650,7 +648,7 @@ most once per workflow workspace.
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 | `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
-| `capabilities` | no | — | Execution requirements for this grader target: `os`, `arch`, `toolchain`, and `runtime` |
+| `capabilities` | no | — | Execution requirement for this grader target; only `os` is permitted |
 | `resources` | no | serial (one core) | What the grader can productively use: `cpu`, `cpu_min`, `memory`. See [resources](#resources) |
 
 There are two grader declaration families:

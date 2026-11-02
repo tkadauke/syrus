@@ -14,9 +14,7 @@ RSpec.describe "iOS capability documentation" do
 
     expect(body).to include("### iOS projects and Xcode targets")
     expect(body).to include("os: macos")
-    expect(body).to include("arch: arm64")
-    expect(body).to include("toolchain: xcode")
-    expect(body).to include("runtime: ios_simulator")
+    expect(body).to include("`os` is the only supported dimension")
     expect(body).to include("-workspace")
     expect(body).to include("-project")
     expect(body).to include("-scheme")
@@ -63,9 +61,7 @@ RSpec.describe "iOS capability documentation" do
       expect(body).to include("DerivedData"), "#{path} should mention build isolation"
       expect(body).to match(/result bundle|resultBundlePath/), "#{path} should mention result bundle output"
       expect(body).to include("JUnit"), "#{path} should mention test output paths"
-      expect(body).to include("arch"), "#{path} should include architecture placement"
-      expect(body).to include("toolchain"), "#{path} should include toolchain placement"
-      expect(body).to include("runtime"), "#{path} should include runtime placement"
+      expect(body).to match(/only (supported|permitted).*dimension|only `os` is permitted|only allowed.*os/i), "#{path} should document OS-only placement"
     end
   end
 end

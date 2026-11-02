@@ -12,6 +12,12 @@ module NormalizesPlannedExecutionRequirements
     @planned_execution_requirement_error = nil
     planned_execution_requirement_for_normalization.assign_to(self)
   rescue ArgumentError => e
+    # The one-time repair intentionally targets work that has not started.
+    # Do not strand an already-running legacy record by making an unrelated
+    # state transition validate historical placement data. Any attempted
+    # capability mutation, and every new/copy record, remains strict.
+    return if persisted? && !will_save_change_to_planned_execution_capabilities?
+
     @planned_execution_requirement_error = e.message
   end
 

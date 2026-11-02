@@ -415,11 +415,13 @@ module Prompts
           - Chat proposal tools require explicit `planned_execution.capabilities`
             for every implementation Job. Use `{ "os": ["linux"] }` for
             normal Linux/backend/web work.
-          - iOS, Apple mobile, or Xcode-targeted work uses
-            `planned_execution.capabilities: { "os": ["macos"], "arch": ["arm64"], "toolchain": ["xcode"], "runtime": ["ios_simulator"] }`.
+          - Work that requires a macOS host uses
+            `planned_execution.capabilities: { "os": ["macos"] }`.
           - Mixed iOS plus backend work still uses macOS as the primary
             placement; backend graders can fan out later.
-          - Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`.
+          - `os` is the only supported dimension. Language runtimes, browser
+            binaries, SDKs, architectures, toolchains, and simulators are
+            dependencies, not worker admission capabilities.
             There is no Windows value: Windows-targeted work still has to
             declare a supported host, so ask the operator which host should own
             it.
