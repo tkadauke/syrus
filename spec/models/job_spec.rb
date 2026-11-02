@@ -330,11 +330,11 @@ RSpec.describe Job, :ci_only do
           "type" => "job.updated",
           "resource" => "job",
           "id" => job.id,
-          "changed" => include("job.updated", "state", "issue_title"),
+          "changed" => include("job.updated", "state", "priority"),
           "payload" => {
             "fields" => hash_including(
               "state" => "failed",
-              "issue_title" => "Repair the basilica",
+              "issue_title" => "Repair the forum",
               "issue_body" => job.issue_body,
               "entity_revision" => job.entity_revision + 1
             )
@@ -342,7 +342,7 @@ RSpec.describe Job, :ci_only do
         )
       )
 
-      job.update!(state: "failed", issue_title: "Repair the basilica")
+      job.update!(state: "failed", priority: "high")
     end
 
     it "refreshes linked chat status when the Job state changes" do
