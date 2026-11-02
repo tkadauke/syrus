@@ -292,7 +292,6 @@ RSpec.describe "surface-neutral pending action authorization", :ci_only do
       [ "resuming", "cancelled" ]
     ])
   end
-
   it "derives parent blockers from a Run-origin request" do
     execution_job = Factories.job(user: user, repository: repository)
     workflow = execution_job.workflows.first

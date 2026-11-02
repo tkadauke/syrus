@@ -36,6 +36,10 @@ module.exports = {
           from: { opacity: "0", transform: "translateY(-4px)" },
           to: { opacity: "1", transform: "translateY(0)" }
         },
+        "approval-waiting-halo": {
+          "0%, 100%": { opacity: "0.3", transform: "scale(0.9)" },
+          "50%": { opacity: "0.75", transform: "scale(1.18)" }
+        },
         // Indeterminate progress sweep (backend-update sidebar notice): a
         // one-third-width bar crossing its track. Guarded by motion-safe: at
         // the call site so reduced-motion users see a still bar.
@@ -70,6 +74,7 @@ module.exports = {
         // trapping it inside the message bubble instead of the viewport.
         "chat-message-in": "chat-message-in 0.25s ease-out backwards",
         "notice-in": "notice-in 0.25s ease-out backwards",
+        "approval-waiting-halo": "approval-waiting-halo 2.75s ease-in-out infinite",
         "progress-indeterminate": "progress-indeterminate 1.4s ease-in-out infinite",
         "drag-blink": "drag-blink 1s ease-in-out 1 forwards",
         "drag-blink-dark": "drag-blink-dark 1s ease-in-out 1 forwards"

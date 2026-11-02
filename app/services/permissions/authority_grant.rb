@@ -16,7 +16,7 @@ module Permissions
 
       def initialize(descriptor:, owner:, actor:, subject_selector_type:, subject_selector_id: nil,
         subject_repository: nil, role:, resource_scope:, rules: [], context: {}, arguments: {}, constraints: {}, source: nil,
-        expires_at: nil, max_uses: nil, **lifecycle)
+        expires_at: nil, max_uses: nil, rationale: nil, **lifecycle)
         @descriptor = descriptor
         @owner = owner
         @actor = actor
@@ -30,6 +30,7 @@ module Permissions
         @arguments = arguments
         @constraints = constraints
         @source = source
+        @rationale = rationale
         @issued_at = Time.current
         @expires_at = expires_at || (@issued_at + @descriptor.maximum_duration if @descriptor.maximum_duration && duration != :permanent)
         @max_uses = max_uses
@@ -143,7 +144,7 @@ module Permissions
           operation: @descriptor.operation, resource_type: @descriptor.resource_scope.type.to_s,
           resource_scope: scope, policy: "allow", constraints: @constraints, policy_layer: "agent",
           source: "operator", provenance: { authority_duration: "permanent" }, created_by_user: @actor,
-          updated_by_user: @actor
+          updated_by_user: @actor, rationale: @rationale
         )
       end
     end

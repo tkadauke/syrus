@@ -23,6 +23,48 @@ This is authorization substrate. Capability integrations must call the
 authorizer immediately before dispatch; merely creating a lease never executes
 an operation or bypasses the capability's ordinary application authorization.
 
+## Permissions Hub
+
+Each signed-in user has a Permissions Hub at `/settings/permissions`. It keeps
+durable delegation separate from operational approvals: the hub lists editable
+user-owned rules and read-only inherited capability defaults, identifies policy
+ownership, and explains which default is decisive when no more specific
+permitted rule applies. Revoking a rule preserves its audit history.
+The agent matrix compares evaluator-derived allow, ask, and deny states by
+subject and capability, and marks states that vary by resource instead of
+collapsing them into one policy. The resource view groups active rules by
+provider-supplied typed scope labels. Editing creates an audited replacement.
+Bulk changes require a complete server-normalized preview with a signed digest,
+then apply the exact previewed set in one transaction or fail as stale.
+Active-lease and history views expose temporary authority lifecycle, origin,
+expiry, and use counts alongside requests, decisions, repeated-request
+escalations, dismissals, non-actionable reasons, policy changes, revocations,
+and execution outcomes. Results are scoped to the signed-in user and stored
+argument or audit evidence is redacted before display.
+
+Operational requests live at `/permissions/inbox` and in the compact global
+Approvals drawer. Both surfaces, plus inline Job origin cards, read the same
+durable authorization request. Each card shows the named subject and origin,
+normalized resource, redacted arguments, effects, agent-supplied purpose,
+available authority durations, and the decisive policy explanation. Multiple
+requests can be selected and decided atomically when their items share a duration. Resolved and non-actionable requests
+remain available as history; dismissing an obsolete request does not create a
+deny rule.
+
+Background authorization requests are also routed through the operator's
+notification settings. Normal and low-urgency requests share a configurable
+batch window; urgent requests skip that window. All external delivery respects
+the operator's UTC or named-zone quiet hours. Disabling or delaying external
+delivery never hides the global Approvals badge, the blocked-agent indicator,
+the central inbox entry, or the request at its origin.
+
+The global Approvals shield sits beside notifications and always shows the
+pending total. When an agent is stopped at an authorization checkpoint, the
+shield uses an amber waiting halo until the request is resolved and announces
+newly blocked agents to assistive technology. Reduced-motion preferences replace
+the animated halo with a static ring. Infrastructure and security banners remain
+the higher-priority alert surface.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with

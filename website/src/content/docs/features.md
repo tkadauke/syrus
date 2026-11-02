@@ -12,6 +12,42 @@ Graders](/docs/tests-and-graders) for validation, [Previews and Visual
 Review](/docs/previews) for browser review, and [Observability](/docs/observability)
 for debugging production behavior.
 
+## User-specific permission management
+
+The Permissions Hub at `/settings/permissions` shows the durable authority a
+user has delegated to agents. User-owned rules can be added or revoked, while
+inherited core and provider policy remains visible and read-only with ownership
+and decisive-default explanations. Operational requests needing an immediate
+decision remain a separate approvals workflow rather than durable settings.
+Matrix and resource views make it possible to compare evaluator-derived
+agent-by-capability states or inspect access by typed resource scope. The
+matrix marks authority that varies by resource rather than presenting it as a
+single global policy. Operators can edit rules, see provider presets, and
+preview every item in a bulk grant or denial before confirming an atomic
+change.
+Active-lease and authorization-history views also show temporary authority
+lifecycle, origins and use counts, requests and decisions, escalations,
+dismissals, policy changes, revocations, and execution outcomes. Stored
+evidence is redacted before display.
+
+The approval inbox at `/permissions/inbox` collects operational requests from
+chats and background work. A compact global drawer and inline Job cards show
+the same durable request, including its subject, origin, normalized resource,
+redacted arguments, effects, purpose, duration choices, and policy explanation.
+Operators can filter the inbox, select requests with a shared duration and decide them atomically,
+dismiss obsolete requests without denying future work, and review completed
+history.
+
+Approval notification settings can batch normal requests and hold delivery
+during configured quiet hours. Urgent approvals bypass the batch delay, while
+all priorities respect quiet hours. These settings affect external/browser
+notifications only: the Approvals badge, blocked-agent waiting indicator,
+inbox, and origin card remain visible immediately.
+The global Approvals shield beside notifications shows the pending count and an
+amber waiting halo while an agent is blocked on a decision. It announces newly
+blocked agents to assistive technology and uses a static ring when reduced motion
+is preferred.
+
 ## Jobs
 
 A Job is the unit operators track in the UI. It represents one thread of

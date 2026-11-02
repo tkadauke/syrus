@@ -1,4 +1,9 @@
 de:
+  notifications:
+    approval_request:
+      one: "Genehmigung erforderlich: %{purpose}"
+      other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
+      fallback: "Ein Agent wartet auf eine Berechtigung"
   coworkers:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
@@ -201,6 +206,11 @@ de:
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
 
   api:
+    permission_rules:
+      stale_preview: "Prüfe diese Berechtigungsänderungen vor dem Bestätigen erneut."
+    permission_requests:
+      not_dismissible: "Diese Berechtigungsanfrage kann nicht mehr ausgeblendet werden."
+
     job_source_diff:
       preview_fixture: "Vorschau-Testdaten"
 

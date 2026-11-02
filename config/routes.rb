@@ -235,6 +235,10 @@ Rails.application.routes.draw do
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"
+        get "permission_requests", to: "permission_requests#index"
+        post "permission_requests/batch_decide", to: "permission_requests#batch_decide"
+        post "permission_requests/:id/decide", to: "permission_requests#decide", constraints: { id: /\d+/ }
+        delete "permission_requests/:id", to: "permission_requests#dismiss", constraints: { id: /\d+/ }
         patch "dashboard/preferences", to: "dashboard#preferences"
         post "dashboard/landing_pause", to: "dashboard#landing_pause"
         post "dashboard/jobs/bulk", to: "dashboard#bulk_jobs"
@@ -399,6 +403,18 @@ Rails.application.routes.draw do
         get "repositories/:repository_id/skills", to: "skills#index"
         post "repositories/:repository_id/skills", to: "skills#create"
         get "maintenance_tasks/sidebar", to: "maintenance_tasks#sidebar"
+        resources :permission_rules, only: %i[ index create ] do
+          collection do
+            get :history
+            post :apply_preset
+            post :preview_bulk
+            post :bulk
+          end
+          member do
+            patch :update
+            post :revoke
+          end
+        end
 
         namespace :admin do
           get "overview", to: "overview#show"
