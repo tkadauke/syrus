@@ -324,9 +324,16 @@ module RuntimeTerminal
       chord = key.split("+")
       key = chord.pop.to_s
       modifiers.concat(chord.map(&:downcase))
+      modifiers.map! { |modifier| modifier == "control" ? "ctrl" : modifier }
+      modifiers.uniq!
+
+      unsupported_modifiers = modifiers - %w[ctrl shift]
+      if unsupported_modifiers.any? || (modifiers == [ "shift" ] && key != "Tab")
+        raise UnsupportedInput, "unsupported keyboard modifiers #{modifiers.join('+')}"
+      end
 
       return NAMED_KEY_SEQUENCES.fetch("Shift+Tab") if key == "Tab" && modifiers.include?("shift")
-      return control_sequence(key) if modifiers.intersect?(%w[ctrl control])
+      return control_sequence(key) if modifiers.include?("ctrl")
 
       NAMED_KEY_SEQUENCES.fetch(key) do
         raise UnsupportedInput, "keyboard event requires text/data or a supported key or chord"

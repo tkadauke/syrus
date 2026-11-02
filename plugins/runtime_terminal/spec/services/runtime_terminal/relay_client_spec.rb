@@ -280,6 +280,17 @@ RSpec.describe RuntimeTerminal::RelayClient do
         .to raise_error(described_class::UnsupportedInput, /unsupported Ctrl combination/)
     end
 
+    it "rejects modifiers that would otherwise be silently discarded" do
+      [
+        { type: "key", key: "Alt+Enter" },
+        { type: "key", key: "F1", modifiers: [ "meta" ] },
+        { type: "key", key: "ArrowUp", shift: true }
+      ].each do |event|
+        expect { client.input(event) }
+          .to raise_error(described_class::UnsupportedInput, /unsupported keyboard modifiers/)
+      end
+    end
+
     it "raises UnsupportedInput for an unrecognized key with no text/data" do
       expect { client.input(type: "keyboard", key: "F13") }.to raise_error(described_class::UnsupportedInput)
     end

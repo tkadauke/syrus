@@ -311,6 +311,53 @@ RSpec.describe RuntimeTerminal::Provider do
     ensure
       relay&.stop
     end
+
+    it "serializes relay delivery with operator takeover" do
+      relay = RuntimeTerminalFakeRelay.new
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input")
+      delivery_started = Queue.new
+      finish_delivery = Queue.new
+      takeover_started = Queue.new
+      takeover_finished = Queue.new
+      allow_any_instance_of(RuntimeTerminal::RelayClient).to receive(:input).and_wrap_original do |original, event|
+        delivery_started << true
+        finish_delivery.pop
+        original.call(event)
+      end
+
+      delivery = Thread.new { provider.input(runtime_session.id, type: "key", key: "Enter") }
+      delivery_started.pop
+      takeover = Thread.new do
+        takeover_started << true
+        RuntimeControlLease.abort_agent_control!(runtime_session: runtime_session, reason: "operator takeover")
+        takeover_finished << true
+      end
+      takeover_started.pop
+
+      expect { Timeout.timeout(0.05) { takeover_finished.pop } }.to raise_error(Timeout::Error)
+      finish_delivery << true
+      expect(delivery.value).to eq(delivered: true)
+      takeover.value
+      expect(takeover_finished.pop).to be(true)
+      expect(runtime_session.active_agent_input_lease).to be_nil
+      expect(provider.input(runtime_session.id, type: "key", key: "Enter")).to include(error: "lease_required")
+      expect(relay.next_control).to eq("type" => "input", "data" => "\r")
+      expect(relay.next_control(timeout: 0.05)).to be_nil
+    ensure
+      finish_delivery << true if finish_delivery && finish_delivery.empty?
+      delivery&.join
+      takeover&.join
+      relay&.stop
+    end
   end
 
   describe "#stop_session" do

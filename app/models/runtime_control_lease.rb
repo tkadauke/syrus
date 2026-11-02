@@ -109,7 +109,23 @@ class RuntimeControlLease < ApplicationRecord
   # granted"). No-op (returns an empty array) when the agent holds no active
   # lease.
   def self.abort_agent_control!(runtime_session:, reason: nil)
-    runtime_session.runtime_control_leases.active.held_by("agent").map { |lease| lease.abort!(reason: reason) }
+    transaction do
+      runtime_session.lock!
+      runtime_session.runtime_control_leases.active.held_by("agent").map { |lease| lease.abort!(reason: reason) }
+    end
+  end
+
+  # Keep authorization and delivery inside the same session-row lock used by
+  # operator aborts. A takeover therefore either wins before delivery starts,
+  # or waits for an already-authorized event to finish before it returns.
+  def self.with_agent_input_control(runtime_session)
+    transaction do
+      runtime_session.lock!
+      lease = runtime_session.active_agent_input_lease
+      return unless lease
+
+      yield lease
+    end
   end
 
   # Audits an input event rejected for lack of an active lease — there is no
