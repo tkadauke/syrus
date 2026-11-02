@@ -294,6 +294,66 @@ RSpec.describe JobDependency do
       expect(dependency).not_to be_dependency_succeeded
     end
 
+    it "keeps landed dependencies blocked until a successful close has durable landing evidence" do
+      prerequisite = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 10,
+        state: "implemented",
+        branch_name: "syrus/parent",
+        pr_number: 10
+      )
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+      dependency = described_class.create!(job: dependent, depends_on_job: prerequisite, source: "manual", satisfaction_mode: "landed")
+
+      %w[implemented approved landing].each do |state|
+        prerequisite.update_column(:state, state)
+        expect(dependency.reload).not_to be_execution_dependency_satisfied
+      end
+
+      prerequisite.update_columns(state: "closed", closure_reason: "pr_merged", landed_sha: nil)
+      expect(dependency.reload).not_to be_execution_dependency_satisfied
+
+      prerequisite.update!(landed_sha: "b" * 40)
+      expect(dependency.reload).to be_execution_dependency_satisfied
+      expect(dependency).to be_dependency_succeeded
+    end
+
+    it "does not accept approval-only or unsuccessful terminal outcomes as landed" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "pr_approved")
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+      dependency = described_class.create!(job: dependent, depends_on_job: prerequisite, source: "manual", satisfaction_mode: "landed")
+
+      prerequisite.update_column(:landed_sha, "b" * 40)
+      expect(dependency.reload).not_to be_execution_dependency_satisfied
+      expect(dependency).to be_dependency_terminal_unsuccessful_for_execution
+
+      prerequisite.update_columns(closure_reason: "cancelled", landed_sha: nil)
+      expect(dependency.reload).not_to be_execution_dependency_satisfied
+      expect(dependent.reload.failed_dependencies_for_execution).to contain_exactly(dependency)
+    end
+
+    it "accepts a genuine no-changes close without requiring a landed SHA" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "no_changes", landed_sha: nil)
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+
+      dependency = described_class.create!(job: dependent, depends_on_job: prerequisite, source: "manual", satisfaction_mode: "landed")
+
+      expect(dependency).to be_execution_dependency_satisfied
+      expect(dependency).to be_dependency_succeeded
+    end
+
+    it "rejects landed dependencies on Epic targets" do
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+      epic = Factories.epic(user: user, repository: repository, state: "done")
+
+      dependency = described_class.new(job: dependent, depends_on_epic: epic, source: "manual", satisfaction_mode: "landed")
+
+      expect(dependency).not_to be_valid
+      expect(dependency.errors[:depends_on_job]).to include("must be a Job for landed dependencies")
+    end
+
     it "keeps deployment-stage dependencies blocked before the matching stage status exists" do
       stub_deployment_stages
       prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "pr_merged")

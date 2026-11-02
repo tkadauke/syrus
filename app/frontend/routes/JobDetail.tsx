@@ -2467,6 +2467,9 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                         })}
                       </span>
                     ) : null}
+                    {dependency.satisfaction_mode === "landed" ? (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("dependency_waits_for_landing")}</span>
+                    ) : null}
                     {!dependency.succeeded ? <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill> : null}
                   </span>
                   {dependency.manual && !epicTarget ? (

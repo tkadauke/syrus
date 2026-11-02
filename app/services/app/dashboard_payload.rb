@@ -676,6 +676,17 @@ module App
             AND #{dependency_job_table}.state = 'closed'
           )
           OR (
+            #{dependency_table}.satisfaction_mode = 'landed'
+            AND #{dependency_job_table}.state = 'closed'
+            AND (
+              (#{dependency_job_table}.closure_reason = 'no_changes')
+              OR (
+                #{dependency_job_table}.landed_sha IS NOT NULL
+                AND #{dependency_job_table}.closure_reason IN ('pr_merged', 'external_pr_merged', 'promotion_landed', 'hotfix_sync_landed', 'emergency_landed')
+              )
+            )
+          )
+          OR (
             #{dependency_table}.satisfaction_mode = 'deployment_stage'
             AND EXISTS (
               SELECT 1

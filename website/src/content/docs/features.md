@@ -944,14 +944,21 @@ gate, such as a Job closed as `cancelled` or an archived Epic. Successfully
 closed dependencies such as `pr_merged`, `external_pr_merged`, `pr_approved`,
 and `no_changes` remain valid and do not block startup.
 Proposal dependencies can also carry explicit wait modes. The default remains
-successful completion, but a proposal may declare a cleanup-style
-wait-until-closed gate or a deployment-stage gate for an existing upstream Job
+`success`, which may release execution from an implemented upstream PR before
+its final successful close. Choose `landed` when execution must wait for a Job
+to close with durable evidence that its change reached the landing branch;
+`pr_approved` is not enough, while an explicit successful `no_changes` close is.
+Landed mode accepts Job targets only, because Epic completion is not used as
+proof that one individual repository change landed. A proposal may instead
+declare a cleanup-style wait-until-closed gate or a deployment-stage gate for an existing upstream Job
 whose repository declares that stage in `deployment_stages`. Syrus validates
 those stage names before the proposal is confirmed so a Job is not created with
 an impossible deployment gate.
 Manual dependency edits can also mark a cleanup or teardown gate as
 wait-until-closed. Those edges start once the target reaches any terminal close;
 normal implementation dependencies continue to require successful completion.
+Deployment-stage mode remains a stronger rollout gate after landing: it waits
+for the configured repository stage rather than merely for the landing SHA.
 Actions that need explicit approval, such as
 canceling, closing a Job successfully as `no_changes`, retrying, reopening,
 polling feedback, checking mergeability,

@@ -372,6 +372,7 @@
   "blocked_auto_start_deployment_stage_one": "— this job is waiting for deployment stage {{stages}}.",
   "blocked_auto_start_deployment_stage_other": "— this job is waiting for deployment stages {{stages}}.",
   "dependency_waits_for_deployment_stage": "Waits for deployment stage: {{stage}} (latest reached: {{latestStage}})",
+  "dependency_waits_for_landing": "Waits until the upstream change is landed",
   "dependency_deployment_stage_target": "{{target}} to reach {{stage}}",
   "dependency_deployment_stage_none": "none",
   "override_and_force_run": "Override and force-run",

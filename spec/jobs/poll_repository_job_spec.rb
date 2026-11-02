@@ -803,6 +803,25 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(job.reload.runs.count).to eq(1)
     end
 
+    it "promptly dispatches a landed-mode dependent after durable landing is recorded" do
+      prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42) ])
+
+      described_class.perform_now(repository.id)
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      job.dependencies.create!(depends_on_job: prerequisite, source: "manual", satisfaction_mode: "landed")
+      job.advance_after_triage!
+      expect(job.runs).to be_empty
+
+      prerequisite.update!(landed_sha: "a" * 40)
+      expect {
+        prerequisite.close_with_reason!("pr_merged")
+      }.to have_enqueued_job(RunJob)
+
+      expect(job.reload.runs.count).to eq(1)
+    end
+
     it "records unresolved dependency references as pending and waits to dispatch" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(number: 42, body: "Depends-on: #999") ])
