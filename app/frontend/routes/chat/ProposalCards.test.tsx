@@ -51,7 +51,7 @@ function pendingAction(overrides: Partial<ChatPendingAction> = {}): ChatPendingA
 function renderCard(action: ChatPendingAction, onNotice = vi.fn()) {
   const queryKey: ChatQueryKey = ["chats", "122", ""]
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(queryKey, { pending_actions: [action] })
+  client.setQueryData(queryKey, { messages: [], pending_actions: [action] })
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
@@ -59,7 +59,7 @@ function renderCard(action: ChatPendingAction, onNotice = vi.fn()) {
       </QueryClientProvider>
     </MemoryRouter>
   )
-  return { onNotice }
+  return { client, onNotice }
 }
 
 function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): ChatPendingActionGroup {
@@ -81,7 +81,7 @@ function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): Ch
 function renderGroupCard(group: ChatPendingActionGroup, onNotice = vi.fn()) {
   const queryKey: ChatQueryKey = ["chats", "122", ""]
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(queryKey, { pending_action_groups: [group] })
+  client.setQueryData(queryKey, { messages: [], pending_action_groups: [group] })
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
@@ -89,7 +89,7 @@ function renderGroupCard(group: ChatPendingActionGroup, onNotice = vi.fn()) {
       </QueryClientProvider>
     </MemoryRouter>
   )
-  return { onNotice }
+  return { client, onNotice }
 }
 
 describe("PendingActionGroupCard", () => {
@@ -130,11 +130,12 @@ describe("PendingActionGroupCard", () => {
     })
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
-        pending_action_groups: [confirmed],
+        messages: [],
+        pending_action_groups: [],
         message: "Batch result: 1 applied, 0 skipped/ineligible, 1 failed."
       })
     )
-    const { onNotice } = renderGroupCard(pendingActionGroup())
+    const { client, onNotice } = renderGroupCard(pendingActionGroup())
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm all" }))
 
@@ -142,6 +143,7 @@ describe("PendingActionGroupCard", () => {
     const [url, init] = fetchSpy.mock.calls[0]
     expect(url).toBe("/api/v1/app/chats/122/pending_action_groups/7/confirm")
     expect(init?.method).toBe("POST")
+    expect((client.getQueryData(["chats", "122", ""]) as ChatPayload).pending_action_groups).toEqual([])
   })
 
   it("distinguishes skipped or ineligible members from failures", () => {
@@ -186,7 +188,7 @@ describe("PendingActionGroupCard", () => {
   it("rejects every member on Reject all", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
-        pending_action_groups: [pendingActionGroup({ state: "rejected" })],
+        pending_action_groups: [],
         message: "Rejected 2 pending actions."
       })
     )
@@ -398,8 +400,8 @@ describe("PendingActionCard", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("shows a cosmetic hide button for a terminal pending action", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Pending action hidden." }))
-    const { onNotice } = renderCard(pendingAction())
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ messages: [], pending_actions: [], message: "Pending action hidden." }))
+    const { client, onNotice } = renderCard(pendingAction())
 
     expect(document.getElementById("pending-action-501")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Hide completed action" }))
@@ -408,6 +410,16 @@ describe("PendingActionCard", () => {
     const [url, init] = fetchSpy.mock.calls[0]
     expect(url).toBe("/api/v1/app/chats/122/pending_actions/501")
     expect(init?.method).toBe("DELETE")
+    expect((client.getQueryData(["chats", "122", ""]) as ChatPayload).pending_actions).toEqual([])
+  })
+
+  it("removes a confirmed action from the cached stream as soon as its outcome arrives", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ messages: [], pending_actions: [], message: "Pending action queued." }))
+    const { client } = renderCard(pendingAction({ state: "pending", execution_error: undefined }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => expect((client.getQueryData(["chats", "122", ""]) as ChatPayload).pending_actions).toEqual([]))
   })
 
   it("does not show a dismiss button for a pending (not yet failed) action", () => {

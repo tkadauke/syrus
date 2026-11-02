@@ -6589,23 +6589,18 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Batch result: 1 applied, 0 skipped/ineligible, 1 failed.")
+    expect(parse_body["message"]).to start_with("Batch result: 1 applied, 0 skipped/ineligible, 1 failed.\nFailed:")
     expect(group.reload).to be_confirmed
     expect(succeeding_job.reload).to be_open
     expect(failing_job.reload.state).to eq("queued")
 
-    members = parse_body["pending_action_groups"].first["members"]
-    expect(members.find { |member| member["id"] == member_ids.first }).to include("state" => "confirmed", "outcome" => "applied")
-    failing_member = members.find { |member| member["id"] == member_ids.second }
-    expect(failing_member["state"]).to eq("failed")
-    expect(failing_member["outcome"]).to eq("failed")
-    expect(failing_member["execution_error"]).to include("isn't closed")
+    expect(parse_body["pending_action_groups"]).to be_empty
     outcome = chat.messages.where(role: "system").order(:created_at, :id).last
-    expect(outcome.content).to include(
-      "source" => "pending_action_group_notification",
-      "outcome" => "confirmed",
-      "text" => "Batch result: 1 applied, 0 skipped/ineligible, 1 failed."
-    )
+    expect(outcome.content).to include("source" => "pending_action_group_notification", "outcome" => "confirmed")
+    expect(outcome.content.fetch("text")).to include("Batch result: 1 applied, 0 skipped/ineligible, 1 failed.", "Failed: Reopen #{failing_job.slug}", "isn't closed")
+
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(parse_body["pending_action_groups"]).to be_empty
   end
 
   it "rejects every member of a pending action group through the app API" do
@@ -6628,7 +6623,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(group.reload).to be_rejected
     expect(job_one.reload).to be_closed
     expect(job_two.reload).to be_closed
-    expect(parse_body["pending_action_groups"]).to contain_exactly(include("id" => group.id, "state" => "rejected"))
+    expect(parse_body["pending_action_groups"]).to be_empty
   end
 
   it "lets the operator dismiss a resolved pending action group through the app API" do
@@ -6733,17 +6728,20 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pending_actions"]).to be_empty
   end
 
-  it "keeps terminal pending actions visible until they are hidden" do
+  it "retires terminal pending actions after their durable outcome exists, including after reload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    fresh_action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
-    stale_action = chat.pending_actions.create!(action: "retry_job", payload: { "job_id" => Factories.job_record(repository: repository, issue_number: 44).id })
-    fresh_action.update!(state: "confirmed", confirmed_at: Time.current)
-    stale_action.update!(state: "confirmed", confirmed_at: 1.minute.ago)
+    completed_action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
+    action_without_outcome = chat.pending_actions.create!(action: "retry_job", payload: { "job_id" => Factories.job_record(repository: repository, issue_number: 44).id })
+    completed_action.update!(state: "confirmed", confirmed_at: Time.current)
+    action_without_outcome.update_columns(state: "confirmed", confirmed_at: 1.minute.ago, updated_at: Time.current)
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(fresh_action.id, stale_action.id)
+    expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(action_without_outcome.id)
+
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(action_without_outcome.id)
   end
 
   it "includes coworker tool review details in the pending-action card payload" do

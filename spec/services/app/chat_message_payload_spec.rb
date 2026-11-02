@@ -105,6 +105,18 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:text)).to eq("")
   end
 
+  it "gives message-anchored pending actions the same dismissal path and retirement rule" do
+    action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
+    message = chat.messages.create!(role: "tool_use", tool_name: "cancel_job", pending_action: action, content: { "text" => "Cancel it?" })
+
+    pending_payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+    expect(pending_payload.fetch(:app_cancel_path)).to eq("/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}")
+
+    action.update!(state: "confirmed", confirmed_at: Time.current)
+    retired_payload = described_class.messages([ message.reload ], repository: repository).first
+    expect(retired_payload.fetch(:pending_action)).to be_nil
+  end
+
   it "includes spawned chat ids in a confirmed spawn-chats action outcome" do
     group = PendingActionGroup.create_with_members!(
       chat_session: chat,
@@ -546,6 +558,7 @@ RSpec.describe App::ChatMessagePayload do
       execution_error: nil,
       app_confirm_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm",
       app_reject_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/reject",
+      app_cancel_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}",
       resource_title: "Inject memories into chat system prompt",
       resource_url: "/jobs/#{job.id}"
     )
@@ -576,7 +589,7 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
-  it "includes the created repository document result in an inline pending action" do
+  it "retires a confirmed repository-document action while preserving its result" do
     action = chat.pending_actions.create!(
       action: "create_repo_document",
       requested_by: "agent",
@@ -586,21 +599,11 @@ RSpec.describe App::ChatMessagePayload do
 
     expect(action.confirm!).to be(true)
     document = action.reload.result
-    payload = described_class.messages([ message.reload ], repository: repository).first.fetch(:pending_action)
+    payload = described_class.messages([ message.reload ], repository: repository).first
 
-    expect(payload).to include(
-      resource_title: "Runbook",
-      resource_url: "/api/v1/app/repository_documents/#{document.id}/file",
-      document: {
-        id: document.id,
-        title: "Runbook",
-        repository_id: repository.id,
-        repository_slug: repository.slug,
-        content_type: "text/markdown",
-        size_bytes: 13,
-        url: "/api/v1/app/repository_documents/#{document.id}/file"
-      }
-    )
+    expect(payload.fetch(:pending_action)).to be_nil
+    expect(action.reload.result).to eq(document)
+    expect(action.outcome_message).to be_present
   end
 
   it "includes restack_epic pending action details without an attached repository" do

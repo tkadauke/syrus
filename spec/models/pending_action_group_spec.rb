@@ -140,7 +140,10 @@ RSpec.describe PendingActionGroup do
       skipped.update!(state: "confirmed", execution_status: "no_longer_eligible")
       failed.update!(state: "confirmed", execution_status: "partial", execution_error: "audit persistence failed")
 
-      expect(group.confirmed_notice).to eq("Batch result: 1 applied, 1 skipped/ineligible, 1 failed.")
+      expect(group.confirmed_notice).to eq(
+        "Batch result: 1 applied, 1 skipped/ineligible, 1 failed.\n" \
+        "Failed: Reopen #{jobs.third.slug} — audit persistence failed"
+      )
       expect(applied.group_outcome).to eq("applied")
       expect(skipped.group_outcome).to eq("skipped")
       expect(failed.group_outcome).to eq("failed")
