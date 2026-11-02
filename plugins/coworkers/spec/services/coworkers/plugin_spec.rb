@@ -10,6 +10,14 @@ RSpec.describe "Coworkers plugin" do
     expect(manifest).not_to be_default_enabled
   end
 
+  it "keeps its capability compatibility baseline aligned with its chat tool inventory" do
+    registrations = Permissions::CapabilityRegistryValidator.send(
+      :plugin_registrations, Coworkers::ChatToolSet, :chat_mcp_tool_set
+    )
+
+    expect(Permissions::CapabilityRegistryValidator.new(registrations).findings).to be_empty
+  end
+
   it "registers the owner-only Job visibility restriction before contributing coworker tasks" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
     restriction = manifest.provides.fetch(:job_visibility_restriction)
