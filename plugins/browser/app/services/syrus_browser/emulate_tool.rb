@@ -65,6 +65,10 @@ module SyrusBrowser
         const state = page.__syrusEmulation || { viewport: { width: 1280, height: 720 }, device_scale_factor: 1,
           is_mobile: false, has_touch: false, user_agent: "", safe_area_insets: { top: 0, right: 0, bottom: 0, left: 0 },
           color_scheme: null, reduced_motion: null };
+        // browser_resize changes the viewport behind our back; trust the page's current size so
+        // fields the caller did not specify (including the viewport) stay unchanged.
+        const current = page.viewportSize();
+        if (current) state.viewport = { width: current.width, height: current.height };
         for (const key of Object.keys(patch)) {
           const value = patch[key];
           state[key] = (value && typeof value === "object") ? Object.assign({}, state[key], value) : value;
