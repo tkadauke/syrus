@@ -971,7 +971,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
-  it "does not apply or attribute a dismissed restack_epic pending action" do
+  it "does not apply or attribute a cancelled restack_epic pending action" do
     allow(AppEvents).to receive(:broadcast)
     epic = Factories.epic(user: admin, repository: repository)
     root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 43, state: "approved", branch_name: "syrus/root", pr_number: 43, commits_behind_base: 0, mergeability_base_ref: repository.default_branch)
@@ -991,7 +991,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(AdminAction.where(action: "repair_restack_epic")).to be_empty
     message = admin_session.messages.where(role: "system").last
     expect(message.content["outcome"]).to eq("cancelled")
-    expect(message.content["text"]).to include("dismissed").and include("was not applied")
+    expect(message.content["text"]).to include("cancelled").and include("was not applied")
   end
 
   it "confirms force_landing_recheck through the recheck service" do
