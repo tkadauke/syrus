@@ -37,6 +37,12 @@ redacted arguments, effects, purpose, duration choices, and policy explanation.
 Operators can filter the inbox, select requests with a shared duration and decide them atomically,
 dismiss obsolete requests without denying future work, and review completed
 history.
+
+Approval notification settings can batch normal requests and hold delivery
+during configured quiet hours. Urgent approvals bypass the batch delay, while
+all priorities respect quiet hours. These settings affect external/browser
+notifications only: the Approvals badge, blocked-agent waiting indicator,
+inbox, and origin card remain visible immediately.
 The global Approvals shield beside notifications shows the pending count and an
 amber waiting halo while an agent is blocked on a decision. It announces newly
 blocked agents to assistive technology and uses a static ring when reduced motion

@@ -51,6 +51,13 @@ requests can be selected and decided atomically when their items share a duratio
 remain available as history; dismissing an obsolete request does not create a
 deny rule.
 
+Background authorization requests are also routed through the operator's
+notification settings. Normal and low-urgency requests share a configurable
+batch window; urgent requests skip that window. All external delivery respects
+the operator's UTC or named-zone quiet hours. Disabling or delaying external
+delivery never hides the global Approvals badge, the blocked-agent indicator,
+the central inbox entry, or the request at its origin.
+
 The global Approvals shield sits beside notifications and always shows the
 pending total. When an agent is stopped at an authorization checkpoint, the
 shield uses an amber waiting halo until the request is resolved and announces
