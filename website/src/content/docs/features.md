@@ -306,6 +306,8 @@ When a pending action finishes, Syrus immediately records its confirmed,
 failed, rejected, or cancelled outcome in chat. Terminal cards can be hidden,
 but hiding is cosmetic: it preserves the execution state, status, error,
 result, and audit history and does not wake the agent a second time.
+Older terminal cards are archived during upgrade, so they do not reappear or
+replay agent turns when a chat is first opened after deployment.
 
 When the `emergency_land` feature flag is enabled, a Coding Mode chat linked to
 an active coding Job can request an emergency land. This is a repository-admin

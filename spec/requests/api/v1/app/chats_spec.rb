@@ -6697,11 +6697,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     job = Factories.job_record(repository: repository)
     action = chat.pending_actions.create!(
       action: "cancel_job",
-      state: "failed",
-      execution_status: "failed",
-      execution_error: "StandardError: boom",
       payload: { "job_id" => job.id }
     )
+    action.fail_confirmation!(StandardError.new("boom"))
 
     get "/api/v1/app/chats/#{chat.id}"
 
