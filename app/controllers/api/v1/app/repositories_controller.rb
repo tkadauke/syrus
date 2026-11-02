@@ -457,7 +457,7 @@ module Api
         end
 
         def repository_index_scope
-          Syrus::PluginRegistry.providers_for(:repository_index_filter).reduce(Repository.accessible_to(Current.user)) do |scope, filter|
+          Syrus::PluginRegistry.providers_for(:repository_filter).reduce(Repository.accessible_to(Current.user)) do |scope, filter|
             filter.apply(scope: scope, user: Current.user)
           end
         end

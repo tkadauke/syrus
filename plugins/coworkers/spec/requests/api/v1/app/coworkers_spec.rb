@@ -496,7 +496,7 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
-  it "ignores main and side coworker chats when inferring a new chat repository default" do
+  it "ignores dedicated coworker repositories when inferring a new chat repository default" do
     ordinary_repository = Factories.repository(user: owner, owner: "acme", name: "ordinary")
     workspace_repository = Factories.repository(user: owner, owner: "acme", name: "workspace-default")
     ordinary_chat = ChatSession.create!(user: owner, repository: ordinary_repository)
@@ -504,6 +504,7 @@ RSpec.describe "API: coworkers", type: :request do
     coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-default", workspace_repo: workspace_repository.remote_url
     )
+    Coworkers::WorkspaceRepository.create!(repository: workspace_repository)
     main_chat = ChatSession.create!(user: owner, repository: workspace_repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
     side_chat = Coworkers::SpawnChat.call(coworker: coworker, prompt: "Investigate", server_context: nil)
@@ -518,12 +519,13 @@ RSpec.describe "API: coworkers", type: :request do
     expect(side_chat.reload.repository).to eq(workspace_repository)
   end
 
-  it "falls back to the first active repository when only coworker chats have repositories" do
+  it "falls back to the first active repository when only dedicated coworker repositories have chats" do
     fallback_repository = Factories.repository(user: owner, owner: "acme", name: "aardvark")
     workspace_repository = Factories.repository(user: owner, owner: "acme", name: "zebra-workspace")
     coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-fallback", workspace_repo: workspace_repository.remote_url
     )
+    Coworkers::WorkspaceRepository.create!(repository: workspace_repository)
     chat = ChatSession.create!(user: owner, repository: workspace_repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     sign_in_as(owner)
