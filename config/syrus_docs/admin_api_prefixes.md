@@ -71,6 +71,7 @@ without a deliberate migration choice:
 - Job dependency override and force-fail controls for in-app repair screens
 - MCP tool usage
 - overview and stuck queues
+- permission parity diagnostics
 - plugin enablement/configuration
 - process inventory and kill
 - provider-routing hold release

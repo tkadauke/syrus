@@ -102,7 +102,8 @@ module Permissions
     def missing_descriptor_findings
       registrations.filter_map do |registration|
         next if registration.descriptor && (registration.explicit_descriptor || legacy_registration_allowed?(registration))
-        finding(:missing_descriptor, registration, "has no explicit capability_descriptor")
+        finding(:missing_descriptor, registration,
+          I18n.t("server.permissions.capability_registry.missing_descriptor_detail"))
       end
     end
 
@@ -113,7 +114,8 @@ module Permissions
         next if mappings.length <= 1
         Finding.new(
           code: :conflicting_tool_mapping,
-          message: "#{surface} tool #{tool_name.inspect} maps to conflicting capability/operations #{mappings.inspect}; use one stable mapping",
+          message: I18n.t("server.permissions.capability_registry.conflicting_tool_mapping",
+            surface:, tool_name: tool_name.inspect, mappings: mappings.inspect),
           registrations: group
         )
       end
@@ -130,7 +132,8 @@ module Permissions
         next if contracts.one?
         Finding.new(
           code: :conflicting_descriptor,
-          message: "operation #{operation.inspect} has conflicting descriptor policy/effect contracts from #{group.map(&:source).uniq.sort.join(', ')}",
+          message: I18n.t("server.permissions.capability_registry.conflicting_descriptor",
+            operation: operation.inspect, sources: group.map(&:source).uniq.sort.join(", ")),
           registrations: group
         )
       end
@@ -163,7 +166,8 @@ module Permissions
         involved = entries.map(&:last).uniq
         Finding.new(
           code: :conflicting_identifier,
-          message: "#{kind} identifier #{identifier.inspect} is claimed by #{canonical_targets.inspect}; aliases must resolve to exactly one canonical identifier",
+          message: I18n.t("server.permissions.capability_registry.conflicting_identifier",
+            kind:, identifier: identifier.inspect, targets: canonical_targets.inspect),
           registrations: involved
         )
       end
@@ -172,7 +176,9 @@ module Permissions
     def finding(code, registration, detail)
       Finding.new(
         code: code,
-        message: "#{registration.source} #{registration.surface} tool #{registration.tool_name.inspect} #{detail}",
+        message: I18n.t("server.permissions.capability_registry.registration_finding",
+          source: registration.source, surface: registration.surface,
+          tool_name: registration.tool_name.inspect, detail:),
         registrations: [ registration ]
       )
     end
