@@ -91,16 +91,13 @@ RSpec.describe Steps::Implement do
     end
 
     it "uses the fetched issue title in the commit subject, not a job.slug fallback" do
-      # Regression: job_commit_subject used to be evaluated as an eagerly-computed
-      # keyword argument before persist_prompt_if_needed fetched the issue and
-      # populated job.issue_title, so job.title fell back to job.slug and produced
-      # "Implement: JOB-123" instead of "Implement: Add greeting helper".
+      original_definition = job.slice(:issue_title, :issue_body)
       expect(handler).to receive(:commit_agent_changes)
         .with("Implement: #{job.slug}: Add greeting helper")
 
       handler.call
 
-      expect(job.reload.issue_title).to eq("Add greeting helper")
+      expect(job.reload.slice(:issue_title, :issue_body)).to eq(original_definition)
     end
 
     it "builds and persists the prompt from Prompts::Implement" do

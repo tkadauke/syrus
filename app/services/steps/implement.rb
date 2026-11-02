@@ -14,20 +14,18 @@ module Steps
 
     def call
       # Issue Jobs don't have `issue_title` populated until
-      # persist_prompt_if_needed fetches the GitHub issue, and
-      # job_commit_subject falls back to job.slug when title is blank —
-      # so it must run after the fetch, not as an eagerly-evaluated
-      # keyword argument alongside it (that produced commit subjects
-      # like "Implement: JOB-123" instead of the issue title).
+      # persist_prompt_if_needed fetches the GitHub issue. Use that immutable
+      # source snapshot for the prompt and commit subject without rewriting the
+      # Job definition after execution has started.
       # workspace.setup runs here too, since persist_prompt_if_needed's
       # main_branch_context needs the clone on disk; perform_agentic_change_step
       # calls setup again below, which is a no-op once the clone exists.
       workspace.setup
-      persist_prompt_if_needed
+      issue = persist_prompt_if_needed
 
       perform_agentic_change_step(
         log_message: "invoking agent for #{target_label} (#{workflow.slug}, step ##{step.id} implement)",
-        commit_message: job_commit_subject("Implement")
+        commit_message: job_commit_subject("Implement", title: issue&.title || job.title)
       )
     end
 
@@ -48,11 +46,11 @@ module Steps
 
       issue = fetch_issue
       issue_comments = fetch_initial_issue_comments
-      job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
       workflow.set_artifact!("initial_issue_comments", issue_comments) if job.issue?
       ctx = workflow.artifacts&.dig("replay_context")
       main_ctx = main_branch_context
       run.update!(prompt: implement_prompt(issue: issue, issue_comments: issue_comments, replay_context: ctx, main_branch_context: main_ctx))
+      issue
     end
 
     def target_label

@@ -40,6 +40,7 @@ class Job < ApplicationRecord
     landing
     closed
   ].freeze
+  DEFINITION_EDITABLE_STATES = %w[backlog needs_triage triaging blocked_by_epic queued].freeze
   TERMINAL_STATES = %w[ closed no_change_needed ].freeze
   REQUESTED_CHANGES_ATTENTION_REASON = "upstream_pr_changes_requested".freeze
   UNAPPLIED_FEEDBACK_ATTENTION_REASON = "unapplied_chat_feedback".freeze
@@ -153,6 +154,7 @@ class Job < ApplicationRecord
   validate  :investigation_requires_investigable_kind, if: :investigation?
   validate  :investigation_excludes_skill_name, if: -> { investigation? && skill_name.present? }
   validate  :investigation_excludes_epic, if: -> { investigation? && (epic_id.present? || epic.present?) }
+  validate  :definition_is_editable
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -223,6 +225,8 @@ class Job < ApplicationRecord
   def landing_attention? = needs_attention_reason.in?(LANDING_HOLD_ATTENTION_REASONS)
 
   def landing_held? = manual_paused? || landing_attention?
+
+  def definition_editable? = state.in?(DEFINITION_EDITABLE_STATES)
 
   def eligible_for_landing_dispatch?
     approved? && may_start_landing? && !landing_held?
@@ -2276,6 +2280,14 @@ class Job < ApplicationRecord
 
   def branch_name_is_valid
     errors.add(:branch_name, :invalid_branch_name) unless GitBranchName.valid?(branch_name)
+  end
+
+  def definition_is_editable
+    return unless persisted?
+    return unless will_save_change_to_issue_title? || will_save_change_to_issue_body?
+    return if definition_editable?
+
+    errors.add(:base, "title and description are immutable once work starts; the Job is currently #{state}")
   end
 
   def investigation_requires_investigable_kind
