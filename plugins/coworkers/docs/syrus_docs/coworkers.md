@@ -67,6 +67,11 @@ automations disabled, then seeds an isolated `coworkers/<handle>` home branch.
 Existing repository registrations are reused without changing their settings.
 The coworker's owner receives write membership when a shared registration is
 reused, so workspace Jobs remain authorized for every coworker owner.
+Dedicated coworker workspace registrations created during provisioning are
+omitted from that owner's general Repositories list
+while the plugin is enabled. A normal repository reused by a coworker stays in
+the list. Dedicated workspaces remain available to the coworker, its chats and
+schedules, and direct authorized repository requests.
 The remote's default branch is never modified.
 
 Planner and ordinary Syrus chats can use `propose_coworker` to stage the same

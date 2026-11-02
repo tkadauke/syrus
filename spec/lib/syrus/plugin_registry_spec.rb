@@ -103,7 +103,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         :coverage_analyzer,
         :mentionable,
         :chat_result_decorator,
-        :chat_repository_default_filter
+        :repository_filter
       )
     end
 
@@ -220,11 +220,11 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
   end
 
-  describe "Syrus::Plugin::ChatRepositoryDefaultFilter" do
+  describe "Syrus::Plugin::RepositoryFilter" do
     it "requires providers to implement .apply" do
-      provider = Class.new { include Syrus::Plugin::ChatRepositoryDefaultFilter }
+      provider = Class.new { include Syrus::Plugin::RepositoryFilter }
 
-      expect { provider.apply(scope: ChatSession.all) }
+      expect { provider.apply(scope: Repository.all, user: Factories.user) }
         .to raise_error(NotImplementedError, /must define \.apply/)
     end
   end
@@ -236,6 +236,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :chat_provider to Syrus::Plugin::ChatProvider" do
       expect(described_class::INTERFACE_FOR[:chat_provider].call).to eq(Syrus::Plugin::ChatProvider)
+    end
+
+    it "maps :repository_filter to Syrus::Plugin::RepositoryFilter" do
+      expect(described_class::INTERFACE_FOR[:repository_filter].call).to eq(Syrus::Plugin::RepositoryFilter)
     end
 
     it "maps :preview_provider to Syrus::Plugin::PreviewProvider" do

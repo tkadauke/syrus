@@ -428,7 +428,9 @@ module Api
 
         def repositories_payload(message: nil)
           PerformanceLogging.phase("repositories_index_payload") do
-            repos = PerformanceLogging.phase("repositories_index.repositories_query") { Repository.accessible_to(Current.user).includes(:user).order(:owner, :name).to_a }
+            repos = PerformanceLogging.phase("repositories_index.repositories_query") do
+              repository_index_scope.includes(:user).order(:owner, :name).to_a
+            end
             @repository_index_editable_ids = PerformanceLogging.phase("repositories_index.editable_ids", repository_count: repos.size) do
               if Current.user.admin?
                 repos.map(&:id).to_set
@@ -451,6 +453,12 @@ module Api
               filter_schema: repository_filter_schema(repos),
               message: message
             }
+          end
+        end
+
+        def repository_index_scope
+          Syrus::PluginRegistry.providers_for(:repository_filter).reduce(Repository.accessible_to(Current.user)) do |scope, filter|
+            filter.apply(scope: scope, user: Current.user)
           end
         end
 

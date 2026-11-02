@@ -37,6 +37,12 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `purge_contributor`
 - `slug_type`
 - `job_visibility_restriction`
+- `repository_filter`
+
+`repository_filter` providers receive an accessible Repository relation and
+the current user through `apply(scope:, user:)`. They may narrow
+general-purpose repository discovery surfaces without changing direct access
+or repository authorization.
 
 ## Per-origin Job visibility
 
@@ -2124,14 +2130,15 @@ batched lookup; the badges appear in global search, chat search, and the
 chips: ...)` separately when the plugin also owns a chat-only search filter;
 the returned teardown removes those chips when the plugin is disabled.
 
-Plugins can narrow which chats contribute the automatic repository default for
-a new ordinary chat through the core `:chat_repository_default_filter` point.
-A provider includes `Syrus::Plugin::ChatRepositoryDefaultFilter` and implements
-`.apply(scope:)`, returning an `ActiveRecord::Relation` narrowed from the
-supplied accessible-chat scope. Multiple providers compose in registration
-order, with each receiving the preceding provider's relation. This hook affects
-only automatic default inference: it must not change repository authorization,
-explicit repository selection, or repository active state.
+Plugins can narrow which repositories contribute the automatic repository
+default for a new ordinary chat through the core `:repository_filter` point.
+A provider includes `Syrus::Plugin::RepositoryFilter` and implements
+`.apply(scope:, user:)`, returning an `ActiveRecord::Relation` narrowed from
+the supplied accessible-repository scope. Multiple providers compose in
+registration order, with each receiving the preceding provider's relation.
+The same point also filters the general Repositories index. It must not change
+repository authorization, explicit repository selection, or repository active
+state.
 
 A qualified point resolves only while its host is **registered, enabled, and
 actually declares it** — otherwise `"<plugin>:<anything>"` would silently

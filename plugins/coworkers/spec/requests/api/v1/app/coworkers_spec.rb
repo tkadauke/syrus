@@ -5,6 +5,40 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "hides coworker workspace repositories from the repository list" do
+    visible = Factories.repository(user: owner, owner: "acme", name: "application")
+    workspace = Factories.repository(user: owner, owner: "acme", name: "coworker-home")
+    Coworkers::WorkspaceRepository.create!(repository: workspace)
+    Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-repository-list",
+      workspace_repo: workspace.remote_url
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/repositories"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("active_repositories").pluck("id")).to contain_exactly(visible.id)
+  end
+
+  it "keeps a reused normal repository listed even when all workspace automation settings are disabled" do
+    repository = Factories.repository(
+      user: owner, owner: "acme", name: "shared-application",
+      polling_enabled: false, auto_merge_enabled: false, external_pr_ingestion_enabled: false,
+      main_branch_health_enabled: false, main_branch_repair_enabled: false,
+      fork_auto_sync_enabled: false, pr_cost_footer_enabled: false
+    )
+    Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-shared-repository-list",
+      workspace_repo: repository.remote_url
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/repositories"
+
+    expect(response.parsed_body.fetch("active_repositories").pluck("id")).to include(repository.id)
+  end
+
   it "includes the permission cutover report in coworker details" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-report", workspace_repo: "https://github.com/acme/workspace.git")
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
@@ -462,7 +496,7 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
-  it "ignores main and side coworker chats when inferring a new chat repository default" do
+  it "ignores dedicated coworker repositories when inferring a new chat repository default" do
     ordinary_repository = Factories.repository(user: owner, owner: "acme", name: "ordinary")
     workspace_repository = Factories.repository(user: owner, owner: "acme", name: "workspace-default")
     ordinary_chat = ChatSession.create!(user: owner, repository: ordinary_repository)
@@ -470,6 +504,7 @@ RSpec.describe "API: coworkers", type: :request do
     coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-default", workspace_repo: workspace_repository.remote_url
     )
+    Coworkers::WorkspaceRepository.create!(repository: workspace_repository)
     main_chat = ChatSession.create!(user: owner, repository: workspace_repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
     side_chat = Coworkers::SpawnChat.call(coworker: coworker, prompt: "Investigate", server_context: nil)
@@ -484,12 +519,13 @@ RSpec.describe "API: coworkers", type: :request do
     expect(side_chat.reload.repository).to eq(workspace_repository)
   end
 
-  it "falls back to the first active repository when only coworker chats have repositories" do
+  it "falls back to the first active repository when only dedicated coworker repositories have chats" do
     fallback_repository = Factories.repository(user: owner, owner: "acme", name: "aardvark")
     workspace_repository = Factories.repository(user: owner, owner: "acme", name: "zebra-workspace")
     coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-fallback", workspace_repo: workspace_repository.remote_url
     )
+    Coworkers::WorkspaceRepository.create!(repository: workspace_repository)
     chat = ChatSession.create!(user: owner, repository: workspace_repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     sign_in_as(owner)

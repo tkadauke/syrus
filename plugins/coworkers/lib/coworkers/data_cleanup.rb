@@ -19,6 +19,12 @@ module Coworkers
           Coworkers::ChatAgent.where(chat_session_id: chat.id).find_each(&:destroy)
         end
       end
+
+      scope.effect("dedicated coworker workspace repositories") do
+        Syrus::DataCleanup.register("Repository", "coworkers.workspace_repository") do |repository|
+          Coworkers::WorkspaceRepository.find_by(repository_id: repository.id)&.destroy
+        end
+      end
     end
   end
 end
