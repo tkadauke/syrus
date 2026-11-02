@@ -200,7 +200,10 @@ module App
       payload[:sidechain] = true if message.sidechain
       payload[:parent_tool_use_id] = message.parent_tool_use_id if message.parent_tool_use_id.present?
       payload[:proposal] = proposal_json(message.proposal, chat_session: message.chat_session) if message.proposal_id.present?
-      payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session) if message.pending_action_id.present?
+      if message.pending_action_id.present?
+        payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session)
+        payload[:pending_action_retired] = true if payload[:pending_action].nil?
+      end
       bridge = cross_chat_bridge_json(message)
       payload[:cross_chat_bridge] = bridge if bridge
 
