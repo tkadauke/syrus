@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Checkbox } from "../components/Checkbox"
+import { Input } from "../components/Input"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import {
   fetchNotificationPreferences,
+  updateApprovalDeliveryPreferences,
   updateNotificationPreferences,
   type NotificationPreferenceKind,
   type NotificationPreferencesPayload
@@ -91,16 +93,97 @@ function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string
       {preferences.isError ? <PanelMessage tone="error">{errorMessage(preferences.error, t("notifications.load_error"))}</PanelMessage> : null}
       {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, t("notifications.update_error"))}</PanelMessage> : null}
       {preferences.isSuccess ? (
-        <NotificationPreferenceToggles
-          disabled={update.isPending}
-          onChange={(kind, enabled) => {
-            onNotice(null)
-            update.mutate({ kind, enabled })
-          }}
-          payload={preferences.data}
-        />
+        <div className="space-y-8">
+          <NotificationPreferenceToggles
+            disabled={update.isPending}
+            onChange={(kind, enabled) => {
+              onNotice(null)
+              update.mutate({ kind, enabled })
+            }}
+            payload={preferences.data}
+          />
+          <ApprovalDeliverySettings payload={preferences.data} onNotice={onNotice} />
+        </div>
       ) : null}
     </section>
+  )
+}
+
+function ApprovalDeliverySettings({ payload, onNotice }: { payload: NotificationPreferencesPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
+  const queryClient = useQueryClient()
+  const update = useMutation({
+    mutationFn: updateApprovalDeliveryPreferences,
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || t("notifications.updated"))
+    }
+  })
+  const preferences = payload.approval_delivery_preferences || {
+    enabled: true,
+    batch_minutes: 10,
+    quiet_hours_enabled: false,
+    quiet_hours_start: "22:00",
+    quiet_hours_end: "07:00",
+    time_zone: "UTC"
+  }
+  const save = (change: Parameters<typeof updateApprovalDeliveryPreferences>[0]) => {
+    onNotice(null)
+    update.mutate(change)
+  }
+
+  return (
+    <fieldset className="space-y-3 border-t border-border pt-6">
+      <legend className="text-sm font-medium text-text-primary">{t("notifications.approval_delivery")}</legend>
+      <p className="text-sm text-text-secondary">{t("notifications.approval_delivery_help")}</p>
+      <Toggle
+        label={t("notifications.approval_external")}
+        checked={preferences.enabled}
+        disabled={update.isPending}
+        onChange={(value) => save({ enabled: value })}
+      />
+      <label className="grid gap-1 text-sm text-text-secondary">
+        <span>{t("notifications.approval_batch")}</span>
+        <Input
+          fullWidth={false}
+          type="number"
+          min="0"
+          max="60"
+          value={preferences.batch_minutes}
+          onChange={(event) => save({ batch_minutes: Number(event.target.value) })}
+        />
+      </label>
+      <Toggle
+        label={t("notifications.approval_quiet")}
+        checked={preferences.quiet_hours_enabled}
+        disabled={update.isPending}
+        onChange={(value) => save({ quiet_hours_enabled: value })}
+      />
+      <div className="flex flex-wrap gap-3">
+        <label className="grid gap-1 text-sm text-text-secondary">
+          <span>{t("notifications.quiet_start")}</span>
+          <Input fullWidth={false} type="time" value={preferences.quiet_hours_start} onChange={(event) => save({ quiet_hours_start: event.target.value })} />
+        </label>
+        <label className="grid gap-1 text-sm text-text-secondary">
+          <span>{t("notifications.quiet_end")}</span>
+          <Input fullWidth={false} type="time" value={preferences.quiet_hours_end} onChange={(event) => save({ quiet_hours_end: event.target.value })} />
+        </label>
+        <label className="grid gap-1 text-sm text-text-secondary">
+          <span>{t("notifications.time_zone")}</span>
+          <Input fullWidth={false} value={preferences.time_zone} onChange={(event) => save({ time_zone: event.target.value })} />
+        </label>
+      </div>
+      {update.isError ? <PanelMessage tone="error">{errorMessage(update.error, t("notifications.update_error"))}</PanelMessage> : null}
+    </fieldset>
+  )
+}
+
+function Toggle({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <label className="flex items-center justify-between gap-4 rounded border border-border px-3 py-2 text-sm">
+      <span className="font-medium text-text-primary">{label}</span>
+      <Checkbox aria-label={label} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+    </label>
   )
 }
 

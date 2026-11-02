@@ -347,6 +347,14 @@
     "semantics_label": "Semantik"
   },
   "notifications": {
+    "approval_delivery": "Zustellung von Genehmigungen",
+    "approval_delivery_help": "Genehmigungs-Badges und Hinweise auf wartende Agenten bleiben immer sichtbar. Diese Einstellungen steuern nur externe Benachrichtigungen.",
+    "approval_external": "Externe Genehmigungsbenachrichtigungen senden",
+    "approval_batch": "Batch-Zeitraum (Minuten; 0 sendet sofort)",
+    "approval_quiet": "Benachrichtigungen während der Ruhezeit zurückhalten",
+    "quiet_start": "Beginn der Ruhezeit",
+    "quiet_end": "Ende der Ruhezeit",
+    "time_zone": "Zeitzone",
     "load_error": "Benachrichtigungseinstellungen konnten nicht geladen werden.",
     "update_error": "Benachrichtigungseinstellungen konnten nicht aktualisiert werden.",
     "heading": "Benachrichtigungen",
