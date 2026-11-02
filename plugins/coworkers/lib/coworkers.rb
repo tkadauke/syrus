@@ -25,6 +25,7 @@ module Coworkers
              mcp_run_context_contributor: "Coworkers::RunContextContributor",
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
+             repository_index_filter: "Coworkers::RepositoryIndexFilter",
              chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_repository_default_filter: "Coworkers::ChatRepositoryDefaultFilter",
              chat_prompt_injector: "Coworkers::PromptSection",

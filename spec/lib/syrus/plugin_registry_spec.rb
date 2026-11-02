@@ -103,7 +103,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         :coverage_analyzer,
         :mentionable,
         :chat_result_decorator,
-        :chat_repository_default_filter
+        :chat_repository_default_filter,
+        :repository_index_filter
       )
     end
 
@@ -236,6 +237,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :chat_provider to Syrus::Plugin::ChatProvider" do
       expect(described_class::INTERFACE_FOR[:chat_provider].call).to eq(Syrus::Plugin::ChatProvider)
+    end
+
+    it "maps :repository_index_filter to Syrus::Plugin::RepositoryIndexFilter" do
+      expect(described_class::INTERFACE_FOR[:repository_index_filter].call).to eq(Syrus::Plugin::RepositoryIndexFilter)
     end
 
     it "maps :preview_provider to Syrus::Plugin::PreviewProvider" do
