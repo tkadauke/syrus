@@ -640,6 +640,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_101450) do
     t.json "delivery_metadata", null: false
     t.datetime "dismissed_at"
     t.integer "outcome_message_id"
+    t.datetime "outcome_wake_enqueued_at"
+    t.boolean "legacy_outcome", default: false, null: false
     t.index ["chat_message_id"], name: "index_chat_pending_actions_on_chat_message_id"
     t.index ["chat_session_id", "state", "confirmed_at"], name: "idx_chat_pending_actions_payload_confirmed"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
@@ -2702,6 +2704,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_101450) do
     t.datetime "updated_at", null: false
     t.datetime "dismissed_at"
     t.integer "outcome_message_id"
+    t.datetime "outcome_wake_enqueued_at"
+    t.boolean "legacy_outcome", default: false, null: false
     t.index ["chat_session_id", "state"], name: "index_pending_action_groups_on_chat_session_id_and_state"
     t.index ["chat_session_id"], name: "index_pending_action_groups_on_chat_session_id"
     t.index ["outcome_message_id"], name: "index_pending_action_groups_on_outcome_message_id"
