@@ -38,8 +38,7 @@ RSpec.describe ProviderRouting::LegacyProviderConversion do
   it "is idempotent" do
     2.times { convert(repository_rows: [ repo_row ], membership_rows: [ membership_row ]) }
 
-    expect(ProviderRoutingRule.where(scope_type: "repository", scope_id: repository.id).count).to eq(1)
-    expect(ProviderRoutingRule.where(scope_type: "user", scope_id: member.id).count).to eq(1)
+    expect(ProviderRoutingRule.where(scope_type: "repository", scope_id: repository.id).count).to eq(2)
   end
 
   it "skips a repository that already has its own default rule" do
@@ -78,16 +77,13 @@ RSpec.describe ProviderRouting::LegacyProviderConversion do
   end
 
   describe "memberships" do
-    it "converts a write-tier pin into a repository-limited default rule on the member's user scope, placed first" do
-      existing = ProviderRoutingRule.create!(scope_type: "user", scope_id: member.id, task_key: "default", candidates: [ { "provider" => "claude" } ])
-
+    it "converts a write-tier pin into a repository-scoped default rule limited to the member" do
       convert(membership_rows: [ membership_row ])
 
-      rule = ProviderRoutingRule.where(scope_type: "user", scope_id: member.id).order(:position).first
-      expect(rule.conditions).to eq("repository" => { "ids" => [ repository.id ] })
+      rule = ProviderRoutingRule.find_by!(scope_type: "repository", scope_id: repository.id)
+      expect(rule.user_id).to eq(owner.id)
+      expect(rule.conditions).to eq("user" => { "ids" => [ member.id ] })
       expect(rule.action_candidates.map { |c| c["provider"] }).to eq([ "codex" ])
-      expect(rule.position).to eq(1)
-      expect(existing.reload.position).to eq(2)
     end
 
     it "routes the member to the pinned provider for that repository only" do
@@ -97,24 +93,30 @@ RSpec.describe ProviderRouting::LegacyProviderConversion do
 
       pinned = Factories.job(repository: repository, user: member, job_provider_setting: "default")
       elsewhere = Factories.job(repository: other_repo, user: member, job_provider_setting: "default")
+      other_member = Factories.job(repository: repository, user: Factories.user(agent_provider: "claude"), job_provider_setting: "default")
 
       expect(ProviderRouting::Resolver.call(job: pinned, task_key: "implement").map(&:provider)).to eq([ "codex" ])
       expect(ProviderRouting::Resolver.call(job: elsewhere, task_key: "implement").map(&:provider)).to eq([ "claude" ])
+      expect(ProviderRouting::Resolver.call(job: other_member, task_key: "implement").map(&:provider)).to eq([ "claude" ])
+    end
+
+    it "keeps the member override ahead of a different repository pin, as before" do
+      member.update!(agent_provider: "claude")
+      bystander = Factories.user(agent_provider: "claude")
+
+      2.times { convert(repository_rows: [ repo_row(provider: "claude") ], membership_rows: [ membership_row(provider: "codex") ]) }
+
+      member_job = Factories.job(repository: repository, user: member, job_provider_setting: "default")
+      bystander_job = Factories.job(repository: repository, user: bystander, job_provider_setting: "default")
+      expect(ProviderRouting::Resolver.call(job: member_job, task_key: "implement").map(&:provider)).to eq([ "codex" ])
+      expect(ProviderRouting::Resolver.call(job: bystander_job, task_key: "implement").map(&:provider)).to eq([ "claude" ])
+      expect(ProviderRoutingRule.where(scope_type: "repository", scope_id: repository.id).count).to eq(2)
     end
 
     it "ignores read-tier memberships, which never had an effect" do
       convert(membership_rows: [ membership_row(role: "read") ])
 
       expect(ProviderRoutingRule.count).to eq(0)
-    end
-
-    it "warns when repository rules will shadow the member override" do
-      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "claude" } ])
-
-      result = convert(membership_rows: [ membership_row ])
-
-      expect(result.warnings.first).to include("shadowed")
-      expect(result.converted.size).to eq(1)
     end
   end
 end

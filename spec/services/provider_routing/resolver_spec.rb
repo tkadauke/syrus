@@ -453,3 +453,37 @@ RSpec.describe ProviderRouting::Resolver do
     end
   end
 end
+
+RSpec.describe ProviderRouting::Resolver, ".preview_provider" do
+  let(:user) { Factories.user(agent_provider: "claude") }
+  let(:repository) { Factories.repository(user: user) }
+
+  it "falls back to the owner's default provider with no rules" do
+    expect(described_class.preview_provider(repository: repository)).to eq("claude")
+  end
+
+  it "follows a repository routing rule" do
+    ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
+
+    expect(described_class.preview_provider(repository: repository)).to eq("codex")
+  end
+end
+
+RSpec.describe ProviderRoutingRule, "user condition" do
+  let(:owner) { Factories.user }
+  let(:member) { Factories.user }
+  let(:repository) { Factories.repository(user: owner) }
+
+  it "matches only jobs acting for the listed users and rejects a malformed condition" do
+    rule = ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default",
+      conditions: { "user" => { "ids" => [ member.id ] } }, candidates: [ { "provider" => "codex" } ])
+    mine = Factories.job(repository: repository, user: member)
+    theirs = Factories.job(repository: repository, user: owner)
+
+    expect(rule.matches?(invocation: { "type" => "default" }, job: mine)).to be(true)
+    expect(rule.matches?(invocation: { "type" => "default" }, job: theirs)).to be(false)
+
+    rule.conditions = { "user" => { "ids" => "nope" } }
+    expect(rule).not_to be_valid
+  end
+end
