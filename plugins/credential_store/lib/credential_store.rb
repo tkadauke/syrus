@@ -2,6 +2,7 @@ module CredentialStore
   extend Syrus::PluginApi
 
   syrus_plugin "credential_store" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "2ce79bd11d57cf7f3420e8d44cda76a07661752a0c340e51f00b14ce6e4dc94b", mcp_tool_set: "2ce79bd11d57cf7f3420e8d44cda76a07661752a0c340e51f00b14ce6e4dc94b"
     experimental true
     display_name "Credential Store"
     description "Encrypted, scoped credential records and credential access audit history."

@@ -5,6 +5,7 @@ module TestInsights
   extend Syrus::PluginApi
 
   syrus_plugin "test_insights" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "da0778212e228e574b97b06e5552e7ea0df1533003094743d5ad96d9e15a23a4", mcp_tool_set: "d5ba02fb8ab8455ce58041cdc7f25adc80cf7c7a120dcbb460de83a73840fbaf"
     display_name "Test Insights"
     description "Flaky, failing, and slow test tracking built from grader JUnit output."
     long_description "Test Insights turns the JUnit output graders already produce into durable per-test history: which tests are flaky, which are newly failing, and which have got slower.\n\nIt gives agents structured test data to investigate instead of scraping transcripts, and gives operators a per-repository view of test health. Disabling it stops ingestion; the recorded history is left in place."

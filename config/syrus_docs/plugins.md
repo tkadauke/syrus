@@ -985,9 +985,11 @@ redaction hooks. A renamed identifier remains listed in `capability_aliases`
 or `operation_aliases`; aliases are versioned, cannot repeat the canonical
 identifier, and may resolve to only one canonical identifier registry-wide.
 Diagnostics identify the plugin provider, surface, and tool when mappings or
-descriptor contracts conflict. Pre-contract definitions retain conservative
-compatibility descriptors behind a frozen per-provider CI baseline; changing
-that inventory requires migrating the affected definitions explicitly.
+descriptor contracts conflict. A plugin with pre-contract definitions may
+temporarily declare frozen `capability_descriptor_compatibility` digests in its
+own manifest, keyed by `mcp_tool_set` or `chat_mcp_tool_set`. Changing that
+inventory requires migrating the affected definitions explicitly; core never
+names plugin providers or carries their compatibility inventories.
 
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role

@@ -2,6 +2,7 @@ module SyrusBrowser
   extend Syrus::PluginApi
 
   syrus_plugin "browser" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "2c63ce82983cf564cca04b287fcb88b0fdd059526a8c66b04eaf3abe47e59875", mcp_tool_set: "2c63ce82983cf564cca04b287fcb88b0fdd059526a8c66b04eaf3abe47e59875"
     display_name "Browser (Playwright)"
     description "Headless Chromium browser control for workflow agents and Coding Mode chats, " \
       "via a bundled @playwright/mcp stdio subprocess or an optional container-backed " \
