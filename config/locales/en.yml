@@ -49,6 +49,9 @@ en:
         invalid_utf8: "%{name} is not valid UTF-8 text."
         total_too_large: "Attachments must total 20 MB or less."
     mcp:
+      unland_confirmation:
+        job: "Unland %{subject}? Operator confirmation is required."
+        epic: "Unland %{subject}? Operator confirmation is required."
       bulk_confirmation:
         cleanup_workspaces: "Delete %{count} workflow workspaces?"
         cancel_stale_work: "Cancel stale work for %{count} Jobs?"

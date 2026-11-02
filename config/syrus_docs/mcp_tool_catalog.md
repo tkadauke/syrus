@@ -70,6 +70,8 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `start_epic` | chat | deferred | write | no | - | - | - | - |
 | `submit_artifact` | chat | deferred | write | no | - | - | - | - |
 | `unapprove_job` | chat | deferred | write | no | - | - | - | - |
+| `unland_epic` | chat | deferred | write | no | - | - | - | - |
+| `unland_job` | chat | deferred | write | no | - | - | - | - |
 | `update_epic` | chat | deferred | write | no | - | - | - | - |
 | `update_job` | chat | deferred | write | no | - | - | - | - |
 | `update_pinned_context` | chat | deferred | write | no | - | - | - | - |

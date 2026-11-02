@@ -18,6 +18,9 @@ de:
         invalid_utf8: "%{name} ist kein gültiger UTF-8-Text."
         total_too_large: "Anhänge dürfen insgesamt höchstens 20 MB groß sein."
     mcp:
+      unland_confirmation:
+        job: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
+        epic: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
       bulk_confirmation:
         cleanup_workspaces: "%{count} Workflow-Arbeitsbereiche löschen?"
         cancel_stale_work: "Veraltete Arbeit für %{count} Jobs abbrechen?"

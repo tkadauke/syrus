@@ -124,6 +124,7 @@ RSpec.describe WorkDefinitions do
       promotion
       hotfix_sync
       upstream_export
+      unland
     ]
 
     resume_failed_step_kinds.each do |kind|
@@ -170,6 +171,7 @@ RSpec.describe WorkDefinitions do
       deploy
       promotion
       hotfix_sync
+      unland
     ]
     rebuild_kinds = %w[
       rebase
@@ -335,7 +337,8 @@ RSpec.describe WorkDefinitions do
       "merge_train_validation",
       "visual_diff",
       "promotion",
-      "hotfix_sync"
+      "hotfix_sync",
+      "unland"
     )
   end
 
@@ -545,7 +548,8 @@ RSpec.describe WorkDefinitions do
       "job_bundle_validation",
       "visual_diff",
       "promotion",
-      "hotfix_sync"
+      "hotfix_sync",
+      "unland"
     )
   end
 end

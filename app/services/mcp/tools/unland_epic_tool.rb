@@ -20,7 +20,12 @@ module Mcp::Tools
         return Mcp::Tools.success(plan.to_h) if dry_run
 
         pending = create_pending_action_for_current_message!(server_context, chat, action: "unland_epic", payload: { "epic_id" => epic.id, "plan" => plan.to_h }, requested_by: "agent")
-        Mcp::Tools.success(plan.to_h.merge(pending_confirmation_id: pending.id, pending_action_id: pending.id, state: pending.state, message: "Unland #{epic.slug}? Operator confirmation is required."))
+        Mcp::Tools.success(plan.to_h.merge(
+          pending_confirmation_id: pending.id,
+          pending_action_id: pending.id,
+          state: pending.state,
+          message: I18n.t("server.mcp.unland_confirmation.epic", subject: epic.slug)
+        ))
       rescue Unlanding::Create::Ineligible => e
         Mcp::Tools.invalid(e.message)
       end

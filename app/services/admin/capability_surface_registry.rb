@@ -44,6 +44,32 @@ module Admin
     }.freeze
 
     STATIC_CAPABILITIES = {
+      unland_job: {
+        sources: {
+          user_api: [
+            { source: "user_api", name: "GET /api/v1/app/jobs/:id/unland" },
+            { source: "user_api", name: "POST /api/v1/app/jobs/:id/unland" }
+          ]
+        },
+        decisions: {
+          admin_api: { status: "not_exposed", reason: "The admin API exposure is supplied by its registered PendingAction." },
+          cli: { status: "not_exposed", reason: "No CLI command is registered for Job unlanding." },
+          mcp: { status: "not_exposed", reason: "The MCP exposure is supplied by its registered tool." }
+        }
+      },
+      unland_epic: {
+        sources: {
+          user_api: [
+            { source: "user_api", name: "GET /api/v1/app/epics/:id/unland" },
+            { source: "user_api", name: "POST /api/v1/app/epics/:id/unland" }
+          ]
+        },
+        decisions: {
+          admin_api: { status: "not_exposed", reason: "The admin API exposure is supplied by its registered PendingAction." },
+          cli: { status: "not_exposed", reason: "No CLI command is registered for Epic unlanding." },
+          mcp: { status: "not_exposed", reason: "The MCP exposure is supplied by its registered tool." }
+        }
+      },
       override_job_planned_execution: {
         sources: {
           user_api: [
