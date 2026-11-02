@@ -353,10 +353,11 @@ function RulesTable({
             <span className="min-w-0 break-words font-medium text-text-primary">{ruleName(rule, t)}</span>
             {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Pill tone="info" wrap>
               {triggerLabel(rule.trigger, options, t)}
             </Pill>
+            <span className="text-xs font-medium text-text-primary">{actionLabel(rule, options, t)}</span>
             {conditionSummaries(rule.conditions, options, t).map((label) => (
               <Pill key={label} tone="neutral" wrap>
                 {label}
@@ -364,11 +365,10 @@ function RulesTable({
             ))}
           </div>
           <div className="text-xs text-text-secondary">
-            <div className="font-medium text-text-primary">{actionLabel(rule, options, t)}</div>
             {rule.action?.type === "hold" ? (
-              <div className="mt-1">{holdSummary(rule.action, t)}</div>
+              <div>{holdSummary(rule.action, t)}</div>
             ) : (
-              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+              <ol className="list-decimal space-y-0.5 pl-4">
                 {ruleCandidates(rule).map((candidate, candidateIndex) => (
                   <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
                 ))}
@@ -475,6 +475,7 @@ function RuleEditorModal({
     if (event.nativeEvent.isComposing) return
     if (saving) return
     if (!(event.target instanceof HTMLInputElement)) return
+    if (event.target.type === "search") return
 
     event.preventDefault()
     event.stopPropagation()

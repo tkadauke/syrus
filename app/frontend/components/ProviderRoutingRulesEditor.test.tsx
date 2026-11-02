@@ -273,6 +273,8 @@ describe("ProviderRoutingRulesEditor", () => {
 
     fireEvent.change(within(dialog).getByLabelText("Search triggers"), { target: { value: "ci" } })
     expect(within(dialog).queryByLabelText("Initial")).not.toBeInTheDocument()
+    fireEvent.keyDown(within(dialog).getByLabelText("Search triggers"), { key: "Enter" })
+    expect(onCreateRule).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByLabelText("CI failure"))
 
     fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "R" } })
