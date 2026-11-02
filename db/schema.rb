@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_192033) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_215704) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -4572,5 +4572,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_192033) do
     t.index ["worker_hostname", "state", "id"], name: "idx_workflows_worker_hostname_state_id"
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
+  end
+
+  create_table "workspace_reuse_outcomes", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.integer "workflow_id", null: false
+    t.integer "step_id", null: false
+    t.integer "run_id", null: false
+    t.string "kind", limit: 32, null: false
+    t.string "outcome", limit: 64, null: false
+    t.string "prepare_fingerprint", limit: 64
+    t.string "storage_key"
+    t.string "backend", limit: 64, null: false
+    t.string "materialization_method", limit: 32
+    t.text "fallback_reason"
+    t.integer "grader_count"
+    t.decimal "duration_seconds", precision: 12, scale: 3
+    t.bigint "bytes"
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["kind", "outcome", "occurred_at"], name: "idx_workspace_reuse_kind_outcome_time"
+    t.index ["occurred_at", "id"], name: "idx_workspace_reuse_retention"
+    t.index ["prepare_fingerprint", "backend", "occurred_at"], name: "idx_workspace_reuse_fingerprint_backend_time"
+    t.index ["repository_id", "occurred_at"], name: "idx_workspace_reuse_repo_time"
+    t.index ["repository_id"], name: "index_workspace_reuse_outcomes_on_repository_id"
+    t.index ["run_id"], name: "index_workspace_reuse_outcomes_on_run_id"
+    t.index ["step_id"], name: "index_workspace_reuse_outcomes_on_step_id"
+    t.index ["workflow_id"], name: "index_workspace_reuse_outcomes_on_workflow_id"
   end
 end

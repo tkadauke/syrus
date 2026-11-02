@@ -7,12 +7,21 @@ module Execution
 
     def run(request)
       validate_request!(request)
-      backend_for(request).run(request)
+      backend = backend_for(request)
+      WorkspaceReuseOutcomes::Recorder.record_backend(run: request.run, backend: backend_identity(backend))
+      backend.run(request)
     end
 
     private
 
     attr_reader :local
+
+    def backend_identity(backend)
+      return "local" if backend.is_a?(Execution::Local)
+
+      name = backend.class.name.to_s
+      name.deconstantize.presence&.underscore || name.presence&.underscore || "custom"
+    end
 
     def backend_for(request)
       provider = Syrus::PluginRegistry.providers_for(:execution_backend).find do |candidate|
