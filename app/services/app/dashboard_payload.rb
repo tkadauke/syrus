@@ -844,10 +844,7 @@ module App
       @job_runtime_repository_membership_counts_by_repo_id = repo_memberships.group_by(&:repository_id).transform_values(&:size)
     end
 
-    # Batches the RepositoryMembership lookups that Repository#effective_agent_provider
-    # would otherwise perform one-by-one (via #membership_for) for every job row --
-    # see provider_mismatch_for / effective_repository_agent_provider in RecordSerializers.
-    # Fetched by repository_id only (not narrowed to job owners) so the same
+    # Batches the RepositoryMembership lookups for every job row. Fetched by repository_id only (not narrowed to job owners) so the same
     # single query also backs the repository_json "multiple_members" flag
     # (see #repository_multiple_members?) without a second query per repo.
     def repository_memberships_for_repos(jobs)

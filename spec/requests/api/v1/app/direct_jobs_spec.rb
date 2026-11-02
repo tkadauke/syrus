@@ -156,8 +156,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
 
   it "returns the direct job form options for the signed-in user" do
     sign_in_as(user)
-    user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
-    repository.update!(agent_provider: "codex")
+    user.update!(agent_provider: "codex", claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
     archived = Factories.repository(user: user, owner: "acme", name: "archive")
     archived.archive!
     Factories.repository(user: Factories.user, owner: "other", name: "private")
@@ -453,7 +452,6 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
   it "uses an explicitly selected configured agent/model/effort for the job, workflow, and run" do
     sign_in_as(user)
     user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
-    repository.update!(agent_provider: "claude")
 
     post "/api/v1/app/jobs", params: {
       repository_id: repository.id,
@@ -475,11 +473,10 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(new_job.runs.first.effort_level).to eq("high")
   end
 
-  it "defaults direct jobs to the repository's effective agent" do
+  it "defaults direct jobs to the owner's default agent" do
     sign_in_as(user)
-    user.update!(agent_provider: "claude", claude_oauth_token: "oat-test",
+    user.update!(agent_provider: "codex", claude_oauth_token: "oat-test",
                  codex_auth_mode: "api_key", codex_api_key: "sk-test")
-    repository.update!(agent_provider: "codex")
 
     post "/api/v1/app/jobs", params: {
       repository_id: repository.id,

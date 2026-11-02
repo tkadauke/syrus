@@ -25,8 +25,7 @@ class CoverageScheduleTriggerJob < ApplicationJob
         issue_number: nil,
         issue_title: "Improve test coverage",
         title_pending: false,
-        issue_body: plan.schedule_prompt,
-        agent_provider: repo.effective_agent_provider
+        issue_body: plan.schedule_prompt
       )
 
       tag = user.tags.find_or_create_by!(name: "coverage-improvement") { |t| t.color = "gray" }

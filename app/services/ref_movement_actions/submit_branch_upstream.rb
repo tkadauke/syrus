@@ -56,7 +56,6 @@ module RefMovementActions
         branch_name: source_branch,
         issue_title: "Submit #{source_branch} to #{canonical.slug}:#{target_branch}",
         issue_body: "Automated ref-movement branch export of `#{source_branch}` to `#{canonical.slug}:#{target_branch}`.",
-        agent_provider: repository.effective_agent_provider,
         priority: "high"
       )
 

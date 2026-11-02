@@ -30,8 +30,6 @@ export type RepositoryRow = {
   polling_enabled: boolean
   archived: boolean
   archived_at: string | null
-  agent_provider: string | null
-  agent_provider_label: string
   main_health: string
   open_jobs_count: number
   last_job_activity_at: string | null
@@ -86,7 +84,6 @@ export type RepositoryFormRecord = {
   fork_auto_sync_enabled: boolean
   external_pr_ingestion_enabled: boolean
   distributed_workflow_dag_enabled: boolean
-  agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
   review_policy: RepositoryReviewPolicy
@@ -127,7 +124,6 @@ export type InsightScheduleConfigInput = {
 
 export type RepositoryFormPayload = {
   repository: RepositoryFormRecord
-  configured_agent_providers: RepositoryProviderOption[]
   user_agent_provider_label: string
   provider_routing_rules: ProviderRoutingRule[]
   inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
@@ -167,7 +163,6 @@ export type RepositoryInput = {
   fork_auto_sync_enabled: boolean
   external_pr_ingestion_enabled: boolean
   distributed_workflow_dag_enabled: boolean
-  agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
   review_policy: RepositoryReviewPolicy
@@ -466,9 +461,7 @@ export type RepositoryDetailRecord = {
   trigger_label: string
   polling_enabled: boolean
   archived: boolean
-  agent_provider: string | null
-  agent_provider_label: string | null
-  effective_agent_provider: string
+  effective_agent_provider: string | null
   effective_agent_provider_label: string
   epic_dependency_policy: RepositoryEpicDependencyPolicy
   github_url: string

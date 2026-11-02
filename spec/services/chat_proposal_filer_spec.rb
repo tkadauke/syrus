@@ -234,7 +234,7 @@ RSpec.describe ChatProposalFiler do
 
       job = job_proposal.reload.job
       expect(job.job_provider_setting).to eq("default")
-      expect(job.agent_provider).to eq(repository.effective_agent_provider)
+      expect(job.agent_provider).to eq(user.agent_provider)
     end
 
     it "preserves explicit planned execution on the filed Job and initial Workflow" do

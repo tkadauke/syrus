@@ -1,10 +1,9 @@
 module ProviderRouting
   # Returns an ordered fallback list of provider/model/effort_level
   # candidates for a Job's task, walking specificity from the most
-  # concrete override down to a hardcoded last resort. Mirrors the
-  # precedence shape of Repository#effective_agent_provider and
-  # Job::ProviderSetting::Default#resolve, but returns a list instead of
-  # a single value so callers can fail over between candidates.
+  # concrete override down to a hardcoded last resort: job pin, repository
+  # rules, user rules, the user's default provider (User#agent_provider),
+  # then a hardcoded fallback. Returns a list so callers can fail over.
   class Resolver
     PanelResolutionRequired = Class.new(StandardError)
 
@@ -129,7 +128,7 @@ module ProviderRouting
       job_override_resolution ||
         rule_resolution(scope_type: "job", scope_id: job.id) ||
         rule_resolution(scope_type: "repository", scope_id: repository_id) ||
-        repository_and_user_resolution ||
+        user_scoped_resolution ||
         hardcoded_fallback_resolution
     end
 
@@ -163,54 +162,13 @@ module ProviderRouting
       )
     end
 
-    # No explicit job pin and no repository-scoped routing rule matched (a
-    # repo rule -- task-specific or default-task -- is authored repo-level
-    # configuration and stays authoritative on its own, handled above). From
-    # here, an explicit repository/membership provider is still repo-level
-    # configuration and must outrank user-scoped routing rules -- a repo
-    # pinned to Muse must not be quietly routed to Claude just because the
-    # user has a personal default-routing rule. But it must not foreclose
-    # failover: if the repo's provider becomes unavailable, user-scoped rules
-    # (and the user's own default provider) still act as the fallback chain,
-    # so we concatenate rather than short-circuit. #uniq dedupes when the same
-    # provider shows up in both the repo and user layers.
-    def repository_and_user_resolution
-      repository_candidates = repository_explicit_candidates || []
-      user_resolution = user_scoped_resolution
-      candidates = (repository_candidates + Array(user_resolution&.candidates)).uniq(&:provider)
-      return nil if candidates.blank?
-
-      if repository_candidates.present?
-        Resolution.new(
-          candidates: candidates,
-          source_scope: "repository_explicit_provider",
-          source_id: repository_id,
-          matched_rule: user_resolution&.matched_rule,
-          match_details: user_resolution&.match_details,
-          fallback: true,
-          reason: user_resolution ? "repository_provider_with_user_rule_failover" : "repository_explicit_provider"
-        )
-      else
-        user_resolution
-      end
-    end
-
-    def repository_explicit_candidates
-      provider = job.repository&.explicit_agent_provider(user: effective_user)
-      return nil if provider.blank?
-
-      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
-    end
-
     def user_scoped_resolution
       rule_resolution(scope_type: "user", scope_id: effective_user&.id) ||
         default_provider_resolution
     end
 
-    # No routing rule at any scope, and no explicit repository/membership
-    # provider either. Fall back to the user's own default provider (the
-    # pre-routing-rule single-value default, via User#agent_provider) before
-    # the last-resort hardcoded candidate.
+    # No routing rule at any scope. Fall back to the user's own default
+    # provider (User#agent_provider) before the last-resort hardcoded candidate.
     def default_provider_candidates
       provider = effective_user&.agent_provider
       return nil if provider.blank?

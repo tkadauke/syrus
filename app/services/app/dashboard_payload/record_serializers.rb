@@ -316,11 +316,8 @@ module App
 
       # Compares the Job's effective provider against its repository's effective
       # provider (for the job's owner) so the dashboard can flag jobs pinned away
-      # from what the repository would otherwise use. Reads repository membership
-      # from the batched @job_runtime_repository_memberships_by_repo_and_user map
-      # (see DashboardPayload#repository_memberships_by_repo_and_user_for) instead
-      # of calling Repository#effective_agent_provider, which would issue one
-      # RepositoryMembership query per job row.
+      # from the owner's default provider. Routing rules are resolved per step,
+      # so they are deliberately not evaluated per dashboard row.
       def provider_mismatch_for(job, job_provider, owner_user)
         repository = job.repository
         return nil if repository.nil? || job_provider.blank?
@@ -337,13 +334,7 @@ module App
       end
 
       def effective_repository_agent_provider(repository, owner_user)
-        if owner_user
-          membership = @job_runtime_repository_memberships_by_repo_and_user&.dig([ repository.id, owner_user.id ])
-          membership_provider = membership.agent_provider.presence if membership&.at_least?("write")
-          return membership_provider if membership_provider
-        end
-
-        repository.agent_provider.presence || (owner_user || repository.user)&.agent_provider
+        (owner_user || repository.user)&.agent_provider
       end
 
       def deployment_stages_for(repository)

@@ -36,29 +36,6 @@ RSpec.describe RepositoryMembership do
     end
   end
 
-  describe "agent_provider" do
-    it "allows a valid agent provider" do
-      membership = repo.repository_memberships.build(user: user, role: "read", agent_provider: "claude")
-      expect(membership).to be_valid
-    end
-
-    it "rejects an unknown agent provider" do
-      membership = repo.repository_memberships.build(user: user, role: "read", agent_provider: "oracle")
-      expect(membership).not_to be_valid
-      expect(membership.errors[:agent_provider]).to be_present
-    end
-
-    it "normalizes blank agent_provider to nil" do
-      membership = repo.repository_memberships.create!(user: user, role: "read", agent_provider: "")
-      expect(membership.agent_provider).to be_nil
-    end
-
-    it "allows a nil agent_provider" do
-      membership = repo.repository_memberships.build(user: user, role: "read", agent_provider: nil)
-      expect(membership).to be_valid
-    end
-  end
-
   describe "#at_least?" do
     it "is true for the exact tier" do
       expect(repo.repository_memberships.build(role: "write").at_least?("write")).to be true

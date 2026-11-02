@@ -34,6 +34,18 @@ RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
         .to raise_error(described_class::Blocked)
     end
 
+    it "blocks disabling an agent provider that an enabled repository routing rule still routes to" do
+      register("ruby", provides: { agent_provider: AdminPluginsSpec::AvailableProvider })
+      repository = Factories.repository(user: Factories.user)
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "available" } ]
+      )
+
+      blockers = described_class.blockers_for(manifest_for("ruby"))
+
+      expect(blockers.map(&:kind)).to include("configured_repositories")
+    end
+
     it "blocks disabling plugins with active WorkUnit-owned workflows" do
       register("ruby", provides: { agent_provider: AdminPluginsSpec::AvailableProvider })
       job = Factories.job_record(agent_provider: "codex")

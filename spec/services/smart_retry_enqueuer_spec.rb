@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe SmartRetryEnqueuer do
   let(:user) { Factories.user }
-  let(:repository) { Factories.repository(user: user, agent_provider: "claude", auto_merge_enabled: true) }
+  let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
   def provider_decision(provider:, open: false)
     ProviderCircuitBreaker::Decision.new(

@@ -2204,7 +2204,7 @@ class Job < ApplicationRecord
 
   def default_agent_provider
     effective_user = owner_user || user
-    self.agent_provider ||= repository&.effective_agent_provider(user: effective_user) || effective_user&.agent_provider
+    self.agent_provider ||= effective_user&.agent_provider
   end
 
   # Unlike #bot_authored_pull_request? (a preference that holds even without

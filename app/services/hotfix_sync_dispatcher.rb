@@ -48,7 +48,7 @@ class HotfixSyncDispatcher
         issue_number: nil,
         issue_title: "Sync #{source} into #{target}",
         issue_body: "Automated ref-movement hotfix sync of `#{source}` into `#{target}`.",
-        agent_provider: @agent_provider.presence || @repository.effective_agent_provider,
+        agent_provider: @agent_provider.presence || @repository.user&.agent_provider,
         priority: "high"
       )
 

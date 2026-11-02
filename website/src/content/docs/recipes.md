@@ -211,7 +211,7 @@ repo = user.repositories.active.find_by!(
 )
 
 prompt = ENV.fetch("SYRUS_PROMPT")
-agent_provider = repo.effective_agent_provider
+agent_provider = user.agent_provider
 explicit_title = ENV["SYRUS_JOB_TITLE"].presence
 job = user.jobs.create!(
   repository: repo,
