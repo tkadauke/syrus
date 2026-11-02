@@ -206,6 +206,10 @@ de:
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
 
   api:
+    approval_delegations:
+      provider_unavailable: "Der Genehmigungsanbieter ist nicht installiert oder aktiviert."
+      unknown_capability: "Unbekannte Berechtigungs-Capability."
+      scope_required: "Ein begrenzter Ressourcenbereich ist erforderlich."
     permission_rules:
       stale_preview: "Prüfe diese Berechtigungsänderungen vor dem Bestätigen erneut."
     permission_requests:

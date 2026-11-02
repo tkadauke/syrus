@@ -60,6 +60,13 @@ inbox without creating a duplicate. An AI denial rejects only the current
 attempt, and an identical resubmission is reconsidered when it carries new
 transcript evidence.
 
+The **AI approvals** view in the Permissions Hub lists installed providers with
+their data-sharing disclosure and guidance, your delegations with their bounded
+scope and status, the always-human exclusions, and the history of AI decisions.
+The view stays inert until a provider plugin is installed and you add an
+explicit delegation. Revoking a delegation takes effect immediately, and
+workflow agents cannot create or revoke delegations.
+
 Each approval provider declares an operator-facing disclosure of where evidence
 is processed and how it is retained. A provider receives the complete role-labelled
 transcript, exact tool call, effective policy chain, and fingerprint for the

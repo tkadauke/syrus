@@ -110,6 +110,18 @@ Each evaluation is recorded on the request's transition history with the
 redacted audit artifact. An identical resubmission is re-evaluated only when
 its transcript evidence differs from the last evaluation.
 
+### Delegation and audit management
+
+The Permissions Hub's AI approvals view (`/api/v1/app/approval_delegations`)
+shows providers with their disclosure and default guidance, the owner's
+delegations (provider, capability, resource type, bounded scope, status),
+the core human-only exclusions, and the owner's `ai_approval_evaluated`
+history. It reports `enabled: false` until a provider plugin is registered.
+Creating a delegation requires a registered provider, a known capability, and a
+non-empty scope; revocation is immediate and attributed to the human. Requests
+carrying a workflow invocation credential are rejected so an AI principal cannot
+delegate to itself.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with
