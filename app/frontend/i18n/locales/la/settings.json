@@ -58,7 +58,14 @@
     "title": "Permissiones",
     "description": "Auctoritatem diuturnam agentibus delegatam administra.",
     "views_label": "Prospectus permissionum",
-    "views": { "matrix": "Tabula agentium", "resources": "Res", "rules": "Regulae", "leases": "Locationes activae", "history": "Historia", "ai_approval": "Approbationes AI" },
+    "views": {
+      "matrix": "Tabula agentium",
+      "resources": "Res",
+      "rules": "Regulae",
+      "leases": "Locationes activae",
+      "history": "Historia",
+      "ai_approval": "Approbationes AI"
+    },
     "ai": {
       "title": "Delegatio approbationis AI",
       "help": "Sine provisorem approbationis installatum petitiones singulas tuo nomine decernere. Quaelibet delegatio ad unam facultatem et ambitum finitur, uni invocationi valet, et statim revocari potest.",
