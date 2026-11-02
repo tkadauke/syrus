@@ -38,7 +38,13 @@ class MainHealthChangedService
       # stuck in triage stayed invisible while main stayed broken. Skip the
       # write entirely when the prompt has not changed, which is the usual case.
       prompt = fix_job_prompt
-      job.update_columns(issue_body: prompt) unless job.issue_body == prompt
+      if job.issue_body != prompt && job.definition_editable?
+        begin
+          JobDefinitionUpdater.new(job).update!(description: prompt, preserve_updated_at: true)
+        rescue JobDefinitionUpdater::Immutable
+          # The Job started after the preliminary check; its definition is now frozen.
+        end
+      end
       remove_repair_context_attachments!(job)
       attach_repair_context!(job)
     rescue StandardError => e

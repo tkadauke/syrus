@@ -36,6 +36,16 @@ RSpec.describe JobDefinitionUpdater do
     end
   end
 
+  it "rejects direct definition writes after execution starts" do
+    immutable = job(state: "running")
+
+    expect {
+      immutable.update!(issue_title: "Bypassed title", issue_body: "Bypassed description")
+    }.to raise_error(ActiveRecord::RecordInvalid, /immutable once work starts.*currently running/)
+
+    expect(immutable.reload).to have_attributes(issue_title: "Original title", issue_body: "Original description")
+  end
+
   it "checks mutability after acquiring the row lock so a concurrent start prevents a late edit" do
     editable = job
     allow(editable).to receive(:lock!).and_wrap_original do |original|

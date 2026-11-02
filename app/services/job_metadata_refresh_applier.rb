@@ -12,7 +12,6 @@ class JobMetadataRefreshApplier
     before = before_snapshot
     return record_noop!(metadata, before) unless metadata["changed"] == true
 
-    update_direct_job_title(metadata)
     update_pull_request(metadata)
     record_applied!(metadata, before)
     # The artifact this just wrote feeds the Job's indexed body, and no Job row
@@ -31,14 +30,6 @@ class JobMetadataRefreshApplier
       "reason" => metadata["intent_revision_reason"].presence
     }.compact)
     "metadata refresh made no canonical changes"
-  end
-
-  def update_direct_job_title(metadata)
-    return unless @job.direct?
-    return if metadata["title"].blank?
-    return if @job.issue_title == metadata["title"]
-
-    @job.update!(issue_title: metadata["title"])
   end
 
   def update_pull_request(metadata)
