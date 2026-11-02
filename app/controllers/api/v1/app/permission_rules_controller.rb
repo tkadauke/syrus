@@ -4,6 +4,8 @@ module Api
       class PermissionRulesController < BaseController
         POLICY_ACTIONS = { "allow" => :grant!, "deny" => :deny! }.freeze
 
+        before_action :reject_invocation_context, only: :history
+
         def index
           management = Permissions::Management.new(Current.user)
           active_rules = management.rules.to_a
@@ -12,6 +14,10 @@ module Api
             inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor, management:, active_rules:) },
             ownership: { editable_layer: "agent", owner_user_id: Current.user.id }
           }
+        end
+
+        def history
+          render json: Permissions::HistoryPayload.new(Current.user).as_json
         end
 
         def create
@@ -74,6 +80,12 @@ module Api
         end
 
         private
+
+        def reject_invocation_context
+          return unless current_invocation_context
+
+          render_error("forbidden", I18n.t("api.base.invocation_scope_forbidden"), status: :forbidden)
+        end
 
         def permission_rule_params
           params.require(:permission_rule).permit(

@@ -6,12 +6,15 @@ import {
   applyPermissionBulk,
   applyPermissionPreset,
   createPermissionRule,
+  fetchPermissionHistory,
   fetchPermissions,
   previewPermissionBulk,
   revokePermissionRule,
   updatePermissionRule,
   type InheritedPermission,
   type PermissionBulkOperation,
+  type PermissionHistoryEntry,
+  type PermissionLease,
   type PermissionPreview,
   type PermissionRule
 } from "../api/permissions"
@@ -28,7 +31,7 @@ import { errorMessage } from "../lib/errorMessage"
 const queryKey = ["permission_rules"] as const
 const subjects = ["interactive_chat", "coding_chat", "local_chat"] as const
 type Subject = (typeof subjects)[number]
-type View = "matrix" | "resources" | "rules"
+type View = "matrix" | "resources" | "rules" | "leases" | "history"
 type PolicyState = "allow" | "ask" | "deny" | "scoped"
 type Translate = TFunction<"settings">
 
@@ -40,6 +43,7 @@ export function PermissionsSettingsRoute() {
   const descriptors = query.data?.inherited ?? []
   const rules = (query.data?.rules ?? []).filter((rule) => !rule.revoked_at)
   const [view, setView] = useState<View>("matrix")
+  const historyQuery = useQuery({ queryKey: ["permission_history"], queryFn: fetchPermissionHistory, enabled: view === "leases" || view === "history" })
   const [subject, setSubject] = useState<Subject>("interactive_chat")
   const [descriptorKey, setDescriptorKey] = useState("")
   const [policy, setPolicy] = useState<"allow" | "deny">("allow")
@@ -140,7 +144,7 @@ export function PermissionsSettingsRoute() {
       ) : null}
       {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("permissions.revoke_error"))}</PanelMessage> : null}
       <nav aria-label={t("permissions.views_label")} className="flex gap-2 border-b border-border">
-        {(["matrix", "resources", "rules"] as View[]).map((item) => (
+        {(["matrix", "resources", "rules", "leases", "history"] as View[]).map((item) => (
           <button
             className={`px-3 py-2 text-sm font-medium ${view === item ? "border-b-2 border-brand text-brand" : "text-text-secondary"}`}
             key={item}
@@ -206,6 +210,8 @@ export function PermissionsSettingsRoute() {
         </section>
       ) : null}
       {view === "resources" ? <ResourceView rules={rules} t={t} /> : null}
+      {view === "leases" ? <LeaseView leases={historyQuery.data?.active_leases ?? []} loading={historyQuery.isLoading} t={t} /> : null}
+      {view === "history" ? <HistoryView entries={historyQuery.data?.history ?? []} loading={historyQuery.isLoading} t={t} /> : null}
       {view === "rules" ? (
         <section className="rounded-xl border border-border bg-surface-raised p-5">
           <div className="flex items-center justify-between gap-3">
@@ -405,6 +411,126 @@ function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
       </div>
     </section>
   )
+}
+
+function LeaseView({ leases, loading, t }: { leases: PermissionLease[]; loading: boolean; t: Translate }) {
+  return (
+    <section className="rounded-xl border border-border bg-surface-raised p-5">
+      <SectionHeading>{t("permissions.leases_title")}</SectionHeading>
+      <p className="mt-1 text-sm text-text-secondary">{t("permissions.leases_help")}</p>
+      <div className="mt-4 space-y-3">
+        {leases.map((lease) => (
+          <article className="rounded-lg border border-border p-4" key={lease.id}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 className="font-medium">
+                  {lease.capability} · {lease.operation || t("permissions.all_operations")}
+                </h3>
+                <p className="mt-1 text-sm text-text-secondary">{t("permissions.lease_lifecycle", { subject: lease.subject, duration: lease.duration })}</p>
+              </div>
+              <PolicyPill policy="allow" t={t} />
+            </div>
+            <dl className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-3">
+              <div>
+                <dt>{t("permissions.origin")}</dt>
+                <dd className="text-text-primary">{lease.origin?.label || t("permissions.unknown")}</dd>
+              </div>
+              <div>
+                <dt>{t("permissions.uses")}</dt>
+                <dd className="text-text-primary">
+                  {lease.max_uses == null ? t("permissions.uses_unlimited", { count: lease.used_count }) : `${lease.used_count} / ${lease.max_uses}`}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("permissions.expires")}</dt>
+                <dd className="text-text-primary">{formatTime(lease.expires_at, t)}</dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+        {!loading && leases.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.no_leases")}</p> : null}
+        {loading ? <p className="text-sm text-text-muted">{t("permissions.loading_history")}</p> : null}
+      </div>
+    </section>
+  )
+}
+
+function HistoryView({ entries, loading, t }: { entries: PermissionHistoryEntry[]; loading: boolean; t: Translate }) {
+  return (
+    <section className="rounded-xl border border-border bg-surface-raised p-5">
+      <SectionHeading>{t("permissions.history_title")}</SectionHeading>
+      <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_help")}</p>
+      <ol className="mt-4 space-y-3">
+        {entries.map((entry) => (
+          <li className="rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-medium">{historyTitle(entry, t)}</h3>
+              <time className="text-xs text-text-muted">{formatTime(entry.occurred_at, t)}</time>
+            </div>
+            <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_state", { state: entry.state })}</p>
+            {entry.type === "request" ? <RequestDetails entry={entry} t={t} /> : null}
+            {entry.type === "invocation" ? <InvocationDetails entry={entry} t={t} /> : null}
+            {entry.type === "policy_change" ? <Evidence evidence={entry.evidence} t={t} /> : null}
+            {entry.type === "lease" ? (
+              <p className="mt-2 text-xs text-text-muted">{t("permissions.lease_history", { used: entry.used_count, maximum: entry.max_uses ?? "∞" })}</p>
+            ) : null}
+          </li>
+        ))}
+        {!loading && entries.length === 0 ? <li className="text-sm text-text-muted">{t("permissions.no_history")}</li> : null}
+        {loading ? <li className="text-sm text-text-muted">{t("permissions.loading_history")}</li> : null}
+      </ol>
+    </section>
+  )
+}
+
+function RequestDetails({ entry, t }: { entry: PermissionHistoryEntry; t: Translate }) {
+  const items = (entry.items as Array<Record<string, unknown>> | undefined) ?? []
+  const origins = (entry.origins as Array<{ label: string }> | undefined) ?? []
+  return (
+    <div className="mt-2 space-y-2 text-xs text-text-muted">
+      <p>{t("permissions.request_origin", { origin: origins.map((origin) => origin.label).join(", ") || t("permissions.unknown") })}</p>
+      {entry.escalated ? <p className="font-medium text-warning">{t("permissions.escalated_request")}</p> : null}
+      {entry.non_actionable_reason ? <p>{t("permissions.non_actionable", { reason: entry.non_actionable_reason })}</p> : null}
+      {items.map((item) => (
+        <div className="rounded-md bg-surface p-2" key={String(item.id)}>
+          <p className="text-text-primary">
+            {String(item.capability)} · {String(item.operation || "")}
+          </p>
+          <p>{t("permissions.decision", { state: item.state, duration: item.selected_duration || "—", reason: item.decision_reason || "—" })}</p>
+          <Evidence evidence={item.evidence} t={t} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function InvocationDetails({ entry, t }: { entry: PermissionHistoryEntry; t: Translate }) {
+  return (
+    <div className="mt-2 text-xs text-text-muted">
+      <p>{t("permissions.execution", { tool: entry.tool_name, result: entry.result_status || entry.invalidation_reason || entry.state })}</p>
+      <Evidence evidence={entry.evidence} t={t} />
+    </div>
+  )
+}
+
+function Evidence({ evidence, t }: { evidence: unknown; t: Translate }) {
+  if (!evidence || (typeof evidence === "object" && Object.keys(evidence).length === 0)) return null
+  return (
+    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded bg-surface p-2 text-xs">
+      {t("permissions.redacted_evidence")}: {JSON.stringify(evidence, null, 2)}
+    </pre>
+  )
+}
+
+function historyTitle(entry: PermissionHistoryEntry, t: Translate) {
+  if (entry.type === "request") return t("permissions.history_types.request")
+  if (entry.type === "invocation") return t("permissions.history_types.invocation", { tool: entry.tool_name })
+  if (entry.type === "policy_change") return t("permissions.history_types.policy_change", { capability: entry.capability })
+  return t("permissions.history_types.lease", { capability: entry.capability })
+}
+
+function formatTime(value: unknown, t: Translate) {
+  return typeof value === "string" && value ? new Date(value).toLocaleString() : t("permissions.never")
 }
 type BulkPreview = { rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] }
 
