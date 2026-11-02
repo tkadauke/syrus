@@ -669,11 +669,26 @@ module App
     end
 
     def job_dependency_succeeded_sql(job_table, dependency_table, dependency_job_table)
+      landed_closure_reasons = JobDependency::SatisfactionModes::Landed::LANDED_CLOSURE_REASONS
+        .map { |reason| ActiveRecord::Base.connection.quote(reason) }
+        .join(", ")
+
       <<~SQL.squish
         (
           (
             #{dependency_table}.satisfaction_mode = 'closed'
             AND #{dependency_job_table}.state = 'closed'
+          )
+          OR (
+            #{dependency_table}.satisfaction_mode = 'landed'
+            AND #{dependency_job_table}.state = 'closed'
+            AND (
+              (#{dependency_job_table}.closure_reason = 'no_changes')
+              OR (
+                #{dependency_job_table}.landed_sha IS NOT NULL
+                AND #{dependency_job_table}.closure_reason IN (#{landed_closure_reasons})
+              )
+            )
           )
           OR (
             #{dependency_table}.satisfaction_mode = 'deployment_stage'

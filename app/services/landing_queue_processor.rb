@@ -127,6 +127,10 @@ class LandingQueueProcessor
     end
   end
 
+  def self.unrelated_urgent_jobs_for(job)
+    new.unrelated_urgent_jobs_for(job)
+  end
+
   def try_land!(job)
     cancel_obsolete_automatic_visual_diffs!(job.repository.jobs.approved)
     release_main_health_blocked_landing_slots_for_repair!(job) if MainHealthChangedService.fix_main_job?(job)
@@ -159,7 +163,7 @@ class LandingQueueProcessor
     start_ready_epic_sibling_jobs!
     cancel_obsolete_automatic_visual_diffs!(Job.landing_queue)
 
-    landed_workflows = []
+    landed_workflows = resume_cleared_urgent_blocked_landing_workflows!
 
     queue_entries = refresh_snapshot!(Job.landing_queue)
     released_slots = release_main_health_blocked_landing_slots_for_repair_jobs!(queue_entries)
@@ -256,7 +260,31 @@ class LandingQueueProcessor
       .any? { |candidate| candidate.id == job.id }
   end
 
+  def unrelated_urgent_jobs_for(job)
+    active_urgent_jobs = active_urgent_jobs_for_repository(job.repository_id).reject { |urgent_job| urgent_job.id == job.id }
+
+    active_urgent_jobs.group_by { |urgent_job| landing_unit_key(urgent_job) }.each_value.flat_map do |unit_jobs|
+      transitive_landing_queue_prerequisite_ids(unit_jobs).include?(job.id) ? [] : unit_jobs
+    end
+  end
+
   private
+
+  def resume_cleared_urgent_blocked_landing_workflows!
+    WorkUnit.where(state: "blocked", blocked_reason: StepDispatcher::URGENT_BLOCK_REASON)
+      .includes(workflow: [ :job, { steps: :runs } ])
+      .filter_map do |unit|
+        workflow = unit.workflow
+        next unless workflow&.queued_landing_before_first_run?
+        next unless workflow.job.landing?
+        next if unrelated_urgent_jobs_for(workflow.job).any?
+
+        result = WorkUnits::Launcher.start!(workflow)
+        workflow if result.started?
+      rescue WorkUnits::Launcher::LockConflict
+        nil
+      end
+  end
 
   def persist_snapshot!(scope, queue_entries)
     now = Time.current
@@ -683,17 +711,25 @@ class LandingQueueProcessor
   def release_urgent_blocked_landing_slots_for_urgent_job!(urgent_job)
     return [] unless urgent_job&.approved?
 
-    release_blocked_landing_slots!(
-      repository_id: urgent_job.repository_id,
+    active_blocked_landing_workflows(
+      urgent_job.repository_id,
       except_job_id: urgent_job.id,
-      start_blocked_reason: StepDispatcher::URGENT_BLOCK_REASON,
-      failure_reason: "landing start blocked: #{StepDispatcher::URGENT_BLOCK_REASON}",
-      details: {
-        "preempted_by_job_id" => urgent_job.id,
-        "preempted_by_job_slug" => urgent_job.slug
-      },
-      audit_reason: "so urgent #{urgent_job.slug} can land first"
-    )
+      start_blocked_reason: StepDispatcher::URGENT_BLOCK_REASON
+    ).filter_map do |workflow|
+      unit = workflow.work_unit
+      unit.with_lock do
+        unit.reload
+        workflow.reload
+        next unless unit.blocked? && unit.blocked_reason == StepDispatcher::URGENT_BLOCK_REASON
+        next unless workflow.queued_landing_before_first_run?
+        next unless unrelated_urgent_jobs_for(workflow.job.reload).any? { |job| job.id == urgent_job.id }
+        next unless unit.work_unit_locks.active.where("lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%").exists?
+
+        unit.release_landing_locks!
+        audit(workflow.job, "landing_queue: released #{workflow.slug}'s repository landing slot so urgent #{urgent_job.slug} can land first")
+        workflow
+      end
+    end
   end
 
   def release_blocked_landing_slots!(repository_id:, except_job_id:, start_blocked_reason:, failure_reason:, details:, audit_reason:)
@@ -1073,12 +1109,7 @@ class LandingQueueProcessor
   # the whole unit is "related" and must not block `job` — blocking it
   # would deadlock the unit against its own prerequisite.
   def unrelated_urgent_job_active_for_repository?(job)
-    active_urgent_jobs = active_urgent_jobs_for_repository(job.repository_id).reject { |urgent_job| urgent_job.id == job.id }
-    return false if active_urgent_jobs.empty?
-
-    active_urgent_jobs.group_by { |urgent_job| landing_unit_key(urgent_job) }.each_value.any? do |unit_jobs|
-      !transitive_landing_queue_prerequisite_ids(unit_jobs).include?(job.id)
-    end
+    unrelated_urgent_jobs_for(job).any?
   end
 
   def transitive_landing_queue_prerequisite_ids(jobs)
@@ -1249,6 +1280,7 @@ class LandingQueueProcessor
 
   def dependency_wait_reason(dependency, waiting)
     slug = dependency_label(waiting)
+    return { key: "waiting_for_landing", params: { slug: slug } } if dependency.satisfaction_mode == "landed"
     return { key: "waiting_to_merge", params: { slug: slug } } unless dependency.satisfaction_mode == "deployment_stage"
 
     params = {

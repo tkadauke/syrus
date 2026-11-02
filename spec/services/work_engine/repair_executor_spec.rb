@@ -20,6 +20,65 @@ RSpec.describe WorkEngine::RepairExecutor do
     )
   end
 
+  describe "release_urgent_blocked_landing_slot" do
+    def urgent_slot_plan(unit)
+      repair_plan(action: "release_urgent_blocked_landing_slot", target: unit)
+    end
+
+    def urgent_blocked_landing_unit
+      repository = job.repository
+      landing_job = Factories.job_record(user: job.user, repository: repository, state: "landing", priority: "medium")
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_job)
+      unit = workflow.work_unit
+      landing_key = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:repository:%").lock_key
+      unit.block!(reason: "urgent_job_active")
+      unit.work_unit_locks.create!(lock_key: landing_key)
+      blocker = Factories.job_record(user: job.user, repository: repository, state: "approved", priority: "urgent")
+      [ unit, workflow, blocker ]
+    end
+
+    it "is idempotent when the same repair plan is executed twice" do
+      unit, = urgent_blocked_landing_unit
+      plan = urgent_slot_plan(unit)
+
+      first, second = 2.times.map do
+        described_class.call(result: RepairResult.new([ plan ])).sole
+      end
+
+      expect(first).to have_attributes(status: "applied")
+      expect(second).to have_attributes(status: "skipped", message: "WorkUnit ##{unit.id} holds no repository landing slot")
+    end
+
+    it "skips when a Run appears after planning" do
+      unit, workflow, = urgent_blocked_landing_unit
+      Run.create!(job: workflow.job, step: workflow.first_step, trigger_kind: workflow.trigger_kind, state: "queued")
+
+      result = described_class.call(result: RepairResult.new([ urgent_slot_plan(unit) ])).sole
+
+      expect(result).to have_attributes(status: "skipped", message: "Blocked Workflow is no longer queued landing work before its first Run")
+      expect(unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:repository:%")).to exist
+    end
+
+    it "skips when the landing slot was already released" do
+      unit, = urgent_blocked_landing_unit
+      unit.release_landing_locks!
+
+      result = described_class.call(result: RepairResult.new([ urgent_slot_plan(unit) ])).sole
+
+      expect(result).to have_attributes(status: "skipped", message: "WorkUnit ##{unit.id} holds no repository landing slot")
+    end
+
+    it "skips when the urgent blocker clears after planning" do
+      unit, _, blocker = urgent_blocked_landing_unit
+      blocker.update_columns(state: "closed")
+
+      result = described_class.call(result: RepairResult.new([ urgent_slot_plan(unit) ])).sole
+
+      expect(result).to have_attributes(status: "skipped", message: "No unrelated urgent blocker remains active")
+      expect(unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:repository:%")).to exist
+    end
+  end
+
   it "fails a running workflow with an uncleared retry barrier instead of marking it succeeded" do
     workflow.steps.destroy_all
     loop_id = SecureRandom.uuid

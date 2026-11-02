@@ -137,6 +137,7 @@ class WorkUnit < ApplicationRecord
         blocked_by_user: user
       )
       release_landing_locks! if EXTERNALLY_CLEARED_BLOCKED_REASONS.include?(reason.to_s)
+      release_landing_locks! if urgent_prestart_landing_block?(reason)
     end
   end
 
@@ -157,10 +158,17 @@ class WorkUnit < ApplicationRecord
   # A block can be projected after a Workflow has already started (for
   # example, while admitting a later phase). Clearing that block must restore
   # the runtime state instead of making the WorkUnit look startable again.
-  # mark_running! also restores any landing lock surrendered while the block
-  # was waiting on an external fleet/configuration change.
+  # A queued unit also reclaims any surrendered landing lock before it becomes
+  # startable, so its first Run can never bypass repository mutual exclusion.
   def resume_for_workflow!
-    Workflow.exists?(id: workflow_id, state: "running") ? mark_running! : unblock!
+    if Workflow.exists?(id: workflow_id, state: "running")
+      mark_running!
+    else
+      transaction do
+        ensure_active_locks!
+        unblock!
+      end
+    end
   end
 
   def mark_running!
@@ -252,6 +260,12 @@ class WorkUnit < ApplicationRecord
   end
 
   private
+
+  def urgent_prestart_landing_block?(reason)
+    return false unless reason.to_s == "urgent_job_active"
+
+    workflow&.queued_landing_before_first_run?
+  end
 
   def ensure_active_locks!
     lock_keys_for_runtime.each do |lock_key|

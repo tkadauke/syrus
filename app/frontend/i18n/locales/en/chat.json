@@ -807,6 +807,7 @@
   "confirm": "Confirm",
   "confirmed": "Confirmed",
   "pending_action_emergency_land_warning": "This skips Syrus graders, adversarial review, and visual review, then merges the PR directly through GitHub.",
+  "pending_action_schedule_recurring_warning": "Confirming creates background repository Jobs and Workflows. It will not wake this chat.",
   "edit_proposal": "Edit proposal",
   "aria_close_proposal_editor": "Close proposal editor",
   "attached_scope": "Attached scope",

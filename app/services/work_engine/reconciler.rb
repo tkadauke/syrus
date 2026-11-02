@@ -253,6 +253,7 @@ module WorkEngine
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_landing_work_job_state_drift)
+      issues.concat(classify_urgent_blocked_landing_slot)
       issues.concat(classify_externally_blocked_landing_slot)
       issues.concat(classify_stranded_landing_job)
       issues.concat(classify_stale_active_merge_trains_without_runtime)
@@ -2049,6 +2050,42 @@ module WorkEngine
                          "yet it still holds #{lock_keys.join(', ')} and is blocking every other landing in the repository."
           )
         end
+    end
+
+    def classify_urgent_blocked_landing_slot
+      work_units.filter_map do |unit|
+        next unless unit.blocked? && unit.blocked_reason == "urgent_job_active"
+
+        workflow = unit.workflow
+        next unless workflow&.queued_landing_before_first_run?
+
+        lock_keys = unit.work_unit_locks.active
+                        .where("lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%")
+                        .pluck(:lock_key)
+        next if lock_keys.empty?
+
+        blocker_jobs = LandingQueueProcessor.unrelated_urgent_jobs_for(workflow.job)
+        next if blocker_jobs.empty?
+
+        issue(
+          kind: :urgent_blocked_landing_slot,
+          severity: :critical,
+          affected_ids: ids_for(workflow).merge(work_unit_ids: [ unit.id ], job_ids: ([ workflow.job_id ] + blocker_jobs.map(&:id))),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "release_urgent_blocked_landing_slot",
+          evidence: workflow_evidence(workflow).merge(
+            work_unit_id: unit.id,
+            lock_owner: unit.slug,
+            lock_keys: lock_keys,
+            blocked_workflow: workflow.slug,
+            urgent_blocker_jobs: blocker_jobs.map { |job| { id: job.id, slug: job.slug, state: job.state } },
+            automatic_action: "release repository landing lock only",
+            resulting_queue_wake: "LandingQueueProcessorJob"
+          ),
+          explanation: "#{unit.slug} owns #{lock_keys.join(', ')} while #{workflow.slug} is blocked before its first Run by " \
+                       "#{blocker_jobs.map(&:slug).join(', ')}; release only the repository landing slot and wake the landing queue."
+        )
+      end
     end
 
     # The companion to classify_externally_blocked_landing_slot, and

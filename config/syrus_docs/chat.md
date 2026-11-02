@@ -601,6 +601,23 @@ result includes `cancelled`, `wakeup_id`, `fire_at`, and `prompt`; older
 transcripts that only recorded the first two fields can recover the display
 context from an earlier `list_wakeups` or `schedule_wakeup` call when present.
 
+Choose a scheduling mechanism by what must execute, before considering whether
+the cadence is one-shot or recurring. `schedule_wakeup` continues the current
+conversation: it stores a one-shot prompt, needs no confirmation, and starts a
+future agent turn in the same chat without creating a repository Job. Use it
+for “remind me here,” “wake this chat,” conditional follow-ups, and chained
+rechecks. For example, “check every other day; if blocked, set a new reminder
+here” is a chain of one-shot wakeups: each turn checks the condition and, only
+when needed, schedules the next wakeup.
+
+`schedule_recurring` is unattended repository automation. It proposes a
+recurring task for operator confirmation; once confirmed, every fire creates a
+new `cron` Job and Workflow against the repository. It never wakes or resumes
+the originating chat. Use it for work such as “run the dependency audit every
+Monday and open a PR,” not conversational reminders. Its confirmation card
+warns about these execution semantics, and obviously chat-directed prompts are
+rejected with guidance to use `schedule_wakeup`.
+
 ## Coding Mode existing-Job takeover
 
 Coding Mode exposes `open_in_coding_mode(job_id)` to let a chat agent take over
@@ -979,7 +996,14 @@ closed as `cancelled` or an archived Epic. Successfully closed Job dependencies
 do not block the new Job from starting.
 
 The chat MCP `add_job_dependency` tool accepts `satisfaction_mode`. The default
-`success` mode is for implementation ordering and waits for a successful close.
+`success` mode is for implementation ordering: it can release dependent execution
+once an upstream Job has an implemented PR with a durable head, before landing,
+while final dependency satisfaction still requires a successful close.
+Use `landed` when execution must wait until an upstream Job closes through a
+genuine landing outcome with a recorded `landed_sha`. A genuine `no_changes`
+close also satisfies `landed`, because there was no repository change to land;
+`pr_approved` does not. `landed` accepts only Job targets. Epic completion is not
+proof that one individual Job landed, so Epic targets are rejected for this mode.
 Use `closed` only for cleanup or teardown gates where the dependent Job should
 start once the target Job is terminal even if it was cancelled.
 Use `deployment_stage` with `required_deployment_stage_name` only for resolved
@@ -990,7 +1014,7 @@ cannot unblock.
 `propose_job` and `propose_epic_with_jobs` can carry the same per-dependency
 gate through `dependency_requirements`. Existing `depends_on_job_ids` and
 proposal-slug `depends_on` values still default to `success`; use
-`dependency_requirements` only when a specific dependency needs `closed` or
+`dependency_requirements` only when a specific dependency needs `landed`, `closed`, or
 `deployment_stage`. Deployment-stage gates against proposal slugs are accepted
 only after that proposal has already materialized to a Job. Sibling or otherwise
 unresolved proposal targets are rejected because Syrus cannot validate their

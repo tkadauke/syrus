@@ -9,8 +9,10 @@ module Mcp::Tools
     tool_name "schedule_wakeup"
 
     description <<~DESC
-      Schedule a one-shot wakeup turn in this chat session. At the given time,
-      Syrus will start a new agent turn with `prompt` as the input.
+      Start a future agent turn in this same chat. This is the correct tool for
+      "remind me here", "wake this chat", conditional follow-ups, and chained
+      rechecks. At the given time, Syrus starts a new agent turn with `prompt`
+      as the input. It does not create a repository Job.
       Use `delay_minutes` only for short relative reminders within 24 hours.
       Use `fire_at` as an absolute UTC ISO 8601 timestamp for specific dates,
       times, or longer one-shot reminders instead of scheduling relay wakeups.

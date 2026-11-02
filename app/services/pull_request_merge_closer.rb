@@ -1,10 +1,11 @@
 class PullRequestMergeCloser
-  def self.call(job:)
-    new(job: job).call
+  def self.call(job:, landed_sha: nil)
+    new(job: job, landed_sha: landed_sha).call
   end
 
-  def initialize(job:)
+  def initialize(job:, landed_sha: nil)
     @job = job
+    @landed_sha = landed_sha
   end
 
   def call
@@ -16,7 +17,7 @@ class PullRequestMergeCloser
         run.save!
       end
 
-      @job.update!(grace_period_expires_at: nil)
+      @job.update!(grace_period_expires_at: nil, landed_sha: @landed_sha.presence || @job.landed_sha)
       @job.close_with_reason!("pr_merged")
       true
     end

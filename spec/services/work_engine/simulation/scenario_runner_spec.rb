@@ -54,6 +54,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     terminal_cleanup_cancelled_retry_recovers
     terminal_work_unit_active_lock
     terminal_workflow_active_descendants
+    urgent_landing_preempts_blocked_epic_train
     waiting_intent_with_active_unit
     worker_died_retries_once
     workspace_missing_diagnostic
@@ -182,6 +183,21 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result).to be_success
     jobs = Job.where(id: result.job_ids).order(:id).to_a
     expect(jobs).to all(be_implemented)
+  end
+
+  it "lets an urgent landing preempt and then resume a blocked Epic train without duplicate work" do
+    result = run_scenario("urgent_landing_preempts_blocked_epic_train")
+
+    expect(result).to be_success
+    tip, urgent = Job.where(id: result.job_ids).order(:id).to_a
+    expect([ tip, urgent ]).to all(be_closed)
+    expect(result.events.join("\n")).to include("urgent_blocked_landing_slot")
+    expect(urgent.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
+    expect(tip.workflows.where(trigger_kind: "merge_train").count).to eq(1)
+    scenario_locks = WorkUnitLock.active.joins(work_unit: :work_unit_members)
+      .where(work_unit_members: { job_id: result.job_ids })
+    expect(scenario_locks.where("lock_key LIKE ?", "landing:repository:%")).to be_empty
+    expect(scenario_locks.where("lock_key LIKE ?", "job:%")).to be_empty
   end
 
   it "lands an approved upstream Epic train before releasing its downstream Epic" do

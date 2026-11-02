@@ -361,6 +361,7 @@
   "blocked_auto_start_deployment_stage_one": "— hoc opus gradum traditionis {{stages}} exspectat.",
   "blocked_auto_start_deployment_stage_other": "— hoc opus gradus traditionis {{stages}} exspectat.",
   "dependency_waits_for_deployment_stage": "Gradum traditionis exspectat: {{stage}} (novissime attigit: {{latestStage}})",
+  "dependency_waits_for_landing": "Exspectat dum mutatio prior in ramo principali posita sit",
   "dependency_deployment_stage_target": "{{target}} gradum {{stage}} attingat",
   "dependency_deployment_stage_none": "nullus",
   "override_and_force_run": "Praeteri et exsecutionem coge",

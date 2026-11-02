@@ -341,6 +341,19 @@ reconciler raises `externally_blocked_landing_slot` and the
 `release_externally_blocked_landing_slot` repair frees the slot and wakes the
 landing queue.
 
+Urgent work uses the same lock-surrender rule without discarding the displaced
+landing attempt. A queued landing Workflow blocked by `urgent_job_active`
+before its first Run releases only `landing:repository:<id>`; its job- and
+Epic-scoped locks remain active, preventing a duplicate attempt. If an older
+blocked WorkUnit still owns the repository slot, the reconciler reports
+`urgent_blocked_landing_slot`, naming the lock owner, blocked Workflow, and
+unrelated urgent blocker Jobs. Its automatic
+`release_urgent_blocked_landing_slot` repair revalidates those conditions,
+releases only the repository landing slot, and wakes the landing queue. After
+the urgent Job finishes, normal queue processing wakes the original Workflow,
+which must reacquire the repository slot through ordinary lock-conflict
+handling before its first Run is created.
+
 When the capability does arrive, the unit re-acquires the slot through
 `ensure_active_locks!` on its next start; if another landing holds it by then
 it waits its turn, which is ordinary contention rather than starvation.
@@ -522,9 +535,11 @@ If the prerequisite Job closes unsuccessfully, including `cancelled`, dependents
 
 Manual dependency rows can opt into `satisfaction_mode: "closed"` for cleanup or teardown gates that only need the target Job to reach any terminal close. In that mode a dependency on a cancelled Job is satisfied. Normal implementation dependencies default to `satisfaction_mode: "success"` and must not be weakened to closed mode just because the prompt says "after" or "once"; use closed mode only when any terminal outcome is explicitly acceptable.
 
+Use `satisfaction_mode: "landed"` when the dependent must not execute until an upstream Job's change is actually on the landing branch. Implemented, approved, landing, and `pr_approved` states do not satisfy this gate. A successful landing closure requires durable evidence in `landed_sha`; `no_changes` is the exception and satisfies the gate only through that explicit successful closure, because it records that there was genuinely no change to land. Failed, cancelled, rejected, and other unsuccessful closures permanently produce `dependency_failed`. Landed dependencies accept only Job targets: an Epic's completion or atomic merge-train landing is not silently treated as proof that an individual Job change landed.
+
 Manual Job-to-Job dependencies can also use `satisfaction_mode: "deployment_stage"` with `required_deployment_stage_name` to wait until the upstream Job reaches a configured repository `deployment_stages` entry. Deployment-stage dependencies are valid only for resolved Job targets. Syrus rejects them when the upstream repository has no deployment stage tracking or when the named stage is unknown, because otherwise the dependency could never unblock. A successfully closed upstream Job that has not reached the required stage is still waiting, not failed; an unsuccessfully closed upstream Job is still a failed dependency.
 
-Implementation has a narrower, execution-only exception: any Job dependency may start on an `implemented` parent once that parent has a materialized branch, PR, and head SHA, as long as stack parent selection is unambiguous. Same-Epic parents retain that readiness in `approved` or `landing`; for approved same-Epic fan-in, Syrus may also create a prepared combined base branch and start the child there when all dependency PR branches merge cleanly. This does not satisfy the landing gate above.
+The default `success` mode has a narrower, execution-only exception: it may start on an `implemented` parent once that parent has a materialized branch, PR, and head SHA, as long as stack parent selection is unambiguous. Same-Epic parents retain that readiness in `approved` or `landing`; for approved same-Epic fan-in, Syrus may also create a prepared combined base branch and start the child there when all dependency PR branches merge cleanly. `landed`, `closed`, and `deployment_stage` do not use this early-execution exception.
 
 Operators can add or remove manual dependencies from the Job detail page; admins can override the gate.
 

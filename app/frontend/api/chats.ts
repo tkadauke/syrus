@@ -344,7 +344,7 @@ export type ChatProposalUpdateInput = {
 export type ChatProposalDependencyRequirement = {
   job_id?: number
   proposal_slug?: string
-  satisfaction_mode: "success" | "closed" | "deployment_stage"
+  satisfaction_mode: "success" | "landed" | "closed" | "deployment_stage"
   required_deployment_stage_name?: string | null
 }
 

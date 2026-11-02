@@ -365,6 +365,7 @@
   "blocked_auto_start_deployment_stage_one": "— dieser Job wartet auf die Deployment-Stufe {{stages}}.",
   "blocked_auto_start_deployment_stage_other": "— dieser Job wartet auf die Deployment-Stufen {{stages}}.",
   "dependency_waits_for_deployment_stage": "Wartet auf Deployment-Stufe: {{stage}} (zuletzt erreicht: {{latestStage}})",
+  "dependency_waits_for_landing": "Wartet, bis die vorgelagerte Änderung gelandet ist",
   "dependency_deployment_stage_target": "{{target}} {{stage}} erreicht",
   "dependency_deployment_stage_none": "keine",
   "override_and_force_run": "Übergehen und Start erzwingen",

@@ -324,12 +324,9 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(workflow.job).to eq(urgent)
     expect(workflow.trigger_kind).to eq("auto_merge")
     expect(urgent.reload).to be_landing
-    expect(blocked.reload).to be_approved
-    expect(blocked_workflow.reload).to be_failed
-    expect(blocked_workflow.artifact("start_blocked_details")).to include(
-      "preempted_by_job_id" => urgent.id,
-      "preempted_by_job_slug" => urgent.slug
-    )
+    expect(blocked.reload).to be_landing
+    expect(blocked_workflow.reload).to be_queued
+    expect(blocked_workflow.work_unit).to be_blocked
   end
 
   it "lets an urgent Job preempt a landing workflow paused only through WorkUnit state" do
@@ -351,12 +348,9 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(workflow.job).to eq(urgent)
     expect(workflow.trigger_kind).to eq("auto_merge")
     expect(urgent.reload).to be_landing
-    expect(blocked.reload).to be_approved
-    expect(blocked_workflow.reload).to be_failed
-    expect(blocked_workflow.artifact("start_blocked_details")).to include(
-      "preempted_by_job_id" => urgent.id,
-      "preempted_by_job_slug" => urgent.slug
-    )
+    expect(blocked.reload).to be_landing
+    expect(blocked_workflow.reload).to be_queued
+    expect(blocked_workflow.work_unit).to be_blocked
   end
 
   it "does not dispatch a second landing workflow for a job that already has one active" do
@@ -527,6 +521,27 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(workflow.job).to eq(ready)
     entry = described_class.entries(Job.where(id: blocked.id)).first
     expect(entry.blocked_reason).to eq({ key: "waiting_for_deployment_stage", params: { slug: prerequisite.slug, stage: "production" } })
+  end
+
+  it "explains when an approved Job is waiting for durable landing evidence" do
+    prerequisite = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 1,
+      state: "closed",
+      closure_reason: "pr_merged"
+    )
+    blocked = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
+    JobDependency.create!(
+      job: blocked,
+      depends_on_job: prerequisite,
+      source: "manual",
+      satisfaction_mode: "landed"
+    )
+
+    entry = described_class.entries(Job.where(id: blocked.id)).first
+
+    expect(entry.blocked_reason).to eq({ key: "waiting_for_landing", params: { slug: prerequisite.slug } })
   end
 
   it "explains when an approved Job is waiting for an Epic dependency" do

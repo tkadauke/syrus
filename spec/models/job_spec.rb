@@ -4022,6 +4022,31 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "landing queue wake on urgent promotion" do
+    let(:repository) { Factories.repository }
+    let(:user) { repository.user }
+
+    %w[approved landing].each do |state|
+      it "wakes the landing queue when a #{state} Job becomes urgent" do
+        job = Factories.job_record(user: user, repository: repository, priority: "medium", state: state)
+        clear_enqueued_jobs
+
+        expect {
+          job.update!(priority: "urgent")
+        }.to have_enqueued_job(LandingQueueProcessorJob)
+      end
+    end
+
+    it "does not wake the landing queue for an urgent queued Job" do
+      job = Factories.job_record(user: user, repository: repository, priority: "medium", state: "queued")
+      clear_enqueued_jobs
+
+      expect {
+        job.update!(priority: "urgent")
+      }.not_to have_enqueued_job(LandingQueueProcessorJob)
+    end
+  end
+
   describe "default_owner_user" do
     let(:owner) { Factories.user }
     let(:repo)  { Factories.repository(user: owner) }

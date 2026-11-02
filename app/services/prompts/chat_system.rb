@@ -719,9 +719,17 @@ module Prompts
           handed to Syrus.
         - Use `propose_epic_with_jobs` for a larger unit of work that
           should group multiple Jobs behind an operator-confirmed Epic.
-        - Use `schedule_recurring(schedule_input, label, prompt)` only
-          when the operator explicitly asks for repeated work. Natural
-          cadence text and five-field cron expressions are interpreted in UTC.
+        - Choose scheduling tools by execution semantics before cadence:
+          chat continuation uses `schedule_wakeup`, while unattended repository
+          work uses `schedule_recurring`. A conditional or chained recheck such
+          as "check every other day; if blocked, set a new reminder here" uses
+          one-shot chat wakeups whose future turns schedule the next wakeup;
+          it is not a recurring repository task.
+        - Use `schedule_recurring(schedule_input, label, prompt)` only when the
+          operator explicitly asks for repeated, unattended repository work.
+          It creates background Jobs and Workflows, never resumes this chat,
+          and requires operator confirmation. Natural cadence text and
+          five-field cron expressions are interpreted in UTC.
         - Use `submit_chat_feedback(job_id, feedback)` only after
           calling `read_job` to confirm the Job is in `implemented` or
           `approved` state, then `list_job_workflows` to confirm no

@@ -242,6 +242,49 @@ RSpec.describe WorkUnit do
       # genuinely about to run.
       expect(landing.reload.released_at).to be_nil
     end
+
+    it "surrenders only the landing slot when queued landing work is urgent-blocked before its first Run" do
+      repository = Factories.repository
+      job = Factories.job_record(user: repository.user, repository: repository, state: "landing")
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+      unit = workflow.work_unit
+      landing = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:%")
+      other_locks = unit.work_unit_locks.active.where.not(id: landing.id).to_a
+
+      unit.block!(reason: "urgent_job_active")
+
+      expect(landing.reload).not_to be_active
+      expect(other_locks.map { |lock| lock.reload.active? }).to all(be(true))
+    end
+
+    it "keeps the landing slot when urgent blocking is projected after a Run exists" do
+      repository = Factories.repository
+      job = Factories.job_record(user: repository.user, repository: repository, state: "landing")
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+      unit = workflow.work_unit
+      landing = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:%")
+      Run.create!(job: job, step: workflow.first_step, trigger_kind: workflow.trigger_kind, state: "queued")
+
+      unit.block!(reason: "urgent_job_active")
+
+      expect(landing.reload).to be_active
+    end
+
+    it "reacquires a surrendered landing slot before unblocking queued work" do
+      repository = Factories.repository
+      job = Factories.job_record(user: repository.user, repository: repository, state: "landing")
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+      unit = workflow.work_unit
+      original_landing_lock = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:%")
+      unit.block!(reason: "urgent_job_active")
+
+      unit.resume_for_workflow!
+
+      expect(unit.reload).to be_queued
+      expect(original_landing_lock.reload).not_to be_active
+      expect(unit.work_unit_locks.active.where(lock_key: original_landing_lock.lock_key)).to exist
+      expect(workflow.first_step.runs).to be_empty
+    end
   end
 
   describe "blocked_at" do
