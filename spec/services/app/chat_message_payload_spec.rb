@@ -131,7 +131,9 @@ RSpec.describe App::ChatMessagePayload do
     group.confirm_all!(user: user)
 
     expect(group.reload.outcome_message).to be_present
-    expect(described_class.messages([ message.reload ], repository: repository).sole.fetch(:pending_action)).to be_nil
+    retired_payload = described_class.messages([ message.reload ], repository: repository).sole
+    expect(retired_payload.fetch(:pending_action)).to be_nil
+    expect(retired_payload.fetch(:pending_action_retired)).to be(true)
   end
 
   it "retires an anchored partial-result group after its failure details are durable" do

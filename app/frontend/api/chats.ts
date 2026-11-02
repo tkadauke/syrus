@@ -445,6 +445,7 @@ export type ChatMessageItem = {
   chat_shell_command?: ChatShellCommandResult | null
   proposal?: ChatProposal | null
   pending_action?: ChatPendingActionInline | null
+  pending_action_retired?: boolean
   sender_user?: { id: number; name: string } | null
   sidechain?: boolean
   parent_tool_use_id?: string | null
