@@ -11,6 +11,7 @@ import browserFileUploadToolCard from "./browser_file_upload"
 import browserFillToolCard from "./browser_fill"
 import browserHoverToolCard from "./browser_hover"
 import browserNavigateToolCard from "./browser_navigate"
+import browserEmulateToolCard from "./browser_emulate"
 import browserResizeToolCard from "./browser_resize"
 import browserScreenshotToolCard from "./browser_screenshot"
 import browserSnapshotToolCard from "./browser_snapshot"
@@ -37,6 +38,7 @@ describe("browser tool cards", () => {
       browserSnapshotToolCard,
       browserScreenshotToolCard,
       browserResizeToolCard,
+      browserEmulateToolCard,
       browserWaitForToolCard,
       browserCloseToolCard,
       browserClickToolCard,
@@ -53,6 +55,7 @@ describe("browser tool cards", () => {
       "browser_snapshot",
       "browser_screenshot",
       "browser_resize",
+      "browser_emulate",
       "browser_wait_for",
       "browser_close",
       "browser_click",
@@ -235,6 +238,16 @@ describe("browser tool cards", () => {
 
     expect(screen.getByText("Resize")).toBeInTheDocument()
     expect(screen.getAllByText("390x844")).toHaveLength(1)
+  })
+
+  it("summarizes emulate outcomes from the preset in the tool input", () => {
+    const toolContext = context({
+      toolName: "browser_emulate",
+      input: { preset: "iphone-15-pro" },
+      resultBody: "Emulation applied."
+    })
+
+    expect(browserEmulateToolCard.collapsedSummary?.(toolContext)).toBe("Emulate iphone-15-pro · success")
   })
 
   it("summarizes wait outcomes from text, disappearing text, and time inputs", () => {

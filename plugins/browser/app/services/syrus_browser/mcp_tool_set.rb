@@ -21,6 +21,7 @@ module SyrusBrowser
       ScreenshotTool,
       WaitForTool,
       ResizeTool,
+      EmulateTool,
       EvaluateTool,
       FileUploadTool,
       DropTool,

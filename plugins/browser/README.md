@@ -8,6 +8,7 @@ The plugin is designed for UI work where code review alone is not enough. It kee
 
 - A workflow MCP tool set backed by Playwright.
 - Screenshot capture and image-diff artifact rendering.
+- `browser_emulate`: device profiles (`iphone-15-pro`, `desktop`), viewport, scale factor, mobile/touch, user agent, safe-area insets, color scheme and reduced motion. Chromium only.
 - Browser actions used by the `visual_review` workflow step.
 
 ## Safety Model

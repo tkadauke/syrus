@@ -1103,7 +1103,8 @@ a headless Chromium browser against that preview through the `browser`
 plugin's MCP tool set (`browser_navigate` — hard-restricted to the
 worker's own loopback preview — `browser_snapshot`, `browser_click`,
 `browser_fill`, `browser_hover`, `browser_screenshot`, `browser_wait_for`,
-`browser_close`, proxying each call to a per-Run `@playwright/mcp` stdio
+`browser_resize`, `browser_emulate` (device preset, safe-area insets, touch,
+color scheme), `browser_close`, proxying each call to a per-Run `@playwright/mcp` stdio
 subprocess). It
 reads the implementing agent's `submit_test_plan` `visual_review_recommended`
 hint but makes its own go/no-go call, always calls `stop_preview` before
