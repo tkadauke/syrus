@@ -45,6 +45,7 @@ module Admin
       "read_admission_diagnostics" => "generic",
       "diagnose_run_queue" => "generic",
       "read_syrus_logs" => "generic",
+      "read_workspace_reuse_outcomes" => "generic",
       "list_repository_files" => "generic",
       "read_repository_file" => "generic",
       "search_repository_code" => "generic",
