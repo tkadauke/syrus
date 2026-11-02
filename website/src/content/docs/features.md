@@ -48,6 +48,14 @@ amber waiting halo while an agent is blocked on a decision. It announces newly
 blocked agents to assistive technology and uses a static ring when reduced motion
 is preferred.
 
+Instances may install optional AI approval-provider plugins. They are off by
+default: each user must explicitly delegate a provider for a bounded capability
+and resource scope. AI approval can decide only the exact fingerprinted tool
+invocation presented to it and cannot grant durable or temporary authority.
+Financial effects, privilege changes, and permission management always remain
+human decisions. Unavailable, uncertain, rate-limited, or invalid provider
+responses return the same request to the human approval inbox.
+
 ## Jobs
 
 A Job is the unit operators track in the UI. It represents one thread of

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_181958) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_204023) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -237,6 +237,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_181958) do
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
     t.check_constraint "singleton_key = 1", name: "chk_app_settings_singleton_key"
+  end
+
+  create_table "approval_provider_delegations", force: :cascade do |t|
+    t.integer "owner_user_id", null: false
+    t.string "provider_key", null: false
+    t.string "capability", null: false
+    t.string "resource_type", null: false
+    t.json "resource_scope", null: false
+    t.json "excluded_effects", null: false
+    t.datetime "revoked_at"
+    t.integer "revoked_by_user_id"
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_user_id", "provider_key", "capability", "revoked_at"], name: "idx_approval_delegations_active"
+    t.index ["owner_user_id"], name: "index_approval_provider_delegations_on_owner_user_id"
+    t.index ["revoked_by_user_id"], name: "index_approval_provider_delegations_on_revoked_by_user_id"
   end
 
   create_table "authorized_invocations", force: :cascade do |t|
