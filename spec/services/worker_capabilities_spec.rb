@@ -403,4 +403,24 @@ RSpec.describe WorkerCapabilities do
         .to eq(%w[merges])
     end
   end
+
+    it "records plugin probe diagnostics and honors its verification timeout" do
+      provider = Class.new do
+        def self.capability_probes(env: ENV)
+          [ {
+            dimension: "runtime", token: "confined", command: [ "/opt/probe" ],
+            diagnostics: { "configuration" => "complete" }, timeout: 17
+          } ]
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:worker_capability_probe).and_return([ provider ])
+      capture = double(success?: true, stdout: "", stderr: "", result: double(timed_out?: false, exit_status: 0))
+      allow(described_class).to receive(:capability_probe).and_return(capture)
+
+      payload = described_class.current
+
+      expect(described_class).to have_received(:capability_probe).with([ "/opt/probe" ], timeout: 17)
+      expect(payload.fetch(:diagnostics)).to include("configuration" => "complete")
+      expect(payload.fetch(:capabilities).fetch("runtime")).to include("confined")
+    end
 end

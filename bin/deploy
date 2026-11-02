@@ -455,6 +455,7 @@ rollout() {
   done
   verify_sha "$label" "$kubeconfig" "$namespace"
   verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"
+  verify_coworker_confinement "$label" "$kubeconfig" "$namespace"
   resume_mysql_backup "$kubeconfig" "$namespace" "$label"
   flux_resume_now "$kubeconfig" "$label"
   verify_flux_desired_images "$kubeconfig" "$label"
@@ -1475,6 +1476,43 @@ RunJob user's PATH.
 MSG
       exit 1
     fi
+  done
+}
+
+verify_coworker_confinement() {
+  local label="$1" kubeconfig="$2" namespace="$3" workload required output status
+
+  for workload in "${WORKER_WORKLOADS[@]}"; do
+    KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$workload" >/dev/null 2>&1 || continue
+    required="$(KUBECONFIG="$kubeconfig" kubectl exec -n "$namespace" "$workload" -- \
+      printenv SYRUS_VERIFY_COWORKER_CONFINEMENT 2>/dev/null || true)"
+    [ "$required" = "true" ] || [ "$required" = "1" ] || continue
+
+    echo "→ ${label}/${workload}: verified coworker confinement admission check"
+    set +e
+    output="$(KUBECONFIG="$kubeconfig" kubectl exec -n "$namespace" "$workload" -- \
+      bin/rails runner '
+        snapshot = WorkerCapabilities.current
+        runtime = Array(snapshot.dig(:capabilities, "runtime"))
+        workers = InstanceVersion.fresh.where(role: "worker")
+        live_admission = workers.any? { |worker| Array(WorkerCapabilities.normalize(worker.capabilities)["runtime"]).include?("confined_coworker") }
+        manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "credential_store" }
+        broker = manifest&.enabled? && Syrus::PluginRegistry.health.healthy?(manifest.name)
+        unless runtime.include?("confined_coworker") && live_admission && broker
+          warn({ runtime_verified: runtime.include?("confined_coworker"), live_admission: live_admission,
+            broker_authorized: !!broker, diagnostics: snapshot[:diagnostics] }.to_json)
+          exit 1
+        end
+        puts({ runtime_verified: true, live_admission: true, broker_authorized: true }.to_json)
+      ' 2>&1)"
+    status=$?
+    set -e
+    if [ "$status" != 0 ]; then
+      printf '%s\n' "$output" >&2
+      echo "✗ ${label}/${workload}: confined coworker rollout verification failed" >&2
+      exit 1
+    fi
+    printf '%s\n' "$output"
   done
 }
 

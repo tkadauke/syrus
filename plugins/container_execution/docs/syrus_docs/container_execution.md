@@ -144,11 +144,22 @@ fail at `docker run`.
 
 A worker advertises `runtime:confined_coworker` only after Container Execution
 is enabled with the Docker transport, MCP socket, dedicated network,
-controlled DNS, and every supported provider proxy configured, and a live
-Docker daemon probe succeeds. The signal is deliberately fail-closed: partial
-configuration is diagnostic state, never authorization. Scheduled coworker
+controlled DNS, and every supported provider proxy configured. The live probe
+then launches the same non-root, read-only, capability-free per-turn container
+shape, verifies every proxy is reachable, and proves that direct public and
+cloud-metadata egress are denied. The signal is deliberately fail-closed:
+partial configuration or a failed runtime check is diagnostic state, never authorization. Scheduled coworker
 runs require this runtime token and therefore surface `no_capable_worker`
 rather than falling back to local execution.
+
+Worker capability diagnostics distinguish missing configuration (including a
+list of missing settings), a missing probe, and a failed container/egress
+verification. Privileged grant availability separately reports an unhealthy
+or disabled credential-broker authorization path. Set
+`SYRUS_VERIFY_COWORKER_CONFINEMENT=true` on production worker workloads only
+after supplying the confinement variables; `bin/deploy` then refuses to
+complete a rollout unless a fresh live-worker heartbeat can admit confinement
+and the credential broker is healthy.
 
 Pre-pull the configured seed image on candidate workers before rollout. Canary
 one worker and verify capability heartbeats plus container startup/teardown

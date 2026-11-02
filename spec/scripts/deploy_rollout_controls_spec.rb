@@ -96,6 +96,26 @@ RSpec.describe "bin/deploy rollout controls" do
     expect(out).not_to include("PATCHED")
   end
 
+  it "verifies live confined admission when a worker requires it" do
+    out, err, status = bash(<<~SH)
+      set -euo pipefail
+      WORKER_WORKLOADS=(deployment/syrus-worker-home)
+      kubectl() {
+        case " $* " in
+          *" get "*) return 0 ;;
+          *" printenv SYRUS_VERIFY_COWORKER_CONFINEMENT "*) echo true ;;
+          *" bin/rails runner "*) echo '{"runtime_verified":true,"live_admission":true,"broker_authorized":true}' ;;
+        esac
+      }
+      #{helper("verify_coworker_confinement")}
+      verify_coworker_confinement production kubeconfig namespace
+    SH
+
+    expect(status).to be_success, err
+    expect(out).to include("verified coworker confinement admission check")
+    expect(out).to include('"broker_authorized":true')
+  end
+
   it "does not schedule a watchdog or resume operator-suspended Flux" do
     out, err, status = bash(<<~SH)
       set -euo pipefail

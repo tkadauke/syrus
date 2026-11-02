@@ -11,7 +11,8 @@ RSpec.describe Coworkers::PrivilegedGrantGate do
 
   it "requires both a live confinement-capable worker and the broker" do
     allow(described_class).to receive(:confined_worker_available?).and_return(false)
-    expect(described_class.availability(descriptor).reason).to eq("confinement_unavailable")
+    allow(described_class).to receive(:confinement_unavailability_reason).and_return("confinement_probe_failed")
+    expect(described_class.availability(descriptor).reason).to eq("confinement_probe_failed")
 
     allow(described_class).to receive(:confined_worker_available?).and_return(true)
     allow(described_class).to receive(:broker_authorization_available?).and_return(false)
@@ -19,6 +20,27 @@ RSpec.describe Coworkers::PrivilegedGrantGate do
 
     allow(described_class).to receive(:broker_authorization_available?).and_return(true)
     expect(described_class.availability(descriptor)).to be_available
+  end
+
+  it "distinguishes missing worker configuration, missing probes, and failed verification" do
+    worker = InstanceVersion.create!(hostname: "worker", role: "worker", version: "test", started_at: Time.current,
+      last_heartbeat_at: Time.current, capabilities: { "os" => [ "linux" ] }, capability_diagnostics: {})
+
+    expect(described_class.send(:confinement_unavailability_reason)).to eq("confinement_probe_missing")
+
+    worker.update!(capability_diagnostics: {
+      "confined_coworker" => false,
+      "confined_coworker_configuration" => "missing",
+      "confined_coworker_missing_settings" => [ "docker_transport" ]
+    })
+    expect(described_class.send(:confinement_unavailability_reason)).to eq("confinement_configuration_missing")
+
+    worker.update!(capability_diagnostics: {
+      "confined_coworker" => false,
+      "confined_coworker_configuration" => "complete",
+      "confined_coworker_probe_status" => "failed"
+    })
+    expect(described_class.send(:confinement_unavailability_reason)).to eq("confinement_probe_failed")
   end
 
   it "discovers broker authorization through the plugin registry" do
