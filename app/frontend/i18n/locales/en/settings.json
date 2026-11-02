@@ -17,7 +17,7 @@
   "permissions": {
     "title": "Permissions",
     "description": "Manage durable authority you have delegated to agents.",
-    "approvals_link": "Open operational approvals",
+    "approvals_link": "Open operational dashboard",
     "load_error": "Permissions could not be loaded.",
     "your_rules": "Your rules",
     "your_rules_help": "These user-owned rules are editable. Revoking preserves their audit history.",

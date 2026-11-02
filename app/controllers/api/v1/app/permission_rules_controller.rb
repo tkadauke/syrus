@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class PermissionRulesController < BaseController
+        POLICY_ACTIONS = { "allow" => :grant!, "deny" => :deny! }.freeze
+
         def index
           management = Permissions::Management.new(Current.user)
           render json: {
@@ -14,9 +16,10 @@ module Api
         def create
           payload = permission_rule_params.to_h
           management = Permissions::Management.new(Current.user)
-          rule = payload.delete("policy") == "deny" ? management.deny!(payload, actor: Current.user) : management.grant!(payload, actor: Current.user)
+          action = POLICY_ACTIONS.fetch(payload.delete("policy"))
+          rule = management.public_send(action, payload, actor: Current.user)
           render json: { rule: serialize_rule(rule) }, status: :created
-        rescue Permissions::Catalog::UnknownCapability, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => error
+        rescue Permissions::Catalog::UnknownCapability, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError, KeyError => error
           render_error("invalid_permission_rule", error.message, status: :unprocessable_entity)
         end
 

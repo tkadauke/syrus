@@ -17,7 +17,7 @@
   "permissions": {
     "title": "Permissiones",
     "description": "Auctoritatem diuturnam agentibus delegatam administra.",
-    "approvals_link": "Approbationes operativas aperi",
+    "approvals_link": "Tabulam operativam aperi",
     "load_error": "Permissiones onerari non potuerunt.",
     "your_rules": "Regulae tuae",
     "your_rules_help": "Has regulas proprias mutare potes. Revocatio historiam inspectionis servat.",
