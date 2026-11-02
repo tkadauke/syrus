@@ -1,13 +1,14 @@
 module Permissions
   class RequestPresenter
-    def initialize(request)
+    def initialize(request, current_user: nil)
       @request = request
+      @current_user = current_user
     end
 
     def as_json
       {
         id: request.id, state: request.state,
-        actionable: request.actionable? && request.state.in?(%w[pending non_actionable failed]),
+        actionable: request.user_id == @current_user&.id && request.actionable? && request.pending?,
         purpose: request.purpose, requested_by: request.requested_by,
         runtime_role: request.runtime_role, created_at: request.created_at,
         checkpoint_state: request.checkpoint_state,

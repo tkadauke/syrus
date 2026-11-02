@@ -36,7 +36,10 @@ export type PermissionRequest = {
   items: PermissionRequestItem[]
 }
 
-export const fetchPermissionRequests = () => getJson<{ requests: PermissionRequest[] }>("/api/v1/app/permission_requests")
+export type PermissionRequestsPayload = { requests: PermissionRequest[]; pagination: { page: number; per_page: number; total: number; total_pages: number } }
+export const fetchPermissionRequests = (page = 1) => getJson<PermissionRequestsPayload>(`/api/v1/app/permission_requests?page=${page}`)
 export const decidePermissionRequest = (id: number, decision: "approved" | "denied", duration?: string) =>
   postJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}/decide`, { decision, duration })
 export const dismissPermissionRequest = (id: number) => deleteJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}`)
+export const batchDecidePermissionRequests = (requestIds: number[], decision: "approved" | "denied", duration?: string) =>
+  postJson<{ requests: PermissionRequest[] }>("/api/v1/app/permission_requests/batch_decide", { request_ids: requestIds, decision, duration })

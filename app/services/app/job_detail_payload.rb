@@ -107,7 +107,7 @@ module App
       @job.related_authorization_requests
         .includes(:authorization_items, :origin, :subject, :repository)
         .order(created_at: :desc)
-        .map { |request| Permissions::RequestPresenter.new(request).as_json }
+        .map { |request| Permissions::RequestPresenter.new(request, current_user: @user).as_json }
     end
 
     def workflows_payload

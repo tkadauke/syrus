@@ -966,7 +966,7 @@ function SummaryTab({
 
           <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
 
-          <AuthorizationRequestsPanel requests={payload.authorization_requests ?? []} />
+          <AuthorizationRequestsPanel jobId={payload.job.id} requests={payload.authorization_requests ?? []} />
 
           <FeedbackHistoryPanel entries={payload.feedback_history} prefix={prefix} />
 
@@ -1557,7 +1557,7 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
   )
 }
 
-function AuthorizationRequestsPanel({ requests }: { requests: NonNullable<JobDetailPayload["authorization_requests"]> }) {
+function AuthorizationRequestsPanel({ requests, jobId }: { requests: NonNullable<JobDetailPayload["authorization_requests"]>; jobId: number }) {
   const { t } = useT("jobs")
   if (requests.length === 0) return null
 
@@ -1567,7 +1567,7 @@ function AuthorizationRequestsPanel({ requests }: { requests: NonNullable<JobDet
       <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("authorization_requests_description")}</p>
       <ul className="mt-3 space-y-2">
         {requests.map((request) => (
-          <li key={request.id}><PermissionRequestCard request={request} /></li>
+          <li key={request.id}><PermissionRequestCard jobId={jobId} request={request} /></li>
         ))}
       </ul>
     </section>

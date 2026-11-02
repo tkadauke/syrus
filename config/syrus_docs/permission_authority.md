@@ -46,8 +46,8 @@ Operational requests live at `/permissions/inbox` and in the compact global
 Approvals drawer. Both surfaces, plus inline Job origin cards, read the same
 durable authorization request. Each card shows the named subject and origin,
 normalized resource, redacted arguments, effects, agent-supplied purpose,
-available authority durations, and the decisive policy explanation. Compatible
-items can be approved or denied together. Resolved and non-actionable requests
+available authority durations, and the decisive policy explanation. Multiple
+requests can be selected and decided atomically when their items share a duration. Resolved and non-actionable requests
 remain available as history; dismissing an obsolete request does not create a
 deny rule.
 
