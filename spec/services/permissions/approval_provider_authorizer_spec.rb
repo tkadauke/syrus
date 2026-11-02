@@ -64,6 +64,40 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
     expect(result.decision.provider_outcome).to eq("ceiling")
   end
 
+  it "enforces non-delegable ceilings from the effective policy chain" do
+    ceiling_request = request_with(policy_chain: [
+      { layer: :resource, policy: :ask, rule: { delegable: false, policy: :ask } }
+    ])
+    expect(provider).not_to receive(:decide)
+
+    result = described_class.call(request: ceiling_request, delegations: [ delegation ], providers: [ provider ])
+
+    expect(result).to be_escalated
+    expect(result.decision.provider_outcome).to eq("ceiling")
+  end
+
+  it "escalates uncertain allows and provider-managed outcomes" do
+    allow(provider).to receive(:decide).and_return(outcome: :allow, rationale: "Uncertain",
+      policy_factors: [], confidence: 0.79, evidence: {})
+    uncertain = described_class.call(request:, delegations: [ delegation ], providers: [ provider ])
+    expect(uncertain.decision.provider_outcome).to eq("uncertain")
+
+    allow(provider).to receive(:decide).and_return(outcome: :allow, rationale: "Quota exhausted",
+      policy_factors: [ "rate" ], confidence: 1, evidence: {}, provider_outcome: "rate_limited")
+    limited = described_class.call(request:, delegations: [ delegation ], providers: [ provider ])
+    expect(limited).to be_escalated
+    expect(limited.decision.provider_outcome).to eq("rate_limited")
+  end
+
+  it "redacts provider evidence before returning it" do
+    allow(provider).to receive(:decide).and_return(outcome: :deny, rationale: "Secret detected",
+      policy_factors: [], confidence: 1, evidence: { api_token: "secret-value" })
+
+    result = described_class.call(request:, delegations: [ delegation ], providers: [ provider ])
+
+    expect(result.decision.evidence).to eq("api_token" => "[redacted]")
+  end
+
   it "escalates unavailable, invalid, and plugin-managed rate outcomes" do
     unavailable = described_class.call(request:, delegations: [ delegation ], providers: [])
     expect(unavailable.decision.provider_outcome).to eq("provider_unavailable")
@@ -76,5 +110,15 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
     allow(provider).to receive(:decide).and_return(outcome: :maybe)
     invalid = described_class.call(request:, delegations: [ delegation ], providers: [ provider ])
     expect(invalid.decision.provider_outcome).to eq("invalid_provider_output")
+  end
+
+  def request_with(**attributes)
+    values = {
+      owner:, capability: request.capability, operation: request.operation,
+      resource_type: request.resource_type, resource_scope: request.resource_scope,
+      effects: request.effects, invocation_fingerprint: request.invocation_fingerprint,
+      transcript: request.transcript, tool_call: request.tool_call, policy_chain: request.policy_chain
+    }
+    Permissions::ApprovalProviderRequest.new(**values.merge(attributes))
   end
 end

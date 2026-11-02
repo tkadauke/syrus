@@ -76,12 +76,14 @@ revoked immediately.
 An AI provider receives the role-labelled transcript, exact tool call, current
 policy chain, and immutable invocation fingerprint. It returns structured
 `allow`, `deny`, or `escalate` data with rationale, policy factors, confidence,
-and redacted evidence. Its authority never extends beyond that exact
-invocation: it cannot create rules, leases, grants, or other delegations.
+and evidence that core redacts before returning or storing it. Its authority
+never extends beyond that exact invocation: it cannot create rules, leases,
+grants, or other delegations.
 Permission management, privilege changes, and financial effects remain
-human-only. Core evaluates plugin, instance, resource, and user ceilings before
-calling the provider. Missing providers, invalid output, uncertainty, and
-provider-owned cost or rate outcomes escalate the existing request to a human.
+human-only. Core evaluates non-delegable plugin, instance, resource, and user
+ceilings from the effective policy chain before calling the provider. Missing
+providers, invalid output, confidence below `0.8`, and provider-owned cost or
+rate outcomes escalate the existing request to a human.
 
 ## Agent-facing management APIs
 
