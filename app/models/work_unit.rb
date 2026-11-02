@@ -165,6 +165,7 @@ class WorkUnit < ApplicationRecord
 
   def mark_running!
     transaction do
+      lock_definition_jobs!
       reactivate_work_intent!
       ensure_active_locks!
       update!(
@@ -178,6 +179,13 @@ class WorkUnit < ApplicationRecord
         blocked_by_user: nil
       )
     end
+  end
+
+  def lock_definition_jobs!
+    job_ids = work_unit_members.pluck(:job_id)
+    job_ids << workflow.job_id if workflow
+    job_ids << scope_id if scope_type == "job" && scope_id.present?
+    Job.where(id: job_ids.compact.uniq).order(:id).lock.load
   end
 
   def mark_terminal!(state)
