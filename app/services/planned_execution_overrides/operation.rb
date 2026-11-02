@@ -123,6 +123,13 @@ class Operation
   def refusal_reason(workflows, runs)
     return "Placement cannot be changed once #{job.slug} is #{job.state}; cancel or finish the active work, then create a fresh attempt." unless job.state.in?(PLACEMENT_STATES)
     if job.state.in?(%w[triaging backlog blocked_by_epic])
+      affine_workflow = workflows.find { |workflow| workflow.worker_hostname.present? || workflow.worker_storage_key.present? || WorkflowWorkspace.path_for(workflow).directory? }
+      if affine_workflow
+        return "#{job.slug} is #{job.state} but #{affine_workflow.slug} already has a mutable workspace or worker assignment; remove the inconsistent host-affine execution state or use a fresh attempt."
+      end
+      if WorkUnitMember.where(job_id: job.id).exists?
+        return "#{job.slug} is #{job.state} but already has WorkUnit execution history; reconcile the inconsistent host-affine execution state or use a fresh attempt."
+      end
       return nil if workflows.empty? && runs.empty?
 
       return "#{job.slug} is #{job.state} but already has Workflow or Run history; use a fresh attempt rather than changing placement on inconsistent execution records."

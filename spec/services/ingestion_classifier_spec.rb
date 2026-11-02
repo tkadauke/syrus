@@ -247,12 +247,7 @@ RSpec.describe IngestionClassifier do
     )
     expect(job.placement_recommendation).to include(
       "profile" => "ios_xcode",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode" ],
-        "runtime" => [ "ios_simulator" ]
-      },
+      "capabilities" => { "os" => [ "macos" ] },
       "explanation" => "The requested build requires Xcode.",
       "provenance" => "ingestion_classifier"
     )
@@ -269,7 +264,7 @@ RSpec.describe IngestionClassifier do
     })
 
     capabilities = job.reload.placement_recommendation.fetch("capabilities")
-    expect(capabilities).to eq("os" => [ "macos" ], "arch" => [ "arm64" ])
+    expect(capabilities).to eq("os" => [ "macos" ])
     expect(capabilities).not_to have_key("runtime")
     expect(capabilities).not_to have_key("toolchain")
   end

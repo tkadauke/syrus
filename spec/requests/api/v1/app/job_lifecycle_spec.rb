@@ -335,7 +335,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
           placement_recommendation: {
             "profile" => "macos_desktop",
             "label" => "macOS desktop",
-            "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+            "capabilities" => { "os" => [ "macos" ] },
             "explanation" => "The desktop build must run on macOS.",
             "provenance" => "ingestion_classifier"
           }
@@ -374,11 +374,11 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(placement_confirmation.reload).to be_queued
       expect(placement_confirmation).to have_attributes(
-        planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+        planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "operator_confirmed",
         placement_recommendation_status: "accepted"
       )
-      expect(placement_confirmation.latest_workflow.planned_execution_capabilities).to eq("os" => [ "macos" ], "arch" => [ "arm64" ])
+      expect(placement_confirmation.latest_workflow.planned_execution_capabilities).to eq("os" => [ "macos" ])
     end
 
     it "rejects the recommendation but accepts the job using Linux" do
@@ -614,12 +614,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
   end
 
   it "restarts a direct investigation job preserving investigation routing, planned execution, and dependencies" do
-    planned_capabilities = {
-      "os" => [ "macos" ],
-      "arch" => [ "arm64" ],
-      "toolchain" => [ "xcode" ],
-      "runtime" => [ "ios_simulator" ]
-    }
+    planned_capabilities = { "os" => [ "macos" ] }
     direct = Job.create!(
       user: user,
       repository: repo,
