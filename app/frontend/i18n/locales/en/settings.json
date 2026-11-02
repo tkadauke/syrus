@@ -107,7 +107,7 @@
     "confirm_bulk_help": "Review all {{count}} changes. They are applied together or not at all.",
     "confirm_bulk": "Confirm changes",
     "cancel_bulk": "Cancel",
-    "approvals_link": "Open operational dashboard",
+    "approvals_link": "Open approval inbox",
     "load_error": "Permissions could not be loaded.",
     "create_error": "The permission rule could not be added.",
     "revoke_error": "The permission rule could not be revoked.",
