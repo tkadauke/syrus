@@ -9,9 +9,12 @@ module RuntimeTerminal
     INITIAL_REPLAY_TIMEOUT_SECONDS = 0.1
     MAX_SCROLLBACK_BYTES = 1_048_576
     MAX_READ_BUFFER_BYTES = 1_048_576
+    MAX_INPUT_BYTES = 65_536
     MAX_COLS = Screen::MAX_COLS
     MAX_ROWS = Screen::MAX_ROWS
     MAX_WAIT_SECONDS = 30.0
+    CONNECT_TIMEOUT_SECONDS = 1.0
+    WRITE_TIMEOUT_SECONDS = 1.0
 
     NAMED_KEY_SEQUENCES = {
       "Enter" => "\r", "Return" => "\r", "Tab" => "\t", "Shift+Tab" => "\e[Z",
@@ -118,13 +121,13 @@ module RuntimeTerminal
       host, port = terminal_session.relay_address.to_s.split(":", 2)
       raise ConnectionError, "terminal relay address is invalid" if host.blank? || port.blank?
 
-      TCPSocket.new(host, Integer(port))
+      Socket.tcp(host, Integer(port), connect_timeout: CONNECT_TIMEOUT_SECONDS)
     rescue ArgumentError, SocketError, SystemCallError => e
       raise ConnectionError, e.message
     end
 
     def authenticate!
-      @socket.write("#{JSON.generate(token: @terminal_session.auth_token)}\n")
+      write_with_timeout("#{JSON.generate(token: @terminal_session.auth_token)}\n")
     end
 
     def drain(timeout:)
@@ -260,10 +263,30 @@ module RuntimeTerminal
     end
 
     def write_frame_locked(frame)
-      @socket.write("#{JSON.generate(frame)}\n")
+      write_with_timeout("#{JSON.generate(frame)}\n")
     rescue IOError, Errno::EPIPE, SystemCallError => e
       @closed = true
       raise ConnectionError, e.message
+    end
+
+    def write_with_timeout(payload)
+      deadline = monotonic_now + WRITE_TIMEOUT_SECONDS
+      offset = 0
+
+      while offset < payload.bytesize
+        written = @socket.write_nonblock(payload.byteslice(offset, payload.bytesize - offset), exception: false)
+        if written == :wait_writable
+          remaining = deadline - monotonic_now
+          raise ConnectionError, "terminal relay write timed out" if remaining <= 0
+          raise ConnectionError, "terminal relay write timed out" unless IO.select(nil, [ @socket ], nil, remaining)
+
+          next
+        end
+        offset += written
+      end
+    rescue ConnectionError
+      @closed = true
+      raise
     end
 
     def trim_scrollback
@@ -291,6 +314,10 @@ module RuntimeTerminal
     end
 
     def input_frame(data)
+      if data.bytesize > MAX_INPUT_BYTES
+        raise UnsupportedInput, "terminal input exceeds maximum #{MAX_INPUT_BYTES} bytes"
+      end
+
       { type: "input", data: data }
     end
 

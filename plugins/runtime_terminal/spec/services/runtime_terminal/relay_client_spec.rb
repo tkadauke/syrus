@@ -33,6 +33,15 @@ RSpec.describe RuntimeTerminal::RelayClient do
       expect { described_class.new(session) }.to raise_error(described_class::ConnectionError)
     end
 
+    it "bounds relay connection setup" do
+      session = terminal_session(relay_address: "127.0.0.1:1234")
+      expect(Socket).to receive(:tcp)
+        .with("127.0.0.1", 1234, connect_timeout: described_class::CONNECT_TIMEOUT_SECONDS)
+        .and_raise(Errno::ETIMEDOUT)
+
+      expect { described_class.new(session) }.to raise_error(described_class::ConnectionError)
+    end
+
     it "authenticates with the terminal session's auth token and drains the initial replay" do
       relay = RuntimeTerminalFakeRelay.new(replay: "welcome\n")
       session = terminal_session(relay_address: relay.address)
@@ -235,6 +244,14 @@ RSpec.describe RuntimeTerminal::RelayClient do
       expect(relay.next_control).to eq("type" => "input", "data" => "hello")
     end
 
+    it "rejects input payloads above the bounded maximum" do
+      oversized = "x" * (described_class::MAX_INPUT_BYTES + 1)
+
+      expect { client.input(type: "stdin", data: oversized) }
+        .to raise_error(described_class::UnsupportedInput, /exceeds maximum/)
+      expect(relay.next_control(timeout: 0.05)).to be_nil
+    end
+
     it "maps named keys to their terminal escape sequences" do
       {
         "Enter" => "\r",
@@ -310,12 +327,23 @@ RSpec.describe RuntimeTerminal::RelayClient do
 
     it "does not resize the emulator when the relay write fails" do
       socket = client.instance_variable_get(:@socket)
-      allow(socket).to receive(:write).and_raise(Errno::EPIPE)
+      allow(socket).to receive(:write_nonblock).and_raise(Errno::EPIPE)
 
       expect { client.input(type: "resize", cols: 120, rows: 40) }
         .to raise_error(described_class::ConnectionError)
       screen = client.instance_variable_get(:@screen)
       expect(screen.snapshot).to include(cols: 80, rows: 24, generation: 0)
+    end
+
+    it "bounds a stalled relay write" do
+      socket = client.instance_variable_get(:@socket)
+      stub_const("RuntimeTerminal::RelayClient::WRITE_TIMEOUT_SECONDS", 0.01)
+      allow(socket).to receive(:write_nonblock).and_return(:wait_writable)
+      allow(IO).to receive(:select).and_return(nil)
+
+      expect { client.input(type: "stdin", data: "x") }
+        .to raise_error(described_class::ConnectionError, /write timed out/)
+      expect(client.closed?).to be(true)
     end
 
     it "raises UnsupportedInput for non-positive resize dimensions" do

@@ -90,7 +90,9 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
   instead returns a distinct `terminal_scrollback` result with raw bounded
   relay output for diagnostics; it is not a second source of rendered truth.
 - **Input** (`#input`) — translates a generic input event into one or more
-  relay control frames:
+  relay control frames. Text input is limited to 64 KiB per event, and relay
+  connection and write deadlines prevent unavailable terminals from blocking
+  operator takeover indefinitely:
   - `stdin` → the raw text, verbatim.
   - `keyboard`/`key` → either literal `data`/`text`, or a lookup table for
     named keys (`Enter`, `Tab`, `Shift+Tab`, `Backspace`, `Escape`, arrow
