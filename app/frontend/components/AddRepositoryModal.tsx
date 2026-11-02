@@ -82,7 +82,6 @@ export function AddRepositoryModal({
       fork_auto_sync_enabled: r.fork_auto_sync_enabled,
       external_pr_ingestion_enabled: r.external_pr_ingestion_enabled,
       distributed_workflow_dag_enabled: r.distributed_workflow_dag_enabled,
-      agent_provider: "",
       auto_approve_mode: r.auto_approve_mode,
       feedback_policy: r.feedback_policy,
       review_policy: r.review_policy,

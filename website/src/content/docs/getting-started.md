@@ -215,8 +215,9 @@ Confirm these settings:
 - **Trigger label** is the issue label that creates Jobs. The default is
   `syrus`.
 - **Polling enabled** is on for issue ingestion.
-- **Default agent** is blank unless this repository should override your
-  user default provider.
+- **Agent routing** is configured with provider routing rules on the
+  repository's edit page. Without repository rules, your own routing rules
+  and default provider apply.
 - **Run prepare step** is on unless this repository intentionally needs no
   setup.
 

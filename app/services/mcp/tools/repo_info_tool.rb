@@ -22,7 +22,7 @@ module Mcp::Tools
             url: "https://github.com/#{repository.slug}",
             default_branch: info.fetch(:default_branch),
             trigger_label: repository.trigger_label,
-            agent_provider: repository.effective_agent_provider,
+            agent_provider: repository.user&.agent_provider,
             recent_commits: info.fetch(:recent_commits),
             branches: info.fetch(:branches)
           }

@@ -47,13 +47,11 @@ const newFormPayload = {
     fork_auto_sync_enabled: false,
     external_pr_ingestion_enabled: false,
     distributed_workflow_dag_enabled: false,
-    agent_provider: "",
     auto_approve_mode: "never",
     github_owner_id: null,
     github_repository_id: null,
     repository_path: null
   },
-  configured_agent_providers: [{ value: "claude", label: "Claude" }],
   user_agent_provider_label: "Claude",
   auto_approve_modes: [],
   repositories_path: "/repositories"
@@ -166,7 +164,6 @@ describe("AddRepositoryModal", () => {
       default_branch: "main",
       trigger_label: "syrus",
       auto_merge_enabled: true,
-      agent_provider: "",
       upstream_owner: "",
       upstream_name: "",
       github_repository_id: "7"

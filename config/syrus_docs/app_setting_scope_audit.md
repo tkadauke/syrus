@@ -63,7 +63,6 @@ follow-up shape rather than an implicit split across unrelated pages.
 
 | Setting | Current scope | Reachability | Kind | Should scope | Decision |
 | --- | --- | --- | --- | --- | --- |
-| `agent_provider` | repo | Repository settings | setting | repo | Correct: repo-specific provider routing. |
 | `auto_approve_mode` | repo | Repository settings | setting | repo | Correct: repo-specific review/approval risk. |
 | `auto_merge_enabled` | repo | Repository settings | setting | repo | Correct: repo-specific landing policy. |
 | `distributed_workflow_dag_enabled` | repo | Repository settings | setting | repo | Correct: repo-specific execution behavior. |

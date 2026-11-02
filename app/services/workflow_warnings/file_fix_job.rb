@@ -38,7 +38,6 @@ module WorkflowWarnings
               issue_title: warning.title.truncate(120),
               title_pending: false,
               issue_body: prompt_text,
-              agent_provider: repository.effective_agent_provider,
               priority: "medium",
               state: Job.initial_state_for_creator(actor)
             )

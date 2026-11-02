@@ -16,7 +16,7 @@ module Repositories
     # Each is translated to one or more AST chips by `build_tree_from_url_params`.
     # `q` is deliberately excluded -- Filters::BaseFilter.from_params decodes
     # it separately as the chip-bar's full AST tree, not a legacy param.
-    LEGACY_URL_KEYS = %w[ slug search github_owner health agent_provider has_open_jobs archived ].freeze
+    LEGACY_URL_KEYS = %w[ slug search github_owner health has_open_jobs archived ].freeze
     UNITS = { "minutes" => 1.minute, "hours" => 1.hour, "days" => 1.day, "weeks" => 1.week, "months" => 1.month }.freeze
 
     def self.build_tree_from_url_params(params)
@@ -28,7 +28,6 @@ module Repositories
       chips << chip("slug", "contains", term) if term.present?
       chips << chip("github_owner", "is", permitted["github_owner"]) if permitted["github_owner"].present?
       chips << chip("health", "is", permitted["health"]) if permitted["health"].present?
-      chips << chip("agent_provider", "is", permitted["agent_provider"]) if permitted["agent_provider"].present?
       chips << chip("has_open_jobs", "is", true) if boolean?(permitted["has_open_jobs"])
       chips << chip("archived", "is", true) if boolean?(permitted["archived"])
 
@@ -69,7 +68,6 @@ module Repositories
       when "slug" then string_matches?(repository.slug, chip)
       when "github_owner" then enum_matches?(repository.owner, chip)
       when "health" then enum_matches?(repository.main_health, chip)
-      when "agent_provider" then enum_matches?(repository.agent_provider.to_s, chip)
       when "has_open_jobs" then boolean_matches?(context[:open_jobs_counts].fetch(repository.id, 0).positive?, chip)
       when "archived" then boolean_matches?(repository.archived?, chip)
       when "last_job_activity_at" then activity_matches?(repository, chip, context[:last_job_activity_by_id])
