@@ -982,6 +982,14 @@ ceilings, resource scope, classification, fingerprint normalization, and
 redaction hooks. A renamed identifier remains listed in `capability_aliases`
 or `operation_aliases`; aliases are versioned, cannot repeat the canonical
 identifier, and may resolve to only one canonical identifier registry-wide.
+When a new descriptor version changes the normalized resource-scope shape, the
+permission provider must also register `migrate_permission_scope` with the old
+and new operation keys and a deterministic transform. Providers validate an
+upgrade with `validate_permission_upgrade!`; it rejects broader effects,
+defaults, eligible roles, autonomy, durations, or risk under an existing
+identity. Removing a key requires an alias, a scope migration, or a durable
+`retire_permission_identifier` declaration. Retired keys remain reserved and
+cannot later be reused as canonical identifiers or aliases.
 Diagnostics identify the plugin provider, surface, and tool when mappings or
 descriptor contracts conflict. A plugin with pre-contract definitions may
 temporarily declare frozen `capability_descriptor_compatibility` digests in its
@@ -995,6 +1003,54 @@ hook returns an explicit result: normalization or provider failures fail closed,
 and lookup deliberately reports the same `not_found` result for an unknown id
 and an id the current principal cannot see. Provider lookups must therefore
 apply ordinary application visibility before returning a resource.
+
+Plugins register reusable authorization contracts through the
+`permission_provider` extension point. Its class includes
+`Syrus::Plugin::PermissionProvider`, calls `register_resource_scope(type, ...)`
+for each plugin-owned resource schema, and calls `register_capability(...)` for
+each operation. The capability declaration accepts the full descriptor
+contract: versioned family and operation identifiers, effects, risk,
+requestable-role recommendations and defaults, autonomy and authority-duration
+ceilings, classifier, fingerprint normalizer, redactor, aliases, and presets.
+It may reference a local resource schema by type. `capability_descriptor(key)`
+returns the immutable descriptor for reuse in MCP tool definitions, avoiding a
+second copy of authorization policy. Duplicate operation keys within a provider
+and duplicate resource-type ownership across enabled providers fail closed.
+Disabled providers contribute neither capabilities nor scopes to
+`Permissions::Catalog`; enabling a plugin registers metadata, never authority.
+Permission providers should run the public RSpec conformance kit from their
+own specs:
+
+```ruby
+require "permissions/provider_test_kit"
+Permissions::ProviderTestKit.define_examples(
+  RSpec,
+  adapter: ->(example) { MyPermissionProviderContractAdapter.new(example) }
+)
+```
+
+The adapter exposes its `provider` and supplies real probes for fingerprint
+arguments, redaction secrets, hidden and unknown resource identifiers,
+uncertain classification, non-delegable ceilings, the previous descriptor
+release, installation/enablement, and an authority snapshot. The shared tests
+check deterministic idempotent normalization, redaction, visibility safety,
+maximum-risk fallback, ceiling enforcement, identifier migration, descriptor
+completeness, and the rule that installation and enablement grant no authority.
+Failures name the operation or resource scope that violated the contract.
+Visibility and installation probes must cross the plugin's real lookup and
+lifecycle boundaries; returning fabricated results does not prove conformance.
+
+`CapabilityDescriptor#role_recommendations` exposes the provider's role-specific
+defaults as recommendations. Providers may also call
+`register_permission_preset(name:, label:, description:, rules:)`. Each rule
+declares a capability, operation, eligible role, `allow`/`ask`/`deny` policy,
+resource scope, and constraints; `rules` may instead be a callable when a
+resource-specific draft depends on the operator's selection. Rendering adds the
+selected subject and returns complete immutable rule drafts. The confirmation
+for `apply_permission_preset` displays every draft before one transaction
+creates the rules. Registration, plugin installation or enablement, resource
+configuration, and migrations only expose this metadata and never apply a
+recommendation or preset automatically.
 
 Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
 and `.tool_definitions(context:)` when availability depends on the agent role

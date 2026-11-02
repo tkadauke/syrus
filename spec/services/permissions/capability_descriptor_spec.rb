@@ -31,6 +31,18 @@ RSpec.describe Permissions::CapabilityDescriptor do
     expect(descriptor.authority_durations).to eq(%i[invocation chat_session job])
   end
 
+  it "compares policy contracts independently of declaration order and runtime hooks" do
+    first = described_class.new(**attributes)
+    second = described_class.new(**attributes.merge(
+      effects: attributes[:effects].reverse,
+      requestable_roles: attributes[:requestable_roles].reverse,
+      authority_durations: attributes[:authority_durations].reverse,
+      classifier: ->(_arguments) { raise "not part of the static contract" }
+    ))
+
+    expect(first.contract_key).to eq(second.contract_key)
+  end
+
   it "requires versioned capability and operation identifiers" do
     expect { described_class.new(**attributes.merge(capability: "mysql.data")) }
       .to raise_error(ArgumentError, /versioned identifier/)
