@@ -207,6 +207,10 @@ la:
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
   api:
+    approval_delegations:
+      provider_unavailable: "Provisor approbationis non est installatus vel activatus."
+      unknown_capability: "Facultas permissionis ignota."
+      scope_required: "Ambitus rerum finitus requiritur."
     permission_rules:
       stale_preview: "Has mutationes permissionum ante confirmationem iterum considera."
     permission_requests:

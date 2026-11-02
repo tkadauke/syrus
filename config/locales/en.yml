@@ -241,6 +241,10 @@ en:
 
   # API messages
   api:
+    approval_delegations:
+      provider_unavailable: "The approval provider is not installed or enabled."
+      unknown_capability: "Unknown permission capability."
+      scope_required: "A bounded resource scope is required."
     permission_rules:
       stale_preview: "Preview these permission changes again before confirming."
     permission_requests:
