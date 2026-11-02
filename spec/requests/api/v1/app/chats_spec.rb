@@ -914,6 +914,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   it "does not expose group chat type on a single-user instance" do
+    allow(User).to receive(:count).and_return(1)
     sign_in_as(user)
     agent_chat = ChatSession.create!(user: user, title: "Agent chat", conversation_kind: "direct", last_message_at: 2.minutes.ago)
     group_chat = ChatSession.create!(user: user, title: "Group chat", conversation_kind: "group", last_message_at: 1.minute.ago)
