@@ -7,6 +7,7 @@ module Mcp::Tools::OperationalDiagnosticsTools
     MAX_PENDING = 100
     MAX_WORKERS = 50
     MAX_SLOTS_PER_POOL = 100
+    MAX_STALE_TERMINAL_DESCENDANTS = 100
     MAX_STEPS = 100
     MAX_RUNS_PER_STEP = 20
     MAX_TIMELINE_WINDOW = 7.days
@@ -76,11 +77,90 @@ module Mcp::Tools::OperationalDiagnosticsTools
       workers = Array(payload[:workers]).first(MAX_WORKERS).map do |worker|
         pools = Array(worker[:pools]).map do |pool|
           slots = Array(pool[:slots]).select { |slot| slot[:job_id].nil? || ids.include?(slot[:job_id]) }
-          pool.merge(slots: slots.first(MAX_SLOTS_PER_POOL))
+          restrict_worker_pool(pool, slots.first(MAX_SLOTS_PER_POOL))
         end
-        worker.merge(pools: pools)
+        restrict_worker(worker, pools)
       end
-      payload.merge(workers: workers)
+      stale_descendants = Array(payload.dig(:diagnostics, :stale_terminal_descendants))
+        .select { |slot| slot[:job_id].nil? || ids.include?(slot[:job_id]) }
+        .first(MAX_STALE_TERMINAL_DESCENDANTS)
+
+      payload.merge(
+        summary: worker_summary(workers),
+        diagnostics: payload.fetch(:diagnostics, {}).merge(stale_terminal_descendants: stale_descendants),
+        workers: workers
+      )
+    end
+
+    def restrict_worker_pool(pool, slots)
+      used = occupied_units(slots)
+      capacity = pool[:capacity]
+      status = if capacity.nil?
+        used.positive? ? "busy" : "idle"
+      elsif used > capacity.to_i
+        "overloaded"
+      elsif used.positive?
+        "busy"
+      else
+        "idle"
+      end
+      pool.merge(used: used, status: status, slots: slots)
+    end
+
+    def restrict_worker(worker, pools)
+      slots = pools.flat_map { |pool| Array(pool[:slots]) }
+      used = occupied_units(slots)
+      capacity_known = pools.any? && pools.none? { |pool| pool[:capacity].nil? }
+      total = capacity_known ? pools.sum { |pool| pool[:capacity].to_i } : used
+      total = used if total.zero?
+      health = worker.fetch(:health, {})
+      status = if health[:level] == "critical" || used > total
+        "overloaded"
+      elsif %w[warning unknown].include?(health[:level])
+        "degraded"
+      elsif used.positive?
+        "busy"
+      else
+        "idle"
+      end
+
+      worker.merge(
+        status: status,
+        capacity_exceeded: used > total,
+        status_reasons: [ "#{used}/#{total} inferred slots occupied", *Array(health[:reasons]) ],
+        occupancy: { used: used, total: total, slots: slots.length },
+        pools: pools
+      )
+    end
+
+    def occupied_units(slots)
+      Array(slots)
+        .select { |slot| %w[spawned_process run].include?(slot[:attribution].to_s) }
+        .map { |slot| occupancy_key(slot) }
+        .uniq
+        .length
+    end
+
+    def occupancy_key(slot)
+      return [ :run, slot[:run_id] ] if slot[:run_id].present?
+      return [ :step, slot[:step_id] ] if slot[:step_id].present?
+      return [ :workflow, slot[:workflow_id] ] if slot[:workflow_id].present?
+
+      [ :slot, slot[:id] ]
+    end
+
+    def worker_summary(workers)
+      {
+        total_workers: workers.length,
+        idle: workers.count { |worker| worker[:status] == "idle" },
+        busy: workers.count { |worker| worker[:status] == "busy" },
+        degraded: workers.count { |worker| worker[:status] == "degraded" },
+        overloaded: workers.count { |worker| worker[:status] == "overloaded" },
+        capacity_exceeded: workers.count { |worker| worker[:capacity_exceeded] },
+        health_critical: workers.count { |worker| worker.dig(:health, :level) == "critical" },
+        used_slots: workers.sum { |worker| worker.dig(:occupancy, :used).to_i },
+        total_slots: workers.sum { |worker| worker.dig(:occupancy, :total).to_i }
+      }
     end
   end
 
@@ -130,7 +210,10 @@ module Mcp::Tools::OperationalDiagnosticsTools
         data = restrict_worker_occupancy(data, context)
         diagnostics_success(
           source: "WorkerTimeline::LiveWorkersQuery", data: data,
-          caps: { workers: MAX_WORKERS, slots_per_pool: MAX_SLOTS_PER_POOL }
+          caps: {
+            workers: MAX_WORKERS, slots_per_pool: MAX_SLOTS_PER_POOL,
+            stale_terminal_descendants: MAX_STALE_TERMINAL_DESCENDANTS
+          }
         )
       rescue ArgumentError => e
         Mcp::Tools.invalid(e.message)
