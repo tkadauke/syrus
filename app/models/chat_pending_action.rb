@@ -516,6 +516,7 @@ class ChatPendingAction < ApplicationRecord
 
   def visible_in_chat_payload?
     return false if dismissed_at?
+    return pending_action_group.visible_in_chat_payload? if pending_action_group
     return true if failed?
     return true unless terminal?
 
