@@ -245,8 +245,11 @@ chat tool cards show input delivery errors and provider event details, while
 typed text is masked by default and can only be revealed with an explicit
 control;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
-and `runtime_stop` tears the session down. Runtime providers include browser
-dev-server sessions, which navigate and inspect a running web app. They are
+and `runtime_stop` tears the session down. Terminal sessions expose semantic
+screen inspection with viewport text, cursor and generation state, optional
+style runs, separate raw scrollback, and bounded generation/text/quiet waits;
+inspection itself requires no control lease. Runtime providers also include
+browser dev-server sessions, which navigate and inspect a running web app. They are
 watchable from
 Coding Mode's right sidebar in a Runtime tab (once the chat has started a
 session): session state, a generic visual frame viewer for providers that

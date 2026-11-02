@@ -72,8 +72,8 @@ RSpec.describe RuntimeTerminal::RelayClient do
       snapshot = client.inspect_screen
 
       expect(snapshot).to include(kind: "terminal_screen", generation: 2, cols: 80, rows: 24)
-      expect(snapshot.fetch(:lines).first.fetch(:text)).to eq("NEW")
-      expect(snapshot.fetch(:lines).second.fetch(:text)).to eq("color")
+      expect(snapshot.fetch(:lines).first).to eq("NEW")
+      expect(snapshot.fetch(:lines).second).to eq("color")
     ensure
       client&.close
       relay&.stop
@@ -95,7 +95,7 @@ RSpec.describe RuntimeTerminal::RelayClient do
       relay = RuntimeTerminalFakeRelay.new(replay: "0123456789")
       client = described_class.new(terminal_session(relay_address: relay.address))
 
-      expect(client.inspect_screen).to include(scrollback: "23456789", bytes: 8)
+      expect(client.inspect_scrollback).to eq("23456789")
     ensure
       client&.close
       relay&.stop
@@ -110,6 +110,55 @@ RSpec.describe RuntimeTerminal::RelayClient do
 
       expect { client.inspect_screen }.to raise_error(described_class::ConnectionError)
       expect(client.screen_generation).to eq(generation)
+    ensure
+      client&.close
+      relay&.stop
+    end
+  end
+
+
+  describe "screen synchronization" do
+    it "waits for a later generation and visible text without sleeping" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "prompt")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+      generation = client.screen_generation
+      writer = Thread.new { relay.write_output(" ready") }
+
+      result = client.inspect_screen(after_generation: generation, wait_for_text: "ready", timeout_seconds: 1)
+
+      expect(result).to include(settled: true, generation: generation + 1)
+      expect(result.fetch(:lines).first).to eq("prompt ready")
+      writer.join
+    ensure
+      writer&.join
+      client&.close
+      relay&.stop
+    end
+
+    it "returns the latest screen with settled false at the bounded timeout" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "prompt")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+
+      result = client.inspect_screen(wait_for_text: "missing", timeout_seconds: 0.01)
+
+      expect(result).to include(settled: false)
+    ensure
+      client&.close
+      relay&.stop
+    end
+
+    it "returns compact styled runs only when requested" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "\e[31mred\e[0m plain")
+      client = described_class.new(terminal_session(relay_address: relay.address))
+
+      plain = client.inspect_screen
+      styled = client.inspect_screen(include_styles: true)
+
+      expect(plain).not_to have_key(:styled_runs)
+      expect(styled.fetch(:styled_runs).first).to include(
+        include(text: "red", foreground: { mode: "ansi", value: 1 }),
+        include(text: " plain", foreground: nil)
+      )
     ensure
       client&.close
       relay&.stop

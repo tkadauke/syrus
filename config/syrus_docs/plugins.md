@@ -3866,7 +3866,12 @@ Bundled plugins:
   `RuntimeSession`/`Terminal::Session` pairing in
   `runtime_terminal_session_links`; `runtime_stop` marks the mapped terminal
   session `outcome: "killed"` with `finished_at`. `runtime_inspect` connects
-  to the mapped relay socket and returns terminal scrollback, while
+  to the mapped relay socket and returns either an authoritative semantic
+  viewport (`mode: "screen"`, the default) or distinct raw output
+  (`mode: "scrollback"`). Screen results include dimensions, plain visible
+  lines, cursor state, generation, and optional compact style runs.
+  Generation/text/change predicates, a quiet period, and a bounded timeout
+  provide deterministic settling without sleeps or an input lease, while
   `runtime_input` sends stdin/keyboard/pointer/resize control frames through
   the same authenticated wire protocol the browser terminal uses, after the
   shared `RuntimeControlLease` input gate passes.
@@ -3878,7 +3883,7 @@ Bundled plugins:
   add a database foreign key back into the terminal plugin's table, preserving
   the terminal plugin's own schema boundary. Capabilities advertise
   `stream: "none"`, `input: ["keyboard", "stdin", "pointer", "resize"]`,
-  `inspect: ["scrollback"]`, and `build: ["none"]`; live streaming still uses
+  `inspect: ["screen", "scrollback"]`, and `build: ["none"]`; live streaming still uses
   the terminal plugin's existing UI path, with the Coding Mode Runtime panel
   reusing its shared xterm/`TerminalChannel` renderer against the mapped
   `Terminal::Session#id`. Because this is still a genuine shell on the worker,

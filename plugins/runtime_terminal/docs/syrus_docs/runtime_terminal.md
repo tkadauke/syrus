@@ -75,15 +75,14 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
   the buffer.
 - **Authoritative screen** (`#inspect_screen`) — applies those exact decoded
   replay/output bytes, in order, to one bounded VT-compatible emulator. The
-  snapshot exposes primary or alternate buffer cells, dimensions, cursor,
-  bounded primary scrollback, Unicode cell widths and combining glyphs, text
-  styles, and ANSI/indexed/RGB colors. `generation` increases for every
+  snapshot exposes dimensions, cursor, and plain visible viewport lines.
+  `include_styles: true` adds compact per-row runs with Unicode cell widths,
+  text styles, and ANSI/indexed/RGB colors. `generation` increases for every
   applied relay output frame and resize, so callers can wait for a newer
   rendered state without comparing screen contents. `Provider#inspect`
-  returns this structured `terminal_screen` snapshot.
-  The raw bounded relay `scrollback` and byte count remain alongside the cell
-  model for diagnostics and compatibility; they are not a second source of
-  rendered truth.
+  returns this structured `terminal_screen` snapshot. `mode: "scrollback"`
+  instead returns a distinct `terminal_scrollback` result with raw bounded
+  relay output for diagnostics; it is not a second source of rendered truth.
 - **Input** (`#input`) — translates a generic input event into one or more
   relay control frames:
   - `stdin` → the raw text, verbatim.
@@ -109,6 +108,16 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
 `RELAY_ADDRESS_TIMEOUT` (10s), polling every `RELAY_ADDRESS_POLL_INTERVAL`
 (0.2s), for `TerminalSessionJob` to publish a `relay_address` onto the
 mapped `Terminal::Session` before attempting to connect.
+
+Screen inspection accepts deterministic synchronization options:
+`after_generation` waits for a strictly newer screen, `wait_for_change: true`
+uses the generation at call time as its baseline, and `wait_for_text` matches
+plain visible viewport text. `quiet_ms` can additionally require the matched
+screen to remain unchanged before returning. `timeout_ms` bounds the call and
+is capped at 30 seconds; waits default to five seconds and return the latest
+snapshot with `settled: false` on timeout. The relay socket drives these waits,
+so callers need no arbitrary sleeps. Inspection is observational and requires
+no control lease; only input does.
 
 The emulator is process-local and deliberately bounded to 1,000 scrollback
 rows, 1 MiB each of raw diagnostic output and incomplete relay framing, 4 KiB

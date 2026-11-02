@@ -93,13 +93,15 @@ module RuntimeTerminal
       not_supported("snapshot")
     end
 
-    def inspect(session_id = nil, _options = nil)
+    def inspect(session_id = nil, options = nil)
       raise NotImplementedError, "#{self.class}#inspect requires a session_id" if session_id.nil?
 
       runtime_session = runtime_session_for(session_id)
       terminal_session = relay_ready_terminal_session_for(runtime_session)
+      options = options.to_h.symbolize_keys
+      mode = options.fetch(:mode, "screen").to_s
       result = with_fresh_relay_client(runtime_session, terminal_session) do |client|
-        client.inspect_screen
+        inspect_client(client, mode, options)
       end
       result
     end
@@ -142,6 +144,34 @@ module RuntimeTerminal
     end
 
     private
+
+    def inspect_client(client, mode, options)
+      if mode == "scrollback"
+        scrollback = client.inspect_scrollback
+        return { kind: "terminal_scrollback", scrollback: scrollback, bytes: scrollback.bytesize }
+      end
+      raise ArgumentError, "unsupported terminal inspection mode #{mode.inspect}" unless mode == "screen"
+
+      client.inspect_screen(
+        after_generation: options[:after_generation],
+        wait_for_change: ActiveModel::Type::Boolean.new.cast(options[:wait_for_change]),
+        wait_for_text: options[:wait_for_text],
+        quiet_seconds: duration_seconds(options, :quiet_ms),
+        timeout_seconds: duration_seconds(options, :timeout_ms, default: wait_requested?(options) ? 5_000 : 0),
+        include_styles: ActiveModel::Type::Boolean.new.cast(options[:include_styles])
+      )
+    end
+
+    def duration_seconds(options, key, default: 0)
+      Float(options.fetch(key, default)) / 1_000
+    rescue ArgumentError, TypeError
+      raise ArgumentError, "#{key} must be a number of milliseconds"
+    end
+
+    def wait_requested?(options)
+      options[:after_generation].present? || options[:wait_for_text].present? ||
+        ActiveModel::Type::Boolean.new.cast(options[:wait_for_change]) || options[:quiet_ms].present?
+    end
 
     def runtime_session_for(session_id)
       return session_id if session_id.is_a?(RuntimeSession)
