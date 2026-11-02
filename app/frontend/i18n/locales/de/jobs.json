@@ -493,7 +493,7 @@
     "concurrency_blocked": "Der RunJob wartet hinter der Parallelitätssperre dieses Jobs. Starte den Job erneut, falls die frühere Arbeit nicht mehr aktiv ist.",
     "scheduled": "Der RunJob wird planmäßig {{time}} bereit; er steckt nicht fest.",
     "claimed_not_started": "Ein Worker hat den RunJob übernommen, aber der Lauf wurde noch nicht gestartet.",
-    "no_run_job": "Für diesen wartenden Lauf existiert kein RunJob. Starte den Job erneut, um ihn neu anzulegen.",
+    "no_run_job": "Dieser Lauf wurde noch nicht eingeplant. Syrus stellt ihn automatisch wieder her.",
     "no_live_workers": "Es ist kein aktiver Worker-Heartbeat verfügbar. Stelle einen Worker wieder her und starte den Job erneut.",
     "start_blocked": "Der Workflow-Start ist blockiert: {{reason}}.",
     "host_admission_deferred": "Die Host-Zulassung hat diesen Lauf wegen {{reason}} zurückgestellt ({{deferralCount}} Zurückstellungen, seit {{deferred}}). {{binding}}",
