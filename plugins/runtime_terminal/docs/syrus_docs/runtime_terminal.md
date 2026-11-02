@@ -41,7 +41,7 @@ independently deletable.
 {
   stream: "none",
   input: %w[keyboard stdin pointer resize],
-  inspect: [ "scrollback" ],
+  inspect: %w[screen scrollback],
   build: [ "none" ],
   artifacts: [ "logs" ]
 }
@@ -73,6 +73,17 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
   frame payloads (base64-decoded) into an in-memory buffer as they arrive;
   `#inspect_scrollback` drains any newly-available bytes before returning
   the buffer.
+- **Authoritative screen** (`#inspect_screen`) — applies those exact decoded
+  replay/output bytes, in order, to one bounded VT-compatible emulator. The
+  snapshot exposes primary or alternate buffer cells, dimensions, cursor,
+  bounded primary scrollback, Unicode cell widths and combining glyphs, text
+  styles, and ANSI/indexed/RGB colors. `generation` increases for every
+  applied relay output frame and resize, so callers can wait for a newer
+  rendered state without comparing screen contents. `Provider#inspect`
+  returns this structured `terminal_screen` snapshot.
+  The raw bounded relay `scrollback` and byte count remain alongside the cell
+  model for diagnostics and compatibility; they are not a second source of
+  rendered truth.
 - **Input** (`#input`) — translates a generic input event into one or more
   relay control frames:
   - `stdin` → the raw text, verbatim.
@@ -97,6 +108,15 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
 `RELAY_ADDRESS_TIMEOUT` (10s), polling every `RELAY_ADDRESS_POLL_INTERVAL`
 (0.2s), for `TerminalSessionJob` to publish a `relay_address` onto the
 mapped `Terminal::Session` before attempting to connect.
+
+The emulator is process-local and deliberately bounded to 1,000 scrollback
+rows. It lives exactly as long as its pooled relay client: stopping a Runtime
+Session, resetting provider clients, or observing a disconnected socket closes
+and releases it. A reconnect constructs a fresh emulator from the relay's
+bounded, gap-free replay before consuming live output, carrying the previous
+generation forward so a session's generation never moves backward. Resize
+input updates the emulator and sends the same dimensions to the PTY; both
+primary and alternate buffers are resized consistently.
 
 ## Input lease enforcement
 
