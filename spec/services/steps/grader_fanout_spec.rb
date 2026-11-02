@@ -362,10 +362,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "routes a mixed iOS/backend workflow through macOS primary work and target-specific grader workers" do
     enable_distributed_workflow_dag!
     requirements = {
-      "os" => [ "macos" ],
-      "arch" => [ "arm64" ],
-      "toolchain" => [ "xcode" ],
-      "runtime" => [ "ios_simulator" ]
+      "os" => [ "macos" ]
     }
     workflow.update!(
       planned_execution_capabilities: requirements,
@@ -379,9 +376,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           when_files_changed: ["ios/**/*"]
           capabilities:
             os: macos
-            arch: arm64
-            toolchain: xcode
-            runtime: ios_simulator
         - name: backend-tests
           run: bin/fake-backend-test
           when_files_changed: ["app/**/*"]
@@ -492,9 +486,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.workflow_warnings.where(kind: "implementation_capability_escalation")).to be_empty
   end
 
-  it "warns when an equally constrained affected target is not covered by the primary placement" do
+  it "rejects target dependency metadata as worker admission capabilities" do
     workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
     )
     write_config(<<~YAML)
@@ -514,18 +508,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     YAML
     stub_changed_files("ios/App/View.swift", "macos-x64/package.sh")
 
-    handler.call
-
-    warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
-    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/macos-x64-package")
-    expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly(
-      "//:grade/ios-tests",
-      "//:grade/macos-x64-package"
-    )
-    expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") })
-      .to eq([ "//:grade/macos-x64-package" ])
-    expect(warning.evidence.fetch("mismatches")).to include(
-      include("target_label" => "//:grade/macos-x64-package", "dimension" => "arch", "missing" => [ "x86_64" ])
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      /planned execution capabilities contain forbidden keys: arch/
     )
   end
 

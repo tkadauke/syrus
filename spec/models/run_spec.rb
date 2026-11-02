@@ -957,51 +957,19 @@ RSpec.describe Run, :ci_only do
       )
     end
 
-    it "requires live workers to satisfy iOS toolchain and runtime requirements" do
+    it "rejects dependency metadata as worker admission capabilities" do
       requirements = {
         "os" => [ "macos" ],
         "arch" => [ "arm64" ],
         "toolchain" => [ "xcode" ],
         "runtime" => [ "ios_simulator" ]
       }
-      workflow.update!(
-        planned_execution_capabilities: requirements,
-        planned_execution_source: "explicit"
-      )
-      live_capable_worker_queue!(
-        "runs-macos-arm64",
-        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] },
-        capability_diagnostics: {
-          "xcode" => true,
-          "ios_simulator" => false,
-          "xcode_version" => "16.4",
-          "developer_dir" => "/Applications/Xcode.app/Contents/Developer",
-          "ios_simulator_runtimes" => []
-        }
-      )
-
-      clear_enqueued_jobs
-      expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
-      # Not dispatched is the property under test; the Run now waits for a
-      # capable worker rather than being failed terminally.
-      expect(run.reload).not_to be_failed
-      expect(workflow.reload.artifact("run_queue_blocked")).to include(
-        "queue_name" => "runs-macos-arm64",
-        "requirements" => requirements,
-        "reason" => "no_live_worker_for_capabilities"
-      )
-      expect(workflow.artifact("run_queue_blocked").fetch("live_workers")).to contain_exactly(
-        include(
-          "hostname" => "syrus-worker-1",
-          "selected_queue" => true,
-          "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] },
-          "capability_diagnostics" => include(
-            "xcode_version" => "16.4",
-            "ios_simulator" => false,
-            "ios_simulator_runtimes" => []
-          )
+      expect {
+        workflow.update!(
+          planned_execution_capabilities: requirements,
+          planned_execution_source: "explicit"
         )
-      )
+      }.to raise_error(ActiveRecord::RecordInvalid, /forbidden keys: arch, runtime, toolchain/)
     end
 
     it "does not route new macOS work to a draining worker" do

@@ -2,14 +2,14 @@ class AddOutcomeDeliveryToChatPendingActions < ActiveRecord::Migration[8.1]
   def change
     add_column :chat_pending_actions, :dismissed_at, :datetime unless column_exists?(:chat_pending_actions, :dismissed_at)
     unless column_exists?(:chat_pending_actions, :outcome_message_id)
-      add_reference :chat_pending_actions, :outcome_message
+      add_reference :chat_pending_actions, :outcome_message, foreign_key: false
     end
     add_column :chat_pending_actions, :outcome_wake_enqueued_at, :datetime unless column_exists?(:chat_pending_actions, :outcome_wake_enqueued_at)
     add_column :chat_pending_actions, :legacy_outcome, :boolean, default: false, null: false unless column_exists?(:chat_pending_actions, :legacy_outcome)
 
     add_column :pending_action_groups, :dismissed_at, :datetime unless column_exists?(:pending_action_groups, :dismissed_at)
     unless column_exists?(:pending_action_groups, :outcome_message_id)
-      add_reference :pending_action_groups, :outcome_message
+      add_reference :pending_action_groups, :outcome_message, foreign_key: false
     end
     add_column :pending_action_groups, :outcome_wake_enqueued_at, :datetime unless column_exists?(:pending_action_groups, :outcome_wake_enqueued_at)
     add_column :pending_action_groups, :legacy_outcome, :boolean, default: false, null: false unless column_exists?(:pending_action_groups, :legacy_outcome)
