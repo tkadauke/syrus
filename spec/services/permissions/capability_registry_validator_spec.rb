@@ -18,10 +18,10 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     }.merge(overrides))
   end
 
-  def registration(name, descriptor:, surface: :chat, source: "ExamplePlugin", explicit_descriptor: descriptor.present?)
+  def registration(name, descriptor:, surface: :chat, source: "ExamplePlugin", explicit_descriptor: descriptor.present?, compatibility_descriptor: nil)
     described_class::Registration.new(
       tool_name: name, surface: surface, source: source, descriptor: descriptor,
-      explicit_descriptor: explicit_descriptor
+      explicit_descriptor: explicit_descriptor, compatibility_descriptor: compatibility_descriptor
     )
   end
 
@@ -37,6 +37,21 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     ])
 
     expect(validator.findings.map(&:code)).to include(:missing_descriptor)
+  end
+
+  it "accepts compatibility only when the registration owner declares its exact inventory" do
+    digest = Digest::SHA256.hexdigest("read_example")
+    validator = described_class.new([
+      registration("read_example", descriptor: descriptor, explicit_descriptor: false, compatibility_descriptor: digest)
+    ])
+
+    expect(validator.findings).to be_empty
+
+    expanded = described_class.new([
+      registration("read_example", descriptor: descriptor, explicit_descriptor: false, compatibility_descriptor: digest),
+      registration("write_example", descriptor: descriptor(operation: "example.data/write@v1"), explicit_descriptor: false, compatibility_descriptor: digest)
+    ])
+    expect(expanded.findings.map(&:code)).to include(:missing_descriptor)
   end
 
   it "rejects conflicting mappings for the same surface tool" do
@@ -124,6 +139,7 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     allow(McpToolRegistry).to receive(:entries).and_return([])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([])
     expect(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([
       { name: "read_plugin_data", capability_descriptor: plugin_descriptor }
     ])
@@ -134,6 +150,28 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
       tool_name: "read_plugin_data", surface: :mcp_tool_set,
       source: "ExampleToolSet", descriptor: plugin_descriptor, explicit_descriptor: true
     ))
+  end
+
+
+  it "reads compatibility metadata from the plugin that owns the provider" do
+    provider = stub_const("BoundaryOwnedToolSet", Class.new)
+    digest = Digest::SHA256.hexdigest("read_plugin_data")
+    manifest = instance_double(Syrus::Plugin::Manifest,
+      provides: { mcp_tool_set: provider },
+      metadata: { capability_descriptor_compatibility: { mcp_tool_set: digest } })
+    allow(McpToolRegistry).to receive(:entries).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ manifest ])
+    allow(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([{ name: "read_plugin_data" }])
+
+    expect(described_class.for_application.findings).to be_empty
+  end
+
+  it "keeps concrete plugin inventories out of the core validator" do
+    source = Rails.root.join("app/services/permissions/capability_registry_validator.rb").read
+
+    expect(source).not_to include("LEGACY_PROVIDER_DIGESTS", "ChatToolSet", "WorkflowToolSet")
   end
 
   it "reports role defaults and effect coverage" do

@@ -66,7 +66,8 @@ RSpec.describe McpToolRegistry do
         mutation: false,
         ungated: false,
         descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(name: "plugin_ping"),
-        explicit_descriptor: false
+        explicit_descriptor: false,
+        compatibility_descriptor: false
       )
 
       expect(entry.tool_name).to eq("plugin_ping")

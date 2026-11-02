@@ -14,6 +14,7 @@ module AgentMemory
   }.freeze
 
   syrus_plugin "agent_memory" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "f73ce2410553e6798a0ff972e51ff288fba2cfb19aca8e90911da63033a913c0", mcp_tool_set: "87d15f9b86f1e8e8d46c65ec06f9c4c3e462d205d1cb0cb7fe0bcbbd8285b784"
     display_name "Agent Memory"
     description "Durable facts agents remember between runs, scoped per user and repository."
     long_description "Agent Memory is the store behind `write_memory` and its siblings: short, durable facts an agent records in one run and reads back in the next -- a user's preferences, a project decision, a correction worth not repeating.\n\nIt registers as Syrus's `memory_store`, which means it is swappable rather than merely optional: disable it and prompts simply carry no memory section, or replace it with a different store entirely."

@@ -4,6 +4,7 @@ module ScheduledTasks
   extend Syrus::PluginApi
 
   syrus_plugin "scheduled_tasks" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "3e073b81df4575e41a5cccf5d37385d32dc7cf5a197a8673c1b08b0e035cca56"
     display_name "Scheduled Tasks"
     description "Recurring and one-shot agent prompts attached to a repository, with no GitHub issue required."
     long_description "Scheduled Tasks fires agent work on a schedule: a cron expression or a one-shot datetime, a prompt, and a repository.\n\nEach fire creates a Job the normal pipeline picks up, so a schedule can survey a repository, refresh docs, or sweep for dead code without anyone filing an issue. \"No changes\" is an explicit happy path -- a survey that finds nothing closes successfully.\n\nIncludes reusable prompt/schedule templates, per-schedule auto-approval, and a pile-up policy for when the previous fire's PR is still open."

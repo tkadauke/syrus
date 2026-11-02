@@ -182,8 +182,9 @@ descriptor. Versioned capability and operation identifiers, aliases retained
 after renames, side effects, eligible-role defaults, autonomy limits, and
 resource scope form its stable authorization contract. CI rejects missing or
 conflicting definitions and identifies the provider, surface, and tool that
-needs correction. Older bundled definitions remain on a frozen compatibility
-baseline while they are migrated; that baseline cannot grow.
+needs correction. A plugin may keep its older bundled definitions on a frozen,
+manifest-owned compatibility baseline while they are migrated; core does not
+carry plugin provider names or inventories, and that baseline cannot grow.
 
 Tool usage is logged so operators can see which tools are active, failing, or
 worth consolidating.
