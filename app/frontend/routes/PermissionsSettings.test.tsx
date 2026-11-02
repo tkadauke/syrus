@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 import { jsonResponse } from "../testSupport"
 import { PermissionsSettingsRoute } from "./PermissionsSettings"
 
@@ -16,7 +17,7 @@ describe("PermissionsSettingsRoute", () => {
     const inherited = screen.getByRole("heading", { name: "Inherited policy" }).parentElement!
     expect(within(inherited).getByText("Read only")).toBeInTheDocument()
     expect(within(inherited).getByText(/are decisive/)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open operational approvals" })).toHaveAttribute("href", "/permissions/inbox")
+    expect(screen.getByRole("link", { name: "Open operational dashboard" })).toHaveAttribute("href", "/dashboard")
   })
 
   it("creates a scoped user rule", async () => {
@@ -36,9 +37,11 @@ describe("PermissionsSettingsRoute", () => {
 
 function renderRoute() {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <PermissionsSettingsRoute />
-    </QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <PermissionsSettingsRoute />
+      </QueryClientProvider>
+    </MemoryRouter>
   )
 }
 

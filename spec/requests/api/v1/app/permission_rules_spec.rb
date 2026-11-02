@@ -39,6 +39,25 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(rule.audit_events.pluck(:event_type)).to eq(%w[created revoked])
   end
 
+  it "rejects missing and unsupported policies without creating authority" do
+    descriptor = Permissions::Catalog.descriptors.first
+    base_params = {
+      role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation,
+      resource_scope: {}, constraints: {}
+    }
+
+    [ nil, "ask", "unexpected" ].each do |policy|
+      params = base_params.merge(policy:).compact
+
+      expect {
+        post "/api/v1/app/permission_rules", params: { permission_rule: params }
+      }.not_to change(PermissionRule, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body).dig("error", "code")).to eq("invalid_permission_rule")
+    end
+  end
+
   it "cannot revoke another user's rule" do
     rule = permission_rule(owner: Factories.user)
     post "/api/v1/app/permission_rules/#{rule.id}/revoke"
