@@ -51,6 +51,13 @@ requests can be selected and decided atomically when their items share a duratio
 remain available as history; dismissing an obsolete request does not create a
 deny rule.
 
+The global Approvals shield sits beside notifications and always shows the
+pending total. When an agent is stopped at an authorization checkpoint, the
+shield uses an amber waiting halo until the request is resolved and announces
+newly blocked agents to assistive technology. Reduced-motion preferences replace
+the animated halo with a static ring. Infrastructure and security banners remain
+the higher-priority alert surface.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with

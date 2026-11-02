@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { decidePermissionRequest, dismissPermissionRequest, type PermissionRequest } from "../api/permissionRequests"
+import { decidePermissionRequest, dismissPermissionRequest, type PermissionRequest, type PermissionRequestsPayload } from "../api/permissionRequests"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Select } from "./Select"
@@ -14,15 +14,30 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
     []
   )
   const [duration, setDuration] = useState(durationChoices[0] || "invocation")
-  const refresh = () => {
+  const refresh = (resolved?: PermissionRequest) => {
+    if (resolved) {
+      queryClient.setQueriesData<PermissionRequestsPayload>({ queryKey: ["permission_requests"] }, (current) => {
+        if (!current) return current
+        const wasPending = request.state === "pending"
+        const wasBlocked = wasPending && request.checkpoint_state === "waiting"
+        return {
+          ...current,
+          requests: current.requests.map((item) => (item.id === resolved.id ? resolved : item)),
+          summary: {
+            pending_count: Math.max(0, current.summary.pending_count - (wasPending ? 1 : 0)),
+            blocked_agent_count: Math.max(0, current.summary.blocked_agent_count - (wasBlocked ? 1 : 0))
+          }
+        }
+      })
+    }
     void queryClient.invalidateQueries({ queryKey: ["permission_requests"] })
     if (jobId) void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "detail"] })
   }
   const decide = useMutation({
     mutationFn: (decision: "approved" | "denied") => decidePermissionRequest(request.id, decision, decision === "approved" ? duration : undefined),
-    onSuccess: refresh
+    onSuccess: ({ request: resolved }) => refresh(resolved)
   })
-  const dismiss = useMutation({ mutationFn: () => dismissPermissionRequest(request.id), onSuccess: refresh })
+  const dismiss = useMutation({ mutationFn: () => dismissPermissionRequest(request.id), onSuccess: ({ request: resolved }) => refresh(resolved) })
   const pending = request.state === "pending" && request.actionable
   const failure = decide.error || dismiss.error
 

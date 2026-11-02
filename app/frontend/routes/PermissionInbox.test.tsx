@@ -48,7 +48,11 @@ const request = {
 
 describe("PermissionInboxRoute", () => {
   beforeEach(() => {
-    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({ requests: [request], pagination: { page: 1, per_page: 50, total: 1, total_pages: 1 } })
+    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
+      requests: [request],
+      summary: { pending_count: 1, blocked_agent_count: 1 },
+      pagination: { page: 1, per_page: 50, total: 1, total_pages: 1 }
+    })
     vi.mocked(api.decidePermissionRequest).mockResolvedValue({ request: { ...request, state: "confirmed" } })
   })
 
@@ -72,7 +76,11 @@ describe("PermissionInboxRoute", () => {
 
   it("batches selected requests using only a shared duration", async () => {
     const second = { ...request, id: 13, purpose: "Second request", items: [{ ...request.items[0], id: 4, requested_durations: ["job"] }] }
-    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({ requests: [request, second], pagination: { page: 1, per_page: 50, total: 2, total_pages: 1 } })
+    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
+      requests: [request, second],
+      summary: { pending_count: 2, blocked_agent_count: 2 },
+      pagination: { page: 1, per_page: 50, total: 2, total_pages: 1 }
+    })
     vi.mocked(api.batchDecidePermissionRequests).mockResolvedValue({ requests: [] })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -93,6 +101,7 @@ describe("PermissionInboxRoute", () => {
   it("keeps a pending request read-only when it is not actionable by the viewer", async () => {
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [{ ...request, actionable: false }],
+      summary: { pending_count: 1, blocked_agent_count: 1 },
       pagination: { page: 1, per_page: 50, total: 1, total_pages: 1 }
     })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
