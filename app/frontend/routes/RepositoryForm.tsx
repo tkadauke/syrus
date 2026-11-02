@@ -427,26 +427,6 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <SectionHeading>{t("repository_form.automation_section")}</SectionHeading>
-          <Field label={t("repository_form.label_default_agent")}>
-            <Form.Select onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
-              <option value="">{t("repository_form.agent_default", { provider: payload.user_agent_provider_label })}</option>
-              {payload.configured_agent_providers.map((provider) => (
-                <option key={provider.value} value={provider.value}>
-                  {provider.label}
-                </option>
-              ))}
-            </Form.Select>
-            <Form.HelpText>
-              {t("repository_form.agent_hint")} {t("repository_form.agent_see_also")}{" "}
-              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/settings/agent", prefix)}>
-                {t("nav.agent_settings")}
-              </Link>
-              {" · "}
-              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
-                {t("nav.credentials")}
-              </Link>
-            </Form.HelpText>
-          </Field>
 
           {mode === "edit" && payload.repository.id ? (
             <ProviderRoutingRulesEditor
@@ -984,7 +964,6 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     fork_auto_sync_enabled: payload.repository.fork_auto_sync_enabled,
     external_pr_ingestion_enabled: payload.repository.external_pr_ingestion_enabled,
     distributed_workflow_dag_enabled: payload.repository.distributed_workflow_dag_enabled,
-    agent_provider: payload.repository.agent_provider,
     auto_approve_mode: payload.repository.auto_approve_mode,
     feedback_policy: payload.repository.feedback_policy,
     review_policy: payload.repository.review_policy,

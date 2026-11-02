@@ -36,7 +36,6 @@ class CodingHandoffConfirmJob < ApplicationJob
       issue_body: description,
       branch_name: snapshot.fetch("handoff_branch"),
       linked_chat_id: chat_session.id,
-      agent_provider: repository.effective_agent_provider,
       state: "queued"
     )
 

@@ -34,7 +34,6 @@ type SortColumn =
   | "open_jobs_count"
   | "last_job_activity_at"
   | "main_health"
-  | "agent_provider_label"
   | "polling_enabled"
   | "last_poll_started_at"
   | "trigger_label"
@@ -51,7 +50,6 @@ const REPOSITORY_SORT_ACCESSORS: Record<SortColumn, (repository: RepositoryRow) 
   open_jobs_count: (repository) => repository.open_jobs_count,
   last_job_activity_at: (repository) => repository.last_job_activity_at,
   main_health: (repository) => repository.main_health,
-  agent_provider_label: (repository) => repository.agent_provider_label,
   polling_enabled: (repository) => repository.polling_enabled,
   last_poll_started_at: (repository) => repository.last_poll_started_at,
   trigger_label: (repository) => repository.trigger_label,
@@ -99,7 +97,7 @@ const HEALTH_TONE: Record<string, PillTone> = {
 // Old flat dropdown param names the shared FilterBar's chip bar replaces --
 // still accepted server-side for back-compat bookmarks, but FilterBar strips
 // them from links it builds so a stale one never lingers alongside `q=`.
-const REPOSITORY_LEGACY_FILTER_KEYS = ["slug", "github_owner", "health", "agent_provider", "has_open_jobs", "archived"]
+const REPOSITORY_LEGACY_FILTER_KEYS = ["slug", "github_owner", "health", "has_open_jobs", "archived"]
 
 // The shared configurable-column model for the Repositories table: required
 // Repository/Actions columns pinned at each end (never hidden, never
@@ -158,12 +156,6 @@ function buildRepositoryColumns({
       label: t("repositories.col_health"),
       sortKey: "main_health",
       renderCell: (repository) => <RepositoryHealthPill health={repository.main_health} />
-    },
-    {
-      key: "agent",
-      label: t("repositories.col_agent"),
-      sortKey: "agent_provider_label",
-      renderCell: (repository) => repository.agent_provider_label
     },
     {
       key: "polling_status",
@@ -608,7 +600,6 @@ function RepositoryMobileList({
                 <RelativeTimestamp value={repository.last_job_activity_at} />
               </span>
               <RepositoryHealthPill health={repository.main_health} />
-              <span className="truncate text-text-secondary">{repository.agent_provider_label}</span>
             </div>
           </div>
           {repository.archived && repository.can_edit ? (

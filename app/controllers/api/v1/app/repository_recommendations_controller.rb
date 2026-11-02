@@ -61,7 +61,6 @@ module Api
             issue_title: action.fetch(:title),
             title_pending: false,
             issue_body: action.fetch(:prompt),
-            agent_provider: repository.effective_agent_provider(user: Current.user),
             job_provider_setting: "default",
             priority: "medium",
             state: Job.initial_state_for_creator(Current.user)

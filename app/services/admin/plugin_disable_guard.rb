@@ -54,12 +54,20 @@ module Admin
 
     attr_reader :manifest
 
+    # Repositories pick providers only through enabled repository-scoped routing
+    # rules, so those rules are what keep a provider in use.
+    def repository_rules_using_provider(key)
+      ProviderRoutingRule.where(scope_type: "repository", enabled: true).count do |rule|
+        rule.action_candidates.any? { |candidate| candidate.to_h.stringify_keys["provider"] == key }
+      end
+    end
+
     def agent_provider_blockers
       providers(:agent_provider).flat_map do |provider|
         key = provider.provider_key
         [
           blocker(:configured_users, "Configured users use #{provider.display_name}", User.where(agent_provider: key).count),
-          blocker(:configured_repositories, "Configured repositories use #{provider.display_name}", Repository.where(agent_provider: key).count),
+          blocker(:configured_repositories, "Repository routing rules use #{provider.display_name}", repository_rules_using_provider(key)),
           blocker(:open_jobs, "Open jobs use #{provider.display_name}", Job.open_threads.where(agent_provider: key).count),
           blocker(:active_workflows, "Active workflows use #{provider.display_name}", WorkUnits::Ownership.active_workflow_count(agent_provider: key))
         ].compact

@@ -16,7 +16,6 @@ RSpec.describe Repository do
     expect(repo.default_branch).to eq("main")
     expect(repo.polling_enabled).to be true
     expect(repo.trigger_label).to eq("syrus")
-    expect(repo.agent_provider).to be_nil
     expect(repo.distributed_workflow_dag_enabled).to be false
   end
 
@@ -73,11 +72,6 @@ RSpec.describe Repository do
     end
   end
 
-  it "allows a repository-level default agent override" do
-    repo = Repository.create!(user: owner, owner: "acme", name: "widgets", agent_provider: "codex")
-    expect(repo.agent_provider).to eq("codex")
-  end
-
   it "defaults review_policy to 'self' and accepts other valid policies" do
     repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
     expect(repo.review_policy).to eq("self")
@@ -125,70 +119,6 @@ RSpec.describe Repository do
     repo = Repository.new(user: owner, owner: "acme", name: "widgets", auto_approve_mode: "whenever")
     expect(repo).not_to be_valid
     expect(repo.errors[:auto_approve_mode]).to be_present
-  end
-
-  it "normalizes blank agent_provider to user-default fallback" do
-    owner.update!(agent_provider: "codex", codex_api_key: "sk-test")
-    repo = Repository.create!(user: owner, owner: "acme", name: "widgets", agent_provider: "")
-    expect(repo.agent_provider).to be_nil
-    expect(repo.effective_agent_provider).to eq("codex")
-  end
-
-  describe "#effective_agent_provider with user context" do
-    let(:repo) { Repository.create!(user: owner, owner: "acme", name: "widgets") }
-    let(:member) { Factories.user(agent_provider: "claude") }
-
-    it "returns membership agent_provider when the user has one set on a write-tier membership" do
-      repo.repository_memberships.create!(user: member, role: "write", agent_provider: "codex")
-      expect(repo.effective_agent_provider(user: member)).to eq("codex")
-    end
-
-    it "ignores a read-tier membership's agent_provider override" do
-      repo.repository_memberships.create!(user: member, role: "read", agent_provider: "codex")
-      expect(repo.effective_agent_provider(user: member)).to eq("claude")
-    end
-
-    it "falls back to repo-level agent_provider when membership has none" do
-      repo.update!(agent_provider: "codex")
-      repo.repository_memberships.create!(user: member, role: "read")
-      expect(repo.effective_agent_provider(user: member)).to eq("codex")
-    end
-
-    it "falls back to the user's default agent_provider when both membership and repo have none" do
-      repo.repository_memberships.create!(user: member, role: "read")
-      expect(repo.effective_agent_provider(user: member)).to eq("claude")
-    end
-
-    it "returns repo-level provider without a user argument" do
-      repo.update!(agent_provider: "codex")
-      expect(repo.effective_agent_provider).to eq("codex")
-    end
-
-    it "normalizes blank membership agent_provider to nil and falls through" do
-      repo.repository_memberships.create!(user: member, role: "write", agent_provider: "")
-      expect(repo.effective_agent_provider(user: member)).to eq("claude")
-    end
-  end
-
-  it "rejects unknown repository agent providers" do
-    repo = Repository.new(user: owner, owner: "acme", name: "widgets", agent_provider: "oracle")
-    expect(repo).not_to be_valid
-    expect(repo.errors[:agent_provider]).to be_present
-  end
-
-  it "does not block a repository-level agent_provider override on a fresh install with no plugin enabled yet" do
-    %w[claude_agent codex_agent agy_agent muse_agent].each do |name|
-      PluginRecord.find_or_create_by!(name: name).update!(enabled: false)
-    end
-    expect(User.agent_providers).to be_empty
-
-    repo = Repository.new(user: owner, owner: "acme", name: "widgets", agent_provider: "claude")
-
-    expect(repo).to be_valid
-  ensure
-    %w[claude_agent codex_agent agy_agent].each do |name|
-      PluginRecord.find_or_create_by!(name: name).update!(enabled: true)
-    end
   end
 
   it "rejects malformed owner/name strings" do

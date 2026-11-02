@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_215704) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_222846) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3169,7 +3169,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_215704) do
   end
 
   create_table "repositories", force: :cascade do |t|
-    t.string "agent_provider"
     t.boolean "approval_propagates_to_github", default: true
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
@@ -3280,7 +3279,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_215704) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "installation_id"
-    t.string "agent_provider"
     t.string "github_permission_mismatch_reason"
     t.datetime "github_permission_mismatch_checked_at"
     t.index ["installation_id"], name: "index_repository_memberships_on_installation_id"

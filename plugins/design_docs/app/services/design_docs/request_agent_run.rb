@@ -61,7 +61,7 @@ module DesignDocs
     end
 
     def agent_provider
-      design_doc.repositories.first&.effective_agent_provider(user: user).presence || user.agent_provider
+      user.agent_provider
     end
   end
 end

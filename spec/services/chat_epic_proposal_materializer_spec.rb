@@ -214,7 +214,7 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(pinned.reload.job).to have_attributes(job_provider_setting: "codex", agent_provider: "codex")
     expect(defaulted.reload.job).to have_attributes(
       job_provider_setting: "default",
-      agent_provider: repository.effective_agent_provider
+      agent_provider: user.agent_provider
     )
   end
 
