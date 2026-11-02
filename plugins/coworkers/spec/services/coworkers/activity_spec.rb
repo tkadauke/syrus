@@ -16,25 +16,27 @@ RSpec.describe Coworkers::Activity do
   end
 
   it "rolls up chat and scheduled-run spend for the week and all time" do
-    main = ChatSession.create!(user: owner, cumulative_cost_usd: 1.25, title: "Maya")
-    side = ChatSession.create!(user: owner, cumulative_cost_usd: 0.25, title: "Research")
-    Coworkers::Chat.create!(coworker: coworker, chat_session: main, role: "main")
-    Coworkers::Chat.create!(coworker: coworker, chat_session: side, role: "side")
-    ChatSpendEntry.create!(chat_session: main, user: owner, incurred_at: 1.day.ago, cost_usd: 0.5, agent_provider: "codex")
-    ChatSpendEntry.create!(chat_session: side, user: owner, incurred_at: 2.weeks.ago, cost_usd: 0.25, agent_provider: "codex")
+    travel_to Time.zone.parse("2026-10-28 12:00:00 UTC") do
+      main = ChatSession.create!(user: owner, cumulative_cost_usd: 1.25, title: "Maya")
+      side = ChatSession.create!(user: owner, cumulative_cost_usd: 0.25, title: "Research")
+      Coworkers::Chat.create!(coworker: coworker, chat_session: main, role: "main")
+      Coworkers::Chat.create!(coworker: coworker, chat_session: side, role: "side")
+      ChatSpendEntry.create!(chat_session: main, user: owner, incurred_at: 1.day.ago, cost_usd: 0.5, agent_provider: "codex")
+      ChatSpendEntry.create!(chat_session: side, user: owner, incurred_at: 2.weeks.ago, cost_usd: 0.25, agent_provider: "codex")
 
-    recent = coworker_run(cost: 2.0, finished_at: 2.days.ago)
-    coworker_run(cost: 3.0, finished_at: 2.weeks.ago)
-    JobLog.append!(run: recent, chunk: "tool", kind: "tool_call")
-    JobLog.append!(run: recent, chunk: "tool", kind: "tool_call")
+      recent = coworker_run(cost: 2.0, finished_at: 2.days.ago)
+      coworker_run(cost: 3.0, finished_at: 2.weeks.ago)
+      JobLog.append!(run: recent, chunk: "tool", kind: "tool_call")
+      JobLog.append!(run: recent, chunk: "tool", kind: "tool_call")
 
-    payload = described_class.new(coworker: coworker, user: owner).call
+      payload = described_class.new(coworker: coworker, user: owner).call
 
-    expect(payload.fetch(:spend)).to eq(week_usd: 2.5, total_usd: 6.5)
-    expect(payload.fetch(:runs).find { |run| run[:id] == recent.id }).to include(
-      state: "succeeded", tool_calls_count: 2, cost_usd: 2.0
-    )
-    expect(payload.fetch(:side_chats)).to contain_exactly(include(id: side.id, cost_usd: 0.25))
+      expect(payload.fetch(:spend)).to eq(week_usd: 2.5, total_usd: 6.5)
+      expect(payload.fetch(:runs).find { |run| run[:id] == recent.id }).to include(
+        state: "succeeded", tool_calls_count: 2, cost_usd: 2.0
+      )
+      expect(payload.fetch(:side_chats)).to contain_exactly(include(id: side.id, cost_usd: 0.25))
+    end
   end
 
   it "returns zero spend and an empty run list for a coworker with no activity" do
