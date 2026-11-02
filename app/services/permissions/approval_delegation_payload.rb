@@ -24,19 +24,6 @@ module Permissions
       }
     end
 
-    private
-
-    attr_reader :user, :providers
-
-    def delegations
-      user.approval_provider_delegations.order(created_at: :desc).limit(HISTORY_LIMIT)
-    end
-
-    def serialize_provider(provider)
-      { provider_key: provider.provider_key.to_s, display_name: provider.display_name,
-        data_sharing: provider.data_sharing, default_guidance: provider.default_guidance }
-    end
-
     def serialize_delegation(delegation)
       provider = providers.find { |candidate| candidate.provider_key.to_s == delegation.provider_key }
       delegation.attributes.slice("id", "provider_key", "capability", "resource_type", "resource_scope",
@@ -44,6 +31,22 @@ module Permissions
         "status" => delegation.active? ? (provider ? "active" : "provider_unavailable") : "revoked",
         "provider_name" => provider&.display_name || delegation.provider_key
       )
+    end
+
+    private
+
+    attr_reader :user, :providers
+
+    # Active delegations are never truncated, so every one stays visible and
+    # revocable. Only the revoked tail is bounded.
+    def delegations
+      scope = user.approval_provider_delegations.order(created_at: :desc, id: :desc)
+      scope.active.to_a + scope.where.not(revoked_at: nil).limit(HISTORY_LIMIT).to_a
+    end
+
+    def serialize_provider(provider)
+      { provider_key: provider.provider_key.to_s, display_name: provider.display_name,
+        data_sharing: provider.data_sharing, default_guidance: provider.default_guidance }
     end
 
     def history

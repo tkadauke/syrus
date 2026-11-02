@@ -96,4 +96,22 @@ RSpec.describe "API: /api/v1/app/approval_delegations", type: :request do
     expect(response).to have_http_status(:forbidden)
     expect(ApprovalProviderDelegation.count).to eq(0)
   end
+
+  it "keeps every active delegation visible and revocable beyond the history window" do
+    stub_providers(provider)
+    oldest = ApprovalProviderDelegation.create!(owner_user: user, provider_key: "reviewer", capability:, resource_type: "job",
+      resource_scope: { job_id: [ 0 ] }, created_at: 1.year.ago)
+    stub_const("Permissions::ApprovalDelegationPayload::HISTORY_LIMIT", 2)
+    3.times do |i|
+      ApprovalProviderDelegation.create!(owner_user: user, provider_key: "reviewer", capability:, resource_type: "job",
+        resource_scope: { job_id: [ i + 1 ] })
+    end
+
+    get "/api/v1/app/approval_delegations"
+    expect(JSON.parse(response.body).fetch("delegations").pluck("id")).to include(oldest.id)
+
+    post "/api/v1/app/approval_delegations/#{oldest.id}/revoke"
+    expect(JSON.parse(response.body).dig("delegation", "id")).to eq(oldest.id)
+    expect(oldest.reload).not_to be_active
+  end
 end
