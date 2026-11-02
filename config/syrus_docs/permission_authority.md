@@ -65,6 +65,24 @@ newly blocked agents to assistive technology. Reduced-motion preferences replace
 the animated halo with a static ring. Infrastructure and security banners remain
 the higher-priority alert surface.
 
+## Plugin-provided AI approval
+
+Approval plugins register an `approval_provider`; registration and plugin
+enablement do not grant it authority. A user must create an explicit delegation
+for one provider, capability, resource type, and typed resource scope. The
+delegation can narrow the provider further with excluded effects and can be
+revoked immediately.
+
+An AI provider receives the role-labelled transcript, exact tool call, current
+policy chain, and immutable invocation fingerprint. It returns structured
+`allow`, `deny`, or `escalate` data with rationale, policy factors, confidence,
+and redacted evidence. Its authority never extends beyond that exact
+invocation: it cannot create rules, leases, grants, or other delegations.
+Permission management, privilege changes, and financial effects remain
+human-only. Core evaluates plugin, instance, resource, and user ceilings before
+calling the provider. Missing providers, invalid output, uncertainty, and
+provider-owned cost or rate outcomes escalate the existing request to a human.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with
