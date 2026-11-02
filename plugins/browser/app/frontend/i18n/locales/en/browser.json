@@ -4,6 +4,7 @@
     "snapshot": "Snapshot",
     "screenshot": "Screenshot",
     "resize": "Resize",
+    "emulate": "Emulate",
     "wait": "Wait",
     "close": "Close browser",
     "click": "Click",
@@ -14,7 +15,7 @@
     "drop": "Drop",
     "file_upload": "File upload"
   },
-  "targets": { "target": "Target", "viewport": "Viewport", "condition": "Condition", "path": "Path", "files": "Files", "page": "page" },
+  "targets": { "target": "Target", "device": "Device", "viewport": "Viewport", "condition": "Condition", "path": "Path", "files": "Files", "page": "page" },
   "status": { "success": "success", "error": "error", "failed": "failed" },
   "rows": { "title": "Title", "current_url": "Current URL", "viewport": "Viewport", "snapshot": "Snapshot", "text": "Text" },
   "disclosures": { "browser_details": "Browser details" },

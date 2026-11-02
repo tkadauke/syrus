@@ -4,7 +4,7 @@ import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
 import { Badge, CardShell, Disclosure, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 export type BrowserAction =
-  "navigate" | "snapshot" | "screenshot" | "resize" | "wait" | "close" | "click" | "fill" | "evaluate" | "hover" | "drag" | "drop" | "file_upload"
+  "navigate" | "snapshot" | "screenshot" | "resize" | "emulate" | "wait" | "close" | "click" | "fill" | "evaluate" | "hover" | "drag" | "drop" | "file_upload"
 
 type BrowserPreview = {
   src: string | null
@@ -51,6 +51,7 @@ const ACTION_CONFIGS: Record<BrowserAction, ActionConfig> = {
   snapshot: { action: "snapshot", labelKey: "actions.snapshot", targetLabelKey: "targets.target" },
   screenshot: { action: "screenshot", labelKey: "actions.screenshot", targetLabelKey: "targets.target" },
   resize: { action: "resize", labelKey: "actions.resize", targetLabelKey: "targets.viewport" },
+  emulate: { action: "emulate", labelKey: "actions.emulate", targetLabelKey: "targets.device" },
   wait: { action: "wait", labelKey: "actions.wait", targetLabelKey: "targets.condition" },
   close: { action: "close", labelKey: "actions.close", targetLabelKey: "targets.target" },
   click: { action: "click", labelKey: "actions.click", targetLabelKey: "targets.target" },
@@ -204,6 +205,16 @@ function BrowserPreviewFallback({ detail = t("preview.fallback") }: { detail?: s
   )
 }
 
+function emulateTarget(input: Record<string, unknown>) {
+  const preset = displayValue(input.preset)
+  if (preset) return preset
+  const viewport = isPlainObject(input.viewport) ? input.viewport : null
+  const width = viewport ? numberValue(viewport.width) : null
+  const height = viewport ? numberValue(viewport.height) : null
+  if (width != null && height != null) return `${width}x${height}`
+  return displayValue(input.color_scheme)
+}
+
 function actionTarget(context: ToolCardContext, action: BrowserAction) {
   const input = isPlainObject(context.input) ? context.input : {}
 
@@ -213,6 +224,7 @@ function actionTarget(context: ToolCardContext, action: BrowserAction) {
     const height = numberValue(input.height)
     return width != null && height != null ? `${width}x${height}` : null
   }
+  if (action === "emulate") return emulateTarget(input)
   if (action === "wait") return waitTarget(input)
   if (action === "screenshot") return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref)
   if (["click", "fill", "hover", "drop"].includes(action)) return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref)

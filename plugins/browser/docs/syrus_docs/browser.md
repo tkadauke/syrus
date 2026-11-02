@@ -3,7 +3,7 @@
 Browser gives workflow agents (`visual_review`) and Coding Mode chats
 (RuntimeSessions) a constrained, headless Playwright browser: navigate,
 click, fill, hover, drag/drop, upload, evaluate JS, snapshot, screenshot,
-resize, wait, close, and provider-neutral Runtime input from the operator
+resize, emulate, wait, close, and provider-neutral Runtime input from the operator
 panel. Navigation is hard-restricted to loopback URLs (see
 `LoopbackGuard`) -- the browser can only drive a session's own in-step
 preview, never an arbitrary network destination. On by default.
@@ -192,3 +192,15 @@ goes back through the worker's bundled stdio subprocess. The service is an
 accelerator, never a hard dependency -- see "The container-backed service"
 above. Use the admin page's state/logs when you want to know *why* it went
 away, not because anything stopped working.
+
+## Device emulation (`browser_emulate`)
+
+`browser_emulate` takes an optional `preset` (`iphone-15-pro`, `desktop`) plus
+explicit overrides: `viewport`, `device_scale_factor`, `is_mobile`,
+`has_touch`, `user_agent`, `safe_area_insets`, `color_scheme`,
+`reduced_motion`. Unspecified fields keep their current value; `desktop`
+resets everything, including insets. It runs through `@playwright/mcp`'s
+`browser_run_code_unsafe`, opening a CDP session on the page (Chromium only;
+other browsers get a tool error), so stdio and Plugin Runtime service
+sessions behave identically. CDP overrides persist across navigation and
+reloads. Presets live in `SyrusBrowser::EmulationPresets`.
