@@ -395,17 +395,9 @@ ARG MULL_APT_GPG_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     set -eu; \
-    . /etc/os-release; \
-    curl -fsSL https://dl.cloudsmith.io/public/mull-project/mull-stable/gpg.41DB35380DE6BD6F.key -o /tmp/mull.key; \
-    test "$(gpg --show-keys --with-colons /tmp/mull.key | awk -F: '$1 == "fpr" { print $10; exit }')" = "${MULL_APT_GPG_FINGERPRINT}"; \
-    gpg --dearmor -o /usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg /tmp/mull.key; \
-    rm -f /tmp/mull.key; \
-    echo "deb [signed-by=/usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main" \
-      > /etc/apt/sources.list.d/mull-project-mull-stable.list; \
     apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       build-essential clang clang-${MULL_LLVM_VERSION} clang-format clang-tidy pkg-config \
-      mull-${MULL_LLVM_VERSION} \
       libffi-dev libssl-dev libyaml-dev \
       libxml2-dev libxslt-dev \
       zlib1g-dev libreadline-dev \
@@ -417,8 +409,50 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       cmake ninja-build \
       qt6-base-dev qt6-declarative-dev libgl1-mesa-dev xvfb xauth \
       doxygen graphviz lcov gcovr \
-    && ln -sf "/usr/bin/mull-runner-${MULL_LLVM_VERSION}" /usr/local/bin/mull-runner \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Mull comes from the mull-project's own Cloudsmith repository, which is the
+# only dependency in this image Syrus does not control the availability of. It
+# is installed in a step of its own, after the Debian packages above, and that
+# step is allowed to fail.
+#
+# Both halves of that matter. A third-party apt source breaks `apt-get update`
+# for *every* source, so leaving it configured alongside the Debian packages
+# meant an outage there took the whole toolchain -- clang, cmake, Qt6, the
+# MySQL client -- down with it. And mutation testing is one optional grader
+# capability: a deploy carrying 33 commits should not be blocked because
+# somebody else's package host is rate-limited. That is not hypothetical. This
+# layer failed a production deploy with `402 Payment Required` from Cloudsmith,
+# a quota on an account Syrus has no relationship with.
+#
+# The failure is loud and the absence is detectable: no /usr/local/bin/mull-runner
+# and a marker file, so a mutation grader reports a missing tool rather than
+# mysteriously different results. The repository source is removed on failure
+# so it cannot poison a later `apt-get update` in this image.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eu; \
+    mkdir -p /opt/syrus; \
+    install_mull() { \
+      . /etc/os-release; \
+      curl -fsSL https://dl.cloudsmith.io/public/mull-project/mull-stable/gpg.41DB35380DE6BD6F.key -o /tmp/mull.key || return 1; \
+      test "$(gpg --show-keys --with-colons /tmp/mull.key | awk -F: '$1 == "fpr" { print $10; exit }')" = "${MULL_APT_GPG_FINGERPRINT}" || return 1; \
+      gpg --dearmor -o /usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg /tmp/mull.key || return 1; \
+      rm -f /tmp/mull.key; \
+      echo "deb [signed-by=/usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main" \
+        > /etc/apt/sources.list.d/mull-project-mull-stable.list || return 1; \
+      apt-get update -qq -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/mull-project-mull-stable.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0 || return 1; \
+      apt-get install --no-install-recommends -y "mull-${MULL_LLVM_VERSION}" || return 1; \
+      ln -sf "/usr/bin/mull-runner-${MULL_LLVM_VERSION}" /usr/local/bin/mull-runner || return 1; \
+    }; \
+    if install_mull; then \
+      echo "mull-${MULL_LLVM_VERSION} installed" > /opt/syrus/mull-status; \
+    else \
+      echo "WARNING: mull-${MULL_LLVM_VERSION} is unavailable from dl.cloudsmith.io; building without mutation testing support" >&2; \
+      echo "unavailable: dl.cloudsmith.io/mull-project refused the package index at build time" > /opt/syrus/mull-status; \
+      rm -f /etc/apt/sources.list.d/mull-project-mull-stable.list; \
+    fi; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 
 # sccache — transparent remote compiler cache for C/C++ builds .
