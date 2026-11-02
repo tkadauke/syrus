@@ -9,6 +9,7 @@ module RuntimeTerminal
     CELL_HEIGHT = 20
     FONT_SIZE = 16
     FONT_PATH = File.expand_path("../../../assets/DejaVuSansMono.ttf", __dir__)
+    CJK_FONT_PATH = File.expand_path("../../../assets/XiaolaiCjkSubset.woff2", __dir__)
     DEFAULT_FOREGROUND = "#d8dee9"
     DEFAULT_BACKGROUND = "#1e222a"
     ANSI = %w[
@@ -30,7 +31,7 @@ module RuntimeTerminal
 
         mask = cell.fetch(:mask)
         overlay = mask.new_from_image(rgb(cell.fetch(:foreground))).copy(interpretation: "srgb").bandjoin(mask)
-        image = image.composite(overlay, "over", x: cell.fetch(:x), y: cell.fetch(:y) + ((CELL_HEIGHT - mask.height) / 2))
+        image = image.composite(overlay, "over", x: cell.fetch(:x), y: cell.fetch(:y))
       end
       image.pngsave_buffer(compression: 9, strip: true)
     end
@@ -59,18 +60,38 @@ module RuntimeTerminal
       cell_width = CELL_WIDTH * cell.fetch(:width)
       x = col * CELL_WIDTH
       y = row * CELL_HEIGHT
-      mask = text_mask(cell.fetch(:text), styles, foreground) unless styles.include?("hidden") || cell.fetch(:text) == " "
+      unless styles.include?("hidden") || cell.fetch(:text) == " "
+        mask = text_mask(cell.fetch(:text), styles, cell_width, wide: cell.fetch(:width) == 2)
+      end
       { x: x, y: y, width: cell_width, foreground: foreground, background: background, mask: mask }
     end
 
-    def text_mask(text, styles, _foreground)
+    def text_mask(text, styles, cell_width, wide:)
       markup = CGI.escapeHTML(text)
       markup = "<b>#{markup}</b>" if styles.include?("bold")
       markup = "<i>#{markup}</i>" if styles.include?("italic")
       markup = "<u>#{markup}</u>" if styles.include?("underline")
       markup = "<s>#{markup}</s>" if styles.include?("strikethrough")
       markup = "<span alpha='60%'>#{markup}</span>" if styles.include?("dim")
-      Vips::Image.text(markup, font: "DejaVu Sans Mono #{FONT_SIZE}", fontfile: FONT_PATH, rgba: false)
+      markup = "<span fallback='false'>#{markup}</span>"
+      family, path = wide ? [ "Xiaolai SC", CJK_FONT_PATH ] : [ "DejaVu Sans Mono", FONT_PATH ]
+      glyph = Vips::Image.text(markup, font: "#{family} #{FONT_SIZE}", fontfile: path, rgba: false)
+      clip_to_cell(glyph, cell_width)
+    end
+
+    def clip_to_cell(glyph, cell_width)
+      left = (cell_width - glyph.width) / 2
+      top = (CELL_HEIGHT - glyph.height) / 2
+      source_left = [ -left, 0 ].max
+      source_top = [ -top, 0 ].max
+      target_left = [ left, 0 ].max
+      target_top = [ top, 0 ].max
+      clipped_width = [ glyph.width - source_left, cell_width - target_left ].min
+      clipped_height = [ glyph.height - source_top, CELL_HEIGHT - target_top ].min
+      canvas = Vips::Image.black(cell_width, CELL_HEIGHT)
+      return canvas unless clipped_width.positive? && clipped_height.positive?
+
+      canvas.insert(glyph.crop(source_left, source_top, clipped_width, clipped_height), target_left, target_top)
     end
 
     def color(value, fallback)
