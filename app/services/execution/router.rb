@@ -8,7 +8,7 @@ module Execution
     def run(request)
       validate_request!(request)
       backend = backend_for(request)
-      WorkspaceReuseOutcomes::Recorder.record_backend(run: request.run, backend: backend_identity(backend))
+      WorkspaceReuseOutcomes::Recorder.note_backend(run: request.run, backend: backend_identity(backend))
       backend.run(request)
     end
 

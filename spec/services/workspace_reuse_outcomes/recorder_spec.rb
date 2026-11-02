@@ -39,11 +39,23 @@ RSpec.describe WorkspaceReuseOutcomes::Recorder do
     }.not_to raise_error
   end
 
-  it "updates outcomes when the router resolves the actual backend" do
+  it "uses the backend noted by the router without a preliminary database write" do
+    expect {
+      described_class.note_backend(run: run, backend: "container_execution")
+    }.not_to change(WorkspaceReuseOutcome, :count)
+
     described_class.record(run: run, kind: "prepare", outcome: "rebuilt")
 
+    expect(WorkspaceReuseOutcome.last.backend).to eq("container_execution")
+  end
+
+  it "contains failures while deriving optional metrics" do
     expect {
-      described_class.record_backend(run: run, backend: "container_execution")
-    }.to change { WorkspaceReuseOutcome.last.backend }.from("local").to("container_execution")
+      described_class.record(run: run, kind: "prepare", outcome: "rebuilt") do
+        raise ActiveRecord::StatementInvalid, "metric unavailable"
+      end
+    }.not_to raise_error
+
+    expect(WorkspaceReuseOutcome.where(run: run)).to be_empty
   end
 end

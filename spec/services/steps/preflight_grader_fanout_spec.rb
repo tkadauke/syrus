@@ -79,6 +79,7 @@ RSpec.describe Steps::PreflightGraderFanout do
     grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position)
     expect(grader_steps.count).to eq(2)
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
+    expect(grader_steps.map { |s| s.details["fanout_grader_count"] }).to all(eq(2))
   end
 
   it "snapshots each preflight grader target's required capabilities" do

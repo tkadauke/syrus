@@ -4,6 +4,8 @@ module WorkspaceReuseOutcomes
       def record(run:, kind:, outcome:, **attributes)
         return unless run&.step&.workflow&.job&.repository
 
+        attributes = attributes.merge(yield) if block_given?
+
         WorkspaceReuseOutcome.create!(
           repository: run.job.repository,
           workflow: run.workflow,
@@ -11,7 +13,7 @@ module WorkspaceReuseOutcomes
           run: run,
           kind: kind,
           outcome: outcome,
-          backend: backend_identity,
+          backend: backend_identity(run),
           occurred_at: Time.current,
           **attributes.compact
         )
@@ -22,20 +24,21 @@ module WorkspaceReuseOutcomes
         nil
       end
 
-      def record_backend(run:, backend:)
+      # Execution routing happens before an outcome may be known. Keep the
+      # selected backend on this in-memory Run instance so recording does not
+      # add a database write to every command invocation.
+      def note_backend(run:, backend:)
         return unless run
 
-        WorkspaceReuseOutcome.where(run: run).update_all(backend: backend)
-      rescue StandardError => error
-        Rails.logger.warn(
-          "[WorkspaceReuseOutcomes::Recorder] backend recording failed: #{error.class}: #{error.message}"
-        )
-        nil
+        run.instance_variable_set(:@workspace_reuse_backend_identity, backend)
       end
 
       private
 
-      def backend_identity
+      def backend_identity(run)
+        noted = run.instance_variable_get(:@workspace_reuse_backend_identity)
+        return noted if noted.present?
+
         backend = ProcessRunner.backend
         return "local" if backend.is_a?(Execution::Router) || backend.is_a?(Execution::Local)
 
