@@ -381,7 +381,7 @@ module Prompts
            typecheck, or direct code-only review as a substitute for visual inspection.
         4. By default, test the change at both a desktop viewport
            (#{viewport_label(DESKTOP_VIEWPORT)}) and a mobile viewport
-           (#{viewport_label(MOBILE_VIEWPORT)}) via `browser_resize`, capturing screenshots at each
+           (#{viewport_label(MOBILE_VIEWPORT)}), capturing screenshots at each
            with `submit_visual_artifact(capture_current_browser: true, subject: ..., ...)` and titling them clearly
            (e.g. "Desktop — ..." / "Mobile — ..."). If your tool schema does not expose
            `capture_current_browser`, omit `image_path` and `image_base64`; the tool defaults to the
@@ -397,8 +397,15 @@ module Prompts
            for the element under review or a CSS selector, preferably a stable `data-testid`. The tool uses
            it to scroll the subject into view and verify that it is visible before capture. A screenshot
            that does not show the subject of the Job is not evidence and must not be submitted.
-           `browser_resize` fully re-applies the
-           viewport each time, so there's no need to reset between calls; but a resize triggers a
+           Switch viewports with `browser_emulate`: `preset: "iphone-15-pro"` for the mobile viewport
+           (a real device profile: 393x852 at 3x, mobile + touch, iOS Safari user agent, and real
+           safe-area insets of 59px top / 34px bottom, so layouts that depend on
+           `env(safe-area-inset-*)` can be verified) and `preset: "desktop"` for the desktop viewport
+           (fully resets all emulation, including insets). Pass `color_scheme: "dark"` for dark-mode
+           checks and `reduced_motion: true` for reduced-motion checks; explicit fields override the
+           preset. `browser_resize` stays available when you only need a plain width/height change.
+           Each `browser_emulate` or `browser_resize` call fully re-applies the
+           viewport, so there's no need to reset between calls; but a resize triggers a
            layout reflow, so re-run `browser_snapshot` after every resize to re-resolve the subject as well
            as before the next click/fill — never reuse refs captured at the previous viewport size.
         5. Capture "after" screenshots of what you tested with the image-artifact submit tool so an

@@ -157,7 +157,12 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("Do not fall back to builds, tests, lint")
   end
 
-  it "tells the reviewer to test both a desktop and mobile viewport via browser_resize by default" do
+  it "tells the reviewer to test both a desktop and mobile viewport by default, switching with browser_emulate" do
+    expect(prompt).to include("browser_emulate")
+    expect(prompt).to include('preset: "iphone-15-pro"')
+    expect(prompt).to include('preset: "desktop"')
+    expect(prompt).to include('color_scheme: "dark"')
+    expect(prompt).to include("env(safe-area-inset-*)")
     expect(prompt).to include("browser_resize")
     expect(prompt).to include("1280x800")
     expect(prompt).to include("390x844")
