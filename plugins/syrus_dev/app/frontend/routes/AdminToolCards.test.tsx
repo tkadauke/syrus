@@ -130,10 +130,7 @@ describe("AdminToolCards", () => {
     expect(within(region).queryByText("No example fixtures registered for this tool yet.")).not.toBeInTheDocument()
     expandToolGroup(region)
 
-    expect(within(region).getByRole("img", { name: "Terminal screenshot" })).toHaveAttribute(
-      "src",
-      expect.stringMatching(/^data:image\/png;base64,/)
-    )
+    expect(within(region).getByRole("img", { name: "Terminal screenshot" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/png;base64,/))
     expect(within(region).getByRole("link", { name: "/api/v1/app/chats/12/runtime_sessions/23/frame" })).toBeInTheDocument()
   })
 
