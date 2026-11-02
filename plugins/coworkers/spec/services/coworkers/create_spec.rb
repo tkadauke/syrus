@@ -86,6 +86,7 @@ RSpec.describe Coworkers::Create do
       polling_enabled: false, auto_merge_enabled: false,
       external_pr_ingestion_enabled: false, main_branch_health_enabled: false
     )
+    expect(Coworkers::WorkspaceRepository.find_by!(repository: repository)).to be_present
     expect(remote.seeded_files).to include(
       ".gitattributes" => "memory/** merge=union\n",
       "memory/.gitkeep" => ""
@@ -146,6 +147,7 @@ RSpec.describe Coworkers::Create do
       polling_enabled: true, auto_merge_enabled: true, external_pr_ingestion_enabled: true
     )
     expect(Repository.where(owner: "acme", name: "coworker-homes").count).to eq(1)
+    expect(Coworkers::WorkspaceRepository.where(repository: repository)).to be_empty
   end
 
   it "grants a different coworker owner write access to a shared repository" do

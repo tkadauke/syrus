@@ -67,8 +67,8 @@ automations disabled, then seeds an isolated `coworkers/<handle>` home branch.
 Existing repository registrations are reused without changing their settings.
 The coworker's owner receives write membership when a shared registration is
 reused, so workspace Jobs remain authorized for every coworker owner.
-Dedicated coworker workspace registrations, identified by their disabled
-repository automations, are omitted from that owner's general Repositories list
+Dedicated coworker workspace registrations created during provisioning are
+omitted from that owner's general Repositories list
 while the plugin is enabled. A normal repository reused by a coworker stays in
 the list. Dedicated workspaces remain available to the coworker, its chats and
 schedules, and direct authorized repository requests.
