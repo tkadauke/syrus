@@ -271,6 +271,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::RuntimeLaunchTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::RuntimeSnapshotTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::RuntimeInspectTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
+        legacy_chat(Mcp::Tools::RuntimeWaitTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
         legacy_chat(Mcp::Tools::RuntimeLogsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
         legacy_chat(Mcp::Tools::RuntimeAcquireControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::RuntimeReleaseControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),

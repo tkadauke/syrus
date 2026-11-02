@@ -33,4 +33,17 @@ RSpec.describe Mcp::Tools::RuntimeInspectTool do
 
     expect(response).to be_error
   end
+
+  it "operates on the current visual-review Run session" do
+    job = Factories.job(repository: repository)
+    workflow = job.workflows.last
+    step = Step.create!(workflow: workflow, kind: "visual_review", position: 90)
+    review_run = Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind)
+    RuntimeSession.create!(
+      repository: repository, job: job, workflow: workflow, run: review_run,
+      workspace_ref: "workspace", provider_key: "stub", display_name: "Review", state: "running", primary: true
+    )
+
+    expect(payload(call(server_context: { run_id: review_run.id }))).to eq(tree: [])
+  end
 end

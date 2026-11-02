@@ -44,6 +44,10 @@ RSpec.describe Steps::VisualReview do
       "commands" => [],
       "prepared_at" => Time.current.iso8601
     })
+    # RuntimeSession lifecycle has focused coverage below; these examples
+    # exercise the review loop without starting a real preview process.
+    allow_any_instance_of(described_class).to receive(:start_runtime_sessions!)
+    allow_any_instance_of(described_class).to receive(:stop_runtime_sessions!)
 
     implement_step.update!(state: "succeeded")
     implement_run.update!(
