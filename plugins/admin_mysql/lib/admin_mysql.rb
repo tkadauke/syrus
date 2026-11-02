@@ -6,6 +6,7 @@ module AdminMysql
   end
 
   syrus_plugin "admin_mysql" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "5c7d6aecd086ecd7618ec2d000b3a5ce820dcbac86782d1b45837e1bf11db4a1", mcp_tool_set: "e17abbfab94813817e7dd9a698d5ecb48a9576cd67c38ae7f8bb668f9b07b09c"
     experimental true
     display_name "Admin MySQL"
     description "Live MySQL diagnostics for production operators."

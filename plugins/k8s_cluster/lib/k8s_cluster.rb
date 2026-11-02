@@ -2,6 +2,7 @@ module K8sCluster
   extend Syrus::PluginApi
 
   syrus_plugin "k8s_cluster" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "41cc11fbfaf5d60efa73c3db745be4ae7a50a7088f719d6a72843295eeef7ff8", mcp_tool_set: "41cc11fbfaf5d60efa73c3db745be4ae7a50a7088f719d6a72843295eeef7ff8"
     experimental true
     display_name "Kubernetes Cluster Viewer"
     description "Register Kubernetes/k3s clusters and browse them read-only from an admin sidebar page."

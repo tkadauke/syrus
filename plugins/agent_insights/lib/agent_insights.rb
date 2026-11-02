@@ -4,6 +4,7 @@ module AgentInsights
   extend Syrus::PluginApi
 
   syrus_plugin "agent_insights" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "6d13c3ac7a0448d5834cc72c927596dfb858db1acdb9e1b5bd8f34c89c3aa283", mcp_tool_set: "7bdbf574c74236b851d5e29a2011875098f1167c4ae803f1abf62b20352f6694"
     experimental true
     display_name "Agent Insights"
     description "Periodic read-only agent surveys of a repository that propose follow-up work."
