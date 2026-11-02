@@ -10,12 +10,14 @@ const CONTROL_CLASS = "relative inline-flex h-9 w-9 items-center justify-center 
 const HALO_CLASS =
   "pointer-events-none absolute inset-0 rounded-full bg-warning/30 motion-safe:animate-approval-waiting-halo motion-reduce:ring-2 motion-reduce:ring-warning-border"
 const BADGE_CLASS = "absolute -right-1 -top-1 min-w-5 rounded-full bg-warning px-1.5 py-0.5 text-center text-2xs font-semibold leading-none text-surface"
+const NEWLY_BLOCKED_PING_MS = 1_000
 
 export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?: () => void; prefix?: string }) {
   const { t } = useT("settings")
   const [open, setOpen] = useState(false)
   const [announcement, setAnnouncement] = useState("")
   const previousBlockedCount = useRef<number | null>(null)
+  const clearAnnouncementTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const query = useQuery({ queryKey: ["permission_requests", 1], queryFn: () => fetchPermissionRequests(1), refetchInterval: 30_000 })
   const pending = (query.data?.requests ?? []).filter((request) => request.state === "pending")
   const pendingCount = query.data?.summary?.pending_count ?? pending.length
@@ -29,10 +31,17 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
 
   useEffect(() => {
     if (previousBlockedCount.current != null && blockedCount > previousBlockedCount.current) {
+      clearTimeout(clearAnnouncementTimeout.current)
       setAnnouncement(t("approval_inbox.newly_blocked", { count: blockedCount - previousBlockedCount.current }))
+      clearAnnouncementTimeout.current = setTimeout(() => setAnnouncement(""), NEWLY_BLOCKED_PING_MS)
+    } else if (previousBlockedCount.current != null && blockedCount < previousBlockedCount.current) {
+      clearTimeout(clearAnnouncementTimeout.current)
+      setAnnouncement("")
     }
     previousBlockedCount.current = blockedCount
   }, [blockedCount, t])
+
+  useEffect(() => () => clearTimeout(clearAnnouncementTimeout.current), [])
 
   return (
     <div className="relative">
@@ -47,7 +56,11 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
       >
         {blockedCount ? <span aria-hidden="true" className={HALO_CLASS} data-testid="approval-waiting-halo" /> : null}
         {announcement ? (
-          <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-warning-border motion-safe:animate-ping" />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-warning-border motion-safe:animate-ping"
+            data-testid="approval-newly-blocked-ping"
+          />
         ) : null}
         <ShieldIcon />
         {pendingCount ? <span className={BADGE_CLASS}>{badge}</span> : null}
