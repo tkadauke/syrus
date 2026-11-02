@@ -50,6 +50,7 @@ module Syrus
       chat_list_group
       chat_result_decorator
       chat_repository_default_filter
+      repository_index_filter
       preview_panel_viewer
       preview_panel_retention
       repository_recommendation
@@ -119,6 +120,7 @@ module Syrus
       chat_list_group:           -> { Syrus::Plugin::ChatListGroup },
       chat_result_decorator:      -> { Syrus::Plugin::ChatResultDecorator },
       chat_repository_default_filter: -> { Syrus::Plugin::ChatRepositoryDefaultFilter },
+      repository_index_filter: -> { Syrus::Plugin::RepositoryIndexFilter },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       preview_panel_retention: -> { Syrus::Plugin::PreviewPanelRetention },
       repository_recommendation: -> { Syrus::Plugin::RepositoryRecommendation },
