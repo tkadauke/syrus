@@ -1707,7 +1707,17 @@ export function StepVisualReviewPanel({ iterations, onClose }: { iterations: Job
                             src={artifact.image_url}
                           />
                         </a>
-                        {artifact.title ? <figcaption className="mt-2 text-xs text-text-muted">{artifact.title}</figcaption> : null}
+                        <figcaption className="mt-2 text-xs text-text-muted">
+                          {artifact.title || t("visual_review_screenshot_alt")}
+                          {artifact.target_name || artifact.provider_key ? (
+                            <span className="mt-1 block">
+                              {t("visual_review_evidence_target", {
+                                target: artifact.target_name || artifact.provider_key,
+                                generation: artifact.screen_generation ?? t("visual_review_evidence_generation_unknown")
+                              })}
+                            </span>
+                          ) : null}
+                        </figcaption>
                       </figure>
                     ) : null
                   )}

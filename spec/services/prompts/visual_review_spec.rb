@@ -14,7 +14,8 @@ RSpec.describe Prompts::VisualReview do
       test_plan_recommended: test_plan_recommended,
       test_plan_reason: test_plan_reason,
       seed_notes: seed_notes,
-      preview_projects: preview_projects
+      preview_projects: preview_projects,
+      runtime_targets: runtime_targets
     ).to_s
   end
 
@@ -25,6 +26,32 @@ RSpec.describe Prompts::VisualReview do
   let(:test_plan_reason) { nil }
   let(:seed_notes) { nil }
   let(:preview_projects) { [] }
+  let(:runtime_targets) { [] }
+
+  context "with a terminal runtime target" do
+    let(:runtime_targets) do
+      [
+        {
+          "session_id" => 41,
+          "provider" => "cli_tui",
+          "name" => "Queue console",
+          "capabilities" => { "input" => %w[keyboard stdin pointer resize], "inspect" => %w[screen], "artifacts" => %w[screenshots] },
+          "launch" => { "command" => "bin/queue" },
+          "dimensions" => { "columns" => 100, "rows" => 32 },
+          "review_notes" => "Open the failed queue",
+          "captures" => [ "queue loaded" ]
+        }
+      ]
+    end
+
+    it "provides the target contract and a deterministic TUI review protocol" do
+      expect(prompt).to include("session_id=41", "provider=cli_tui", 'launch={"command":"bin/queue"}')
+      expect(prompt).to include('capabilities={"input":["keyboard","stdin","pointer","resize"]')
+      expect(prompt).to include("acquire input control", "semantic screen state", "expected visible text")
+      expect(prompt).to match(/text, key,\s+chord, mouse, and resize events/)
+      expect(prompt).to include("labeled full-color screenshots", "submit_visual_review")
+    end
+  end
 
   it "includes independence instruction" do
     expect(prompt).to include("independent visual QA reviewer")

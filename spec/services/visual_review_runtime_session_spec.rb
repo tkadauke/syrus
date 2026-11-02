@@ -70,4 +70,16 @@ RSpec.describe VisualReviewRuntimeSession do
     expect { lifecycle.start! }.to raise_error("terminal unavailable")
     expect(lifecycle.runtime_session.reload).to have_attributes(state: "failed", last_error: include("terminal unavailable"))
   end
+
+  it "rejects a cli_tui provider missing visual-review capabilities before creating a session" do
+    allow(stub_runtime_provider_class).to receive(:provider_key).and_return("cli_tui")
+    allow(stub_runtime_provider_class).to receive(:capabilities).and_return(
+      input: %w[keyboard stdin], inspect: [], artifacts: []
+    )
+    lifecycle = described_class.new(run: run, target: target.with(provider: "cli_tui"))
+
+    expect { lifecycle.start! }
+      .to raise_error(RuntimeSessionProviders::ConfigurationError, /inspect:screen.*artifacts:screenshots.*semantic screen inspection/)
+    expect(lifecycle.runtime_session).to be_nil
+  end
 end

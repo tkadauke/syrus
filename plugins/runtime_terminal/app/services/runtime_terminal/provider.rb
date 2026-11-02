@@ -104,16 +104,17 @@ module RuntimeTerminal
       bytes = Renderer.new(screen).png
       checkpoint = options[:checkpoint_label].presence
       title = checkpoint ? "Terminal — #{checkpoint}" : "Terminal screenshot"
-      document = ArtifactSink.new(runtime_session).capture(bytes: bytes, title: title)
-
       metadata = {
         runtime_session_id: runtime_session.id,
+        provider_key: runtime_session.provider_key,
+        target_name: runtime_session.metadata.dig("visual_review_target", "name"),
         screen_generation: screen.fetch(:generation),
         rows: screen.fetch(:rows),
         columns: screen.fetch(:cols),
         captured_at: captured_at.iso8601,
         checkpoint_label: checkpoint
       }.compact
+      document = ArtifactSink.new(runtime_session).capture(bytes: bytes, title: title, metadata: metadata)
       {
         kind: "terminal_screenshot",
         artifact_type: "screenshot",
