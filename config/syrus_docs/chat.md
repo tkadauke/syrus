@@ -320,7 +320,8 @@ scheduled workflow may run on a compute worker that deliberately has no local
 search index; when SQLite reports that `chat_message_fts` is absent, the tool
 falls back to a bounded primary-database text search over the same authorized
 chat IDs. Other database failures remain structured `backend_error` responses
-with `full_text_backend` diagnostics. Blank queries are distinct
+with `full_text_backend` diagnostics and a bounded database error message for
+operator troubleshooting. Blank queries are distinct
 `validation_error` responses, and authorization failures continue to use the
 shared `not_authorized` response.
 
