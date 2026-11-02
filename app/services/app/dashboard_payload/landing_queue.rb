@@ -101,6 +101,7 @@ module App
       end
 
       def dependency_blocked_reason(dependency, slug:)
+        return { key: "waiting_for_landing", params: { slug: slug } } if dependency.satisfaction_mode == "landed"
         return { key: "waiting_to_merge", params: { slug: slug } } unless dependency.satisfaction_mode == "deployment_stage"
 
         params = {

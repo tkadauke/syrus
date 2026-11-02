@@ -1407,6 +1407,7 @@ function dependencyMatchesRequirement(dependency: ChatProposalDependency, requir
 function dependencyRequirementLabel(requirement: ChatProposalDependencyRequirement) {
   const labels: Record<ChatProposalDependencyRequirement["satisfaction_mode"], () => string> = {
     success: () => "mode: success",
+    landed: () => "mode: landed",
     closed: () => "mode: closed",
     deployment_stage: () => `mode: deployment stage · stage: ${requirement.required_deployment_stage_name || "unspecified"}`
   }

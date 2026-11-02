@@ -357,6 +357,28 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "materializes landed requirements for direct Job proposals" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 8)
+      job_proposal = proposal(
+        slug: "landing-gated-job",
+        title: "Landing gated job",
+        depends_on_job_ids: [ prerequisite.id ],
+        dependency_requirements: [
+          {
+            "job_id" => prerequisite.id,
+            "satisfaction_mode" => "landed"
+          }
+        ]
+      )
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expect(job_proposal.reload.job.dependencies.sole).to have_attributes(
+        depends_on_job: prerequisite,
+        satisfaction_mode: "landed"
+      )
+    end
+
     it "rolls back invalid deployment-stage requirements before confirming direct Job proposals" do
       allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
         RepoDeploymentStagesReader::Result.new(stages: [], source: ".syrus.yml", note: "no deployment_stages configured")

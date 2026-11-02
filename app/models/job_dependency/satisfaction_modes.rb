@@ -2,6 +2,7 @@ class JobDependency
   module SatisfactionModes
     MODES = {
       "success" => "JobDependency::SatisfactionModes::Success",
+      "landed" => "JobDependency::SatisfactionModes::Landed",
       "closed" => "JobDependency::SatisfactionModes::Closed",
       "deployment_stage" => "JobDependency::SatisfactionModes::DeploymentStage"
     }.freeze

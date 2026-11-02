@@ -1,7 +1,7 @@
 require "set"
 
 class JobDependency < ApplicationRecord
-  SATISFACTION_MODES = %w[success closed deployment_stage].freeze
+  SATISFACTION_MODES = %w[success landed closed deployment_stage].freeze
 
   belongs_to :job
   belongs_to :depends_on_job, class_name: "Job", optional: true
