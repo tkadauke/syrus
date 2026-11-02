@@ -214,6 +214,13 @@ RSpec.describe RuntimeTerminal::RelayClient do
       expect { client.input(type: "resize", cols: 0, rows: 24) }.to raise_error(described_class::UnsupportedInput)
     end
 
+    it "rejects resize dimensions above the bounded screen maximum" do
+      expect { client.input(type: "resize", cols: described_class::MAX_COLS + 1, rows: 24) }
+        .to raise_error(described_class::UnsupportedInput, /exceeds maximum/)
+      expect { client.input(type: "resize", cols: 80, rows: described_class::MAX_ROWS + 1) }
+        .to raise_error(described_class::UnsupportedInput, /exceeds maximum/)
+    end
+
     it "raises UnsupportedInput when resize is missing rows entirely" do
       expect { client.input(type: "resize", cols: 80) }.to raise_error(described_class::UnsupportedInput)
     end

@@ -7,6 +7,8 @@ module RuntimeTerminal
   class Screen
     DEFAULT_COLS = 80
     DEFAULT_ROWS = 24
+    MAX_COLS = 1_000
+    MAX_ROWS = 1_000
     MAX_SCROLLBACK_ROWS = 1_000
     MAX_PARSER_PENDING_BYTES = 4_096
     MAX_UTF8_PENDING_BYTES = 4
@@ -40,6 +42,9 @@ module RuntimeTerminal
       cols = Integer(cols)
       rows = Integer(rows)
       raise ArgumentError, "terminal dimensions must be positive" unless cols.positive? && rows.positive?
+      if cols > MAX_COLS || rows > MAX_ROWS
+        raise ArgumentError, "terminal dimensions exceed maximum #{MAX_COLS}x#{MAX_ROWS}"
+      end
 
       @generation += 1 if increment
       @cols = cols
@@ -411,21 +416,25 @@ module RuntimeTerminal
     end
 
     def insert_lines(count)
+      count = [ count, rows - @cursor_row ].min
       count.times { active_buffer[:lines].insert(@cursor_row, blank_line); active_buffer[:lines].pop }
     end
 
     def delete_lines(count)
+      count = [ count, rows - @cursor_row ].min
       count.times { active_buffer[:lines].delete_at(@cursor_row); active_buffer[:lines] << blank_line }
     end
 
     def delete_characters(count)
       line = active_buffer[:lines][@cursor_row]
+      count = [ count, cols - @cursor_col ].min
       count.times { line.delete_at(@cursor_col); line << blank_cell }
       normalize_wide_cells(line)
     end
 
     def insert_characters(count)
       line = active_buffer[:lines][@cursor_row]
+      count = [ count, cols - @cursor_col ].min
       count.times { line.insert(@cursor_col, blank_cell); line.pop }
       normalize_wide_cells(line)
     end

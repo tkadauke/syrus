@@ -91,8 +91,9 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
     named keys (`Enter`, `Tab`, `Backspace`, `Escape`, arrow keys, `Delete`,
     `Home`/`End`, `PageUp`/`PageDown`) mapped to their terminal escape
     sequences. An unrecognized key raises `RelayClient::UnsupportedInput`.
-  - `resize` → a `{type: "resize", cols:, rows:}` frame; non-positive
-    `cols`/`rows` raises `UnsupportedInput`.
+  - `resize` → a `{type: "resize", cols:, rows:}` frame; dimensions must
+    be positive and no larger than 1,000 columns by 1,000 rows, otherwise
+    `UnsupportedInput` is raised.
   - `pointer`/`mouse`/`click`/`mousedown`/`mouseup`/`mousemove`/`wheel` →
     SGR mouse-tracking escape sequences (`\e[<code;x;y M/m`), covering
     click (press + release), down/up, move (drag), and wheel up/down.
@@ -111,14 +112,16 @@ mapped `Terminal::Session` before attempting to connect.
 
 The emulator is process-local and deliberately bounded to 1,000 scrollback
 rows, 1 MiB each of raw diagnostic output and incomplete relay framing, 4 KiB
-for an incomplete control sequence, and four bytes for an incomplete UTF-8
-glyph. It lives exactly as long as its pooled relay client: stopping a Runtime
-Session, resetting provider clients, or observing a disconnected socket closes
-and releases it. A reconnect constructs a fresh emulator from the relay's
-bounded, gap-free replay before consuming live output, carrying the previous
-generation forward so a session's generation never moves backward. Resize
-input updates the emulator and sends the same dimensions to the PTY; both
-primary and alternate buffers are resized consistently.
+for an incomplete control sequence, four bytes for an incomplete UTF-8 glyph,
+and a 1,000-by-1,000-cell maximum viewport. CSI insert/delete repeat counts are
+limited to the remaining visible rows or columns. It lives exactly as long as
+its pooled relay client: stopping a Runtime Session, resetting provider clients,
+or observing a disconnected socket closes and releases it. A reconnect
+constructs a fresh emulator from the relay's bounded, gap-free replay before
+consuming live output, carrying the previous generation forward so a session's
+generation never moves backward. Resize input updates the emulator and sends
+the same dimensions to the PTY; both primary and alternate buffers are resized
+consistently.
 
 ## Input lease enforcement
 
