@@ -186,6 +186,29 @@ describe("buildMessageStreamItems pending action groups", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("removes a retired pending action's anchored tool call and paired result", () => {
+    const messages = [
+      toolUse(1, { toolUseId: "tu_reopen", toolName: "reopen_job", input: { job_id: 262 }, pending_action: null, pending_action_retired: true }),
+      toolResult(2, { toolUseId: "tu_reopen", content: { pending_action_id: 501, state: "pending" } }),
+      toolUse(3, { toolUseId: "tu_read", toolName: "read_file", input: { path: "README.md" } }),
+      toolResult(4, { toolUseId: "tu_read", content: "contents" })
+    ]
+
+    const items = renderChatMessages(messages)
+
+    expect(items).toHaveLength(1)
+    expect(group(items[0]).calls).toHaveLength(1)
+    expect(group(items[0]).calls[0]).toMatchObject({ message_id: 3, tool_name: "read_file", result_body: "contents" })
+  })
+
+  it("removes a retired pending action's unpaired tool-use row", () => {
+    expect(
+      renderChatMessages([
+        toolUse(1, { toolUseId: "tu_reopen", toolName: "reopen_job", input: { job_id: 262 }, pending_action: null, pending_action_retired: true })
+      ])
+    ).toEqual([])
+  })
+
   it("reuses an unchanged multi-megabyte result and its render row across tail updates", () => {
     const cache = createChatRenderCache()
     const largeResult = JSON.stringify({ body: "x".repeat(2_100_000) })
