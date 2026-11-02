@@ -6,7 +6,7 @@ import { ToolGroup } from "../MessageCards"
 import { redactToolCardText, redactToolCardValue } from "../../../toolCardSecurity"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
 import runtimeBuildOrReloadToolCard from "./runtime_build_or_reload"
-import runtimeCaptureArtifactToolCard from "./runtime_capture_artifact"
+import runtimeCaptureArtifactToolCard, { examples as runtimeCaptureArtifactExamples } from "./runtime_capture_artifact"
 import runtimeInspectToolCard from "./runtime_inspect"
 import runtimeInputToolCard from "./runtime_input"
 import runtimeLaunchToolCard from "./runtime_launch"
@@ -1355,6 +1355,14 @@ describe("Runtime tool cards", () => {
 
   it("publishes browser and stale Android snapshot catalog fixtures", () => {
     expect(runtimeSnapshotExamples.map((example) => example.id)).toEqual(["browser_capture", "android_stale_frame"])
+  })
+
+  it("publishes a full-color terminal artifact catalog fixture", () => {
+    expect(runtimeCaptureArtifactExamples.map((example) => example.id)).toEqual(["terminal_screenshot"])
+    expect(runtimeCaptureArtifactExamples[0].parsedResult).toMatchObject({
+      kind: "terminal_screenshot",
+      metadata: { rows: 3, columns: 14, checkpoint_label: "unicode palette" }
+    })
   })
 
   it("renders Latest-frame snapshots with provider metadata", () => {

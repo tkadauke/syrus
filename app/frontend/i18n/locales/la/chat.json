@@ -444,6 +444,8 @@
   "runtime_snapshot_example_page_title": "Configurationes",
   "runtime_snapshot_example_stale": "Imago Android vetus",
   "runtime_snapshot_example_stale_description": "Novissima imago praesto manifeste vetus notatur, cum nova captura machinae deficit.",
+  "runtime_capture_example_terminal": "Imago terminalis pleno colore",
+  "runtime_capture_example_terminal_description": "PNG verum a pictore terminali cum coloribus ANSI, indicatis et RGB, signis Unicode, statu cursoris, atque mensura prospectus.",
   "runtime_input_type": "Genus",
   "runtime_input_target": "Meta",
   "runtime_input_value": "Valor",

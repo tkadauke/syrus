@@ -444,6 +444,8 @@
   "runtime_snapshot_example_page_title": "Einstellungen",
   "runtime_snapshot_example_stale": "Veraltetes Android-Bild",
   "runtime_snapshot_example_stale_description": "Das neueste verfügbare Bild wird deutlich als veraltet markiert, wenn keine aktuelle Geräteaufnahme möglich ist.",
+  "runtime_capture_example_terminal": "Vollfarbiger Terminal-Screenshot",
+  "runtime_capture_example_terminal_description": "Ein echtes PNG des Terminal-Renderers mit ANSI-, Index- und RGB-Farben, Unicode-Zeichen, Cursorstatus und Viewport-Größe.",
   "runtime_input_type": "Typ",
   "runtime_input_target": "Ziel",
   "runtime_input_value": "Wert",
