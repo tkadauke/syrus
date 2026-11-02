@@ -15,10 +15,20 @@ module Syrus
           raise NotImplementedError, "#{self}.display_name is required"
         end
 
+        # Operator-facing disclosure of where evidence is processed and what
+        # the provider retains. Delegation surfaces must present this value.
+        def data_sharing
+          raise NotImplementedError, "#{self}.data_sharing is required"
+        end
+
+        def default_guidance
+          raise NotImplementedError, "#{self}.default_guidance is required"
+        end
+
         # The provider owns its own cost and rate policy. It reports a bounded
         # structured outcome instead of exposing provider-specific exceptions
         # or asking core to interpret quotas.
-        def decide(_request)
+        def decide(_evidence)
           raise NotImplementedError, "#{self}.decide is required"
         end
       end
