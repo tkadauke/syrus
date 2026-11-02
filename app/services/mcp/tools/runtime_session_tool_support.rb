@@ -15,6 +15,19 @@ module Mcp::Tools
       nil
     end
 
+    def runtime_owner_from(server_context)
+      if server_context.key?(:chat_session)
+        chat_session = server_context.fetch(:chat_session)
+        [ chat_session, require_coding_mode(chat_session) ]
+      else
+        run = Mcp::Tools.run_from_context(server_context)
+        unless run.step&.kind == "visual_review"
+          return [ nil, Mcp::Tools.invalid("runtime tools are only available to visual_review workflow runs") ]
+        end
+        [ run, nil ]
+      end
+    end
+
     def resolve_repository(chat_session)
       chat_session.repository
     end
@@ -23,8 +36,8 @@ module Mcp::Tools
     # else the chat's primary active session, else its most recently created
     # active session. Mirrors SyrusBrowser::SessionContext's own
     # provider-scoped default, generalized across providers.
-    def resolve_runtime_session(chat_session, session_id)
-      scope = chat_session.runtime_sessions
+    def resolve_runtime_session(owner, session_id)
+      scope = owner.runtime_sessions
       session = if session_id.present?
         scope.find_by(id: session_id)
       else
@@ -38,6 +51,10 @@ module Mcp::Tools
       end
 
       [ session, nil ]
+    end
+
+    def runtime_owner_ref(owner)
+      owner.is_a?(Run) ? "visual_review_run:#{owner.id}" : "coding_mode_chat:#{owner.id}"
     end
 
     def provider_instance_for(runtime_session)

@@ -67,11 +67,12 @@ module RuntimeTerminal
     def start_session(workspace_ref, config)
       config = config.to_h.symbolize_keys
       runtime_session = config.fetch(:runtime_session)
-      chat_session = config.fetch(:chat_session)
+      user = config[:chat_session]&.user || config[:user] || runtime_session.run&.user
+      raise ArgumentError, "runtime terminal requires a user" unless user
       initial_dimensions = normalized_dimensions(config)
 
       terminal_session = Terminal::Session.create!(
-        user: chat_session.user,
+        user: user,
         workflow: nil,
         name: config[:terminal_name].presence || "Runtime Terminal",
         working_directory: workspace_ref,
@@ -86,12 +87,12 @@ module RuntimeTerminal
       { terminal_session_id: terminal_session.id, initial_dimensions: initial_dimensions }.compact
     end
 
-    def build_or_reload(_session_id, _options)
-      not_supported("build_or_reload")
+    def build_or_reload(session_id, options)
+      execute_configured_command(session_id, options, operation: "build")
     end
 
-    def launch(_session_id, _options)
-      not_supported("launch")
+    def launch(session_id, options)
+      execute_configured_command(session_id, options, operation: "launch")
     end
 
     def snapshot(session_id, options = {})
@@ -178,6 +179,18 @@ module RuntimeTerminal
     end
 
     private
+
+    def execute_configured_command(session_id, options, operation:)
+      command = options.to_h.symbolize_keys[:command].to_s.strip
+      raise ArgumentError, "runtime_terminal #{operation} requires a command" if command.empty?
+
+      runtime_session = runtime_session_for(session_id)
+      terminal_session = relay_ready_terminal_session_for(runtime_session)
+      with_fresh_relay_client(runtime_session, terminal_session) do |client|
+        client.input(type: "stdin", data: "#{command}\n")
+      end
+      { delivered: true, operation: operation, command: command }
+    end
 
     def inspect_client(client, mode, options)
       if mode == "scrollback"
@@ -273,10 +286,6 @@ module RuntimeTerminal
 
     def initial_dimensions_for(runtime_session)
       runtime_session.metadata["initial_dimensions"]&.symbolize_keys
-    end
-
-    def not_supported(operation)
-      { error: "not_yet_supported", message: "runtime_terminal #{operation} is not supported yet" }
     end
   end
 end

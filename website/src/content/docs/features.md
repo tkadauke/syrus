@@ -273,6 +273,14 @@ rows: 30 })`, acquire an `input` lease, and send text plus named keys with
 chords such as `Ctrl+C`, in addition to navigation keys and resize events.
 Text input is limited to 64 KiB per event, and bounded relay I/O keeps operator
 takeover available if a terminal stops responding.
+
+Automated visual review uses this same provider contract. Repositories can
+declare `visual_review.targets` with a provider key, launch/build options,
+initial dimensions, review notes, changed-file rules, and labeled capture
+expectations. The workflow owns and reliably tears down these sessions while
+the reviewer uses provider-neutral inspect, wait, input, snapshot, and capture
+tools. Existing browser `preview` configuration is translated into a browser
+runtime target automatically.
 After each action, `runtime_inspect` can wait for a later screen generation,
 specific visible text, and a quiet period. Calling
 `runtime_capture_artifact(checkpoint_label: "settings saved")` then retains a

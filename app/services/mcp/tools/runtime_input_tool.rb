@@ -29,13 +29,12 @@ module Mcp::Tools
 
     class << self
       def call(event:, session_id: nil, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        guard = require_coding_mode(chat_session)
+        owner, guard = runtime_owner_from(server_context)
         return guard if guard
 
         return Mcp::Tools.invalid("event must be an object") unless event.is_a?(Hash)
 
-        session, error = resolve_runtime_session(chat_session, session_id)
+        session, error = resolve_runtime_session(owner, session_id)
         return error if error
 
         with_provider_call(session) { |provider| provider.input(session.id, event.merge("_runtime_control_owner" => "agent")) }

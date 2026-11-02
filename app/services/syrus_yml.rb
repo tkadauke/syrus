@@ -260,7 +260,15 @@ class SyrusYml
   AdversarialReviewConfig = Data.define(:rounds, :criteria, :required)
   SecurityReviewConfig = Data.define(:rounds, :criteria, :required)
   ReviewNotesConfig = Data.define(:criteria, :low_signal)
-  VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes, :required)
+  VisualReviewRuntimeTarget = Data.define(
+    :name, :provider, :launch, :build, :dimensions, :review_notes,
+    :when_files_changed, :captures
+  )
+  VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes, :required, :targets) do
+    def initialize(targets: [], **attributes)
+      super(targets: targets, **attributes)
+    end
+  end
   AgentInsightConfig = Data.define(:prepare)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
   # existing code and specs that reference SyrusYml::CoverageConfig etc. still work.
@@ -465,8 +473,49 @@ class SyrusYml
       rounds: parse_visual_review_rounds(raw["rounds"]),
       when_files_changed: when_files_changed,
       seed_notes: raw["seed_notes"].to_s.strip.presence,
-      required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false
+      required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false,
+      targets: parse_visual_review_targets(raw["targets"])
     )
+  end
+
+  def parse_visual_review_targets(raw)
+    return [] if raw.nil?
+    raise ParseError, "visual_review.targets: must be an array" unless raw.is_a?(Array)
+
+    raw.each_with_index.map do |target, index|
+      label = "visual_review.targets[#{index}]"
+      raise ParseError, "#{label}: must be a mapping" unless target.is_a?(Hash)
+
+      provider = target["provider"].to_s.strip
+      raise ParseError, "#{label}.provider: is required" if provider.empty?
+
+      dimensions = target["dimensions"]
+      if dimensions.present?
+        raise ParseError, "#{label}.dimensions: must be a mapping" unless dimensions.is_a?(Hash)
+        dimensions = dimensions.to_h.transform_keys(&:to_s)
+        unless dimensions.values.all? { |value| Integer(value, exception: false)&.positive? }
+          raise ParseError, "#{label}.dimensions: values must be positive integers"
+        end
+      end
+
+      VisualReviewRuntimeTarget.new(
+        name: target["name"].to_s.strip.presence || provider,
+        provider: provider,
+        launch: parse_visual_review_target_options(target["launch"], "#{label}.launch"),
+        build: parse_visual_review_target_options(target["build"], "#{label}.build"),
+        dimensions: dimensions,
+        review_notes: target["review_notes"].to_s.strip.presence,
+        when_files_changed: parse_string_array(target["when_files_changed"], "#{label}.when_files_changed"),
+        captures: parse_string_array(target["captures"], "#{label}.captures")
+      )
+    end
+  end
+
+  def parse_visual_review_target_options(raw, label)
+    return {} if raw.nil?
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    raw.deep_stringify_keys
   end
 
   def parse_visual_review_rounds(raw)

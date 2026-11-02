@@ -25,16 +25,39 @@ module Mcp::Tools
 
     class << self
       def call(session_id: nil, artifact_type: nil, checkpoint_label: nil, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        guard = require_coding_mode(chat_session)
+        owner, guard = runtime_owner_from(server_context)
         return guard if guard
 
-        session, error = resolve_runtime_session(chat_session, session_id)
+        session, error = resolve_runtime_session(owner, session_id)
         return error if error
 
         with_provider_call(session) do |provider|
-          provider.snapshot(session.id, { artifact_type: artifact_type, checkpoint_label: checkpoint_label }.compact)
+          result = provider.snapshot(session.id, { artifact_type: artifact_type, checkpoint_label: checkpoint_label }.compact)
+          persist_workflow_capture(owner, result, artifact_type: artifact_type, checkpoint_label: checkpoint_label)
+          result
         end
+      end
+
+      private
+
+      def persist_workflow_capture(owner, result, artifact_type:, checkpoint_label:)
+        return unless owner.is_a?(Run)
+
+        content = result.to_h[:content] || result.to_h["content"]
+        image = Array(content).find do |block|
+          block.to_h[:type].to_s == "image" || block.to_h["type"].to_s == "image"
+        end
+        return unless image
+
+        image = image.to_h
+        response = SyrusMcp::SubmitVisualArtifactTool.call(
+          type: artifact_type.presence || "visual_review_runtime_screenshot",
+          title: checkpoint_label.presence || "Runtime screenshot",
+          image_base64: image[:data] || image["data"],
+          content_type: image[:mimeType] || image["mimeType"] || image[:mime_type] || image["mime_type"],
+          server_context: { run: owner }
+        )
+        raise "runtime screenshot could not be persisted" if response.error?
       end
     end
   end
