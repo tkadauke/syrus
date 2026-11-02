@@ -3243,7 +3243,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(action.reload).to be_cancelled
       expect(job.reload).to be_implemented
-      expect(parse_body["pending_actions"]).to be_empty
+      expect(parse_body["pending_actions"]).to contain_exactly(include("id" => action.id, "state" => "cancelled"))
       expect(parse_body["attached_coding_job"]).to be_nil
     end
 

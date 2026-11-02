@@ -230,15 +230,6 @@ class ChatPendingAction < ApplicationRecord
     true
   end
 
-  def dismiss!
-    with_lock do
-      return false unless state.in?(%w[pending non_actionable failed])
-
-      update!(state: "dismissed")
-    end
-    true
-  end
-
   def record_delivery!(metadata: {}, at: Time.current)
     update!(
       delivery_state: "delivered",
@@ -429,6 +420,16 @@ class ChatPendingAction < ApplicationRecord
 
   def dismiss!(user: nil)
     raise ActiveRecord::RecordNotFound, "pending action belongs to another user" if user && self.user != user
+
+    if authorization_request?
+      with_lock do
+        return false unless state.in?(%w[pending non_actionable failed])
+
+        update!(state: "dismissed")
+      end
+      return true
+    end
+
     return false unless terminal?
 
     ensure_outcome_notification!
