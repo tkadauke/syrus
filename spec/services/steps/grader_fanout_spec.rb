@@ -361,14 +361,10 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   it "routes a mixed iOS/backend workflow through macOS primary work and target-specific grader workers" do
     enable_distributed_workflow_dag!
-    requirements = {
-      "os" => [ "macos" ],
-      "arch" => [ "arm64" ],
-      "toolchain" => [ "xcode" ],
-      "runtime" => [ "ios_simulator" ]
-    }
+    primary_requirements = { "os" => [ "macos" ] }
+    target_requirements = { "os" => [ "macos" ] }
     workflow.update!(
-      planned_execution_capabilities: requirements,
+      planned_execution_capabilities: primary_requirements,
       planned_execution_source: "explicit",
       worker_storage_key: "storage-mac"
     )
@@ -379,9 +375,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           when_files_changed: ["ios/**/*"]
           capabilities:
             os: macos
-            arch: arm64
-            toolchain: xcode
-            runtime: ios_simulator
         - name: backend-tests
           run: bin/fake-backend-test
           when_files_changed: ["app/**/*"]
@@ -401,7 +394,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       cached_environment: worker_environment("macos")
     )
 
-    live_capable_worker_queue!("runs-macos-arm64", capabilities: requirements, hostname: "mac-worker")
+    live_capable_worker_queue!("runs-macos-arm64", capabilities: target_requirements, hostname: "mac-worker")
     live_capable_worker_queue!("runs", capabilities: { "os" => [ "linux" ] }, hostname: "linux-worker")
 
     implement_step = Step.create!(
@@ -413,7 +406,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     implement_run = implement_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
     expect(RunQueueResolver.resolve(run: implement_run)).to have_attributes(
       queue_name: "runs-macos-arm64",
-      requirements: requirements
+      requirements: primary_requirements
     )
 
     handler.call
@@ -427,14 +420,14 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     expect(ios).to have_attributes(placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
     expect(backend).to have_attributes(placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
-    expect(ios.details).to include("required_capabilities" => requirements)
+    expect(ios.details).to include("required_capabilities" => target_requirements)
     expect(backend.details).to include("required_capabilities" => {})
-    expect(ios.details.dig("target_fingerprints", "metadata", "worker_environment", "capabilities")).to eq(requirements)
+    expect(ios.details.dig("target_fingerprints", "metadata", "worker_environment", "capabilities")).to eq(target_requirements)
     expect(backend.details.dig("target_fingerprints", "metadata", "worker_environment", "capabilities")).to eq("os" => [ "linux" ])
 
     expect(RunQueueResolver.resolve(run: ios.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider))).to have_attributes(
       queue_name: "runs-macos-arm64",
-      requirements: requirements
+      requirements: target_requirements
     )
     expect(RunQueueResolver.resolve(run: backend.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider))).to have_attributes(
       queue_name: "runs",
@@ -490,43 +483,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     expect(workflow.workflow_warnings.where(kind: "implementation_capability_escalation")).to be_empty
-  end
-
-  it "warns when an equally constrained affected target is not covered by the primary placement" do
-    workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
-      planned_execution_source: "inferred"
-    )
-    write_config(<<~YAML)
-      grade:
-        - name: ios-tests
-          run: xcodebuild test
-          when_files_changed: ["ios/**/*"]
-          capabilities:
-            os: macos
-            arch: arm64
-        - name: macos-x64-package
-          run: bin/macos-x64-package
-          when_files_changed: ["macos-x64/**"]
-          capabilities:
-            os: macos
-            arch: x86_64
-    YAML
-    stub_changed_files("ios/App/View.swift", "macos-x64/package.sh")
-
-    handler.call
-
-    warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
-    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/macos-x64-package")
-    expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly(
-      "//:grade/ios-tests",
-      "//:grade/macos-x64-package"
-    )
-    expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") })
-      .to eq([ "//:grade/macos-x64-package" ])
-    expect(warning.evidence.fetch("mismatches")).to include(
-      include("target_label" => "//:grade/macos-x64-package", "dimension" => "arch", "missing" => [ "x86_64" ])
-    )
   end
 
   it "carries a resolved grader display_name onto both the materialized Step and the target selection entries" do

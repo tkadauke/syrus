@@ -815,8 +815,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     # command-span load stays batched and never runs per Run. The planned
     # execution override check adds three more fixed reads (Workflow and Run
     # history columns, latest audit) that likewise do not scale with history.
-    # 56, not 55: the payload gained one more fixed read. Verified it is not a
-    # regression before moving the number -- every fingerprint in the request
+    # 57, not 55: the payload gained two more fixed reads. Verified they are not
+    # a regression before moving the number -- every fingerprint in the request
     # appears exactly once, so nothing is N+1, and the doubled-history
     # assertion below still holds, so nothing scales with the Job's workflow,
     # run or span count. Those structural guards are what this budget is for;
@@ -824,7 +824,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     # grows, and it is only useful if it is moved deliberately when it does.
     expect_performance_budget(
       metrics,
-      max_sql: 56,
+      max_sql: 57,
       max_payload_bytes: 90_000,
       forbidden_sql: [
         /SELECT [`"]?command_spans[`"]?\.\*/i,
