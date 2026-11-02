@@ -168,7 +168,7 @@ class PollPullRequestJob < ApplicationJob
 
   def close_merged_pr
     Rails.logger.info("[PollPullRequestJob] closing #{@job.slug}: pr_merged")
-    PullRequestMergeCloser.call(job: @job)
+    PullRequestMergeCloser.call(job: @job, landed_sha: @pr.merge_commit_sha)
   end
 
   def close_with(reason)
