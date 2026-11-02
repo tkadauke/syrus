@@ -79,9 +79,9 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts) do
-    def initialize(security_review: nil, **rest)
-      super(security_review: security_review, **rest)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :ai_approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts) do
+    def initialize(security_review: nil, ai_approval: nil, **rest)
+      super(security_review: security_review, ai_approval: ai_approval, **rest)
     end
   end
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
@@ -137,6 +137,7 @@ class SyrusYml
   ApprovalConfig = Data.define(:job, :promotion)
   ApprovalJobConfig = Data.define(:owner_required, :peer_count)
   ApprovalPromotionConfig = Data.define(:maintainer_count)
+  AiApprovalConfig = Data.define(:instructions)
   # Modeled on docs/plans/complete/delivery-tracks-and-promotion.md Story 10 (PR
   # ingestion classification). Like `Config#approval`, `Config#external_prs`
   # is left nil when the `external_prs:` key is absent — absence means
@@ -312,6 +313,7 @@ class SyrusYml
       delivery: normalize_delivery(raw_delivery),
       raw_delivery: raw_delivery,
       approval: parse_approval(raw["approval"]),
+      ai_approval: parse_ai_approval(raw["ai_approval"]),
       external_prs: parse_external_prs(raw["external_prs"]),
       merge_train: parse_merge_train(raw["merge_train"]),
       project: parse_project(raw["project"]),
@@ -324,6 +326,18 @@ class SyrusYml
   end
 
   private
+
+  def parse_ai_approval(raw)
+    return nil if raw.nil?
+    raise ParseError, "ai_approval: must be a mapping" unless raw.is_a?(Hash)
+
+    instructions = raw["instructions"]
+    unless instructions.is_a?(String) && instructions.present?
+      raise ParseError, "ai_approval.instructions: must be a non-empty string"
+    end
+
+    AiApprovalConfig.new(instructions: instructions)
+  end
 
   def parse_agent_insight(raw)
     return nil if raw.nil?

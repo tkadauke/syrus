@@ -52,6 +52,11 @@ Instances may install optional AI approval-provider plugins. They are off by
 default: each user must explicitly delegate a provider for a bounded capability
 and resource scope. AI approval can decide only the exact fingerprinted tool
 invocation presented to it and cannot grant durable or temporary authority.
+Before delegation, the provider must disclose who receives the role-labelled
+transcript and exact tool call and why the data is shared. Syrus labels
+transcript and repository content as evidence rather than instructions, applies
+core, provider, repository, and effective-policy guidance in that order, and
+redacts secrets from the durable decision artifact.
 Financial effects, privilege changes, and permission management always remain
 human decisions. Non-delegable policy ceilings are checked before the provider
 runs, and core redacts its evidence. Unavailable, low-confidence, rate-limited,

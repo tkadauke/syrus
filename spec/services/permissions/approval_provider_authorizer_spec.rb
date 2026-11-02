@@ -13,7 +13,9 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
       include Syrus::Plugin::ApprovalProvider
       def self.provider_key = "reviewer"
       def self.display_name = "Reviewer"
-      def self.decide(_request)
+      def self.approval_guidelines = "Apply the configured reviewer policy."
+      def self.data_sharing_disclosure = { recipient: "Reviewer API", purpose: "approval classification" }
+      def self.decide(_evidence)
         { outcome: :allow, rationale: "Policy permits this exact restart", policy_factors: [ "bounded_resource" ],
           confidence: 0.91, evidence: { "cluster_id" => 7 } }
       end
@@ -98,6 +100,43 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
     expect(result.decision.evidence).to eq("api_token" => "[redacted]")
   end
 
+  it "supplies full role-labelled evidence, the exact call, and ordered guidance" do
+    request = request_with(repository_guidance: "Prefer reversible operations.")
+    expect(provider).to receive(:decide) do |evidence|
+      expect(evidence.transcript).to eq([ { "role" => "user", "content" => "Restart it" } ])
+      expect(evidence.tool_call).to eq("name" => "restart", "arguments" => { "id" => 7 })
+      expect(evidence.guidance.map { |entry| entry["layer"] })
+        .to eq(%w[core provider repository policy_chain])
+      expect(evidence.provider_payload.dig("trust_boundary", "transcript")).to eq("untrusted_evidence")
+      { outcome: :allow, rationale: "Bounded", policy_factors: [], confidence: 1, evidence: {} }
+    end
+
+    result = described_class.call(request:, delegations: [ delegation ], providers: [ provider ])
+
+    expect(result.evidence.data_sharing).to eq(
+      "recipient" => "Reviewer API", "purpose" => "approval classification"
+    )
+  end
+
+  it "rejects transcript evidence without an explicit role label" do
+    expect {
+      request_with(transcript: [ { content: "Restart it" } ])
+    }.to raise_error(ArgumentError, /explicit role/)
+  end
+
+  it "redacts durable audit evidence without changing the exact provider payload" do
+    secret_request = request_with(
+      transcript: [ { role: "user", content: "token=ghp_abcdefghijklmnopqrstuvwxyz123456" } ],
+      tool_call: { name: "restart", arguments: { api_token: "secret-value" } }
+    )
+    result = described_class.call(request: secret_request, delegations: [ delegation ], providers: [ provider ])
+
+    expect(result.evidence.tool_call.dig("arguments", "api_token")).to eq("secret-value")
+    artifact = result.evidence.audit_artifact(decision: result.decision)
+    expect(artifact.dig("tool_call", "arguments", "api_token")).to eq("[redacted]")
+    expect(artifact.dig("transcript", 0, "content")).to include("[redacted]")
+  end
+
   it "escalates unavailable, invalid, and plugin-managed rate outcomes" do
     unavailable = described_class.call(request:, delegations: [ delegation ], providers: [])
     expect(unavailable.decision.provider_outcome).to eq("provider_unavailable")
@@ -117,7 +156,8 @@ RSpec.describe Permissions::ApprovalProviderAuthorizer do
       owner:, capability: request.capability, operation: request.operation,
       resource_type: request.resource_type, resource_scope: request.resource_scope,
       effects: request.effects, invocation_fingerprint: request.invocation_fingerprint,
-      transcript: request.transcript, tool_call: request.tool_call, policy_chain: request.policy_chain
+      transcript: request.transcript, tool_call: request.tool_call, policy_chain: request.policy_chain,
+      repository_guidance: request.repository_guidance
     }
     Permissions::ApprovalProviderRequest.new(**values.merge(attributes))
   end

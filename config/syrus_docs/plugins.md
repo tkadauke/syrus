@@ -1001,6 +1001,27 @@ and `.tool_definitions(context:)` when availability depends on the agent role
 (e.g. only the `implement` step), not just the repository — see
 `AdminMysql::WorkflowToolSet` and `SyrusDev::WorkflowToolSet`.
 
+## `approval_provider`
+
+Contributes an optional AI principal that can classify one already-pending,
+exact fingerprinted invocation. Registration and enablement grant no authority;
+the operator must create a scoped provider delegation first. Include
+`Syrus::Plugin::ApprovalProvider` and implement:
+
+| Method | Description |
+|---|---|
+| `.provider_key` | Stable provider identity used by delegations |
+| `.display_name` | Operator-facing provider name |
+| `.approval_guidelines` | Provider-default classifier guidance, below core rules |
+| `.data_sharing_disclosure` | Structured recipient and purpose disclosure for evidence shared outside core |
+| `.decide(evidence)` | Return structured `allow`, `deny`, or `escalate` data |
+
+The evidence object contains the full role-labelled transcript, exact tool call,
+invocation fingerprint, policy chain, and guidance ordered as core, provider,
+repository, and effective policy. Transcript, repository content, and tool data
+remain evidence rather than instructions. Providers may use the exact envelope
+only to make the decision; core recursively redacts its durable audit copy.
+
 ## `post_implementation_review_provider`
 
 Contributes to the generic post-implementation review-note host step. Core

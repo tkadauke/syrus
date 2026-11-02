@@ -73,10 +73,18 @@ for one provider, capability, resource type, and typed resource scope. The
 delegation can narrow the provider further with excluded effects and can be
 revoked immediately.
 
-An AI provider receives the role-labelled transcript, exact tool call, current
-policy chain, and immutable invocation fingerprint. It returns structured
+An AI provider receives an immutable evidence envelope containing the full
+role-labelled transcript, exact tool call, current policy chain, and immutable
+invocation fingerprint. Transcript and tool/repository content are explicitly
+labelled as untrusted evidence rather than instructions. Classifier guidance is
+ordered from core non-overridable rules through provider defaults and the one
+repository-wide `ai_approval.instructions` block to the effective policy chain;
+lower layers cannot widen higher ceilings. It returns structured
 `allow`, `deny`, or `escalate` data with rationale, policy factors, confidence,
-and evidence that core redacts before returning or storing it. Its authority
+and evidence. Providers must disclose the recipient and purpose for shared
+evidence when they register. Core preserves the exact envelope only for the
+provider call and recursively redacts the durable audit artifact, including the
+transcript, tool arguments, provider evidence, and decision. Its authority
 never extends beyond that exact invocation: it cannot create rules, leases,
 grants, or other delegations.
 Permission management, privilege changes, and financial effects remain

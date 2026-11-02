@@ -28,6 +28,23 @@ RSpec.describe SyrusYml do
     ))
   end
 
+  it "parses one repository-wide AI approval instruction block" do
+    config = parse(<<~YAML)
+      ai_approval:
+        instructions: >-
+          Escalate production restarts without a matching incident.
+    YAML
+
+    expect(config.ai_approval).to eq(described_class::AiApprovalConfig.new(
+      instructions: "Escalate production restarts without a matching incident."
+    ))
+  end
+
+  it "rejects malformed AI approval instructions" do
+    expect { parse("ai_approval:\n  instructions: []\n") }
+      .to raise_error(described_class::ParseError, /ai_approval\.instructions/)
+  end
+
   it "clamps security review rounds" do
     expect(Rails.logger).to receive(:warn).with(/security_review\.rounds 11 outside 0\.\.10; clamping/)
     expect(parse("security_review:\n  rounds: 11\n").security_review.rounds).to eq(10)
