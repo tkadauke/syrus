@@ -32,7 +32,7 @@ RSpec.describe "Coworker background runs" do
     expect(workflow.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT)).to eq("coworkers/maya-background")
   end
 
-  it "routes scheduled runs only to workers with verified coworker confinement" do
+  it "leaves confinement routing to turn admission for privileged scheduled runs" do
     task = instance_double(ScheduledTasks::Task, coworker_id: coworker.id, user_id: owner.id, repository: repository,
       user: owner, id: 42, name: "Confined task", prompt: "Inspect production safely.")
     handler = Coworkers::ScheduledTaskFireHandler.new(task)
@@ -41,10 +41,8 @@ RSpec.describe "Coworker background runs" do
 
     created = handler.fire!(now: Time.current)
 
-    expect(created.planned_execution_capabilities).to eq(
-      "os" => [ "linux" ], "runtime" => [ "confined_coworker" ]
-    )
-    expect(created.planned_execution_source).to eq("explicit")
+    expect(created.planned_execution_capabilities).to eq("os" => [ "linux" ])
+    expect(created.planned_execution_source).to eq("defaulted")
   end
 
   it "keeps unprivileged scheduled runs on the ordinary Linux worker pool" do
@@ -257,11 +255,17 @@ RSpec.describe "Coworker background runs" do
       "run_id" => run.id, "tool_name" => "propose_job", "approval_policy" => "queue", "approval_inbox" => true,
       "arguments" => include("title" => "Prepare the report")
     )
-    expect { action.confirm!(user: owner) }.to change(main_chat.proposals, :count).by(1)
+    expect { action.confirm!(user: owner) }
+      .to change(main_chat.proposals, :count).by(1)
+      .and change { main_chat.messages.where(role: "system").count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(main_chat.id, kind_of(Integer)).once
     expect(action.reload).to be_confirmed
     expect(action.payload.fetch("tool_result")).to include("Prepare the report")
     expect(main_chat.messages.where(role: "system").order(:id).last.content.fetch("text"))
       .to include("Coworker tool approved and executed", "Prepare the report")
+    expect {
+      expect(action.confirm!(user: owner)).to be(false)
+    }.not_to have_enqueued_job(ChatTurnJob)
 
     coworker.grants.find_by!(capability: "syrus.propose_job").update!(approval_policy: "queue")
     queued = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(

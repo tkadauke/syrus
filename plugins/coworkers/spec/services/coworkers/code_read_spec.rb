@@ -14,6 +14,7 @@ RSpec.describe "Coworker repository code access" do
 
   before do
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    chat.association(:coworker_chat).reset
     Coworkers::ChatExtension.install_into(effect_scope)
     message = chat.messages.create!(role: "user", content: { "text" => "Inspect the code" })
     chat.update_columns(current_turn_message_id: message.id, turn_in_flight: true)
@@ -68,8 +69,9 @@ RSpec.describe "Coworker repository code access" do
   end
 
   it "refuses PR and Job diff reads outside the grant scope" do
-    job = Factories.job(repository: outside_repository, user: owner)
+    job = Factories.job_record(repository: outside_repository, user: owner)
 
+    expect(McpToolContext.from_chat_session(chat).role).to eq(AgentRole::COWORKER_CHAT)
     expect(Mcp::Tools::GetJobDiffTool.call(job_id: job.id, server_context: { chat_session: chat })).to be_error
     expect(Mcp::Tools::ReadPrTool.call(pr_number: 1, repository_id: outside_repository.id, server_context: { chat_session: chat })).to be_error
   end

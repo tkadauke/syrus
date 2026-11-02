@@ -37,14 +37,23 @@ RSpec.describe "App API unified search", type: :request do
   end
 
   it "merges jobs, epics, and chat messages into normalized ranked results" do
-    weaker_job = Factories.job_record(user: user, repository: repository, issue_title: "Weaker job")
-    stronger_job = Factories.job_record(user: user, repository: repository, issue_title: "Stronger job", state: "running")
+    weaker_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Weaker job",
+      issue_body: "deploy transcript"
+    )
+    stronger_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Stronger job",
+      issue_body: "deploy deploy deploy transcript",
+      state: "running"
+    )
     epic = Factories.epic(user: user, repository: repository, title: "Launch epic", state: "in_progress")
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
     chat_message = ChatMessage.create!(chat_session: chat_session, role: "assistant", content: { "text" => "deploy transcript" })
 
-    weaker_job.update!(issue_body: "deploy transcript")
-    stronger_job.update!(issue_body: "deploy deploy deploy transcript")
     epic.update!(description: "deploy planning")
     GlobalSearch::JobIndex.upsert(weaker_job)
     GlobalSearch::JobIndex.upsert(stronger_job)
@@ -626,12 +635,27 @@ RSpec.describe "App API unified search", type: :request do
   end
 
   it "preserves relevance ordering after filters are applied" do
-    weaker_job = Factories.job_record(user: user, repository: repository, issue_title: "Weaker matching deploy job", state: "running")
-    stronger_job = Factories.job_record(user: user, repository: repository, issue_title: "Stronger matching deploy job", state: "running")
-    excluded_job = Factories.job_record(user: user, repository: repository, issue_title: "Excluded deploy job", state: "queued")
-    weaker_job.update!(issue_body: "deploy transcript")
-    stronger_job.update!(issue_body: "deploy deploy deploy transcript")
-    excluded_job.update!(issue_body: "deploy deploy deploy deploy transcript")
+    weaker_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Weaker matching deploy job",
+      issue_body: "deploy transcript",
+      state: "running"
+    )
+    stronger_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Stronger matching deploy job",
+      issue_body: "deploy deploy deploy transcript",
+      state: "running"
+    )
+    excluded_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Excluded deploy job",
+      issue_body: "deploy deploy deploy deploy transcript",
+      state: "queued"
+    )
     [ weaker_job, stronger_job, excluded_job ].each { |job| GlobalSearch::JobIndex.upsert(job) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
 

@@ -126,6 +126,10 @@ class McpToolContext
   end
 
   private_class_method def self.coworker_for_chat(chat_session)
+    if chat_session.class.respond_to?(:reflect_on_association) && chat_session.class.reflect_on_association(:coworker_chat)
+      linked = chat_session.association(:coworker_chat).reader&.coworker
+      return linked if linked.respond_to?(:kind) && linked.kind == "coworker"
+    end
     return unless chat_session.respond_to?(:coworker)
 
     coworker = chat_session.coworker
