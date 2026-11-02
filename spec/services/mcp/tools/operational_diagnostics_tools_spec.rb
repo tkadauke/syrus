@@ -124,23 +124,39 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
     expect(parsed(response).dig("data", "workers").size).to eq(50)
   end
 
-  it "removes occupancy slots outside a granted coworker's attached repositories" do
+  it "removes occupancy details and derived counts outside a granted coworker's attached repositories" do
     visible_job = Factories.job(repository: repository)
     hidden_job = Factories.job(repository: Factories.repository)
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
     allow(WorkerTimeline).to receive(:enabled?).and_return(true)
     allow(WorkerTimeline::LiveWorkersQuery).to receive(:call).and_return(
-      workers: [ { pools: [ { slots: [
-        { job_id: visible_job.id, job_title: "Visible" },
-        { job_id: hidden_job.id, job_title: "Hidden", command: "secret command" }
-      ] } ] } ]
+      summary: { busy: 1, used_slots: 2, total_slots: 2 },
+      diagnostics: { stale_terminal_descendants: [
+        { job_id: visible_job.id, job_title: "Visible stale" },
+        *Array.new(100) { |index| { job_id: visible_job.id, run_id: index } },
+        { job_id: hidden_job.id, job_title: "Hidden stale", command: "hidden stale command" }
+      ] },
+      workers: [ {
+        status: "busy", capacity_exceeded: false,
+        occupancy: { used: 2, total: 2, slots: 2 },
+        pools: [ { capacity: 2, used: 2, status: "busy", slots: [
+          { id: "visible", attribution: "run", run_id: 1, job_id: visible_job.id, job_title: "Visible" },
+          { id: "hidden", attribution: "run", run_id: 2, job_id: hidden_job.id, job_title: "Hidden", command: "secret command" }
+        ] } ]
+      } ]
     )
 
     response = described_class::ReadWorkerOccupancyTool.call(server_context: { chat_session: coworker_chat })
 
-    slots = parsed(response).dig("data", "workers", 0, "pools", 0, "slots")
+    data = parsed(response).fetch("data")
+    slots = data.dig("workers", 0, "pools", 0, "slots")
     expect(slots).to contain_exactly(include("job_id" => visible_job.id, "job_title" => "Visible"))
-    expect(response.content.first.fetch(:text)).not_to include("Hidden", "secret command")
+    stale_descendants = data.dig("diagnostics", "stale_terminal_descendants")
+    expect(stale_descendants.size).to eq(100)
+    expect(stale_descendants).to include(include("job_id" => visible_job.id, "job_title" => "Visible stale"))
+    expect(data.dig("workers", 0, "occupancy")).to eq("used" => 1, "total" => 2, "slots" => 1)
+    expect(data.fetch("summary")).to include("used_slots" => 1, "total_slots" => 2, "busy" => 1)
+    expect(response.content.first.fetch(:text)).not_to include("Hidden", "hidden stale", "secret command")
   end
 
   it "rejects inverted and oversized timeline ranges before querying" do
