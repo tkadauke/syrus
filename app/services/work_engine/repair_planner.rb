@@ -1180,6 +1180,22 @@ module WorkEngine
         end
       end
 
+      class UrgentBlockedLandingSlot < Base
+        def plan
+          automatic_plan(
+            "release_urgent_blocked_landing_slot",
+            primary_work_unit,
+            "The queued landing is blocked before its first Run by an unrelated urgent Job, so it must surrender only the repository landing slot and remain the owner of its job/Epic work.",
+            execution_steps: [ "WorkEngine::RepairExecutor::ReleaseUrgentBlockedLandingSlot" ],
+            preconditions: {
+              workflow_id: primary_workflow&.id,
+              lock_keys: issue.evidence["lock_keys"] || issue.evidence[:lock_keys],
+              urgent_blocker_job_ids: Array(issue.evidence["urgent_blocker_jobs"] || issue.evidence[:urgent_blocker_jobs]).map { |job| job["id"] || job[:id] }
+            }
+          )
+        end
+      end
+
       class StrandedLandingJob < Base
         def plan
           automatic_plan(

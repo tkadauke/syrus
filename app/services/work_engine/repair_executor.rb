@@ -1826,6 +1826,37 @@ module WorkEngine
         end
       end
 
+      class ReleaseUrgentBlockedLandingSlot < Base
+        def perform
+          unit = target_work_unit
+          return skipped("WorkUnit no longer exists") unless unit
+
+          released = nil
+          blockers = nil
+          unit.with_lock do
+            unit.reload
+            workflow = unit.workflow&.reload
+            return skipped("WorkUnit ##{unit.id} is not blocked by urgent_job_active") unless unit.blocked? && unit.blocked_reason == "urgent_job_active"
+            return skipped("Blocked Workflow is no longer queued landing work") unless workflow&.queued? && workflow.landing_workflow?
+            return skipped("Blocked Workflow first Step already has a Run") if workflow.first_step&.runs&.exists?
+
+            released = unit.work_unit_locks.active
+                           .where("lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%")
+                           .pluck(:lock_key)
+            return skipped("WorkUnit ##{unit.id} holds no repository landing slot") if released.empty?
+
+            blockers = LandingQueueProcessor.unrelated_urgent_jobs_for(workflow.job.reload)
+            return skipped("No unrelated urgent blocker remains active") if blockers.empty?
+
+            unit.release_landing_locks!
+          end
+
+          LandingQueueProcessorJob.perform_later
+          success("released #{released.join(', ')} held by #{unit.slug} for blocked #{unit.workflow.slug}; " \
+                  "urgent blocker(s) #{blockers.map(&:slug).join(', ')} remain active, preserved job/Epic locks, and woke the landing queue")
+        end
+      end
+
       class DeferStrandedLandingJob < Base
         def perform
           job = target_job

@@ -127,6 +127,10 @@ class LandingQueueProcessor
     end
   end
 
+  def self.unrelated_urgent_jobs_for(job)
+    new.send(:unrelated_urgent_jobs_for, job)
+  end
+
   def try_land!(job)
     cancel_obsolete_automatic_visual_diffs!(job.repository.jobs.approved)
     release_main_health_blocked_landing_slots_for_repair!(job) if MainHealthChangedService.fix_main_job?(job)
@@ -1073,11 +1077,14 @@ class LandingQueueProcessor
   # the whole unit is "related" and must not block `job` — blocking it
   # would deadlock the unit against its own prerequisite.
   def unrelated_urgent_job_active_for_repository?(job)
-    active_urgent_jobs = active_urgent_jobs_for_repository(job.repository_id).reject { |urgent_job| urgent_job.id == job.id }
-    return false if active_urgent_jobs.empty?
+    unrelated_urgent_jobs_for(job).any?
+  end
 
-    active_urgent_jobs.group_by { |urgent_job| landing_unit_key(urgent_job) }.each_value.any? do |unit_jobs|
-      !transitive_landing_queue_prerequisite_ids(unit_jobs).include?(job.id)
+  def unrelated_urgent_jobs_for(job)
+    active_urgent_jobs = active_urgent_jobs_for_repository(job.repository_id).reject { |urgent_job| urgent_job.id == job.id }
+
+    active_urgent_jobs.group_by { |urgent_job| landing_unit_key(urgent_job) }.each_value.flat_map do |unit_jobs|
+      transitive_landing_queue_prerequisite_ids(unit_jobs).include?(job.id) ? [] : unit_jobs
     end
   end
 
