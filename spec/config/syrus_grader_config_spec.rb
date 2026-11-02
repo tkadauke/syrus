@@ -375,6 +375,14 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   it "declares every bundled plugin as an individual plugin project with a local grader" do
+    # Typed graders are resolved through enabled plugin providers. Establish
+    # that prerequisite here instead of inheriting mutable suite-wide plugin
+    # record state from examples that exercise enable and disable cascades.
+    %w[ruby javascript].each do |plugin_name|
+      PluginRecord.find_by!(name: plugin_name).update!(enabled: true)
+    end
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+
     graph = TargetGraph::Compiler.compile(Rails.root)
     plugin_dirs = Rails.root.join("plugins").children.select(&:directory?).map { |path| path.basename.to_s }.sort
     frontend_test_plugins = plugin_dirs.select do |plugin|
