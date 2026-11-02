@@ -16,7 +16,7 @@ module Permissions
 
     def active_leases
       PermissionLease.where(owner_user: user).not_revoked.not_expired.with_uses_remaining
-        .includes(:chat_session, :job, :issued_by_user, :source).order(created_at: :desc)
+        .includes(:chat_session, :job, :issued_by_user, :source).order(created_at: :desc).limit(LIMIT)
     end
 
     def history
