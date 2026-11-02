@@ -14,8 +14,8 @@ RSpec.describe "Coworker repository code access" do
 
   before do
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
-    chat.association(:coworker_chat).reset
     Coworkers::ChatExtension.install_into(effect_scope)
+    chat.association(:coworker_chat).reset
     message = chat.messages.create!(role: "user", content: { "text" => "Inspect the code" })
     chat.update_columns(current_turn_message_id: message.id, turn_in_flight: true)
     coworker.grants.create!(capability: "code.read", approval_policy: "auto", scope: [ repository.id ])
