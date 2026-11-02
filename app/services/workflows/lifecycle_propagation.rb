@@ -15,6 +15,7 @@ module Workflows
       workflow.started_at ||= Time.current
       unless workflow.syncing_from_terminal_work_unit
         workflow.job.clear_needs_attention!(reason: GraderLoopProgress::NO_PROGRESS_REASON)
+        workflow.job.clear_needs_attention!(reason: "agent_cannot_proceed")
       end
       workflow.sync_work_unit_running!
       workflow.propagate_start_to_job!

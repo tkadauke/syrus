@@ -169,6 +169,10 @@
     "save_constraints": "Save constraints",
     "unavailable": {
       "confinement_unavailable": "Unavailable until a live worker verifies confined coworker execution.",
+      "confinement_worker_unavailable": "Unavailable because no live worker can admit a confined coworker turn.",
+      "confinement_configuration_missing": "Unavailable because a live worker is missing confinement runtime configuration. Check its capability diagnostics for the missing settings.",
+      "confinement_probe_missing": "Unavailable because live workers do not expose the confinement verification probe.",
+      "confinement_probe_failed": "Unavailable because the per-turn container or default-deny egress verification failed.",
       "broker_authorization_unavailable": "Unavailable until the credential broker and its authorization checks are enabled."
     },
     "integrations": { "gmail": "Gmail", "calendar": "Calendar" },

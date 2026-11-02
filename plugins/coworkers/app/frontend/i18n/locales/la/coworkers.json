@@ -175,6 +175,10 @@
     "save_constraints": "Fines serva",
     "unavailable": {
       "confinement_unavailable": "Non praesto donec operarius vivus executionem collegae clausam comprobet.",
+      "confinement_worker_unavailable": "Non praesto quia nullus operarius vivus vicem collegae clausam admittere potest.",
+      "confinement_configuration_missing": "Non praesto quia operario vivo configuratio clausurae deest. Diagnostica facultatum occasus absentes indicant.",
+      "confinement_probe_missing": "Non praesto quia operarii vivi probationem clausurae non praebent.",
+      "confinement_probe_failed": "Non praesto quia probatio receptaculi cuiusque vicis aut exitus vetiti defecit.",
       "broker_authorization_unavailable": "Non praesto donec mediator credentialium probationesque auctoritatis habilitantur."
     },
     "integrations": { "gmail": "Gmail", "calendar": "Calendarium" },
