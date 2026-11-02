@@ -43,9 +43,8 @@ class Step
     #   third copy; it now reads whatever the step kind declares.
     #
     # agent_role: AgentRole constant this step's agent runs as, for steps whose
-    #   role is not the default implementer. Core's own roles are resolved by
-    #   McpToolContext; a plugin that owns an agentic step declares its role
-    #   here rather than core naming the plugin's step kind.
+    #   role is not the default implementer. Both core and plugin-owned
+    #   agentic steps declare specialized roles here.
     Entry = Data.define(:kind, :handler, :label, :style, :agentic,
                         :required_mcp_tools, :dynamic_required_mcp_tools,
                         :fail_policy, :reconcile_strategy,
@@ -162,9 +161,11 @@ class Step
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "unland_conflict",    handler: "UnlandConflict",     label: "Resolve rollback conflicts",  style: "bg-orange-200 text-orange-900", agentic: true),
       Entry.new(kind: "submit_report",      handler: "SubmitReport",       label: "Submit report",              style: "bg-cyan-200 text-cyan-800",   agentic: true,
+                agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
                 required_mcp_tools: %w[submit_report],
                 skip_if_artifact: "investigation_report"),
       Entry.new(kind: "adversarial_review", handler: "AdversarialReview",  label: "Adversarial review",        style: "bg-rose-100 text-rose-700",   agentic: true,
+                agent_role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
                 panel_capable: true,
                 required_mcp_tools: %w[submit_adversarial_review],
                 resource_profile_fallback_step_kinds: %w[implement],
@@ -174,6 +175,7 @@ class Step
                   cancellation_reason: "adversarial_review_approved"
                 }),
       Entry.new(kind: "security_review",    handler: "SecurityReview",     label: "Security review",           style: "bg-orange-100 text-orange-700", agentic: true,
+                agent_role: AgentRole::WORKFLOW_SECURITY_REVIEWER,
                 panel_capable: true,
                 required_mcp_tools: %w[submit_security_review],
                 resource_profile_fallback_step_kinds: %w[implement],
@@ -191,6 +193,7 @@ class Step
       # "approved" does, since there is nothing for another iteration to
       # address.
       Entry.new(kind: "visual_review",      handler: "VisualReview",      label: "Visual review",             style: "bg-pink-100 text-pink-700",   agentic: true,
+                agent_role: AgentRole::WORKFLOW_VISUAL_REVIEWER,
                 required_mcp_tools: %w[submit_visual_review],
                 resource_profile_fallback_step_kinds: %w[implement],
                 review_gate: {
@@ -201,8 +204,10 @@ class Step
       Entry.new(kind: "visual_diff",        handler: "VisualDiff",        label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", agentic: true,
                 required_mcp_tools: %w[submit_visual_artifact]),
       Entry.new(kind: "summarize",          handler: "Summarize",          label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
+                agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
                 required_mcp_tools: %w[submit_summary]),
       Entry.new(kind: "test_plan",          handler: "TestPlan",           label: "Test plan",                  style: "bg-sky-100 text-sky-700",     agentic: true,
+                agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
                 required_mcp_tools: %w[submit_test_plan],
                 skip_if_artifact: "test_plan"),
       Entry.new(kind: "pr_open",            handler: "PrOpen",             label: "Open PR",                    style: "bg-emerald-100 text-emerald-700", agentic: false,
@@ -219,12 +224,15 @@ class Step
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "respond",            handler: "Respond",            label: "Address feedback",           style: "bg-cyan-100 text-cyan-700",   agentic: true),
       Entry.new(kind: "summarize_amend",    handler: "SummarizeAmend",     label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
+                agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
                 required_mcp_tools: %w[submit_summary]),
       Entry.new(kind: "refresh_job_metadata", handler: "RefreshJobMetadata", label: "Refresh metadata",          style: "bg-purple-100 text-purple-700", agentic: true,
+                agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
                 required_mcp_tools: %w[submit_job_metadata]),
       Entry.new(kind: "push",               handler: "Push",               label: "Push",                       style: "bg-emerald-100 text-emerald-700", agentic: false,
                 repair_semantics: :publication),
-      Entry.new(kind: "push_agent_rebase",  handler: "PushAgentRebase",    label: "Resolve push rebase",       style: "bg-teal-100 text-teal-700",   agentic: true),
+      Entry.new(kind: "push_agent_rebase",  handler: "PushAgentRebase",    label: "Resolve push rebase",       style: "bg-teal-100 text-teal-700",   agentic: true,
+                agent_role: AgentRole::WORKFLOW_REBASE_CONFLICT),
       Entry.new(kind: "push_after_rebase",  handler: "PushAfterRebase",    label: "Push rebased branch",       style: "bg-emerald-100 text-emerald-700", agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "analyze_and_fix",    handler: "AnalyzeAndFix",      label: "Fix CI failures",            style: "bg-red-100 text-red-700",     agentic: true,
@@ -235,7 +243,8 @@ class Step
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "publish_source_snapshot", handler: "PublishSourceSnapshot", label: "Publish source snapshot", style: "bg-emerald-100 text-emerald-700", agentic: false,
                 repair_semantics: :publication),
-      Entry.new(kind: "agent_rebase",       handler: "AgentRebase",        label: "Agent rebase",               style: "bg-teal-100 text-teal-700",   agentic: true),
+      Entry.new(kind: "agent_rebase",       handler: "AgentRebase",        label: "Agent rebase",               style: "bg-teal-100 text-teal-700",   agentic: true,
+                agent_role: AgentRole::WORKFLOW_REBASE_CONFLICT),
       Entry.new(kind: "force_push",         handler: "ForcePush",          label: "Force-push",                 style: "bg-amber-100 text-amber-700", agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "promotion_assemble", handler: "PromotionAssemble",  label: "Assemble promotion",         style: "bg-fuchsia-100 text-fuchsia-700", agentic: false,
@@ -252,7 +261,8 @@ class Step
                 repair_semantics: :publication),
       Entry.new(kind: "stack_auto_rebase",  handler: "StackAutoRebase",    label: "Stack auto-rebase",         style: "bg-teal-100 text-teal-700",   agentic: false,
                 repair_semantics: :publication),
-      Entry.new(kind: "stack_agent_rebase", handler: "StackAgentRebase",   label: "Stack agent rebase",        style: "bg-teal-100 text-teal-700",   agentic: true),
+      Entry.new(kind: "stack_agent_rebase", handler: "StackAgentRebase",   label: "Stack agent rebase",        style: "bg-teal-100 text-teal-700",   agentic: true,
+                agent_role: AgentRole::WORKFLOW_REBASE_CONFLICT),
       Entry.new(kind: "stack_force_push",   handler: "StackForcePush",     label: "Stack force-push",          style: "bg-amber-100 text-amber-700", agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "mergeability_preflight", handler: "MergeabilityPreflight", label: "Mergeability preflight", style: "bg-sky-100 text-sky-700", agentic: false,
@@ -327,7 +337,8 @@ class Step
                 reconcile_strategy: :merge_train_land),
       Entry.new(kind: "merge_train_rebase", handler: "MergeTrainRebase",   label: "Rebase integration branch", style: "bg-teal-100 text-teal-700",   agentic: false,
                 repair_semantics: :publication),
-      Entry.new(kind: "merge_train_agent_rebase", handler: "MergeTrainAgentRebase", label: "Resolve train rebase", style: "bg-teal-100 text-teal-700", agentic: true),
+      Entry.new(kind: "merge_train_agent_rebase", handler: "MergeTrainAgentRebase", label: "Resolve train rebase", style: "bg-teal-100 text-teal-700", agentic: true,
+                agent_role: AgentRole::WORKFLOW_REBASE_CONFLICT),
       Entry.new(kind: "merge_train_land_after_rebase", handler: "MergeTrainLandAfterRebase", label: "Land Epic after rebase", style: "bg-green-100 text-green-800", agentic: false,
                 repair_semantics: :publication,
                 reconcile_strategy: :merge_train_land),
