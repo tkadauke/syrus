@@ -132,10 +132,13 @@ module Steps
       WorkspaceReuseOutcomes::Recorder.record(
         run: run,
         kind: "prepare",
-        outcome: outcome,
-        prepare_fingerprint: PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: workspace.path),
-        duration_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
-      )
+        outcome: outcome
+      ) do
+        {
+          prepare_fingerprint: PreparedWorkspaceArchive.prepare_fingerprint_for(plan, path: workspace.path),
+          duration_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+        }
+      end
     end
 
     STALE_FAILURE_KEYS = %w[prepare_failure mise_install_failure].freeze

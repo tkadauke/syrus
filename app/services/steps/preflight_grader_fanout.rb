@@ -103,6 +103,7 @@ module Steps
               placement_policy: grader_placement_policy,
               details: grader_details(grader, prepare_targets: prepare_targets, target_fingerprints: target_fingerprints)
                 .merge(distributed_grader_details(grader, source_snapshot: source_snapshot, target_fingerprints: target_fingerprints))
+                .merge("fanout_grader_count" => graders.size)
             )
           end
 

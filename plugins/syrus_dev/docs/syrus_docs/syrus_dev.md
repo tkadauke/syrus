@@ -168,7 +168,7 @@ Performance admin page and shared by no other surface:
 
 ## MCP tools (`SyrusDev::WorkflowToolSet` and `SyrusDev::ChatToolSet`)
 
-Two tools, gated to Syrus-repository workflows
+Three tools, gated to Syrus-repository workflows
 (`McpToolPolicy.syrus_repository?` — the Job's repository is
 `tkadauke/syrus` or a registered fork) and to a role-scoped subset:
 
@@ -191,8 +191,14 @@ Two tools, gated to Syrus-repository workflows
   `OperationalLogSearch` service; returns a disabled-response payload
   instead of an error when `OperationalLogging.enabled_for_instance?` is
   false.
+- `read_workspace_reuse_outcomes(since?, until_time?)` — only for
+  `WORKFLOW_IMPLEMENT` agents. Returns grouped prepare reuse and grader
+  workspace materialization outcomes for the current repository within an
+  inclusive ISO 8601 time window. The default window is the last 30 days;
+  skipped prepares remain visible but are excluded from the reuse-rate
+  denominator.
 
-Both tools reject non-Syrus repositories and non-Syrus-development contexts
+These tools reject non-Syrus repositories and non-Syrus-development contexts
 outright (`Mcp::Tools.not_authorized` / `.invalid`) rather than silently
 returning empty data — a workflow on an unrelated customer repository never
 sees these tools offered at all (`available_for_context?`/
