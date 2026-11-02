@@ -60,7 +60,7 @@ RSpec.describe Mcp::Tools::WithdrawPendingActionTool do
     )
   end
 
-  it "cancels queued and failed actions through their existing cancellable transition" do
+  it "cancels queued actions but preserves failed execution outcomes" do
     queued = chat_session.pending_actions.create!(
       action: "submit_chat_feedback",
       state: "queued",
@@ -72,8 +72,10 @@ RSpec.describe Mcp::Tools::WithdrawPendingActionTool do
     failed_response = call_tool(failed.id)
 
     expect(payload(queued_response)).to include(prior_state: "queued", resulting_state: "cancelled", changed: true)
-    expect(payload(failed_response)).to include(prior_state: "failed", resulting_state: "cancelled", changed: true)
+    expect(failed_response[:result][:isError]).to be(true)
+    expect(failed_response[:result][:content].first[:text]).to include("cannot be withdrawn from state failed")
     expect(queued.reload.cancelled_at).to be_present
+    expect(failed.reload).to be_failed
   end
 
   it "returns an idempotent result for an already rejected or cancelled action" do
