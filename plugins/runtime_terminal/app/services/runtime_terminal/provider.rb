@@ -142,21 +142,22 @@ module RuntimeTerminal
     def input(session_id, event)
       runtime_session = runtime_session_for(session_id)
       event = event.to_h.symbolize_keys
-      lease = runtime_session.active_agent_input_lease
+      delivered = RuntimeControlLease.with_agent_input_control(runtime_session) do |lease|
+        terminal_session = relay_ready_terminal_session_for(runtime_session)
+        with_fresh_relay_client(runtime_session, terminal_session) do |client|
+          client.input(event)
+        end
+        lease.record_input!(event)
+        true
+      end
 
-      unless lease
+      unless delivered
         RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
         return {
           error: "lease_required",
           message: "the agent must hold an active input lease before sending input events"
         }
       end
-
-      terminal_session = relay_ready_terminal_session_for(runtime_session)
-      with_fresh_relay_client(runtime_session, terminal_session) do |client|
-        client.input(event)
-      end
-      lease.record_input!(event)
 
       { delivered: true }
     rescue RelayClient::ConnectionError, RelayClient::UnsupportedInput => e
