@@ -18,6 +18,23 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.dig("rules", 0, "owner", "id")).to eq(user.id)
     expect(payload.fetch("inherited")).not_to be_empty
     expect(payload.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
+    expect(payload.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
+  end
+
+  it "creates a permanent allow rule for an eligible capability" do
+    descriptor = Permissions::Catalog.descriptors.find do |candidate|
+      candidate.authority_durations.include?(:permanent) && candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER)
+    end
+
+    post "/api/v1/app/permission_rules", params: { permission_rule: {
+      policy: "allow", role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      capability: descriptor.capability, operation: descriptor.operation,
+      resource_scope: {}, constraints: {}, rationale: "Allow durable access"
+    } }
+
+    expect(response).to have_http_status(:created)
+    rule = PermissionRule.find(JSON.parse(response.body).dig("rule", "id"))
+    expect(rule).to have_attributes(owner_user: user, policy: "allow", policy_layer: "agent")
   end
 
   it "creates a user-owned deny rule and can revoke it without deleting its history" do

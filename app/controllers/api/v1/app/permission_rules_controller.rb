@@ -46,7 +46,10 @@ module Api
         end
 
         def serialize_descriptor(descriptor)
-          Permissions::Catalog.as_json(descriptor).slice(:capability, :operation, :effects, :risk, :defaults, :resource_scope).merge(
+          Permissions::Catalog.as_json(descriptor).slice(
+            :capability, :operation, :effects, :risk, :defaults, :resource_scope,
+            :requestable_roles, :authority_durations
+          ).merge(
             owner: { kind: "provider", name: descriptor.capability.split(".").first },
             editable: false, explanation: "role_default"
           )

@@ -19,6 +19,8 @@
     "description": "Auctoritatem diuturnam agentibus delegatam administra.",
     "approvals_link": "Tabulam operativam aperi",
     "load_error": "Permissiones onerari non potuerunt.",
+    "create_error": "Regula permissionis addi non potuit.",
+    "revoke_error": "Regula permissionis revocari non potuit.",
     "your_rules": "Regulae tuae",
     "your_rules_help": "Has regulas proprias mutare potes. Revocatio historiam inspectionis servat.",
     "all_operations": "Operationes omnes",
