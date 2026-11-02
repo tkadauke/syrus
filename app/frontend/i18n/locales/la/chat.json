@@ -1577,6 +1577,7 @@
   "authorization_state_cancelled": "Revocatum",
   "authorization_state_non_actionable": "Non praesto",
   "pending_action_failed": "Actio pendens defecit.",
+  "pending_action_hide_terminal": "Actionem perfectam cela",
   "batch_action_failed": "Actio fasciculi defecit.",
   "scratchpad_add_error": "Res addi non potuit.",
   "scratchpad_load_error": "Res onerari non potuit.",

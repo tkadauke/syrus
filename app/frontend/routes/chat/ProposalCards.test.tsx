@@ -397,14 +397,14 @@ function renderProposalEditModal(p: ChatProposal, onNotice = vi.fn()) {
 describe("PendingActionCard", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("shows a dismiss button for a failed pending action and cancels it on click", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Pending action dismissed." }))
+  it("shows a cosmetic hide button for a terminal pending action", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Pending action hidden." }))
     const { onNotice } = renderCard(pendingAction())
 
     expect(document.getElementById("pending-action-501")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss failed action" }))
+    fireEvent.click(screen.getByRole("button", { name: "Hide completed action" }))
 
-    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Pending action dismissed."))
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Pending action hidden."))
     const [url, init] = fetchSpy.mock.calls[0]
     expect(url).toBe("/api/v1/app/chats/122/pending_actions/501")
     expect(init?.method).toBe("DELETE")
@@ -413,7 +413,13 @@ describe("PendingActionCard", () => {
   it("does not show a dismiss button for a pending (not yet failed) action", () => {
     renderCard(pendingAction({ state: "pending" }))
 
-    expect(screen.queryByRole("button", { name: "Dismiss failed action" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Hide completed action" })).not.toBeInTheDocument()
+  })
+
+  it.each(["confirmed", "rejected", "cancelled"] as const)("lets the operator hide a %s action", (state) => {
+    renderCard(pendingAction({ state }))
+
+    expect(screen.getByRole("button", { name: "Hide completed action" })).toBeInTheDocument()
   })
 
   it("warns that confirming recurring automation creates background work without waking chat", () => {

@@ -190,12 +190,20 @@ RSpec.describe ChatHistoryTranscriptRenderer do
       expect(host.send(:chat_history_entry, msg)).to be_nil
     end
 
-    it "returns nil for pending action outcome notifications without an important text pattern" do
+    it "preserves pending action outcomes in agent history" do
       msg = system_msg(
         "Pending action confirmed: retry_job . The action has been applied.",
         source: ChatPendingActionOutcomeNotification::SOURCE
       )
-      expect(host.send(:chat_history_entry, msg)).to be_nil
+      expect(host.send(:chat_history_entry, msg)).to eq(
+        "system: Pending action confirmed: retry_job . The action has been applied."
+      )
+
+      failure = system_msg(
+        "Pending action failed: retry_job. Error: state changed",
+        source: ChatPendingActionOutcomeNotification::SOURCE
+      )
+      expect(host.send(:chat_history_entry, failure)).to include("Pending action failed", "state changed")
     end
 
     it "returns text for proposal lifecycle text patterns" do

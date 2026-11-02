@@ -4,6 +4,7 @@ class PendingActionGroup < ApplicationRecord
   belongs_to :chat_session
   belongs_to :repository, optional: true
   belongs_to :user
+  belongs_to :outcome_message, class_name: "ChatMessage", optional: true
   has_many :chat_pending_actions, dependent: :nullify, inverse_of: :pending_action_group
 
   enum :state, STATES.index_with(&:itself), validate: true
@@ -94,7 +95,7 @@ class PendingActionGroup < ApplicationRecord
     with_lock do
       return false unless confirmed? || rejected?
 
-      update!(state: "dismissed")
+      update!(dismissed_at: Time.current) unless dismissed_at?
       true
     end
   end
@@ -115,6 +116,20 @@ class PendingActionGroup < ApplicationRecord
 
   def rejected_notice
     "Rejected #{chat_pending_actions.count} pending actions."
+  end
+
+  def ensure_outcome_notification!
+    return outcome_message unless confirmed? || rejected?
+
+    public_send("notify_#{state}_outcome")
+  end
+
+  def notify_confirmed_outcome
+    notify_chat_of_outcome(confirmed_notice, outcome: "confirmed")
+  end
+
+  def notify_rejected_outcome
+    notify_chat_of_outcome(rejected_notice, outcome: "rejected")
   end
 
   private
@@ -147,13 +162,20 @@ class PendingActionGroup < ApplicationRecord
   end
 
   def notify_chat_of_outcome(text, outcome:)
-    message = chat_session.messages.create!(
-      role: "system",
-      content: { "text" => text, "source" => "pending_action_group_notification", "outcome" => outcome }
-    )
-    chat_session.update!(last_message_at: Time.current)
-    chat_session.pin_chat_provider!
-    ChatTurnJob.perform_later(chat_session_id, message.id)
+    message = nil
+    with_lock do
+      return outcome_message if outcome_message_id.present?
+
+      message = chat_session.messages.create!(
+        role: "system",
+        content: { "text" => text, "source" => "pending_action_group_notification", "outcome" => outcome, "pending_action_group_id" => id }
+      )
+      update_columns(outcome_message_id: message.id, updated_at: Time.current)
+      chat_session.update!(last_message_at: Time.current)
+      chat_session.pin_chat_provider!
+    end
+    ChatTurnJob.perform_later(chat_session_id, message.id) if message
+    message || outcome_message
   end
 
   def derive_owner_from_chat_session
