@@ -64,7 +64,7 @@ RSpec.describe ChatMcpStdioFallback, :ci_only do
     enable_plugin!("mockups")
     enable_plugin!("whiteboard")
     enable_plugin!("mysql_db_browser")
-    Factories.mysql_connection(agentic_access_enabled: true)
+    Factories.mysql_connection(agentic_access_enabled: true, password: "secret")
 
     essential = list_tools(tier: "essential")
     deferred = list_tools(tier: "deferred")
