@@ -58,7 +58,14 @@
     "title": "Permissions",
     "description": "Manage durable authority you have delegated to agents.",
     "views_label": "Permission views",
-    "views": { "matrix": "Agent matrix", "resources": "Resources", "rules": "Rules", "leases": "Active leases", "history": "History", "ai_approval": "AI approvals" },
+    "views": {
+      "matrix": "Agent matrix",
+      "resources": "Resources",
+      "rules": "Rules",
+      "leases": "Active leases",
+      "history": "History",
+      "ai_approval": "AI approvals"
+    },
     "ai": {
       "title": "AI approval delegation",
       "help": "Let an installed approval provider decide individual pending requests on your behalf. Each delegation is bounded to one capability and resource scope, applies to a single invocation at a time, and can be revoked immediately.",
