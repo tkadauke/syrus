@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import * as api from "../api/permissionRequests"
+import type { PermissionRequestsPayload } from "../api/permissionRequests"
 import { PermissionInboxDrawer } from "./PermissionInboxDrawer"
 
 vi.mock("../api/permissionRequests", async () => {
@@ -11,6 +12,8 @@ vi.mock("../api/permissionRequests", async () => {
 })
 
 describe("PermissionInboxDrawer", () => {
+  afterEach(() => vi.useRealTimers())
+
   it("shows normalized arguments on compact request cards", async () => {
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [
@@ -107,5 +110,55 @@ describe("PermissionInboxDrawer", () => {
 
     expect(await screen.findByRole("button", { name: "Open approval inbox" })).toHaveAttribute("data-blocked", "false")
     expect(screen.queryByTestId("approval-waiting-halo")).not.toBeInTheDocument()
+  })
+
+  it("stops the newly-blocked ping after one pulse and immediately on resolution", async () => {
+    const empty: PermissionRequestsPayload = {
+      requests: [],
+      summary: { pending_count: 0, blocked_agent_count: 0 },
+      pagination: { page: 1, per_page: 50, total: 0, total_pages: 0 }
+    }
+    vi.mocked(api.fetchPermissionRequests).mockResolvedValue(empty)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PermissionInboxDrawer />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await screen.findByRole("button", { name: "Open approval inbox" })
+    vi.useFakeTimers()
+
+    act(() => {
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], {
+        ...empty,
+        summary: { pending_count: 1, blocked_agent_count: 1 }
+      })
+      vi.advanceTimersByTime(0)
+    })
+    expect(screen.getByTestId("approval-newly-blocked-ping")).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(1_000))
+    expect(screen.queryByTestId("approval-newly-blocked-ping")).not.toBeInTheDocument()
+
+    act(() => {
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], empty)
+      vi.advanceTimersByTime(0)
+    })
+    act(() => {
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], {
+        ...empty,
+        summary: { pending_count: 1, blocked_agent_count: 1 }
+      })
+      vi.advanceTimersByTime(0)
+    })
+    expect(screen.getByTestId("approval-newly-blocked-ping")).toBeInTheDocument()
+
+    act(() => {
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], empty)
+      vi.advanceTimersByTime(0)
+    })
+    expect(screen.queryByTestId("approval-newly-blocked-ping")).not.toBeInTheDocument()
   })
 })
