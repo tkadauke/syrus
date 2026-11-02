@@ -12,6 +12,14 @@ Graders](/docs/tests-and-graders) for validation, [Previews and Visual
 Review](/docs/previews) for browser review, and [Observability](/docs/observability)
 for debugging production behavior.
 
+## User-specific permission management
+
+The Permissions Hub at `/settings/permissions` shows the durable authority a
+user has delegated to agents. User-owned rules can be added or revoked, while
+inherited core and provider policy remains visible and read-only with ownership
+and decisive-default explanations. Operational requests needing an immediate
+decision remain a separate approvals workflow rather than durable settings.
+
 ## Jobs
 
 A Job is the unit operators track in the UI. It represents one thread of

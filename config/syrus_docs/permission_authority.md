@@ -23,6 +23,14 @@ This is authorization substrate. Capability integrations must call the
 authorizer immediately before dispatch; merely creating a lease never executes
 an operation or bypasses the capability's ordinary application authorization.
 
+## Permissions Hub
+
+Each signed-in user has a Permissions Hub at `/settings/permissions`. It keeps
+durable delegation separate from operational approvals: the hub lists editable
+user-owned rules and read-only inherited capability defaults, identifies policy
+ownership, and explains which default is decisive when no more specific
+permitted rule applies. Revoking a rule preserves its audit history.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with
