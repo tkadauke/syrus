@@ -25,6 +25,10 @@ matrix marks authority that varies by resource rather than presenting it as a
 single global policy. Operators can edit rules, see provider presets, and
 preview every item in a bulk grant or denial before confirming an atomic
 change.
+Active-lease and authorization-history views also show temporary authority
+lifecycle, origins and use counts, requests and decisions, escalations,
+dismissals, policy changes, revocations, and execution outcomes. Stored
+evidence is redacted before display.
 
 ## Jobs
 

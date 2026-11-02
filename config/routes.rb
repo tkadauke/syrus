@@ -400,6 +400,7 @@ Rails.application.routes.draw do
         get "maintenance_tasks/sidebar", to: "maintenance_tasks#sidebar"
         resources :permission_rules, only: %i[ index create ] do
           collection do
+            get :history
             post :apply_preset
             post :preview_bulk
             post :bulk

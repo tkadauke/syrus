@@ -14,6 +14,10 @@ module Api
           }
         end
 
+        def history
+          render json: Permissions::HistoryPayload.new(Current.user).as_json
+        end
+
         def create
           payload = permission_rule_params.to_h
           management = Permissions::Management.new(Current.user)

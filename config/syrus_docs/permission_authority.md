@@ -36,6 +36,11 @@ collapsing them into one policy. The resource view groups active rules by
 provider-supplied typed scope labels. Editing creates an audited replacement.
 Bulk changes require a complete server-normalized preview with a signed digest,
 then apply the exact previewed set in one transaction or fail as stale.
+Active-lease and history views expose temporary authority lifecycle, origin,
+expiry, and use counts alongside requests, decisions, repeated-request
+escalations, dismissals, non-actionable reasons, policy changes, revocations,
+and execution outcomes. Results are scoped to the signed-in user and stored
+argument or audit evidence is redacted before display.
 
 ## Agent-facing management APIs
 
