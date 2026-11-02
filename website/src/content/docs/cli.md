@@ -55,6 +55,26 @@ make install               # installs to /usr/local/bin (honors PREFIX)
 The build writes `bin/syrus`. Put that binary on your `PATH`, or run it
 directly from `cli/bin/syrus`.
 
+### Reproduce the CLI visual review
+
+Changes to `cli/**/*.go` select the repository's `CLI TUI` visual-review
+target. It builds the same binary and opens the inbox at the same fixed
+100-column by 32-row terminal size used by workflow review. To reproduce the
+executable path locally from the repository root:
+
+```bash
+mkdir -p tmp
+mise exec go@1.26.5 -- go build -o tmp/syrus-visual-review ./cli
+tmp/syrus-visual-review inbox --watch
+```
+
+Use a terminal resized to 100×32, then use the arrow keys to select a Job,
+Enter to open its details, and `?` to show keyboard help. The automated review
+waits up to 15 seconds for the first inbox screen and requires one quiet second
+before each capture. Local reproduction uses your normal CLI credentials;
+workflow review uses Syrus's scoped invocation context. Frontend changes still
+select the separate browser target and do not start this terminal review.
+
 ## Log In
 
 Run `syrus login` once:
