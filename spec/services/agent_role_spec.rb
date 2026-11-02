@@ -82,7 +82,7 @@ RSpec.describe AgentRole do
     end
 
     it "maps summary/test-plan step kinds to WORKFLOW_SUMMARY_TEST_PLAN" do
-      %w[summarize summarize_amend test_plan refresh_job_metadata].each do |kind|
+      %w[summarize summarize_amend test_plan refresh_job_metadata submit_report].each do |kind|
         expect(described_class.for_step_kind(kind)).to eq(described_class::WORKFLOW_SUMMARY_TEST_PLAN)
       end
     end
@@ -108,6 +108,19 @@ RSpec.describe AgentRole do
       PluginRecord.find_by!(name: "agent_insights").update!(enabled: true)
 
       expect(described_class.for_step_kind("agent_insight_run")).to eq(described_class::AGENT_INSIGHT)
+    end
+
+    it "declares every specialized core role on its Step::Kind entry" do
+      specialized_kinds = %w[
+        agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase
+        summarize summarize_amend test_plan refresh_job_metadata submit_report
+        adversarial_review security_review visual_review
+      ]
+
+      declared_kinds = Step::Kind::BUILT_IN_ENTRIES.filter_map do |entry|
+        entry.kind if entry.agent_role.present?
+      end
+      expect(declared_kinds).to contain_exactly(*specialized_kinds)
     end
   end
 end

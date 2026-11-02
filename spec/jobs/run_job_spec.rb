@@ -15,7 +15,14 @@ RSpec.describe RunJob, :ci_only do
     Factories.repository(user: user, owner: "acme", name: "widgets",
                          default_branch: "main", trigger_label: "syrus", polling_enabled: true)
   end
-  let(:job) { Factories.job(repository: repository, issue_number: 42) }
+  let(:job) do
+    Factories.job(
+      repository: repository,
+      issue_number: 42,
+      issue_title: "Add greeting helper",
+      issue_body: "We need a greeting helper."
+    )
+  end
 
   before(:context) do
     @seed_bare_remote_dir = Pathname.new(Dir.mktmpdir("syrus-bare-seed"))
@@ -75,6 +82,16 @@ RSpec.describe RunJob, :ci_only do
     RunJob.agent_runner = nil
     FileUtils.rm_rf(bare_remote_dir)
     FileUtils.rm_rf(@data_root) if @data_root
+  end
+
+  describe "stale queue entries" do
+    it "discards a missing Run without attempting failure logging" do
+      missing_run_id = Run.maximum(:id).to_i + 1
+
+      expect(JobLog).not_to receive(:append!)
+
+      expect { RunJob.perform_now(missing_run_id) }.not_to raise_error
+    end
   end
 
   describe "stale retry workflows" do

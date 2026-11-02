@@ -142,6 +142,22 @@ second checkpoint. Recently denied equivalents observe a short cooldown, and
 active requests are capped per subject and capability to prevent unattended
 work from flooding operator attention.
 
+Pending actions keep execution outcome and presentation visibility separate.
+Every terminal outcome (`confirmed`, `failed`, `rejected`, or `cancelled`)
+creates one durable system outcome message and wakes the chat once. The message
+records the action id and kind, execution status, application result, error,
+and available resource result. Its id is stored on the action so callback
+retries and legacy-outcome recovery cannot duplicate the message or agent
+turn. A control-plane recovery job retries fresh terminal outcomes whose wake
+could not be enqueued. Pre-existing terminal records are archived during the
+schema migration; explicitly recovering one associates its original message
+when possible, or backfills the actual outcome without waking the agent again.
+Chat payload reads do not create messages or enqueue turns. Hiding a terminal
+card only stamps its presentation dismissal time; it
+does not change the terminal state, audit fields, result, or outcome message.
+Queued and pending actions retain their existing cancellation/rejection
+semantics.
+
 A `PendingActionGroup` links several `ChatPendingAction` rows created
 together as one batch (e.g. reopening every Job a bad merge-train landing
 incorrectly closed) so the chat renders them as a single card instead of one
@@ -166,12 +182,9 @@ Confirming applies every still-pending member independently, in its own
 transaction, so one member failing (e.g. a Job that no longer meets the
 action's precondition) does not block the rest from applying. Each member's
 resulting state (`confirmed`/`failed`, with `execution_error` when failed) is
-what the card's expandable list renders per target, and unlike a lone
-pending action (which drops out of the payload shortly after it confirms —
-a separate per-action chat notification already announces that outcome) the
-group's card stays in the payload after confirmation or rejection until the
-operator dismisses it, since it is the only place that per-item breakdown is
-visible. Confirming or rejecting the group emits one group outcome chat
+what the card's expandable list renders per target. Lone and grouped terminal
+cards stay in the payload until the operator hides them. Confirming or
+rejecting the group emits one group outcome chat
 message and one follow-up turn, rather than one per successful member.
 Rejecting discards every still-pending member without applying any.
 
@@ -336,6 +349,16 @@ returns `chat_title`, `page`, `has_more`, `next_page`, and `messages` with each
 message's `id`, `role`, `content`, and `created_at`; callers should treat
 `has_more` as a neutral "another page is available" signal because page
 direction is defined by the tool's ordering contract, not by the field name.
+
+`search_chats` normally uses the home worker's ranked SQLite FTS index. A
+scheduled workflow may run on a compute worker that deliberately has no local
+search index; when SQLite reports that `chat_message_fts` is absent, the tool
+falls back to a bounded primary-database text search over the same authorized
+chat IDs. Other database failures remain structured `backend_error` responses
+with `full_text_backend` diagnostics and a bounded database error message for
+operator troubleshooting. Blank queries are distinct
+`validation_error` responses, and authorization failures continue to use the
+shared `not_authorized` response.
 
 For `list_chats`, `list_repositories`, `read_chat_messages`, and
 `read_run_transcript`, one-based page numbers are capped at 10,000 before SQL
@@ -896,6 +919,8 @@ execution begins. The editable states are `backlog`, `needs_triage`,
 `triaging`, `blocked_by_epic`, and `queued`. Once the Job enters `running` (or
 any later execution state), its source prompt is immutable; use feedback or a
 new Job instead of rewriting the definition that an existing attempt consumed.
+Started Workflow, WorkUnit, or Run evidence also freezes the definition when a
+Job's denormalized lifecycle state has become stale.
 The state check and definition update hold the Job row lock together, so a
 concurrent start cannot race a late edit.
 

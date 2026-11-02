@@ -253,15 +253,14 @@ RSpec.describe "Mcp::Tools shared memory tools" do
     end
 
     it "asserts every registry tool class has a unique MCP tool name" do
-      tool_file_names = (
-        Dir[Rails.root.join("app/services/mcp/tools/*_tool.rb")] +
-        Dir[Rails.root.join("app/services/syrus_mcp/*_tool.rb")]
-      ).map { |path| File.basename(path, ".rb") }
+      tool_directories = %w[app/services/mcp/tools app/services/syrus_mcp]
+        .map { |path| Rails.root.join(path).to_s }
       registry_names = McpToolRegistry.summaries.map { |entry| "#{entry[:surface]}:#{entry[:tier]}:#{entry[:tool_name]}" }
-      registry_classes = McpToolRegistry.summaries.map { |entry| entry[:tool].name.demodulize.underscore }
+      registry_source_files = McpToolRegistry.summaries.filter_map { |entry| entry[:tool].method(:call).source_location&.first }
 
       expect(registry_names.uniq.size).to eq(registry_names.size)
-      expect(registry_classes.uniq.sort).to all(be_in(tool_file_names))
+      expect(registry_source_files.size).to eq(McpToolRegistry.summaries.size)
+      expect(registry_source_files).to all(satisfy { |path| tool_directories.any? { |directory| path.start_with?("#{directory}/") } })
     end
   end
 end

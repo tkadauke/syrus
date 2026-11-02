@@ -3,7 +3,13 @@ require "rails_helper"
 RSpec.describe Steps::TestPlan do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
-  let(:job) { Factories.job(repository: repository) }
+  let(:job) do
+    Factories.job(
+      repository: repository,
+      issue_title: "Add durable test plans",
+      issue_body: "Users need review checks."
+    )
+  end
   let(:workflow) { Workflows::Initial.instantiate(job: job) }
   let(:implement_step) { workflow.steps.find_by!(kind: "implement") }
   let!(:implement_run) do
@@ -85,7 +91,6 @@ RSpec.describe Steps::TestPlan do
   end
 
   it "retries without provider resume when Codex resume state is unavailable" do
-    job.update!(issue_title: "Add durable test plans", issue_body: "Users need review checks.")
     workflow.set_artifact!("summary", "Implemented durable fallback context.")
     implement_run.update!(agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'fallback'\n")
     calls = []

@@ -144,6 +144,21 @@ describe("ReviewableDiff", () => {
     expect(screen.getByText("added")).toBeInTheDocument()
   })
 
+  it("splits file metadata and controls into compact mobile header rows", () => {
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onLoadFileContext={vi.fn()} showFileHeaders />)
+
+    const header = screen.getByTitle("app/models/job.rb")
+    const summary = within(header).getByTestId("diff-file-header-summary")
+    const actions = within(header).getByTestId("diff-file-header-actions")
+
+    expect(header).toHaveClass("flex-wrap", "md:flex-nowrap")
+    expect(summary).toHaveClass("w-full", "min-w-0", "md:w-auto")
+    expect(summary).toHaveTextContent("app/models/job.rb+1-1")
+    expect(actions).toHaveClass("w-full", "justify-end", "md:w-auto")
+    expect(within(actions).getByRole("button", { name: "Load whole file" })).toBeInTheDocument()
+    expect(within(actions).getByRole("button", { name: "Browse changed files" })).toBeInTheDocument()
+  })
+
   it("applies persisted review rendering settings", () => {
     render(
       <ReviewableDiff
@@ -505,6 +520,42 @@ describe("ReviewableDiff", () => {
 
     const firstFileSection = screen.getByTitle("app/models/job.rb").closest("[data-diff-file]") as HTMLElement
     expect(firstFileSection).toHaveStyle({ marginBottom: "-37px", paddingBottom: "37px" })
+  })
+
+  it("reserves both mobile header rows for sticky containment when controls are present", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+      const firstFileSection = screen.getByTitle("app/models/job.rb").closest("[data-diff-file]") as HTMLElement
+      expect(firstFileSection).toHaveStyle({ marginBottom: "-74px", paddingBottom: "74px" })
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("keeps the single-row sticky allowance on mobile when the header has no controls", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+      const firstFileSection = screen.getByTitle("app/models/job.rb").closest("[data-diff-file]") as HTMLElement
+      expect(firstFileSection).toHaveStyle({ marginBottom: "-37px", paddingBottom: "37px" })
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
   })
 
   it("keeps coverage annotations attached to new-line coordinates", () => {

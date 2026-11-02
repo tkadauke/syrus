@@ -322,7 +322,8 @@ RSpec.describe Job, :ci_only do
 
     it "broadcasts changed dashboard-relevant fields when updated" do
       allow(AppUserChannel).to receive(:broadcast_to)
-      job = Factories.job_record(issue_title: "Repair the forum")
+      job = Factories.job_record(state: "triaging", issue_title: "Repair the forum")
+      job.update_columns(issue_title: "Repair the basilica")
 
       expect(AppUserChannel).to receive(:broadcast_to).with(
         job.user,
@@ -330,10 +331,10 @@ RSpec.describe Job, :ci_only do
           "type" => "job.updated",
           "resource" => "job",
           "id" => job.id,
-          "changed" => include("job.updated", "state", "issue_title"),
+          "changed" => include("job.updated", "state"),
           "payload" => {
             "fields" => hash_including(
-              "state" => "failed",
+              "state" => "queued",
               "issue_title" => "Repair the basilica",
               "issue_body" => job.issue_body,
               "entity_revision" => job.entity_revision + 1
@@ -342,7 +343,7 @@ RSpec.describe Job, :ci_only do
         )
       )
 
-      job.update!(state: "failed", issue_title: "Repair the basilica")
+      job.update!(state: "queued")
     end
 
     it "refreshes linked chat status when the Job state changes" do

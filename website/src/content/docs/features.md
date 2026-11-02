@@ -318,6 +318,12 @@ look at the result.
 The handoff tools create a pending action that the operator must confirm before
 Syrus dispatches any automation. `reset_workspace` runs immediately, but only
 performs destructive cleanup when the call explicitly confirms discard.
+When a pending action finishes, Syrus immediately records its confirmed,
+failed, rejected, or cancelled outcome in chat. Terminal cards can be hidden,
+but hiding is cosmetic: it preserves the execution state, status, error,
+result, and audit history and does not wake the agent a second time.
+Older terminal cards are archived during upgrade, so they do not reappear or
+replay agent turns when a chat is first opened after deployment.
 
 When the `emergency_land` feature flag is enabled, a Coding Mode chat linked to
 an active coding Job can request an emergency land. This is a repository-admin
@@ -802,7 +808,9 @@ tags, attach or remove tags on Jobs, manage repository documents after
 confirmation, search prior chat messages for the same user, read
 paginated chat transcripts, inspect Solid Queue health, update or remove the
 chat's pinned context for future turns, and create proposal cards for the
-operator to confirm. Removing pinned context shows the previous note as a
+operator to confirm. Chat search also remains available to scheduled coworkers
+running on compute workers without the home node's local full-text index.
+Removing pinned context shows the previous note as a
 linked Markdown preview, with a full-content view for longer notes and clear
 pending or error states. New chats use a short interpreted title from the
 first prompt, with the repository name as the fallback. The app sidebar groups
@@ -1558,7 +1566,8 @@ A Job's title and prompt can be corrected while it is still in backlog,
 triage, Epic-blocked, or queued. They become immutable as soon as execution
 starts, so every Workflow retains the definition it actually ran. Later
 changes belong in feedback or a new Job rather than a rewrite of running or
-completed work.
+completed work. Syrus also checks the underlying Workflow, WorkUnit, and Run
+execution records, so a stale Job status cannot reopen the editing window.
 
 Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be

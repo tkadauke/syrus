@@ -149,7 +149,31 @@ RSpec.describe "Mcp::Tools chat search tools" do
       response = call_tool("search_chats", query: " ")
 
       expect(response[:result][:isError]).to be(true)
-      expect(response[:result][:content].first[:text]).to include("query is required")
+      expect(response_payload(response)).to eq(
+        error: { code: "validation_error", message: "query is required", retryable: false }
+      )
+    end
+
+    it "returns a structured backend error when the full-text query is invalid" do
+      allow(SearchRecord.connection).to receive(:exec_query) do
+        raise ActiveRecord::StatementInvalid, "invalid FTS statement"
+      end
+
+      response = call_tool("search_chats", query: "needle")
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response_payload(response)).to eq(
+        error: {
+          code: "backend_error",
+          message: "Chat search could not query its search backend. Retry after database health has been checked.",
+          retryable: true,
+          diagnostics: {
+            exception: "ActiveRecord::StatementInvalid",
+            category: "full_text_backend",
+            database_message: "invalid FTS statement"
+          }
+        }
+      )
     end
 
     it "respects limit and caps it at 50" do

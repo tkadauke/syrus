@@ -1,11 +1,11 @@
 class CreatePermissionRulesAndAuditEvents < ActiveRecord::Migration[8.1]
   def up
     create_table :permission_rules, if_not_exists: true do |t|
-      t.references :owner_user, null: false
+      t.references :owner_user, null: false, foreign_key: false
       t.string :subject_selector_type, null: false
       t.string :subject_selector_id
       t.json :subject_role_keys, null: false
-      t.references :subject_repository, null: true
+      t.references :subject_repository, null: true, foreign_key: false
       t.string :capability, null: false
       t.string :operation
       t.string :resource_type, null: false
@@ -18,10 +18,10 @@ class CreatePermissionRulesAndAuditEvents < ActiveRecord::Migration[8.1]
       t.boolean :dynamic_future_roles, null: false, default: false
       t.boolean :delegable, null: false, default: true
       t.text :rationale
-      t.references :created_by_user, null: false
-      t.references :updated_by_user, null: false
+      t.references :created_by_user, null: false, foreign_key: false
+      t.references :updated_by_user, null: false, foreign_key: false
       t.datetime :revoked_at
-      t.references :revoked_by_user, null: true
+      t.references :revoked_by_user, null: true, foreign_key: false
       t.integer :lock_version, null: false, default: 0
       t.timestamps
     end
@@ -45,10 +45,10 @@ class CreatePermissionRulesAndAuditEvents < ActiveRecord::Migration[8.1]
     end
 
     create_table :permission_rule_audit_events, if_not_exists: true do |t|
-      t.references :permission_rule, null: false
+      t.references :permission_rule, null: false, foreign_key: false
       t.integer :sequence, null: false
       t.string :event_type, null: false
-      t.references :actor_user, null: false
+      t.references :actor_user, null: false, foreign_key: false
       t.json :snapshot, null: false
       t.json :changed_fields, null: false
       t.datetime :created_at, null: false

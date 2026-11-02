@@ -17,7 +17,7 @@ class JobDefinitionUpdater
     ApplicationRecord.transaction do
       job.lock!
       unless job.definition_editable?
-        raise Immutable, "#{job.slug}'s title and description are immutable once work starts; it is currently #{job.state}."
+        raise Immutable, job.definition_immutability_message
       end
 
       job.assign_attributes(attrs)

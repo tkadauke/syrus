@@ -94,6 +94,7 @@ class Workflow < ApplicationRecord
     state :running, :succeeded, :failed, :cancelled, :blocked
 
     event :start do
+      before { job.lock! }
       transitions from: :queued, to: :running,
         after: -> { Workflows::LifecyclePropagation.started!(self) }
     end

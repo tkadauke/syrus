@@ -227,9 +227,15 @@ RSpec.describe PendingActionGroup do
         member_attributes: reopen_job_members(job)
       )
       group.confirm_all!(user: user)
+      outcome_message = group.reload.outcome_message
+      queued_turns = ActiveJob::Base.queue_adapter.enqueued_jobs.count { |queued| queued[:job] == ChatTurnJob }
 
       expect(group.dismiss!).to be true
-      expect(group.reload).to be_dismissed
+      expect(group.dismiss!).to be true
+      expect(group.reload).to be_confirmed
+      expect(group.dismissed_at).to be_present
+      expect(group.outcome_message).to eq(outcome_message)
+      expect(ActiveJob::Base.queue_adapter.enqueued_jobs.count { |queued| queued[:job] == ChatTurnJob }).to eq(queued_turns)
       expect(group.chat_pending_actions.first).to be_confirmed
     end
 

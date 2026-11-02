@@ -6,7 +6,7 @@ module Mcp::Tools
 
     tool_name "update_job"
 
-    description "Update the title and/or description for a Syrus Job in this chat session's repository."
+    description "Update the title and/or description for a Syrus Job in this chat session's repository. Job definitions can only be edited before execution starts."
 
     input_schema(
       properties: {

@@ -914,6 +914,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   it "does not expose group chat type on a single-user instance" do
+    allow(User).to receive(:count).and_return(1)
     sign_in_as(user)
     agent_chat = ChatSession.create!(user: user, title: "Agent chat", conversation_kind: "direct", last_message_at: 2.minutes.ago)
     group_chat = ChatSession.create!(user: user, title: "Group chat", conversation_kind: "group", last_message_at: 1.minute.ago)
@@ -3243,7 +3244,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(action.reload).to be_cancelled
       expect(job.reload).to be_implemented
-      expect(parse_body["pending_actions"]).to be_empty
+      expect(parse_body["pending_actions"]).to contain_exactly(include("id" => action.id, "state" => "cancelled"))
       expect(parse_body["attached_coding_job"]).to be_nil
     end
 
@@ -6650,7 +6651,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Pending action group dismissed.")
-    expect(group.reload).to be_dismissed
+    expect(group.reload).to be_confirmed
+    expect(group.dismissed_at).to be_present
     expect(parse_body["pending_action_groups"]).to be_empty
 
     get "/api/v1/app/chats/#{chat.id}"
@@ -6696,28 +6698,44 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     job = Factories.job_record(repository: repository)
     action = chat.pending_actions.create!(
       action: "cancel_job",
-      state: "failed",
-      execution_status: "failed",
-      execution_error: "StandardError: boom",
       payload: { "job_id" => job.id }
     )
+    action.fail_confirmation!(StandardError.new("boom"))
 
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(include("id" => action.id, "state" => "failed"))
+    expect(action.reload.outcome_message).to be_present
+    clear_enqueued_jobs
 
-    delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+    expect {
+      get "/api/v1/app/chats/#{chat.id}"
+    }.not_to have_enqueued_job(ChatTurnJob)
+    expect(action.reload.outcome_message).to be_present
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+    }.not_to have_enqueued_job(ChatTurnJob)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Pending action cancelled.")
-    expect(action.reload).to be_cancelled
+    expect(parse_body["message"]).to eq("Pending action hidden.")
+    expect(parse_body["pending_action_outcome"]).to include(
+      "id" => action.id,
+      "action" => "cancel_job",
+      "state" => "failed",
+      "execution_status" => "failed",
+      "execution_error" => "StandardError: boom"
+    )
+    expect(action.reload).to be_failed
+    expect(action.dismissed_at).to be_present
+    expect(action.execution_error).to eq("StandardError: boom")
 
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to be_empty
   end
 
-  it "only includes recently confirmed pending actions in the chat payload" do
+  it "keeps terminal pending actions visible until they are hidden" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     fresh_action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
@@ -6727,7 +6745,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(fresh_action.id)
+    expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(fresh_action.id, stale_action.id)
   end
 
   it "includes coworker tool review details in the pending-action card payload" do

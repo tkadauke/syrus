@@ -1,10 +1,10 @@
 class CreatePermissionLeases < ActiveRecord::Migration[8.1]
   def up
     create_table :permission_leases, if_not_exists: true do |t|
-      t.references :owner_user, null: false
+      t.references :owner_user, null: false, foreign_key: false
       t.string :subject_selector_type, null: false
       t.string :subject_selector_id
-      t.references :subject_repository, null: true
+      t.references :subject_repository, null: true, foreign_key: false
       t.string :capability, null: false
       t.string :operation
       t.string :resource_type, null: false
@@ -12,12 +12,12 @@ class CreatePermissionLeases < ActiveRecord::Migration[8.1]
       t.json :constraints, null: false
       t.json :effects, null: false
       t.string :duration_kind, null: false
-      t.references :chat_session, null: true
-      t.references :job, null: true
+      t.references :chat_session, null: true, foreign_key: false
+      t.references :job, null: true, foreign_key: false
       t.string :invocation_fingerprint
       t.references :source, polymorphic: true, null: true
-      t.references :issued_by_user, null: false
-      t.references :revoked_by_user, null: true
+      t.references :issued_by_user, null: false, foreign_key: false
+      t.references :revoked_by_user, null: true, foreign_key: false
       t.integer :max_uses
       t.integer :used_count, null: false, default: 0
       t.datetime :expires_at

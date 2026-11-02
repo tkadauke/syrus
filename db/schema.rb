@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_104652) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -645,6 +645,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.datetime "resumed_at"
     t.integer "resume_attempts", default: 0, null: false
     t.text "last_resume_error"
+    t.datetime "dismissed_at"
+    t.integer "outcome_message_id"
+    t.datetime "outcome_wake_enqueued_at"
+    t.boolean "legacy_outcome", default: false, null: false
     t.index ["chat_message_id"], name: "index_chat_pending_actions_on_chat_message_id"
     t.index ["chat_session_id", "state", "confirmed_at"], name: "idx_chat_pending_actions_payload_confirmed"
     t.index ["chat_session_id", "state", "created_at"], name: "index_chat_pending_actions_on_session_state"
@@ -655,6 +659,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.index ["delivery_state", "created_at"], name: "idx_pending_actions_delivery"
     t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
     t.index ["origin_type", "origin_id", "checkpoint_state"], name: "idx_pending_actions_origin_checkpoint"
+    t.index ["outcome_message_id"], name: "index_chat_pending_actions_on_outcome_message_id"
     t.index ["pending_action_group_id"], name: "index_chat_pending_actions_on_pending_action_group_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
     t.index ["result_type", "result_id"], name: "index_chat_pending_actions_on_result_type_and_result_id"
@@ -2705,8 +2710,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_034823) do
     t.datetime "rejected_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "dismissed_at"
+    t.integer "outcome_message_id"
+    t.datetime "outcome_wake_enqueued_at"
+    t.boolean "legacy_outcome", default: false, null: false
     t.index ["chat_session_id", "state"], name: "index_pending_action_groups_on_chat_session_id_and_state"
     t.index ["chat_session_id"], name: "index_pending_action_groups_on_chat_session_id"
+    t.index ["outcome_message_id"], name: "index_pending_action_groups_on_outcome_message_id"
     t.index ["repository_id"], name: "index_pending_action_groups_on_repository_id"
     t.index ["user_id"], name: "index_pending_action_groups_on_user_id"
   end

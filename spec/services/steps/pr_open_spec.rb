@@ -314,11 +314,11 @@ RSpec.describe Steps::PrOpen, :ci_only do
   it "recovers a stale unpublished local-mode handoff branch before opening the first PR" do
     chat_session = ChatSession.create!(user: user, repository: repository, mode: "local")
     branch = "syrus/local-handoff-#{job.id}"
+    job.update_columns(issue_title: "Local handoff")
     job.update!(
       state: "running",
       kind: "direct",
       issue_number: nil,
-      issue_title: "Local handoff",
       linked_chat_id: chat_session.id,
       branch_name: branch,
       pr_number: nil,
@@ -459,7 +459,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "does not call GitHub PR creation after force-pushing an unpublished retry branch that is empty against base" do
-    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil, fork_review_pr_number: nil)
+    job.update_columns(issue_title: "Retry task")
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil, fork_review_pr_number: nil)
     pr_open_run = Run.create!(
       job: job,
       step: pr_open_step,
@@ -538,7 +539,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "opens a PR for a non-empty direct retry publication branch" do
-    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    job.update_columns(issue_title: "Retry task")
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
     Run.create!(
       job: job,
       step: implement_step,
@@ -697,7 +699,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
   end
 
   it "fails with the validated and publication heads when an empty branch no longer contains the implementation head" do
-    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    job.update_columns(issue_title: "Retry task")
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
     Run.create!(
       job: job,
       step: implement_step,

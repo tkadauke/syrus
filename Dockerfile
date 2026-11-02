@@ -38,8 +38,8 @@ WORKDIR /rails
 #     absent, so this is a speed optimization, not a hard dependency.
 ARG NODE_MAJOR=22
 ARG NODESOURCE_GPG_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4
-ARG CLAUDE_CODE_VERSION=2.1.296
-ARG CODEX_CLI_VERSION=0.162.1
+ARG CLAUDE_CODE_VERSION=2.1.316
+ARG CODEX_CLI_VERSION=0.166.0
 ARG ANTIGRAVITY_CLI_VERSION=1.2.1
 ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
 ARG ANTIGRAVITY_CLI_LINUX_AMD64_SHA512=0629fe69e6949b35707935ef35da016074ea29a5d989a05f740713e0a9e927bf52ff1eada0204d3338779a469c938b6b7c5c44de2d296e5e8db255d26568de38
@@ -369,7 +369,7 @@ USER root
 ARG POETRY_VERSION=2.4.1
 ARG UV_VERSION=0.12.3
 ARG YARN_VERSION=1.22.22
-ARG PNPM_VERSION=12.11.2
+ARG PNPM_VERSION=12.16.1
 ARG PIP_VERSION=26.2.1
 ARG MISE_GO_VERSION="1.26.5"
 ARG MULL_LLVM_VERSION=18
@@ -587,8 +587,8 @@ ENV PATH="/opt/muse/bin:${PATH}" \
 # needs (nss, libatk, libgtk, etc.); `@playwright/mcp` is Microsoft's own
 # MCP server, bundled as a stdio subprocess rather than hand-rolled —
 # SyrusBrowser::McpToolSet spawns it and re-exposes granular tools.
-ARG PLAYWRIGHT_VERSION=1.64.0
-ARG PLAYWRIGHT_MCP_VERSION=0.0.83
+ARG PLAYWRIGHT_VERSION=1.64.1
+ARG PLAYWRIGHT_MCP_VERSION=0.0.84
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # Do not use BuildKit apt cache mounts here. Playwright's `install --with-deps`
 # drives apt internally, and a full/stale cache mount makes apt fail with

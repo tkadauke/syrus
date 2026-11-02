@@ -579,7 +579,11 @@ RSpec.describe "Mcp::Tools job control tools" do
     response = call_tool("update_job", job_id: job.id, title: "New title", description: "New description")
 
     expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("immutable once work starts", "currently running")
+    expect(response.dig(:result, :content, 0, :text)).to include(
+      "immutable once execution starts",
+      "lifecycle state is running",
+      "Submit feedback or create a new Job instead"
+    )
     expect(job.reload).to have_attributes(issue_title: "Old title", issue_body: "Old description")
   end
 

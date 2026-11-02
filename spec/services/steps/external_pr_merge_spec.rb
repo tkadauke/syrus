@@ -76,7 +76,7 @@ RSpec.describe Steps::ExternalPrMerge do
     workflow.set_artifact!("external_pr_head_sha", "abc123")
     allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
     allow(client).to receive(:access_token).and_return("ghs_test")
-    allow(repository).to receive(:authenticated_push_url).and_return("https://token@example.com/acme/widgets.git")
+    push_url = "https://x-access-token:ghs_test@github.com/acme/widgets.git"
 
     workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/external-pr-workspace"))
     rev_git = instance_double(GitRunner)
@@ -92,7 +92,7 @@ RSpec.describe Steps::ExternalPrMerge do
       .with(
         "push",
         "--force-with-lease=refs/heads/contributor-branch:abc123",
-        "https://token@example.com/acme/widgets.git",
+        push_url,
         "HEAD:refs/heads/contributor-branch",
         chdir: "/tmp/external-pr-workspace"
       )
@@ -118,6 +118,7 @@ RSpec.describe Steps::ExternalPrMerge do
 
   it "defers and requeues landing when the external PR base moved after validation" do
     job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    workflow.job.reload
     allow(client).to receive(:pull_request).and_return(pr(base_sha: "current-base"))
     allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base")
     allow(client).to receive(:merge_pull_request)
@@ -140,6 +141,7 @@ RSpec.describe Steps::ExternalPrMerge do
   it "rebases and keeps merging a same-repository external PR when the base moved and clean rebases are trusted" do
     repository.update!(trust_clean_rebase_grade: true)
     job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    workflow.job.reload
     workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
     workflow.set_artifact!(
       LandingValidationCache::ARTIFACT_KEY,
@@ -187,6 +189,7 @@ RSpec.describe Steps::ExternalPrMerge do
   it "does not stale-push the workflow workspace after a trusted clean base-move rebase already published the head" do
     repository.update!(trust_clean_rebase_grade: true)
     job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    workflow.job.reload
     workflow.set_artifact!("external_pr_head_repo", "acme/widgets")
     workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
     rebase_result = AutoRebase::Result.new(
@@ -226,8 +229,7 @@ RSpec.describe Steps::ExternalPrMerge do
     workflow.set_artifact!("external_pr_head_sha", "abc123")
     allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
     allow(client).to receive(:access_token).and_return("ghs_test")
-    push_url = "https://token@example.com/acme/widgets.git"
-    allow(repository).to receive(:authenticated_push_url).and_return(push_url)
+    push_url = "https://x-access-token:ghs_test@github.com/acme/widgets.git"
 
     workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/external-pr-workspace"))
     rev_git = instance_double(GitRunner)
@@ -281,8 +283,7 @@ RSpec.describe Steps::ExternalPrMerge do
     workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
     workflow.set_artifact!("external_pr_head_sha", "abc123")
     allow(client).to receive(:access_token).and_return("ghs_test")
-    push_url = "https://token@example.com/acme/widgets.git"
-    allow(repository).to receive(:authenticated_push_url).and_return(push_url)
+    push_url = "https://x-access-token:ghs_test@github.com/acme/widgets.git"
 
     workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/external-pr-workspace"))
     rev_git = instance_double(GitRunner)

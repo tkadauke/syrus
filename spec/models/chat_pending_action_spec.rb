@@ -942,7 +942,116 @@ RSpec.describe ChatPendingAction, :ci_only do
 
       message = chat_session.messages.where(role: "system").last
       expect(message.content["outcome"]).to eq("cancelled")
-      expect(message.content["text"]).to include("dismissed")
+      expect(message.content["text"]).to include("cancelled")
+    end
+
+    it "delivers a failed confirmation immediately and exactly once" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+
+      expect {
+        action.fail_confirmation!(StandardError.new("boom"))
+      }.to change { chat_session.messages.where(role: "system").count }.by(1)
+        .and have_enqueued_job(ChatTurnJob).once
+
+      outcome_message = action.reload.outcome_message
+      expect(outcome_message.content).to include(
+        "outcome" => "failed",
+        "pending_action_id" => action.id,
+        "action_kind" => "pause_landing_queue",
+        "execution_status" => "failed"
+      )
+      expect(outcome_message.content["text"]).to include("StandardError: boom")
+
+      queued_turns = ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job[:job] == ChatTurnJob }
+      expect {
+        action.ensure_outcome_notification!
+      }.not_to change { chat_session.messages.where(role: "system").count }
+      expect(ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job[:job] == ChatTurnJob }).to eq(queued_turns)
+    end
+
+    it "hides a terminal card without rewriting or redelivering its outcome" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.fail_confirmation!(StandardError.new("boom"))
+      original_message = action.reload.outcome_message
+      queued_turns = ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job[:job] == ChatTurnJob }
+
+      expect {
+        expect(action.dismiss!(user: user)).to be(true)
+        expect(action.dismiss!(user: user)).to be(true)
+      }.not_to change { chat_session.messages.where(role: "system").count }
+      expect(ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job[:job] == ChatTurnJob }).to eq(queued_turns)
+
+      expect(action.reload).to be_failed
+      expect(action.execution_error).to eq("StandardError: boom")
+      expect(action.dismissed_at).to be_present
+      expect(action.outcome_message).to eq(original_message)
+    end
+
+    it "backfills a legacy terminal outcome once" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.update_columns(state: "confirmed", execution_status: "noop", execution_finished_at: Time.current)
+
+      expect {
+        2.times { action.reload.ensure_outcome_notification! }
+      }.to change { chat_session.messages.where(role: "system").count }.by(1)
+        .and have_enqueued_job(ChatTurnJob).once
+
+      expect(action.reload.outcome_message.content["text"]).to include("No changes were needed")
+    end
+
+    it "associates a legacy outcome message without creating a message or waking the chat" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.update_columns(state: "failed", execution_status: "failed", execution_error: "boom", legacy_outcome: true)
+      original = chat_session.messages.create!(
+        role: "system",
+        content: {
+          "text" => "Pending action failed: pause_landing_queue (legacy). Error: boom",
+          "source" => ChatPendingActionOutcomeNotification::SOURCE,
+          "outcome" => "failed"
+        }
+      )
+      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+
+      expect {
+        action.reload.ensure_outcome_notification!
+      }.not_to change { chat_session.messages.count }
+      expect(action.reload.outcome_message).to eq(original)
+      expect(action.outcome_wake_enqueued_at).to be_nil
+      expect(ActiveJob::Base.queue_adapter.enqueued_jobs).to be_empty
+    end
+
+    it "backfills a missing legacy outcome without waking the chat" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.update_columns(state: "failed", execution_status: "failed", execution_error: "boom", legacy_outcome: true)
+
+      expect {
+        expect {
+          2.times { action.reload.ensure_outcome_notification! }
+        }.not_to have_enqueued_job(ChatTurnJob)
+      }.to change { chat_session.messages.where(role: "system").count }.by(1)
+
+      expect(action.reload.outcome_message.content["outcome"]).to eq("failed")
+      expect(action.outcome_wake_enqueued_at).to be_nil
+    end
+
+    it "leaves a failed wake enqueue retryable" do
+      allow(AppEvents).to receive(:broadcast)
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.update_columns(state: "failed", execution_status: "failed", execution_error: "boom")
+      allow(ChatTurnJob).to receive(:perform_later).and_raise(ActiveJob::EnqueueError, "queue unavailable")
+
+      expect { action.reload.ensure_outcome_notification! }.to raise_error(ActiveJob::EnqueueError)
+      expect(action.reload.outcome_message).to be_nil
+      expect(action.outcome_wake_enqueued_at).to be_nil
+
+      allow(ChatTurnJob).to receive(:perform_later).and_call_original
+      expect { action.ensure_outcome_notification! }.to have_enqueued_job(ChatTurnJob).once
+      expect(action.reload.outcome_wake_enqueued_at).to be_present
     end
 
     it "does not notify when execution status changes without a terminal state change" do
