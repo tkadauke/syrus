@@ -2,7 +2,7 @@ require "rails_helper"
 require "rack/mock"
 
 RSpec.describe ChatMcpStdioFallback, :ci_only do
-  let(:user) { Factories.user(claude_oauth_token: "oat-test", github_token: "ghp-test") }
+  let(:user) { Factories.user(claude_oauth_token: "oat-test", github_token: "ghp-test", global_role: "admin") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat) { ChatSession.create!(user: user, repository: repository) }
 
