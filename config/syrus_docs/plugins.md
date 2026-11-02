@@ -37,6 +37,11 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `purge_contributor`
 - `slug_type`
 - `job_visibility_restriction`
+- `repository_index_filter`
+
+`repository_index_filter` providers receive the accessible Repository relation
+and current user through `apply(scope:, user:)`. They may narrow the general
+Repositories index without changing direct access or repository authorization.
 
 ## Per-origin Job visibility
 
