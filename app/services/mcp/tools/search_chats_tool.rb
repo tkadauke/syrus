@@ -23,7 +23,7 @@ module Mcp::Tools
 
       def call(server_context:, query:, limit: 10, coworker_id: nil)
         query = query.to_s.strip
-        return Mcp::Tools.invalid("query is required") if query.blank?
+        return search_error("validation_error", "query is required", retryable: false) if query.blank?
 
         results = ChatMessageSearchIndex.search(
           query,
@@ -41,6 +41,20 @@ module Mcp::Tools
         payload[:message] = "No matching messages found." if payload[:results].empty?
 
         Mcp::Tools.success(payload)
+      rescue ActiveRecord::StatementInvalid => error
+        Rails.logger.error(
+          "[search_chats] backend query failed: #{error.class}: #{error.message}; " \
+          "cause=#{error.cause&.class}: #{error.cause&.message}"
+        )
+        search_error(
+          "backend_error",
+          "Chat search could not query the full-text index. Retry after the search database has been checked.",
+          retryable: true,
+          diagnostics: {
+            exception: error.class.name,
+            cause: error.cause&.class&.name
+          }.compact
+        )
       end
 
       private
@@ -72,6 +86,12 @@ module Mcp::Tools
 
       def normalize_limit(value)
         value.to_i.clamp(1, 50)
+      end
+
+      def search_error(code, message, retryable:, diagnostics: nil)
+        payload = { error: { code: code, message: message, retryable: retryable } }
+        payload[:error][:diagnostics] = diagnostics if diagnostics.present?
+        MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ], error: true)
       end
 
       def searchable_chat_session_ids(coworker_id: nil)

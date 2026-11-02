@@ -224,11 +224,20 @@ RSpec.describe "Coworker background runs" do
     expect(listed_ids).to contain_exactly(main_chat.id, own_side_chat.id, shared_chat.id)
 
     search_tool = PersistentMcpDaemon::WorkflowToolDispatch.wrap(Mcp::Tools::SearchChatsTool)
-    search_response = search_tool.call(server_context: raw_context, query: "needle", limit: 7)
+    query_only_response = search_tool.call(server_context: raw_context, query: "needle")
+    expect(query_only_response).not_to be_error
+    expect(JSON.parse(query_only_response.content.first[:text]).fetch("results").pluck("chat_session_id"))
+      .to match_array(listed_ids)
+
+    search_response = search_tool.call(server_context: raw_context, query: "needle", limit: 2)
 
     expect(search_response).not_to be_error
-    expect(JSON.parse(search_response.content.first[:text]).fetch("results").pluck("chat_session_id"))
-      .to match_array(listed_ids)
+    expect(JSON.parse(search_response.content.first[:text]).fetch("results").size).to eq(2)
+
+    coworker_response = search_tool.call(server_context: raw_context, query: "needle", coworker_id: coworker.id)
+    expect(coworker_response).not_to be_error
+    expect(JSON.parse(coworker_response.content.first[:text]).fetch("results").pluck("chat_session_id"))
+      .to contain_exactly(main_chat.id, own_side_chat.id)
 
     empty_response = search_tool.call(server_context: raw_context, query: "missing", limit: 7)
     expect(JSON.parse(empty_response.content.first[:text])).to eq(
