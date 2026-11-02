@@ -6,7 +6,7 @@ import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Select } from "./Select"
 
-export function PermissionRequestCard({ request, compact = false, jobId }: { request: PermissionRequest; compact?: boolean; jobId?: number }) {
+export function PermissionRequestCard({ request, jobId }: { request: PermissionRequest; jobId?: number }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const durationChoices = request.items.reduce<string[]>(
@@ -58,7 +58,7 @@ export function PermissionRequestCard({ request, compact = false, jobId }: { req
             <dl className="mt-2 grid gap-1 text-xs text-text-secondary sm:grid-cols-2">
               <Detail label={t("approval_inbox.resource")} value={`${item.resource_type || "—"} · ${json(item.resource_scope)}`} />
               <Detail label={t("approval_inbox.effects")} value={(item.effects ?? []).join(", ") || "—"} />
-              {!compact ? <Detail label={t("approval_inbox.arguments")} value={json(item.arguments)} /> : null}
+              <Detail label={t("approval_inbox.arguments")} value={json(item.arguments)} />
               <Detail label={t("approval_inbox.policy")} value={json(item.decisive_rule)} />
             </dl>
           </div>
