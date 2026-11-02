@@ -57,6 +57,17 @@ module RuntimeTerminal
       screen_payload(snapshot, include_styles: include_styles).merge(settled: settled)
     end
 
+    # Snapshot and semantic inspection intentionally read the same Screen
+    # instance while holding the same lock. This keeps captured evidence from
+    # drifting from what runtime_inspect reports to the agent.
+    def capture_screen
+      @lock.synchronize do
+        screen_locked!
+        drain_locked
+        @screen.snapshot
+      end
+    end
+
     def closed?
       @lock.synchronize { @closed || @socket&.closed? }
     end

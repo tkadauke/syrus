@@ -248,7 +248,10 @@ control;
 and `runtime_stop` tears the session down. Terminal sessions expose semantic
 screen inspection with viewport text, cursor and generation state, optional
 style runs, separate raw scrollback, and bounded generation/text/quiet waits;
-inspection itself requires no control lease. Runtime providers also include
+inspection itself requires no control lease. Terminal captures render that
+same emulator state as full-color PNG artifacts, including alternate-screen
+TUIs, ANSI and RGB colors, Unicode, styles, and cursor state; an optional
+checkpoint label identifies the captured moment in chat. Runtime providers also include
 browser dev-server sessions, which navigate and inspect a running web app. They are
 watchable from
 Coding Mode's right sidebar in a Runtime tab (once the chat has started a

@@ -43,7 +43,7 @@ independently deletable.
   input: %w[keyboard stdin pointer resize],
   inspect: %w[screen scrollback],
   build: [ "none" ],
-  artifacts: [ "logs" ]
+  artifacts: %w[screenshots logs]
 }
 ```
 
@@ -104,6 +104,22 @@ Each provider instance keeps a small pool of `RelayClient` sockets (one per
   the underlying `Terminal::Session#relay_address` changed (e.g. the worker
   hosting the PTY restarted).
 
+`#snapshot` drains that same emulator under its relay-client lock and renders
+the complete current viewport to PNG. The renderer supports ANSI 16-color,
+256-color, and RGB foregrounds/backgrounds; terminal text styles; primary and
+alternate buffers; wide/combining Unicode and box-drawing glyphs; and
+visible/hidden cursor state. It uses the plugin-bundled DejaVu Sans Mono font
+and fixed cell metrics, so output size is exactly `columns × 10` by `rows ×
+20` pixels and does not depend on fonts installed on the worker.
+
+The PNG is materialized through `ChatMediaLibrary`, attached to the Coding
+Mode chat, and exposed through the Runtime Session's access-controlled
+`/frame` endpoint. Captures update `latest_frame_url`/`latest_frame_at` and
+return the runtime session id, screen generation, rows, columns, capture time,
+Document id, and an optional `checkpoint_label`. Both `runtime_snapshot` and
+`runtime_capture_artifact` use this path, so Runtime tool cards, chat media,
+and the Runtime panel all see the same retained artifact.
+
 `#inspect` (the `RuntimeSessionProvider` interface method) blocks up to
 `RELAY_ADDRESS_TIMEOUT` (10s), polling every `RELAY_ADDRESS_POLL_INTERVAL`
 (0.2s), for `TerminalSessionJob` to publish a `relay_address` onto the
@@ -147,10 +163,9 @@ contract `runtime_input` expects.
 `#stop_session` closes the pooled relay client and, if the mapped
 `Terminal::Session` is still running, marks it `finished_at: Time.current,
 outcome: "killed"` — an already-finished session (e.g. the shell exited on
-its own) is left untouched. `build_or_reload`, `launch`, and `snapshot` are
-not supported by this provider and return `{error: "not_yet_supported", ...}`
-rather than raising, since a bare shell has no separate build/launch step
-and no visual snapshot to capture.
+its own) is left untouched. `build_or_reload` and `launch` are not supported
+by this provider and return `{error: "not_yet_supported", ...}` rather than
+raising, since a bare shell has no separate build/launch step.
 
 ## Cleanup
 

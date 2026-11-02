@@ -25,9 +25,9 @@ RSpec.describe Mcp::Tools::RuntimeCaptureArtifactTool do
 
   it "delegates to the provider's snapshot capability with the artifact_type hint" do
     session
-    body = payload(call(artifact_type: "screenshot"))
+    body = payload(call(artifact_type: "screenshot", checkpoint_label: "menu open"))
 
-    expect(body).to eq(snapshot: true, options: { artifact_type: "screenshot" })
+    expect(body).to eq(snapshot: true, options: { artifact_type: "screenshot", checkpoint_label: "menu open" })
   end
 
   it "returns an error when there is no active session" do

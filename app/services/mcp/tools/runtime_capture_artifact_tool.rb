@@ -18,12 +18,13 @@ module Mcp::Tools
     input_schema(
       properties: {
         session_id: { description: "Runtime Session id. Defaults to the chat's primary active session." },
-        artifact_type: { type: "string", description: "Optional hint for which kind of evidence to capture (e.g. \"screenshot\")." }
+        artifact_type: { type: "string", description: "Optional hint for which kind of evidence to capture (e.g. \"screenshot\")." },
+        checkpoint_label: { type: "string", description: "Optional short label describing the captured checkpoint." }
       }
     )
 
     class << self
-      def call(session_id: nil, artifact_type: nil, server_context:)
+      def call(session_id: nil, artifact_type: nil, checkpoint_label: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         guard = require_coding_mode(chat_session)
         return guard if guard
@@ -31,7 +32,9 @@ module Mcp::Tools
         session, error = resolve_runtime_session(chat_session, session_id)
         return error if error
 
-        with_provider_call(session) { |provider| provider.snapshot(session.id, artifact_type: artifact_type) }
+        with_provider_call(session) do |provider|
+          provider.snapshot(session.id, { artifact_type: artifact_type, checkpoint_label: checkpoint_label }.compact)
+        end
       end
     end
   end
