@@ -266,6 +266,20 @@ short-lived by design, but the panel renews an active operator lease
 automatically in the background, so staying on the tab keeps control without it
 silently expiring mid-task.
 
+For visually verifiable CLI/TUI evidence, an agent can start a terminal at a
+known size with `runtime_start(provider: "cli_tui", options: { columns: 100,
+rows: 30 })`, acquire an `input` lease, and send text plus named keys with
+`runtime_input`. Terminal input supports Escape, Shift+Tab, F1–F12, and Ctrl
+chords such as `Ctrl+C`, in addition to navigation keys and resize events.
+After each action, `runtime_inspect` can wait for a later screen generation,
+specific visible text, and a quiet period. Calling
+`runtime_capture_artifact(checkpoint_label: "settings saved")` then retains a
+full-color PNG from that exact emulator state in chat and updates the Runtime
+panel's latest frame. Capturing and inspecting are observational, so they do
+not need or consume control; the agent should release its lease and stop the
+session when finished. Operator takeover always revokes agent input
+immediately.
+
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same
 conversation. If a retry is pushed to a replacement branch, pass that branch to

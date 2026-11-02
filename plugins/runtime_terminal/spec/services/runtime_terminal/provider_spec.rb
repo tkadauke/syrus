@@ -81,6 +81,24 @@ RSpec.describe RuntimeTerminal::Provider do
     ensure
       relay&.stop
     end
+
+    it "fails a capture after the bounded relay-ready timeout" do
+      stub_const("RuntimeTerminal::Provider::RELAY_ADDRESS_TIMEOUT", 0.seconds)
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      expect do
+        expect { provider.snapshot(runtime_session.id) }
+          .to raise_error(RuntimeTerminal::RelayClient::ConnectionError, /not ready/)
+      end.not_to change(chat_session.chat_attachments, :count)
+      expect(runtime_session.reload.latest_frame_url).to be_nil
+    end
   end
 
   describe "#start_session" do
@@ -106,9 +124,53 @@ RSpec.describe RuntimeTerminal::Provider do
         .to eq(terminal_session)
       expect(TerminalSessionJob).to have_received(:perform_later).with(terminal_session.id)
     end
+
+    it "records validated explicit startup dimensions for the first relay connection" do
+      allow(TerminalSessionJob).to receive(:perform_later)
+
+      metadata = provider.start_session(
+        runtime_session.workspace_ref,
+        runtime_session: runtime_session,
+        chat_session: chat_session,
+        columns: 100,
+        rows: 32
+      )
+
+      expect(metadata.fetch(:initial_dimensions)).to eq(cols: 100, rows: 32)
+    end
+
+    it "rejects incomplete or unsafe startup dimensions" do
+      expect do
+        provider.start_session(
+          runtime_session.workspace_ref,
+          runtime_session: runtime_session,
+          chat_session: chat_session,
+          columns: 100
+        )
+      end.to raise_error(ArgumentError, /terminal dimensions/)
+    end
   end
 
   describe "#inspect" do
+    it "applies explicit startup dimensions before exposing the first screen" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "sized\n")
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      runtime_session.update!(metadata: { "initial_dimensions" => { "cols" => 100, "rows" => 32 } })
+
+      expect(provider.inspect(runtime_session.id)).to include(cols: 100, rows: 32, generation: 2)
+      expect(relay.next_control).to eq("type" => "resize", "cols" => 100, "rows" => 32)
+    ensure
+      relay&.stop
+    end
+
     it "returns authoritative screen state for replay and output received after connection" do
       relay = RuntimeTerminalFakeRelay.new(replay: "booted\n")
       terminal_session = Terminal::Session.create!(

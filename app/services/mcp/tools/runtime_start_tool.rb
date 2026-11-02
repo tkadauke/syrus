@@ -18,7 +18,7 @@ module Mcp::Tools
       properties: {
         provider: {
           type: "string",
-          description: "Runtime session provider key (e.g. \"browser\" or \"terminal\"). " \
+          description: "Runtime session provider key (e.g. \"browser\" or \"cli_tui\"). " \
                        "Auto-detected from the repository checkout when omitted."
         },
         name: {
@@ -27,7 +27,8 @@ module Mcp::Tools
         },
         options: {
           type: "object",
-          description: "Provider-specific start options (e.g. { \"port\": 3001 } for the browser provider)."
+          description: "Provider-specific start options (e.g. { \"port\": 3001 } for browser or " \
+                       "{ \"columns\": 100, \"rows\": 30 } for cli_tui)."
         }
       }
     )

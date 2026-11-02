@@ -13,10 +13,21 @@ module RuntimeTerminal
     MAX_ROWS = Screen::MAX_ROWS
     MAX_WAIT_SECONDS = 30.0
 
+    NAMED_KEY_SEQUENCES = {
+      "Enter" => "\r", "Return" => "\r", "Tab" => "\t", "Shift+Tab" => "\e[Z",
+      "Backspace" => "\x7f", "Escape" => "\e", "Esc" => "\e",
+      "ArrowUp" => "\e[A", "ArrowDown" => "\e[B", "ArrowRight" => "\e[C", "ArrowLeft" => "\e[D",
+      "Delete" => "\e[3~", "Insert" => "\e[2~", "Home" => "\e[H", "End" => "\e[F",
+      "PageUp" => "\e[5~", "PageDown" => "\e[6~",
+      "F1" => "\eOP", "F2" => "\eOQ", "F3" => "\eOR", "F4" => "\eOS",
+      "F5" => "\e[15~", "F6" => "\e[17~", "F7" => "\e[18~", "F8" => "\e[19~",
+      "F9" => "\e[20~", "F10" => "\e[21~", "F11" => "\e[23~", "F12" => "\e[24~"
+    }.freeze
+
     class ConnectionError < StandardError; end
     class UnsupportedInput < StandardError; end
 
-    def initialize(terminal_session, generation: 0)
+    def initialize(terminal_session, generation: 0, initial_dimensions: nil)
       @terminal_session = terminal_session
       @socket = connect_socket(terminal_session)
       @read_buffer = +""
@@ -27,6 +38,7 @@ module RuntimeTerminal
 
       authenticate!
       drain(timeout: INITIAL_REPLAY_TIMEOUT_SECONDS)
+      input(type: "resize", **initial_dimensions) if initial_dimensions
     end
 
     def inspect_scrollback
@@ -306,24 +318,29 @@ module RuntimeTerminal
       return text.to_s if text.present?
 
       key = event["key"].to_s
-      {
-        "Enter" => "\r",
-        "Return" => "\r",
-        "Tab" => "\t",
-        "Backspace" => "\x7f",
-        "Escape" => "\e",
-        "ArrowUp" => "\e[A",
-        "ArrowDown" => "\e[B",
-        "ArrowRight" => "\e[C",
-        "ArrowLeft" => "\e[D",
-        "Delete" => "\e[3~",
-        "Home" => "\e[H",
-        "End" => "\e[F",
-        "PageUp" => "\e[5~",
-        "PageDown" => "\e[6~"
-      }.fetch(key) do
-        raise UnsupportedInput, "keyboard event requires text/data or a supported key"
+      modifiers = Array(event["modifiers"]).map { |modifier| modifier.to_s.downcase }
+      modifiers << "ctrl" if ActiveModel::Type::Boolean.new.cast(event["ctrl"] || event["control"])
+      modifiers << "shift" if ActiveModel::Type::Boolean.new.cast(event["shift"])
+      chord = key.split("+")
+      key = chord.pop.to_s
+      modifiers.concat(chord.map(&:downcase))
+
+      return NAMED_KEY_SEQUENCES.fetch("Shift+Tab") if key == "Tab" && modifiers.include?("shift")
+      return control_sequence(key) if modifiers.intersect?(%w[ctrl control])
+
+      NAMED_KEY_SEQUENCES.fetch(key) do
+        raise UnsupportedInput, "keyboard event requires text/data or a supported key or chord"
       end
+    end
+
+    def control_sequence(key)
+      character = key.length == 1 ? key.upcase : nil
+      codepoint = character&.ord
+      return (codepoint - 64).chr if codepoint&.between?(64, 95)
+      return "\x00" if key == "Space"
+      return "\x7f" if key == "?"
+
+      raise UnsupportedInput, "unsupported Ctrl combination Ctrl+#{key}"
     end
 
     def pointer_frames(event)
