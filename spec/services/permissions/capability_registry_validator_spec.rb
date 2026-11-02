@@ -168,6 +168,22 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     expect(described_class.for_application.findings).to be_empty
   end
 
+  it "rejects plugin compatibility metadata that bypasses the frozen inventory digest" do
+    provider = stub_const("UnratchetedToolSet", Class.new)
+    manifest = instance_double(Syrus::Plugin::Manifest,
+      provides: { mcp_tool_set: provider },
+      metadata: { capability_descriptor_compatibility: { mcp_tool_set: true } })
+    allow(McpToolRegistry).to receive(:entries).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ manifest ])
+    allow(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([{ name: "read_plugin_data" }])
+
+    finding = described_class.for_application.findings.find { |candidate| candidate.code == :missing_descriptor }
+
+    expect(finding.message).to include('UnratchetedToolSet mcp_tool_set tool "read_plugin_data"')
+  end
+
   it "keeps concrete plugin inventories out of the core validator" do
     source = Rails.root.join("app/services/permissions/capability_registry_validator.rb").read
 

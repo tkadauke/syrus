@@ -2,6 +2,8 @@ require "digest"
 
 module Permissions
   class CapabilityRegistryValidator
+    COMPATIBILITY_DIGEST_PATTERN = /\A[0-9a-f]{64}\z/
+
     Registration = Data.define(:tool_name, :surface, :source, :descriptor, :explicit_descriptor, :compatibility_descriptor)
     Finding = Data.define(:code, :message, :registrations) do
       def to_h = { code: code, message: message, registrations: registrations }
@@ -56,7 +58,8 @@ module Permissions
       manifest = Syrus::PluginRegistry.all_plugins.find do |candidate|
         Array(candidate.provides[extension_point]).include?(provider)
       end
-      manifest&.metadata&.dig(:capability_descriptor_compatibility, extension_point)
+      digest = manifest&.metadata&.dig(:capability_descriptor_compatibility, extension_point)
+      digest if digest.is_a?(String) && digest.match?(COMPATIBILITY_DIGEST_PATTERN)
     end
     private_class_method :plugin_compatibility_digest
 
