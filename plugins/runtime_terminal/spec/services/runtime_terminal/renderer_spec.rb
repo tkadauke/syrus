@@ -59,8 +59,14 @@ RSpec.describe RuntimeTerminal::Renderer do
   it "uses the bundled CJK glyph and clips it to its two-cell rectangle" do
     rendered = image("\e[?25l界\e[48;2;9;8;7m ", cols: 3, rows: 1)
     cjk_cell = rendered.crop(0, 0, 2 * described_class::CELL_WIDTH, described_class::CELL_HEIGHT)
+    bright_pixels_per_row = (0...cjk_cell.height).map do |y|
+      (0...cjk_cell.width).count { |x| pixel(cjk_cell, x, y).first > 100 }
+    end
 
-    expect(cjk_cell.max).to be > 200
+    # This is the thresholded shape of 界 in the bundled Xiaolai subset. A
+    # missing-glyph box also has bright pixels, so max/average assertions do
+    # not catch Pango silently replacing it with hexadecimal tofu.
+    expect(bright_pixels_per_row).to eq([ 0, 0, 0, 10, 5, 10, 6, 4, 10, 6, 5, 8, 5, 4, 3, 4, 0, 0, 0, 0 ])
     expect(pixel(rendered, 25, 10)).to eq([ 9, 8, 7 ])
   end
 end
