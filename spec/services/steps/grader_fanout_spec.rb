@@ -222,6 +222,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     grader_steps = workflow.steps.where(kind: "grader")
     expect(grader_steps.count).to eq(1)
     expect(grader_steps.first.details["name"]).to eq("rspec")
+    expect(grader_steps.first.details["fanout_grader_count"]).to eq(1)
   end
 
   it "records target selection inputs for initial workflows so later CI repair can diagnose skipped targets" do

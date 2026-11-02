@@ -31,4 +31,28 @@ RSpec.describe WorkspaceReuseOutcomes::Summary do
       )
     )
   end
+
+  it "excludes skipped prepares and rows after the requested window from reuse rate" do
+    job = Factories.job
+    workflow = job.workflows.last
+    step = workflow.steps.first
+    run = step.runs.first || step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+    attributes = {
+      repository: job.repository, workflow: workflow, step: step, run: run,
+      kind: "prepare", prepare_fingerprint: "fingerprint", backend: "local"
+    }
+    WorkspaceReuseOutcome.create!(**attributes, outcome: "reused_from_archive", occurred_at: 2.hours.ago)
+    WorkspaceReuseOutcome.create!(**attributes, outcome: "rebuilt", occurred_at: 90.minutes.ago)
+    WorkspaceReuseOutcome.create!(**attributes, outcome: "skipped", occurred_at: 1.hour.ago)
+    WorkspaceReuseOutcome.create!(**attributes, outcome: "rebuilt", occurred_at: 5.minutes.ago)
+
+    result = described_class.call(
+      since: 3.hours.ago,
+      until_time: 30.minutes.ago,
+      repository: job.repository
+    ).sole
+
+    expect(result).to include(total_count: 3, reuse_rate: 0.5)
+    expect(result[:outcomes]).to eq("reused_from_archive" => 1, "rebuilt" => 1, "skipped" => 1)
+  end
 end

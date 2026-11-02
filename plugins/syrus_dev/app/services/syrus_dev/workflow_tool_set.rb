@@ -31,9 +31,9 @@ module SyrusDev
     def self.tool_classes_for(role)
       case role
       when nil
-        [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool ]
+        [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool, ReadWorkspaceReuseOutcomesTool ]
       when AgentRole::WORKFLOW_IMPLEMENT
-        [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool ]
+        [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool, ReadWorkspaceReuseOutcomesTool ]
       when AgentRole::AGENT_INSIGHT
         [ ReadSyrusLogsTool ]
       else
