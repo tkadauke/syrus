@@ -11,10 +11,11 @@ RSpec.describe PollMergeStateJob, :ci_only do
     WorkUnits::TerminalWorkflowSync.for_job(target)
   end
 
-  def pr(mergeable_state: "clean", mergeable: true, merged: false, state: "open", head_sha: "abc", base_ref: "main", base_sha: "base")
+  def pr(mergeable_state: "clean", mergeable: true, merged: false, state: "open", head_sha: "abc", base_ref: "main", base_sha: "base", merge_commit_sha: nil)
     repo = OpenStruct.new(full_name: "acme/widgets")
     OpenStruct.new(
       merged: merged,
+      merge_commit_sha: merge_commit_sha,
       state: state,
       mergeable: mergeable,
       mergeable_state: mergeable_state,
@@ -159,7 +160,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
     active_run.update_columns(state: "running", started_at: Time.current, finished_at: nil)
     job.update!(grace_period_expires_at: 2.days.from_now)
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
-      pr(merged: true, state: "closed")
+      pr(merged: true, state: "closed", merge_commit_sha: "landed123")
     )
     allow_any_instance_of(GithubClient).to receive(:delete_branch).and_return(true)
 
@@ -167,6 +168,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
+    expect(job.landed_sha).to eq("landed123")
     expect(job.finished_at).to be_present
     expect(job.grace_period_expires_at).to be_nil
     expect(job.branch_deleted_at).to be_present

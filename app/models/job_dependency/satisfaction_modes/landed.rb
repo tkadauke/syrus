@@ -18,6 +18,15 @@ class JobDependency
         job.closed? && job.landed_sha.present? && LANDED_CLOSURE_REASONS.include?(job.closure_reason)
       end
 
+      def terminal_unsuccessful_for_execution?
+        return false if dependency_succeeded?
+
+        job = dependency.depends_on_job
+        return false unless job&.closed?
+
+        !LANDED_CLOSURE_REASONS.include?(job.closure_reason)
+      end
+
       def validate!
         super
         return if dependency.depends_on_job_id.present?

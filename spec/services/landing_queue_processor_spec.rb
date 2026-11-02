@@ -529,6 +529,27 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(entry.blocked_reason).to eq({ key: "waiting_for_deployment_stage", params: { slug: prerequisite.slug, stage: "production" } })
   end
 
+  it "explains when an approved Job is waiting for durable landing evidence" do
+    prerequisite = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 1,
+      state: "closed",
+      closure_reason: "pr_merged"
+    )
+    blocked = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
+    JobDependency.create!(
+      job: blocked,
+      depends_on_job: prerequisite,
+      source: "manual",
+      satisfaction_mode: "landed"
+    )
+
+    entry = described_class.entries(Job.where(id: blocked.id)).first
+
+    expect(entry.blocked_reason).to eq({ key: "waiting_for_landing", params: { slug: prerequisite.slug } })
+  end
+
   it "explains when an approved Job is waiting for an Epic dependency" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     blocked = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
