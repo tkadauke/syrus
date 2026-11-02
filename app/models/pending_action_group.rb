@@ -105,7 +105,13 @@ class PendingActionGroup < ApplicationRecord
     return spawn_chats_confirmed_notice(members) if members.all? { |member| member.action == "spawn_chat" }
 
     counts = members.group_by(&:group_outcome).transform_values(&:size)
-    "Batch result: #{counts.fetch('applied', 0)} applied, #{counts.fetch('skipped', 0)} skipped/ineligible, #{counts.fetch('failed', 0)} failed."
+    summary = "Batch result: #{counts.fetch('applied', 0)} applied, #{counts.fetch('skipped', 0)} skipped/ineligible, #{counts.fetch('failed', 0)} failed."
+    failures = members.filter_map do |member|
+      next unless member.group_outcome == "failed"
+
+      "Failed: #{::App::Presentation.pending_action_label(member)} — #{member.execution_error.presence || 'Unknown error'}"
+    end
+    ([ summary ] + failures).join("\n")
   end
 
   def confirmation_notice
@@ -122,6 +128,13 @@ class PendingActionGroup < ApplicationRecord
     return outcome_message unless confirmed? || rejected?
 
     public_send("notify_#{state}_outcome")
+  end
+
+  def visible_in_chat_payload?
+    return false if dismissed_at?
+    return true unless confirmed? || rejected?
+
+    outcome_message_id.blank?
   end
 
   def notify_confirmed_outcome

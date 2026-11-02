@@ -355,9 +355,11 @@ The handoff tools create a pending action that the operator must confirm before
 Syrus dispatches any automation. `reset_workspace` runs immediately, but only
 performs destructive cleanup when the call explicitly confirms discard.
 When a pending action finishes, Syrus immediately records its confirmed,
-failed, rejected, or cancelled outcome in chat. Terminal cards can be hidden,
-but hiding is cosmetic: it preserves the execution state, status, error,
-result, and audit history and does not wake the agent a second time.
+failed, rejected, or cancelled outcome in chat. Confirmed, rejected, and
+cancelled cards retire automatically after that durable outcome appears;
+failed cards remain visible until you hide them because they still need
+attention. Hiding is cosmetic: it preserves the execution state, status,
+error, result, and audit history and does not wake the agent a second time.
 Older terminal cards are archived during upgrade, so they do not reappear or
 replay agent turns when a chat is first opened after deployment.
 
