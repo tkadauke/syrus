@@ -358,6 +358,40 @@ RSpec.describe RuntimeTerminal::Provider do
       takeover&.join
       relay&.stop
     end
+
+    it "releases the takeover lock when a stalled relay write times out" do
+      relay = RuntimeTerminalFakeRelay.new
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input")
+      write_started = Queue.new
+      allow_any_instance_of(RuntimeTerminal::RelayClient).to receive(:input) do
+        write_started << true
+        sleep 0.05
+        raise RuntimeTerminal::RelayClient::ConnectionError, "terminal relay write timed out"
+      end
+
+      delivery = Thread.new { provider.input(runtime_session.id, type: "key", key: "Enter") }
+      write_started.pop
+      takeover = Thread.new do
+        RuntimeControlLease.abort_agent_control!(runtime_session: runtime_session, reason: "operator takeover")
+      end
+
+      expect(delivery.value).to include(error: "connection_error", message: "terminal relay write timed out")
+      expect { Timeout.timeout(0.5) { takeover.value } }.not_to raise_error
+      expect(runtime_session.active_agent_input_lease).to be_nil
+    ensure
+      delivery&.join
+      takeover&.join
+      relay&.stop
+    end
   end
 
   describe "#stop_session" do
