@@ -49,6 +49,7 @@ module Permissions
           request.authorization_items.create!(@item_attributes.merge(capability:, operation:))
         end
         associate!(request)
+        ApprovalNotifications::Router.route!(request) if request.delivery_state.blank?
         Result.new(request:, status: request.origin == origin ? :created : :reused)
       end
     end
