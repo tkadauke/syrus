@@ -601,6 +601,23 @@ result includes `cancelled`, `wakeup_id`, `fire_at`, and `prompt`; older
 transcripts that only recorded the first two fields can recover the display
 context from an earlier `list_wakeups` or `schedule_wakeup` call when present.
 
+Choose a scheduling mechanism by what must execute, before considering whether
+the cadence is one-shot or recurring. `schedule_wakeup` continues the current
+conversation: it stores a one-shot prompt, needs no confirmation, and starts a
+future agent turn in the same chat without creating a repository Job. Use it
+for “remind me here,” “wake this chat,” conditional follow-ups, and chained
+rechecks. For example, “check every other day; if blocked, set a new reminder
+here” is a chain of one-shot wakeups: each turn checks the condition and, only
+when needed, schedules the next wakeup.
+
+`schedule_recurring` is unattended repository automation. It proposes a
+recurring task for operator confirmation; once confirmed, every fire creates a
+new `cron` Job and Workflow against the repository. It never wakes or resumes
+the originating chat. Use it for work such as “run the dependency audit every
+Monday and open a PR,” not conversational reminders. Its confirmation card
+warns about these execution semantics, and obviously chat-directed prompts are
+rejected with guidance to use `schedule_wakeup`.
+
 ## Coding Mode existing-Job takeover
 
 Coding Mode exposes `open_in_coding_mode(job_id)` to let a chat agent take over

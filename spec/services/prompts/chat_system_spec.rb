@@ -541,6 +541,11 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Express dependencies between proposals when they exist")
     expect(out).to include("Use `propose_job` for direct Syrus Job creation")
     expect(out).to include("Use `schedule_recurring(schedule_input, label, prompt)` only")
+    expect(out).to include("Choose scheduling tools by execution semantics before cadence")
+    expect(out).to include("chat continuation uses `schedule_wakeup`")
+    expect(out).to match(/unattended repository\s+work uses `schedule_recurring`/)
+    expect(out).to include('"check every other day; if blocked, set a new reminder here"')
+    expect(out).to include("one-shot chat wakeups")
   end
 
   it "explains the Syrus domain model so the agent can reason about Epics, Jobs, and the lifecycle" do
