@@ -87,7 +87,7 @@ module SyrusBrowser
           width: state.viewport.width, height: state.viewport.height,
           deviceScaleFactor: state.device_scale_factor, mobile: state.is_mobile
         });
-        await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: state.has_touch, maxTouchPoints: state.has_touch ? 5 : 0 });
+        await cdp.send("Emulation.setTouchEmulationEnabled", state.has_touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false });
         await cdp.send("Emulation.setUserAgentOverride", { userAgent: state.user_agent });
         await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: state.safe_area_insets });
         await page.emulateMedia({

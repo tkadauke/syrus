@@ -142,6 +142,8 @@ RSpec.describe SyrusBrowser::EmulateTool do
     expect(session).to have_received(:call_tool) do |name:, arguments:|
       expect(name).to eq("browser_run_code_unsafe")
       expect(arguments["code"]).to include("Emulation.setSafeAreaInsetsOverride", "newCDPSession")
+      # CDP rejects maxTouchPoints: 0, so it may only accompany enabled: true.
+      expect(arguments["code"]).not_to include("maxTouchPoints: state.has_touch ?")
     end
   end
 end
