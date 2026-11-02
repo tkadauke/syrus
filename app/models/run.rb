@@ -134,6 +134,7 @@ class Run < ApplicationRecord
     state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
 
     event :start do
+      before { job.lock! }
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
     end
 

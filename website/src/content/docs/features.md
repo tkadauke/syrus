@@ -1558,7 +1558,8 @@ A Job's title and prompt can be corrected while it is still in backlog,
 triage, Epic-blocked, or queued. They become immutable as soon as execution
 starts, so every Workflow retains the definition it actually ran. Later
 changes belong in feedback or a new Job rather than a rewrite of running or
-completed work.
+completed work. Syrus also checks the underlying Workflow, WorkUnit, and Run
+execution records, so a stale Job status cannot reopen the editing window.
 
 Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be

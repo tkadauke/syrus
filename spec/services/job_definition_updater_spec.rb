@@ -18,9 +18,16 @@ RSpec.describe JobDefinitionUpdater do
     described_class::EDITABLE_STATES.each do |state|
       editable = job(state: state)
 
+      previous_revision = editable.entity_revision
+      previous_updated_at = editable.updated_at
       described_class.new(editable).update!(title: "Updated title", description: "Updated description")
 
-      expect(editable.reload).to have_attributes(issue_title: "Updated title", issue_body: "Updated description")
+      expect(editable.reload).to have_attributes(
+        issue_title: "Updated title",
+        issue_body: "Updated description",
+        entity_revision: previous_revision + 1
+      )
+      expect(editable.updated_at).to be > previous_updated_at
     end
   end
 
@@ -30,7 +37,7 @@ RSpec.describe JobDefinitionUpdater do
 
       expect {
         described_class.new(immutable).update!(title: "Late title", description: "Late description")
-      }.to raise_error(described_class::Immutable, /immutable once work starts.*currently #{state}/)
+      }.to raise_error(described_class::Immutable, /immutable once execution starts.*lifecycle state is #{state}/)
 
       expect(immutable.reload).to have_attributes(issue_title: "Original title", issue_body: "Original description")
     end
@@ -41,7 +48,7 @@ RSpec.describe JobDefinitionUpdater do
 
     expect {
       immutable.update!(issue_title: "Bypassed title", issue_body: "Bypassed description")
-    }.to raise_error(ActiveRecord::RecordInvalid, /immutable once work starts.*currently running/)
+    }.to raise_error(ActiveRecord::RecordInvalid, /immutable once execution starts.*lifecycle state is running/)
 
     expect(immutable.reload).to have_attributes(issue_title: "Original title", issue_body: "Original description")
   end
@@ -55,11 +62,53 @@ RSpec.describe JobDefinitionUpdater do
 
     expect {
       described_class.new(editable).update!(title: "Late title", description: "Late description")
-    }.to raise_error(described_class::Immutable, /currently running/)
+    }.to raise_error(described_class::Immutable, /lifecycle state is running/)
 
     expect(editable.reload).to have_attributes(
       issue_title: "Original title",
       issue_body: "Original description"
     )
+  end
+
+
+  it "rejects stale pre-execution state when a Workflow has started" do
+    stale = Factories.job_with_run(user: user, repository: repository, state: "queued",
+      workflow_attrs: { state: "running", started_at: 1.minute.ago })
+
+    expect {
+      described_class.new(stale).update!(title: "Late title")
+    }.to raise_error(described_class::Immutable, /#{stale.workflows.first.slug} has execution evidence/)
+  end
+
+  it "rejects stale pre-execution state when a WorkUnit has started" do
+    stale = job
+    intent = WorkIntent.create!(kind: "initial", state: "requested", scope_type: "job", repository: repository)
+    unit = WorkUnit.create!(work_intent: intent, kind: "initial", state: "running", scope_type: "job",
+      scope_id: stale.id, repository: repository, started_at: 1.minute.ago)
+    WorkUnitMember.create!(work_unit: unit, job: stale, role: "primary")
+
+    expect {
+      described_class.new(stale).update!(description: "Late description")
+    }.to raise_error(described_class::Immutable, /#{unit.slug} has execution evidence/)
+  end
+
+  it "rejects stale pre-execution state when a Run has started" do
+    stale = Factories.job_with_run(user: user, repository: repository, state: "queued",
+      run_attrs: { state: "running", started_at: 1.minute.ago })
+
+    expect {
+      described_class.new(stale).update!(description: "Late description")
+    }.to raise_error(described_class::Immutable, /#{stale.runs.first.slug} has execution evidence/)
+  end
+
+  it "leaves the complete persisted record unchanged after rejection" do
+    immutable = job(state: "running")
+    before = immutable.attributes
+
+    expect {
+      described_class.new(immutable).update!(title: "Late title", description: "Late description", title_pending: false)
+    }.to raise_error(described_class::Immutable)
+
+    expect(immutable.reload.attributes).to eq(before)
   end
 end

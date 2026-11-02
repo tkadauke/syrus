@@ -252,7 +252,33 @@ class Job < ApplicationRecord
 
   def landing_held? = manual_paused? || landing_attention?
 
-  def definition_editable? = state.in?(DEFINITION_EDITABLE_STATES)
+  def definition_editable? = definition_immutability_reason.nil?
+
+  def definition_immutability_reason
+    return "that state is outside the pre-execution editing window" unless state.in?(DEFINITION_EDITABLE_STATES)
+
+    if (workflow = workflows.where.not(started_at: nil).or(workflows.where(state: %w[running succeeded])).order(:id).first)
+      return "#{workflow.slug} has execution evidence (state #{workflow.state}, started at #{workflow.started_at || 'unknown'})"
+    end
+
+    work_units = WorkUnit.left_joins(:workflow, :work_unit_members)
+      .where("workflows.job_id = :job_id OR work_unit_members.job_id = :job_id", job_id: id)
+      .where("work_units.started_at IS NOT NULL OR work_units.state IN (?)", %w[running succeeded])
+      .distinct
+    if (work_unit = work_units.order(:id).first)
+      return "#{work_unit.slug} has execution evidence (state #{work_unit.state}, started at #{work_unit.started_at || 'unknown'})"
+    end
+
+    if (run = runs.where.not(started_at: nil).or(runs.where(state: %w[running succeeded])).order(:id).first)
+      "#{run.slug} has execution evidence (state #{run.state}, started at #{run.started_at || 'unknown'})"
+    end
+  end
+
+  def definition_immutability_message
+    "#{slug}'s title and description are immutable once execution starts; lifecycle state is #{state}; " \
+      "#{definition_immutability_reason}. " \
+      "Submit feedback or create a new Job instead."
+  end
 
   def eligible_for_landing_dispatch?
     approved? && may_start_landing? && !landing_held?
@@ -2311,9 +2337,13 @@ class Job < ApplicationRecord
   def definition_is_editable
     return unless persisted?
     return unless will_save_change_to_issue_title? || will_save_change_to_issue_body?
+    # Definition writes and execution starts serialize on the Job row. This
+    # makes the execution-evidence check below part of the same atomic decision
+    # as persistence, including for callers that bypass JobDefinitionUpdater.
+    Job.where(id: id).lock(true).pick(:id)
     return if definition_editable?
 
-    errors.add(:base, "title and description are immutable once work starts; the Job is currently #{state}")
+    errors.add(:base, definition_immutability_message)
   end
 
   def investigation_requires_investigable_kind

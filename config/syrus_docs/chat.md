@@ -896,6 +896,8 @@ execution begins. The editable states are `backlog`, `needs_triage`,
 `triaging`, `blocked_by_epic`, and `queued`. Once the Job enters `running` (or
 any later execution state), its source prompt is immutable; use feedback or a
 new Job instead of rewriting the definition that an existing attempt consumed.
+Started Workflow, WorkUnit, or Run evidence also freezes the definition when a
+Job's denormalized lifecycle state has become stale.
 The state check and definition update hold the Job row lock together, so a
 concurrent start cannot race a late edit.
 
