@@ -64,11 +64,15 @@ RSpec.describe McpToolRegistry do
         capability: nil,
         interactive_only: false,
         mutation: false,
-        ungated: false
+        ungated: false,
+        descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(name: "plugin_ping"),
+        explicit_descriptor: false,
+        compatibility_descriptor: false
       )
 
       expect(entry.tool_name).to eq("plugin_ping")
       expect(entry.to_h[:tool_name]).to eq("plugin_ping")
+      expect(entry.descriptor.capability).to eq("plugin_ping@v1")
     end
   end
 
@@ -107,6 +111,15 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".tools_for_context" do
+    it "returns the legacy tool set when shadow comparison raises" do
+      run = Factories.job.initial_run
+      context = McpToolContext.from_run(run)
+      expected = described_class.tools_for_context(context)
+      allow(Permissions::ShadowEvaluator).to receive(:compare).and_raise("policy infrastructure unavailable")
+
+      expect(described_class.tools_for_context(context)).to eq(expected)
+    end
+
     it "keeps the planner chat tool set unchanged" do
       session = chat_session
       context = McpToolContext.from_chat_session(session)
@@ -243,5 +256,14 @@ RSpec.describe McpToolRegistry do
       capability: :submit_job_metadata,
       step_kinds: %w[refresh_job_metadata]
     )
+  end
+
+  it "adapts every existing core registration to the canonical descriptor contract" do
+    expect(described_class.entries).to all(satisfy do |entry|
+      descriptor = entry.descriptor
+      descriptor.is_a?(Permissions::CapabilityDescriptor) &&
+        descriptor.effects.any? &&
+        descriptor.requestable_roles.all? { |role| descriptor.defaults.key?(role) }
+    end)
   end
 end

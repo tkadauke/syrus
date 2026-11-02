@@ -7,6 +7,7 @@ module Coworkers
   extend Syrus::PluginApi
 
   syrus_plugin "coworkers" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "11de97cee2cfedb29f3be39f6b0933a4a7ba01449c9b6f56f9baf64ea87501e2"
     experimental true
     display_name "Coworkers"
     description "Persistent named agents with their own chats, capabilities, and workspace identity."

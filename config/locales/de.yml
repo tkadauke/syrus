@@ -2,6 +2,13 @@ de:
   coworkers:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
+    permissions:
+      capability_registry:
+        conflicting_tool_mapping: "%{surface}-Tool %{tool_name} verweist auf widersprüchliche Capability-/Operationszuordnungen %{mappings}; verwende eine stabile Zuordnung"
+        conflicting_descriptor: "Operation %{operation} hat widersprüchliche Deskriptorverträge für Richtlinien/Effekte aus %{sources}"
+        conflicting_identifier: "%{kind}-Kennung %{identifier} wird von %{targets} beansprucht; Aliasse müssen genau eine kanonische Kennung ergeben"
+        missing_descriptor_detail: "hat keinen expliziten capability_descriptor"
+        registration_finding: "%{source} %{surface}-Tool %{tool_name} %{detail}"
     maintenance_tasks:
       search_database_rebuild:
         complete: "Die ausgewählten Neuerstellungen der Suchdatenbank sind abgeschlossen."

@@ -2,6 +2,7 @@ module ThemingTools
   extend Syrus::PluginApi
 
   syrus_plugin "theming_tools" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "3635bee4af313a0addc4ddd3b820ce36af226a3c0b061fc2bb722194e8825f05"
     experimental true
     display_name "Theming Tools"
     description "Gives the Syrus Chat agent tools to draft, preview, install, and manage custom color " \

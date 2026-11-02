@@ -2,6 +2,13 @@ la:
   coworkers:
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
+    permissions:
+      capability_registry:
+        conflicting_tool_mapping: "instrumentum %{surface} %{tool_name} ad facultates/operationes inter se repugnantes %{mappings} refert; una relatio stabilis adhibenda est"
+        conflicting_descriptor: "operatio %{operation} pacta descriptoris de consilio/effectibus inter se repugnantia ex %{sources} habet"
+        conflicting_identifier: "identificator %{kind} %{identifier} a %{targets} vindicatur; alias ad unum identificatorem canonicum tantum resolvi debent"
+        missing_descriptor_detail: "capability_descriptor explicitum non habet"
+        registration_finding: "%{source} instrumentum %{surface} %{tool_name} %{detail}"
     maintenance_tasks:
       search_database_rebuild:
         complete: "Reconstructiones selectae datorum quaestionis perfectae sunt."

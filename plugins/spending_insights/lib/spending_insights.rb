@@ -2,6 +2,7 @@ module SpendingInsights
   extend Syrus::PluginApi
 
   syrus_plugin "spending_insights" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "5d6c20faa36e55244e64275ff9a8c03051eca0370eaac8438ee7d76ad1d9925b"
     display_name "Spending Insights"
     description "Agent spend dashboard (cost rollups by Epic, user, repository, and trigger kind) in the primary sidebar."
     long_description "Spending Insights adds a sidebar page for understanding agent spend across Syrus. It rolls costs up by epic, repository, user, provider, and workflow trigger so operators can see where automation budget is going.\n\nUse it on instances where cost visibility matters. It reads existing accounting data and does not change scheduling, grading, or job behavior."

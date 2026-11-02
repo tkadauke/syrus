@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Admin::CapabilitySurfaceRegistry do
-  StubMcpEntry = Data.define(:capability, :tool_name, :surface, :mutation, :admin_only)
+  StubMcpEntry = Data.define(:capability, :tool_name, :surface, :mutation, :admin_only, :descriptor)
 
   around do |example|
     described_class.new.send(:load_pending_action_classes)
@@ -12,13 +12,14 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     PendingActions::REGISTRY.merge!(original_registry)
   end
 
-  def mcp_entry(capability:, tool_name: capability, surface: :workflow, mutation: false, admin_only: false)
+  def mcp_entry(capability:, tool_name: capability, surface: :workflow, mutation: false, admin_only: false, descriptor: nil)
     StubMcpEntry.new(
       capability: capability&.to_sym,
       tool_name: tool_name.to_s,
       surface: surface,
       mutation: mutation,
-      admin_only: admin_only
+      admin_only: admin_only,
+      descriptor: descriptor || Permissions::CapabilityDescriptorAdapter.for_plugin_definition(name: tool_name, capability: capability, mutation: mutation)
     )
   end
 
@@ -60,6 +61,18 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
 
   it "passes on the current reviewed surface-decision allowlist" do
     expect(described_class.coverage_gaps).to eq([])
+  end
+
+  it "reports descriptor coverage separately from surface exposure" do
+    entry = mcp_entry(capability: :stub_capability)
+    missing = entry.with(descriptor: nil)
+
+    expect(described_class.new(mcp_entries: [ entry ], pending_action_classes: []).descriptor_gaps).to eq([])
+    expect(described_class.new(mcp_entries: [ missing ], pending_action_classes: []).descriptor_gaps).to contain_exactly(
+      tool_name: "stub_capability",
+      surface: :workflow,
+      missing: %i[descriptor effects defaults role_decisions]
+    )
   end
 
   it "records workflow-only decisions for agent handoff capabilities" do
@@ -264,5 +277,19 @@ RSpec.describe "capability surface coverage inventory" do
     gaps = Admin::CapabilitySurfaceRegistry.coverage_gaps
 
     expect(gaps).to eq([]), "Add an exposed source or an explicit not_exposed reason in Admin::CapabilitySurfaceRegistry: #{gaps.inspect}"
+  end
+
+  it "validates every core and plugin agent-tool descriptor", :ci_only do
+    expect { Admin::CapabilitySurfaceRegistry.validate_descriptors! }.not_to raise_error
+  end
+
+  it "reports role/default/effect coverage for the registered agent tools" do
+    coverage = Admin::CapabilitySurfaceRegistry.descriptor_coverage
+
+    expect(coverage.fetch(:tools)).to be > 0
+    expect(coverage.fetch(:described_tools)).to eq(coverage.fetch(:tools))
+    expect(coverage.fetch(:explicit_descriptors) + coverage.fetch(:legacy_descriptors)).to eq(coverage.fetch(:described_tools))
+    expect(coverage.fetch(:roles)).to include(AgentRole::CHAT_PLANNER)
+    expect(coverage.fetch(:effects)).to include(:local_read, :internal_write)
   end
 end

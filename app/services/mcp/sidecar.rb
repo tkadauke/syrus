@@ -196,6 +196,7 @@ module Mcp
       end
 
       definitions = filter_by_policy(definitions, policy)
+      definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
       if policy == :coworker
         grants = McpToolContext.from_chat_session(chat_session).granted_capabilities
         definitions = definitions.select do |definition|
@@ -211,7 +212,7 @@ module Mcp
       end
 
       definitions.map do |defn|
-        authorize_tool(MCP::Tool.define(
+        tool = MCP::Tool.define(
           name: defn[:name],
           description: defn[:description],
           input_schema: defn[:input_schema]
@@ -219,7 +220,9 @@ module Mcp
           PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set_class, operation: "handle.#{defn[:name]}") do
             tool_set_class.new.handle(defn[:name], params, server_context)
           end
-        end)
+        end
+        tool.define_singleton_method(:capability_descriptor) { defn.fetch(:capability_descriptor) }
+        authorize_tool(tool)
       end
     end
 
@@ -250,9 +253,10 @@ module Mcp
         end
       end
       policy_managed_names = defined?(SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES) ? SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES : []
+      definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
 
       definitions.reject { |defn| policy_managed_names.include?(defn[:name]) }.map do |defn|
-        MCP::Tool.define(
+        tool = MCP::Tool.define(
           name: defn[:name],
           description: defn[:description],
           input_schema: defn[:input_schema]
@@ -261,6 +265,8 @@ module Mcp
             tool_set_class.new.handle(defn[:name], params, server_context)
           end
         end
+        tool.define_singleton_method(:capability_descriptor) { defn.fetch(:capability_descriptor) }
+        tool
       end
     end
 
