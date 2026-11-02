@@ -58,7 +58,7 @@ class PollMergeStateJob < ApplicationJob
 
       if @pr.merged
         Rails.logger.info("[PollMergeStateJob] closing #{@job.slug}: pr_merged")
-        PullRequestMergeCloser.call(job: @job)
+        PullRequestMergeCloser.call(job: @job, landed_sha: @pr.merge_commit_sha)
         return
       end
       return if @pr.state == "closed"

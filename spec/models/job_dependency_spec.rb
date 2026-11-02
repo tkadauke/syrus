@@ -314,6 +314,8 @@ RSpec.describe JobDependency do
 
       prerequisite.update_columns(state: "closed", closure_reason: "pr_merged", landed_sha: nil)
       expect(dependency.reload).not_to be_execution_dependency_satisfied
+      expect(dependency).not_to be_dependency_terminal_unsuccessful_for_execution
+      expect(dependent.reload.failed_dependencies_for_execution).to be_empty
 
       prerequisite.update!(landed_sha: "b" * 40)
       expect(dependency.reload).to be_execution_dependency_satisfied
@@ -332,6 +334,9 @@ RSpec.describe JobDependency do
       prerequisite.update_columns(closure_reason: "cancelled", landed_sha: nil)
       expect(dependency.reload).not_to be_execution_dependency_satisfied
       expect(dependent.reload.failed_dependencies_for_execution).to contain_exactly(dependency)
+
+      prerequisite.update_column(:closure_reason, "rejected")
+      expect(dependency.reload).to be_dependency_terminal_unsuccessful_for_execution
     end
 
     it "accepts a genuine no-changes close without requiring a landed SHA" do

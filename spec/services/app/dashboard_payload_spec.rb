@@ -845,6 +845,29 @@ RSpec.describe App::DashboardPayload, :ci_only do
         satisfaction_mode: "closed"
       )
 
+      landed_without_evidence = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+      waiting_for_landing_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+      JobDependency.create!(
+        job: waiting_for_landing_child,
+        depends_on_job: landed_without_evidence,
+        source: "manual",
+        satisfaction_mode: "landed"
+      )
+      landed_with_evidence = Factories.job_record(
+        user: user,
+        repository: repo,
+        state: "closed",
+        closure_reason: "pr_merged",
+        landed_sha: "landed123"
+      )
+      released_after_landing_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+      JobDependency.create!(
+        job: released_after_landing_child,
+        depends_on_job: landed_with_evidence,
+        source: "manual",
+        satisfaction_mode: "landed"
+      )
+
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repo).and_return(
         RepoDeploymentStagesReader::Result.new(stages: [ staging ], source: ".syrus.yml", note: nil)
@@ -882,7 +905,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       semantic_item = rows[:items].find { |item| item[:id] == epic.id }
       held_item = rows[:items].find { |item| item[:id] == held_epic.id }
 
-      expect(semantic_item[:blocked_child_count]).to eq(2)
+      expect(semantic_item[:blocked_child_count]).to eq(3)
       expect(held_item[:blocked_child_count]).to eq(1)
     end
 
