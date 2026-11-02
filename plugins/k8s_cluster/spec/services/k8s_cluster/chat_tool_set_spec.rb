@@ -76,6 +76,9 @@ RSpec.describe K8sCluster::ChatToolSet do
     )
     expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_pods" }.fetch(:description)).to include("k8s_cluster_list_clusters")
     expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_pod_logs" }.dig(:input_schema, :required)).to eq([ "cluster_id", "name", "namespace" ])
+    expect(tools).to all(include(:capability_descriptor))
+    expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_secrets" }.fetch(:capability_descriptor).capability)
+      .to eq("k8s.secret_access@v1")
   end
 
   it "advertises only the read-only cluster tools through k8s.read" do
@@ -127,13 +130,13 @@ RSpec.describe K8sCluster::ChatToolSet do
     expect(names).to match_array(described_class::COWORKER_READ_TOOLS.map(&:tool_name))
 
     namespaces = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "k8s_cluster_namespaces" }
-    confirmed = namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat })
-    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "queue")
-    expect(chat.pending_actions.last.payload).to include("tool_name" => "k8s_cluster_namespaces")
+    expect(JSON.parse(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat }).content.first[:text]))
+      .to include("error" => "not_authorized")
+    expect(chat.pending_actions).to be_empty
 
     grant.update!(approval_policy: "auto")
     expect(JSON.parse(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat }).content.first[:text]))
-      .to include("approval_policy" => "queue")
+      .to include("error" => "not_authorized")
   end
 
   it "dispatches to the matching tool class, passing string-keyed params through" do

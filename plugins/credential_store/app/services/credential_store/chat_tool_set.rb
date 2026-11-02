@@ -15,7 +15,8 @@ module CredentialStore
         {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h
+          input_schema: klass.input_schema_value.to_h,
+          capability_descriptor: PermissionProvider.capability_descriptor("ssh.execute/risky@v1")
         }
       end
     end

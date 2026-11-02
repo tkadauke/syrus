@@ -31,6 +31,7 @@ RSpec.describe MysqlDbBrowser::Engine do
 
     expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(MysqlDbBrowser::WorkflowToolSet)
     expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(MysqlDbBrowser::ChatToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(MysqlDbBrowser::PermissionProvider)
   end
 
   describe ".enabled?" do

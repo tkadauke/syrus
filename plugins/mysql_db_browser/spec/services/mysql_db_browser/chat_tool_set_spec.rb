@@ -51,6 +51,9 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_list_databases" }.fetch(:description)).to include("mysql_db_browser_list_connections")
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_execute_query" }.dig(:input_schema, :required)).to eq([ "mysql_connection_id", "sql" ])
     expect(tools).to all(include(coworker_safe: true, capability: "mysql.read"))
+    expect(tools).to all(include(capability_descriptor: be_a(Permissions::CapabilityDescriptor)))
+    expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_execute_query" }
+      .fetch(:capability_descriptor).operation).to eq("mysql.query/execute@v1")
     expect(described_class.coworker_grants.first).to include(default_policy: "confirm", maximum_policy: "auto")
   end
 
@@ -79,13 +82,13 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
       )
 
     query_tool = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "mysql_db_browser_execute_query" }
-    confirmed = query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1", server_context: { chat_session: chat })
-    expect(JSON.parse(confirmed.content.first[:text])).to include("approval_policy" => "queue")
-    expect(chat.pending_actions.last.payload).to include("tool_name" => "mysql_db_browser_execute_query")
+    expect(JSON.parse(query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1",
+      server_context: { chat_session: chat }).content.first[:text])).to include("error" => "not_authorized")
+    expect(chat.pending_actions).to be_empty
 
     grant.update!(approval_policy: "auto")
     expect(JSON.parse(query_tool.call(mysql_connection_id: connection.id, sql: "SELECT 1",
-      server_context: { chat_session: chat }).content.first[:text])).to include("approval_policy" => "queue")
+      server_context: { chat_session: chat }).content.first[:text])).to include("error" => "not_authorized")
   end
 
   it "dispatches string-keyed params without revealing an unusable legacy connection" do
