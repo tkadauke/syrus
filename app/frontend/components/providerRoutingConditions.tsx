@@ -12,8 +12,12 @@ export type ConditionCardProps = {
   value: unknown
 }
 
+export type ConditionScope = "user" | "repository" | "job"
+
 export type ConditionType = {
   key: string
+  /** Scopes where the condition is redundant and therefore hidden from the editor (stored values are still kept on save). */
+  hiddenAtScopes?: ConditionScope[]
   /** i18n key for the short label shown in the menu and card title. */
   labelKey: string
   defaultValue: () => unknown
@@ -285,8 +289,340 @@ const usage: ConditionType = {
   }
 }
 
-// Later condition types (day_time, job_metadata, repository) register here.
-const CONDITION_TYPES: ConditionType[] = [workflowTrigger, usage]
+function Chip({ label, onClick, pressed }: { label: string; onClick: () => void; pressed: boolean }) {
+  return (
+    <button
+      aria-pressed={pressed}
+      className={`min-h-9 rounded-full border px-3 text-xs ${pressed ? "border-brand bg-brand/10 text-text-primary" : "border-border text-text-secondary"}`}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  )
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+/** Merges a partial update into a condition object, dropping keys that became empty. */
+function patchObject(value: unknown, partial: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...objectValue(value), ...partial }
+  Object.keys(next).forEach((key) => {
+    const entry = next[key]
+    if (entry === undefined || entry === "" || (Array.isArray(entry) && entry.length === 0)) delete next[key]
+  })
+  return next
+}
+
+function toggled<T>(list: T[], item: T) {
+  return list.includes(item) ? list.filter((entry) => entry !== item) : [...list, item]
+}
+
+function joinWithExtra(labels: string[], max: number, separator = "/") {
+  const shown = labels.slice(0, max).join(separator)
+  return labels.length > max ? `${shown} +${labels.length - max}` : shown
+}
+
+// ---- Day and time -------------------------------------------------------
+
+export const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const
+const TIME_PATTERN = /^\d{2}:\d{2}$/
+
+export function dayTimeDays(value: unknown) {
+  return stringList(objectValue(value).days)
+}
+
+export function toggleDay(value: unknown, day: string) {
+  const days = dayTimeDays(value)
+  const next = toggled(days, day)
+  return patchObject(value, { days: DAYS.filter((entry) => next.includes(entry)) })
+}
+
+export function setDayTimeBound(value: unknown, key: "start" | "end", time: string) {
+  return patchObject(value, { [key]: time })
+}
+
+/** The backend compares HH:MM strings, so start after end (overnight) never matches. */
+function dayTimeError(value: unknown, t: ConditionT): string | null {
+  const stored = objectValue(value)
+  const start = String(stored.start ?? "")
+  const end = String(stored.end ?? "")
+  if (TIME_PATTERN.test(start) && TIME_PATTERN.test(end) && start > end) return t("provider_routing.day_time.validation_overnight")
+  return null
+}
+
+function dayLabel(day: string, t: ConditionT) {
+  return t(`provider_routing.day_time.short_${day}`)
+}
+
+/** Contiguous runs collapse to `Mon-Fri`; everything else is listed. All seven days = no restriction. */
+export function dayTimeDaysSummary(days: string[], t: ConditionT): string | null {
+  const indexes = DAYS.map((day, index) => (days.includes(day) ? index : -1)).filter((index) => index >= 0)
+  if (indexes.length === 0 || indexes.length === DAYS.length) return null
+  const contiguous = indexes.length > 2 && indexes[indexes.length - 1] - indexes[0] === indexes.length - 1
+  if (contiguous) return `${dayLabel(DAYS[indexes[0]], t)}-${dayLabel(DAYS[indexes[indexes.length - 1]], t)}`
+  return indexes.map((index) => dayLabel(DAYS[index], t)).join(", ")
+}
+
+function DayTimeCard({ onChange, options, t, value }: ConditionCardProps) {
+  const stored = objectValue(value)
+  const days = dayTimeDays(value)
+  const error = dayTimeError(value, t)
+  const zone = options.conditions?.time_zone
+
+  return (
+    <div className="space-y-2">
+      <div aria-label={t("provider_routing.day_time.days")} className="flex flex-wrap gap-2" role="group">
+        {DAYS.map((day) => (
+          <Chip key={day} label={dayLabel(day, t)} onClick={() => onChange(toggleDay(value, day))} pressed={days.includes(day)} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Form.Field className="min-w-28 flex-1">
+          <Form.Input
+            aria-label={t("provider_routing.day_time.start")}
+            onChange={(event) => onChange(setDayTimeBound(value, "start", event.target.value))}
+            type="time"
+            value={String(stored.start ?? "")}
+          />
+        </Form.Field>
+        <Form.Field className="min-w-28 flex-1">
+          <Form.Input
+            aria-label={t("provider_routing.day_time.end")}
+            onChange={(event) => onChange(setDayTimeBound(value, "end", event.target.value))}
+            type="time"
+            value={String(stored.end ?? "")}
+          />
+        </Form.Field>
+      </div>
+      {zone ? <p className="text-xs text-text-secondary">{t("provider_routing.day_time.zone", { zone })}</p> : null}
+      {error ? (
+        <p className="text-xs text-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+const dayTime: ConditionType = {
+  key: "day_time",
+  labelKey: "provider_routing.conditions.day_time",
+  defaultValue: () => ({ days: ["monday", "tuesday", "wednesday", "thursday", "friday"], start: "09:00", end: "18:00" }),
+  Card: DayTimeCard,
+  isEmpty: (value) => dayTimeDays(value).length === 0 && !objectValue(value).start && !objectValue(value).end,
+  validate: dayTimeError,
+  summarize: (value, _options, t) => {
+    const stored = objectValue(value)
+    const parts: string[] = []
+    const daysLabel = dayTimeDaysSummary(dayTimeDays(value), t)
+    if (daysLabel) parts.push(daysLabel)
+    const start = String(stored.start ?? "")
+    const end = String(stored.end ?? "")
+    if (start && end) parts.push(`${start}-${end}`)
+    else if (start) parts.push(t("provider_routing.day_time.from", { time: start }))
+    else if (end) parts.push(t("provider_routing.day_time.until", { time: end }))
+    return parts.length > 0 ? parts.join(" ") : null
+  }
+}
+
+// ---- Job type -----------------------------------------------------------
+
+export const JOB_PRIORITIES = ["urgent", "high", "medium", "low"] as const
+export type InvestigationMode = "any" | "only" | "never"
+
+export function investigationMode(value: unknown): InvestigationMode {
+  const stored = objectValue(value)
+  if (!("investigation" in stored)) return "any"
+  return stored.investigation === true || stored.investigation === "true" ? "only" : "never"
+}
+
+export function setInvestigationMode(value: unknown, mode: InvestigationMode) {
+  const next = { ...objectValue(value) }
+  if (mode === "any") delete next.investigation
+  else next.investigation = mode === "only"
+  return next
+}
+
+function titleize(raw: string) {
+  const text = raw.replace(/_/g, " ")
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+const JOB_PILL_MAX = 2
+
+function JobMetadataCard({ onChange, options, t, value }: ConditionCardProps) {
+  const stored = objectValue(value)
+  const kinds = stringList(stored.kinds)
+  const priorities = stringList(stored.priorities)
+  const mode = investigationMode(value)
+  const modes: { mode: InvestigationMode; label: string }[] = [
+    { mode: "any", label: t("provider_routing.job_metadata.any") },
+    { mode: "only", label: t("provider_routing.job_metadata.only_investigations") },
+    { mode: "never", label: t("provider_routing.job_metadata.never_investigations") }
+  ]
+
+  return (
+    <div className="space-y-3">
+      <div aria-label={t("provider_routing.job_metadata.kinds")} className="flex flex-wrap gap-2" role="group">
+        {(options.conditions?.job_kinds || []).map((kind) => (
+          <Chip
+            key={kind.value}
+            label={kind.label}
+            onClick={() => onChange(patchObject(value, { kinds: toggled(kinds, kind.value) }))}
+            pressed={kinds.includes(kind.value)}
+          />
+        ))}
+      </div>
+      <div aria-label={t("provider_routing.job_metadata.priorities")} className="flex flex-wrap gap-2" role="group">
+        {JOB_PRIORITIES.map((priority) => (
+          <Chip
+            key={priority}
+            label={t(`provider_routing.job_metadata.priority_${priority}`)}
+            onClick={() => onChange(patchObject(value, { priorities: toggled(priorities, priority) }))}
+            pressed={priorities.includes(priority)}
+          />
+        ))}
+      </div>
+      <div aria-label={t("provider_routing.job_metadata.investigation")} className="flex flex-wrap gap-2" role="radiogroup">
+        {modes.map((entry) => (
+          <button
+            aria-checked={mode === entry.mode}
+            className={`min-h-9 rounded-full border px-3 text-xs ${mode === entry.mode ? "border-brand bg-brand/10 text-text-primary" : "border-border text-text-secondary"}`}
+            key={entry.mode}
+            onClick={() => onChange(setInvestigationMode(value, entry.mode))}
+            role="radio"
+            type="button"
+          >
+            {entry.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const jobMetadata: ConditionType = {
+  key: "job_metadata",
+  labelKey: "provider_routing.conditions.job_metadata",
+  defaultValue: () => ({}),
+  Card: JobMetadataCard,
+  isEmpty: (value) => {
+    const stored = objectValue(value)
+    return stringList(stored.kinds).length === 0 && stringList(stored.priorities).length === 0 && !("investigation" in stored)
+  },
+  summarize: (value, options, t) => {
+    const stored = objectValue(value)
+    const parts: string[] = []
+    const kinds = stringList(stored.kinds).map((kind) => options.conditions?.job_kinds?.find((option) => option.value === kind)?.label || titleize(kind))
+    if (kinds.length > 0) parts.push(joinWithExtra(kinds, JOB_PILL_MAX))
+    const priorities = stringList(stored.priorities).map((priority) =>
+      (JOB_PRIORITIES as readonly string[]).includes(priority) ? t(`provider_routing.job_metadata.priority_${priority}`) : titleize(priority)
+    )
+    if (priorities.length > 0) parts.push(priorities.join("/"))
+    const mode = investigationMode(value)
+    if (mode === "only") parts.push(t("provider_routing.job_metadata.pill_investigations"))
+    if (mode === "never") parts.push(t("provider_routing.job_metadata.pill_no_investigations"))
+    return parts.length > 0 ? parts.join(" · ") : null
+  }
+}
+
+// ---- Repository ---------------------------------------------------------
+
+const REPOSITORY_LABEL_MAX = 24
+const REPOSITORY_PILL_MAX = 2
+
+function truncate(text: string, max = REPOSITORY_LABEL_MAX) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+export function repositoryIds(value: unknown) {
+  const ids = objectValue(value).ids
+  return (Array.isArray(ids) ? ids : []).map((id) => Number(id)).filter((id) => Number.isFinite(id))
+}
+
+function RepositoryCard({ onChange, options, t, value }: ConditionCardProps) {
+  const [query, setQuery] = useState("")
+  const stored = objectValue(value)
+  const ids = repositoryIds(value)
+  const owners = stringList(stored.owners)
+  const names = stringList(stored.names)
+  const repositories = options.conditions?.repositories || []
+  const knownOwners = Array.from(new Set([...repositories.map((repository) => repository.owner), ...owners])).sort()
+  const needle = query.trim().toLowerCase()
+  const visible = repositories.filter((repository) => !needle || repository.slug.toLowerCase().includes(needle))
+
+  return (
+    <div className="space-y-3">
+      <div aria-label={t("provider_routing.repository.owners")} className="flex flex-wrap gap-2" role="group">
+        {knownOwners.map((owner) => (
+          <Chip key={owner} label={owner} onClick={() => onChange(patchObject(value, { owners: toggled(owners, owner) }))} pressed={owners.includes(owner)} />
+        ))}
+      </div>
+      <Form.Field>
+        <Form.Input
+          aria-label={t("provider_routing.repository.search")}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("provider_routing.repository.search")}
+          type="search"
+          value={query}
+        />
+      </Form.Field>
+      <div className="max-h-44 overflow-y-auto rounded border border-border">
+        {visible.map((repository) => (
+          <label className="flex min-h-10 cursor-pointer items-center gap-2 px-2 text-sm text-text-primary" key={repository.id}>
+            <Checkbox
+              checked={ids.includes(repository.id)}
+              className="h-4 w-4 accent-brand"
+              onChange={() => onChange(patchObject(value, { ids: toggled(ids, repository.id) }))}
+            />
+            {repository.slug}
+          </label>
+        ))}
+        {visible.length === 0 ? <p className="px-2 py-2 text-xs text-text-secondary">{t("provider_routing.conditions.no_matches")}</p> : null}
+      </div>
+      {names.length > 0 ? (
+        <div aria-label={t("provider_routing.repository.names")} className="flex flex-wrap gap-2" role="group">
+          {names.map((name) => (
+            <Chip key={name} label={name} onClick={() => onChange(patchObject(value, { names: toggled(names, name) }))} pressed />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+const repository: ConditionType = {
+  key: "repository",
+  labelKey: "provider_routing.conditions.repository",
+  hiddenAtScopes: ["repository", "job"],
+  defaultValue: () => ({}),
+  Card: RepositoryCard,
+  isEmpty: (value) => {
+    const stored = objectValue(value)
+    return repositoryIds(value).length === 0 && stringList(stored.owners).length === 0 && stringList(stored.names).length === 0
+  },
+  summarize: (value, options, t) => {
+    const stored = objectValue(value)
+    const known = options.conditions?.repositories || []
+    const labels = [
+      ...repositoryIds(value).map((id) => known.find((entry) => entry.id === id)?.slug || `#${id}`),
+      ...stringList(stored.owners),
+      ...stringList(stored.names)
+    ].map((label) => truncate(label))
+    if (labels.length === 0) return null
+    return t("provider_routing.repository.pill", { label: joinWithExtra(labels, REPOSITORY_PILL_MAX, ", ") })
+  }
+}
+
+const CONDITION_TYPES: ConditionType[] = [workflowTrigger, usage, dayTime, jobMetadata, repository]
+
+/** Condition types offered at the given scope (repository is redundant inside a repository or job rule set). */
+function typesForScope(scope: ConditionScope) {
+  return CONDITION_TYPES.filter((type) => !type.hiddenAtScopes?.includes(scope))
+}
 
 export function conditionTypes() {
   return CONDITION_TYPES
@@ -297,8 +633,8 @@ export function conditionType(key: string) {
 }
 
 /** Registered conditions currently on the rule, in registry order. */
-export function activeConditionTypes(conditions: ProviderRoutingConditions) {
-  return CONDITION_TYPES.filter((type) => type.key in conditions)
+export function activeConditionTypes(conditions: ProviderRoutingConditions, scope: ConditionScope = "user") {
+  return typesForScope(scope).filter((type) => type.key in conditions)
 }
 
 /** First validation error among the registered conditions present on the rule, or null. */
@@ -320,8 +656,8 @@ export function pruneEmptyConditions(conditions: ProviderRoutingConditions): Pro
   return next
 }
 
-export function availableConditionTypes(conditions: ProviderRoutingConditions) {
-  return CONDITION_TYPES.filter((type) => !(type.key in conditions))
+export function availableConditionTypes(conditions: ProviderRoutingConditions, scope: ConditionScope = "user") {
+  return typesForScope(scope).filter((type) => !(type.key in conditions))
 }
 
 /** Unknown keys (budget is hidden entirely) that the UI cannot render; they are preserved on save. */

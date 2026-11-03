@@ -212,6 +212,12 @@ class ProviderRoutingRule < ApplicationRecord
     value.slice("start", "end").each do |key, time|
       errors.add(:conditions, :day_time_invalid, key: key) unless time.to_s.match?(/\A\d{2}:\d{2}\z/)
     end
+
+    # Times are compared as plain HH:MM strings, so an overnight window can never match.
+    start_time, end_time = value["start"].to_s, value["end"].to_s
+    if [ start_time, end_time ].all? { |time| time.match?(/\A\d{2}:\d{2}\z/) } && start_time > end_time
+      errors.add(:conditions, :day_time_start_after_end)
+    end
   end
 
   def validate_repository_condition

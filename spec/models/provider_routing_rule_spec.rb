@@ -136,6 +136,15 @@ RSpec.describe ProviderRoutingRule do
     expect(record.errors[:conditions]).to be_present
   end
 
+  it "rejects a day_time window whose start is after its end" do
+    overnight = rule(conditions: { "day_time" => { "start" => "22:00", "end" => "06:00" } })
+
+    expect(overnight).not_to be_valid
+    expect(overnight.errors.where(:conditions, :day_time_start_after_end)).to be_present
+    expect(rule(conditions: { "day_time" => { "start" => "09:00", "end" => "09:00" } })).to be_valid
+    expect(rule(conditions: { "day_time" => { "start" => "22:00" } })).to be_valid
+  end
+
   it "accepts structured conditions for workflow, budget, day, repository, and job metadata predicates" do
     record = rule(conditions: {
       workflow_trigger_kind: [ "initial" ],

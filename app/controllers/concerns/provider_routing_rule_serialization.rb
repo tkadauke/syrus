@@ -85,8 +85,22 @@ module ProviderRoutingRuleSerialization
 
   def provider_routing_options_json(user = Current.user)
     registry = provider_routing_registry_options_json
-    registry[:conditions] = registry[:conditions].merge(provider_usage: provider_routing_usage_json(user))
+    registry[:conditions] = registry[:conditions].merge(
+      provider_usage: provider_routing_usage_json(user),
+      job_kinds: Job::Kind.user_facing_values.map { |kind| provider_routing_option_json(kind, kind.humanize) },
+      repositories: provider_routing_repositories_json(user),
+      time_zone: Time.zone.name
+    )
     agent_provider_catalog_options(user).merge(registry)
+  end
+
+  # Repositories the user can see, for the repository condition picker.
+  def provider_routing_repositories_json(user)
+    return [] if user.blank?
+
+    Repository.accessible_to(user).active.order(:owner, :name).map do |repository|
+      { id: repository.id, owner: repository.owner, name: repository.name, slug: repository.slug }
+    end
   end
 
   # Current per-provider availability reading, so the usage condition editor can

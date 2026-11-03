@@ -113,6 +113,7 @@ en:
       usage_value_must_be_numeric: "usage %{key} must be numeric"
       day_time_unknown_days: "day_time days contain unknown values: %{values}"
       day_time_invalid: "day_time %{key} must be HH:MM"
+      day_time_start_after_end: "day_time start must not be after end (overnight windows cannot match); use two rules"
       repository_must_be_object: "repository must be an object"
       repository_ids_must_be_array: "repository ids must be an array"
       repository_names_must_be_array: "repository names must be an array"

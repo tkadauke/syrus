@@ -83,6 +83,7 @@ de:
       usage_value_must_be_numeric: "usage %{key} muss numerisch sein"
       day_time_unknown_days: "day_time days enthält unbekannte Werte: %{values}"
       day_time_invalid: "day_time %{key} muss im Format HH:MM sein"
+      day_time_start_after_end: "day_time start darf nicht nach end liegen (Zeitfenster über Mitternacht passen nie); nutze zwei Regeln"
       repository_must_be_object: "repository muss ein Objekt sein"
       repository_ids_must_be_array: "repository ids muss ein Array sein"
       repository_names_must_be_array: "repository names muss ein Array sein"

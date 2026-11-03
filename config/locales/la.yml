@@ -83,6 +83,7 @@ la:
       usage_value_must_be_numeric: "usage %{key} numerus esse debet"
       day_time_unknown_days: "day_time days valores ignotos continet: %{values}"
       day_time_invalid: "day_time %{key} formam HH:MM habere debet"
+      day_time_start_after_end: "day_time start non post end esse debet (spatia nocturna numquam congruunt); duas regulas utere"
       repository_must_be_object: "repository obiectum esse debet"
       repository_ids_must_be_array: "repository ids series esse debet"
       repository_names_must_be_array: "repository names series esse debet"
